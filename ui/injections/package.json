@@ -1,0 +1,27 @@
+{
+    "name": "@fedi/injections",
+    "version": "1.0.0",
+    "private": true,
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "webpack build --config ./webpack/webpack.injectables.config.js && webpack watch --config ./webpack/webpack.all.config.js",
+        "build": "rm -rf dist && webpack build --env prod  --config ./webpack/webpack.injectables.config.js && webpack build --env prod --config ./webpack/webpack.module.config.js",
+        "lint": "yarn run lint:tsc && yarn run lint:eslint",
+        "lint:tsc": "tsc --noEmit",
+        "lint:eslint": "eslint . --ext .ts",
+        "format": "prettier --write ."
+    },
+    "devDependencies": {
+        "@typescript-eslint/eslint-plugin": "^5.56.0",
+        "@typescript-eslint/parser": "^5.56.0",
+        "eslint": "^8.41.0",
+        "prettier": "^2.8.7",
+        "ts-loader": "^9.4.4",
+        "typescript": "^5.0.2",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
+    },
+    "dependencies": {
+        "webln": "^0.3.2"
+    }
+}

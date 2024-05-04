@@ -1,0 +1,18 @@
+[profile.default]
+# no matter the profile, we want to kill tests that hanged on something
+slow-timeout = { period = "60s", terminate-after = 8 }
+
+# define `dev` to allow running cargo and nextest with the same profile name
+# inherits default profile config
+[profile.dev]
+
+
+[profile.release]
+fail-fast = true
+failure-output = "immediate"
+slow-timeout = { period = "60s", terminate-after = 8 }
+
+[profile.ci]
+fail-fast = true
+failure-output = "immediate"
+slow-timeout = { period = "60s", terminate-after = 8 }

@@ -1,0 +1,6 @@
+framework module fediFFI {
+  umbrella header "fediFFI-umbrella.h"
+
+  export *
+  module * { export * }
+}

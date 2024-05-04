@@ -1,0 +1,18 @@
+[Error]
+enum FedimintError {
+  "OtherError",
+};
+
+namespace fedi {
+  [Async]
+  string fedimint_initialize(EventSink event_sink, string init_opts_json);
+
+  [Async]
+  string fedimint_rpc(string method, string payload);
+
+  sequence<string> fedimint_get_supported_events();
+};
+
+callback interface EventSink {
+  void event(string event_type, string body);
+};

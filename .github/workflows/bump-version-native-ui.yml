@@ -1,0 +1,38 @@
+name: Bump version - Native UI
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - 'release/**.**'
+            - '!release/**.**.**'
+        paths:
+            - 'bridge/**'
+            - 'ui/native/**'
+            - 'ui/common/**'
+            - '!ui/native/ios/**' # Don't run for changes in /ios folder
+jobs:
+    bump-version:
+        permissions:
+            contents: write
+            pull-requests: write
+        name: Update version to match release branch
+        runs-on: [self-hosted, linux]
+        if: contains(github.ref, 'release/')
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            - name: Install Nix
+              uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+
+            - name: Bump version
+              id: versioning
+              run: nix develop -c ./scripts/ui/bump-version-native.sh
+
+            - name: Open Versioning PR
+              run: |
+                  nix-shell -p gh --command "gh pr create --repo fedibtc/fedi --base master -H ${{ steps.versioning.outputs.BRANCH_NAME }} --title 'bump version: v${{ steps.versioning.outputs.NEW_VERSION }}' --body 'This PR includes a version bump commit from a release branch for v${{steps.versioning.outputs.NEW_VERSION}}'"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GH_PAT_FEDI_CI_CREATE_PRS }}

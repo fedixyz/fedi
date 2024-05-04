@@ -1,0 +1,9 @@
+[package]
+name = "fedi-db-dump"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+fedimint-core = { workspace = true }
+futures = { workspace = true }

@@ -1,0 +1,23 @@
+# OSX
+.DS_Store
+
+# bridge
+bridge/fedi-android/plugins/bin/
+
+# Rust
+/target
+/target/
+/target-nix
+/target-nix/
+/target-tidy
+/target-tidy/
+
+# Nix
+/result
+/.direnv
+
+# Vercel
+.vercel
+
+# FIXME don't merge this into master
+/ui/common/wasm/fedi_wasm*

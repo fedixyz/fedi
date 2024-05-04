@@ -1,0 +1,48 @@
+{
+    "project_info": {
+        "project_number": "1089468211130",
+        "project_id": "fedi-matrix-push-notifications",
+        "storage_bucket": "fedi-matrix-push-notifications.appspot.com"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:1089468211130:android:c803848e10ac59188d8783",
+                "android_client_info": {
+                    "package_name": "com.fedi"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCcYwoiCgoGO2OWr5AnmyHnyjarENE6EN8"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:1089468211130:android:c803848e10ac59188d8783",
+                "android_client_info": {
+                    "package_name": "com.fedi.nightly"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCcYwoiCgoGO2OWr5AnmyHnyjarENE6EN8"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

@@ -1,0 +1,41 @@
+name: Deploy to Google Play - Internal Testing
+on:
+    workflow_dispatch:
+    workflow_call:
+
+jobs:
+    release-android:
+        name: Build Android AAB & Upload to Google Play Dev Console
+        runs-on: [self-hosted, linux]
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            - uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Build bridge
+              run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
+
+            - name: Build UI dependencies
+              run: nix develop -c ./scripts/ui/build-deps.sh
+
+            - name: Generate release credentials
+              env:
+                  ANDROID_KEYSTORE_FILE_ENCODED: ${{ secrets.ANDROID_KEYSTORE_FILE_ENCODED }}
+                  ANDROID_KEYSTORE_PROPERTIES_ENCODED: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES_ENCODED }}
+                  PLAY_STORE_JSON_CREDENTIALS_ENCODED: ${{ secrets.PLAY_STORE_JSON_CREDENTIALS_ENCODED }}
+              run: nix develop -c ./scripts/ci/make-android-release-creds.sh
+
+            - name: Execute Fastlane command
+              env:
+                  # Consider: should we even have separate steps above for this?
+                  BUILD_BRIDGE: 0
+                  BUILD_UI_DEPS: 0
+              run: nix develop -c ./scripts/ui/deploy-to-google-play.sh

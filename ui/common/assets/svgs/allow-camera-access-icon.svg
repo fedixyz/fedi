@@ -1,0 +1,37 @@
+<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="44" cy="44" r="44" fill="white" stroke="white" stroke-opacity="0.01" />
+  <circle cx="44" cy="44" r="44" fill="url(#paint0_radial_4700_47986)" fill-opacity="0.3"
+    stroke="white" stroke-opacity="0.01" />
+  <g clip-path="url(#clip0_4700_47986)">
+    <path
+      d="M30.6666 35.6667V34.0001C30.6666 33.116 31.0178 32.2682 31.6429 31.6431C32.2681 31.0179 33.1159 30.6667 34 30.6667H37.3333"
+      stroke="currentColor" stroke-width="3.33333" stroke-linecap="round" stroke-linejoin="round" />
+    <path
+      d="M30.6666 52.3333V53.9999C30.6666 54.884 31.0178 55.7318 31.6429 56.3569C32.2681 56.9821 33.1159 57.3333 34 57.3333H37.3333"
+      stroke="currentColor" stroke-width="3.33333" stroke-linecap="round" stroke-linejoin="round" />
+    <path
+      d="M50.6666 30.6667H54C54.884 30.6667 55.7319 31.0179 56.357 31.6431C56.9821 32.2682 57.3333 33.116 57.3333 34.0001V35.6667"
+      stroke="currentColor" stroke-width="3.33333" stroke-linecap="round" stroke-linejoin="round" />
+    <path
+      d="M50.6666 57.3333H54C54.884 57.3333 55.7319 56.9821 56.357 56.3569C56.9821 55.7318 57.3333 54.884 57.3333 53.9999V52.3333"
+      stroke="currentColor" stroke-width="3.33333" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M32.3331 44H55.6665" stroke="currentColor" stroke-width="3.33333"
+      stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <defs>
+    <radialGradient id="paint0_radial_4700_47986" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(6.47778 21.2878) rotate(37.9958) scale(100.384 192.231)">
+      <stop offset="0.025951" stop-color="#E02020" stop-opacity="0.3" />
+      <stop offset="0.197364" stop-color="#F7B500" stop-opacity="0.3" />
+      <stop offset="0.33762" stop-color="#6DD400" stop-opacity="0.3" />
+      <stop offset="0.470811" stop-color="#0091FF" stop-opacity="0.3" />
+      <stop offset="0.591474" stop-color="#FA6400" stop-opacity="0.3" />
+      <stop offset="0.736251" stop-color="white" stop-opacity="0.1" />
+      <stop offset="0.840157" stop-color="#6236FF" stop-opacity="0.3" />
+      <stop offset="1" stop-color="#B620E0" stop-opacity="0.3" />
+    </radialGradient>
+    <clipPath id="clip0_4700_47986">
+      <rect width="40" height="40" fill="white" transform="translate(24 24)" />
+    </clipPath>
+  </defs>
+</svg>

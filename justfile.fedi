@@ -1,0 +1,140 @@
+
+# workaround: https://github.com/casey/just/issues/1669
+[private]
+default-fedi:
+  just default
+
+check-wasm:
+  nix develop -c cargo check --target wasm32-unknown-unknown --package fedi-wasm
+
+build-wasm:
+  ./scripts/build-wasm.sh
+
+build-wasm-release:
+  env CARGO_PROFILE=release just build-wasm
+
+install-wasm:
+  ./scripts/ui/install-wasm.sh
+
+install-wasm-release:
+  env CARGO_PROFILE=release just install-wasm
+
+build-wasm-nix:
+  # mostly for reference
+  nix build -L .#wasm32-unknown.ci.fedi-wasm-pack
+
+test-bridge-current testcase="":
+   ./scripts/test-bridge-current.sh "{{testcase}}"
+
+test-bridge-all testcase="":
+  ./scripts/test-bridge-all.sh "{{testcase}}"
+
+test-stability-pool:
+  ./scripts/test-stability-pool.sh
+
+# start mprocs with a dev federation setup
+mprocs:
+  ./scripts/mprocs.sh
+
+# build the bridge for ui/native (android + ios + typescript bindings)
+build-bridge:
+  ./scripts/bridge/build.sh
+
+# build only the android bridge artifacts for ui/native
+build-bridge-android:
+  ./scripts/bridge/build-bridge-android.sh
+
+# build only the ios bridge artifacts for ui/native
+build-bridge-ios:
+  # note: can't use --ignore-environment as it uses globally installed xcode
+  nix develop .#xcode --command ./scripts/bridge/build-bridge-ios.sh
+
+# install UI dependencies
+build-ui-deps:
+  nix develop --command ./scripts/ui/build-deps.sh
+
+# generates a standard production release APK for @fedi/native
+build-production-apk:
+  nix develop --command ./scripts/ui/build-production-apk.sh
+
+# Builds an APK for a variant of the android app (Fedi Nightly) meant for
+# nightly dev builds
+build-nightly-apk:
+  ./scripts/ui/build-nightly-apk.sh
+
+# generates a standard production release AAB for @fedi/native and uploads it to the Google Play Internal Testing track
+deploy-to-google-play:
+  nix develop --command ./scripts/ui/deploy-to-google-play.sh
+
+# generates an iOS application archive
+build-production-ipa:
+  nix develop .#xcode --command ./scripts/ui/build-production-ipa.sh
+
+# generates an iOS application archive (Fedi Nightly)
+build-nightly-ipa:
+  nix develop .#xcode --command ./scripts/ui/build-nightly-ipa.sh
+
+# generates a signed xcode release archive and uploads to testflight
+deploy-to-testflight:
+  nix develop .#xcode --command ./scripts/ui/deploy-to-testflight.sh
+
+# generates a signed xcode release archive and uploads to testflight (Fedi Nightly)
+deploy-to-testflight-nightly:
+  FLAVOR=nightly ./scripts/ui/deploy-to-testflight.sh
+
+# bumps the npm + react-native versions for @fedi/native
+bump-version-native-ui:
+  ./scripts/ui/bump-version-native.sh
+
+# generate typescript bindings for the bridge
+generate-bridge-bindings:
+  ./scripts/bridge/ts-bindgen.sh && pushd ./ui && yarn run lint --filter=common
+
+# start dev UI (native + pwa). Use `just run-dev-ui interactive` for build options
+run-dev-ui mode="default":
+  export MODE={{mode}} && ./scripts/ui/run-dev-ui.sh
+
+# installs the xcodes tool and installs a version of Xcode.app
+install-xcode:
+  ./scripts/install-xcode.sh
+
+pod-install:
+  nix develop .#xcode --command ./scripts/ui/install-ios-deps.sh
+
+clear-remote-bridge:
+  # wipe remove bridge datadir
+  rm -rf target/datadir
+  # clear android app state
+  adb shell pm clear com.fedi
+
+# run linter on UI code
+lint-ui:
+  pushd ./ui && yarn lint && popd
+
+# run UI tests
+test-ui:
+  pushd ./ui && yarn test && popd
+
+fedimint-cli REF REV *ARGS:
+  @nix run "git+https://github.com/fedimint/fedimint.git?ref={{REF}}&rev={{REV}}#ci.fedimint-cli" -- {{ARGS}}
+
+fedimint-cli-v0_2_1 *ARGS:
+  @just fedimint-cli "refs/tags/v0.2.1" a8422b84102ab5fc768307215d5b20d807143f27 {{ARGS}}
+
+fedimint-cli-v0_2_2-rc7 *ARGS:
+  @just fedimint-cli "refs/tags/v0.2.2-rc7" 989282cb118c25f6f6dce62d0727f61cfd6ec3d9 {{ARGS}}
+
+fedimint-cli-v0_2_2-rc8 *ARGS:
+  @just fedimint-cli "refs/tags/v0.2.2-rc8" d3e154ef0ea2fde064d6f3c3d40b9800c9a9a3ce {{ARGS}}
+
+fedi-fedimint-cli-v0_2_2-rc8 *ARGS:
+  @just fedi-fedimint-cli "deployments/v0.2.2-rc8" 719a96d26e67f39d00ca37c1c160b0556ae20622 {{ARGS}}
+
+fedi-fedimint-cli-master *ARGS:
+  @just fedi-fedimint-cli "master" 38447bb77b28c95874fcb03d6e66dc2f357c1953 {{ARGS}}
+
+tidy-up:
+  @./scripts/tidy-up.sh
+
+prefetch REMOTE="upstream" BRANCH="master":
+  @./scripts/prefetch.sh "{{REMOTE}}" "{{BRANCH}}"

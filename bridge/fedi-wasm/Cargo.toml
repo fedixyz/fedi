@@ -1,0 +1,30 @@
+[package]
+name = "fedi-wasm"
+version = "0.3.0"
+edition = "2021"
+resolver = "2"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+console_error_panic_hook = "0.1.7"
+fedi-ffi = { version = "0.3.0", path = "../fedi-ffi" }
+futures = { workspace = true }
+gloo-file = "0.2.3"
+imbl = "2.0.0"
+js-sys = "0.3.61"
+rexie = "0.4.2"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["time", "macros"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
+tracing-wasm = "0.2.1"
+wasm-bindgen = "=0.2.92"
+wasm-bindgen-futures = "0.4.34"
+wasm-bindgen-test = "0.3.34"
+
+fedimint-core = { workspace = true }

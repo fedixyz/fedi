@@ -1,0 +1,31 @@
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#codeowners-syntax
+#
+# TLDR:
+#
+# * last matching line wins (so order from most general to most specific)
+# * multiple elements on the same line means "OR"
+
+# default: unless more specific rule is found, these will be the reviewers assigned
+# this will be a chore for people here, but guarantees that *someone* gets to look
+# at every PR (they can unassign and unsubscribe themselves after taking an initial look)
+
+# TODO: should we have a team like this?
+# * @fedibtc/firehose
+
+
+*.nix     @fedibtc/build-system
+*.sh      @fedibtc/build-system
+.github/  @fedibtc/build-system
+misc/     @fedibtc/build-system
+scripts/  @fedibtc/build-system
+
+
+bridge/              @fedibtc/bridge
+bridge/fedi-wasm/    @fedibtc/wasm
+ui/                  @fedibtc/ui
+stability-pool/      @fedibtc/stability-pool
+fedimintd/           @fedibtc/fedimint
+fedimint-cli/        @fedibtc/fedimint
+fedi-social-common/  @fedibtc/fedimint
+fedi-social-client/  @fedibtc/fedimint
+fedi-social-server/  @fedibtc/fedimint

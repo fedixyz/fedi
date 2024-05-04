@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+test_name="$1"
+shift 1
+
+if [ -z "$test_name" ]; then
+    >&2 "error: no test name"
+    exit 1
+fi
+
+version_str="${FM_RUN_TEST_VERSIONS:+ ($FM_RUN_TEST_VERSIONS)}"
+test_out_path="$(mktemp --tmpdir fm-XXXXX)"
+time_out_path="$(mktemp --tmpdir fm-XXXXX)"
+time_fmt='%e\t%M\t%w\t%c'
+
+export FM_TEST_NAME="$test_name"
+TMPDIR="$(mktemp -d --tmpdir "${FM_TEST_NAME}-XXXX")"
+FM_RUN_TEST_TMPDIR="$TMPDIR"
+
+echo "## RUN:  $test_name$version_str"
+
+on_error() {
+  echo "## OUT:  $test_name$version_str"
+  cat "$test_out_path"
+  echo "## FAIL: $test_name$version_str"
+}
+
+on_exit() {
+    exit_status=$?
+    if [ $exit_status -eq 0 ]; then
+        # if successful, don't waste space keeping the test dir
+        rm -Rf "$FM_RUN_TEST_TMPDIR"
+    fi
+}
+trap on_error ERR
+trap on_exit EXIT
+
+command time -q --format="$time_fmt" -o "$time_out_path" "$@" 2>&1 | ts -s > "$test_out_path"
+
+awk 'BEGIN {FS="\t"} {printf "## STAT: %8.2fs %8dB %8dW %8dc\n", $1, $2, $3, $4}' < "$time_out_path"
+echo "## DONE: $test_name$version_str"

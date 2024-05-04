@@ -1,0 +1,13 @@
+[package]
+name = "devi"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+devimint = { workspace = true }
+fedi-core = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }

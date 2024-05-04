@@ -1,0 +1,22 @@
+server: 127.0.0.1:4051
+procs:
+    dev:
+        shell: bash scripts/ui/dev-ui-utils.sh
+        stop: SIGKILL
+    metro:
+        shell: bash scripts/ui/start-metro.sh
+        stop: SIGKILL
+    ui-deps:
+        shell: bash scripts/ui/start-ui-deps.sh
+        stop: SIGKILL
+    pwa:
+        shell: bash scripts/ui/start-pwa.sh
+        stop: SIGKILL
+    android:
+        shell: bash scripts/ui/start-android.sh
+        stop: SIGKILL
+    ios:
+        shell: bash scripts/ui/start-ios.sh
+        stop: SIGKILL
+    remote-bridge:
+        shell: bash scripts/bridge/run-remote.sh

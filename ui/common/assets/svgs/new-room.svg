@@ -1,0 +1,31 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="24" cy="24" r="24" transform="rotate(-180 24 24)" fill="white" stroke="white"
+    stroke-opacity="0.01" />
+  <circle cx="24" cy="24" r="24" transform="rotate(-180 24 24)"
+    fill="url(#paint0_radial_7776_26491)" fill-opacity="0.6" stroke="white" stroke-opacity="0.01" />
+  <g clip-path="url(#clip0_7776_26491)">
+    <path d="M26 24V24.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round" />
+    <path d="M15 33H33" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round" />
+    <path
+      d="M18 33V17C18 16.4696 18.2107 15.9609 18.5858 15.5858C18.9609 15.2107 19.4696 15 20 15H28C28.5304 15 29.0391 15.2107 29.4142 15.5858C29.7893 15.9609 30 16.4696 30 17V33"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <defs>
+    <radialGradient id="paint0_radial_7776_26491" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(3.53334 11.6115) rotate(37.9958) scale(54.755 104.853)">
+      <stop offset="0.025951" stop-color="#E02020" stop-opacity="0.3" />
+      <stop offset="0.197364" stop-color="#F7B500" stop-opacity="0.3" />
+      <stop offset="0.33762" stop-color="#6DD400" stop-opacity="0.3" />
+      <stop offset="0.470811" stop-color="#0091FF" stop-opacity="0.3" />
+      <stop offset="0.591474" stop-color="#FA6400" stop-opacity="0.3" />
+      <stop offset="0.736251" stop-color="white" stop-opacity="0.1" />
+      <stop offset="0.840157" stop-color="#6236FF" stop-opacity="0.3" />
+      <stop offset="1" stop-color="#B620E0" stop-opacity="0.3" />
+    </radialGradient>
+    <clipPath id="clip0_7776_26491">
+      <rect width="24" height="24" fill="white" transform="translate(12 12)" />
+    </clipPath>
+  </defs>
+</svg>

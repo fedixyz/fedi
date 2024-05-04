@@ -1,0 +1,388 @@
+name: 'Nix'
+
+# Controls when the workflow will run
+on:
+    # Triggers the workflow on push or pull request events but only for the "main" branch
+    push:
+        branches: ['main', 'master', 'devel']
+        paths-ignore:
+            - 'ui/**'
+
+        tags:
+        - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+    pull_request: {}
+
+    # Allows you to run this workflow manually from the Actions tab
+    workflow_dispatch:
+
+# https://stackoverflow.com/questions/66335225/how-to-cancel-previous-runs-in-the-pr-when-you-push-new-commitsupdate-the-curre
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+    precheck:
+        name: 'Check for non-UI file changes'
+        runs-on: [self-hosted, linux]
+        outputs:
+            IS_PUSH_TO_MASTER: ${{ steps.check-event.outputs.IS_PUSH_TO_MASTER }}
+            IS_PUSH_TO_TAG: ${{ steps.check-event.outputs.IS_PUSH_TO_TAG }}
+            HAS_NON_UI_CHANGES: ${{ steps.check-changes.outputs.HAS_NON_UI_CHANGES }}
+        steps:
+            - name: Determine event type
+              id: check-event
+              run: |
+                  IS_PUSH_TO_MASTER=0
+                  if [[ "${{ github.event_name }}" == 'push' && \
+                      "${{ github.ref }}" == 'refs/heads/master' ]]; then
+                    IS_PUSH_TO_MASTER=1
+                  fi
+                  echo "IS_PUSH_TO_MASTER=$IS_PUSH_TO_MASTER" >> $GITHUB_OUTPUT
+                  IS_PUSH_TO_TAG=0
+                  if [[ "${{ github.ref_type }}" == 'tag' ]]; then
+                    IS_PUSH_TO_TAG=1
+                  fi
+                  echo "IS_PUSH_TO_TAG=$IS_PUSH_TO_TAG" >> $GITHUB_OUTPUT
+            - name: Check out code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 20
+            - name: Check for changes outside 'ui/**'
+              if: github.event_name == 'pull_request'
+              id: check-changes
+              run: |
+                  set -x
+                  git fetch --depth=20 origin ${{ github.event.pull_request.base.sha }}
+                  LAST_COMMON_COMMIT_SHA="$(git merge-base HEAD ${{ github.event.pull_request.base.sha }})"
+                  FILES_CHANGED=$(git diff --name-only HEAD $LAST_COMMON_COMMIT_SHA)
+                  HAS_NON_UI_CHANGES=0
+                  for file in $FILES_CHANGED; do
+                    if [[ ! $file == ui/* ]]; then
+                      HAS_NON_UI_CHANGES=1
+                      break
+                    fi
+                  done
+                  echo "HAS_NON_UI_CHANGES=$HAS_NON_UI_CHANGES" >> $GITHUB_OUTPUT
+
+    lint:
+        name: 'Lint'
+        needs: precheck
+        if: >
+            needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_MASTER == '1'
+        runs-on: [self-hosted, linux]
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+            - uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+              continue-on-error: true
+
+            # run the same check that git `pre-commit` hook would, just in case
+            - name: Commit check
+              run: nix develop --ignore-environment .#lint --command ./misc/git-hooks/pre-commit
+
+    # all the derivations that are based on the whole workspace
+    build-workspace:
+        strategy:
+          matrix:
+            host:
+              - linux
+              - macos
+            include:
+              - host: linux
+                runs-on: [self-hosted, linux]
+                run-tests: true
+                build-wasm: true
+              - host: macos
+                runs-on: [self-hosted, macos, arm64]
+                run-tests: false
+
+        name: "Build workspace on ${{ matrix.host }}"
+        runs-on: ${{ matrix.runs-on }}
+        timeout-minutes: 30
+        needs: precheck
+        if: >
+            needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_MASTER == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_TAG == '1'
+        steps:
+            - uses: actions/checkout@v4
+            - uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Clippy
+              run: nix build -L .#ci.workspaceClippy
+
+            - name: Tests
+              timeout-minutes: 10
+              if: matrix.run-tests
+              run: nix build -L .#ci.testCiAll
+
+            - name: Build wasm
+              timeout-minutes: 10
+              if: matrix.build-wasm
+              run: nix build -L .#wasm32-unknown.ci.fedi-wasm-pack
+
+            - name: Cleanup build folder
+              run: |
+                pwd
+                rm -Rf "$(pwd)"
+                mkdir -p "$(pwd)"
+
+    build-linux:
+        name: 'Build - linux'
+        needs: precheck
+        if: >
+            needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_MASTER == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_TAG == '1'
+        runs-on: [self-hosted, linux]
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@v4
+            - uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Build fedi-fedimint-pkgs
+              run: nix build -L .#ci.fedi-fedimint-pkgs
+
+            - name: Build fedi-fedimintd
+              run: nix build -L .#ci.fedi-fedimintd
+
+            - name: Build fedi-fedimint-cli
+              run: nix build -L .#ci.fedi-fedimint-cli
+
+            - name: Build fedi-wasm
+              run: nix build -L .#wasm32-unknown.ci.fedi-wasm
+
+            - name: Build gateway-pkgs
+              run: nix build -L .#gateway-pkgs
+
+            - name: Build gatewayd
+              run: nix build -L .#gatewayd
+
+            - name: Build gateway-cli
+              run: nix build -L .#gateway-cli
+
+            - name: Build fedimint-dbtool
+              run: nix build -L .#fedimint-dbtool
+
+    # Since cargo-udeps supports only `test` profile and thus can't re-use any
+    # other derivations, we can start it in separate workflow
+    udeps:
+        name: 'cargo-udeps'
+        needs: precheck
+        if: >
+            needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_MASTER == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_TAG == '1'
+        runs-on: [self-hosted, linux]
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@v4
+            - uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Udeps
+              run: nix build -L .#test.workspaceCargoUdeps
+
+    build-android:
+        name: 'Build - android'
+        needs: precheck
+        if: >
+            needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_MASTER == '1'
+        runs-on: [self-hosted, linux]
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@v4
+            - uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Build Android bridge artifacts
+              run: nix develop --ignore-environment --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
+
+    build-ios:
+        name: 'Build - macos'
+        needs: precheck
+        if: >
+            needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+            needs.precheck.outputs.IS_PUSH_TO_MASTER == '1'
+        runs-on: [self-hosted, macos, arm64]
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@v4
+            - uses: cachix/install-nix-action@v26
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+              continue-on-error: true
+
+            - name: Build iOS bridge artifacts
+              # note: can't use --ignore-environment as it uses globally installed xcode
+              run: nix develop .#xcode --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/build-bridge-ios.sh
+
+    shell:
+        strategy:
+            matrix:
+                host:
+                    - linux
+                    - macos-arm64
+                include:
+                    - on: linux
+                      runs-on: [self-hosted, linux]
+                      build-in-pr: true
+                      timeout: 30
+                      system: x86_64-linux
+                    - host: macos-arm64
+                      runs-on: [self-hosted, macos, arm64]
+                      os: macOS
+                      build-in-pr: true
+                      timeout: 45
+                      system: aarch64-darwin
+
+        name: 'Dev shells - ${{ matrix.host }}'
+        runs-on: ${{ matrix.runs-on }}
+        timeout-minutes: ${{ matrix.timeout }}
+
+        steps:
+            - uses: actions/checkout@v4
+              if: github.ref == 'refs/heads/master' || matrix.build-in-pr
+
+            - uses: cachix/install-nix-action@v26
+              if: github.ref == 'refs/heads/master' || matrix.build-in-pr
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+
+            - uses: cachix/cachix-action@v15
+              if: github.ref == 'refs/heads/master' || matrix.build-in-pr
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+              continue-on-error: true
+
+            - name: Dev shell
+              if: (github.ref == 'refs/heads/master' || matrix.build-in-pr)
+              run: nix build -L .#devShells.${{ matrix.system }}.default
+
+
+    containers:
+      name: "Containers"
+      needs: precheck
+      if: >
+          needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
+          needs.precheck.outputs.IS_PUSH_TO_MASTER == '1' ||
+          needs.precheck.outputs.IS_PUSH_TO_TAG == '1'
+      runs-on: [self-hosted, linux]
+      timeout-minutes: 30
+      steps:
+        - name: Checkout Code
+          uses: actions/checkout@v4
+        - name: Prepare
+          uses: ./.github/actions/prepare
+        - uses: actions/checkout@v4
+        - uses: cachix/install-nix-action@v26
+          with:
+            nix_path: nixpkgs=channel:nixos-23.11
+            extra_nix_config: |
+              connect-timeout = 15
+              stalled-download-timeout = 15
+        - uses: cachix/cachix-action@v15
+          with:
+            name: fedibtc
+            authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          continue-on-error: true
+
+        - name: Clean up old images
+          run: |
+            docker image prune -a --filter "until=24h" -f
+
+        - name: Build fedi-fedimintd container
+          run: |
+            if [ "$GITHUB_EVENT_NAME" == "pull_request" ] || [ "$GITHUB_EVENT_NAME" == "merge_group" ]; then
+              nix build -L .#ci.container.fedi-fedimintd
+            else
+              nix build -L .#container.fedi-fedimintd
+            fi
+            echo "fedi_fedimintd_container_tag=$(docker load < result | awk '{ print $3 }')" >> $GITHUB_ENV
+
+        - name: Build fedi-fedimint-cli container
+          run: |
+            if [ "$GITHUB_EVENT_NAME" == "pull_request" ] || [ "$GITHUB_EVENT_NAME" == "merge_group" ]; then
+              nix build -L .#ci.container.fedi-fedimint-cli
+            else
+              nix build -L .#container.fedi-fedimint-cli
+            fi
+            echo "fedi_fedimint_cli_container_tag=$(docker load < result | awk '{ print $3 }')" >> $GITHUB_ENV
+
+
+        - name: Login to Docker Hub
+          if: github.ref == 'refs/heads/master' || github.ref_type == 'tag'
+          uses: docker/login-action@v3
+          with:
+            username: dawidfedi
+            password: ${{ secrets.DOCKER_HUB_DAWIDFEDI_ACCESS_TOKEN }}
+
+        - name: Publish
+          if: github.ref == 'refs/heads/master'
+          run: |
+            nix_tag=${{ env.fedi_fedimintd_container_tag }} && hub_tag="fedibtc/fedi-fedimintd:${LAST_COMMIT_SHA}" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
+            nix_tag=${{ env.fedi_fedimint_cli_container_tag }} && hub_tag="fedibtc/fedi-fedimint-cli:${LAST_COMMIT_SHA}" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
+
+        - name: Publish master tag
+          if: github.ref == 'refs/heads/master'
+          run: |
+            nix_tag=${{ env.fedi_fedimintd_container_tag }} && hub_tag="fedibtc/fedi-fedimintd:master" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
+            nix_tag=${{ env.fedi_fedimint_cli_container_tag }} && hub_tag="fedibtc/fedi-fedimint-cli:master" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
+
+        - name: Publish tagged release
+          if: github.ref_type == 'tag'
+          run: |
+            nix_tag=${{ env.fedi_fedimintd_container_tag }} && hub_tag="fedibtc/fedi-fedimintd:${GITHUB_REF_NAME}" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
+            nix_tag=${{ env.fedi_fedimint_cli_container_tag }} && hub_tag="fedibtc/fedi-fedimint-cli:${GITHUB_REF_NAME}" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
+
+    status:
+      name: Status
+      needs: [lint, build-workspace, build-linux, build-android, build-ios, shell]
+      if: ${{ always() }}
+      runs-on: [self-hosted, linux]
+      steps:
+        - name: Check status of all jobs
+          if: >-
+            ${{
+              contains(needs.*.result, 'failure') ||
+              contains(needs.*.result, 'cancelled')
+            }}
+          run: exit 1

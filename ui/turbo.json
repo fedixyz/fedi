@@ -1,0 +1,35 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "pipeline": {
+        "build": {},
+        "@fedi/common#build": {
+            "outputs": ["dist/**"]
+        },
+        "@fedi/injections#build": {
+            "outputs": ["dist/**"]
+        },
+        "@fedi/web#build": {
+            "dependsOn": ["^build"],
+            "outputs": [".next/**", "!.next/cache/**"]
+        },
+        "test": {},
+        "lint": {},
+        "@fedi/native#lint": {
+            "dependsOn": ["@fedi/common#build", "@fedi/injections#build"]
+        },
+        "@fedi/web#lint": {
+            "dependsOn": ["@fedi/common#build"]
+        },
+        "format": {},
+        "dev": {
+            "cache": false,
+            "persistent": true
+        },
+        "@fedi/common#dev": {
+            "dependsOn": ["^build"]
+        },
+        "@fedi/native#dev": {
+            "dependsOn": ["@fedi/common#build", "@fedi/injections#build"]
+        }
+    }
+}

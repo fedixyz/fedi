@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Fedi</string>
+    <string name="icon_name">Fedi Icon</string>
+    <string name="gradient_background">Gradient Background</string>
+</resources>
