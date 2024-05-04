@@ -1,0 +1,145 @@
+cargo-features = ["trim-paths"]
+
+[workspace]
+members = [
+    "fedimintd",
+    "fedimint-cli",
+    "fedi-social-common",
+    "fedi-social-server",
+    "fedi-social-client",
+    "bridge/fedi-ffi",
+    "bridge/ffi-bindgen",
+    "bridge/fedi-wasm",
+    "bridge/fedi-rpc-server",
+    "stability-pool/stability-pool-client",
+    "stability-pool/stability-pool-common",
+    "stability-pool/stability-pool-server",
+    "stability-pool/stability-pool-tests",
+    "fedi-db-dump",
+    "devi",
+]
+default-members = [
+    "fedimintd",
+    "fedimint-cli",
+    "fedi-social-common",
+    "fedi-social-server",
+    "fedi-social-client",
+    "bridge/fedi-ffi",
+    "bridge/ffi-bindgen",
+    "stability-pool/stability-pool-client",
+    "stability-pool/stability-pool-common",
+    "stability-pool/stability-pool-server",
+    "stability-pool/stability-pool-tests",
+    "devi",
+]
+resolver = "2"
+
+[profile.release]
+trim-paths = "all"
+lto = "fat"
+codegen-units = 1
+# we need debug symbols for debugging panics and such, at least on the backend
+# if don't need them *somewhere*, we should manually call `strip` after the binary
+# is built
+debug = "line-tables-only"
+strip = false
+
+[workspace.metadata]
+authors = ["The Fedi Developers"]
+edition = "2021"
+description = "Fedi"
+documentation = "https://github.com/fedibtc/fedimintd-fedi"
+readme = "README.md"
+homepage = "https://fedi.xyz"
+repository = "https://github.com/fedibtc/fedimintd-fedi"
+license-file = "LICENSE"
+keywords = ["bitcoin", "lightning", "chaumian", "e-cash", "federated"]
+
+[workspace.dependencies]
+fedimint_threshold_crypto = { version = "0.1", package = "fedimint-threshold-crypto" }
+
+fedimintd = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-cli = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-build = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-core = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-server = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-client = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-derive-secret = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-mint-client = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-wallet-client = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-ln-client = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-ln-common = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-client-legacy = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-aead = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-rocksdb = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-bip39 = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+fedimint-logging = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+devimint = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+ln-gateway = { git = "https://x-access-token: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@github.com/fedibtc/fedimint-fedi", tag = "ad/v0.3.0-rc.3-fedi1" }
+
+# Uncomment these to use local fedimint v2
+# fedimintd = { path = "../fedimint/fedimintd" }
+# fedimint-cli = { path = "../fedimint/fedimint-cli" }
+# fedimint-build = { path = "../fedimint/fedimint-build" }
+# fedimint-core = { path = "../fedimint/fedimint-core" }
+# fedimint-server = { path = "../fedimint/fedimint-server" }
+# fedimint-client = { path = "../fedimint/fedimint-client" }
+# fedimint-derive-secret = { path = "../fedimint/crypto/derive-secret" }
+# fedimint-mint-client = { path = "../fedimint/modules/fedimint-mint-client" }
+# fedimint-wallet-client = { path = "../fedimint/modules/fedimint-wallet-client" }
+# fedimint-ln-client = { path = "../fedimint/modules/fedimint-ln-client" }
+# fedimint-ln-common = { path = "../fedimint/modules/fedimint-ln-common" }
+# fedimint-client-legacy = { path = "../fedimint/fedimint-client-legacy" }
+# fedimint-aead = { path = "../fedimint/crypto/aead" }
+# fedimint-rocksdb = { path = "../fedimint/fedimint-rocksdb" }
+# fedimint-bip39 = { path = "../fedimint/fedimint-bip39" }
+# fedimint-logging = { path = "../fedimint/fedimint-logging" }
+# devimint = { path = "../fedimint/devimint" }
+# ln-gateway = { path = "../fedimint/gateway/ln-gateway" }
+
+[profile.dev]
+debug = "line-tables-only"
+trim-paths = "object"
+
+# in dev mode optimize crates that are perf-critical (usually just crypto crates)
+[profile.dev.package]
+secp256k1 = { opt-level = 3 }
+secp256k1-zkp = { opt-level = 3 }
+secp256k1-sys = { opt-level = 3 }
+secp256k1-zkp-sys = { opt-level = 3 }
+bitcoin_hashes = { opt-level = 3 }
+ff = { opt-level = 3 }
+group = { opt-level = 3 }
+pairing = { opt-level = 3 }
+rand_core = { opt-level = 3 }
+byteorder = { opt-level = 3 }
+zeroize = { opt-level = 3 }
+bls12_381 = { opt-level = 3 }
+subtle = { opt-level = 3 }
+ring = { opt-level = 3 }
+fedimint-threshold-crypto = { opt-level = 3 }
+
+# ios gets its own profile since it crashes on opt-level 0
+[profile.dev-ios]
+inherits = "dev"
+opt-level = 1
+
+[profile.ci]
+inherits = "dev"
+debug = "line-tables-only"
+incremental = false
+
+# Workaround: https://github.com/rust-lang/cargo/issues/12457 which causes
+#             https://github.com/ipetkov/crane/issues/370
+[profile.dev.build-override]
+debug = false
+[profile.ci.build-override]
+debug = false
+[profile.release.build-override]
+debug = false
+
+[patch.crates-io]
+secp256k1-zkp = { git = "https://github.com/dpc/rust-secp256k1-zkp/", branch = "sanket-pr" }
+ring = { git = "https://github.com/dpc/ring", rev = "5493e7e76d0d8fb1d3cbb0be9c4944700741b802" }
+# https://github.com/mozilla/uniffi-rs/issues/1938
+uniffi = { git = "https://github.com/mozilla/uniffi-rs", rev = "f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8" }

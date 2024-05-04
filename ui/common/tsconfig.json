@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "strict": true,
+        "module": "CommonJS",
+        "skipLibCheck": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "isolatedModules": true,
+        "incremental": true,
+        "composite": true,
+        "outDir": "dist",
+        "resolveJsonModule": true,
+        "jsx": "preserve",
+        "typeRoots": [
+            "typings/",
+            "node_modules/@types/",
+            "../node_modules/@types/"
+        ]
+    },
+    "include": ["./**/*.tsx", "./**/*.ts", "./**/*.json"],
+    "exclude": ["node_modules", "dist"]
+}

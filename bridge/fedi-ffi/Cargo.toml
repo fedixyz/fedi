@@ -1,0 +1,96 @@
+[package]
+name = "fedi-ffi"
+version = "0.3.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+name = "fediffi"
+
+[dependencies]
+fedi-api-types = { git = "https://x-access-token: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@github.com/fedibtc/devops-automation", rev = "64c5a7b6bffacf4fb2d62b8e0a4ac59900068bf7" }
+
+fedimint-core = { workspace = true }
+fedimint-client = { workspace = true }
+fedimint-mint-client = { workspace = true }
+fedimint-ln-client = { workspace = true }
+fedimint-ln-common = { workspace = true }
+fedimint-wallet-client = { workspace = true }
+fedi-social-client = { path = "../../fedi-social-client" }
+stability-pool-client = { path = "../../stability-pool/stability-pool-client" }
+fedi-db-dump = { path = "../../fedi-db-dump" }
+fedimint-derive-secret = { workspace = true }
+fedimint-logging = { workspace = true }
+fedimint-bip39 = { workspace = true }
+fedimint_threshold_crypto = { workspace = true }
+fedimint-aead = { workspace = true }
+
+anyhow = "1"
+bip39 = { version = "2.0.0", features = ["rand"] }
+serde = { version = "1.0.142", features = ["derive"] }
+serde_json = "1.0.79"
+rand = "0.8"
+bitcoin = "0.29.2"
+lazy_static = "1.4.0"
+lightning-invoice = "0.26.0"
+futures = "0.3"
+tracing = "0.1.26"
+tracing-serde = "0.1.3"
+thiserror = "1.0.37"
+hex = "0.4.3"
+macro_rules_attribute = "0.1.3"
+mime = "0.3.17"
+ts-rs = { git = "https://github.com/maan2003/ts-rs", branch = "fix-allow-rename-all-unit-structs" }
+async-trait = "0.1.64"
+base64 = "0.20.0"
+tokio = { version = "1.0", features = ["time", "macros"] }
+url = "2.3.1"
+reqwest = { version = "0.11.14", features = [ "json", "rustls-tls" ], default-features = false }
+ring = "0.17.5"
+rolling-file = "0.2.0"
+tracing-appender = "0.2.2"
+matrix-sdk-ui = { version = "0.7.0", git = "https://github.com/maan2003/matrix-rust-sdk", branch = "hacks", default-features = false, features = [
+    "e2e-encryption",
+] }
+matrix-sdk = { version = "0.7.1", git = "https://github.com/maan2003/matrix-rust-sdk", branch = "hacks", default-features = false, features = [
+    "js",
+    "indexeddb",
+    "rustls-tls",
+    "e2e-encryption",
+] }
+imbl = { version = "2.0.3", features = ["serde"] }
+serde_with = "3.6.0"
+eyeball-im = "0.4.2"
+tempfile = "3.3.0"
+slab = "0.4.9"
+eyeball = "0.8.7"
+async-recursion = "1.1.0"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+ring = { version = "0.17.5", features = ["wasm32_unknown_unknown_js"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+fedimint-rocksdb = { workspace = true }
+tokio-util = { version = "0.7.9", features = ["codec", "net"] }
+tracing-subscriber = { version = "0.3.1", features = ["env-filter", "json"] }
+uniffi = { version = "0.25.3" }
+matrix-sdk = { version = "0.7.1", git = "https://github.com/maan2003/matrix-rust-sdk", branch = "hacks", default-features = false, features = [
+    "sqlite",
+] }
+rusqlite = { version = "*", features = ["bundled"] }
+
+[build-dependencies]
+uniffi = { version = "0.25.3", features = ["build"] }
+fedimint-build = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.3.0"
+
+# FIXME: just put these above? or dev-dependencies
+[target.'cfg(target_os = "macos")'.dependencies]
+fedimint-logging = { workspace = true }
+devimint = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fedimint-logging = { workspace = true }
+devimint = { workspace = true }

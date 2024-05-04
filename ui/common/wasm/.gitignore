@@ -1,0 +1,6 @@
+*
+
+!./README.md
+!./.gitignore
+!./bridge.js
+!./index.ts

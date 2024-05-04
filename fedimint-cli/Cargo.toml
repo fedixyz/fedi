@@ -1,0 +1,22 @@
+[package]
+name = "fedi-fedimint-cli"
+version = "0.3.0"
+authors = ["The Fedi Developers"]
+edition = "2021"
+description = "fedimintd with custom fedi modules"
+
+[[bin]]
+name = "fedimint-cli"
+path = "src/main.rs"
+
+
+[dependencies]
+anyhow = "1.0.66"
+fedimint-cli = { workspace = true}
+tokio = { version = "1.25.0", features = ["full", "tracing"] }
+stability-pool-client = { path = "../stability-pool/stability-pool-client" }
+fedi-social-client = { path = "../fedi-social-client" }
+clap = { version = "4.1.6", features = ["derive", "std", "help", "usage", "error-context", "suggestions" ], default-features = false }
+
+[build-dependencies]
+fedimint-build = { workspace = true }

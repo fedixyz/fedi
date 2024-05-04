@@ -1,0 +1,164 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Push a new beta build to TestFlight from CI"
+  lane :beta_ci do
+    setup_ci
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.alpha',
+      generate_apple_certs: false,
+      force: false,
+      verbose: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+    # these steps are the same as standard beta lane
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediReactNative",
+      verbose: true,
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.alpha" => "match AppStore org.fedi.alpha"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+  
+  desc "Push a new beta build to TestFlight"
+  lane :beta do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediReactNative",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.alpha" => "match AppStore org.fedi.alpha"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+  
+  desc "Create a release build"
+  lane :build do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediReactNative",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.alpha" => "match AppStore org.fedi.alpha"
+        }
+      }
+    )
+  end
+  
+  desc "Create a release build (Fedi Nightly)"
+  lane :build_nightly do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediNightly",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.nightly" => "match AppStore org.fedi.nightly"
+        }
+      }
+    )
+  end
+
+  desc "Push a new beta build to TestFlight from CI (Fedi Nightly)"
+  lane :beta_ci_nightly do
+    setup_ci
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.nightly',
+      generate_apple_certs: false,
+      force: false,
+      verbose: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+    # these steps are the same as standard beta lane
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediNightly",
+      verbose: true,
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.nightly" => "match AppStore org.fedi.nightly"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+  
+  desc "Push a new beta build to TestFlight (Fedi Nightly)"
+  lane :beta_nightly do
+    build_app(
+      workspace: "FediReactNative.xcworkspace",
+      scheme: "FediNightly",
+      export_options: {
+        provisioningProfiles: {
+          "org.fedi.nightly" => "match AppStore org.fedi.nightly"
+        }
+      }
+    )
+    changelog_from_git_commits
+    upload_to_testflight(
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  # Run this on a new device that needs to create signed releases
+  # Existing certificates will automatically be downloaded from Github
+  desc "Check for signing certificates"
+  lane :check_appstore_certs do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.alpha',
+      generate_apple_certs: false,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  desc "Check for signing certificates (Fedi Nightly)"
+  lane :check_appstore_certs_nightly do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.nightly',
+      generate_apple_certs: false,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+end

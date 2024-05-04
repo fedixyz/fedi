@@ -1,0 +1,72 @@
+rules:
+
+- id: ban-system-time-now
+  languages:
+    - rust
+  message: Use fedimint_core::time::now instead of std::time::SystemTime::now for better wasm compatibility.
+  pattern: std::time::SystemTime::now
+  paths:
+    exclude:
+      # doesn't run in wasm
+      - devi/
+
+  severity: WARNING
+
+- id: ban-instant-now
+  languages:
+    - rust
+  message: Use fedimint_core::time::now instead of Instant::now for better wasm compatibility. ATM. there's no good Instant replacement for WASM, so we need to resort to SystemTime.
+
+  pattern-either:
+    - pattern: std::time::Instant::now
+    - pattern: tokio::time::Instant::now
+
+  paths:
+    exclude:
+      # doesn't run in wasm
+      - devi/
+
+  severity: WARNING
+
+- id: ban-fs-write
+  languages:
+    - rust
+  message: Overwriting existing files is rarely a good idea. Use fedimint-core::util::write_overwrite if you are really sure you want to overwrite existing data or `fedimint-core::util::write_overwrite::write_new` if you don't. Alternatively use `fs::File::options` or `tokio::fs::OpenOptions` and express intention explicitly.
+  pattern-either:
+    - pattern: tokio::fs::write
+    - pattern: std::fs::write
+  severity: WARNING
+
+- id: ban-file-create
+  languages:
+    - rust
+  message: Overwriting existing files is rarely a good idea. `fs::File::options` or `tokio::fs::OpenOptions` and express intention explicitly.
+  pattern-either:
+    - pattern: std::fs::File::create
+    - pattern: tokio::fs::File::create
+  severity: WARNING
+
+- id: ban-tokio-spawn
+  languages:
+    - rust
+  message: "`tokio::spawn` won't set task name by default. use `fedimint_core::task::spawn` instead"
+  pattern: tokio::spawn
+  severity: WARNING
+
+- id: ban-tokio-sleep
+  languages:
+    - rust
+  message: "`tokio::time::sleep` doesn't work in WASM. Use `fedimint_core::task::sleep` instead."
+  pattern: tokio::time::sleep
+  severity: WARNING
+  paths:
+    exclude:
+      # doesn't run in wasm
+      - devi/
+
+- id: ban-wildcard-imports
+  languages:
+    - rust
+  message: "Wildcard imports make it unclear which items are being used. Avoid using `use ...::*;` except in sub-modules of a file such as `use super::*;` in a test module."
+  pattern-regex: '^use .*::\*;$'
+  severity: WARNING

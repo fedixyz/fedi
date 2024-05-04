@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+#
+# Our wrapper over cargo to workaround some limitations:
+#
+# https://github.com/rust-rocksdb/rust-rocksdb/issues/823
+
+
+if [ -z "$CARGO_ORIG_BIN" ]; then
+  >&2 echo "CARGO_ORIG_BIN not set"
+  exit 1
+fi
+
+# value of '--target-dir'
+target_dir=""
+# combined strings of packages selected via '-p'/'--package'
+package=""
+# combined strings of bins/examples selected via '--bin/'--example'
+bin=""
+# cargo command (e.g. 'run' in 'cargo run')
+cmd=""
+args=()
+
+# iterate over all arguments, collect them into 'args' and set some env vars
+# for arguments that we care about
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target)
+      target="${2//-/_}"
+      args+=("$1")
+      args+=("$2")
+      shift
+      ;;
+    --package|-p)
+      if [ -z "$package" ]; then
+        package="${2}"
+      else
+        package="${package}-${2}"
+      fi
+      args+=("$1")
+      args+=("$2")
+      shift
+      ;;
+    --bin|--example)
+      if [ -z "$bin" ]; then
+        bin="${2}"
+      else
+        bin="${bin}-${2}"
+      fi
+      args+=("$1")
+      args+=("$2")
+      shift
+      ;;
+    --target-dir)
+      target_dir="${2}"
+      args+=("$1")
+      args+=("$2")
+      shift
+      ;;
+    # arguments taking no values here
+    --release|-q|--quiet|--frozen|--locked|--offline|--list|--version|-V|--fix|--all-targets)
+      args+=("$1")
+      ;;
+    # for anything starting with -, that wasn't listed above, assume it takes an argument
+    # BUG: we actually can't be sure if an option takes an argument or not, so we might
+    -*)
+      args+=("$1")
+      if [ -v 2 ]; then
+        args+=("$2")
+        shift
+      fi
+      ;;
+    *)
+      if [ -z "${cmd}" ]; then
+        cmd="$1"
+      fi
+      args+=("$1")
+      ;;
+  esac
+
+  # Move to the next argument
+  shift
+done
+
+# Check if the target value is set and use it to set certain global env variables
+# to values of per-target env variables.
+# Some things in Rust and Rust build scripts support target-specific env vars (e.g. 'CC_aarch64_linux_android'
+# which make it possible to set different things for different targets). Some things (like librocksdb-sys crate)
+# don't. This is a workaround for things that don't.
+if [ -n "$target" ]; then
+  rocksdb_lib_dir="ROCKSDB_${target}_LIB_DIR"
+  snappy_lib_dir="SNAPPY_${target}_LIB_DIR"
+  rocksdb_static="ROCKSDB_${target}_STATIC"
+  snappy_static="SNAPPY_${target}_STATIC"
+
+  if [ -n "${!rocksdb_lib_dir}" ]; then
+    export ROCKSDB_LIB_DIR="${!rocksdb_lib_dir}"
+  else
+    unset ROCKSDB_LIB_DIR
+  fi
+  if [ -n "${!snappy_lib_dir}" ]; then
+    export SNAPPY_LIB_DIR="${!snappy_lib_dir}"
+  else
+    unset SNAPPY_LIB_DIR
+  fi
+  if [ -n "${!rocksdb_static}" ]; then
+    export ROCKSDB_STATIC="${!rocksdb_static}"
+  else
+    unset ROCKSDB_STATIC
+  fi
+  if [ -n "${!snappy_static}" ]; then
+    export SNAPPY_STATIC="${!snappy_static}"
+  else
+    unset SNAPPY_STATIC
+  fi
+fi
+
+cmd_accepts_target_dir=""
+case "${cmd}" in
+  build|b|run|r|nextest|test|t|clippy|check|c)
+    cmd_accepts_target_dir="true"
+    ;;
+  *)
+    ;;
+esac
+
+# if `--package` is empty, but `--bin` was used
+custom_target=""
+if [ -n "$package" ]; then
+  custom_target="target/pkg/$package"
+elif [ -n "$bin" ]; then
+  custom_target="target/bin/$bin"
+fi
+
+# If building with '--package <pkg>' use a custom '--target-dir'
+# to avoid invalidating all the existing build artifacts, just because
+# package set changed.
+if [ -n "$cmd_accepts_target_dir" ] && [ -n "$custom_target" ] && [ -z "$target_dir" ]; then
+  >&2 echo "cargo-wrapper: Using custom target dir: $custom_target"
+  # if 'target-dir' was not specificaly set, and '--package <pkgs>' is used
+  # compile everything to a target's subdir to avoid causing rebuilds
+  args+=("--target-dir" "$custom_target")
+fi
+
+exec "$CARGO_ORIG_BIN" "${args[@]}"
