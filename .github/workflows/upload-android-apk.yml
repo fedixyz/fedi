@@ -51,7 +51,7 @@ jobs:
               run: nix develop -c ./scripts/ui/build-production-apk.sh
 
             - name: Create draft GitHub release with APK
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.prep-apk.outputs.APK_VERSION }}
                   name: 'v${{ steps.prep-apk.outputs.APK_VERSION }}'
