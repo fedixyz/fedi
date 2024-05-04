@@ -1,0 +1,77 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/AlbertSans-Black.ttf",
+      "sha1": "9dff7a233c1592c70ca8a2356de1f7fd8c9f401e"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-BlackItalic.ttf",
+      "sha1": "e60cbf32009c597d50a76155060198b666bcc6f8"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-Bold.ttf",
+      "sha1": "c2879d03d48355192739c3bd60e38834861c33f9"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-BoldItalic.ttf",
+      "sha1": "dad44827f84af195d2a8b76c855c67abe097b79d"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-ExtraBold.ttf",
+      "sha1": "6d27e3b9e456341b333b7638e6299e777a790fa5"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-ExtraBoldItalic.ttf",
+      "sha1": "f06a9915d429da6ada4d409f5c5809110e3e4cd4"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-ExtraLight.ttf",
+      "sha1": "046aae34860cdba8340c12c1339b3c3de09e0534"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-ExtraLightItalic.ttf",
+      "sha1": "75f2f4d9ec6013063deb3c6aa30eb00f4b72b1be"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-Italic.ttf",
+      "sha1": "1147b167ac774869b1fd709f88c5ba9803cdf847"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-Light.ttf",
+      "sha1": "d60780e9fa36a3dba69192d12031eb700300e762"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-LightItalic.ttf",
+      "sha1": "da36f2ea0038954fd2985e23521b699f6b42be4e"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-Medium.ttf",
+      "sha1": "75b65d09363bf3156f658bf245335c4c115751fb"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-MediumItalic.ttf",
+      "sha1": "0bd438dc4ba90d5fd69306a71a620ecc6300aa63"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-Regular.ttf",
+      "sha1": "17813e4886d2da95f62f25ce40eb94e35856b513"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-SemiBold.ttf",
+      "sha1": "f01e57b3b2848ef566da68540ee3fdd9d817edfb"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-SemiBoldItalic.ttf",
+      "sha1": "15fc86d50218796f5582a1e5dc940602be953e58"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-Thin.ttf",
+      "sha1": "be9f25a0ca65e4cdb306a9808d7051e06d282dac"
+    },
+    {
+      "path": "assets/fonts/AlbertSans-ThinItalic.ttf",
+      "sha1": "a6140d03fd3695199a5028586c51aa1e5fafb5c8"
+    }
+  ]
+}

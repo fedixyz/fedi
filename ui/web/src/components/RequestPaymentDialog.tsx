@@ -1,0 +1,389 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import SwitchLeftIcon from '@fedi/common/assets/svgs/switch-left.svg'
+import SwitchRightIcon from '@fedi/common/assets/svgs/switch-right.svg'
+import { useRequestForm } from '@fedi/common/hooks/amount'
+import {
+    useIsOfflineWalletSupported,
+    useIsOnchainDepositSupported,
+} from '@fedi/common/hooks/federation'
+import { useToast } from '@fedi/common/hooks/toast'
+import { useUpdatingRef } from '@fedi/common/hooks/util'
+import { selectActiveFederationId } from '@fedi/common/redux'
+import { Sats, Transaction } from '@fedi/common/types'
+import amountUtils from '@fedi/common/utils/AmountUtils'
+import { lnurlWithdraw } from '@fedi/common/utils/lnurl'
+
+import { useRouteState } from '../context/RouteStateContext'
+import { useAppSelector } from '../hooks'
+import { fedimint } from '../lib/bridge'
+import { config, styled, theme } from '../styles'
+import { AmountInput } from './AmountInput'
+import { Button } from './Button'
+import { CopyInput } from './CopyInput'
+import { Dialog } from './Dialog'
+import { DialogStatus } from './DialogStatus'
+import { Icon } from './Icon'
+import { QRCode } from './QRCode'
+import { ReceiveOffline } from './ReceiveOffline'
+import { Text } from './Text'
+
+interface Props {
+    open: boolean
+    onOpenChange(open: boolean): void
+}
+
+export const RequestPaymentDialog: React.FC<Props> = ({
+    open,
+    onOpenChange,
+}) => {
+    const { t } = useTranslation()
+    const toast = useToast()
+    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const lnurlw = useRouteState('/request')
+    const {
+        inputAmount: amount,
+        setInputAmount: setAmount,
+        memo: note,
+        setMemo: setNote,
+        minimumAmount,
+        maximumAmount,
+        reset: resetRequestForm,
+    } = useRequestForm({
+        lnurlWithdrawal: lnurlw?.data,
+    })
+    const [submitAttempts, setSubmitAttempts] = useState(0)
+    const [wantsInvoice, setWantsInvoice] = useState(false)
+    const [isLightning, setIsLightning] = useState(true)
+    const [lightningInvoice, setLightningInvoice] = useState<string>()
+    const [bitcoinUrl, setBitcoinUrl] = useState<string>()
+    const [isWithdrawing, setIsWithdrawing] = useState(false)
+    const [isReceivingOffline, setIsReceivingOffline] = useState(false)
+    const [receivedTransaction, setReceivedTransaction] =
+        useState<Transaction>()
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const onOpenChangeRef = useUpdatingRef(onOpenChange)
+    const isOfflineWalletSupported = useIsOfflineWalletSupported()
+    const isOnchainSupported = useIsOnchainDepositSupported()
+
+    // Reset on close, focus input on desktop open
+    useEffect(() => {
+        if (!open) {
+            resetRequestForm()
+            setSubmitAttempts(0)
+            setWantsInvoice(false)
+            setIsLightning(true)
+            setLightningInvoice(undefined)
+            setBitcoinUrl(undefined)
+            setIsWithdrawing(false)
+            setIsReceivingOffline(false)
+            setReceivedTransaction(undefined)
+        } else {
+            if (!window.matchMedia(config.media.sm).matches) {
+                requestAnimationFrame(() =>
+                    containerRef.current?.querySelector('input')?.focus(),
+                )
+            }
+        }
+    }, [open, lnurlw, resetRequestForm])
+
+    // Reset invoices on federation change, amount change, or note change
+    useEffect(() => {
+        setLightningInvoice(undefined)
+        setBitcoinUrl(undefined)
+    }, [activeFederationId, amount, note])
+
+    // Generate fresh invoice / address on any change to it
+    useEffect(() => {
+        if (!wantsInvoice || !activeFederationId) return
+
+        let canceled = false
+        let promise: Promise<unknown> | undefined
+
+        if (isLightning && !lightningInvoice) {
+            promise = fedimint
+                .generateInvoice(
+                    amountUtils.satToMsat(amount),
+                    note,
+                    activeFederationId,
+                )
+                .then(invoice => {
+                    if (canceled) return
+                    setLightningInvoice(invoice)
+                })
+        } else if (!isLightning && !bitcoinUrl) {
+            promise = fedimint
+                .generateAddress(activeFederationId)
+                .then(addr => {
+                    if (canceled) return
+                    setBitcoinUrl(
+                        `bitcoin:${addr}?amount=${amountUtils.satToBtc(
+                            amount,
+                        )}&message=${note}`,
+                    )
+                })
+        }
+
+        if (promise) {
+            promise.catch(err => {
+                toast.error(t, err, 'error.unknown-error')
+                setWantsInvoice(false)
+            })
+            return () => {
+                canceled = true
+            }
+        }
+    }, [
+        wantsInvoice,
+        amount,
+        note,
+        isLightning,
+        lightningInvoice,
+        bitcoinUrl,
+        activeFederationId,
+        toast,
+        t,
+    ])
+
+    // Watch for incoming payments when we're rendering a lightning invoice
+    useEffect(() => {
+        if (!lightningInvoice) return
+        const unsubscribe = fedimint.addListener('transaction', event => {
+            const { lightning, bitcoin } = event.transaction
+            const wasLnPayment =
+                lightningInvoice &&
+                lightning &&
+                lightning.invoice.toLowerCase() ===
+                    lightningInvoice.toLowerCase()
+            const wasBitcoinPayment =
+                bitcoinUrl &&
+                bitcoin &&
+                bitcoinUrl
+                    .toLowerCase()
+                    .includes(bitcoin?.address.toLowerCase())
+            if (wasLnPayment || wasBitcoinPayment) {
+                setIsWithdrawing(false)
+                setReceivedTransaction(event.transaction)
+                setTimeout(() => {
+                    onOpenChangeRef.current(false)
+                }, 3000)
+            }
+        })
+        return () => unsubscribe()
+    }, [lightningInvoice, bitcoinUrl, onOpenChangeRef])
+
+    const handleLnurlWithdraw = async () => {
+        setIsWithdrawing(true)
+        try {
+            if (!activeFederationId || !lnurlw) throw new Error()
+            const invoice = await lnurlWithdraw(
+                fedimint,
+                activeFederationId,
+                lnurlw['data'],
+                amountUtils.satToMsat(amount),
+                note,
+            )
+            setLightningInvoice(invoice)
+        } catch (err) {
+            toast.error(t, err, 'error.unknown-error')
+            setIsWithdrawing(false)
+        }
+    }
+
+    const handleChangeAmount = useCallback(
+        (amt: Sats) => {
+            setAmount(amt)
+            setSubmitAttempts(0)
+        },
+        [setAmount],
+    )
+
+    const handleSubmit = () => {
+        setSubmitAttempts(attempts => attempts + 1)
+        // Bail out if invalid amount, let them see error message
+        if (amount < minimumAmount || amount > maximumAmount) {
+            return
+        }
+        if (lnurlw) {
+            handleLnurlWithdraw()
+        } else {
+            setWantsInvoice(true)
+        }
+    }
+
+    const qrData = isLightning ? lightningInvoice?.toUpperCase() : bitcoinUrl
+    const copyData = isLightning ? lightningInvoice : bitcoinUrl
+    const showNote = !!note || !wantsInvoice
+    const showOfflineReceive = isOfflineWalletSupported && !lnurlw
+    const amountSats = amountUtils.formatSats(amount)
+
+    let content: React.ReactNode
+    if (isReceivingOffline) {
+        content = <ReceiveOffline onReceive={() => onOpenChange(false)} />
+    } else {
+        content = (
+            <>
+                {isOnchainSupported && (
+                    <RequestTypeToggle
+                        onClick={() => setIsLightning(!isLightning)}>
+                        <Text variant="caption" weight="medium">
+                            {t(
+                                isLightning
+                                    ? 'words.lightning'
+                                    : 'words.onchain',
+                            )}
+                        </Text>
+                        <Icon
+                            size={20}
+                            icon={
+                                isLightning ? SwitchLeftIcon : SwitchRightIcon
+                            }
+                        />
+                    </RequestTypeToggle>
+                )}
+                <Center>
+                    <AmountInput
+                        amount={amount}
+                        onChangeAmount={handleChangeAmount}
+                        readOnly={wantsInvoice}
+                        verb={t('words.request')}
+                        minimumAmount={minimumAmount}
+                        maximumAmount={maximumAmount}
+                        submitAttempts={submitAttempts}
+                        extraInput={
+                            showNote ? (
+                                <NoteInput
+                                    value={note}
+                                    placeholder={
+                                        qrData ? '' : t('phrases.add-note')
+                                    }
+                                    onChange={ev =>
+                                        setNote(ev.currentTarget.value)
+                                    }
+                                    readOnly={wantsInvoice}
+                                />
+                            ) : undefined
+                        }
+                    />
+                    {wantsInvoice && (
+                        <QRContainer>
+                            <QRCode data={qrData} />
+                            <CopyInput
+                                value={copyData || ''}
+                                onCopyMessage={t(
+                                    'feature.receive.copied-payment-code',
+                                )}
+                            />
+                        </QRContainer>
+                    )}
+                </Center>
+                {!wantsInvoice && (
+                    <Buttons>
+                        <Button
+                            width="full"
+                            onClick={handleSubmit}
+                            loading={isWithdrawing}>
+                            {lnurlw
+                                ? t('feature.receive.withdraw-from-domain', {
+                                      domain: lnurlw.data.domain,
+                                  })
+                                : t('feature.receive.request-sats', {
+                                      amount: amountSats,
+                                  })}
+                        </Button>
+                        {showOfflineReceive && (
+                            <Button onClick={() => setIsReceivingOffline(true)}>
+                                {t('feature.receive.receive-bitcoin-offline')}
+                            </Button>
+                        )}
+                    </Buttons>
+                )}
+                {receivedTransaction && (
+                    <DialogStatus
+                        status="success"
+                        title={`${t(
+                            receivedTransaction.bitcoin
+                                ? 'feature.receive.pending-transaction'
+                                : 'feature.receive.you-received',
+                        )}`}
+                        description={`${amountUtils.formatSats(
+                            amountUtils.msatToSat(receivedTransaction.amount),
+                        )} ${t('words.sats')}`}
+                    />
+                )}
+            </>
+        )
+    }
+
+    return (
+        <Dialog
+            title={t('feature.receive.request-bitcoin')}
+            open={open}
+            mobileDismiss="back"
+            onOpenChange={onOpenChange}>
+            <Container ref={containerRef}>{content}</Container>
+        </Dialog>
+    )
+}
+
+const Container = styled('div', {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    paddingTop: 24,
+    gap: 24,
+    minHeight: 0,
+})
+
+const RequestTypeToggle = styled('button', {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    color: theme.colors.grey,
+    outline: 'none',
+
+    '&:hover, &:focus': {
+        color: theme.colors.primary,
+    },
+})
+
+const Center = styled('div', {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'auto',
+    minHeight: 0,
+    gap: 24,
+})
+
+const NoteInput = styled('input', {
+    width: '100%',
+    padding: 8,
+    textAlign: 'center',
+    fontSize: theme.fontSizes.caption,
+    fontWeight: theme.fontWeights.medium,
+    background: 'none',
+    border: 'none',
+    outline: 'none',
+
+    '&[readonly]': {
+        cursor: 'default',
+    },
+})
+
+const QRContainer = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    width: '100%',
+    gap: 16,
+})
+
+const Buttons = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+})

@@ -1,0 +1,67 @@
+{
+    "project_info": {
+        "project_number": "472796529807",
+        "project_id": "fedi-xmpp-chat-notifications",
+        "storage_bucket": "fedi-xmpp-chat-notifications.appspot.com"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:472796529807:android:29056ceb88c88a5d789cfa",
+                "android_client_info": {
+                    "package_name": "com.fedi"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyD1ihZCE2mQ1mgZGRoIKRT3-_izsIlcns0"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:472796529807:android:29056ceb88c88a5d789cfa",
+                "android_client_info": {
+                    "package_name": "com.fedi.nightly"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyD1ihZCE2mQ1mgZGRoIKRT3-_izsIlcns0"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:472796529807:android:29056ceb88c88a5d789cfa",
+                "android_client_info": {
+                    "package_name": "com.fedi.bravo"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyD1ihZCE2mQ1mgZGRoIKRT3-_izsIlcns0"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

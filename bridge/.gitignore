@@ -1,0 +1,25 @@
+target
+
+.idea/
+fedi-bindings.iml
+libfediffi.so
+fedi.kt
+local.properties
+.DS_Store
+
+# swift related
+/.build
+/.swiftpm
+/Packages
+/*.xcodeproj
+xcuserdata/
+DerivedData/
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+fediFFI.xcframework.zip
+fediFFI
+*.a
+Fedi.swift
+fediFFI.h
+.build
+.swiftpm
+fedi-swift/Sources/

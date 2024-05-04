@@ -1,0 +1,30 @@
+{
+    "version": "1.0.0",
+    "private": true,
+    "engines": {
+        "yarn": "1.22.19"
+    },
+    "workspaces": {
+        "packages": [
+            "common",
+            "injections",
+            "native",
+            "web"
+        ]
+    },
+    "scripts": {
+        "build": "turbo run build",
+        "build:deps": "turbo run build --filter=common --filter=injections",
+        "dev": "turbo run dev",
+        "dev:deps": "turbo run dev --filter=common --filter=injections",
+        "dev:web": "turbo run dev --parallel --filter=web...",
+        "dev:native": "turbo run dev --parallel --filter=native...",
+        "lint": "turbo run lint",
+        "format": "turbo run format",
+        "test": "turbo run test"
+    },
+    "devDependencies": {
+        "syncpack": "^9.8.4",
+        "turbo": "^1.10.7"
+    }
+}

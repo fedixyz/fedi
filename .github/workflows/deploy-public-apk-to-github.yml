@@ -1,0 +1,24 @@
+name: Deploy Public APK to Github
+on:
+    release:
+        # these events will not fire for draft releases
+        types: [published, edited]
+
+jobs:
+    deploy-public-apk:
+        runs-on: [self-hosted, linux]
+        steps:
+            - name: Checkout script in repo
+              uses: actions/checkout@v4
+
+            - name: Run publish-release
+              uses: actions/github-script@v7
+              id: publish-release
+              env:
+                  RELEASE_ID: ${{ github.event.release.id }}
+              with:
+                  github-token: ${{ secrets.DEPLOY_APK_ACCESS_TOKEN }}
+                  result-encoding: string
+                  script: |
+                      const script = require('./scripts/ci/deploy-public-apk.js')
+                      await script({github, context, core})

@@ -1,0 +1,341 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:android)
+
+platform :android do
+  desc "Runs all the tests"
+  lane :test do
+    gradle(task: "test")
+  end
+
+  desc "Build a new apk to debug for production (apk can be found at /android/build/outputs/apk/production/debug/app-production-debug.apk)"
+  lane :build_debug do
+    gradle(
+      task: 'assemble',
+      flavor: 'production',
+      build_type: 'Debug'
+    )
+  end
+
+  desc "Build a new app APK to release for production (apk can be found at /android/build/outputs/apk/production/release/app-production-release.apk)"
+  lane :build_production_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'production',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Build a new app bundle to release for production"
+  lane :build_production do
+    gradle(
+      task: 'bundle',
+      flavor: 'production',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to Play Store Console for internal testing"
+  lane :upload_internal_build do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi',
+      aab: './app/build/outputs/bundle/productionRelease/app-production-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Upload the latest build to Play Store Console for beta testing"
+  lane :upload_beta_build_production do
+    upload_to_play_store(
+      track: 'beta',
+      package_name: 'com.fedi',
+      aab: './app/build/outputs/bundle/productionRelease/app-production-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build"
+  lane :internal do
+    build_production
+    upload_internal_build
+  end
+
+  desc "Submit a new beta build"
+  lane :beta do
+    build_production
+    upload_beta_build_production
+  end
+
+  # Special Deployment - Bitcoin Lake (Guatemala Demo)
+  desc "Build a new APK to release (Bitcoin Lake)"
+  lane :build_bitcoin_lake_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'bitcoinlake',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Build a new app bundle to release (Bitcoin Lake)"
+  lane :build_bitcoin_lake do
+    gradle(
+      task: 'bundle',
+      flavor: 'bitcoinlake',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to internal track (Bitcoin Lake)"
+  lane :upload_internal_build_bitcoin_lake do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi.bitcoinlake',
+      aab: './app/build/outputs/bundle/bitcoinlakeRelease/app-bitcoinlake-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build (Bitcoin Lake)"
+  lane :internal_bitcoin_lake do
+    build_bitcoin_lake
+    upload_internal_build_bitcoin_lake
+  end
+
+  desc "Upload the latest build (Bitcoin Lake)"
+  lane :upload_beta_build_bitcoin_lake do
+    upload_to_play_store(
+      track: 'beta',
+      package_name: 'com.fedi.bitcoinlake',
+      aab: './app/build/outputs/bundle/bitcoinlakeRelease/app-bitcoinlake-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new beta build (Bitcoin Lake)"
+  lane :beta_bitcoin_lake do
+    build_bitcoin_lake
+    upload_beta_build_bitcoin_lake
+  end
+
+  # Special Deployment - Bitcoin Jungle (Costa Rica Demo)
+  desc "Build a new APK to release (Bitcoin Jungle)"
+  lane :build_bitcoin_jungle_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'bitcoinjungle',
+      build_type: 'Release'
+    )
+  end
+  
+  desc "Build a new app bundle to release (Bitcoin Jungle)"
+  lane :build_bitcoin_jungle do
+    gradle(
+      task: 'bundle',
+      flavor: 'bitcoinjungle',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to internal track (Bitcoin Jungle)"
+  lane :upload_internal_build_bitcoin_jungle do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi.bitcoinjungle',
+      aab: './app/build/outputs/bundle/bitcoinjungleRelease/app-bitcoinjungle-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build (Bitcoin Jungle)"
+  lane :internal_bitcoin_jungle do
+    build_bitcoin_jungle
+    upload_internal_build_bitcoin_jungle
+  end
+
+  desc "Upload the latest build to beta track (Bitcoin Jungle)"
+  lane :upload_beta_build_bitcoin_jungle do
+    upload_to_play_store(
+      track: 'beta',
+      package_name: 'com.fedi.bitcoinjungle',
+      aab: './app/build/outputs/bundle/bitcoinjungleRelease/app-bitcoinjungle-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new beta build (Bitcoin Jungle)"
+  lane :beta_bitcoin_jungle do
+    build_bitcoin_jungle
+    upload_beta_build_bitcoin_jungle
+  end
+
+  # Special Deployment - Bitcoin Ekasi (South Africa Demo)
+  desc "Build a new APK to release (Bitcoin Ekasi)"
+  lane :build_bitcoin_ekasi_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'bitcoinekasi',
+      build_type: 'Release'
+    )
+  end
+  
+  desc "Build a new app bundle to release (Bitcoin Ekasi)"
+  lane :build_bitcoin_ekasi do
+    gradle(
+      task: 'bundle',
+      flavor: 'bitcoinekasi',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to internal track (Bitcoin Ekasi)"
+  lane :upload_internal_build_bitcoin_ekasi do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi.bitcoinekasi',
+      aab: './app/build/outputs/bundle/bitcoinekasiRelease/app-bitcoinekasi-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build (Bitcoin Ekasi)"
+  lane :internal_bitcoin_ekasi do
+    build_bitcoin_ekasi
+    upload_internal_build_bitcoin_ekasi
+  end
+
+  desc "Upload the latest build to beta track (Bitcoin Ekasi)"
+  lane :upload_beta_build_bitcoin_ekasi do
+    upload_to_play_store(
+      track: 'beta',
+      package_name: 'com.fedi.bitcoinekasi',
+      aab: './app/build/outputs/bundle/bitcoinekasi/release/app-bitcoinekasi-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new beta build (Bitcoin Ekasi)"
+  lane :beta_bitcoin_ekasi do
+    build_bitcoin_ekasi
+    upload_beta_build_bitcoin_ekasi
+  end
+
+  # Multi-bridge internal testing
+  desc "Build a new APK to release (Bravo)"
+  lane :build_bravo_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'bravo',
+      build_type: 'Release'
+    )
+  end
+  
+  desc "Build a new app bundle to release (Bravo)"
+  lane :build_bravo  do
+    gradle(
+      task: 'bundle',
+      flavor: 'bravo',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to internal track (Bravo)"
+  lane :upload_internal_build_bravo  do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi.bravo',
+      aab: './app/build/outputs/bundle/bravoRelease/app-bravo-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build (Bravo)"
+  lane :internal_bravo do
+    build_bravo 
+    upload_internal_build_bravo 
+  end
+
+  # For nightly dev builds
+  desc "Build a new APK to release (Nightly)"
+  lane :build_nightly_apk do
+    gradle(
+      task: 'assemble',
+      flavor: 'nightly',
+      build_type: 'Release'
+    )
+  end
+  
+  desc "Build a new app bundle to release (Nightly)"
+  lane :build_nightly  do
+    gradle(
+      task: 'bundle',
+      flavor: 'nightly',
+      build_type: 'Release'
+    )
+  end
+
+  desc "Upload the latest build to internal track (Nightly)"
+  lane :upload_internal_build_nightly  do
+    upload_to_play_store(
+      track: 'internal',
+      package_name: 'com.fedi.nightly',
+      aab: './app/build/outputs/bundle/nightlyRelease/app-nightly-release.aab',
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Submit a new internal build (Nightly)"
+  lane :internal_nightly do
+    build_nightly
+    upload_internal_build_nightly 
+  end
+
+  # desc "Deploy a new version to the Google Play"
+  # lane :deploy do
+  #   gradle(task: "clean assembleRelease")
+  #   upload_to_play_store
+  # end
+end

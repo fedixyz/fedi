@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "strict": true,
+        "module": "CommonJS",
+        "skipLibCheck": true,
+        "esModuleInterop": true,
+        "isolatedModules": true,
+        "resolveJsonModule": true,
+        "incremental": true,
+        "noEmit": true
+    },
+    "include": ["./**/*.ts", "./**/*.json"],
+    "exclude": ["node_modules"]
+}

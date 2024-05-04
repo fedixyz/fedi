@@ -1,0 +1,5 @@
+# NOTE: Generally this file should be empty, and we should rely instead
+# on CARGO_x_y_z env vars set by Flakebox
+
+[target.wasm32-unknown-unkown]
+target-dir = "target/wasm32-unknown-unknown"

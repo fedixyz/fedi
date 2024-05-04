@@ -1,0 +1,3 @@
+dist
+wasm/*.js
+wasm/*.d.ts

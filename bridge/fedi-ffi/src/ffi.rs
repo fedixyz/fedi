@@ -1,0 +1,233 @@
+use std::io::Write;
+use std::panic::AssertUnwindSafe;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use anyhow::Context;
+use async_trait::async_trait;
+use lazy_static::lazy_static;
+use tokio::sync::Mutex;
+use tracing::{error, info, warn};
+
+use super::bridge::Bridge;
+// used by uniffi
+pub use super::event::IEventSink as EventSink;
+use super::logging;
+pub use super::rpc::FedimintError;
+use super::rpc::{fedimint_initialize_async, fedimint_rpc_async};
+use super::storage::IStorage;
+use crate::api::LiveFediApi;
+use crate::error::ErrorCode;
+use crate::remote::{fedimint_remote_initialize, fedimint_remote_rpc};
+use crate::rpc::{self, rpc_error};
+
+lazy_static! {
+    // Global Tokio runtime
+    pub static ref RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build runtime");
+    // Global bridge object used to handle RPC commands
+    static ref BRIDGE: Arc<Mutex<Option<Arc<Bridge>>>> = Arc::new(Mutex::new(None));
+}
+
+pub fn fedimint_initialize(
+    data_dir: String,
+    log_level: String,
+    event_sink: Box<dyn EventSink>,
+    device_identifier: String,
+) -> String {
+    let value = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        RUNTIME.block_on(fedimint_initialize_inner(
+            data_dir,
+            log_level,
+            event_sink,
+            device_identifier,
+        ))
+    }));
+    match value {
+        Ok(Ok(())) => String::from("{}"),
+        Ok(Err(e)) => {
+            error!(?e);
+            rpc_error(&e)
+        }
+        Err(_) => rpc_error(&anyhow::format_err!(ErrorCode::Panic)),
+    }
+}
+
+/// Method to instantiate a global bridge object which is required
+/// for RPC to work. The app calls this method on load.
+pub async fn fedimint_initialize_inner(
+    data_dir: String,
+    log_level: String,
+    event_sink: Box<dyn EventSink>,
+    device_identifier: String,
+) -> anyhow::Result<()> {
+    if option_env!("FEDI_BRIDGE_REMOTE").is_some() {
+        return fedimint_remote_initialize(event_sink).await;
+    }
+    // return if bridge already is initialized
+    if BRIDGE.lock().await.is_some() {
+        warn!("bridge is already initialized");
+        return Ok(());
+    }
+    let event_sink: Arc<dyn EventSink> = event_sink.into();
+    std::panic::set_hook(Box::new({
+        let event_sink = event_sink.clone();
+        move |info| {
+            tracing::info!(%info, "panic");
+            // write separately in case backtrace capturing bugs out.
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            tracing::info!(%backtrace, "panic");
+
+            rpc::panic_hook(info, &*event_sink);
+        }
+    }));
+    let data_dir: PathBuf = data_dir.into();
+    logging::init_logging(&data_dir, event_sink.clone(), &log_level)
+        .context("Failed to initialize logging")?;
+    info!("initialized logging");
+    let storage = PathBasedStorage::new(data_dir)
+        .await
+        .context("Failed to initialize storage")?;
+    let mut bridge_lock = BRIDGE.lock().await;
+    let bridge = match fedimint_initialize_async(
+        Arc::new(storage),
+        event_sink,
+        Arc::new(LiveFediApi::new()),
+        device_identifier,
+    )
+    .await
+    {
+        Ok(bridge) => bridge,
+        Err(e) => {
+            let context_error = e.context("Failed to initialize Bridge");
+            error!("{:?}", context_error);
+            return Err(context_error);
+        }
+    };
+    *bridge_lock = Some(bridge);
+    info!("bridge initialized");
+    Ok(())
+}
+
+/// Method to execute an RPC command
+pub async fn fedimint_rpc(method: String, payload: String) -> String {
+    // run future in background tokio worker threads
+    let task_result = RUNTIME
+        .spawn(async move {
+            if option_env!("FEDI_BRIDGE_REMOTE").is_some() {
+                return fedimint_remote_rpc(method, payload)
+                    .await
+                    .expect("rpc failed");
+            }
+            let Some(bridge) = BRIDGE.lock().await.as_ref().cloned() else {
+                return rpc_error(&anyhow::format_err!(ErrorCode::NotInialized));
+            };
+            fedimint_rpc_async(bridge, method, payload).await
+        })
+        .await;
+    match task_result {
+        Ok(value) => value,
+        Err(join_error) => {
+            if join_error.is_panic() {
+                rpc_error(&anyhow::format_err!(ErrorCode::Panic))
+            } else {
+                // it should unreachable in theory, but didn't want to brick
+                // bridge in that case. currently there are 2 errors - panic or
+                // cancelled and we cancel never this task
+                rpc_error(&anyhow::format_err!("unknown join error"))
+            }
+        }
+    }
+}
+
+/// Returns the names of events we send from Rust to React Native
+pub fn fedimint_get_supported_events() -> Vec<String> {
+    vec![
+        String::from("balance"),
+        String::from("federation"),
+        String::from("transaction"),
+        String::from("log"),
+        String::from("panic"),
+        String::from("stabilityPoolDeposit"),
+        String::from("stabilityPoolWithdrawal"),
+        String::from("recoveryComplete"),
+        String::from("recoveryProgress"),
+        String::from("observableUpdate"),
+    ]
+}
+
+#[derive(Clone)]
+pub struct PathBasedStorage {
+    data_dir: PathBuf,
+}
+
+impl PathBasedStorage {
+    pub async fn new(data_dir: PathBuf) -> anyhow::Result<Self> {
+        Ok(Self { data_dir })
+    }
+}
+
+#[async_trait]
+impl IStorage for PathBasedStorage {
+    async fn federation_database_v2(
+        &self,
+        db_name: &str,
+    ) -> anyhow::Result<fedimint_core::db::Database> {
+        let db_name = self.data_dir.join(format!("{db_name}.db"));
+        let db = fedimint_rocksdb::RocksDb::open(db_name)?;
+        Ok(db.into())
+    }
+
+    async fn delete_federation_db(&self, db_name: &str) -> anyhow::Result<()> {
+        let db_name = self.data_dir.join(format!("{db_name}.db"));
+        std::fs::remove_dir_all(db_name).context("delete federation db")?;
+        Ok(())
+    }
+
+    async fn read_file(&self, path: &Path) -> anyhow::Result<Option<Vec<u8>>> {
+        let path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            self.data_dir.join(path)
+        };
+
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        Ok(Some(tokio::fs::read(path).await?))
+    }
+
+    async fn write_file(&self, path: &Path, data: Vec<u8>) -> anyhow::Result<()> {
+        let path = if path.is_absolute() {
+            path.to_owned()
+        } else {
+            self.data_dir.join(path)
+        };
+        // tokio::fs::write is bad, creates a second copy of data
+        Ok(tokio::task::spawn_blocking(move || {
+            let tmp_path = path.with_extension("tmp");
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&tmp_path)?;
+            file.write_all(&data)?;
+            file.flush()?;
+            file.sync_data()?;
+            drop(file);
+            std::fs::rename(tmp_path, path)
+        })
+        .await??)
+    }
+
+    fn platform_path(&self, path: &Path) -> PathBuf {
+        if path.is_absolute() {
+            path.to_owned()
+        } else {
+            self.data_dir.join(path)
+        }
+    }
+}

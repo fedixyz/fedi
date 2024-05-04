@@ -1,0 +1,12 @@
+[bindings.kotlin]
+package_name = "org.fedi.fedi"
+cdylib_name = "fediffi"
+
+[bindings.python]
+cdylib_name = "fediffi"
+
+[bindings.ruby]
+cdylib_name = "fediffi"
+
+[bindings.swift]
+cdylib_name = "fediffi"
