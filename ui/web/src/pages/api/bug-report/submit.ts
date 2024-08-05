@@ -313,5 +313,6 @@ function makeLogsS3Url(id: string) {
         console.warn('Unable to make S3 URL, missing region or bucket name')
         return ''
     }
-    return `https://s3.console.aws.amazon.com/s3/object/${bucket}?region=${region}&prefix=${id}.tar.gz`
+    const url = `https://s3.console.aws.amazon.com/s3/object/${bucket}?region=${region}&prefix=${id}.tar.gz`
+    return `https://fedibtc.awsapps.com/start/#/console?account_id=792500679265&destination=${encodeURIComponent(url)}`
 }

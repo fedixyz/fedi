@@ -1,16 +1,6 @@
-import React from 'react'
-
 import { styled, theme } from '../styles'
 
-interface Props {
-    children: React.ReactNode
-}
-
-export const EmptyState: React.FC<Props> = ({ children }) => {
-    return <Container>{children}</Container>
-}
-
-const Container = styled('div', {
+export const EmptyState = styled('div', {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',

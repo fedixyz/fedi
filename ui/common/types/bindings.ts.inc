@@ -1,6 +1,6 @@
 import { RequestInvoiceArgs } from 'webln'
 
-import { MSats } from './units'
+import { MSats } from '@fedi/common/types'
 
 export type RpcMethodNames = keyof RpcMethods;
 export type RpcPayload<M extends RpcMethodNames> = RpcMethods[M][0];

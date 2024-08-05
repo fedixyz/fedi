@@ -30,6 +30,7 @@ const baseFed: Federation = {
         remittanceThresholdMsat: 100_000,
         modules: {},
     },
+    hasWallet: true,
 }
 
 const fedWithNoMetadata: Federation = {

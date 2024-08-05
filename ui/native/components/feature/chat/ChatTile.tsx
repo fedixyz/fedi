@@ -1,64 +1,64 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { t } from 'i18next'
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
-import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import { selectAuthenticatedMember } from '@fedi/common/redux'
-import { ChatType, ChatWithLatestMessage } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
-import { makePaymentText } from '@fedi/common/utils/chat'
+import { shouldShowUnreadIndicator } from '@fedi/common/utils/matrix'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
-import { useAppSelector } from '../../../state/hooks'
-import Avatar from '../../ui/Avatar'
+import { MatrixRoom } from '../../../types'
 import { AvatarSize } from '../../ui/Avatar'
-import GroupIcon from './GroupIcon'
+import ChatAvatar from './ChatAvatar'
 
 type ChatTileProps = {
-    chat: ChatWithLatestMessage
-    selectChat: (chat: ChatWithLatestMessage) => void
+    room: MatrixRoom
+    onSelect: (chat: MatrixRoom) => void
+    onLongPress: (chat: MatrixRoom) => void
 }
 
-const ChatTile = ({ chat, selectChat }: ChatTileProps) => {
+const ChatTile = ({ room, onSelect, onLongPress }: ChatTileProps) => {
     const { theme } = useTheme()
-    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
-    const { latestMessage, hasNewMessages } = chat
-    const previewTextWeight = hasNewMessages ? { medium: true } : {}
-
-    let previewMessage = latestMessage?.content
-    if (latestMessage?.payment) {
-        previewMessage = makePaymentText(
-            t,
-            latestMessage,
-            authenticatedMember,
-            makeFormattedAmountsFromMSats,
-        )
-    }
+    const showUnreadIndicator = useMemo(
+        () =>
+            shouldShowUnreadIndicator(
+                room.notificationCount,
+                room.isMarkedUnread,
+            ),
+        [room.notificationCount, room.isMarkedUnread],
+    )
+    const previewTextWeight = useMemo(
+        () => (showUnreadIndicator ? { medium: true } : {}),
+        [showUnreadIndicator],
+    )
+    const previewMessage = useMemo(() => room?.preview?.body, [room?.preview])
 
     return (
         <Pressable
-            style={styles(theme).container}
-            onPress={() => selectChat(chat)}>
+            style={({ pressed }) => [
+                styles(theme).container,
+                pressed && room
+                    ? { backgroundColor: theme.colors.primary05 }
+                    : {},
+            ]}
+            disabled={!room}
+            onLongPress={() => onLongPress(room)}
+            delayLongPress={300}
+            onPress={() => onSelect(room)}>
             <View style={styles(theme).iconContainer}>
                 <View
                     style={[
                         styles(theme).unreadIndicator,
-                        hasNewMessages ? { opacity: 1 } : { opacity: 0 },
+                        showUnreadIndicator ? { opacity: 1 } : { opacity: 0 },
                     ]}
                 />
                 <View style={styles(theme).chatTypeIconContainer}>
-                    {chat.type === ChatType.direct ? (
-                        <Avatar
-                            id={chat.id || ''}
-                            name={chat.name || '?'}
-                            size={AvatarSize.md}
-                        />
-                    ) : (
-                        <GroupIcon chat={chat} />
-                    )}
+                    <ChatAvatar
+                        room={room}
+                        size={AvatarSize.md}
+                        maxFontSizeMultiplier={1.2}
+                    />
                 </View>
             </View>
             <View style={styles(theme).content}>
@@ -67,18 +67,18 @@ const ChatTile = ({ chat, selectChat }: ChatTileProps) => {
                         style={styles(theme).namePreview}
                         numberOfLines={1}
                         bold>
-                        {chat.name || DEFAULT_GROUP_NAME}
+                        {room.name || DEFAULT_GROUP_NAME}
                     </Text>
                     {previewMessage ? (
                         <Text
                             caption
                             style={[
                                 styles(theme).messagePreview,
-                                hasNewMessages
+                                showUnreadIndicator
                                     ? styles(theme).messagePreviewUnread
                                     : undefined,
                             ]}
-                            numberOfLines={1}
+                            numberOfLines={2}
                             {...previewTextWeight}>
                             {previewMessage}
                         </Text>
@@ -86,17 +86,27 @@ const ChatTile = ({ chat, selectChat }: ChatTileProps) => {
                         <Text
                             caption
                             style={styles(theme).emptyMessagePreview}
-                            numberOfLines={1}
+                            numberOfLines={2}
                             {...previewTextWeight}>
-                            {t('feature.chat.no-one-is-in-this-group')}
+                            {/* 
+                                HACK: public rooms don't show a preview message so you have to click into it to paginate backwards
+                                TODO: Replace with proper room previews
+                            */}
+                            {room.isPublic && room.broadcastOnly
+                                ? t('feature.chat.click-here-for-announcements')
+                                : t('feature.chat.no-messages')}
                         </Text>
                     )}
                 </View>
                 <View style={styles(theme).metadata}>
-                    {latestMessage?.sentAt && (
-                        <Text small style={styles(theme).timestamp}>
+                    {room.preview?.timestamp && (
+                        <Text
+                            small
+                            style={styles(theme).timestamp}
+                            adjustsFontSizeToFit
+                            maxFontSizeMultiplier={1.4}>
                             {dateUtils.formatChatTileTimestamp(
-                                latestMessage?.sentAt,
+                                room.preview.timestamp / 1000,
                             )}
                         </Text>
                     )}
@@ -118,9 +128,12 @@ const ChatTile = ({ chat, selectChat }: ChatTileProps) => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
+            flex: 1,
             flexDirection: 'row',
             alignItems: 'center',
             paddingVertical: theme.spacing.md,
+            width: '100%',
+            borderRadius: theme.borders.defaultRadius,
         },
         iconContainer: {
             flexDirection: 'row',
@@ -132,12 +145,12 @@ const styles = (theme: Theme) =>
         content: {
             flex: 1,
             flexDirection: 'row',
-            minHeight: 48,
+            height: theme.sizes.mediumAvatar,
         },
         preview: {
             flex: 1,
             flexDirection: 'column',
-            gap: theme.spacing.xs,
+            alignSelf: 'center',
         },
         metadata: {
             flexDirection: 'column',
@@ -169,14 +182,20 @@ const styles = (theme: Theme) =>
             backgroundColor: theme.colors.red,
             height: theme.sizes.unreadIndicatorSize,
             width: theme.sizes.unreadIndicatorSize,
-            marginHorizontal: theme.spacing.xs,
+            paddingHorizontal: theme.spacing.xs,
             borderRadius: theme.sizes.unreadIndicatorSize * 0.5,
+            transform: [
+                {
+                    translateX: theme.sizes.unreadIndicatorSize * -0.3,
+                },
+            ],
         },
         namePreview: {
             width: '80%',
         },
         timestamp: {
             color: theme.colors.grey,
+            paddingRight: theme.spacing.md,
         },
     })
 

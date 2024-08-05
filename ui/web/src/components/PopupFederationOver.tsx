@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -8,13 +8,11 @@ import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
-import { styled, theme } from '../styles'
 import { Button } from './Button'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ContentBlock } from './ContentBlock'
-import { FederationAvatar } from './FederationAvatar'
+import FederationEndedPreview from './FederationEndedPreview'
 import * as Layout from './Layout'
-import { Text } from './Text'
 
 export const PopupFederationOver: React.FC = () => {
     const dispatch = useAppDispatch()
@@ -52,24 +50,10 @@ export const PopupFederationOver: React.FC = () => {
         <ContentBlock>
             <Layout.Root>
                 <Layout.Content centered>
-                    <Container>
-                        <FederationAvatar
-                            federation={activeFederation}
-                            size="lg"
-                        />
-                        <Text variant="h2">{activeFederation.name}</Text>
-                        <Ended>{t('feature.popup.ended')}</Ended>
-                        <Text css={{ marginBottom: 24 }}>
-                            {popupInfo.endedMessage || (
-                                <Trans
-                                    t={t}
-                                    i18nKey="feature.popup.ended-description"
-                                    values={{ date: popupInfo.endsAtText }}
-                                    components={{ bold: <strong /> }}
-                                />
-                            )}
-                        </Text>
-                    </Container>
+                    <FederationEndedPreview
+                        popupInfo={popupInfo}
+                        federation={activeFederation}
+                    />
                 </Layout.Content>
                 <Layout.Actions>
                     {tosUrl && (
@@ -98,21 +82,3 @@ export const PopupFederationOver: React.FC = () => {
         </ContentBlock>
     )
 }
-
-const Container = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center',
-    gap: 16,
-})
-
-const Ended = styled('div', {
-    padding: `2px 8px`,
-    borderRadius: '30px',
-    background: theme.colors.lightGrey,
-    color: theme.colors.primary,
-    fontSize: theme.fontSizes.caption,
-    fontWeight: theme.fontWeights.bold,
-})

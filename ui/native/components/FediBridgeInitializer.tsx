@@ -1,29 +1,38 @@
-import notifee from '@notifee/react-native'
 import { ThemeProvider } from '@rneui/themed'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Platform } from 'react-native'
-import RNFS from 'react-native-fs'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import SplashScreen from 'react-native-splash-screen'
 
+import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
+    fetchRegisteredDevices,
+    fetchSocialRecovery,
     initializeDeviceId,
+    previewDefaultGroupChats,
+    refreshFederations,
     selectDeviceId,
-    selectFederations,
+    setDeviceIndexRequired,
+    setShouldLockDevice,
+    startMatrixClient,
 } from '@fedi/common/redux'
 import { selectHasLoadedFromStorage } from '@fedi/common/redux/storage'
-import { TransactionDirection, TransactionEvent } from '@fedi/common/types'
-import { LogEvent, PanicEvent } from '@fedi/common/types/bindings'
-import amountUtils from '@fedi/common/utils/AmountUtils'
+import { TransactionEvent } from '@fedi/common/types'
+import {
+    DeviceRegistrationEvent,
+    LogEvent,
+    PanicEvent,
+} from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint, initializeBridge } from '../bridge'
+import { fedimint, initializeBridge, subscribeToBridgeEvents } from '../bridge'
 import { ErrorScreen } from '../screens/ErrorScreen'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { store } from '../state/store'
 import theme from '../styles/theme'
 import { generateDeviceId } from '../utils/device-info'
+import { useAppIsInForeground } from '../utils/hooks/notifications'
+import { displayPaymentReceivedNotification } from '../utils/notifications'
 
 const log = makeLog('FediBridgeInitializer')
 
@@ -38,6 +47,8 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const [bridgeError, setBridgeError] = useState<unknown>()
     const deviceId = useAppSelector(selectDeviceId)
     const hasLoadedStorage = useAppSelector(selectHasLoadedFromStorage)
+    const dispatchRef = useUpdatingRef(dispatch)
+    const isForeground = useAppIsInForeground()
 
     // Initialize device ID
     useEffect(() => {
@@ -49,30 +60,95 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         if (!deviceId && hasLoadedStorage) handleDeviceId()
     }, [deviceId, dispatch, hasLoadedStorage])
 
+    // Initialize Native Event Listeners
+    useEffect(() => {
+        const subscribe = async () => {
+            const subscriptions = await subscribeToBridgeEvents()
+            log.info('initialized bridge listeners')
+            return subscriptions
+        }
+        const listeners = subscribe()
+
+        // Cleanup native event listeners
+        return () => {
+            listeners.then(subs => subs.map(s => s.remove()))
+        }
+    }, [])
+
     // Initialize redux store and bridge
     useEffect(() => {
-        async function onInitializeBridge() {
-            if (!deviceId) return
-            log.info(
-                'initializing connection to federation',
-                RNFS.DocumentDirectoryPath,
-            )
-            const start = Date.now()
-            try {
-                await initializeBridge(RNFS.DocumentDirectoryPath, deviceId)
-            } catch (err) {
-                log.error('bridge failed to initialize', err)
+        if (!deviceId) return
+        const start = Date.now()
+        initializeBridge(deviceId)
+            .then(() => {
+                const stop = Date.now()
+                log.info('initialized:', stop - start, 'ms OS:', Platform.OS)
+                return fedimint.bridgeStatus()
+            })
+            .then(status => {
+                log.info('bridgeStatus', status)
+                // These all happen in parallel after bridge is initialized
+                // Only throw (via unwrap) for refreshFederations.
+                return Promise.all([
+                    dispatchRef.current(refreshFederations(fedimint)).unwrap(),
+                    dispatchRef.current(fetchSocialRecovery(fedimint)),
+                    // this happens when the user entered seed words but quit the app
+                    // before completing device index selection so we fetch devices
+                    // again since that typically gets fetched from recoverFromMnemonic
+                    ...(status?.deviceIndexAssignmentStatus === 'unassigned'
+                        ? [
+                              dispatchRef.current(setDeviceIndexRequired(true)),
+                              dispatchRef.current(
+                                  // TODO: make sure this is offline-friendly? should it be?
+                                  fetchRegisteredDevices(fedimint),
+                              ),
+                          ]
+                        : []),
+                    // if there is no matrix session yet we will start the matrix
+                    // client either during recovery or during onboarding after a
+                    // display name is entered
+                    ...(status?.matrixSetup
+                        ? [dispatchRef.current(startMatrixClient({ fedimint }))]
+                        : []),
+                ])
+            })
+            .then(() => {
+                setBridgeIsReady(true)
+                dispatchRef.current(previewDefaultGroupChats())
+            })
+            .catch(err => {
+                log.error(
+                    `bridge failed to initialize after ${Date.now() - start}ms`,
+                    err,
+                )
                 setBridgeError(err)
+            })
+            .finally(() => {
+                // Hide splash screen once we're ready
+                // to show a screen
                 SplashScreen.hide()
-                return
-            }
-            setBridgeIsReady(true)
-            const stop = Date.now()
-            log.info('initialized:', stop - start, 'ms OS:', Platform.OS)
-        }
+            })
+    }, [deviceId, dispatchRef])
 
-        onInitializeBridge()
-    }, [deviceId])
+    useEffect(() => {
+        // Initialize push notification sender
+        const unsubscribeTransaction = fedimint.addListener(
+            'transaction',
+            async (event: TransactionEvent) => {
+                if (isForeground)
+                    return log.info(
+                        'Payment received (foreground - no notification)',
+                    )
+
+                log.info(
+                    'Payment received (background - delivering notification)',
+                )
+                await displayPaymentReceivedNotification(event, t)
+            },
+        )
+
+        return () => unsubscribeTransaction()
+    }, [t, isForeground])
 
     useEffect(() => {
         // Initialize logger
@@ -85,67 +161,35 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
             },
         )
 
-        // Initialize push notification sender
-        const unsubscribeTransaction = fedimint.addListener(
-            'transaction',
-            async (event: TransactionEvent) => {
-                // Create a channel (required for Android)
-                const channelId = await notifee.createChannel({
-                    id: 'transactions',
-                    name: 'Transactions Channel',
-                })
-
-                // Display notifications only for incoming transactions
-                if (
-                    event.transaction.direction === TransactionDirection.receive
-                ) {
-                    const { amount, onchainState, oobState } = event.transaction
-                    // dont show notification for onchain txn until it is claimed
-                    if (onchainState && onchainState.type !== 'claimed') return
-                    // dont show notification for ecash txn until it is done
-                    if (oobState && oobState.type !== 'done') return
-
-                    const federations = selectFederations(store.getState())
-                    const federation = federations.find(
-                        f => f.id === event.federationId,
-                    )
-                    await notifee.displayNotification({
-                        title: federation
-                            ? `${federation.name}: ${t(
-                                  'phrases.transaction-received',
-                              )}`
-                            : t('phrases.transaction-received'),
-                        body: `${amountUtils.formatNumber(
-                            amountUtils.msatToSat(amount),
-                        )} ${t('words.sats')}`,
-                        android: {
-                            channelId,
-                            // pressAction is needed if you want the notification to open the app when pressed
-                            pressAction: {
-                                id: 'transactions',
-                            },
-                        },
-                    })
-                }
-            },
-        )
-
         // Initialize panic listener
         const unsubscribePanic = fedimint.addListener(
             'panic',
             (event: PanicEvent) => {
                 log.error('bridge panic', event)
                 setBridgeError(event)
+                // Hide splash screen so the initializer
+                // ErrorScreen can be shown
                 SplashScreen.hide()
+            },
+        )
+
+        // Initialize locked device listener
+        const unsubscribeDeviceRegistration = fedimint.addListener(
+            'deviceRegistration',
+            (event: DeviceRegistrationEvent) => {
+                log.info('DeviceRegistrationEvent', event)
+                if (event.state === 'conflict') {
+                    dispatchRef.current(setShouldLockDevice(true))
+                }
             },
         )
 
         return () => {
             unsubscribeLog()
-            unsubscribeTransaction()
             unsubscribePanic()
+            unsubscribeDeviceRegistration()
         }
-    }, [t])
+    }, [dispatchRef, t])
 
     if (bridgeIsReady && !bridgeError) {
         return <>{children}</>

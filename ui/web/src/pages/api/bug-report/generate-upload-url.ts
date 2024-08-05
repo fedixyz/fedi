@@ -15,6 +15,10 @@ export default async function handler(
     // CORS header
     res.setHeader('Access-Control-Allow-Origin', '*')
 
+    if (req.method === 'OPTIONS') {
+        return
+    }
+
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
     const region = process.env.AWS_REGION

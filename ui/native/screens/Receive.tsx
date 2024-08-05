@@ -25,7 +25,7 @@ const Receive: React.FC<Props> = () => {
                 expectedInputTypes={[
                     ParserDataType.LnurlWithdraw,
                     ParserDataType.FedimintEcash,
-                    ParserDataType.FediChatMember,
+                    ParserDataType.FediChatUser,
                 ]}
                 onExpectedInput={parsedData => {
                     if (parsedData.type === ParserDataType.LnurlWithdraw) {
@@ -37,7 +37,7 @@ const Receive: React.FC<Props> = () => {
                             ecash: parsedData.data.token,
                         })
                     } else if (
-                        parsedData.type === ParserDataType.FediChatMember
+                        parsedData.type === ParserDataType.FediChatUser
                     ) {
                         navigation.navigate('ChatWallet', {
                             recipientId: parsedData.data.id,

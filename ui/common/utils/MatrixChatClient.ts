@@ -1,6 +1,10 @@
 import EventEmitter from 'events'
 
 import {
+    GLOBAL_MATRIX_PUSH_SERVER,
+    INVALID_NAME_PLACEHOLDER,
+} from '../constants/matrix'
+import {
     MatrixRoom,
     MatrixUser,
     MatrixError,
@@ -25,16 +29,19 @@ import {
     RpcMatrixUserDirectorySearchResponse,
     RpcRoomListEntry,
     RpcRoomMember,
+    RpcRoomNotificationMode,
 } from '../types/bindings'
+import { DisplayNameValidatorType, getDisplayNameValidator } from './chat'
+import { isDev } from './environment'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
 import {
     MatrixEventContent,
+    encodeFediMatrixRoomUri,
     formatMatrixEventContent,
     mxcUrlToHttpUrl,
 } from './matrix'
 import {
-    applyObservableUpdates,
     getNewObservableIds,
     makeInitialResetUpdate,
     mapObservableUpdates,
@@ -65,9 +72,18 @@ interface MatrixChatClientEventMap {
         roomId: MatrixRoom['id']
         powerLevels: MatrixRoomPowerLevels
     }
+    roomNotificationMode: {
+        roomId: MatrixRoom['id']
+        mode: RpcRoomNotificationMode
+    }
     user: MatrixUser
     error: MatrixError
+    auth: MatrixAuth
 }
+type ClientObserverKind = keyof Pick<
+    MatrixChatClientEventMap,
+    'status' | 'roomListUpdate'
+>
 
 export class MatrixChatClient {
     hasStarted = false
@@ -81,70 +97,120 @@ export class MatrixChatClient {
         MatrixRoom['id'],
         { info?: number; timeline?: number } | undefined
     > = {}
-    private roomInvites: RpcRoomListEntry[] = []
-    private joinedInvites: Set<string> = new Set()
+    private clientObserverMap: Partial<Record<ClientObserverKind, number>> = {}
+    private displayNameValidator: DisplayNameValidatorType | undefined
 
     /*** Public methods ***/
 
-    async start({
-        fedimint,
-        homeServer,
-        slidingSyncProxy,
-    }: {
-        fedimint: FedimintBridge
-        homeServer: string
-        slidingSyncProxy: string
-    }) {
+    async start(fedimint: FedimintBridge) {
         if (this.startPromise) {
             return this.startPromise
         }
         this.hasStarted = true
         this.fedimint = fedimint
+        if (!this.displayNameValidator) {
+            this.displayNameValidator = getDisplayNameValidator()
+        }
 
         fedimint.addListener('observableUpdate', ev => {
-            log.debug('Received observable update', { ev })
+            // This is noisy, but can be helpful for debugging
+            if (isDev())
+                log.debug('Received observable update', JSON.stringify(ev))
             this.handleObservableUpdate(ev)
         })
 
         this.startPromise = new Promise((resolve, reject) => {
             fedimint
-                .matrixInit({
-                    homeServer,
-                    slidingSyncProxy,
-                })
+                .matrixInit()
+                .then(() => this.getInitialAuth())
                 .then(auth => {
+                    // resolve cached auth before fetching anything
+                    // to support offline UX
+                    resolve(auth)
+
+                    // try to refetch auth in the background to
+                    // asynchronously get the user's avatarUrl
+                    this.refetchAuth()
+
                     this.observeRoomList()
                         .then(() => {
-                            resolve(this.serializeAuth(auth))
+                            // Wait until after the roomlist is observed
+                            // to prevent flickering on startup
                             this.observeSyncStatus()
-                            this.autoJoinInvites()
                         })
                         .catch(reject)
                 })
-                .catch(reject)
+                .catch(err => {
+                    log.error('matrixInit', err)
+                    reject(err)
+                })
         })
 
         return this.startPromise
     }
 
-    async getAccountSession() {
-        return this.fedimint.matrixGetAccountSession()
+    async getInitialAuth() {
+        // Don't emit cached auth to make sure the startPromise
+        // resolves before matrixAuth is set
+        return this.getAccountSession()
     }
 
-    async joinRoom(roomId: string) {
-        await this.fedimint.matrixRoomJoin({ roomId })
+    async refetchAuth() {
+        const auth = await this.getAccountSession(false)
+        this.emit('auth', auth)
+    }
+
+    private async getAccountSession(cached = true) {
+        const session = await this.fedimint.matrixGetAccountSession({ cached })
+        return this.serializeAuth(session)
+    }
+
+    // arrow function notation is important here! otherwise this.fedimint is
+    // can be undefined for some reason, idk why exactly...
+    // TODO: consider whether other functions are also at risk of this.fedimint being undefined?
+    getRoomPreview = async (roomId: string) => {
+        let previewInfo: MatrixRoom
+        let previewTimeline: MatrixTimelineItem[]
+        try {
+            const publicRoomInfo = await this.fedimint.matrixPublicRoomInfo({
+                roomId,
+            })
+            previewInfo = this.serializePublicRoomInfo(publicRoomInfo)
+        } catch (error) {
+            log.error('Failed to get room preview info', roomId, error)
+            throw error
+        }
+        try {
+            const previewContent = await this.fedimint.matrixRoomPreviewContent(
+                {
+                    roomId,
+                },
+            )
+            previewTimeline = previewContent.map(item =>
+                this.serializeTimelineItem(item, roomId),
+            )
+        } catch (error) {
+            log.error('Failed to get room preview timeline', roomId, error)
+            throw error
+        }
+        return {
+            info: previewInfo,
+            timeline: previewTimeline,
+        }
+    }
+
+    async joinRoom(roomId: string, isPublic?: boolean) {
+        if (isPublic) {
+            await this.fedimint.matrixRoomJoinPublic({ roomId })
+        } else {
+            await this.fedimint.matrixRoomJoin({ roomId })
+        }
     }
 
     async createRoom(options: MatrixCreateRoomOptions = {}) {
         const roomId = await this.fedimint.matrixRoomCreate({
             request: options,
         })
-        // TODO: Remove timeouts, matrixCreateRoom is kind of racey.
-        await new Promise(resolve => setTimeout(resolve, 500))
-        await this.observeRoomInfo(roomId)
-        await new Promise(resolve => setTimeout(resolve, 500))
-        await this.observeRoomTimeline(roomId)
-        await this.observeRoomPowerLevels(roomId)
         return { roomId }
     }
 
@@ -159,6 +225,9 @@ export class MatrixChatClient {
         this.observeRoomMembers(roomId).catch(err => {
             log.warn('Failed to observe room members', { roomId, err })
         })
+        this.observeRoomPowerLevels(roomId).catch(err => {
+            log.warn('Failed to observe room power levels', { roomId, err })
+        })
     }
 
     unobserveRoom(roomId: string) {
@@ -172,6 +241,10 @@ export class MatrixChatClient {
             this.unobserve(timeline)
             this.roomObserverMap[roomId] = rest
         }
+    }
+
+    async setRoomTopic(roomId: string, topic: string) {
+        await this.fedimint.matrixRoomSetTopic({ roomId, topic })
     }
 
     async setRoomName(roomId: string, name: string) {
@@ -199,7 +272,20 @@ export class MatrixChatClient {
     async inviteUserToRoom(roomId: string, userId: string) {
         await this.fedimint.matrixRoomInviteUserById({ roomId, userId })
         // TODO: remove me when new members are actually observed
+
+        // TODO: Remove timeouts, inviting new members is kinda racey.
+        await new Promise(resolve => setTimeout(resolve, 500))
         await this.observeRoomMembers(roomId)
+    }
+
+    async setRoomNotificationMode(
+        roomId: string,
+        mode: RpcRoomNotificationMode,
+    ) {
+        await this.fedimint.matrixRoomSetNotificationMode({
+            roomId,
+            mode,
+        })
     }
 
     async setRoomMemberPowerLevel(
@@ -260,8 +346,18 @@ export class MatrixChatClient {
             .then(this.serializeUserDirectorySearchResponse)
     }
 
+    async fetchMatrixProfile(
+        userId: MatrixUser['id'],
+    ): Promise<{ displayname: string }> {
+        return await this.fedimint.matrixUserProfile({
+            userId,
+        })
+    }
+
     async setDisplayName(displayName: string) {
-        await this.fedimint.matrixSetDisplayName({ displayName })
+        await this.fedimint.matrixSetDisplayName({
+            displayName: this.ensureDisplayName(displayName) ?? displayName,
+        })
     }
 
     async setAvatarUrl(avatarUrl: string) {
@@ -310,6 +406,103 @@ export class MatrixChatClient {
         return this.fedimint.matrixRoomSendReceipt({ roomId, eventId })
     }
 
+    async markRoomAsUnread(roomId: string, unread: boolean) {
+        return this.fedimint.matrixRoomMarkAsUnread({ roomId, unread })
+    }
+
+    async refetchRoomMembers(roomId: string) {
+        await this.observeRoomMembers(roomId)
+    }
+
+    async refetchRoomList() {
+        // Clear existing observer
+        const oldId = this.clientObserverMap['roomListUpdate']
+
+        if (typeof oldId === 'number' && oldId !== Number.MAX_SAFE_INTEGER) {
+            await this.unobserve(oldId)
+            delete this.clientObserverMap['roomListUpdate']
+        }
+        // Recreate observer with fresh "initial list"
+        await this.observeRoomList()
+    }
+
+    async refreshSyncStatus() {
+        // Clear existing observer
+        const oldId = this.clientObserverMap['status']
+        log.debug('refreshSyncStatus oldId', oldId)
+
+        if (typeof oldId === 'number' && oldId !== Number.MAX_SAFE_INTEGER) {
+            log.debug('clearing observer:', oldId)
+            await this.unobserve(oldId)
+            delete this.clientObserverMap['status']
+        }
+        // Recreate observer with fresh "initial list"
+        await this.observeSyncStatus()
+    }
+
+    async configureNotificationsPusher(
+        token: string,
+        appId: string,
+        appName: string,
+    ) {
+        log.info('appId', appId)
+        return this.fedimint.matrixSetPusher({
+            pusher: {
+                kind: 'http',
+                app_display_name: appName,
+                // TODO: get device name from device ID?
+                device_display_name: 'Device',
+                // TODO: get locale from device?
+                lang: 'en',
+                // TODO: how to pass the URL to bridge? or should this be hard-coded bridge-side?
+                data: {
+                    format: 'event_id_only',
+                    url: `${GLOBAL_MATRIX_PUSH_SERVER}/_matrix/push/v1/notify`,
+                },
+                app_id: appId,
+                pushkey: token,
+            },
+        })
+    }
+
+    async ignoreUser(userId: string) {
+        return this.fedimint.matrixIgnoreUser({ userId })
+    }
+
+    async unignoreUser(userId: string) {
+        return this.fedimint.matrixUnignoreUser({ userId })
+    }
+
+    async roomKickUser(roomId: string, userId: string, reason?: string) {
+        await this.fedimint.matrixRoomKickUser({
+            roomId,
+            userId,
+            reason: reason ?? null,
+        })
+        // Refetch room members
+        await this.observeRoomMembers(roomId)
+    }
+
+    async roomBanUser(roomId: string, userId: string, reason?: string) {
+        await this.fedimint.matrixRoomBanUser({
+            roomId,
+            userId,
+            reason: reason ?? null,
+        })
+        // Refetch room members
+        await this.observeRoomMembers(roomId)
+    }
+
+    async roomUnbanUser(roomId: string, userId: string, reason?: string) {
+        await this.fedimint.matrixRoomUnbanUser({
+            roomId,
+            userId,
+            reason: reason ?? null,
+        })
+        // Refetch room members
+        await this.observeRoomMembers(roomId)
+    }
+
     emit<TEventName extends keyof MatrixChatClientEventMap>(
         eventName: TEventName,
         argument: MatrixChatClientEventMap[TEventName],
@@ -345,14 +538,10 @@ export class MatrixChatClient {
     }
 
     private unobserve(id: number) {
-        if (!this.observers[id]) {
-            log.warn('Attempted to cancel observer that does not exist', { id })
-            return
-        }
-        this.fedimint
+        return this.fedimint
             .matrixObserverCancel({ id: id as unknown as bigint })
             .then(() => {
-                delete this.observers[id]
+                if (this.observers[id]) delete this.observers[id]
             })
             .catch(err => {
                 log.warn('Failed to cancel observer', { id, err })
@@ -362,16 +551,31 @@ export class MatrixChatClient {
     private handleObservableUpdate(update: ObservableUpdate<unknown>) {
         const observer = this.observers[update.id]
         if (!observer) {
-            log.warn(
+            log.info(
                 'Received observable update without associated observer handler',
-                { update },
+                JSON.stringify(update),
             )
-            return
+            return this.unobserve(update.id)
         }
         observer(update)
     }
 
     private async observeSyncStatus() {
+        log.debug(
+            'observeSyncStatus this.clientObserverMap[status]',
+            this.clientObserverMap['status'],
+        )
+        // Only observe the sync status once, subsequent calls are no-ops.
+        if (this.clientObserverMap['status'] !== undefined) return
+
+        // Immediately add to the map with a fake id to prevent additional calls.
+        this.clientObserverMap['status'] = Number.MAX_SAFE_INTEGER
+
+        const { id, initial } = await this.fedimint.matrixObserveSyncIndicator()
+
+        // Update the map with the real id
+        this.clientObserverMap['status'] = id
+
         const handleEmit = (status: typeof initial) => {
             this.emit(
                 'status',
@@ -380,32 +584,36 @@ export class MatrixChatClient {
                     : MatrixSyncStatus.synced,
             )
         }
-
-        const { id, initial } = await this.fedimint.matrixObserveSyncIndicator()
         handleEmit(initial)
 
         this.observe(id, (update: ObservableUpdate<typeof initial>) => {
+            log.debug(
+                'Recieved syncStatus observable update',
+                JSON.stringify(update),
+            )
             handleEmit(update.update)
         })
     }
 
     private async observeRoomList() {
+        // Only observe the roomList once, subsequent calls are no-ops.
+        if (this.clientObserverMap['roomListUpdate'] !== undefined) return
+
+        // Immediately add to the map with a fake id to prevent additional calls.
+        this.clientObserverMap['roomListUpdate'] = Number.MAX_SAFE_INTEGER
+
         const { id, initial } = await this.fedimint.matrixRoomList()
+
+        // Update the map with the real id
+        this.clientObserverMap['roomListUpdate'] = id
+
         // Emit a fake "update" using the initial values
         this.emit(
             'roomListUpdate',
             makeInitialResetUpdate(initial.map(this.serializeRoomListItem)),
         )
 
-        // Observe all of the rooms
-        await Promise.all(
-            initial.map(async room => {
-                if ('value' in room) {
-                    await this.observeRoomInfo(room.value)
-                    await this.observeRoomPowerLevels(room.value)
-                }
-            }),
-        )
+        // Join rooms we're invited to
 
         // Listen and emit on observable updates
         this.observe(id, (update: ObservableVecUpdate<RpcRoomListEntry>) => {
@@ -414,23 +622,43 @@ export class MatrixChatClient {
                 mapObservableUpdates(update.update, this.serializeRoomListItem),
             )
             getNewObservableIds(update.update, room =>
-                room.kind !== 'empty' ? room.value : false,
+                room.kind !== 'empty' && room.kind !== 'invalidated'
+                    ? room.value
+                    : false,
             ).forEach(roomId => {
                 this.observeRoomInfo(roomId).catch(err =>
                     log.warn('Failed to observe room info', {
                         roomId,
                         err,
-                    })
+                    }),
                 )
                 this.observeRoomPowerLevels(roomId).catch(err =>
                     log.warn('Failed to observe room power levels', {
                         roomId,
                         err,
-                    })
+                    }),
+                )
+                this.observeRoomNotificationMode(roomId).catch(err =>
+                    log.warn('Failed to observe room notification mode', {
+                        roomId,
+                        err,
+                    }),
                 )
             })
         })
+
+        // Observe all of the rooms
+        await Promise.all(
+            initial.map(async room => {
+                if ('value' in room) {
+                    await this.observeRoomInfo(room.value)
+                    await this.observeRoomPowerLevels(room.value)
+                    await this.observeRoomNotificationMode(room.value)
+                }
+            }),
+        )
     }
+    // private async
 
     private async observeRoomInfo(roomId: string) {
         // Only observe a room once, subsequent calls are no-ops.
@@ -454,6 +682,11 @@ export class MatrixChatClient {
 
         // Emit the initial info
         const room = this.serializeRoomInfo(initial)
+
+        // Previously, room invite and room list were separate
+        // but now they are combined.
+        // All updates are merged too
+
         this.emit('roomInfo', room)
 
         // If it's a DM, fetch the member since it's small and we use recent DM users.
@@ -463,6 +696,13 @@ export class MatrixChatClient {
                     'Failed to observe room members from initial room info',
                     { roomId, err },
                 )
+            })
+
+            // HACK: Observe all DMs to claim ecash in the background.
+            // TODO: Move this to the bridge... intercept messages that contain
+            // ecash and claim before passing to the frontend.
+            this.observeRoomTimeline(roomId).catch(err => {
+                log.warn('Failed to observe room timeline', { roomId, err })
             })
         }
 
@@ -513,61 +753,79 @@ export class MatrixChatClient {
         })
     }
 
+    // Fake observe - just fetches
     private async observeRoomMembers(roomId: string) {
         // TODO: Listen for new room member events, re-fetch.
+        // // Only observe room members once, subsequent calls are no-ops.
+        // if (this.roomObserverMap[roomId]?.members !== undefined) return
+
+        // // Immediately add to the map with a fake id to prevent additional calls.
+        // this.roomObserverMap[roomId] = {
+        //     ...this.roomObserverMap[roomId],
+        //     members: Number.MAX_SAFE_INTEGER,
+        // }
+
         const members = await this.fedimint.matrixRoomGetMembers({ roomId })
-        members.forEach(member => {
-            this.emit('roomMember', this.serializeRoomMember(member, roomId))
-        })
+        const serializedMembers = members.map(member =>
+            this.serializeRoomMember(member, roomId),
+        )
+        this.emit('roomMembers', { roomId, members: serializedMembers })
     }
 
+    // Fake observe - just fetches
     private async observeRoomPowerLevels(roomId: string) {
         // TODO: Listen for room power level events, re-fetch.
-        const powerLevels = await this.fedimint.matrixRoomGetPowerLevels({
-            roomId,
-        })
-        this.emit('roomPowerLevels', { roomId, powerLevels })
+        try {
+            const powerLevels = await this.fedimint.matrixRoomGetPowerLevels({
+                roomId,
+            })
+            this.emit('roomPowerLevels', { roomId, powerLevels })
+        } catch (error) {
+            log.warn('Failed to get power levels for roomId', roomId, error)
+        }
     }
 
-    private async autoJoinInvites() {
-        const attemptJoins = () => {
-            this.roomInvites.forEach(invite => {
-                if (invite.kind === 'empty') return
-                const roomId = invite.value
-                if (this.joinedInvites.has(roomId)) return
-                this.joinedInvites.add(invite.value)
-                this.joinRoom(invite.value).catch(err => {
-                    log.warn(
-                        'Failed to auto-join invite, will try again later',
-                        { invite, err },
-                    )
-                    this.joinedInvites.delete(invite.value)
-                })
-            })
-        }
-
-        const { id, initial } = await this.fedimint.matrixRoomListInvites()
-        this.roomInvites = initial
-        attemptJoins()
-
-        // Listen and re-run auto accept on updates
-        this.observe(id, (update: ObservableVecUpdate<RpcRoomListEntry>) => {
-            this.roomInvites = applyObservableUpdates(
-                this.roomInvites,
-                update.update,
-            )
-            attemptJoins()
+    private async observeRoomNotificationMode(roomId: string) {
+        // TODO: Listen for notification mode, re-fetch. (observables)
+        const mode = await this.fedimint.matrixRoomGetNotificationMode({
+            roomId,
+        })
+        this.emit('roomNotificationMode', {
+            roomId,
+            // defaults to "allMessages"
+            mode: mode ?? 'allMessages',
         })
     }
 
     private serializeRoomListItem(room: RpcRoomListEntry): MatrixRoomListItem {
-        if (room.kind === 'empty') {
+        if (room.kind === 'empty' || room.kind === 'invalidated') {
             return { status: MatrixRoomListItemStatus.loading }
         } else {
             return {
                 status: MatrixRoomListItemStatus.ready,
                 id: room.value,
             }
+        }
+    }
+
+    // TODO: get type for this from bridge?
+    private serializePublicRoomInfo(room: any): MatrixRoom {
+        return {
+            id: room.room_id,
+            name: room.name,
+            // We need preview timeline items to determine this, which is a separate call.
+            // For now leave this undefined, and just apply it with a redux selector.
+            notificationCount: undefined,
+            joinedMemberCount: room.num_joined_members || 0,
+            // We need power levels to determine this, which is a separate call.
+            // For now leave this undefined, and just apply it with a redux selector.
+            // broadcastOnly: false,
+            // Private rooms don't have previews so these are always true
+            isPreview: true,
+            isPublic: true,
+            inviteCode: encodeFediMatrixRoomUri(room.room_id),
+            // TODO: HACK - move this to bridge
+            roomState: 'Invited',
         }
     }
 
@@ -580,9 +838,10 @@ export class MatrixChatClient {
             preview = {
                 eventId: room.latest_event.event.event.event_id,
                 senderId: room.latest_event.sender_profile.Original.content.id,
-                displayName:
+                displayName: this.ensureDisplayName(
                     room.latest_event.sender_profile.Original.content
                         .displayname,
+                ),
                 avatarUrl:
                     room.latest_event.sender_profile.Original.content
                         .avatar_url,
@@ -591,13 +850,21 @@ export class MatrixChatClient {
             }
         }
 
+        // TODO (cleanup): Remove base_info.name fallback
+        // cached_display_name seems to be the best source of truth for the room name
+        // for both groups and DMS assuming matrix-rust-sdk handles computing it correctly
+        // but since it is a newer field we leave the base_info.name as a fallback temporarily
+        const roomName =
+            room.cached_display_name?.Calculated ||
+            room.base_info.name?.Original?.content?.name
+
         return {
             directUserId,
             preview,
             id: room.room_id,
-            name: room.base_info.name?.Original?.content?.name,
-            notificationCount:
-                room.notification_counts?.notification_count || 0,
+            name: directUserId ? this.ensureDisplayName(roomName) : roomName,
+            notificationCount: room.read_receipts?.num_unread || 0,
+            isMarkedUnread: room.base_info.is_marked_unread,
             // TODO: Sometimes non-dm room with 1 user has an avatar of the user, figure out how to stop that
             // TODO: Make opaque mxc type, have each component do the conversion with width / height args
             avatarUrl: avatarUrl
@@ -606,6 +873,10 @@ export class MatrixChatClient {
             // We need power levels to determine this, which is a separate call.
             // For now leave this undefined, and just apply it with a redux selector.
             // broadcastOnly: false,
+            isPublic: room.base_info.encryption === null,
+            inviteCode: encodeFediMatrixRoomUri(room.room_id),
+            // TODO: use zod OR export types more strictly...
+            roomState: room.room_state,
         }
     }
 
@@ -616,7 +887,7 @@ export class MatrixChatClient {
         return {
             roomId,
             id: member.userId,
-            displayName: member.displayName || undefined,
+            displayName: this.ensureDisplayName(member.displayName),
             powerLevel: member.powerLevel,
             membership: member.membership,
             // TODO: Make opaque mxc type, have each component do the conversion with width / height args
@@ -629,7 +900,7 @@ export class MatrixChatClient {
     private serializeAuth(auth: RpcMatrixAccountSession): MatrixAuth {
         return {
             userId: auth.userId,
-            displayName: auth.displayName || undefined,
+            displayName: this.ensureDisplayName(auth.displayName),
             avatarUrl: auth.avatarUrl
                 ? mxcUrlToHttpUrl(auth.avatarUrl, 200, 200, 'crop')
                 : undefined,
@@ -637,13 +908,13 @@ export class MatrixChatClient {
         }
     }
 
-    private serializeUserDirectorySearchResponse(
+    private serializeUserDirectorySearchResponse = (
         res: RpcMatrixUserDirectorySearchResponse,
-    ): MatrixSearchResults {
+    ): MatrixSearchResults => {
         return {
             results: res.results.map(user => ({
                 id: user.userId,
-                displayName: user.displayName || undefined,
+                displayName: this.ensureDisplayName(user.displayName),
                 avatarUrl: user.avatarUrl
                     ? mxcUrlToHttpUrl(user.avatarUrl, 200, 200, 'crop')
                     : undefined,
@@ -665,6 +936,13 @@ export class MatrixChatClient {
         if (
             item.value.content.kind === 'json' &&
             item.value.content.value.type !== 'm.room.message'
+        )
+            return null
+        // ignore deleted messages
+        if (
+            item.value.content.kind === 'json' &&
+            item.value.content.value &&
+            'redacted_because' in item.value.content.value
         )
             return null
 
@@ -705,5 +983,18 @@ export class MatrixChatClient {
             status,
             error,
         }
+    }
+
+    // Ref: https://github.com/fedibtc/fedi/issues/1184#issuecomment-2137529842
+    private ensureDisplayName = (name: string | null) => {
+        if (!name) return ''
+        if (!this.displayNameValidator) return name
+        const res = this.displayNameValidator.safeParse(name)
+        if (res.success) return name
+        // TODO: figure out efficient way to localize this.
+        // What's a place this can live such that locales are accessible?
+        // Ideally, we only want to validate a displayName once, so
+        // this shouldn't live inside of the ui components.
+        return INVALID_NAME_PLACEHOLDER
     }
 }

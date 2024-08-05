@@ -1,89 +1,69 @@
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { StyleSheet, View } from 'react-native'
-import SplashScreen from 'react-native-splash-screen'
 
 import {
-    refreshFederations,
-    selectActiveFederation,
     selectAuthenticatedMember,
+    selectHasSetMatrixDisplayName,
 } from '@fedi/common/redux'
 import { selectHasLoadedFromStorage } from '@fedi/common/redux/storage'
-import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { NavigationHook, RootStackParamList } from '../types/navigation'
-import { ErrorScreen } from './ErrorScreen'
-
-const log = makeLog('Initializing')
+import { useAppSelector } from '../state/hooks'
+import {
+    NavigationArgs,
+    NavigationHook,
+    RootStackParamList,
+} from '../types/navigation'
+import { useIsFeatureUnlocked } from '../utils/hooks/security'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Initializing'>
 
+// TODO: Replace this entire screen with FediBridgeInitializer
 const Initializing: React.FC<Props> = () => {
-    const dispatch = useAppDispatch()
     const navigation = useNavigation<NavigationHook>()
     const { theme } = useTheme()
-    const activeFederation = useAppSelector(selectActiveFederation)
     const authenticatedMember = useAppSelector(selectAuthenticatedMember)
+    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
     const hasStorageLoaded = useAppSelector(selectHasLoadedFromStorage)
-    const [hasRefreshedFederations, setHasRefreshedFederations] =
-        useState(false)
-    const [bridgeError, setBridgeError] = useState<unknown | null>(null)
+    const isAppUnlocked = useIsFeatureUnlocked('app')
 
-    const hasLoaded = hasStorageLoaded && hasRefreshedFederations
-    const hasFederation = !!activeFederation
-    const hasAuthenticatedMember = !!authenticatedMember
-
-    // Refresh federations from bridge
-    useEffect(() => {
-        const initializeFederations = async () => {
-            try {
-                await dispatch(refreshFederations(fedimint)).unwrap()
-                setHasRefreshedFederations(true)
-            } catch (err) {
-                log.error('initializeFederations', err)
-                setBridgeError(err)
-            }
-        }
-        initializeFederations().finally(() => SplashScreen.hide())
-    }, [dispatch])
+    const hasLoaded = hasStorageLoaded
+    const hasLegacyChatData = !!authenticatedMember
 
     // once everything has loaded, determine where to navigate
     useEffect(() => {
-        const doNavigation = async () => {
-            if (!hasLoaded) return
+        if (!hasLoaded || isAppUnlocked === undefined) return
 
-            if (hasFederation) {
-                // Otherwise, go Home
-                return navigation.replace('TabsNavigator')
-            } else {
-                // If this RPC resolves with something truthy, then they are doing social recovery
-                const socialRecoveryActive = await fedimint
-                    .recoveryQr()
-                    .then(qr => !!qr)
-                    .catch(() => false)
-                // If they don't have a federation and are doing social recovery, go to social recovery QR screen
-                if (socialRecoveryActive) {
-                    return navigation.replace('CompleteSocialRecovery')
-                }
-                // Otherwise go to splash and have them join a federation
-                return navigation.replace('Splash')
-            }
+        let destination: NavigationArgs = ['TabsNavigator']
+
+        // make sure there is a display name before navigating to Home
+        if (!hasSetDisplayName && !hasLegacyChatData) {
+            // Otherwise, go Home
+            destination = ['Splash']
         }
-        doNavigation()
-    }, [hasLoaded, hasFederation, hasAuthenticatedMember, navigation])
 
-    if (bridgeError) {
-        return <ErrorScreen error={bridgeError} />
-    }
+        // If PIN-protected, navigate to the Lock Screen
+        if (!isAppUnlocked) {
+            return navigation.replace('LockScreen', {
+                routeParams: destination,
+            })
+        }
+
+        navigation.replace(...destination)
+    }, [
+        hasLegacyChatData,
+        hasLoaded,
+        hasSetDisplayName,
+        navigation,
+        isAppUnlocked,
+    ])
 
     return (
         <View style={styles(theme).container}>
-            <SvgImage size={SvgImageSize.lg} name="FediLogoGradient" />
+            <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
         </View>
     )
 }

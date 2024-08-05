@@ -3,8 +3,10 @@ import Fedi
 @objc(FedimintFfi)
 class FedimintFfi: NSObject {
   @objc
-  func initialize(_ dataDir: NSString, logLevel: NSString, deviceId: NSString, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) -> Void {
-    resolve(fedimintInitialize(dataDir: String(dataDir), logLevel: String(logLevel), eventSink: EventDispatcher(), deviceIdentifier: String(deviceId)))
+  func initialize(_ options: NSString, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) -> Void {
+    Task {
+        resolve(await fedimintInitialize(eventSink: EventDispatcher(), initOptsJson: String(options)))
+    }
   }
 
   @objc

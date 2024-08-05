@@ -3,9 +3,8 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import WorldIllustration from '@fedi/common/assets/images/illustration-world.png'
 import FediLogoIcon from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
-import { selectFederations } from '@fedi/common/redux'
+import { EULA_URL } from '@fedi/common/constants/tos'
 
-import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { Icon } from '../Icon'
@@ -19,7 +18,6 @@ import {
 
 export const OnboardingHome: React.FC = () => {
     const { t } = useTranslation()
-    const hasFederations = useAppSelector(selectFederations).length > 0
 
     return (
         <OnboardingContainer>
@@ -41,28 +39,22 @@ export const OnboardingHome: React.FC = () => {
                 </Info>
             </OnboardingContent>
             <OnboardingActions>
-                <Button width="full" href="/onboarding/join">
-                    {t('feature.federations.join-federation')}
+                <Text>{t('feature.onboarding.are-you-new')}</Text>
+                <Button width="full" href="/onboarding/username">
+                    {t('feature.onboarding.yes-create-account')}
                 </Button>
-                {!hasFederations && (
-                    <Button
-                        width="full"
-                        variant="secondary"
-                        href="/onboarding/recover">
-                        {t('feature.onboarding.join-returning-member')}
-                    </Button>
-                )}
+                <Button
+                    width="full"
+                    variant="secondary"
+                    href="/onboarding/recover">
+                    {t('feature.onboarding.im-returning')}
+                </Button>
                 <Terms>
                     <Text variant="small">
                         <Trans
                             i18nKey="feature.onboarding.by-clicking-you-agree-user-agreement"
                             components={{
-                                anchor: (
-                                    <a
-                                        target="_blank"
-                                        href="https://www.fedi.xyz/eula-en"
-                                    />
-                                ),
+                                anchor: <a target="_blank" href={EULA_URL} />,
                             }}
                         />
                     </Text>

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail};
@@ -15,7 +15,7 @@ use tracing::{error, info, instrument, warn};
 
 use crate::api::IFediApi;
 use crate::constants::MILLION;
-use crate::federation_v2::db::OutstandingFediFeesKey;
+use crate::federation_v2::db::OutstandingFediFeesPerTXTypeKey;
 use crate::federation_v2::{zero_gateway_fees, FederationV2};
 use crate::storage::{AppState, FediFeeSchedule, ModuleFediFeeSchedule};
 use crate::types::{LightningSendMetadata, RpcTransactionDirection};
@@ -129,11 +129,7 @@ impl FediFeeHelper {
             .await
     }
 
-    /// For the given:
-    /// - federation ID
-    /// - module (identified by ModuleKind)
-    /// - send/receive direction
-    /// returns the fedi fee to be charged in ppm. If either the federation ID
+    /// Returns the fedi fee to be charged in ppm. If either the federation ID
     /// or the module is unknown, returns an error.
     pub async fn get_fedi_fee_ppm(
         &self,
@@ -162,10 +158,7 @@ impl FediFeeHelper {
             .await?
     }
 
-    /// For the given:
-    /// - federation ID
-    /// - module (identified by ModuleKind)
-    /// sets the ModuleFediFeeSchedule. If the federation ID is unknown, returns
+    /// Sets the ModuleFediFeeSchedule. If the federation ID is unknown, returns
     /// an error.
     pub async fn set_module_fee_schedule(
         &self,
@@ -196,15 +189,21 @@ impl FediFeeHelper {
         &self,
         amount: Amount,
         network: Network,
+        module: ModuleKind,
+        tx_direction: RpcTransactionDirection,
     ) -> anyhow::Result<Bolt11Invoice> {
-        self.fedi_api.fetch_fedi_fee_invoice(amount, network).await
+        self.fedi_api
+            .fetch_fedi_fee_invoice(amount, network, module, tx_direction)
+            .await
     }
 }
+
+type ModuleTXDirectionLockMap = BTreeMap<(ModuleKind, RpcTransactionDirection), Arc<Mutex<()>>>;
 
 #[derive(Clone, Default)]
 pub struct FediFeeRemittanceService {
     // held while remit the fees
-    lock: Arc<Mutex<()>>,
+    locks_map: Arc<Mutex<ModuleTXDirectionLockMap>>,
 }
 
 impl FediFeeRemittanceService {
@@ -212,13 +211,36 @@ impl FediFeeRemittanceService {
     /// remittance threshold. If yes, queries the fee helper to obtain a
     /// lightning invoice to remit the fees. If the fees HAS surpassed
     /// the threshold, and spawns a task in background to remit fees.
-    pub async fn remit_fedi_fee_if_threshold_met(&self, fed: &FederationV2) {
+    #[instrument(skip(self, fed))]
+    pub async fn remit_fedi_fee_if_threshold_met(
+        &self,
+        fed: &FederationV2,
+        module: ModuleKind,
+        tx_direction: RpcTransactionDirection,
+    ) {
         // remit task is already running
-        let Ok(guard) = self.lock.clone().try_lock_owned() else {
+        let Ok(guard) = self
+            .locks_map
+            .lock()
+            .await
+            .entry((module.clone(), tx_direction.clone()))
+            .or_default()
+            .clone()
+            .try_lock_owned()
+        else {
             info!("Fedi fee remittance already running");
             return;
         };
-        let outstanding_fees = fed.get_outstanding_fedi_fees().await;
+        let outstanding_fees = fed
+            .dbtx()
+            .await
+            .into_nc()
+            .get_value(&OutstandingFediFeesPerTXTypeKey(
+                module.clone(),
+                tx_direction.clone(),
+            ))
+            .await
+            .unwrap_or(Amount::ZERO);
         let remittance_threshold = fed.fedi_fee_schedule().await.remittance_threshold_msat;
         if outstanding_fees.msats < remittance_threshold {
             info!("Fedi fee remittance not initiated, accrued fee doesn't exceed threshold");
@@ -227,15 +249,21 @@ impl FediFeeRemittanceService {
         let fed2 = fed.clone();
         fed.task_group
             .spawn_cancellable("remit_fedi_fee", async move {
-                let _ = Self::remit_fedi_fee(guard, &fed2).await;
+                let _ = Self::remit_fedi_fee(guard, &fed2, outstanding_fees, module, tx_direction)
+                    .await;
             });
     }
 
-    #[instrument(skip_all, fields(federation_id = %fed.federation_id()) , err, ret)]
+    #[instrument(skip(guard, fed), fields(federation_id = %fed.federation_id()) , err, ret)]
     #[cfg_attr(target_family = "wasm", async_recursion(?Send))]
     #[cfg_attr(not(target_family = "wasm"), async_recursion)]
-    async fn remit_fedi_fee(guard: OwnedMutexGuard<()>, fed: &FederationV2) -> anyhow::Result<()> {
-        let outstanding_fees = fed.get_outstanding_fedi_fees().await;
+    async fn remit_fedi_fee(
+        guard: OwnedMutexGuard<()>,
+        fed: &FederationV2,
+        outstanding_fees: Amount,
+        module: ModuleKind,
+        tx_direction: RpcTransactionDirection,
+    ) -> anyhow::Result<()> {
         info!("fedi fee threshold exceeded, remitting");
         let gateway = fed.select_gateway().await?;
         let gateway_fees = gateway
@@ -276,6 +304,8 @@ impl FediFeeRemittanceService {
                 fed.get_network().ok_or(anyhow!(
                     "Federation recovering during fee remittance, unexpected!"
                 ))?,
+                module.clone(),
+                tx_direction.clone(),
             )
             .await?;
 
@@ -298,16 +328,20 @@ impl FediFeeRemittanceService {
             .db()
             .autocommit(
                 |dbtx, _| {
-                    Box::pin(async move {
-                        let current_outstanding_fees = dbtx
-                            .get_value(&OutstandingFediFeesKey)
-                            .await
-                            .unwrap_or(Amount::ZERO);
-                        let new_outstanding_fees =
-                            current_outstanding_fees.saturating_sub(outstanding_fees);
-                        dbtx.insert_entry(&OutstandingFediFeesKey, &new_outstanding_fees)
-                            .await;
-                        Ok::<(), anyhow::Error>(())
+                    Box::pin({
+                        let outstanding_key =
+                            OutstandingFediFeesPerTXTypeKey(module.clone(), tx_direction.clone());
+                        async move {
+                            let current_outstanding_fees = dbtx
+                                .get_value(&outstanding_key)
+                                .await
+                                .unwrap_or(Amount::ZERO);
+                            let new_outstanding_fees =
+                                current_outstanding_fees.saturating_sub(outstanding_fees);
+                            dbtx.insert_entry(&outstanding_key, &new_outstanding_fees)
+                                .await;
+                            Ok::<(), anyhow::Error>(())
+                        }
                     })
                 },
                 Some(100),
@@ -330,15 +364,22 @@ impl FediFeeRemittanceService {
                 .db()
                 .autocommit(
                     |dbtx, _| {
-                        Box::pin(async move {
-                            let current_outstanding_fees = dbtx
-                                .get_value(&OutstandingFediFeesKey)
-                                .await
-                                .unwrap_or(Amount::ZERO);
-                            let new_outstanding_fees = current_outstanding_fees + outstanding_fees;
-                            dbtx.insert_entry(&OutstandingFediFeesKey, &new_outstanding_fees)
-                                .await;
-                            Ok::<(), anyhow::Error>(())
+                        Box::pin({
+                            let outstanding_key = OutstandingFediFeesPerTXTypeKey(
+                                module.clone(),
+                                tx_direction.clone(),
+                            );
+                            async move {
+                                let current_outstanding_fees = dbtx
+                                    .get_value(&outstanding_key)
+                                    .await
+                                    .unwrap_or(Amount::ZERO);
+                                let new_outstanding_fees =
+                                    current_outstanding_fees + outstanding_fees;
+                                dbtx.insert_entry(&outstanding_key, &new_outstanding_fees)
+                                    .await;
+                                Ok::<(), anyhow::Error>(())
+                            }
                         })
                     },
                     Some(100),

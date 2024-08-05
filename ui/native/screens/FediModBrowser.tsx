@@ -1,7 +1,14 @@
+import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { MutableRefObject, useRef, useState } from 'react'
+import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native'
+import {
+    ActivityIndicator,
+    BackHandler,
+    Linking,
+    StyleSheet,
+    View,
+} from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { WebView } from 'react-native-webview'
 import { OnShouldStartLoadWithRequest } from 'react-native-webview/lib/WebViewTypes'
@@ -19,9 +26,12 @@ import {
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectActiveFederation,
-    selectAuthenticatedMember,
+    selectCurrency,
     selectFediModDebugMode,
+    selectHasSetMatrixDisplayName,
     selectIsActiveFederationRecovering,
+    selectLanguage,
+    selectMatrixAuth,
 } from '@fedi/common/redux'
 import {
     AnyParsedData,
@@ -49,6 +59,7 @@ import {
 
 import { fedimint } from '../bridge'
 import { AuthOverlay } from '../components/feature/fedimods/AuthOverlay'
+import ExitFedimodOverlay from '../components/feature/fedimods/ExitFedimodOverlay'
 import FediModBrowserHeader from '../components/feature/fedimods/FediModBrowserHeader'
 import { GenerateEcashOverlay } from '../components/feature/fedimods/GenerateEcashoverlay'
 import { MakeInvoiceOverlay } from '../components/feature/fedimods/MakeInvoiceOverlay'
@@ -97,8 +108,13 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const activeFederation = useAppSelector(selectActiveFederation)
-    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
+    const member = useAppSelector(selectMatrixAuth)
+    const hasSetMatrixDisplayName = useAppSelector(
+        selectHasSetMatrixDisplayName,
+    )
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
+    const currency = useAppSelector(selectCurrency)
+    const language = useAppSelector(selectLanguage)
     const nostrEnabled = useIsNostrEnabled()
     const fediInternalEnabled = useIsFediInternalInjectionEnabled()
     const toast = useToast()
@@ -127,12 +143,14 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         useState<UnsignedNostrEvent | null>(null)
     const [isParsingLink, setIsParsingLink] = useState(false)
     const [ecashRequest, setEcashRequest] = useState<EcashRequest | null>(null)
+    const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false)
 
     const getActiveGatewayPromiseRef =
         useRef<Promise<RpcLightningGateway> | null>(null)
     const [showRecoveryInProgress, setShowRecoveryInProgress] =
         useState<boolean>(false)
     const { setParsedLink } = useOmniLinkContext()
+    const navigation = useNavigation()
 
     const handleParsedLink = (parsedLink: AnyParsedData) => {
         switch (parsedLink.type) {
@@ -184,7 +202,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         [InjectionMessageType.webln_getInfo]: async () => {
             log.info('webln.getInfo')
 
-            const alias = authenticatedMember?.username || ''
+            const alias = member?.displayName || ''
             let pubkey = ''
             try {
                 const gateway = await getActiveGatewayOrThrow()
@@ -256,8 +274,13 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             return new Promise((resolve, reject) => {
                 if (!activeFederation)
                     return reject(new Error('No active federation'))
+                if (!activeFederation.hasWallet)
+                    return reject(new Error('Active federation has no wallet'))
                 // TODO: Hoist this to respect balance changes
-                if (activeFederation.balance < invoice.amount) {
+                if (
+                    !activeFederation.balance ||
+                    activeFederation.balance < invoice.amount
+                ) {
                     const message = t('errors.insufficient-balance', {
                         balance: `${amountUtils.msatToSat(
                             activeFederation?.balance as MSats,
@@ -356,13 +379,15 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         [InjectionMessageType.fedi_getAuthenticatedMember]: async () => {
             log.info('fedi.getAuthenticatedMember')
 
-            if (!authenticatedMember) {
+            if (!member) {
                 throw new Error('No authenticated member')
             }
 
             return {
-                id: authenticatedMember.id,
-                username: authenticatedMember.username,
+                id: member.userId,
+                username: hasSetMatrixDisplayName
+                    ? member.displayName
+                    : 'member',
             }
         },
         [InjectionMessageType.fedi_getActiveFederation]: async () => {
@@ -375,8 +400,20 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             return {
                 id: activeFederation.id,
                 name: activeFederation.name,
-                network: activeFederation.network,
+                network: activeFederation.hasWallet
+                    ? activeFederation.network
+                    : undefined,
             }
+        },
+        [InjectionMessageType.fedi_getCurrencyCode]: async () => {
+            log.info('fedi.getActiveFederation')
+
+            return currency
+        },
+        [InjectionMessageType.fedi_getLanguageCode]: async () => {
+            log.info('fedi.getActiveFederation')
+
+            return language ?? 'en'
         },
     })
 
@@ -443,6 +480,22 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
 
     const style = styles(insets)
 
+    // Handle back button press on Android
+    useEffect(() => {
+        const backAction = () => {
+            setConfirmLeaveOpen(true)
+
+            return true
+        }
+
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            backAction,
+        )
+
+        return () => backHandler.remove()
+    }, [navigation, t])
+
     return (
         <View style={style.container}>
             <FediModBrowserHeader webViewRef={webview} fediMod={fediMod} />
@@ -494,6 +547,10 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 onReject={overlayProps.onReject}
                 onAccept={overlayProps.onAccept}
                 ecashRequest={ecashRequest}
+            />
+            <ExitFedimodOverlay
+                open={confirmLeaveOpen}
+                onOpenChange={setConfirmLeaveOpen}
             />
         </View>
     )

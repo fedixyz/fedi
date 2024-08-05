@@ -3,6 +3,7 @@ import { QRCode } from 'qrcode'
 interface QRCodeStyleOptions {
     moduleShape?: 'dot' | 'square'
     hideLogo?: boolean
+    logoOverrideUrl?: string
 }
 
 /**
@@ -22,6 +23,9 @@ export function renderStyledQrSvg(
     const randomId = Math.random().toString(36).substring(2, 15)
 
     const moduleShape = size > 60 ? 'square' : options.moduleShape || 'dot'
+
+    const avatarPictureDimension = 700
+    const avatarPicturePosition = ((moduleSize * size) / 2) - (avatarPictureDimension / 2)
 
     const qrSvg = `
         <svg
@@ -45,7 +49,7 @@ export function renderStyledQrSvg(
                     <rect x="180" y="180" width="335" height="335" rx="20" fill="currentColor"/>
                 </g>
                 ${
-                    options.hideLogo
+                    options.hideLogo && !options.logoOverrideUrl
                         ? ''
                         : `<g id="logo-${randomId}">
                         <rect width="990" height="990" rx="200" fill="currentColor"/>
@@ -63,7 +67,7 @@ export function renderStyledQrSvg(
                     size * moduleSize - 700
                 })" xlink:href="#point-${randomId}"/>
                 ${
-                    options.hideLogo
+                    options.hideLogo || !!options.logoOverrideUrl
                         ? ''
                         : `<use fill-rule="evenodd" transform="translate(${
                               size * 0.5 * moduleSize - 280
@@ -72,6 +76,19 @@ export function renderStyledQrSvg(
                           }) scale(0.6)" xlink:href="#logo-${randomId}" />`
                 }
             </g>
+
+            ${
+                options.logoOverrideUrl && !options.hideLogo
+                ?
+                    `<clipPath id="rounded-avatar">
+                        <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${avatarPictureDimension / 2}" ry="${avatarPictureDimension / 2}" />
+                    </clipPath>
+
+                    <image href="${options.logoOverrideUrl}" x="${avatarPicturePosition}" y=${avatarPicturePosition} width="${avatarPictureDimension}", height="${avatarPictureDimension}" clip-path="url(#rounded-avatar)" />
+
+                    <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${avatarPictureDimension / 2}" ry="${avatarPictureDimension / 2}" fill="none" stroke="black" stroke-width="32" />`
+                : ''
+            }
         </svg>
 `
 

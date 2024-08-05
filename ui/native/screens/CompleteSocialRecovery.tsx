@@ -12,17 +12,14 @@ import {
 import QRCode from 'react-native-qrcode-svg'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    completeSocialRecovery,
-    selectActiveFederationId,
-} from '@fedi/common/redux'
+import { completeSocialRecovery } from '@fedi/common/redux'
 import type { GuardianApproval, SocialRecoveryEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
 import { fedimint } from '../bridge'
 import HoloCard from '../components/ui/HoloCard'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { useAppDispatch } from '../state/hooks'
 import {
     resetAfterFailedSocialRecovery,
     resetAfterSocialRecovery,
@@ -42,7 +39,6 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
     const dispatch = useAppDispatch()
     const [recovering, setRecovering] = useState(false)
 
@@ -108,7 +104,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
         if (recovering) {
             completeRecovery()
         }
-    }, [activeFederationId, dispatch, navigation, recovering, toast, t])
+    }, [dispatch, navigation, recovering, toast, t])
 
     const renderGuardianApprovalStatus = () => {
         if (approvals?.remaining === 0) {

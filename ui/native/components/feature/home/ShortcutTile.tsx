@@ -1,14 +1,20 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
     Image,
-    Pressable,
+    ImageSourcePropType,
     StyleSheet,
     View,
     useWindowDimensions,
 } from 'react-native'
 
-import { FediMod, Shortcut } from '../../../types'
+import { selectIsActiveFederationRecovering } from '@fedi/common/redux'
+
+import { FediModImages } from '../../../assets/images'
+import { useAppSelector } from '../../../state/hooks'
+import { FediMod, Shortcut, ShortcutType } from '../../../types'
+import { BubbleView } from '../../ui/BubbleView'
+import { Pressable } from '../../ui/Pressable'
 import SvgImage, {
     SvgImageName,
     SvgImageSize,
@@ -17,22 +23,55 @@ import SvgImage, {
 
 type ShortcutTileProps = {
     shortcut: Shortcut
+    onHold?: (shortcut: Shortcut) => void
     onSelect: (shortcut: Shortcut) => void
 }
 
-const ShortcutTile = ({ shortcut, onSelect }: ShortcutTileProps) => {
+function isMod(shortcut: Shortcut | FediMod): shortcut is FediMod {
+    return shortcut.type === ShortcutType.fediMod
+}
+
+const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
+    const [imageSrc, setImageSrc] = useState<ImageSourcePropType | undefined>(
+        undefined,
+    )
 
-    const style = styles(theme, fontScale)
+    useEffect(() => {
+        if (isMod(shortcut)) {
+            // use local image if we have it
+            if (FediModImages[shortcut.id]) {
+                setImageSrc(FediModImages[shortcut.id])
+            } else if (shortcut.imageUrl) {
+                // then try image url
+                setImageSrc({ uri: shortcut.imageUrl })
+            } else {
+                // fallback to default
+                setImageSrc(FediModImages.default)
+            }
+        }
+    }, [shortcut])
+
+    const recoveryInProgress = useAppSelector(
+        selectIsActiveFederationRecovering,
+    )
+
+    const multiplier = Math.min(fontScale, 2)
+
+    const style = styles(theme, multiplier)
 
     const renderIcon = () => {
-        if ((shortcut as FediMod).imageUrl) {
+        if (isMod(shortcut) && imageSrc) {
             return (
                 <Image
                     style={style.iconImage}
-                    source={{ uri: (shortcut as FediMod).imageUrl }}
+                    source={imageSrc}
                     resizeMode="contain"
+                    // use fallback if url fails to load
+                    onError={() => {
+                        setImageSrc(FediModImages.default)
+                    }}
                 />
             )
         } else if (shortcut.icon.image) {
@@ -50,16 +89,30 @@ const ShortcutTile = ({ shortcut, onSelect }: ShortcutTileProps) => {
                     name={shortcut.icon.svg as SvgImageName}
                     size={SvgImageSize.md}
                     color={theme.colors.secondary}
+                    maxFontSizeMultiplier={1.2}
                 />
             )
         }
     }
 
     return (
-        <Pressable style={style.container} onPress={() => onSelect(shortcut)}>
-            <View>{renderIcon()}</View>
+        <Pressable
+            containerStyle={[
+                style.container,
+                recoveryInProgress ? style.disabled : null,
+            ]}
+            onPress={() => onSelect(shortcut)}
+            onLongPress={() => onHold?.(shortcut)}
+            disabled={recoveryInProgress}>
+            <BubbleView containerStyle={style.iconContainer}>
+                {renderIcon()}
+            </BubbleView>
             <View style={style.title}>
-                <Text caption medium numberOfLines={2} style={style.titleText}>
+                <Text
+                    caption
+                    medium
+                    style={style.titleText}
+                    adjustsFontSizeToFit>
                     {shortcut.title}
                 </Text>
             </View>
@@ -73,7 +126,28 @@ const styles = (theme: Theme, fontScale: number) => {
         container: {
             alignItems: 'center',
             width: '100%',
-            marginVertical: theme.spacing.md,
+            paddingHorizontal: theme.spacing.sm,
+            flexDirection: 'column',
+            paddingVertical: theme.spacing.xs,
+        },
+        disabled: {
+            opacity: 0.5,
+        },
+        iconContainer: {
+            width: iconSize,
+            height: iconSize,
+            overflow: 'hidden',
+            borderRadius: theme.borders.fediModTileRadius,
+            shadowColor: '#000',
+            shadowOffset: {
+                width: 0,
+                height: 1,
+            },
+            shadowOpacity: 0.18,
+            shadowRadius: 1.0,
+
+            elevation: 1,
+            backgroundColor: theme.colors.white,
         },
         iconImage: {
             width: iconSize,

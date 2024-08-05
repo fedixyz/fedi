@@ -25,7 +25,6 @@ import { jidToId } from '@fedi/common/utils/chat'
 
 import { useAppSelector } from '../../../state/hooks'
 import Avatar from '../../ui/Avatar'
-import EmptyGroupNotice from './EmptyGroupNotice'
 import MessageItem from './MessageItem'
 import { MessageItemError } from './MessageItemError'
 
@@ -34,6 +33,7 @@ type MessagesListProps = {
     multiUserChat?: boolean
 }
 
+/** @deprecated XMPP legacy code */
 const MessagesList: React.FC<MessagesListProps> = ({
     messages,
     multiUserChat = false,
@@ -190,7 +190,7 @@ const MessagesList: React.FC<MessagesListProps> = ({
                 style={style.listContainer}
                 contentContainerStyle={style.contentContainer}
                 removeClippedSubviews={false}
-                ListEmptyComponent={multiUserChat ? <EmptyGroupNotice /> : null}
+                ListEmptyComponent={null}
                 onScroll={handleScroll}
                 inverted={messages.length > 0}
             />

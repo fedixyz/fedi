@@ -21,7 +21,11 @@ const StartSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
         <View style={styles(theme).container}>
             <HoloGuidance
                 iconImage={
-                    <SvgImage name="SocialPeople" size={SvgImageSize.lg} />
+                    <>
+                        <SvgImage name="Profile" size={SvgImageSize.md} />
+                        <SvgImage name="ArrowRight" size={SvgImageSize.md} />
+                        <SvgImage name="FediFile" size={SvgImageSize.md} />
+                    </>
                 }
                 title={t('feature.backup.social-backup')}
                 message={t('feature.backup.start-social-backup-instructions')}

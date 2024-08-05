@@ -93,6 +93,17 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'org.webkit:android-jsc:+'
 
+/**
+ * Load the keystore + credentials for release build signing configuration
+ */
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+} else {
+    println("Warning: keystore.properties file not found. Ensure this file is present for release build signing.")
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -104,7 +115,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 240051929
-        versionName "1.16.7"
+        versionName "1.18.2"
     }
 
     packagingOptions {
@@ -130,16 +141,24 @@ android {
             keyPassword 'android'
         }
         release {
-            if (project.hasProperty('FEDI_UPLOAD_STORE_FILE')) {
-                storeFile file(FEDI_UPLOAD_STORE_FILE)
-                storePassword FEDI_UPLOAD_STORE_PASSWORD
-                keyAlias FEDI_UPLOAD_KEY_ALIAS
-                keyPassword FEDI_UPLOAD_KEY_PASSWORD
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            } else {
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
             }
         }
     }
     buildTypes {
         debug {
+            manifestPlaceholders = [
+                networkSecurityConfig: "@xml/network_security_config_debug"
+            ]
             signingConfig signingConfigs.debug
             packagingOptions {
                 gradle.startParameter.getTaskNames().each { task ->
@@ -152,6 +171,9 @@ android {
             }
         }
         release {
+            manifestPlaceholders = [
+                networkSecurityConfig: "@xml/network_security_config_release"
+            ]
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.release

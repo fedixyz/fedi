@@ -28,7 +28,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     return {
-        version: 16,
+        version: 18,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -66,6 +66,10 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
             {},
         ),
         matrixAuth: state.matrix.auth,
+        protectedFeatures: state.security.protectedFeatures,
+        customGlobalMods: state.mod.customGlobalMods,
+        customGlobalModVisibility: state.mod.customGlobalModVisibility,
+        suggestedGlobalModVisibility: state.mod.suggestedGlobalModVisibility,
     }
 }
 
@@ -110,6 +114,10 @@ export function hasStorageStateChanged(
         ['federation', 'customFediMods'],
         ['matrix', 'auth'],
         ['nux', 'steps'],
+        ['security', 'protectedFeatures'],
+        ['mod', 'customGlobalMods'],
+        ['mod', 'customGlobalModVisibility'],
+        ['mod', 'suggestedGlobalModVisibility'],
     ]
 
     // Check all federation's chat states, including old and new.
@@ -498,6 +506,27 @@ async function migrateStoredState(
         }
         // TODO: run this line in a future migration to clean up the key
         // storage.removeItem('deviceId')
+    }
+
+    if (migrationState.version === 16) {
+        migrationState = {
+            ...migrationState,
+            version: 17,
+            protectedFeatures: {
+                app: true,
+                changePin: true,
+            },
+        }
+    }
+
+    if (migrationState.version === 17) {
+        migrationState = {
+            ...migrationState,
+            version: 18,
+            customGlobalMods: {},
+            customGlobalModVisibility: {},
+            suggestedGlobalModVisibility: {},
+        }
     }
 
     return migrationState

@@ -15,7 +15,11 @@ export const NetworkBanner: React.FC = () => {
     const { theme } = useTheme()
     const activeFederation = useAppSelector(selectActiveFederation)
 
-    if (!activeFederation || activeFederation.network === Network.bitcoin)
+    if (
+        !activeFederation ||
+        !activeFederation.hasWallet ||
+        activeFederation.network === Network.bitcoin
+    )
         return null
 
     const style = styles(theme)
@@ -25,8 +29,14 @@ export const NetworkBanner: React.FC = () => {
                 color={theme.colors.night}
                 name="Info"
                 size={SvgImageSize.xs}
+                maxFontSizeMultiplier={1.2}
             />
-            <Text small medium style={style.text}>
+            <Text
+                small
+                medium
+                style={style.text}
+                adjustsFontSizeToFit
+                numberOfLines={1}>
                 {t('feature.wallet.network-notice', {
                     network: capitalize(activeFederation.network),
                 })}
@@ -41,7 +51,7 @@ const styles = (theme: Theme) =>
             width: '100%',
             flexDirection: 'row',
             justifyContent: 'center',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             padding: theme.spacing.sm,
             gap: theme.spacing.xs,
             backgroundColor: '#FFFAEB', // TODO: add to theme.colors

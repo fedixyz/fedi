@@ -6,7 +6,7 @@ use anyhow::Context;
 use clap::{Parser, Subcommand};
 use devimint::cli::{setup, CommonArgs};
 use devimint::tests::{latency_tests, LatencyTest};
-use devimint::util::poll;
+use devimint::util::poll_with_timeout;
 use devimint::{cmd, dev_fed, DevFed};
 
 #[derive(Parser)]
@@ -31,6 +31,10 @@ enum Cmd {
     Devimint(devimint::cli::Cmd),
 }
 
+use fedi_core::envs::{
+    FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV, FEDI_STABILITY_POOL_MODULE_ENABLE_ENV,
+    FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV,
+};
 use tracing::info;
 async fn wait_session(client: &devimint::federation::Client) -> anyhow::Result<()> {
     info!("Waiting for a new session");
@@ -41,9 +45,9 @@ async fn wait_session(client: &devimint::federation::Client) -> anyhow::Result<(
         .context("session count must be integer")?
         .to_owned();
     let start = Instant::now();
-    poll(
+    poll_with_timeout(
         "Waiting for a new session",
-        Some(Duration::from_secs(180)),
+        Duration::from_secs(180),
         || async {
             info!("Awaiting session outcome {session_count}");
             match cmd!(client, "dev", "api", "await_session_outcome", session_count)
@@ -87,8 +91,13 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let (process_mgr, _) = setup(args.common).await?;
             std::env::set_var("FM_FEDIMINTD_BASE_EXECUTABLE", old_fedimintd);
+
             std::env::set_var("INCLUDE_STABILITY_POOL", "1");
+            std::env::set_var(FEDI_STABILITY_POOL_MODULE_ENABLE_ENV, "1");
             std::env::set_var("USE_STABILITY_POOL_TEST_PARAMS", "1");
+            std::env::set_var(FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV, "1");
+
+            std::env::set_var(FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV, "1");
             let mut dev_fed = dev_fed(&process_mgr).await?;
             let client = dev_fed.fed.new_joined_client("test-client").await?;
 
@@ -117,7 +126,11 @@ async fn main() -> anyhow::Result<()> {
             let (process_mgr, _) = setup(args.common).await?;
             std::env::set_var("FM_FEDIMINTD_BASE_EXECUTABLE", old_fedimintd);
             std::env::set_var("INCLUDE_STABILITY_POOL", "1");
+            std::env::set_var(FEDI_STABILITY_POOL_MODULE_ENABLE_ENV, "1");
             std::env::set_var("USE_STABILITY_POOL_TEST_PARAMS", "1");
+            std::env::set_var(FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV, "1");
+
+            std::env::set_var(FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV, "1");
             let mut dev_fed = dev_fed(&process_mgr).await?;
             let client = dev_fed.fed.new_joined_client("test-client").await?;
 

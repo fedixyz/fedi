@@ -22,7 +22,7 @@ export const ChatOfflineIndicator = () => {
         <Indicator>
             <CircularLoader size={16} />
             <Text variant="small" weight="medium">
-                {t('feature.chat.waiting-for-network')}
+                {`${t('feature.chat.waiting-for-network')}...`}
             </Text>
         </Indicator>
     )

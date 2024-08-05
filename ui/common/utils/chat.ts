@@ -1,6 +1,7 @@
 import type { JID } from '@xmpp/jid'
 import { TFunction } from 'i18next'
 import orderBy from 'lodash/orderBy'
+import { z } from 'zod'
 
 import {
     Chat,
@@ -10,8 +11,10 @@ import {
     MSats,
 } from '@fedi/common/types'
 
+import { BANNED_DISPLAY_NAME_TERMS } from '../constants/matrix'
 import { FormattedAmounts } from '../hooks/amount'
 
+/** @deprecated XMPP legacy code */
 export const makePaymentText = (
     t: TFunction,
     message: ChatMessage,
@@ -61,6 +64,8 @@ export const jidToId = (jid: JID | string) => {
 }
 
 /**
+ * @deprecated XMPP legacy code
+ *
  * Given a list of messages, organize the messages in a nested list of "grouped"
  * messages. The groups are organized as follows:
  * - The outer-most list is split into groups of messages sent within a similar time-frame.
@@ -223,4 +228,66 @@ export const makePaymentUpdatedAt = (
         Math.floor(Date.now() / 1000),
         (payment?.updatedAt || 0) + 1,
     )
+}
+
+/**
+ * Validates a user-entered displayName against the following criteria:
+ *  - length <= 21
+ *  - must be lowercase
+ *  - must not include any banned term
+ */
+export const getDisplayNameValidator = () =>
+    z
+        .string()
+        // Removes leading/trailing whitespace
+        .trim()
+        // Validates length
+        // Using z.string().refine() instead of z.string().max()
+        // to keep return types consistent
+        .refine(username => username.length <= 21)
+        // Validates all lowercase
+        .refine(username => !/[A-Z]/.test(username))
+        // Validates No banned words
+        .refine(
+            username => {
+                const lowerUsername = username.toLowerCase()
+                const foundWord = BANNED_DISPLAY_NAME_TERMS.find(word =>
+                    lowerUsername.includes(word),
+                )
+                return !foundWord
+            },
+            { message: 'banned' },
+        )
+
+export type DisplayNameValidatorType = ReturnType<
+    typeof getDisplayNameValidator
+>
+
+type ParsedResult =
+    | {
+          success: true
+          data: string
+      }
+    | {
+          success: false
+          errorMessage: string
+      }
+
+// Ref: https://zod.dev/?id=inferring-the-inferred-type
+export const parseData = <T extends z.ZodTypeAny>(
+    data: unknown,
+    schema: T,
+    t: TFunction,
+): ParsedResult => {
+    const parsed = schema.safeParse(data) as z.infer<T>
+    if (parsed.success) return { success: true, data: parsed.data }
+
+    const message = parsed.error.errors[0].message
+    // handle banned_words
+    if (message === 'banned')
+        return {
+            success: false,
+            errorMessage: t('errors.invalid-username-banned'),
+        }
+    return { success: false, errorMessage: t('errors.invalid-username') }
 }

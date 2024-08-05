@@ -6,20 +6,41 @@ import { Images } from '../../assets/images'
 
 export type Props = {
     content: React.ReactNode
+    size?: number
 }
 
-const HoloCircle: React.FC<Props> = ({ content }: Props) => {
+const HoloCircle: React.FC<Props> = ({ content, size }: Props) => {
     const { theme } = useTheme()
+    const circleSize = size || theme.sizes.holoCircleSize
 
+    const style = styles(theme)
     return (
-        <View style={styles(theme).container}>
+        <View
+            style={[
+                style.container,
+                { height: circleSize, width: circleSize },
+            ]}>
             <ImageBackground
                 source={Images.HoloBackgroundStrong}
-                style={styles(theme).holoCircle}
-                imageStyle={styles(theme).holoCircleImage}
+                style={[
+                    style.holoCircle,
+                    { height: circleSize, width: circleSize },
+                ]}
+                imageStyle={{ borderRadius: circleSize * 0.5 }}
             />
-            <View style={styles(theme).innerCircle} />
-            <View style={styles(theme).contentContainer}>{content}</View>
+            <View
+                style={[
+                    style.innerCircle,
+                    {
+                        // Shaves a couple pixels off the holographic ring
+                        // covering it with a transparent white inner circle
+                        height: circleSize - 3,
+                        width: circleSize - 3,
+                        borderRadius: circleSize * 0.5,
+                    },
+                ]}
+            />
+            <View style={style.contentContainer}>{content}</View>
         </View>
     )
 }
@@ -30,28 +51,16 @@ const styles = (theme: Theme) =>
             position: 'relative',
             alignItems: 'center',
             justifyContent: 'center',
-            height: theme.sizes.holoCircleSize,
-            width: theme.sizes.holoCircleSize,
         },
         holoCircle: {
             position: 'absolute',
-            height: theme.sizes.holoCircleSize,
-            width: theme.sizes.holoCircleSize,
             opacity: 1,
-        },
-        holoCircleImage: {
-            borderRadius: theme.sizes.holoCircleSize * 0.5,
         },
         contentContainer: {
             position: 'absolute',
         },
         innerCircle: {
             position: 'absolute',
-            // Shaves a couple pixels off the holographic ring
-            // covering it with a transparent white inner circle
-            height: theme.sizes.holoCircleSize - 3,
-            width: theme.sizes.holoCircleSize - 3,
-            borderRadius: theme.sizes.holoCircleSize * 0.5,
             backgroundColor: theme.colors.white,
             opacity: 0.85,
         },

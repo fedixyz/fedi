@@ -2,18 +2,22 @@ import { TFunction } from 'i18next'
 import orderBy from 'lodash/orderBy'
 import { z } from 'zod'
 
+import EncryptionUtils from '@fedi/common/utils/EncryptionUtils'
+
 import { GLOBAL_MATRIX_SERVER } from '../constants/matrix'
+import { FormattedAmounts } from '../hooks/amount'
 import {
+    Federation,
     MSats,
     MatrixEvent,
+    MatrixGroupPreview,
     MatrixPaymentEvent,
     MatrixPaymentStatus,
+    MatrixRoom,
     MatrixRoomPowerLevels,
     MatrixTimelineItem,
     MatrixUser,
-    SupportedCurrency,
 } from '../types'
-import amountUtils from './AmountUtils'
 import { makeLog } from './log'
 
 const log = makeLog('common/utils/matrix')
@@ -93,7 +97,7 @@ const contentSchemas = {
         /**
          * The matrix id of the user who will receive this payment.
          */
-        recipientId: z.string(),
+        recipientId: z.string().optional(),
         /**
          * The amount of the payment, either requested or sent.
          */
@@ -118,15 +122,15 @@ const contentSchemas = {
          * TODO: Potentially make this optional, allow anyone to pay to using any
          * federation they have in common, or via bolt11 (see more below.)
          */
-        federationId: z.string(),
+        federationId: z.string().optional(),
 
         // TODO: Attach bolt11 to payment requests, and allow to pay that way
         // if no federations in common?
-        // bolt11: z.string().optional(),
+        bolt11: z.string().optional(),
 
         // TODO: Attach invite code for federations you belong to that have
         // invites enabled, and allow people to join to accept ecash?
-        // inviteCode: z.string().optional(),
+        inviteCode: z.string().optional(),
     }),
 }
 
@@ -206,6 +210,40 @@ export function makeMatrixEventGroups(
     return eventGroups
 }
 
+export function makeChatFromPreview(preview: MatrixGroupPreview) {
+    const { info, timeline } = preview
+
+    // filter out null values added by MatrixChatClient.serializeTimelineItem
+    const messages = timeline.filter(t => t !== null)
+
+    const previewContent: MatrixTimelineItem = messages.reduce(
+        (latest, current) => {
+            return (latest?.timestamp || 0) > (current?.timestamp || 0)
+                ? latest
+                : current
+        },
+        messages[0],
+    )
+    const chat: MatrixRoom = {
+        ...info,
+        // all previews are default rooms which should be broadcast only
+        // TODO: allow non-default, non-broadcast only previewing of rooms
+        broadcastOnly: true,
+    }
+    if (previewContent) {
+        chat.preview = {
+            eventId: previewContent?.id,
+            body: previewContent?.content.body || '',
+            timestamp: previewContent?.timestamp || 0,
+            // TODO: get this from members list if we have them
+            displayName: previewContent?.senderId || '',
+            senderId: previewContent?.senderId || '',
+        }
+    }
+
+    return chat
+}
+
 export function getRoomEventPowerLevel(
     powerLevels: MatrixRoomPowerLevels,
     events: string | string[],
@@ -229,8 +267,7 @@ export const makeMatrixPaymentText = ({
     eventSender,
     paymentSender,
     paymentRecipient,
-    currency,
-    btcExchangeRate,
+    makeFormattedAmountsFromMSats,
 }: {
     t: TFunction
     event: MatrixPaymentEvent
@@ -238,8 +275,7 @@ export const makeMatrixPaymentText = ({
     eventSender: MatrixUser | null | undefined
     paymentSender: MatrixUser | null | undefined
     paymentRecipient: MatrixUser | null | undefined
-    currency: SupportedCurrency
-    btcExchangeRate: number
+    makeFormattedAmountsFromMSats: (amt: MSats) => FormattedAmounts
 }): string => {
     const {
         senderId: eventSenderId,
@@ -250,20 +286,16 @@ export const makeMatrixPaymentText = ({
         },
     } = event
 
+    const { formattedPrimaryAmount, formattedSecondaryAmount } =
+        makeFormattedAmountsFromMSats(amount as MSats)
+
     const previewStringParams = {
         name: eventSender?.displayName || matrixIdToUsername(eventSenderId),
         recipient:
             paymentRecipient?.displayName ||
             matrixIdToUsername(paymentRecipientId),
-        fiat: `${amountUtils.formatFiat(
-            amountUtils.msatToBtc(amount as MSats) * btcExchangeRate,
-            currency,
-            { symbolPosition: 'none' },
-        )} ${currency}`,
-        amount: amountUtils.formatNumber(
-            amountUtils.msatToSat(amount as MSats),
-        ),
-        unit: 'SATS',
+        fiat: formattedPrimaryAmount,
+        amount: formattedSecondaryAmount,
         memo: '',
     }
 
@@ -289,6 +321,20 @@ export const makeMatrixPaymentText = ({
     }
 }
 
+// TODO - make this dynamic if we have a naming collision
+const SUFFIX_LENGTH = 4 as const
+
+/**
+ * Gets a {SUFFIX_LENGTH} UUID for a user to protect against impersonation.
+ * Generates ID via `sha256(displayName || id)`.
+ *
+ * It includes the display name so the suffix will change if the displayname changes.
+ */
+export function getUserSuffix(id: MatrixUser['id']) {
+    const hash = EncryptionUtils.toSha256EncHex(id)
+    return `#${hash.substring(hash.length - SUFFIX_LENGTH)}`
+}
+
 export function isPaymentEvent(
     event: MatrixEvent,
 ): event is MatrixPaymentEvent {
@@ -298,12 +344,30 @@ export function isPaymentEvent(
 export function getReceivablePaymentEvents(
     timeline: MatrixTimelineItem[],
     myId: string,
+    myFederations: Federation[],
 ) {
     const latestPayments: Record<string, MatrixPaymentEvent> = {}
     timeline.forEach(item => {
         if (item === null) return
         if (!isPaymentEvent(item)) return
         if (item.content.recipientId !== myId) return
+        if (!item.content.federationId) return
+        // payment is not receivable if we have not joined the federation this ecash is from or if we have joined but are still recovering
+        const joinedFederation = myFederations.find(
+            f => f.id === item.content.federationId,
+        )
+        if (joinedFederation === undefined) {
+            log.info(
+                `can't claim ecash from federation ${item.content.federationId}: user is not joined`,
+            )
+            return
+        }
+        if (joinedFederation?.recovering) {
+            log.info(
+                `can't claim ecash from federation ${item.content.federationId}: user is joined but recovery is in progress`,
+            )
+            return
+        }
         latestPayments[item.content.paymentId] = item
     })
     return Object.values(latestPayments).reduce((prev, event) => {
@@ -318,12 +382,44 @@ export function getReceivablePaymentEvents(
     }, [] as MatrixPaymentEvent[])
 }
 
-export function encodeFediMatrixUserUri(id: string) {
+/**
+ * @param deep set to true to encode as a deep link
+ */
+export function encodeFediMatrixUserUri(id: string, deep = false) {
+    if (deep) return `fedi://user:${id}`
     return `fedi:user:${id}`
+}
+
+/**
+ * @param deep set to true to encode as a deep link
+ */
+export function encodeFediMatrixRoomUri(id: MatrixRoom['id'], deep = false) {
+    if (deep) return `fedi://room:${id}`
+    return `fedi:room:${id}:::`
+}
+
+export function decodeFediMatrixRoomUri(uri: string) {
+    // Decode both fedi:room:{id} and fedi://room:{id}
+    // Regex breakdown:
+    // ^fedi           - Ensures the string starts with "fedi".
+    // (?::|:\/\/)     - Matches either ":" or "://" for both `fedi:room:` and `fedi://room:`
+    // room:           - Matches the "room:" part of the string
+    // (.+?)           - Non-greedy capture of the room ID (which contains a single colon)
+    // (?:::|$)        - Ensures the room ID is followed either by ":::” or the end of the string
+    // /i              - Case-insensitive matching.
+    const match = uri.match(/^fedi(?::|:\/\/)room:(.+?)(?:::|$)/i)
+    if (!match) throw new Error('feature.chat.invalid-room')
+
+    const decodedId = match[1]
+    if (!isValidMatrixRoomId(decodedId))
+        throw new Error('feature.chat.invalid-room')
+
+    return decodedId
 }
 
 export function decodeFediMatrixUserUri(uri: string) {
     // Decode both fedi:user:{id} and fedi://user:{id}
+    // const match = uri.match(FEDI_USER)
     const match = uri.match(/^fedi(?::|:\/\/)user:(.+)$/i)
     if (!match) throw new Error('feature.chat.invalid-member')
 
@@ -333,6 +429,43 @@ export function decodeFediMatrixUserUri(uri: string) {
     return id
 }
 
+/**
+ * TODO Implement more sophisticated parsing
+ *   (for example: try to rule out emails)
+ * Our existing pattern will match some invalid matrixIds, as
+ * matrixIds have some constrains on what is a valid "username"
+ * and "homeserver" address. At some point, we might want to implement
+ * a "more complete" pattern for matching matrix ids to avoid
+ * false positives. And if we do, we should also implement stronger
+ * test vectors.
+ *
+ * Ref: https://github.com/matrix-org/matrix-android-sdk/blob/develop/matrix-sdk-core/src/main/java/org/matrix/androidsdk/core/MXPatterns.java
+ * const MATRIX_DOMAIN = new RegExp(/:[A-Z0-9.-]+(:[0-9]{2,5})?/i)
+ * const MATRIX_USER_NAME = new RegExp(/@[A-Z0-9\x21-\x39\x3B-\x7F]+/i)
+ * const FULL_MATRIX_USER_ID = new RegExp(
+ *    MATRIX_USER_NAME.source + MATRIX_DOMAIN.source,
+ * )
+ * export function isValidMatrixFullUserId(id: string) {
+ *     return FULL_MATRIX_USER_ID.test(id)
+ * }
+ */
 export function isValidMatrixUserId(id: string) {
     return /^@[^:]+:.+$/.test(id)
+}
+
+export function isValidMatrixRoomId(id: string) {
+    return /^![^:]+:.+$/.test(id)
+}
+
+// read_receipts is the primary source of truth for notificationCount but when
+// ecash is claimed in the background read receipts gets reset to 0
+// so we mark the room as unread in that same background process so that
+// we can still show the unread indicator in that case
+export function shouldShowUnreadIndicator(
+    notificationCount: number | undefined,
+    isMarkedUnread: boolean | undefined,
+): boolean {
+    if (notificationCount && notificationCount > 0) return true
+    if (isMarkedUnread) return true
+    return false
 }

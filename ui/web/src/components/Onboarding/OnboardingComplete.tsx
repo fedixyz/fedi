@@ -1,7 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { selectAuthenticatedMember } from '@fedi/common/redux'
+import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../hooks'
 import { styled } from '../../styles'
@@ -16,27 +16,28 @@ import {
 
 export const OnboardingComplete: React.FC = () => {
     const { t } = useTranslation()
-    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
+    const matrixAuth = useAppSelector(selectMatrixAuth)
 
     return (
         <OnboardingContainer>
             <OnboardingContent>
                 <AvatarWrapper>
                     <Avatar
-                        id={authenticatedMember?.id || ''}
-                        name={authenticatedMember?.username || '?'}
+                        id={matrixAuth?.userId || ''}
+                        name={matrixAuth?.displayName || '?'}
+                        src={matrixAuth?.avatarUrl || undefined}
                         size="lg"
                     />
                 </AvatarWrapper>
                 <Text variant="h2" weight="medium">
                     {t('feature.onboarding.nice-to-meet-you', {
-                        username: authenticatedMember?.username || '',
+                        username: matrixAuth?.displayName,
                     })}
                 </Text>
                 <Text>{t('feature.onboarding.greeting-instructions')}</Text>
             </OnboardingContent>
             <OnboardingActions>
-                <Button width="full" href="/">
+                <Button width="full" href="/chat">
                     {t('feature.onboarding.continue-to-fedi')}
                 </Button>
             </OnboardingActions>

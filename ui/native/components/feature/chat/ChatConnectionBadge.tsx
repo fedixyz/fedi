@@ -10,8 +10,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { useIsChatConnected } from '@fedi/common/hooks/chat'
-import { selectChatClientStatus } from '@fedi/common/redux'
+import { selectIsMatrixReady } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 
@@ -29,41 +28,48 @@ export const ChatConnectionBadge: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
-    const chatStatus = useAppSelector(selectChatClientStatus)
+    const isReady = useAppSelector(s => selectIsMatrixReady(s))
+    const [isStillLoading, setIsStillLoading] = useState(false)
 
-    const isOffline = chatStatus !== 'online'
-    const isConnected = useIsChatConnected()
-    const [isDisplayNone, setIsDisplayNone] = useState(!isOffline)
-    const isVisible = !isConnected && !hide
+    let isVisible = !isReady
+    if (hide) {
+        isVisible = false
+    }
+    // Set isStillLoading to true after 30 seconds to change
+    // from 'Loading...' to 'Waiting for network...'
+    // reset the loading state if needed
+    useEffect(() => {
+        if (isVisible) {
+            const timer = setTimeout(() => {
+                setIsStillLoading(true)
+            }, 30000)
+
+            // Cleanup the timer when the effect is cleaned up
+            return () => clearTimeout(timer)
+        } else {
+            setIsStillLoading(false)
+        }
+    }, [isVisible])
+
     const visibleAnimation = useRef(
         new Animated.Value(isVisible ? 1 : 0),
     ).current
 
     // Animate container in and out when visible
     useEffect(() => {
-        if (isVisible) {
-            setIsDisplayNone(false)
-        }
-        let canceled = false
         Animated.timing(visibleAnimation, {
             toValue: isVisible ? 1 : 0,
             duration: 150,
             useNativeDriver: false,
             easing: Easing.ease,
-        }).start(() => {
-            if (!isVisible && !canceled) {
-                setIsDisplayNone(true)
-            }
-        })
-        return () => {
-            canceled = true
-        }
+        }).start()
     }, [visibleAnimation, isVisible])
 
     const containerStyle: ViewStyle = {
-        display: isDisplayNone ? 'none' : 'flex',
+        display: 'flex',
         top: offset + (noSafeArea ? 0 : insets.top),
     }
+
     const badgeStyle: ViewStyle = {
         opacity: visibleAnimation,
         transform: [
@@ -80,7 +86,13 @@ export const ChatConnectionBadge: React.FC<Props> = ({
                 }),
             },
         ],
+        backgroundColor: isStillLoading
+            ? '#FCDDEC' // TODO: Replace with fuschia from theme when new colors are added
+            : theme.colors.lightGrey,
     }
+    const badgeText = isStillLoading
+        ? t('feature.chat.waiting-for-network')
+        : t('words.loading')
     const style = styles(theme)
 
     return (
@@ -88,7 +100,7 @@ export const ChatConnectionBadge: React.FC<Props> = ({
             <Animated.View style={[style.badge, badgeStyle]}>
                 <ActivityIndicator size={16} color={theme.colors.primary} />
                 <Text caption medium>
-                    {t('feature.chat.waiting-for-network')}
+                    {`${badgeText}...`}
                 </Text>
             </Animated.View>
         </Animated.View>
@@ -114,7 +126,6 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.sm,
             paddingVertical: theme.spacing.sm,
             paddingHorizontal: theme.spacing.md,
-            backgroundColor: '#FCDDEC', // TODO: Replace with fuschia from theme when new colors are added
             borderRadius: 8,
             shadowOffset: { width: 0, height: 4 },
             shadowRadius: 24,

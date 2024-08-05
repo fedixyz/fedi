@@ -9,6 +9,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectActiveFederationId } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { BridgeError } from '@fedi/common/utils/fedimint'
 import { lnurlPay } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -86,7 +87,11 @@ export const SendPaymentOverlay: React.FC<Props> = ({
             }
         } catch (error) {
             log.error('Failed to pay invoice', invoice, error)
-            toast.error(t, error)
+            if (error instanceof BridgeError) {
+                toast.error(t, null, error.format(t))
+            } else {
+                toast.error(t, error)
+            }
             onRejectRef.current(error as Error)
         }
         setIsLoading(false)

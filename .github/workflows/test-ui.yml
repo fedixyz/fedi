@@ -17,7 +17,7 @@ jobs:
               with:
                   nix_path: nixpkgs=channel:nixos-23.05
 
-            - uses: cachix/cachix-action@v14
+            - uses: cachix/cachix-action@v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'

@@ -1,53 +1,55 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    selectActiveFederation,
-    selectIsActiveFederationRecovering,
-    updateChatPayment,
-} from '@fedi/common/redux'
-import {
-    ChatMessage,
-    ChatPayment,
-    ChatPaymentStatus,
-    MSats,
-} from '@fedi/common/types'
-import amountUtils from '@fedi/common/utils/AmountUtils'
+import { selectActiveFederationId, updateChatPayment } from '@fedi/common/redux'
+import { ChatMessage, ChatPayment, ChatPaymentStatus } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
-import { RecoveryInProgressOverlay } from '../recovery/RecoveryInProgressOverlay'
 
-const log = makeLog('IncomingPullPayment')
+const log = makeLog('IncomingPaymentActions')
 
 type OutgoingPaymentActionsProps = {
     message: ChatMessage
-    onReject: () => void
-    onPay: () => void
-    paymentProcessing: boolean
 }
 
+/** @deprecated XMPP legacy code */
 const OutgoingPaymentActions: React.FC<OutgoingPaymentActionsProps> = ({
     message,
-    onReject,
-    onPay,
-    paymentProcessing,
 }: OutgoingPaymentActionsProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { payment } = message
+    const dispatch = useAppDispatch()
+    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const toast = useToast()
+
+    const cancelPayment = async () => {
+        try {
+            if (!activeFederationId) throw new Error()
+            await dispatch(
+                updateChatPayment({
+                    fedimint,
+                    federationId: activeFederationId,
+                    messageId: message.id,
+                    action: 'cancel',
+                }),
+            ).unwrap()
+        } catch (error) {
+            log.error('cancelPayment', error)
+            toast.error(t, error)
+        }
+    }
 
     const renderPaymentStatus = () => {
         if (!payment) return null
 
-        if (paymentProcessing) return <ActivityIndicator />
-
-        let paymentStatus = (
+        let paymentStatus: ReactNode | null = (
             <View style={styles(theme).statusContainer}>
                 <Text medium caption style={styles(theme).statusText}>
                     {t('words.pending')}
@@ -89,37 +91,27 @@ const OutgoingPaymentActions: React.FC<OutgoingPaymentActionsProps> = ({
                 )
                 break
             case ChatPaymentStatus.requested:
+                paymentStatus = null
+                break
+            case ChatPaymentStatus.accepted:
                 paymentStatus = (
-                    <>
-                        <Button
-                            disabled={paymentProcessing}
-                            size="sm"
-                            color={theme.colors.secondary}
-                            containerStyle={styles(theme).buttonContainer}
-                            onPress={onReject}
-                            title={
-                                <Text medium caption>
-                                    {t('words.reject')}
-                                </Text>
-                            }
-                        />
-                        <Text>&nbsp;&nbsp;</Text>
-                        <Button
-                            disabled={paymentProcessing}
-                            size="sm"
-                            color={theme.colors.secondary}
-                            containerStyle={styles(theme).buttonContainer}
-                            onPress={onPay}
-                            title={
-                                <Text medium caption>
-                                    {t('words.pay')}
-                                </Text>
-                            }
-                        />
-                    </>
+                    <Button
+                        size="sm"
+                        color={theme.colors.secondary}
+                        onPress={cancelPayment}
+                        title={
+                            <Text
+                                medium
+                                caption
+                                numberOfLines={1}
+                                adjustsFontSizeToFit>
+                                {t('words.cancel')}
+                            </Text>
+                        }
+                    />
                 )
                 break
-            // Redemption in progess & status = accepted
+            // Redemption in progess
             default:
                 break
         }
@@ -139,97 +131,19 @@ type IncomingPullPaymentProps = {
     text: string
 }
 
+/** @deprecated XMPP legacy code */
 const IncomingPullPayment: React.FC<IncomingPullPaymentProps> = ({
     message,
     text,
 }: IncomingPullPaymentProps) => {
     const { theme } = useTheme()
-    const { t } = useTranslation()
-    const dispatch = useAppDispatch()
-    const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const [paymentProcessing, setPaymentProcessing] = useState<boolean>(false)
-    const [showOverlay, setShowOverlay] = useState(false)
-    const recoveryInProgress = useAppSelector(
-        selectIsActiveFederationRecovering,
-    )
-
-    const rejectPaymentRequest = async () => {
-        try {
-            await dispatch(
-                updateChatPayment({
-                    fedimint,
-                    federationId: activeFederation?.id as string,
-                    messageId: message.id,
-                    action: 'reject',
-                }),
-            ).unwrap()
-        } catch (error) {
-            log.error('rejectPaymentRequest', error)
-            toast.show({
-                content: t('errors.chat-payment-failed'),
-                status: 'error',
-            })
-        }
-    }
-
-    // Process for sending a payment starts here
-    const acceptPaymentRequest = async () => {
-        if (!activeFederation || !message.payment) return
-        if (recoveryInProgress) {
-            setShowOverlay(true)
-            return
-        }
-
-        if (activeFederation.balance < message.payment.amount) {
-            toast.show({
-                content: t('errors.insufficient-balance', {
-                    balance: `${amountUtils.formatNumber(
-                        amountUtils.msatToSat(
-                            activeFederation?.balance as MSats,
-                        ),
-                    )} SATS`,
-                }),
-                status: 'error',
-            })
-        } else {
-            setPaymentProcessing(true)
-            try {
-                await dispatch(
-                    updateChatPayment({
-                        fedimint,
-                        federationId: activeFederation?.id as string,
-                        messageId: message.id,
-                        action: 'pay',
-                    }),
-                ).unwrap()
-            } catch (err) {
-                toast.show({
-                    content: t('errors.chat-payment-failed'),
-                    status: 'error',
-                })
-            }
-            setPaymentProcessing(false)
-        }
-    }
 
     return (
         <View style={styles(theme).container}>
             <Text caption medium style={styles(theme).messageText}>
                 {text}
             </Text>
-            <OutgoingPaymentActions
-                message={message}
-                onReject={rejectPaymentRequest}
-                onPay={acceptPaymentRequest}
-                paymentProcessing={paymentProcessing}
-            />
-
-            <RecoveryInProgressOverlay
-                show={showOverlay}
-                onDismiss={() => setShowOverlay(false)}
-                label={t('feature.recovery.recovery-in-progress-chat-payments')}
-            />
+            <OutgoingPaymentActions message={message} />
         </View>
     )
 }

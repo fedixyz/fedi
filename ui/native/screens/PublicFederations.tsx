@@ -7,7 +7,7 @@ import { Image, ScrollView, StyleSheet, View } from 'react-native'
 import { selectFederationIds } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
-import { FederationLogo } from '../components/ui/FederationLogo'
+import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 

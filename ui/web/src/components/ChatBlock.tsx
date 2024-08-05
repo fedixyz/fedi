@@ -1,17 +1,20 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
+import QRIcon from '@fedi/common/assets/svgs/qr.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { selectOrderedChatList } from '@fedi/common/redux'
+import { selectMatrixChatsList } from '@fedi/common/redux'
 
 import * as Layout from '../components/Layout'
 import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
 import { Button } from './Button'
 import { ChatListItem } from './ChatListItem'
+import { ChatUserQRDialog } from './ChatUserQRDialog'
 import { ContentBlock } from './ContentBlock'
 import { Icon } from './Icon'
+import { IconButton } from './IconButton'
 import { Text } from './Text'
 
 interface Props {
@@ -21,7 +24,9 @@ interface Props {
 
 export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
     const { t } = useTranslation()
-    const chats = useAppSelector(selectOrderedChatList)
+    const rooms = useAppSelector(selectMatrixChatsList)
+
+    const [isMemberQrOpen, setIsMemberQrOpen] = useState(false)
 
     return (
         <ContentBlock css={{ maxWidth: 840, padding: 0 }}>
@@ -30,23 +35,27 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
                     <Layout.Root>
                         <SidebarHeader>
                             <Layout.Title small>{t('words.chat')}</Layout.Title>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                href="/chat/new">
-                                {t('feature.chat.new-chat')}
-                            </Button>
+                            <IconButton
+                                icon={QRIcon}
+                                onClick={() => setIsMemberQrOpen(true)}
+                                size="md"
+                            />
                         </SidebarHeader>
                         <Layout.Content fullWidth>
                             <SidebarList>
-                                {chats.map(chat => (
+                                {rooms.map(room => (
                                     <ErrorBoundary
-                                        key={chat.id}
+                                        key={room.id}
                                         fallback={null}>
-                                        <ChatListItem chat={chat} />
+                                        <ChatListItem room={room} />
                                     </ErrorBoundary>
                                 ))}
                             </SidebarList>
+                            <NewChatAction>
+                                <Button href="/chat/new" width="full">
+                                    {t('feature.chat.new-chat')}
+                                </Button>
+                            </NewChatAction>
                         </Layout.Content>
                     </Layout.Root>
                 </Sidebar>
@@ -64,6 +73,10 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
                     </ErrorBoundary>
                 </Content>
             </Container>
+            <ChatUserQRDialog
+                open={isMemberQrOpen}
+                onOpenChange={setIsMemberQrOpen}
+            />
         </ContentBlock>
     )
 }
@@ -162,4 +175,8 @@ const Error = styled('div', {
     textAlign: 'center',
     gap: 8,
     color: theme.colors.red,
+})
+
+const NewChatAction = styled('div', {
+    padding: 12,
 })

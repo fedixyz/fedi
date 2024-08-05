@@ -1,10 +1,16 @@
-import { EcashRequest, MSats } from '@fedi/common/types'
-import { RpcFederation } from '@fedi/common/types/bindings'
+import {
+    EcashRequest,
+    FederationListItem,
+    FediInternalVersion,
+    MSats,
+    SupportedCurrency,
+} from '@fedi/common/types'
 
 import { InjectionMessageType, InjectionMessageResponseMap } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionFediProvider {
+    public version: FediInternalVersion = 0
     private lastMessageId = 0
 
     async generateEcash(
@@ -28,10 +34,24 @@ class InjectionFediProvider {
     }
 
     async getActiveFederation(): Promise<
-        Pick<RpcFederation, 'id' | 'name' | 'network'>
+        Pick<FederationListItem, 'id' | 'name' | 'network'>
     > {
         return this.sendMessage(
             InjectionMessageType.fedi_getActiveFederation,
+            undefined,
+        )
+    }
+
+    async getCurrencyCode(): Promise<SupportedCurrency> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_getCurrencyCode,
+            undefined,
+        )
+    }
+
+    async getLanguageCode(): Promise<string> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_getLanguageCode,
             undefined,
         )
     }

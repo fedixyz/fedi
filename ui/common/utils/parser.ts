@@ -12,19 +12,21 @@ import {
     ParsedBolt11,
     ParsedBolt12,
     ParsedFederationInvite,
-    ParsedFediChatGroup,
-    ParsedFediChatMember,
     ParsedFedimintEcash,
     ParsedLnurlAuth,
     ParsedLnurlPay,
     ParsedLnurlWithdraw,
     ParsedUnknownData,
     ParsedWebsite,
+    ParsedLegacyFediChatGroup,
+    ParsedLegacyFediChatMember,
     ParsedFediChatUser,
+    ParsedFediChatRoom,
+    ParsedCommunityInvite,
 } from '../types/parser'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
-import { decodeFediMatrixUserUri } from './matrix'
+import { decodeFediMatrixRoomUri, decodeFediMatrixUserUri } from './matrix'
 import { isValidInternetIdentifier } from './validation'
 import { decodeGroupInvitationLink, decodeDirectChatLink } from './xmpp'
 
@@ -32,7 +34,10 @@ const log = makeLog('common/utils/parser')
 
 /** List of parse types that are usable before a user is a member of a federation */
 export const ALLOWED_PARSER_TYPES_BEFORE_FEDERATION = [
+    ParserDataType.FediChatRoom,
+    ParserDataType.FediChatUser,
     ParserDataType.FedimintInvite,
+    ParserDataType.CommunityInvite,
     ParserDataType.Website,
     ParserDataType.Unknown,
 ]
@@ -42,6 +47,12 @@ export const BLOCKED_PARSER_TYPES_DURING_RECOVERY = [
     ParserDataType.Bolt11,
     ParserDataType.LnurlPay,
     ParserDataType.LnurlWithdraw,
+]
+
+/** List of Legacy Code kinds **/
+export const LEGACY_CODE_TYPES = [
+    ParserDataType.LegacyFediChatGroup,
+    ParserDataType.LegacyFediChatMember,
 ]
 
 /**
@@ -64,8 +75,9 @@ export function parseUserInput<T extends TFunction>(
             parseLnurl(raw, t),
             parseBitcoinAddress(raw),
             parseBip21(raw, fedimint, federationId),
-            parseFediUri(raw),
+            parseFediUri(raw, fedimint),
             parseFedimintInvite(raw),
+            parseCommunityInvite(raw),
             parseFedimintEcash(raw, fedimint),
         ]
 
@@ -253,27 +265,37 @@ async function parseLnurl(
 /**
  * Attempt to parse a BOLT 11 invoice.
  * BOLT 11 docs: https://github.com/lightning/bolts/blob/master/11-payment-encoding.md
+ *
+ * isBolt11 can be used to avoid using the bridge to
+ * do a full decoding which requires a federationId to include
+ * fee details
  */
-async function parseBolt11(
+export function isBolt11(raw: string) {
+    // Quick detection of BOLT 11, but ignore BOLT 12 and LNURL.
+    if (
+        !raw.startsWith('ln') ||
+        raw.startsWith('lno') ||
+        raw.startsWith('lnurl')
+    ) {
+        return false
+    }
+
+    const bolt11Regex = /^(?:ln(?:bc|tb|tbs|bcrt))[0-9a-zA-Z]{30,}$/
+    return bolt11Regex.test(raw)
+}
+
+export async function parseBolt11(
     raw: string,
     fedimint: FedimintBridge,
     t: TFunction,
-    federationId: string | undefined,
+    federationId: string | null = null,
 ): Promise<ParsedBolt11 | ParsedUnknownData | undefined> {
     const lnRaw = stripProtocol(raw, 'lightning').toLowerCase()
-
-    // Quick detection of BOLT 11, but ignore BOLT 12 and LNURL.
-    if (
-        !lnRaw.startsWith('ln') ||
-        lnRaw.startsWith('lno') ||
-        lnRaw.startsWith('lnurl')
-    ) {
+    if (!isBolt11(lnRaw)) {
         return
     }
 
     try {
-        // TODO: allow parsing with no federation ID
-        if (!federationId) return
         const decoded = await fedimint.decodeInvoice(lnRaw, federationId)
 
         return {
@@ -385,40 +407,61 @@ async function parseBip21(
     }
 }
 
-function parseFediUri(
+async function parseFediUri(
     raw: string,
-): ParsedFediChatGroup | ParsedFediChatMember | ParsedFediChatUser | undefined {
+    fedimint: FedimintBridge,
+): Promise<
+    | ParsedLegacyFediChatGroup
+    | ParsedLegacyFediChatMember
+    | ParsedFediChatUser
+    | ParsedFediChatRoom
+    | undefined
+> {
     if (!raw.toLowerCase().startsWith('fedi:')) {
         return
+    }
+
+    // Chat room
+    try {
+        const id = decodeFediMatrixRoomUri(raw)
+        return {
+            type: ParserDataType.FediChatRoom,
+            data: { id },
+        }
+    } catch {
+        // no-op
     }
 
     // Chat user
     try {
         const id = decodeFediMatrixUserUri(raw)
+        // Fetch profile info for displayName
+        const { displayname } = await fedimint.matrixUserProfile({ userId: id })
+
         return {
             type: ParserDataType.FediChatUser,
-            data: { id },
+            data: { id, displayName: displayname },
         }
     } catch {
         // no-op
     }
 
-    // Chat member
+    // Legacy Chat member
     try {
         const id = decodeDirectChatLink(raw)
         return {
-            type: ParserDataType.FediChatMember,
+            type: ParserDataType.LegacyFediChatMember,
             data: { id },
         }
     } catch {
         // no-op
     }
 
-    // Chat group
+    // Legacy Chat group
     try {
         const id = decodeGroupInvitationLink(raw)
         return {
-            type: ParserDataType.FediChatGroup,
+            type: ParserDataType.LegacyFediChatGroup,
             data: { id },
         }
     } catch {
@@ -433,6 +476,15 @@ function parseFedimintInvite(raw: string): ParsedFederationInvite | undefined {
     // TODO: Consider standard URI prefix?
     if (raw.toLowerCase().startsWith('fed1')) {
         return { type: ParserDataType.FedimintInvite, data: { invite: raw } }
+    }
+}
+
+function parseCommunityInvite(raw: string): ParsedCommunityInvite | undefined {
+    // Federation invite code
+    // TODO: Proper validation
+    // TODO: Consider standard URI prefix?
+    if (raw.toLowerCase().startsWith('fedi:community')) {
+        return { type: ParserDataType.CommunityInvite, data: { invite: raw } }
     }
 }
 

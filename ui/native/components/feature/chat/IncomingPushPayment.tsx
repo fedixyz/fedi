@@ -1,17 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import { selectActiveFederationId, updateChatPayment } from '@fedi/common/redux'
 import { ChatMessage, ChatPayment, ChatPaymentStatus } from '@fedi/common/types'
-import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../../bridge'
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
-
-const log = makeLog('IncomingPushPayment')
 
 type IncomingPushPaymentProps = {
     message: ChatMessage
@@ -19,50 +13,17 @@ type IncomingPushPaymentProps = {
     text: string
 }
 
+/** @deprecated XMPP legacy code */
 const IncomingPushPayment: React.FC<IncomingPushPaymentProps> = ({
     message,
     text,
 }: IncomingPushPaymentProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const dispatch = useAppDispatch()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
-    const [processingRedemption, setProcessingRedemption] =
-        useState<boolean>(false)
     const { payment } = message
 
-    // Check for valid ecash if found in incoming message
-    useEffect(() => {
-        if (!payment?.token) return
-
-        const dispatchPaymentUpdate = async () => {
-            try {
-                setProcessingRedemption(true)
-                await dispatch(
-                    updateChatPayment({
-                        fedimint,
-                        federationId: activeFederationId as string,
-                        messageId: message.id,
-                        action: 'receive',
-                    }),
-                ).unwrap()
-            } catch (error) {
-                log.error('dispatchPaymentUpdate', error)
-            }
-            setProcessingRedemption(false)
-        }
-
-        // Delay attempt to redeem payment by 250ms to allow for payments that
-        // have been canceled to come through.
-        const timeout = setTimeout(() => dispatchPaymentUpdate(), 250)
-        return () => clearTimeout(timeout)
-    }, [activeFederationId, dispatch, message.id, payment?.token])
-
     const renderPaymentStatus = () => {
-        if (
-            processingRedemption === false &&
-            payment?.status === ChatPaymentStatus.paid
-        ) {
+        if (payment?.status === ChatPaymentStatus.paid) {
             return (
                 <View style={styles(theme).statusContainer}>
                     <SvgImage
@@ -75,19 +36,11 @@ const IncomingPushPayment: React.FC<IncomingPushPaymentProps> = ({
                     </Text>
                 </View>
             )
-        } else if (payment?.status === ChatPaymentStatus.canceled) {
-            return (
-                <View style={styles(theme).statusContainer}>
-                    <Text medium caption style={styles(theme).statusText}>
-                        {t('words.canceled')}
-                    </Text>
-                </View>
-            )
         } else {
             return (
                 <View style={styles(theme).statusContainer}>
                     <Text medium caption style={styles(theme).statusText}>
-                        {t('words.pending')}
+                        {t('words.canceled')}
                     </Text>
                 </View>
             )

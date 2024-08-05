@@ -13,17 +13,15 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
-import { useChatMemberSearch } from '@fedi/common/hooks/chat'
-import { useIsChatSupported } from '@fedi/common/hooks/federation'
-import {
-    selectChatMembersWithHistory,
-    selectRecentChatMembers,
-} from '@fedi/common/redux'
-import { encodeDirectChatLink } from '@fedi/common/utils/xmpp'
+import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
+import { selectRecentMatrixRoomMembers } from '@fedi/common/redux'
+import { formatErrorMessage } from '@fedi/common/utils/format'
+import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
 import { useHasBottomTabsNavigation } from '../../../utils/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
+import HoloLoader from '../../ui/HoloLoader'
 import SvgImage from '../../ui/SvgImage'
 import { ChatConnectionBadge } from '../chat/ChatConnectionBadge'
 import { OmniActions } from './OmniActions'
@@ -47,31 +45,39 @@ export const OmniMemberSearch: React.FC<Props> = ({
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
     const hasTabs = useHasBottomTabsNavigation()
-    const membersWithHistory = useAppSelector(selectChatMembersWithHistory)
-    const canChat = useIsChatSupported()
-    const [isFocused, setIsFocused] = useState(false)
-    const { query, setQuery, searchedMembers, isExactMatch } =
-        useChatMemberSearch(membersWithHistory)
-    const { width, fontScale } = useWindowDimensions()
 
+    const [isFocused, setIsFocused] = useState(false)
+    const { width, fontScale } = useWindowDimensions()
     const memberCount = Math.max(Math.floor(width / fontScale / 80), 2)
-    const recentMembers = useAppSelector(s =>
-        selectRecentChatMembers(s, memberCount),
-    )
+
+    const { query, setQuery, searchedUsers, isSearching, searchError } =
+        useMatrixUserSearch()
+    const recentRoomMembers = useAppSelector(selectRecentMatrixRoomMembers)
 
     const isShowingSearch = isFocused || query.length > 0
     const style = styles(theme, memberCount)
 
     let content: React.ReactNode
-    if (isShowingSearch) {
+    if (isSearching) {
+        content = (
+            <View style={style.loadingContainer}>
+                <HoloLoader size={24} />
+            </View>
+        )
+    } else if (searchError) {
+        content = (
+            <Text style={style.errorText}>
+                {formatErrorMessage(t, searchError, 'errors.chat-unavailable')}
+            </Text>
+        )
+    } else if (isShowingSearch) {
         content = (
             <SafeAreaView
                 edges={['left', 'right']}
                 style={style.searchMembersContainer}>
                 <OmniMemberSearchList
                     query={query}
-                    searchedMembers={searchedMembers}
-                    isExactMatch={isExactMatch}
+                    searchedUsers={searchedUsers}
                     canLnurlPay={!!canLnurlPay}
                     onInput={onInput}
                 />
@@ -84,30 +90,32 @@ export const OmniMemberSearch: React.FC<Props> = ({
                     hasTabs ? ['left', 'right'] : ['left', 'right', 'bottom']
                 }
                 style={style.defaultContainer}>
-                {canChat && recentMembers.length > 0 && (
+                {recentRoomMembers.length > 0 && (
                     <View>
                         <Text small medium style={style.recentMembersLabel}>
                             {t('words.people')}
                         </Text>
                         <View style={style.recentMembers}>
-                            {recentMembers.map(member => (
+                            {recentRoomMembers.map(user => (
                                 <Pressable
-                                    key={member.id}
+                                    key={user.id}
                                     style={style.recentMember}
                                     onPress={() =>
-                                        onInput(encodeDirectChatLink(member.id))
+                                        onInput(
+                                            encodeFediMatrixUserUri(user.id),
+                                        )
                                     }>
                                     <Avatar
-                                        id={member.id}
-                                        name={member.username}
+                                        id={user.id}
+                                        name={user.displayName}
                                         size={AvatarSize.md}
                                     />
                                     <Text
                                         caption
                                         medium
                                         numberOfLines={1}
-                                        style={style.recentMemberUsername}>
-                                        {member.username}
+                                        style={style.recentMemberDisplayName}>
+                                        {user.displayName}
                                     </Text>
                                 </Pressable>
                             ))}
@@ -139,11 +147,9 @@ export const OmniMemberSearch: React.FC<Props> = ({
                     style={style.input}
                     value={query}
                     placeholder={t(
-                        canChat
-                            ? canLnurlPay
-                                ? 'feature.omni.search-placeholder-username-or-ln'
-                                : 'feature.omni.search-placeholder-username'
-                            : 'feature.omni.search-placeholder-ln-address',
+                        canLnurlPay
+                            ? 'feature.omni.search-placeholder-username-or-ln'
+                            : 'feature.omni.search-placeholder-username',
                     )}
                     onChangeText={setQuery}
                     onFocus={() => setIsFocused(true)}
@@ -202,6 +208,13 @@ const styles = (theme: Theme, memberCount: number) =>
             height: '100%',
             fontSize: fediTheme.fontSizes.body,
         },
+        loadingContainer: {
+            alignItems: 'center',
+            marginTop: theme.spacing.lg,
+        },
+        errorText: {
+            padding: theme.spacing.lg,
+        },
         content: {
             flex: 1,
             width: '100%',
@@ -226,7 +239,7 @@ const styles = (theme: Theme, memberCount: number) =>
             alignItems: 'center',
             gap: theme.spacing.sm,
         },
-        recentMemberUsername: {
+        recentMemberDisplayName: {
             paddingHorizontal: theme.spacing.xs,
         },
         alignStart: {

@@ -4,13 +4,14 @@ import { useCallback } from 'react'
 import {
     makeTxnAmountText as makeTxnAmountTextUtil,
     makeTxnDetailItems as makeTxnDetailItemsUtil,
+    makeTxnFeeDetails as makeTxnFeeDetailsUtil,
     makeTxnNotesText as makeTxnNotesTextUtil,
     makeStabilityTxnAmountText as makeStabilityTxnAmountTextUtil,
     makeStabilityTxnDetailItems as makeStabilityTxnDetailItemsUtil,
+    makeStabilityTxnFeeDetails as makeStabilityTxnFeeDetailsUtil,
 } from '@fedi/common/utils/wallet'
 
 import {
-    selectActiveFederation,
     selectActiveFederationId,
     selectCurrency,
     selectEcashFeeSchedule,
@@ -23,7 +24,7 @@ import {
     selectTransactionHistory,
     selectStabilityTransactionHistory,
 } from '../redux/transactions'
-import { MSats, Sats, Transaction } from '../types'
+import { Federation, MSats, Sats, Transaction } from '../types'
 import { RpcFeeDetails } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import {
@@ -78,10 +79,16 @@ export function useTxnDisplayUtils(t: TFunction) {
         ? selectedCurrency
         : t('words.sats').toUpperCase()
 
+    const makeTxnFeeDetailItems = useCallback(
+        (txn: Transaction) => {
+            return makeTxnFeeDetailsUtil(t, txn, makeFormattedAmountsFromMSats)
+        },
+        [makeFormattedAmountsFromMSats, t],
+    )
+
     const makeTxnDetailAmountText = useCallback(
         (txn: Transaction) => {
             return `${makeTxnAmountTextUtil(
-                t,
                 txn,
                 showFiatTxnAmounts,
                 makeFormattedAmountsFromMSats,
@@ -93,7 +100,6 @@ export function useTxnDisplayUtils(t: TFunction) {
             makeFormattedAmountsFromMSats,
             preferredCurrency,
             showFiatTxnAmounts,
-            t,
         ],
     )
 
@@ -120,7 +126,6 @@ export function useTxnDisplayUtils(t: TFunction) {
     const makeTxnAmountText = useCallback(
         (txn: Transaction) => {
             return makeTxnAmountTextUtil(
-                t,
                 txn,
                 showFiatTxnAmounts,
                 makeFormattedAmountsFromMSats,
@@ -131,7 +136,6 @@ export function useTxnDisplayUtils(t: TFunction) {
             convertCentsToFormattedFiat,
             makeFormattedAmountsFromMSats,
             showFiatTxnAmounts,
-            t,
         ],
     )
 
@@ -173,6 +177,17 @@ export function useTxnDisplayUtils(t: TFunction) {
         ],
     )
 
+    const makeStabilityTxnFeeDetailItems = useCallback(
+        (txn: Transaction) => {
+            return makeStabilityTxnFeeDetailsUtil(
+                t,
+                txn,
+                makeFormattedAmountsFromMSats,
+            )
+        },
+        [makeFormattedAmountsFromMSats, t],
+    )
+
     const makeStabilityTxnDetailItems = useCallback(
         (txn: Transaction) => {
             return makeStabilityTxnDetailItemsUtil(
@@ -188,21 +203,21 @@ export function useTxnDisplayUtils(t: TFunction) {
         preferredCurrency,
         makeTxnDetailAmountText,
         makeTxnDetailItems,
+        makeTxnFeeDetailItems,
         makeTxnAmountText,
         makeTxnNotesText,
         makeStabilityTxnAmountText,
         makeStabilityTxnDetailAmountText,
+        makeStabilityTxnFeeDetailItems,
         makeStabilityTxnDetailItems,
     }
 }
 
 export function useExportTransactions(fedimint: FedimintBridge) {
     const { fetchTransactions } = useTransactionHistory(fedimint)
-    const activeFederation = useCommonSelector(selectActiveFederation)
-
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
-    const exportTransactions = useCallback(async (): Promise<
+    const exportTransactions = useCallback(async (federation: Federation): Promise<
         | { success: true; uri: string; fileName: string }
         | { success: false; message: string }
     > => {
@@ -215,8 +230,8 @@ export function useExportTransactions(fedimint: FedimintBridge) {
             })
 
             const fileName = makeCSVFilename(
-                activeFederation?.name
-                    ? 'transactions-' + activeFederation.name
+                federation?.name
+                    ? 'transactions-' + federation?.name
                     : 'transactions',
             )
             const uri = makeBase64CSVUri(
@@ -237,9 +252,13 @@ export function useExportTransactions(fedimint: FedimintBridge) {
                 message: (e as Error).message,
             }
         }
-    }, [activeFederation, fetchTransactions, makeFormattedAmountsFromMSats])
+    }, [fetchTransactions, makeFormattedAmountsFromMSats])
 
     return exportTransactions
+}
+export type FeeDetails = {
+    items: FeeItem[]
+    totalFee: MSats
 }
 
 export type FeeItem = {
@@ -324,16 +343,16 @@ export function useFeeDisplayUtils(t: TFunction) {
 
         const lightningFeeItems: FeeItem[] = [
             {
-                label: t('phrases.lightning-network'),
-                formattedAmount: `${formattedNetworkFee} (${formattedNetworkFeeSecondary})`,
-            },
-            {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
                 formattedAmount: `${formattedFederationFee} (${formattedFederationFeeSecondary})`,
+            },
+            {
+                label: t('phrases.lightning-network'),
+                formattedAmount: `${formattedNetworkFee} (${formattedNetworkFeeSecondary})`,
             },
         ]
 
@@ -366,12 +385,12 @@ export function useFeeDisplayUtils(t: TFunction) {
 
         const lightningFeeItems: FeeItem[] = [
             {
-                label: t('phrases.network-fee'),
-                formattedAmount: `${formattedNetworkFee} (${formattedNetworkFeeSecondary})`,
-            },
-            {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
+            },
+            {
+                label: t('phrases.network-fee'),
+                formattedAmount: `${formattedNetworkFee} (${formattedNetworkFeeSecondary})`,
             },
         ]
 
@@ -410,16 +429,16 @@ export function useFeeDisplayUtils(t: TFunction) {
 
         const ecashFeeItems: FeeItem[] = [
             {
-                label: `${t('phrases.yearly-fee')}*`,
-                formattedAmount: `${maxFeeRate}% max`,
-            },
-            {
                 label: t('phrases.fedi-fee'),
                 formattedAmount: `${formattedFediFee} (${formattedFediFeeSecondary})`,
             },
             {
                 label: t('phrases.federation-fee'),
                 formattedAmount: `${formattedFederationFee} (${formattedFederationFeeSecondary})`,
+            },
+            {
+                label: `${t('phrases.yearly-fee')}*`,
+                formattedAmount: `${maxFeeRate}% max`,
             },
         ]
 

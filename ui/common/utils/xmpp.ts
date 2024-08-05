@@ -12,6 +12,7 @@ type CustomError = XMPPError & { code: string }
 /**
  * Creates an ephemeral XMPP client used solely for registration
  * opens the stream and terminates on success or failure.
+ * @deprecated XMPP legacy code
  */
 export const registerXmppUser = async (
     username: string,
@@ -95,6 +96,7 @@ export const registerXmppUser = async (
 /**
  * Creates an ephemeral XMPP client used solely for authentication check
  * opens the stream and terminates on success or failure.
+ * @deprecated XMPP legacy code
  */
 export const checkXmppUser = async (
     username: string,
@@ -147,10 +149,12 @@ export const checkXmppUser = async (
 }
 
 // TODO: Harden this encoding scheme (use standard URL params?)
+/** @deprecated XMPP legacy code */
 export function encodeGroupInvitationLink(groupId: string) {
     return `fedi:group:${groupId}:::`
 }
 
+/** @deprecated XMPP legacy code */
 export function decodeGroupInvitationLink(link: string): string {
     const afterPrefix = link.split('fedi:group:')[1]
     if (!afterPrefix) throw new Error('feature.chat.invalid-group')
@@ -168,10 +172,12 @@ export function decodeGroupInvitationLink(link: string): string {
     return groupId
 }
 
+/** @deprecated XMPP legacy code */
 export function encodeDirectChatLink(memberId: string): string {
     return `fedi:member:${memberId}:::`
 }
 
+/** @deprecated XMPP legacy code */
 export function decodeDirectChatLink(link: string): string {
     const afterPrefix = link.split('fedi:member:')[1]
     if (!afterPrefix) throw new Error('feature.chat.invalid-member')

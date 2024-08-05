@@ -9,30 +9,25 @@ import {
     AppStateStatus,
     Pressable,
     StyleSheet,
-    View,
     useWindowDimensions,
 } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import {
-    useIsChatSupported,
     useIsStabilityPoolSupported,
     usePopupFederationInfo,
 } from '@fedi/common/hooks/federation'
-import { useToast } from '@fedi/common/hooks/toast'
 import {
     refreshActiveStabilityPool,
     refreshFederations,
-    selectActiveFederation,
-    selectHasUnseenMessages,
-    selectHasUnseenPaymentUpdates,
+    selectMatrixHasNotifications,
 } from '@fedi/common/redux'
 
 import { fedimint } from '../bridge'
 import ChatHeader from '../components/feature/chat/ChatHeader'
-import SelectedFederationHeader from '../components/feature/federations/SelectedFederationHeader'
 import HomeHeader from '../components/feature/home/HomeHeader'
+import Header from '../components/ui/Header'
 import SvgImage, {
     SvgImageSize,
     getIconSizeMultiplier,
@@ -45,27 +40,24 @@ import {
 } from '../types/navigation'
 import ChatScreen from './ChatScreen'
 import Home from './Home'
+import Mods from './Mods'
 import OmniScanner from './OmniScanner'
 
-const MAX_TABS_FONT_SCALE = 1.8
+const MAX_TABS_FONT_SCALE = 1.2
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'TabsNavigator'>
 
 const Tab = createBottomTabNavigator<TabsNavigatorParamList>()
 
-const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
+const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const isFocused = useIsFocused()
     const insets = useSafeAreaInsets()
     const [offline] = useState(false)
-    const toast = useToast()
-    const canChat = useIsChatSupported()
-    const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
-    const hasUnseenPaymentUpdates = useAppSelector(
-        selectHasUnseenPaymentUpdates,
-    )
-    const activeFederation = useAppSelector(selectActiveFederation)
+    // TODO: Reimplement unseen logic with matrix
+    // const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
+    const hasUnreadMessages = useAppSelector(selectMatrixHasNotifications)
     const isStabilityPoolSupported = useIsStabilityPoolSupported()
     const popupInfo = usePopupFederationInfo()
     const dispatch = useAppDispatch()
@@ -104,13 +96,6 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
         return () => subscription.remove()
     }, [dispatch, isStabilityPoolSupported])
 
-    // If we don't have a selected federation, there's nothing to display here
-    // Redirect user to splash screen and render nothing.
-    if (!activeFederation && isFocused) {
-        navigation.navigate('Splash')
-        return <View />
-    }
-
     const style = styles(
         theme,
         insets,
@@ -118,37 +103,18 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
     )
     return (
         <>
-            <SelectedFederationHeader />
             <Tab.Navigator
-                initialRouteName="Home"
+                initialRouteName={route.params?.initialRouteName || 'Home'}
                 id={TABS_NAVIGATOR_ID}
-                screenOptions={({ route }) => ({
+                screenOptions={({ route: screenRoute }) => ({
                     tabBarButton: props => {
-                        switch (route.name) {
+                        switch (screenRoute.name) {
                             case 'Home':
                                 return <Pressable {...props} />
                             case 'Chat':
-                                if (canChat) {
-                                    return <Pressable {...props} />
-                                } else {
-                                    return (
-                                        <Pressable
-                                            {...props}
-                                            style={[
-                                                props.style,
-                                                style.disabledIcon,
-                                            ]}
-                                            onPress={() => {
-                                                toast.show({
-                                                    content: t(
-                                                        'errors.chat-unavailable',
-                                                    ),
-                                                    status: 'error',
-                                                })
-                                            }}
-                                        />
-                                    )
-                                }
+                                return <Pressable {...props} />
+                            case 'Mods':
+                                return <Pressable {...props} />
                             case 'OmniScanner':
                                 return <Pressable {...props} />
                             default:
@@ -163,11 +129,11 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
                                 ? theme.colors.primary
                                 : theme.colors.primaryLight,
                         }
-                        switch (route.name) {
+                        switch (screenRoute.name) {
                             case 'Home':
                                 return (
                                     <SvgImage
-                                        name={focused ? 'HomeFilled' : 'Home'}
+                                        name={'Community'}
                                         {...svgImageProps}
                                     />
                                 )
@@ -175,6 +141,13 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
                                 return (
                                     <SvgImage
                                         name={focused ? 'ChatFilled' : 'Chat'}
+                                        {...svgImageProps}
+                                    />
+                                )
+                            case 'Mods':
+                                return (
+                                    <SvgImage
+                                        name={'Apps'}
                                         {...svgImageProps}
                                     />
                                 )
@@ -195,6 +168,7 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
                             bold={focused}
                             medium={!focused}
                             maxFontSizeMultiplier={MAX_TABS_FONT_SCALE}
+                            numberOfLines={1}
                             style={{
                                 color: focused
                                     ? theme.colors.primary
@@ -214,7 +188,7 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
                     name="Home"
                     initialParams={{ offline }}
                     options={() => ({
-                        title: t('words.home'),
+                        title: t('words.community'),
                         header: () => <HomeHeader />,
                     })}>
                     {props => <Home {...props} offline={offline} />}
@@ -225,10 +199,15 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
                     options={() => ({
                         title: t('words.chat'),
                         header: () => <ChatHeader />,
-                        tabBarBadge:
-                            hasUnseenMessages || hasUnseenPaymentUpdates
-                                ? ''
-                                : undefined,
+                        tabBarBadge: hasUnreadMessages ? '' : undefined,
+                    })}
+                />
+                <Tab.Screen
+                    name="Mods"
+                    component={Mods}
+                    options={() => ({
+                        title: t('words.mods'),
+                        headerShown: false, // this allows us to draw over the header with tooltips
                     })}
                 />
                 <Tab.Screen
@@ -236,7 +215,7 @@ const TabsNavigator: React.FC<Props> = ({ navigation }: Props) => {
                     component={OmniScanner}
                     options={() => ({
                         title: t('words.scan'),
-                        headerShown: false,
+                        header: () => <Header empty />,
                     })}
                 />
             </Tab.Navigator>
@@ -260,6 +239,14 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
             height: tabBarHeight + insets.bottom,
             borderTopWidth: 1,
             borderTopColor: theme.colors.extraLightGrey,
+            shadowColor: 'rgba(11, 16, 19, 0.1)',
+            shadowOffset: {
+                width: 0,
+                height: 4,
+            },
+            shadowRadius: 24,
+            elevation: 24,
+            shadowOpacity: 1,
         },
         tabBarIconContainer: {
             paddingBottom: iconPadding,

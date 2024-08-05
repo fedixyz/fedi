@@ -11,9 +11,12 @@ import {
     SupportedCurrency,
     SupportedMetaFields,
     XmppConnectionOptions,
-    FederationPreview,
     PublicFederation,
+    FederationListItem,
+    Network,
+    JoinPreview,
 } from '../types'
+import { RpcCommunity } from '../types/bindings'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
 
@@ -39,7 +42,8 @@ export const getMetaUrl = (meta: ClientConfigMetadata): string | undefined => {
         const parsed: string = url && JSON.parse(url)
         return typeof parsed === 'string' ? parsed : url
     } catch (error) {
-        log.info(`getMetaUrl: error parsing meta url ${url}`, error)
+        // log.info(`getMetaUrl: error parsing meta url ${url}`, error)
+        // no-op
         return url
     }
 }
@@ -73,7 +77,6 @@ const fetchExternalMetadata = async (
             signal: controller?.signal,
         })
         const metaJson = await response.json()
-        log.info(`Found metadata at ${externalUrl}`, Object.keys(metaJson))
         if (timeoutId) {
             clearTimeout(timeoutId)
         }
@@ -114,23 +117,19 @@ const fetchExternalMetadata = async (
  * the results as a map of federation id -> meta. Optional callback is called with
  * (federationId, meta).
  */
-export const fetchFederationsExternalMetadata = (
-    federations: Pick<Federation, 'id' | 'meta'>[],
+export const fetchFederationsExternalMetadata = async (
+    federations: Pick<FederationListItem, 'id' | 'meta' | 'hasWallet'>[],
     onBackgroundSuccess?: (
-        federationId: Federation['id'],
-        meta: Federation['meta'],
+        federationId: FederationListItem['id'],
+        meta: FederationListItem['meta'],
     ) => void,
 ): Promise<ExternalMetaJson> => {
-    // Collect & dedpulicate external meta URLs
-    const externalUrls = federations
-        .map(f => getMetaUrl(f.meta))
-        .filter((url, idx, arr): url is string =>
-            Boolean(url && arr.indexOf(url) === idx),
-        )
-
     // Given an external meta, return a list of federation id -> meta for all matching federations
     const getFederationMetaEntries = (externalMeta: ExternalMetaJson) => {
-        const entries: [Federation['id'], Federation['meta']][] = []
+        const entries: [
+            FederationListItem['id'],
+            FederationListItem['meta'],
+        ][] = []
         for (const federation of federations) {
             const fedMeta = externalMeta[federation.id]
             if (fedMeta) {
@@ -148,9 +147,25 @@ export const fetchFederationsExternalMetadata = (
           }
         : undefined
 
+    const communitiesMeta = federations
+        .filter(f => !f.hasWallet)
+        .reduce<ExternalMetaJson>((prev, community) => {
+            if (!community || !community.id) return prev
+            prev[community.id] = community.meta
+            handleBackgroundSuccess && handleBackgroundSuccess(prev)
+            return prev
+        }, {})
+
+    // Collect & deduplicate external meta URLs
+    const externalUrls = federations
+        .map(f => getMetaUrl(f.meta))
+        .filter((url, idx, arr): url is string =>
+            Boolean(url && arr.indexOf(url) === idx),
+        )
+
     // Assemble all the promises and return the first pass of results. If they
     // provided onBackgroundSuccess, we'll call those as they come in.
-    return Promise.all(
+    const federationsMeta = await Promise.all(
         externalUrls.map(async url =>
             fetchExternalMetadata(url, handleBackgroundSuccess),
         ),
@@ -164,6 +179,7 @@ export const fetchFederationsExternalMetadata = (
             return prev
         }, {}),
     )
+    return { ...communitiesMeta, ...federationsMeta }
 }
 
 /**
@@ -221,8 +237,8 @@ const getMetaField = (
         )
     }
 
-    if (field === 'default_group_chats') {
-        return metadata[`fedi:default_group_chats`] ?? metadata[field] ?? null
+    if (field === 'default_matrix_rooms') {
+        return metadata[`fedi:default_matrix_rooms`] ?? metadata[field] ?? null
     }
 
     if (Object.values(SupportedMetaFields).some(x => x === field)) {
@@ -254,6 +270,7 @@ export const getFederationFixedExchangeRate = (
     return Number(exchangeRate)
 }
 
+/** @deprecated xmpp */
 export const getFederationChatServerDomain = (
     metadata: ClientConfigMetadata,
 ) => {
@@ -331,7 +348,7 @@ export const shouldShowJoinFederation = (metadata: ClientConfigMetadata) => {
     )
 }
 
-export const shouldShowSocialRecovery = (federation: Federation) => {
+export const shouldShowSocialRecovery = (federation: FederationListItem) => {
     // Social recovery not supported on v0 federations
     if (federation.version === 0) {
         return false
@@ -389,7 +406,7 @@ export const shouldEnableStabilityPool = (metadata: ClientConfigMetadata) => {
         : stabilityPoolDisabled !== 'true'
 }
 
-export const shouldEnableNostr = (federation: Federation) => {
+export const shouldEnableNostr = (federation: FederationListItem) => {
     // Nostr RPCs not supported on v0 federations
     if (federation.version === 0) {
         return false
@@ -398,10 +415,17 @@ export const shouldEnableNostr = (federation: Federation) => {
     return true
 }
 
+// TODO: Determine if no-wallet communities breaks this
+export function supportsSingleSeed(federation: FederationListItem) {
+    return federation.version >= 2
+}
+
 export const getFederationGroupChats = (
     metadata: ClientConfigMetadata,
 ): string[] => {
-    const defaultGroupChats = getMetaField('default_group_chats', metadata)
+    const defaultGroupChats =
+        getMetaField(SupportedMetaFields.default_matrix_rooms, metadata) ??
+        getMetaField(SupportedMetaFields.default_group_chats, metadata)
 
     if (defaultGroupChats) {
         try {
@@ -511,14 +535,21 @@ export const getFederationWelcomeMessage = (metadata: ClientConfigMetadata) => {
     return getMetaField(SupportedMetaFields.welcome_message, metadata)
 }
 
+export const getFederationPinnedMessage = (metadata: ClientConfigMetadata) => {
+    return getMetaField(SupportedMetaFields.pinned_message, metadata)
+}
+
 export const getFederationIconUrl = (metadata: ClientConfigMetadata) => {
     return getMetaField(SupportedMetaFields.federation_icon_url, metadata)
 }
 
 export const getIsFederationSupported = (
-    federation: Pick<Federation, 'version'>,
+    federation: Pick<FederationListItem, 'version' | 'hasWallet'>,
 ) => {
-    if (federation.version === 0 || federation.version === 1) {
+    if (
+        federation.hasWallet &&
+        (federation.version === 0 || federation.version === 1)
+    ) {
         return false
     }
     return true
@@ -528,16 +559,17 @@ export const getIsFederationSupported = (
  * Fetch information about a federation without using the bridge wasm. This
  * allows us to fetch federation info before the bridge is loaded.
  */
-export async function getFederationPreview(
+async function getFederationPreview(
     inviteCode: string,
     fedimint: FedimintBridge,
-): Promise<FederationPreview> {
+): Promise<JoinPreview> {
     let externalMeta = {}
-    const preview = await fedimint.federationPreview(inviteCode)
     // The federation preview may have an external URL where the meta
     // fields need to be fetched from... otherwise we won't know about chat
     // servers after joining which will break onboarding
     // TODO: Refactor this to the bridge...?
+    // const preview = await previewInvite(fedimint, inviteCode)
+    const preview = await fedimint.federationPreview(inviteCode)
     try {
         const metaUrl = getMetaUrl(preview.meta)
         if (metaUrl) {
@@ -568,5 +600,93 @@ export async function getFederationPreview(
             ...preview.meta,
             ...externalMeta,
         },
+        hasWallet: true,
+    }
+}
+
+export const coerceFederationListItem = (
+    community: RpcCommunity,
+): FederationListItem => {
+    return {
+        hasWallet: false as const,
+        network: undefined,
+
+        // We cannot really guarantee unique IDs in the body since community creators
+        // have free reign to modify the JSON as they see fit. So to prevent erroneous
+        // code being built on the assumption of unique IDs, we just remove it altogether.
+        // The client is currently using the ID only for indexing, and it is just as
+        // easy to use the invite code for indexing (which will actually guaranteed to be unique)
+        //
+        // ref: https://thefedi.slack.com/archives/C03RGASQ21W/p1720461259496419?thread_ts=1720211284.294199&cid=C03RGASQ21W
+        id: community.inviteCode,
+        ...community,
+    }
+}
+
+export const coerceJoinPreview = (preview: RpcCommunity): JoinPreview => {
+    const { inviteCode, ...rest } = preview
+
+    return {
+        hasWallet: false as const,
+        id: inviteCode,
+        inviteCode,
+        network: undefined,
+        ...rest,
+    }
+}
+
+export const detectInviteCodeType = (
+    code: string,
+): 'federation' | 'community' => {
+    // TODO: Implement better validation
+    if (code.toLowerCase().startsWith('fed1')) {
+        return 'federation'
+    } else if (code.toLowerCase().startsWith('fedi:community')) {
+        return 'community'
+    } else {
+        throw new Error('Invalid invite code')
+    }
+}
+
+/**
+ * detects if the code belongs to a federation or a no-wallet
+ * community and joins the appropriate one. It then coerces
+ * the result into a FederationListItem
+ * @param code
+ */
+export const joinFromInvite = async (
+    fedimint: FedimintBridge,
+    code: string,
+): Promise<FederationListItem> => {
+    const codeType = detectInviteCodeType(code)
+    if (codeType === 'federation') {
+        log.info(`joinFromInvite: joining federation with code '${code}'`)
+        const { network, ...federation } = await fedimint.joinFederation(code)
+        return {
+            ...federation,
+            hasWallet: true,
+            network: network as Network,
+        }
+    } else {
+        // community
+        log.info(`joinFromInvite: joining community with code '${code}'`)
+        const community = await fedimint.joinCommunity({ inviteCode: code })
+        return coerceFederationListItem(community)
+    }
+}
+
+export const previewInvite = async (
+    fedimint: FedimintBridge,
+    code: string,
+): Promise<JoinPreview> => {
+    const codeType = detectInviteCodeType(code)
+    log.info(`previewInvite: codeType is '${codeType}'`)
+    if (codeType === 'federation') {
+        return await getFederationPreview(code, fedimint)
+    } else {
+        const preview = await fedimint.communityPreview({
+            inviteCode: code,
+        })
+        return coerceJoinPreview(preview)
     }
 }

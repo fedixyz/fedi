@@ -2,8 +2,8 @@ import { useRouter } from 'next/router'
 import React from 'react'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { useIsChatConnected } from '@fedi/common/hooks/chat'
-import { selectNeedsChatRegistration } from '@fedi/common/redux'
+import { selectMatrixStatus } from '@fedi/common/redux'
+import { MatrixSyncStatus } from '@fedi/common/types'
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
@@ -21,13 +21,11 @@ interface Props {
 
 export const Template: React.FC<Props> = ({ children }) => {
     const { hideNavigation, isPopupOver } = useNavVisibility()
-    const isConnected = useIsChatConnected()
-    const needsChatRegistration = useAppSelector(selectNeedsChatRegistration)
     const router = useRouter()
+    const syncStatus = useAppSelector(selectMatrixStatus)
 
     const shouldShowChatOffline =
-        !isConnected &&
-        !needsChatRegistration &&
+        syncStatus === MatrixSyncStatus.syncing &&
         router.asPath.startsWith('/chat')
 
     return (

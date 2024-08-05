@@ -8,9 +8,10 @@ import { HoloLoader } from './HoloLoader'
 
 interface Props {
     data: string | string[] | null | undefined
+    logoOverrideUrl?: string
 }
 
-export const QRCode: React.FC<Props> = ({ data }) => {
+export const QRCode: React.FC<Props> = ({ data, logoOverrideUrl }) => {
     const [qrSvgs, setQrSvgs] = useState<string[] | null>(null)
     const [activeFrame, setActiveFrame] = useState(0)
     const isXs = useMediaQuery(config.media.xs)
@@ -23,11 +24,12 @@ export const QRCode: React.FC<Props> = ({ data }) => {
             return renderStyledQrSvg(qrData, {
                 moduleShape: isXs ? 'square' : 'dot',
                 hideLogo: isXs,
+                logoOverrideUrl,
             })
         })
         setQrSvgs(svgs)
         setActiveFrame(0)
-    }, [data, isXs])
+    }, [data, isXs, logoOverrideUrl])
 
     useEffect(() => {
         if (!qrSvgs || qrSvgs.length < 2) return

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Insets, StyleSheet, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { selectAuthenticatedMember } from '@fedi/common/redux'
+import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { NotificationsPermissionGate } from '../components/feature/permissions/NotificationsPermissionGate'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
@@ -21,7 +21,7 @@ const FederationGreeting: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const insets = useSafeAreaInsets()
-    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
+    const matrixAuth = useAppSelector(selectMatrixAuth)
 
     const style = styles(theme, insets)
     return (
@@ -30,14 +30,15 @@ const FederationGreeting: React.FC<Props> = ({ navigation }: Props) => {
                 <View style={style.contentContainer}>
                     <View style={style.avatarContainer}>
                         <Avatar
-                            id={authenticatedMember?.id || ''}
+                            id={matrixAuth?.userId || ''}
+                            name={matrixAuth?.displayName || '?'}
                             size={AvatarSize.lg}
-                            name={authenticatedMember?.username || ''}
+                            url={matrixAuth?.avatarUrl || undefined}
                         />
                     </View>
                     <Text h2 medium style={style.welcomeTitle}>
                         {`${t('feature.onboarding.nice-to-meet-you', {
-                            username: authenticatedMember?.username,
+                            username: matrixAuth?.displayName,
                         })}!`}
                     </Text>
                     <Text style={style.welcomeText}>
@@ -48,7 +49,9 @@ const FederationGreeting: React.FC<Props> = ({ navigation }: Props) => {
                     fullWidth
                     title={t('feature.onboarding.continue-to-fedi')}
                     onPress={() => {
-                        navigation.replace('TabsNavigator')
+                        navigation.replace('TabsNavigator', {
+                            initialRouteName: 'Chat',
+                        })
                     }}
                     containerStyle={style.button}
                 />

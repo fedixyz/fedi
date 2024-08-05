@@ -1,6 +1,12 @@
-import { Text, useTheme } from '@rneui/themed'
-import React from 'react'
-import { StyleSheet, View, useWindowDimensions } from 'react-native'
+import { Image, Text, useTheme } from '@rneui/themed'
+import React, { useState } from 'react'
+import {
+    StyleProp,
+    StyleSheet,
+    View,
+    ViewStyle,
+    useWindowDimensions,
+} from 'react-native'
 
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { getIdentityColors } from '@fedi/common/utils/color'
@@ -23,21 +29,28 @@ const svgImageSizeMapping = {
     [AvatarSize.lg]: SvgImageSize.md,
 }
 
-type HoloAvatarProps = {
+export type AvatarProps = {
     size?: AvatarSize
     id: string | number
-    name: string
+    url?: string
+    name?: string
     icon?: SvgImageName
+    containerStyle?: StyleProp<ViewStyle>
+    maxFontSizeMultiplier?: number
 }
 
-const Avatar: React.FC<HoloAvatarProps> = ({
+const Avatar: React.FC<AvatarProps> = ({
     size = AvatarSize.sm,
     id,
     name,
     icon,
-}: HoloAvatarProps) => {
+    url,
+    containerStyle,
+    maxFontSizeMultiplier,
+}: AvatarProps) => {
     const { theme } = useTheme()
     const [bgColor, textColor] = getIdentityColors(id)
+    const [isFallback, setIsFallback] = useState(!url)
     const { fontScale } = useWindowDimensions()
 
     const customSize =
@@ -46,7 +59,11 @@ const Avatar: React.FC<HoloAvatarProps> = ({
             : size === AvatarSize.md
             ? theme.sizes.mediumAvatar
             : theme.sizes.largeAvatar
-    const pxSize = getIconSizeMultiplier(fontScale) * customSize
+
+    const multiplier = getIconSizeMultiplier(
+        Math.min(fontScale, maxFontSizeMultiplier || Infinity),
+    )
+    const pxSize = multiplier * customSize
     const mergedContainerStyle = [
         styles.container,
         {
@@ -55,12 +72,26 @@ const Avatar: React.FC<HoloAvatarProps> = ({
             borderRadius: pxSize * 0.5,
         },
         { backgroundColor: bgColor },
+        containerStyle,
     ]
     const mergedTextStyle = [styles.text, { color: textColor }]
+    const imageStyle = [styles.image, { borderRadius: pxSize * 0.5 }]
 
     return (
         <View style={mergedContainerStyle}>
-            {icon ? (
+            {/*
+                Defaults to the image url if provided.
+                Then falls back to a provided icon.
+                then falls back to initials.
+            */}
+            {!isFallback && url ? (
+                <Image
+                    containerStyle={imageStyle}
+                    resizeMode="cover"
+                    source={{ uri: url }}
+                    onError={() => setIsFallback(true)}
+                />
+            ) : icon ? (
                 <SvgImage
                     name={icon}
                     size={svgImageSizeMapping[size]}
@@ -68,11 +99,13 @@ const Avatar: React.FC<HoloAvatarProps> = ({
                 />
             ) : (
                 <Text
+                    adjustsFontSizeToFit
+                    maxFontSizeMultiplier={multiplier}
                     bold
                     tiny={size === AvatarSize.sm}
                     h2={size === AvatarSize.lg}
                     style={mergedTextStyle}>
-                    {stringUtils.getInitialsFromName(name)}
+                    {name ? stringUtils.getInitialsFromName(name) : ''}
                 </Text>
             )}
         </View>
@@ -87,6 +120,10 @@ const styles = StyleSheet.create({
     },
     text: {
         position: 'absolute',
+    },
+    image: {
+        height: '100%',
+        width: '100%',
     },
 })
 

@@ -10,8 +10,7 @@ import CogIcon from '@fedi/common/assets/svgs/cog.svg'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import HomeFilledIcon from '@fedi/common/assets/svgs/home-filled.svg'
 import HomeIcon from '@fedi/common/assets/svgs/home.svg'
-import { useIsChatSupported } from '@fedi/common/hooks/federation'
-import { selectHasUnseenMessages } from '@fedi/common/redux'
+import { selectMatrixHasNotifications } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../hooks'
 import { keyframes, styled, theme } from '../../styles'
@@ -21,8 +20,7 @@ import { NotificationDot } from '../NotificationDot'
 export const Navigation: React.FC = () => {
     const router = useRouter()
     const { t } = useTranslation()
-    const isChatSupported = useIsChatSupported()
-    const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
+    const hasChatNotifications = useAppSelector(selectMatrixHasNotifications)
 
     const getIsActive = (navPath: string) => {
         if (navPath === router.pathname) return true
@@ -44,11 +42,11 @@ export const Navigation: React.FC = () => {
             path: '/chat',
             icon: ChatIcon,
             activeIcon: ChatFilledIcon,
-            available: isChatSupported,
-            hasNotification: hasUnseenMessages,
+            available: true,
+            hasNotification: hasChatNotifications,
         },
         {
-            name: 'words.settings' as const,
+            name: 'words.account' as const,
             path: '/settings',
             icon: CogIcon,
             activeIcon: CogFilledIcon,

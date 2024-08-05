@@ -4,6 +4,7 @@ import type { ObservableVecUpdate, RpcMatrixMembership } from './bindings'
 export { MatrixEventContent }
 
 export enum MatrixSyncStatus {
+    uninitialized = 'uninitialized',
     stopped = 'stopped',
     initialSync = 'initialSync',
     syncing = 'syncing',
@@ -36,6 +37,11 @@ export interface MatrixRoomPreview {
     body: string
     timestamp: number
 }
+export type MatrixGroupPreview = {
+    info: MatrixRoom
+    timeline: MatrixTimelineItem[]
+    isDefaultGroup?: boolean
+}
 
 export interface MatrixRoom {
     id: string
@@ -44,8 +50,16 @@ export interface MatrixRoom {
     preview?: MatrixRoomPreview
     directUserId?: MatrixUser['id']
     broadcastOnly?: boolean
-    notificationCount: number
+    notificationCount: number | undefined
+    isMarkedUnread?: boolean
+    joinedMemberCount?: number
+    isPreview?: boolean
+    isPublic?: boolean
+    inviteCode: string
+    roomState: MatrixRoomState
 }
+
+export type MatrixRoomState = 'Joined' | 'Left' | 'Invited'
 
 export enum MatrixRoomListItemStatus {
     loading = 'loading',
@@ -137,6 +151,11 @@ export type MatrixPaymentEventContent = PickEventContentType<
 
 export type MatrixPaymentEvent = MatrixEvent<MatrixPaymentEventContent>
 
+interface StateEvent {
+    content: object
+    state_key?: string
+    type: string
+}
 /** Taken from matrix-js-sdk's `ICreateRoomOpts` */
 export interface MatrixCreateRoomOptions {
     visibility?: 'public' | 'private'
@@ -158,4 +177,5 @@ export interface MatrixCreateRoomOptions {
         users?: Record<string, number>
         users_default?: number
     }
+    initial_state?: StateEvent[]
 }

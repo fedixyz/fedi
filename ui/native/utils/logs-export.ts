@@ -9,7 +9,7 @@ import { store } from '../state/store'
 import { getAllDeviceInfo } from './device-info'
 
 const log = makeLog('native/utils/logs-export')
-const MAX_BRIDGE_LOG_SIZE = 1024 * 1024 * 2
+const MAX_BRIDGE_LOG_SIZE = 1024 * 1024 * 10
 
 export async function generateLogsExportGzip(extraFiles: File[] = []) {
     // Parallelize all information gathering.

@@ -7,6 +7,7 @@ import {
     StyleSheet,
     useWindowDimensions,
     Pressable,
+    LayoutChangeEvent,
 } from 'react-native'
 import LinearGradient from 'react-native-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -26,6 +27,7 @@ export default function ToastManager() {
     const dimensions = useWindowDimensions()
     const insets = useSafeAreaInsets()
 
+    const [toastHeight, setToastHeight] = useState(100)
     const [cachedToast, setCachedToast] = useState(toast)
     const [isToastOpen, setIsToastOpen] = useState(!!toast)
 
@@ -47,10 +49,11 @@ export default function ToastManager() {
         } else {
             setIsToastOpen(false)
         }
-    }, [toast])
+    }, [toast, slideAnim, toastHeight])
 
     useEffect(() => {
         if (isToastOpen) {
+            slideAnim.setValue(-toastHeight)
             Animated.timing(slideAnim, {
                 toValue: insets.top,
                 duration: 300,
@@ -58,17 +61,27 @@ export default function ToastManager() {
             }).start()
         } else {
             Animated.timing(slideAnim, {
-                toValue: -100,
+                toValue: -toastHeight,
                 duration: 300,
                 useNativeDriver: true,
             }).start()
         }
-    }, [isToastOpen, insets, slideAnim])
+    }, [isToastOpen, insets, slideAnim, toastHeight, toast?.key])
+
+    const handleLayout = useCallback(
+        (e: LayoutChangeEvent) => {
+            const { height } = e.nativeEvent.layout
+            setToastHeight(height)
+        },
+        [setToastHeight],
+    )
 
     const style = styles(theme)
+    const maxMultiplier = 1.4
 
     return (
         <Animated.View
+            onLayout={handleLayout}
             style={[
                 style.toastOuter,
                 {
@@ -100,7 +113,12 @@ export default function ToastManager() {
                                         start={{ x: 0, y: 0.75 }}
                                         end={{ x: 1, y: 0.95 }}>
                                         <View>
-                                            <Text style={style.toastIcon}>
+                                            <Text
+                                                style={style.toastIcon}
+                                                maxFontSizeMultiplier={
+                                                    maxMultiplier
+                                                }
+                                                adjustsFontSizeToFit>
                                                 {cachedToast?.status ===
                                                 'success'
                                                     ? '👍'
@@ -111,7 +129,12 @@ export default function ToastManager() {
                                             </Text>
                                         </View>
                                         <View style={style.toastContent}>
-                                            <Text style={style.toastText}>
+                                            <Text
+                                                style={style.toastText}
+                                                maxFontSizeMultiplier={
+                                                    maxMultiplier
+                                                }
+                                                adjustsFontSizeToFit>
                                                 {cachedToast?.content}
                                             </Text>
                                         </View>

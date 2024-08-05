@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
+import { Buffer } from 'buffer'
 import { t } from 'i18next'
 import { dataToFrames } from 'qrloop'
 import React, { useEffect, useMemo, useState } from 'react'

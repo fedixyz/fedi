@@ -1,15 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
-import HoloCard from '../components/ui/HoloCard'
 import HoloProgressCircle from '../components/ui/HoloProgressCircle'
-import LineBreak from '../components/ui/LineBreak'
 import { useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -74,27 +72,14 @@ const SocialBackupProcessing: React.FC<Props> = ({
     return (
         <View style={styles(theme).container}>
             <HoloProgressCircle percentComplete={percentComplete} />
-            <Text h2 h2Style={styles(theme).label}>
-                {t('feature.backup.creating-recovery-file')}
+            <Text style={styles(theme).label}>
+                <Trans
+                    i18nKey="feature.backup.creating-recovery-file"
+                    components={{
+                        bold: <Text bold />,
+                    }}
+                />
             </Text>
-
-            <HoloCard
-                body={
-                    <View>
-                        <Text caption>
-                            {t(
-                                'feature.backup.social-backup-processing-info-1',
-                            )}
-                        </Text>
-                        <LineBreak />
-                        <Text caption>
-                            {t(
-                                'feature.backup.social-backup-processing-info-2',
-                            )}
-                        </Text>
-                    </View>
-                }
-            />
         </View>
     )
 }

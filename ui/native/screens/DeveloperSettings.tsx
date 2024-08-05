@@ -1,3 +1,4 @@
+import messaging from '@react-native-firebase/messaging'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
@@ -8,13 +9,8 @@ import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
-    resetAuthenticatedMember,
-    resetFederationChatState,
     selectActiveFederation,
     selectOnchainDepositsEnabled,
-    setChatGroups,
-    setChatMembersSeen,
-    setChatMessages,
     setOnchainDepositsEnabled,
     selectStableBalanceEnabled,
     setStableBalanceEnabled,
@@ -48,8 +44,9 @@ export type Props = NativeStackScreenProps<
     RootStackParamList,
     'DeveloperSettings'
 >
+type FeesMap = { [key: string]: number }
 
-const DeveloperSettings: React.FC<Props> = () => {
+const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { listGateways, switchGateway, guardianStatus } = useBridge()
@@ -57,6 +54,14 @@ const DeveloperSettings: React.FC<Props> = () => {
     const [isLoadingGateways, setIsLoadingGateways] = useState<boolean>(false)
     const [gateways, setGateways] = useState<LightningGateway[]>([])
     const [isSharingLogs, setIsSharingLogs] = useState(false)
+    const [outstandingFediSendFeesMap, setOutstandingFediSendFeesMap] =
+        useState<FeesMap>({})
+    const [outstandingFediReceiveFeesMap, setOutstandingFediReceiveFeesMap] =
+        useState<FeesMap>({})
+    const [pendingFediSendFeesMap, setPendingFediSendFeesMap] =
+        useState<FeesMap>({})
+    const [pendingFediReceiveFeesMap, setPendingFediReceiveFeesMap] =
+        useState<FeesMap>({})
     const [isSharingState, setIsSharingState] = useState(false)
     const [isSensitiveLogging, setIsSensitiveLogging] = useState<boolean>(false)
     const [guardianOnlineStatus, setGuardianOnlineStatus] = useState<
@@ -78,6 +83,58 @@ const DeveloperSettings: React.FC<Props> = () => {
     const authenticatedGuardian = useAppSelector(
         s => s.federation.authenticatedGuardian,
     )
+
+    useEffect(() => {
+        if (activeFederation) {
+            fedimint
+                .getAccruedOutstandingFediFeesPerTXType({
+                    federationId: activeFederation.id,
+                })
+                .then(res => {
+                    const sendFeesMap: FeesMap = {}
+                    const receiveFeesMap: FeesMap = {}
+                    res.map(fee => {
+                        if (fee[1] === 'send') sendFeesMap[fee[0]] = fee[2]
+                        else if (fee[1] === 'receive')
+                            receiveFeesMap[fee[0]] = fee[2]
+                    }, {})
+                    setOutstandingFediSendFeesMap(sendFeesMap)
+                    setOutstandingFediReceiveFeesMap(receiveFeesMap)
+                })
+                .catch(err =>
+                    log.warn(
+                        'Failed to get accured outstanding fedi fees',
+                        err,
+                    ),
+                )
+        }
+    }, [activeFederation])
+
+    useEffect(() => {
+        if (activeFederation) {
+            fedimint
+                .getAccruedPendingFediFeesPerTXType({
+                    federationId: activeFederation.id,
+                })
+                .then(res => {
+                    const sendFeesMap: FeesMap = {}
+                    const receiveFeesMap: FeesMap = {}
+                    res.map(fee => {
+                        if (fee[1] === 'send') sendFeesMap[fee[0]] = fee[2]
+                        else if (fee[1] === 'receive')
+                            receiveFeesMap[fee[0]] = fee[2]
+                    }, {})
+                    setPendingFediSendFeesMap(sendFeesMap)
+                    setPendingFediReceiveFeesMap(receiveFeesMap)
+                })
+                .catch(err =>
+                    log.warn(
+                        'Failed to get pending outstanding fedi fees',
+                        err,
+                    ),
+                )
+        }
+    }, [activeFederation])
 
     useEffect(() => {
         fedimint
@@ -156,6 +213,11 @@ const DeveloperSettings: React.FC<Props> = () => {
         setIsSharingState(false)
     }
 
+    const logFCMToken = async () => {
+        const fcmToken = await messaging().getToken()
+        log.info(`FCM Notification Token - ${fcmToken}`)
+    }
+
     return (
         <ScrollView contentContainerStyle={styles(theme).container}>
             <SettingsSection title="App info">
@@ -172,6 +234,11 @@ const DeveloperSettings: React.FC<Props> = () => {
                     containerStyle={styles(theme).buttonContainer}
                     onPress={handleShareStorage}
                     loading={isSharingState}
+                />
+                <Button
+                    title={t('feature.developer.log-fcm-token')}
+                    containerStyle={styles(theme).buttonContainer}
+                    onPress={logFCMToken}
                 />
                 <View style={styles(theme).switchWrapper}>
                     <View style={styles(theme).switchLabelContainer}>
@@ -192,6 +259,63 @@ const DeveloperSettings: React.FC<Props> = () => {
                         }}
                     />
                 </View>
+                {/* TODO: Clean up this mess */}
+                {Object.keys(outstandingFediSendFeesMap).length !== 0 ? (
+                    Object.entries(outstandingFediSendFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`outstanding-send-fees-${module}`}>
+                                <Text
+                                    style={
+                                        styles(theme).version
+                                    }>{`Outstanding Send Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No outstanding send fees</Text>
+                )}
+                {Object.keys(outstandingFediReceiveFeesMap).length !== 0 ? (
+                    Object.entries(outstandingFediReceiveFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`outstanding-receive-fees-${module}`}>
+                                <Text
+                                    style={
+                                        styles(theme).version
+                                    }>{`Outstanding Receive Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No outstanding receive fees</Text>
+                )}
+                {Object.keys(pendingFediSendFeesMap).length !== 0 ? (
+                    Object.entries(pendingFediSendFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`pending-send-fees-${module}`}>
+                                <Text
+                                    style={
+                                        styles(theme).version
+                                    }>{`Pending Send Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No pending send fees</Text>
+                )}
+                {Object.keys(pendingFediReceiveFeesMap).length !== 0 ? (
+                    Object.entries(pendingFediReceiveFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`pending-receive-fees-${module}`}>
+                                <Text
+                                    style={
+                                        styles(theme).version
+                                    }>{`Pending Receive Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No pending receive fees</Text>
+                )}
             </SettingsSection>
             <SettingsSection title={t('feature.fedimods.debug-mode')}>
                 <View style={styles(theme).switchWrapper}>
@@ -324,6 +448,8 @@ const DeveloperSettings: React.FC<Props> = () => {
                     containerStyle={styles(theme).checkboxContainer}
                 />
                 {activeFederation &&
+                    activeFederation.hasWallet &&
+                    activeFederation.nodes &&
                     Object.entries(activeFederation.nodes).map(entry => {
                         const [index, node] = entry
                         const id = Number(index)
@@ -363,8 +489,6 @@ const DeveloperSettings: React.FC<Props> = () => {
                             }}
                             value={authenticatedGuardian.password}
                             returnKeyType="done"
-                            // containerStyle={styles(theme).textInputOuter}
-                            // inputContainerStyle={styles(theme).textInputInner}
                             autoCapitalize={'none'}
                             autoCorrect={false}
                         />
@@ -378,7 +502,7 @@ const DeveloperSettings: React.FC<Props> = () => {
                     let statusStyle
 
                     if ('online' in n) {
-                        statusText = `Guardian ${n.online.guardian}: Online`
+                        statusText = `Guardian ${n.online.guardian}: Online: ${n.online.latency_ms}ms`
                         statusStyle = styles(theme).onlineStatus
                     }
                     if ('error' in n) {
@@ -398,6 +522,21 @@ const DeveloperSettings: React.FC<Props> = () => {
                 })}
             </SettingsSection>
 
+            <SettingsSection title="Chat">
+                <Button
+                    title={t('feature.developer.create-default-group')}
+                    containerStyle={styles(theme).buttonContainer}
+                    onPress={() => {
+                        navigation.navigate('CreateGroup', {
+                            defaultGroup: true,
+                        })
+                    }}
+                />
+                <Text small style={styles(theme).switchLabel}>
+                    {t('feature.developer.default-groups-info')}
+                </Text>
+            </SettingsSection>
+
             <SettingsSection title="Danger zone">
                 <Button
                     title="Reset new user experience"
@@ -405,74 +544,6 @@ const DeveloperSettings: React.FC<Props> = () => {
                     onPress={() => {
                         reduxDispatch(resetNuxSteps())
                         toast.show('NUX reset!')
-                    }}
-                />
-                <Button
-                    title={'Delete all groups, messages, & members seen'}
-                    containerStyle={styles(theme).buttonContainer}
-                    onPress={() => {
-                        if (activeFederation) {
-                            reduxDispatch(
-                                resetFederationChatState({
-                                    federationId: activeFederation.id,
-                                }),
-                            )
-                        }
-                    }}
-                />
-                <Button
-                    title={'Delete all groups'}
-                    containerStyle={styles(theme).buttonContainer}
-                    onPress={() => {
-                        if (activeFederation) {
-                            reduxDispatch(
-                                setChatGroups({
-                                    federationId: activeFederation.id,
-                                    groups: [],
-                                }),
-                            )
-                        }
-                    }}
-                />
-                <Button
-                    title={'Delete all messages'}
-                    containerStyle={styles(theme).buttonContainer}
-                    onPress={() => {
-                        if (activeFederation) {
-                            reduxDispatch(
-                                setChatMessages({
-                                    federationId: activeFederation.id,
-                                    messages: [],
-                                }),
-                            )
-                        }
-                    }}
-                />
-                <Button
-                    title={'Delete all members seen'}
-                    containerStyle={styles(theme).buttonContainer}
-                    onPress={() => {
-                        if (activeFederation) {
-                            reduxDispatch(
-                                setChatMembersSeen({
-                                    federationId: activeFederation.id,
-                                    membersSeen: [],
-                                }),
-                            )
-                        }
-                    }}
-                />
-                <Button
-                    title="Reset username"
-                    containerStyle={styles(theme).buttonContainer}
-                    onPress={() => {
-                        if (activeFederation) {
-                            reduxDispatch(
-                                resetAuthenticatedMember({
-                                    federationId: activeFederation.id,
-                                }),
-                            )
-                        }
                     }}
                 />
             </SettingsSection>

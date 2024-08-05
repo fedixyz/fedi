@@ -1,5 +1,6 @@
 import * as Portal from '@radix-ui/react-portal'
 import * as RadixToast from '@radix-ui/react-toast'
+import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import Close from '@fedi/common/assets/svgs/close.svg'
@@ -19,6 +20,8 @@ export const ToastManager: React.FC = () => {
     const { close } = useToast()
     const isMobile = useMediaQuery(config.media.md)
 
+    const router = useRouter()
+
     const handleCloseToast = useCallback(
         (open: boolean) => {
             setIsToastOpen(open)
@@ -35,6 +38,14 @@ export const ToastManager: React.FC = () => {
             setIsToastOpen(false)
         }
     }, [toast])
+
+    useEffect(() => {
+        router.events.on('routeChangeComplete', close)
+
+        return () => {
+            router.events.off('routeChangeComplete', close)
+        }
+    }, [router, close])
 
     return (
         <Portal.Root>

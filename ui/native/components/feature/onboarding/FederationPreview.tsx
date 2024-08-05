@@ -1,9 +1,11 @@
+import { useNavigation } from '@react-navigation/native'
 import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
 
-import { FederationPreview as FederationPreviewType } from '@fedi/common/types'
+import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
+import { JoinPreview } from '@fedi/common/types'
 import {
     getFederationTosUrl,
     getFederationWelcomeMessage,
@@ -11,12 +13,13 @@ import {
     shouldShowJoinFederation,
 } from '@fedi/common/utils/FederationUtils'
 
-import { FederationLogo } from '../../ui/FederationLogo'
 import HoloGradient from '../../ui/HoloGradient'
+import EndedFederationPreview from '../federations/EndedPreview'
+import { FederationLogo } from '../federations/FederationLogo'
 import AcceptTermsOfService from './AcceptTermsOfService'
 
 type Props = {
-    federation: FederationPreviewType
+    federation: JoinPreview
     onJoin: () => void | Promise<void>
     onBack: () => void
 }
@@ -30,8 +33,29 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     const tosUrl = getFederationTosUrl(federation.meta)
     const welcomeMessage = getFederationWelcomeMessage(federation.meta)
     const isSupported = getIsFederationSupported(federation)
+    const popupInfo = usePopupFederationInfo(federation.meta)
+    const navigation = useNavigation()
 
     const style = styles(theme)
+
+    if (popupInfo?.ended) {
+        return (
+            <View style={style.container}>
+                <EndedFederationPreview
+                    popupInfo={popupInfo}
+                    federation={federation}
+                />
+                <View style={style.buttonsContainer}>
+                    <Button
+                        fullWidth
+                        title={t('phrases.go-back')}
+                        onPress={navigation.goBack}
+                        containerStyle={styles(theme).button}
+                    />
+                </View>
+            </View>
+        )
+    }
 
     if (!isSupported) {
         return (
@@ -87,6 +111,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     }
 
     const welcomeTitle =
+        federation.hasWallet &&
         federation.returningMemberStatus.type === 'returningMember'
             ? t('feature.onboarding.welcome-back-to-federation', {
                   federation: federation?.name,
@@ -95,9 +120,11 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                   federation: federation?.name,
               })
     const welcomeInstructions =
+        federation.hasWallet &&
         federation.returningMemberStatus.type === 'newMember'
             ? t('feature.onboarding.welcome-instructions-new')
-            : federation.returningMemberStatus.type === 'returningMember'
+            : federation.hasWallet &&
+              federation.returningMemberStatus.type === 'returningMember'
             ? t('feature.onboarding.welcome-instructions-returning')
             : t('feature.onboarding.welcome-instructions-unknown')
 

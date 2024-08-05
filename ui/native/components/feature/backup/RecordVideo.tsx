@@ -1,13 +1,14 @@
-import { Card, Text, Theme, useTheme } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
 import type { CameraDeviceFormat } from 'react-native-vision-camera'
 import { Camera, useCameraDevices } from 'react-native-vision-camera'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { Images } from '../../../assets/images'
 import {
     saveVideo,
     useBackupRecoveryContext,
@@ -106,39 +107,55 @@ const RecordVideo = () => {
 
     return (
         <View style={styles(theme).container}>
-            <View
-                style={[
-                    styles(theme).cameraContainer,
-                    isRecording
-                        ? styles(theme).recordingActive
-                        : styles(theme).recordingInactive,
-                ]}>
-                <Camera
-                    style={styles(theme).camera}
-                    ref={camera}
-                    device={device}
-                    isActive={true}
-                    video={true}
-                    audio={true}
-                    format={format}
-                    fps={15}
-                    hdr={false}
-                    onError={handleError}
-                />
-            </View>
+            <ImageBackground
+                source={isRecording ? Images.Red : Images.HoloBackground}
+                style={styles(theme).gradient}>
+                <View style={styles(theme).cameraRing}>
+                    <View
+                        style={[
+                            styles(theme).cameraContainer,
+                            isRecording
+                                ? styles(theme).recordingActive
+                                : styles(theme).recordingInactive,
+                        ]}>
+                        <Camera
+                            style={styles(theme).camera}
+                            ref={camera}
+                            device={device}
+                            isActive={true}
+                            video={true}
+                            audio={true}
+                            format={format}
+                            fps={15}
+                            hdr={false}
+                            onError={handleError}
+                        />
+                    </View>
+                </View>
+            </ImageBackground>
             <Text
-                h2
-                h2Style={[
+                style={[
                     styles(theme).instructionsText,
                     isRecording ? { color: theme.colors.primaryVeryLight } : {},
                 ]}>
                 {t('feature.backup.hold-record-button')}
             </Text>
-            <Card containerStyle={styles(theme).roundedCardContainer}>
-                <Text medium>
-                    {t('feature.backup.social-backup-video-prompt')}
+            <ImageBackground
+                source={Images.HoloBackground}
+                style={styles(theme).promptGradient}>
+                <View style={styles(theme).promptContainer}>
+                    <Text medium>
+                        {'"'}
+                        {t('feature.backup.social-backup-video-prompt')}
+                        {'"'}
+                    </Text>
+                </View>
+            </ImageBackground>
+            <View style={styles(theme).privacyNotice}>
+                <Text style={styles(theme).privacyText}>
+                    {t('feature.backup.privacy-notice')}
                 </Text>
-            </Card>
+            </View>
             <Pressable
                 style={[
                     styles(theme).recordButton,
@@ -162,10 +179,24 @@ const styles = (theme: Theme) =>
             width: '100%',
             paddingHorizontal: theme.spacing.md,
         },
-        cameraContainer: {
+        gradient: {
+            borderRadius: 1024,
+            padding: 4,
+            overflow: 'hidden',
             height: theme.sizes.socialBackupCameraHeight,
             width: theme.sizes.socialBackupCameraWidth,
-            borderWidth: 3,
+            backgroundColor: theme.colors.red,
+        },
+        cameraRing: {
+            padding: 16,
+            borderRadius: 1024,
+            overflow: 'hidden',
+            backgroundColor: theme.colors.white,
+        },
+        cameraContainer: {
+            borderWidth: 0,
+            borderRadius: 1024,
+            overflow: 'hidden',
         },
         camera: {
             height: '100%',
@@ -189,7 +220,7 @@ const styles = (theme: Theme) =>
             height: theme.sizes.recordButtonOuter,
             width: theme.sizes.recordButtonOuter,
             borderRadius: theme.sizes.recordButtonOuter / 2,
-            marginTop: 'auto',
+            marginBottom: theme.spacing.xl,
         },
         recordingActive: {
             backgroundColor: theme.colors.red,
@@ -215,9 +246,29 @@ const styles = (theme: Theme) =>
             borderWidth: 3,
             borderColor: theme.colors.secondary,
         },
-        roundedCardContainer: {
-            borderRadius: theme.borders.defaultRadius,
-            marginHorizontal: 0,
+        promptGradient: {
+            borderRadius: 16,
+            padding: 2,
+            width: theme.sizes.socialBackupCameraWidth,
+            overflow: 'hidden',
+            marginTop: theme.spacing.md,
+        },
+        promptContainer: {
+            padding: 16,
+            borderRadius: 12,
+            backgroundColor: theme.colors.white,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        privacyNotice: {
+            flex: 1,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        privacyText: {
+            color: theme.colors.grey,
         },
     })
 

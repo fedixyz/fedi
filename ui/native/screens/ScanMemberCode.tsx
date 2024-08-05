@@ -1,131 +1,166 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Theme, useTheme } from '@rneui/themed'
-import React, { useCallback } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    joinChatGroup,
-    selectActiveFederationId,
-    selectChatConnectionOptions,
-} from '@fedi/common/redux'
+import { inviteUserToMatrixRoom, selectMatrixRoom } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
-import { decodeDirectChatLink } from '@fedi/common/utils/xmpp'
 
-import CameraPermissionsRequired from '../components/feature/scan/CameraPermissionsRequired'
-import QrCodeScanner from '../components/feature/scan/QrCodeScanner'
+import { OmniInput } from '../components/feature/omni/OmniInput'
+import CustomOverlay, {
+    CustomOverlayContents,
+} from '../components/ui/CustomOverlay'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { ParsedFediChatUser, ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
-
-const log = makeLog('ScanMemberCode')
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'ScanMemberCode'>
 
-const ScanMemberCode: React.FC<Props> = ({ navigation }: Props) => {
-    const insets = useSafeAreaInsets()
-    const { theme } = useTheme()
+const log = makeLog('ScanMemberCode')
+
+const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
     const toast = useToast()
-    const connectionOptions = useAppSelector(selectChatConnectionOptions)
-    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const inviteToRoomId = route?.params?.inviteToRoomId
+    const room = useAppSelector(
+        s => !!inviteToRoomId && selectMatrixRoom(s, inviteToRoomId),
+    )
+    const roomName = room ? room.name : t('phrases.this-group')
+    const isInvitation = !!inviteToRoomId
     const dispatch = useAppDispatch()
+    const [scannedUser, setScannedUser] = useState<ParsedFediChatUser | null>(
+        null,
+    )
+    const [isLoading, setIsLoading] = useState(false)
 
-    const handleUserInput = useCallback(
-        async (input: string) => {
-            if (!activeFederationId) return
-            if (input.startsWith('fedi:member:')) {
-                log.info('fedi chat member detected', input)
-                // TODO: show chat unavailable
-                if (!connectionOptions) {
-                    return toast.show({
-                        content: t('errors.chat-unavailable'),
-                        status: 'error',
-                    })
-                }
-                const memberUsername = decodeDirectChatLink(input)
-                const { domain } = connectionOptions
+    const handleNavigate = useCallback(() => {
+        return navigation.canGoBack()
+            ? navigation.goBack()
+            : navigation.replace('TabsNavigator', {
+                  initialRouteName: 'Chat',
+              })
+    }, [navigation])
 
-                navigation.replace('DirectChat', {
-                    memberId: `${memberUsername}@${domain}`,
-                })
-            } else if (input.startsWith('fedi:group:')) {
-                log.info('fedi chat group detected', input)
-                try {
-                    const res = await dispatch(
-                        joinChatGroup({
-                            federationId: activeFederationId,
-                            link: input,
-                        }),
-                    ).unwrap()
-                    navigation.replace('GroupChat', {
-                        groupId: res.id,
-                    })
-                } catch (error) {
-                    toast.show({
-                        content: t('errors.chat-unavailable'),
-                        status: 'error',
-                    })
-                }
-            } else {
+    const handleInviteToRoom = useCallback(
+        async (roomId: string, userId: string) => {
+            try {
+                log.info(
+                    `Inviting user to matrix room (${userId} , ${roomId}) `,
+                )
+                setIsLoading(true)
+                await dispatch(
+                    inviteUserToMatrixRoom({ roomId: roomId, userId }),
+                ).unwrap()
                 toast.show({
-                    content: t('feature.chat.invalid-member'),
-                    status: 'error',
+                    status: 'info',
+                    content: t('words.invited'),
                 })
+                setIsLoading(false)
+                handleNavigate()
+            } catch (e) {
+                toast.error(t, e)
+                setIsLoading(false)
+                setScannedUser(null)
             }
         },
-        [activeFederationId, connectionOptions, dispatch, navigation, t, toast],
+        [setIsLoading, setScannedUser, toast, t, dispatch, handleNavigate],
     )
 
-    const renderQrCodeScanner = () => {
-        return (
-            <QrCodeScanner
-                onQrCodeDetected={(qrCodeData: string) => {
-                    handleUserInput(qrCodeData)
-                }}
-            />
-        )
-    }
+    const handleConfirmation = useCallback(() => {
+        // this should be called, as handleConfirmation should only be
+        // fired when this is an invitation scanner and when scannedUser is set
+        if (!isInvitation || !scannedUser) {
+            log.warn(`NOOP - NOT adding member to room due to invalid state`)
+            toast.show({
+                status: 'error',
+                content: t('errors.failed-to-invite-to-group'),
+            })
+            return
+        }
+        handleInviteToRoom(inviteToRoomId, scannedUser.data.id)
+    }, [
+        toast,
+        t,
+        scannedUser,
+        isInvitation,
+        inviteToRoomId,
+        handleInviteToRoom,
+    ])
+
+    const handleScannedData = useCallback(
+        (parsedData: ParsedFediChatUser) => {
+            if (!isInvitation) {
+                // If inviteToRoomId is not set, navigate to ChatUserConversation
+                return navigation.replace('ChatUserConversation', {
+                    userId: parsedData.data.id,
+                    displayName: parsedData.data.displayName,
+                })
+            } else {
+                // If inviteToRoomId is set, then prompt the
+                // user to confirm to invite the user to the room
+                setScannedUser(parsedData)
+            }
+        },
+        [navigation, setScannedUser, isInvitation],
+    )
+
+    const confirmationContent: CustomOverlayContents = useMemo(
+        () => ({
+            icon: 'Chat',
+            title: t('feature.chat.confirm-add-to-group', {
+                roomName,
+                username: scannedUser?.data?.displayName,
+            }),
+            buttons: [
+                {
+                    text: t('phrases.go-back'),
+                    onPress: () => setScannedUser(null),
+                    primary: false,
+                },
+                {
+                    text: t('words.continue'),
+                    onPress: handleConfirmation,
+                    primary: true,
+                },
+            ],
+        }),
+        [setScannedUser, t, handleConfirmation, roomName, scannedUser],
+    )
+
+    const style = styles()
 
     return (
-        <CameraPermissionsRequired
-            alternativeActionButton={null}
-            message={t('feature.chat.camera-access-information')}>
-            <View style={styles(theme, insets).container}>
-                <View style={styles(theme, insets).cameraScannerContainer}>
-                    {renderQrCodeScanner()}
-                </View>
-            </View>
-        </CameraPermissionsRequired>
+        <View style={style.container}>
+            <OmniInput
+                expectedInputTypes={[ParserDataType.FediChatUser]}
+                onExpectedInput={handleScannedData}
+                onUnexpectedSuccess={() =>
+                    navigation.canGoBack()
+                        ? navigation.goBack()
+                        : navigation.navigate('TabsNavigator')
+                }
+            />
+            {!!scannedUser && (
+                <>
+                    <CustomOverlay
+                        show={!!scannedUser}
+                        contents={confirmationContent}
+                        loading={isLoading}
+                        onBackdropPress={() => setScannedUser(null)}
+                    />
+                </>
+            )}
+        </View>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = () =>
     StyleSheet.create({
         container: {
             flex: 1,
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            paddingTop: theme.spacing.lg,
-        },
-        // flex: 0 takes only the space it needs to render the buttons while
-        // flex: 1 makes sure to take the remaining available space
-        cameraScannerContainer: {
-            flex: 1,
             width: '100%',
-        },
-        buttonsContainer: {
-            flex: 0,
-            justifyContent: 'flex-end',
-            paddingHorizontal: theme.spacing.xl,
-            width: '100%',
-            marginTop: theme.spacing.xl,
-            marginBottom: theme.spacing.xl + insets.bottom,
-        },
-        // adds space between the 2 buttons
-        bottomButton: {
-            marginTop: theme.spacing.lg,
+            flexDirection: 'column',
         },
     })
 

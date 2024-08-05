@@ -3,9 +3,7 @@
 
 @interface RCT_EXTERN_MODULE(FedimintFfi, NSObject)
 
-RCT_EXTERN_METHOD(initialize:(NSString*)dataDir
-                  logLevel:(NSString*)logLevel
-                  deviceId:(NSString*)deviceId
+RCT_EXTERN_METHOD(initialize:(NSString*)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 

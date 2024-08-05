@@ -17,7 +17,7 @@ dependencies = [
  "macroific",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -47,9 +47,9 @@ dependencies = [
 
 [[package]]
 name = "aes"
-version = "0.8.3"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac1f845298e95f983ff1944b728ae08b8cebab80d684f0a832ed0fc74dfa27e2"
+checksum = "b169f7a6d4742236a0a00c541b845991d0ac43e546831af1249753ab4c3aa3a0"
 dependencies = [
  "cfg-if",
  "cipher",
@@ -218,7 +218,7 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -277,7 +277,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -285,6 +285,16 @@ name = "askama_escape"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "619743e34b5ba4e9703bba34deac3427c72507c7159f5fd030aea8cac0cfe341"
+
+[[package]]
+name = "assert-json-diff"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "assert_matches"
@@ -300,13 +310,12 @@ checksum = "5f093eed78becd229346bf859eec0aa4dd7ddde0757287b2b4107a1f09c80002"
 
 [[package]]
 name = "async-channel"
-version = "2.2.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f28243a43d821d11341ab73c80bed182dc015c514b951616cf79bd4af39af0c3"
+checksum = "89b47800b0be77592da0afd425cc03468052844aff33b84e33cc696f64e77b6a"
 dependencies = [
  "concurrent-queue",
- "event-listener 5.2.0",
- "event-listener-strategy 0.5.0",
+ "event-listener-strategy 0.5.2",
  "futures-core",
  "pin-project-lite",
 ]
@@ -349,7 +358,7 @@ checksum = "30c5ef0ede93efbf733c1a727f3b6b5a1060bbedd5600183e66f6e4be4af0ec5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -381,7 +390,7 @@ checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -392,7 +401,7 @@ checksum = "461abc97219de0eaaf81fe3ef974a540158f3d079c2ab200f891f1a2ef201e85"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -429,7 +438,7 @@ dependencies = [
  "pin-project-lite",
  "rustversion",
  "serde",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "tower",
  "tower-layer",
  "tower-service",
@@ -461,7 +470,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "tokio",
  "tower",
  "tower-layer",
@@ -501,7 +510,7 @@ dependencies = [
  "mime",
  "pin-project-lite",
  "rustversion",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -516,7 +525,7 @@ dependencies = [
  "heck 0.4.1",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -530,6 +539,18 @@ dependencies = [
  "instant",
  "pin-project-lite",
  "rand",
+ "tokio",
+]
+
+[[package]]
+name = "backon"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c491fa80d69c03084223a4e73c378dd9f9a1e612eb54051213f88b2d5249b458"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "pin-project",
  "tokio",
 ]
 
@@ -568,9 +589,9 @@ checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
-version = "0.22.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9475866fec1451be56a3c2400fd081ff546538961565ccb5b7142cbd22bc7a51"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64-compat"
@@ -637,7 +658,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -748,6 +769,9 @@ name = "bitflags"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bitmaps"
@@ -947,18 +971,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cfg-vis"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3a2c3bf5fc10fe2ca157564fbe08a4cb2b0a7d2ff3fe2f9683e65d5e7c7859c"
-dependencies = [
- "proc-macro-crate 1.3.1",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "cfg_aliases"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1027,9 +1039,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.3"
+version = "4.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "949626d00e063efc93b6dca932419ceb5432f99769911c0b995f7e884c778813"
+checksum = "90bc066a67923782aa8515dbaea16946c5bcc5addbd668bb80af688e53e548a0"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1058,14 +1070,14 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.3"
+version = "4.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90239a040c80f5e14809ca132ddc4176ab33d5e17e49691793296e3fcb34d72f"
+checksum = "528131438037fd55894f62d6e9f068b8f45ac57ffa77517819645d10aed04f64"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -1099,10 +1111,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
-name = "concurrent-queue"
-version = "2.3.0"
+name = "colored"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f057a694a54f12365049b0958a1685bb52d567f5593b355fbf685838e873d400"
+checksum = "cbf2150cce219b664a8a70df7a1f933836724b503f8a413af9365b4dcc4d90b8"
+dependencies = [
+ "lazy_static",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "concurrent-queue"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -1292,7 +1314,7 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -1316,7 +1338,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim 0.10.0",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -1327,8 +1349,14 @@ checksum = "a668eda54683121533a393014d8692171709ff57a7d61f187b6e782719f8933f"
 dependencies = [
  "darling_core",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
+
+[[package]]
+name = "date_header"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c03c416ed1a30fbb027ef484ba6ab6f80e1eada675e1a2b92fd673c045a1f1d"
 
 [[package]]
 name = "deadpool"
@@ -1365,9 +1393,9 @@ dependencies = [
 
 [[package]]
 name = "deadpool-sync"
-version = "0.1.2"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8db70494c13cae4ce67b4b4dafdaf828cf0df7237ab5b9e2fcabee4965d0a0a"
+checksum = "524bc3df0d57e98ecd022e21ba31166c2625e7d3e5bcc4510efaeeab4abcab04"
 dependencies = [
  "deadpool-runtime",
 ]
@@ -1381,7 +1409,7 @@ dependencies = [
  "macroific",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -1404,7 +1432,7 @@ checksum = "5fe87ce4529967e0ba1dcf8450bab64d97dfd5010a6256187ffe2e43e6f0e049"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -1448,6 +1476,7 @@ dependencies = [
  "anyhow",
  "clap",
  "devimint",
+ "fedi-core",
  "futures",
  "tokio",
  "tracing",
@@ -1455,8 +1484,8 @@ dependencies = [
 
 [[package]]
 name = "devimint"
-version = "0.3.0-rc.2"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "axum 0.7.4",
@@ -1485,6 +1514,7 @@ dependencies = [
  "fs-lock",
  "futures",
  "hex",
+ "lazy_static",
  "nix",
  "rand",
  "semver",
@@ -1536,17 +1566,6 @@ dependencies = [
  "option-ext",
  "redox_users",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "displaydoc"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "487585f4d0c6655fe74905e2504d8ad6908e4db67f744eb140876906c2f3175d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.51",
 ]
 
 [[package]]
@@ -1663,7 +1682,7 @@ checksum = "d3e11244e7fd8b0beee0a3c62137c4bd9f756fe2c492ccf93171f81467b59200"
 dependencies = [
  "bitcoin 0.29.2",
  "log",
- "reqwest",
+ "reqwest 0.11.27",
  "serde",
 ]
 
@@ -1680,9 +1699,9 @@ dependencies = [
 
 [[package]]
 name = "event-listener"
-version = "5.2.0"
+version = "5.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b5fb89194fa3cad959b833185b3063ba881dbfc7030680b314250779fb4cc91"
+checksum = "6032be9bd27023a771701cc49f9f053c751055f71efb2e0ae5c15809093675ba"
 dependencies = [
  "concurrent-queue",
  "parking",
@@ -1701,11 +1720,11 @@ dependencies = [
 
 [[package]]
 name = "event-listener-strategy"
-version = "0.5.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "feedafcaa9b749175d5ac357452a9d41ea2911da598fde46ce1fe02c37751291"
+checksum = "0f214dc438f977e6d4e3500aaa277f5ad94ca83fbbd9b1a15713ce2344ccc5a1"
 dependencies = [
- "event-listener 5.2.0",
+ "event-listener 5.3.1",
  "pin-project-lite",
 ]
 
@@ -1768,7 +1787,7 @@ dependencies = [
  "macroific",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -1780,13 +1799,18 @@ checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 [[package]]
 name = "fedi-api-types"
 version = "0.1.0"
-source = "git+https://x-access-token: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@github.com/fedibtc/devops-automation?rev=64c5a7b6bffacf4fb2d62b8e0a4ac59900068bf7#64c5a7b6bffacf4fb2d62b8e0a4ac59900068bf7"
+source = "git+https://x-access-token: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@github.com/fedibtc/devops-automation?rev=5a38bf5676652ec79abbed92e93414f4ab9bfc8d#5a38bf5676652ec79abbed92e93414f4ab9bfc8d"
 dependencies = [
  "anyhow",
  "chrono",
+ "fedimint-core",
  "hex",
  "serde",
 ]
+
+[[package]]
+name = "fedi-core"
+version = "0.3.0"
 
 [[package]]
 name = "fedi-db-dump"
@@ -1798,11 +1822,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedi-debug"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "fedi-db-dump",
+ "fedimint-core",
+ "fedimint-rocksdb",
+ "tokio",
+]
+
+[[package]]
 name = "fedi-fedimint-cli"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "clap",
  "fedi-social-client",
  "fedimint-build",
  "fedimint-cli",
@@ -1815,6 +1850,7 @@ name = "fedi-fedimintd"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "fedi-core",
  "fedi-social-common",
  "fedi-social-server",
  "fedimint-build",
@@ -1822,6 +1858,7 @@ dependencies = [
  "fedimintd",
  "stability-pool-server",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1838,6 +1875,7 @@ dependencies = [
  "eyeball",
  "eyeball-im",
  "fedi-api-types",
+ "fedi-core",
  "fedi-db-dump",
  "fedi-social-client",
  "fedimint-aead",
@@ -1862,8 +1900,9 @@ dependencies = [
  "matrix-sdk",
  "matrix-sdk-ui",
  "mime",
+ "mockito",
  "rand",
- "reqwest",
+ "reqwest 0.11.27",
  "ring 0.17.8",
  "rolling-file",
  "rusqlite",
@@ -1881,7 +1920,7 @@ dependencies = [
  "tracing-serde",
  "tracing-subscriber",
  "ts-rs",
- "uniffi 0.25.3",
+ "uniffi",
  "url",
 ]
 
@@ -1901,19 +1940,25 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
+ "bitcoin 0.29.2",
  "bitcoin_hashes 0.11.0",
  "erased-serde",
  "fedi-social-common",
+ "fedimint-aead",
  "fedimint-client",
  "fedimint-core",
+ "fedimint-derive-secret",
+ "fedimint-threshold-crypto",
  "futures",
  "hex",
  "impl-tools 0.6.2",
  "itertools 0.10.5",
  "rand",
+ "ring 0.17.8",
  "secp256k1 0.24.3",
  "secp256k1-zkp",
  "serde",
+ "serde_json",
  "strum 0.24.1",
  "strum_macros 0.24.3",
  "thiserror",
@@ -1942,7 +1987,6 @@ dependencies = [
  "serde",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "test-log",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -1972,7 +2016,7 @@ dependencies = [
  "serde",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "test-log",
+ "subtle",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -1992,6 +2036,8 @@ dependencies = [
  "imbl",
  "js-sys",
  "rexie",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2003,8 +2049,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-aead"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "argon2",
@@ -2036,8 +2082,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-bip39"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "bip39",
  "fedimint-client",
@@ -2047,8 +2093,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-bitcoind"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2069,20 +2115,20 @@ dependencies = [
 
 [[package]]
 name = "fedimint-build"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "fedimint-cli"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.22.0",
+ "base64 0.22.1",
  "bip39",
  "bitcoin 0.29.2",
  "bitcoin_hashes 0.11.0",
@@ -2109,7 +2155,7 @@ dependencies = [
  "lightning-invoice",
  "lnurl-rs",
  "rand",
- "reqwest",
+ "reqwest 0.11.27",
  "serde",
  "serde_json",
  "thiserror",
@@ -2122,8 +2168,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-client"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2139,6 +2185,7 @@ dependencies = [
  "futures",
  "itertools 0.12.1",
  "rand",
+ "reqwest 0.12.5",
  "ring 0.17.8",
  "secp256k1-zkp",
  "serde",
@@ -2171,13 +2218,14 @@ dependencies = [
 
 [[package]]
 name = "fedimint-core"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-lock",
  "async-recursion",
  "async-trait",
+ "backon",
  "backtrace",
  "bech32",
  "bincode",
@@ -2191,6 +2239,7 @@ dependencies = [
  "fedimint-tbs",
  "fedimint-threshold-crypto",
  "futures",
+ "futures-util",
  "getrandom",
  "gloo-timers 0.3.0",
  "hex",
@@ -2224,19 +2273,19 @@ dependencies = [
 
 [[package]]
 name = "fedimint-derive"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "itertools 0.12.1",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
 name = "fedimint-derive-secret"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "fedimint-core",
@@ -2248,8 +2297,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-dummy-client"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2270,8 +2319,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-dummy-common"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2291,16 +2340,16 @@ dependencies = [
 
 [[package]]
 name = "fedimint-hkdf"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "bitcoin_hashes 0.11.0",
 ]
 
 [[package]]
 name = "fedimint-ln-client"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2318,7 +2367,7 @@ dependencies = [
  "itertools 0.12.1",
  "lightning-invoice",
  "rand",
- "reqwest",
+ "reqwest 0.11.27",
  "secp256k1 0.24.3",
  "secp256k1-zkp",
  "serde",
@@ -2333,8 +2382,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-ln-common"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2363,8 +2412,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-ln-gateway"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2393,7 +2442,7 @@ dependencies = [
  "lightning-invoice",
  "prost",
  "rand",
- "reqwest",
+ "reqwest 0.11.27",
  "secp256k1 0.24.3",
  "secp256k1-zkp",
  "serde",
@@ -2412,8 +2461,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-ln-server"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2444,8 +2493,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-logging"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "console-subscriber",
@@ -2457,8 +2506,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-meta-client"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2482,8 +2531,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-meta-common"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2505,8 +2554,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-meta-server"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2528,8 +2577,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-metrics"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "axum 0.7.4",
@@ -2542,14 +2591,14 @@ dependencies = [
 
 [[package]]
 name = "fedimint-mint-client"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "aquamarine",
  "async-stream",
  "async-trait",
- "base64 0.22.0",
+ "base64 0.22.1",
  "bincode",
  "bitcoin_hashes 0.11.0",
  "erased-serde",
@@ -2577,8 +2626,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-mint-common"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2601,8 +2650,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-mint-server"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -2630,8 +2679,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-portalloc"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "dirs",
@@ -2645,8 +2694,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-rocksdb"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2659,8 +2708,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-server"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "aleph-bft-types",
  "anyhow",
@@ -2710,8 +2759,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-tbs"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "bitcoin_hashes 0.11.0",
  "bls12_381",
@@ -2725,8 +2774,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-testing"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2791,7 +2840,7 @@ dependencies = [
  "hex",
  "http-body 0.4.5",
  "hyper 0.14.27",
- "hyper-rustls",
+ "hyper-rustls 0.24.1",
  "prost",
  "rustls 0.21.8",
  "rustls-pemfile 1.0.3",
@@ -2804,8 +2853,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-unknown-common"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2821,8 +2870,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-unknown-server"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2841,8 +2890,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-wallet-client"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2872,8 +2921,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-wallet-common"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2897,8 +2946,8 @@ dependencies = [
 
 [[package]]
 name = "fedimint-wallet-server"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2926,8 +2975,8 @@ dependencies = [
 
 [[package]]
 name = "fedimintd"
-version = "0.3.0-rc.3"
-source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=ad/v0.3.0-rc.3-fedi1#0307c3a3373b1b6f537f2854c89d0171f41d6cf7"
+version = "0.3.2-rc.0"
+source = "git+https://x-access-token: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@github.com/fedibtc/fedimint-fedi?tag=v0.3.2-rc.0-fed1#2ea651c2da20a0380062109428b43d4702a47bae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2991,7 +3040,7 @@ dependencies = [
 name = "ffi-bindgen"
 version = "0.3.0"
 dependencies = [
- "uniffi 0.25.3",
+ "uniffi",
 ]
 
 [[package]]
@@ -3156,7 +3205,7 @@ checksum = "87750cf4b7a4c0625b1529e4c543c2182106e4dedc60a2a6455e00d212c489ac"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -3220,9 +3269,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.12"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
+checksum = "c4567c8db10ae91089c99af84c68c38da3ec2f087c3f82960bcdbf3656b6f4d7"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3331,18 +3380,7 @@ checksum = "0d6b4de4a8eb6c46a8c77e1d3be942cb9a8bf073c22374578e5ba4b08ed0ff68"
 dependencies = [
  "log",
  "plain",
- "scroll 0.11.0",
-]
-
-[[package]]
-name = "goblin"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb07a4ffed2093b118a525b1d8f5204ae274faed5604537caf7135d0f18d9887"
-dependencies = [
- "log",
- "plain",
- "scroll 0.12.0",
+ "scroll",
 ]
 
 [[package]]
@@ -3354,6 +3392,18 @@ dependencies = [
  "ff",
  "rand_core",
  "subtle",
+]
+
+[[package]]
+name = "growable-bloom-filter"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c669fa03050eb3445343f215d62fc1ab831e8098bc9a55f26e9724faff11075c"
+dependencies = [
+ "serde",
+ "serde_bytes",
+ "serde_derive",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -3501,16 +3551,16 @@ dependencies = [
 
 [[package]]
 name = "html5ever"
-version = "0.26.0"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bea68cab48b8459f17cf1c944c67ddc572d272d9f2b274140f223ecb1da4a3b7"
+checksum = "c13771afe0e6e846f1e67d038d4cb29998a6779f93c809212e4e9c32efd244d4"
 dependencies = [
  "log",
  "mac",
  "markup5ever",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -3647,6 +3697,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-rustls"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ee4be2c948921a1a5320b629c4193916ed787a7f7f293fd3f7f5a6c9de74155"
+dependencies = [
+ "futures-util",
+ "http 1.1.0",
+ "hyper 1.2.0",
+ "hyper-util",
+ "rustls 0.23.7",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls 0.26.0",
+ "tower-service",
+ "webpki-roots 0.26.1",
+]
+
+[[package]]
 name = "hyper-timeout"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3665,6 +3733,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca38ef113da30126bbff9cd1705f9273e15d45498615d138b0c20279ac7a76aa"
 dependencies = [
  "bytes",
+ "futures-channel",
  "futures-util",
  "http 1.1.0",
  "http-body 1.0.0",
@@ -3672,6 +3741,9 @@ dependencies = [
  "pin-project-lite",
  "socket2 0.5.6",
  "tokio",
+ "tower",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -3757,7 +3829,7 @@ dependencies = [
  "autocfg",
  "impl-tools-lib 0.10.0",
  "proc-macro-error",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -3781,7 +3853,7 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -4144,9 +4216,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.153"
+version = "0.2.155"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
+checksum = "97b3888a4aecf77e811145cadf6eef5901f4782c53886191b2f693f24761847c"
 
 [[package]]
 name = "libloading"
@@ -4241,7 +4313,7 @@ dependencies = [
  "bitcoin 0.30.2",
  "cbc",
  "email_address",
- "reqwest",
+ "reqwest 0.11.27",
  "serde",
  "serde_json",
  "url",
@@ -4340,7 +4412,7 @@ dependencies = [
  "cfg-if",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -4351,7 +4423,7 @@ checksum = "13198c120864097a565ccb3ff947672d969932b7975ebd4085732c9f09435e55"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -4364,7 +4436,7 @@ dependencies = [
  "macroific_core",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -4375,12 +4447,12 @@ checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "markup5ever"
-version = "0.11.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a2629bb1404f3d34c2e921f21fd34ba00b206124c81f65c50b43b6aaefeb016"
+checksum = "16ce3abbeba692c8b8441d036ef91aea6df8da2c6b6e21c7e14d3c18e526be45"
 dependencies = [
  "log",
- "phf 0.10.1",
+ "phf",
  "phf_codegen",
  "string_cache",
  "string_cache_codegen",
@@ -4404,9 +4476,9 @@ checksum = "ed1202b2a6f884ae56f04cff409ab315c5ce26b5e58d7412e484f01fd52f52ef"
 
 [[package]]
 name = "matrix-pickle"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7fd26463ce5d86b8d9bb9c4142d453198ba22fb91bd46d3c9f144ae699d821d"
+checksum = "7eb521190328c57a2051f70250beb874dc0fac6bcd22b615f7f9700b7b4fb826"
 dependencies = [
  "matrix-pickle-derive",
  "thiserror",
@@ -4414,21 +4486,21 @@ dependencies = [
 
 [[package]]
 name = "matrix-pickle-derive"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93779aa78d39c2fe34746287b10a866192cf8af1b81767fff76bd64099acc0f5"
+checksum = "c6fb3c7231cbb7fbbc50871615edebf65183b382cdaa1fe21c5e88a12617de8e"
 dependencies = [
- "proc-macro-crate 2.0.2",
+ "proc-macro-crate",
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
 name = "matrix-sdk"
 version = "0.7.1"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
  "anymap2",
  "aquamarine",
@@ -4439,15 +4511,13 @@ dependencies = [
  "backoff",
  "bytes",
  "bytesize",
- "cfg-vis",
- "event-listener 4.0.3",
+ "event-listener 5.3.1",
  "eyeball",
  "eyeball-im",
- "eyeball-im-util",
  "futures-core",
  "futures-util",
  "gloo-timers 0.3.0",
- "http 0.2.9",
+ "http 1.1.0",
  "imbl",
  "indexmap 2.2.5",
  "js_int",
@@ -4457,7 +4527,7 @@ dependencies = [
  "matrix-sdk-sqlite",
  "mime",
  "mime2ext",
- "reqwest",
+ "reqwest 0.12.5",
  "ruma",
  "serde",
  "serde_html_form",
@@ -4470,13 +4540,14 @@ dependencies = [
  "tracing",
  "url",
  "urlencoding",
+ "vodozemac",
  "zeroize",
 ]
 
 [[package]]
 name = "matrix-sdk-base"
 version = "0.7.0"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
  "as_variant",
  "async-trait",
@@ -4484,6 +4555,7 @@ dependencies = [
  "eyeball",
  "eyeball-im",
  "futures-util",
+ "growable-bloom-filter",
  "matrix-sdk-common",
  "matrix-sdk-crypto",
  "matrix-sdk-store-encryption",
@@ -4494,13 +4566,12 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "uniffi 0.26.1",
 ]
 
 [[package]]
 name = "matrix-sdk-common"
 version = "0.7.0"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
  "async-trait",
  "futures-core",
@@ -4521,8 +4592,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-crypto"
-version = "0.7.0"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+version = "0.7.1"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
  "aes",
  "as_variant",
@@ -4538,6 +4609,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "itertools 0.12.1",
+ "js_option",
  "matrix-sdk-common",
  "pbkdf2",
  "rand",
@@ -4548,10 +4620,12 @@ dependencies = [
  "sha2",
  "subtle",
  "thiserror",
+ "time",
  "tokio",
  "tokio-stream",
  "tracing",
  "ulid",
+ "url",
  "vodozemac",
  "zeroize",
 ]
@@ -4559,13 +4633,15 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-indexeddb"
 version = "0.7.0"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.21.7",
+ "base64 0.22.1",
  "getrandom",
  "gloo-utils",
+ "growable-bloom-filter",
+ "hkdf",
  "indexed_db_futures",
  "js-sys",
  "matrix-sdk-base",
@@ -4575,17 +4651,19 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "sha2",
  "thiserror",
  "tokio",
  "tracing",
  "wasm-bindgen",
  "web-sys",
+ "zeroize",
 ]
 
 [[package]]
 name = "matrix-sdk-sqlite"
 version = "0.7.0"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
  "async-trait",
  "deadpool-sqlite",
@@ -4607,12 +4685,11 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-store-encryption"
 version = "0.7.0"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "blake3",
  "chacha20poly1305",
- "displaydoc",
  "getrandom",
  "hmac",
  "pbkdf2",
@@ -4628,7 +4705,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-ui"
 version = "0.7.0"
-source = "git+https://github.com/maan2003/matrix-rust-sdk?branch=hacks#390d2917422749634fd995bdb7c115b411412b64"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi-0.1#0caa17f8e6ac60b896811d9d056d82d6fd0d7a2b"
 dependencies = [
  "as_variant",
  "async-once-cell",
@@ -4644,6 +4721,7 @@ dependencies = [
  "futures-util",
  "fuzzy-matcher",
  "gloo-timers 0.3.0",
+ "growable-bloom-filter",
  "imbl",
  "indexmap 2.2.5",
  "itertools 0.12.1",
@@ -4659,7 +4737,6 @@ dependencies = [
  "tokio",
  "tracing",
  "unicode-normalization",
- "url",
 ]
 
 [[package]]
@@ -4734,6 +4811,25 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "mockito"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2f6e023aa5bdf392aa06c78e4a4e6d498baab5138d0c993503350ebbc37bf1e"
+dependencies = [
+ "assert-json-diff",
+ "colored",
+ "futures-core",
+ "hyper 0.14.27",
+ "log",
+ "rand",
+ "regex",
+ "serde_json",
+ "serde_urlencoded",
+ "similar",
+ "tokio",
 ]
 
 [[package]]
@@ -4816,9 +4912,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
+checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "oneshot-uniffi"
@@ -4929,9 +5025,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.6.9"
+version = "3.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "881331e34fa842a2fb61cc2db9643a8fedc615e47cfcc52597d1af0db9a7e8fe"
+checksum = "306800abfa29c7f16596b5970a588435e3d5b3149683d00c12b699cc19f895ee"
 dependencies = [
  "arrayvec",
  "bitvec",
@@ -4943,11 +5039,11 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "3.6.9"
+version = "3.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be30eaf4b0a9fba5336683b38de57bb86d179a35862ba6bfcf57625d006bde5b"
+checksum = "d830939c76d294956402033aee57a6da7b438f2294eb94864c37b0569053a42c"
 dependencies = [
- "proc-macro-crate 2.0.2",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -5037,15 +5133,6 @@ dependencies = [
 
 [[package]]
 name = "phf"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fabbf1ead8a5bcbc20f5f8b939ee3f5b0f6f281b6ad3468b84656b658b455259"
-dependencies = [
- "phf_shared 0.10.0",
-]
-
-[[package]]
-name = "phf"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ade2d8b8f33c7333b51bcf0428d37e217e9f32192ae4772156f65063b8ce03dc"
@@ -5056,12 +5143,12 @@ dependencies = [
 
 [[package]]
 name = "phf_codegen"
-version = "0.10.0"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fb1c3a8bc4dd4e5cfce29b44ffc14bedd2ee294559a294e2a4d4c9e9a6a13cd"
+checksum = "e8d39688d359e6b34654d328e262234662d16cc0f60ec8dcbe5e718709342a5a"
 dependencies = [
- "phf_generator 0.10.0",
- "phf_shared 0.10.0",
+ "phf_generator 0.11.2",
+ "phf_shared 0.11.2",
 ]
 
 [[package]]
@@ -5094,7 +5181,7 @@ dependencies = [
  "phf_shared 0.11.2",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -5132,7 +5219,7 @@ checksum = "2f38a4412a78282e09a2cf38d195ea5420d15ba0602cb375210efbc877243965"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -5222,27 +5309,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c64d9ba0963cdcea2e1b2230fbae2bab30eb25a174be395c41e764bfb65dd62"
 dependencies = [
  "proc-macro2",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
 name = "proc-macro-crate"
-version = "1.3.1"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
+checksum = "6d37c51ca738a55da99dc0c4a34860fd675453b8b36209178c2249bb13651284"
 dependencies = [
- "once_cell",
- "toml_edit 0.19.15",
-]
-
-[[package]]
-name = "proc-macro-crate"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b00f26d3400549137f92511a46ac1cd8ce37cb5598a96d382381458b992a5d24"
-dependencies = [
- "toml_datetime",
- "toml_edit 0.20.2",
+ "toml_edit 0.21.1",
 ]
 
 [[package]]
@@ -5271,9 +5347,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.78"
+version = "1.0.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2422ad645d89c99f8f3e6b88a9fdeca7fabeac836b1002371c4367c8f984aae"
+checksum = "5e719e8df665df0d1c8fbfd238015744736151d4445ec0836b8e628aae103b77"
 dependencies = [
  "unicode-ident",
 ]
@@ -5295,9 +5371,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.12.3"
+version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "146c289cda302b98a28d40c8b3b90498d6e526dd24ac2ecea73e4e491685b94a"
+checksum = "deb1435c188b76130da55f17a466d252ff7b1418b2ad3e037d127b94e3411f29"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -5311,7 +5387,7 @@ checksum = "8bdf592881d821b83d471f8af290226c8d51402259e9bb5be7f9f8bdebbb11ac"
 dependencies = [
  "bytes",
  "heck 0.4.1",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "log",
  "multimap",
  "once_cell",
@@ -5320,22 +5396,22 @@ dependencies = [
  "prost",
  "prost-types",
  "regex",
- "syn 2.0.51",
+ "syn 2.0.71",
  "tempfile",
  "which",
 ]
 
 [[package]]
 name = "prost-derive"
-version = "0.12.3"
+version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
+checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -5352,6 +5428,53 @@ name = "protobuf"
 version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
+
+[[package]]
+name = "quinn"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4ceeeeabace7857413798eb1ffa1e9c905a9946a57d81fb69b4b71c4d8eb3ad"
+dependencies = [
+ "bytes",
+ "pin-project-lite",
+ "quinn-proto",
+ "quinn-udp",
+ "rustc-hash",
+ "rustls 0.23.7",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "quinn-proto"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddf517c03a109db8100448a4be38d498df8a210a99fe0e1b9eaf39e78c640efe"
+dependencies = [
+ "bytes",
+ "rand",
+ "ring 0.17.8",
+ "rustc-hash",
+ "rustls 0.23.7",
+ "slab",
+ "thiserror",
+ "tinyvec",
+ "tracing",
+]
+
+[[package]]
+name = "quinn-udp"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9096629c45860fc7fb143e125eb826b5e721e10be3263160c7d60ca832cf8c46"
+dependencies = [
+ "libc",
+ "once_cell",
+ "socket2 0.5.6",
+ "tracing",
+ "windows-sys 0.52.0",
+]
 
 [[package]]
 name = "quote"
@@ -5513,7 +5636,6 @@ version = "0.11.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd67538700a17451e7cba03ac727fb961abb7607553461627b97de0b89cf4a62"
 dependencies = [
- "async-compression",
  "base64 0.21.7",
  "bytes",
  "encoding_rs",
@@ -5523,7 +5645,7 @@ dependencies = [
  "http 0.2.9",
  "http-body 0.4.5",
  "hyper 0.14.27",
- "hyper-rustls",
+ "hyper-rustls 0.24.1",
  "ipnet",
  "js-sys",
  "log",
@@ -5536,11 +5658,54 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "system-configuration",
  "tokio",
  "tokio-rustls 0.24.1",
  "tokio-socks",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "webpki-roots 0.25.2",
+ "winreg 0.50.0",
+]
+
+[[package]]
+name = "reqwest"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7d6d2a27d57148378eb5e111173f4276ad26340ecc5c49a4a2152167a2d6a37"
+dependencies = [
+ "async-compression",
+ "base64 0.22.1",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http 1.1.0",
+ "http-body 1.0.0",
+ "http-body-util",
+ "hyper 1.2.0",
+ "hyper-rustls 0.27.2",
+ "hyper-util",
+ "ipnet",
+ "js-sys",
+ "log",
+ "mime",
+ "once_cell",
+ "percent-encoding",
+ "pin-project-lite",
+ "quinn",
+ "rustls 0.23.7",
+ "rustls-pemfile 2.1.1",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sync_wrapper 1.0.1",
+ "tokio",
+ "tokio-rustls 0.26.0",
  "tokio-util",
  "tower-service",
  "url",
@@ -5548,8 +5713,8 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots 0.25.2",
- "winreg",
+ "webpki-roots 0.26.1",
+ "winreg 0.52.0",
 ]
 
 [[package]]
@@ -5576,7 +5741,7 @@ dependencies = [
 [[package]]
 name = "ring"
 version = "0.16.20"
-source = "git+https://github.com/dpc/ring?rev=5493e7e76d0d8fb1d3cbb0be9c4944700741b802#5493e7e76d0d8fb1d3cbb0be9c4944700741b802"
+source = "git+https://github.com/fedibtc/ring?tag=fedi-0.1#5493e7e76d0d8fb1d3cbb0be9c4944700741b802"
 dependencies = [
  "cc",
  "libc",
@@ -5650,8 +5815,8 @@ checksum = "afab94fb28594581f62d981211a9a4d53cc8130bbcbbb89a0440d9b8e81a7746"
 
 [[package]]
 name = "ruma"
-version = "0.9.4"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.10.1"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "assign",
  "js_int",
@@ -5661,17 +5826,19 @@ dependencies = [
  "ruma-events",
  "ruma-federation-api",
  "ruma-html",
+ "web-time",
 ]
 
 [[package]]
 name = "ruma-client-api"
-version = "0.17.4"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.18.0"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "as_variant",
  "assign",
  "bytes",
- "http 0.2.9",
+ "date_header",
+ "http 1.1.0",
  "js_int",
  "js_option",
  "maplit",
@@ -5680,19 +5847,22 @@ dependencies = [
  "serde",
  "serde_html_form",
  "serde_json",
+ "thiserror",
+ "url",
+ "web-time",
 ]
 
 [[package]]
 name = "ruma-common"
-version = "0.12.1"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "as_variant",
- "base64 0.21.7",
+ "base64 0.22.1",
  "bytes",
  "form_urlencoded",
  "getrandom",
- "http 0.2.9",
+ "http 1.1.0",
  "indexmap 2.2.5",
  "js-sys",
  "js_int",
@@ -5706,16 +5876,18 @@ dependencies = [
  "serde_html_form",
  "serde_json",
  "thiserror",
+ "time",
  "tracing",
  "url",
  "uuid",
+ "web-time",
  "wildmatch",
 ]
 
 [[package]]
 name = "ruma-events"
-version = "0.27.11"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.28.1"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "as_variant",
  "indexmap 2.2.5",
@@ -5737,8 +5909,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-federation-api"
-version = "0.8.0"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.9.0"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "js_int",
  "ruma-common",
@@ -5749,20 +5921,20 @@ dependencies = [
 
 [[package]]
 name = "ruma-html"
-version = "0.1.0"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.2.0"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "as_variant",
  "html5ever",
- "phf 0.11.2",
+ "phf",
  "tracing",
  "wildmatch",
 ]
 
 [[package]]
 name = "ruma-identifiers-validation"
-version = "0.9.3"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.9.5"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "js_int",
  "thiserror",
@@ -5770,16 +5942,16 @@ dependencies = [
 
 [[package]]
 name = "ruma-macros"
-version = "0.12.0"
-source = "git+https://github.com/maan2003/ruma?branch=add-serde-derive#5bcf76f77511d51dfed5affd6d03a847729953e3"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/ruma?tag=ruma-fedi-0.1#4c3b29be87d412ef25dd1148dac014d09fa3b1e0"
 dependencies = [
  "once_cell",
- "proc-macro-crate 2.0.2",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "ruma-identifiers-validation",
  "serde",
- "syn 2.0.51",
+ "syn 2.0.71",
  "toml 0.8.2",
 ]
 
@@ -5870,6 +6042,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls"
+version = "0.23.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebbbdb961df0ad3f2652da8f3fdc4b36122f568f968f45ad3316f26c025c677b"
+dependencies = [
+ "once_cell",
+ "ring 0.17.8",
+ "rustls-pki-types",
+ "rustls-webpki 0.102.2",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "rustls-pemfile"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5945,16 +6131,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04c565b551bafbef4157586fa379538366e4385d42082f255bfd96e4fe8519da"
 dependencies = [
- "scroll_derive 0.11.1",
-]
-
-[[package]]
-name = "scroll"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ab8598aa408498679922eff7fa985c25d58a90771bd6be794434c5277eab1a6"
-dependencies = [
- "scroll_derive 0.12.0",
+ "scroll_derive",
 ]
 
 [[package]]
@@ -5965,18 +6142,7 @@ checksum = "1db149f81d46d2deba7cd3c50772474707729550221e69588478ebf9ada425ae"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
-]
-
-[[package]]
-name = "scroll_derive"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f81c2fde025af7e69b1d1420531c8a8811ca898919db177141a85313b1cb932"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -6034,7 +6200,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-zkp"
 version = "0.7.0"
-source = "git+https://github.com/dpc/rust-secp256k1-zkp/?branch=sanket-pr#f29b1b8c442d4b8a42547ce36d3987aaedf94224"
+source = "git+https://github.com/fedibtc/rust-secp256k1-zkp/?tag=fedi-0.1#f29b1b8c442d4b8a42547ce36d3987aaedf94224"
 dependencies = [
  "rand",
  "secp256k1 0.24.3",
@@ -6045,7 +6211,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-zkp-sys"
 version = "0.7.0"
-source = "git+https://github.com/dpc/rust-secp256k1-zkp/?branch=sanket-pr#f29b1b8c442d4b8a42547ce36d3987aaedf94224"
+source = "git+https://github.com/fedibtc/rust-secp256k1-zkp/?tag=fedi-0.1#f29b1b8c442d4b8a42547ce36d3987aaedf94224"
 dependencies = [
  "cc",
  "secp256k1-sys 0.6.1",
@@ -6068,9 +6234,9 @@ checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
 
 [[package]]
 name = "serde"
-version = "1.0.197"
+version = "1.0.204"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fb1c873e1b9b056a4dc4c0c198b24c3ffa059243875552b2bd0933b1aee4ce2"
+checksum = "bc76f558e0cbb2a839d37354c575f1dc3fdc6546b5be373ba43d95f231bf7c12"
 dependencies = [
  "serde_derive",
 ]
@@ -6106,13 +6272,13 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.197"
+version = "1.0.204"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7eb0b34b42edc17f6b7cac84a52a1c5f0e1bb2227e997ca9011ea3dd34e8610b"
+checksum = "e0cd7e117be63d3c3678776753929474f3b04a43a080c744d6b0ae2a8c28e222"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -6130,9 +6296,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.114"
+version = "1.0.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5f09b1bd632ef549eaa9f60a1f8de742bdbc698e6cee2095fc84dde5f549ae0"
+checksum = "4e0d21c9a8cae1235ad58a00c11cb40d4b1e5c784f1ef2c537876ed6ffd8b7c5"
 dependencies = [
  "indexmap 2.2.5",
  "itoa",
@@ -6198,7 +6364,7 @@ dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -6267,6 +6433,12 @@ checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "rand_core",
 ]
+
+[[package]]
+name = "similar"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa42c91313f1d05da9b26f267f931cf178d4aba455b4c4622dd7355eb80c6640"
 
 [[package]]
 name = "siphasher"
@@ -6400,9 +6572,10 @@ dependencies = [
  "erased-serde",
  "fedimint-core",
  "futures",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "rand",
- "reqwest",
+ "reqwest 0.11.27",
+ "ring 0.17.8",
  "secp256k1-zkp",
  "serde",
  "serde_json",
@@ -6504,7 +6677,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -6526,9 +6699,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.51"
+version = "2.0.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ab617d94515e94ae53b8406c628598680aa0c9587474ecbe58188f7b345d66c"
+checksum = "b146dcf730474b4bcd16c311627b31ede9ab149045db4d6088b3becaea046462"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6540,6 +6713,12 @@ name = "sync_wrapper"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
+
+[[package]]
+name = "sync_wrapper"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7065abeca94b6a8a577f9bd45aa0867a2238b74e8eb67cf10d492bc39351394"
 
 [[package]]
 name = "system-configuration"
@@ -6612,17 +6791,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-log"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9601d162c1d77e62c1ea0bc8116cd1caf143ce3af947536c3c9052a1677fe0c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "textwrap"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6635,22 +6803,22 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.58"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03468839009160513471e86a034bb2c5c0e4baae3b43f79ffc55c4a5427b3297"
+checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.58"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c61f3ba182994efc43764a46c018c347bc492c79f024e705f46567b418f6d4f7"
+checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -6687,9 +6855,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.34"
+version = "0.3.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8248b6521bb14bc45b4067159b9b6ad792e2d6d754d6c41fb50e29fefe38749"
+checksum = "5dfd88e563464686c916c7e46e623e520ddc6d79fa6641390f2e3fa86e83e885"
 dependencies = [
  "deranged",
  "itoa",
@@ -6708,9 +6876,9 @@ checksum = "ef927ca75afb808a4d64dd374f00a2adf8d0fcff8e7b184af886c3c87ec4a3f3"
 
 [[package]]
 name = "time-macros"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ba3a3ef41e6672a2f0f001392bb5dcd3ff0a9992d618ca761a11c3121547774"
+checksum = "3f252a68540fde3a3877aeea552b832b40ab9a69e318efd078774a01ddee1ccf"
 dependencies = [
  "num-conv",
  "time-core",
@@ -6742,9 +6910,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.36.0"
+version = "1.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61285f6515fa018fb2d1e46eb21223fff441ee8db5d0f1435e8ab4f5cdb80931"
+checksum = "1adbebffeca75fcfd058afa480fb6c0b81e165a0323f9c9d39c9697e37c46787"
 dependencies = [
  "backtrace",
  "bytes",
@@ -6778,7 +6946,7 @@ checksum = "5b8a1e28f2deaa14e508979454cb3a223b10b938b45af148bc0986de36f1923b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -6809,6 +6977,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "775e0c0f0adb3a2f22a00c4745d728b479985fc15ee7ca6a2608388c5569860f"
 dependencies = [
  "rustls 0.22.2",
+ "rustls-pki-types",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-rustls"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c7bc40d0e5a97695bb96e27995cd3a08538541b0a846f65bba7a359f36700d4"
+dependencies = [
+ "rustls 0.23.7",
  "rustls-pki-types",
  "tokio",
 ]
@@ -6875,22 +7054,11 @@ dependencies = [
 
 [[package]]
 name = "toml_datetime"
-version = "0.6.3"
+version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cda73e2f1397b1262d6dfdcef8aafae14d1de7748d66822d3bfeeb6d03e5e4b"
+checksum = "4badfd56924ae69bcc9039335b2e017639ce3f9b001c393c1b2d1ef846ce2cbf"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.19.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
-dependencies = [
- "indexmap 2.2.5",
- "toml_datetime",
- "winnow",
 ]
 
 [[package]]
@@ -6902,6 +7070,17 @@ dependencies = [
  "indexmap 2.2.5",
  "serde",
  "serde_spanned",
+ "toml_datetime",
+ "winnow",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
+dependencies = [
+ "indexmap 2.2.5",
  "toml_datetime",
  "winnow",
 ]
@@ -6976,7 +7155,7 @@ dependencies = [
  "proc-macro2",
  "prost-build",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -6989,7 +7168,7 @@ dependencies = [
  "proc-macro2",
  "prost-build",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -7073,7 +7252,7 @@ checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -7177,7 +7356,7 @@ checksum = "3528ecfd12c466c6f163363caf2d02a71161dd5e1cc6ae7b34207ea2d42d81ed"
 [[package]]
 name = "ts-rs"
 version = "7.1.1"
-source = "git+https://github.com/maan2003/ts-rs?branch=fix-allow-rename-all-unit-structs#1caf10367593a459b486e13a10c4b89e8dc478f4"
+source = "git+https://github.com/fedibtc/ts-rs?tag=fedi-0.1#1caf10367593a459b486e13a10c4b89e8dc478f4"
 dependencies = [
  "thiserror",
  "ts-rs-macros",
@@ -7186,12 +7365,12 @@ dependencies = [
 [[package]]
 name = "ts-rs-macros"
 version = "7.1.1"
-source = "git+https://github.com/maan2003/ts-rs?branch=fix-allow-rename-all-unit-structs#1caf10367593a459b486e13a10c4b89e8dc478f4"
+source = "git+https://github.com/fedibtc/ts-rs?tag=fedi-0.1#1caf10367593a459b486e13a10c4b89e8dc478f4"
 dependencies = [
  "Inflector",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
  "termcolor",
 ]
 
@@ -7277,21 +7456,10 @@ dependencies = [
  "anyhow",
  "camino",
  "clap",
- "uniffi_bindgen 0.25.3",
- "uniffi_build 0.25.3",
- "uniffi_core 0.25.3",
- "uniffi_macros 0.25.3",
-]
-
-[[package]]
-name = "uniffi"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ad0be8bba6c242d2d16922de4a9c8f167b9491729fda552e70f8626bf7302cb"
-dependencies = [
- "anyhow",
- "uniffi_core 0.26.1",
- "uniffi_macros 0.26.1",
+ "uniffi_bindgen",
+ "uniffi_build",
+ "uniffi_core",
+ "uniffi_macros",
 ]
 
 [[package]]
@@ -7306,40 +7474,16 @@ dependencies = [
  "clap",
  "fs-err",
  "glob",
- "goblin 0.6.1",
+ "goblin",
  "heck 0.4.1",
  "once_cell",
  "paste",
  "serde",
  "textwrap",
  "toml 0.5.11",
- "uniffi_meta 0.25.3",
- "uniffi_testing 0.25.3",
- "uniffi_udl 0.25.3",
-]
-
-[[package]]
-name = "uniffi_bindgen"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab31006ab9c9c6870739f0e74235729d1478d82e73571b8f53c25aa176d67535"
-dependencies = [
- "anyhow",
- "askama",
- "camino",
- "cargo_metadata",
- "fs-err",
- "glob",
- "goblin 0.8.0",
- "heck 0.4.1",
- "once_cell",
- "paste",
- "serde",
- "textwrap",
- "toml 0.5.11",
- "uniffi_meta 0.26.1",
- "uniffi_testing 0.26.1",
- "uniffi_udl 0.26.1",
+ "uniffi_meta",
+ "uniffi_testing",
+ "uniffi_udl",
 ]
 
 [[package]]
@@ -7349,18 +7493,7 @@ source = "git+https://github.com/mozilla/uniffi-rs?rev=f5fc9d7e9aa08889aedc45dd8
 dependencies = [
  "anyhow",
  "camino",
- "uniffi_bindgen 0.25.3",
-]
-
-[[package]]
-name = "uniffi_build"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4aa3a7608c6872dc1ce53199d816a24d2e19af952d82ce557ecc8692a4ae9cba"
-dependencies = [
- "anyhow",
- "camino",
- "uniffi_bindgen 0.26.1",
+ "uniffi_bindgen",
 ]
 
 [[package]]
@@ -7369,39 +7502,13 @@ version = "0.25.3"
 source = "git+https://github.com/mozilla/uniffi-rs?rev=f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8#f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8"
 dependencies = [
  "quote",
- "syn 2.0.51",
-]
-
-[[package]]
-name = "uniffi_checksum_derive"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72775b3afa6adb30e0c92b3107858d2fcb0ff1a417ac242db1f648b0e2dd0ef2"
-dependencies = [
- "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
 name = "uniffi_core"
 version = "0.25.3"
 source = "git+https://github.com/mozilla/uniffi-rs?rev=f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8#f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8"
-dependencies = [
- "anyhow",
- "bytes",
- "camino",
- "log",
- "once_cell",
- "oneshot-uniffi",
- "paste",
- "static_assertions",
-]
-
-[[package]]
-name = "uniffi_core"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6e8db3f4e558faf0e25ac4b5bd775567973a4e18809f1123e74de52a853692"
 dependencies = [
  "anyhow",
  "bytes",
@@ -7425,29 +7532,10 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "syn 2.0.51",
+ "syn 2.0.71",
  "toml 0.5.11",
- "uniffi_build 0.25.3",
- "uniffi_meta 0.25.3",
-]
-
-[[package]]
-name = "uniffi_macros"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a126650799f97d97d8e38e3f10f15c65f5bc5a76b021bec21823efe9dd831a02"
-dependencies = [
- "bincode",
- "camino",
- "fs-err",
- "once_cell",
- "proc-macro2",
- "quote",
- "serde",
- "syn 2.0.51",
- "toml 0.5.11",
- "uniffi_build 0.26.1",
- "uniffi_meta 0.26.1",
+ "uniffi_build",
+ "uniffi_meta",
 ]
 
 [[package]]
@@ -7458,19 +7546,7 @@ dependencies = [
  "anyhow",
  "bytes",
  "siphasher",
- "uniffi_checksum_derive 0.25.3",
-]
-
-[[package]]
-name = "uniffi_meta"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f64a99e905671738d9d293f9cce58708ce1af8e13ea29f9d6b6925114fc2e85"
-dependencies = [
- "anyhow",
- "bytes",
- "siphasher",
- "uniffi_checksum_derive 0.26.1",
+ "uniffi_checksum_derive",
 ]
 
 [[package]]
@@ -7486,41 +7562,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "uniffi_testing"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdca5719a22edf34c8239cc6ac9e3906d7ebc2a3e8a5e6ece4c3dffc312a4251"
-dependencies = [
- "anyhow",
- "camino",
- "cargo_metadata",
- "fs-err",
- "once_cell",
-]
-
-[[package]]
 name = "uniffi_udl"
 version = "0.25.3"
 source = "git+https://github.com/mozilla/uniffi-rs?rev=f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8#f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8"
 dependencies = [
  "anyhow",
  "textwrap",
- "uniffi_meta 0.25.3",
- "uniffi_testing 0.25.3",
- "weedle2 4.0.0",
-]
-
-[[package]]
-name = "uniffi_udl"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6817c15714acccd0d0459f99b524cabebfdd622376464a2c6466a6485bdb4b"
-dependencies = [
- "anyhow",
- "textwrap",
- "uniffi_meta 0.26.1",
- "uniffi_testing 0.26.1",
- "weedle2 5.0.0",
+ "uniffi_meta",
+ "uniffi_testing",
+ "weedle2",
 ]
 
 [[package]]
@@ -7612,7 +7662,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -7635,14 +7685,14 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "vodozemac"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2790dffeecc522299d72d9a855c43adb0c23ba1dc1112d79a651fdf3beb2a356"
+version = "0.6.0"
+source = "git+https://github.com/matrix-org/vodozemac/?rev=4ef989c6a8eba0bc809e285a081c56320a9bbf1e#4ef989c6a8eba0bc809e285a081c56320a9bbf1e"
 dependencies = [
  "aes",
  "arrayvec",
- "base64 0.21.7",
+ "base64 0.22.1",
  "cbc",
+ "chacha20poly1305",
  "curve25519-dalek",
  "ed25519-dalek",
  "getrandom",
@@ -7698,7 +7748,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
  "wasm-bindgen-shared",
 ]
 
@@ -7732,7 +7782,7 @@ checksum = "e94f17b526d0a461a191c78ea52bbce64071ed5c04c9ffe424dcb38f74171bb7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -7838,15 +7888,6 @@ dependencies = [
 name = "weedle2"
 version = "4.0.0"
 source = "git+https://github.com/mozilla/uniffi-rs?rev=f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8#f5fc9d7e9aa08889aedc45dd81ae9b4d3ec4cbe8"
-dependencies = [
- "nom",
-]
-
-[[package]]
-name = "weedle2"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "998d2c24ec099a87daf9467808859f9d82b61f1d9c9701251aea037f514eae0e"
 dependencies = [
  "nom",
 ]
@@ -8060,6 +8101,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "winreg"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a277a57398d4bfa075df44f501a17cfdf8542d224f0d36095a2adc7aee4ef0a5"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
 name = "wyz"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8103,6 +8154,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "xxhash-rust"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63658493314859b4dfdf3fb8c1defd61587839def09582db50b8a4e93afca6bb"
+
+[[package]]
 name = "yasna"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8128,7 +8185,7 @@ checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]
@@ -8148,7 +8205,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.51",
+ "syn 2.0.71",
 ]
 
 [[package]]

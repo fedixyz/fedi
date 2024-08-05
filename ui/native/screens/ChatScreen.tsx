@@ -1,33 +1,33 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import { useIsFocused, useNavigation } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import { Button, FAB, Image, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { useUpdateLastMessageSeen } from '@fedi/common/hooks/chat'
-import { useIsChatSupported } from '@fedi/common/hooks/federation'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
-    fetchChatMembers,
-    selectActiveFederationId,
     selectIsChatEmpty,
-    selectNeedsChatRegistration,
-    selectWebsocketIsHealthy,
+    selectIsMatrixChatEmpty,
+    selectMatrixStatus,
+    selectNeedsMatrixRegistration,
+    selectShouldShowUpgradeChat,
 } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
 import ChatsList from '../components/feature/chat/ChatsList'
-import { NuxTooltip } from '../components/ui/NuxTooltip'
+import UpgradeChat from '../components/feature/chat/UpgradeChat'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { reset } from '../state/navigation'
+import { Tooltip } from '../components/ui/Tooltip'
+import { useAppSelector } from '../state/hooks'
+import { MatrixSyncStatus } from '../types'
 import {
     NavigationHook,
     RootStackParamList,
     TabsNavigatorParamList,
 } from '../types/navigation'
+import { useDismissIosNotifications } from '../utils/hooks/notifications'
 
 export type Props = BottomTabScreenProps<
     TabsNavigatorParamList & RootStackParamList,
@@ -38,37 +38,52 @@ const ChatScreen: React.FC<Props> = () => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
-    const isFocused = useIsFocused()
-    const websocketIsHealthy = useAppSelector(selectWebsocketIsHealthy)
-    const dispatch = useAppDispatch()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
-    const isChatSupported = useIsChatSupported()
-    const needsChatRegistration = useAppSelector(selectNeedsChatRegistration)
-    const isChatEmpty = useAppSelector(selectIsChatEmpty)
+    const syncStatus = useAppSelector(selectMatrixStatus)
+    const needsChatRegistration = useAppSelector(selectNeedsMatrixRegistration)
+    const shouldShowUpgradeChat = useAppSelector(selectShouldShowUpgradeChat)
+    const isLegacyChatEmpty = useAppSelector(selectIsChatEmpty)
+    const hasLegacyChatData = !isLegacyChatEmpty
+
+    const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
     const [hasOpenedNewChat, completeOpenedNewChat] =
         useNuxStep('hasOpenedNewChat')
 
-    // Navigate back to home screen if this federation doesn't support chat
-    useEffect(() => {
-        if (!isChatSupported) {
-            navigation.dispatch(reset('TabsNavigator'))
-        }
-    }, [isChatSupported, navigation])
+    useDismissIosNotifications()
 
-    useEffect(() => {
-        if (websocketIsHealthy && activeFederationId) {
-            // Here we fetch the roster and store the results in local storage
-            dispatch(fetchChatMembers({ federationId: activeFederationId }))
-        }
-    }, [activeFederationId, dispatch, websocketIsHealthy])
-
+    // TODO: reimplement seen message hook for matrix
     // Use this hook only if the screen is in focus
-    useUpdateLastMessageSeen(isFocused !== true)
+    // const isFocused = useIsFocused()
+    // useUpdateLastMessageSeen(isFocused !== true)
 
     const style = styles(theme)
+
+    if (syncStatus === MatrixSyncStatus.initialSync) {
+        return (
+            <View style={style.centerContainer}>
+                <ActivityIndicator size={16} color={theme.colors.primary} />
+            </View>
+        )
+    } else if (syncStatus === MatrixSyncStatus.stopped) {
+        return (
+            <View style={style.centerContainer}>
+                <Text style={style.errorText} adjustsFontSizeToFit>
+                    {t('errors.chat-connection-unhealthy')}
+                </Text>
+            </View>
+        )
+    }
+
     return (
         <View style={style.container}>
-            {needsChatRegistration ? (
+            {shouldShowUpgradeChat ? (
+                <ScrollView
+                    style={{
+                        width: '100%',
+                        paddingHorizontal: theme.spacing.lg,
+                    }}>
+                    <UpgradeChat />
+                </ScrollView>
+            ) : needsChatRegistration ? (
                 <>
                     <View style={style.registration}>
                         <Image
@@ -76,16 +91,26 @@ const ChatScreen: React.FC<Props> = () => {
                             source={Images.IllustrationChat}
                             style={style.emptyImage}
                         />
-                        <Text h1 style={style.registrationText}>
+                        <Text
+                            h1
+                            style={style.registrationText}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit>
                             {t('feature.chat.need-registration-title')}
                         </Text>
-                        <Text style={style.registrationText}>
+                        <Text
+                            style={style.registrationText}
+                            adjustsFontSizeToFit>
                             {t('feature.chat.need-registration-description')}
                         </Text>
                         <Button
                             fullWidth
-                            title={t('feature.chat.register-a-username')}
-                            onPress={() => navigation.push('CreateUsername')}
+                            title={
+                                <Text style={{ color: theme.colors.secondary }}>
+                                    {t('words.continue')}
+                                </Text>
+                            }
+                            onPress={() => navigation.push('EnterDisplayName')}
                         />
                     </View>
                 </>
@@ -96,7 +121,7 @@ const ChatScreen: React.FC<Props> = () => {
                         source={Images.IllustrationChat}
                         style={style.emptyImage}
                     />
-                    <NuxTooltip
+                    <Tooltip
                         shouldShow={isChatEmpty && !hasOpenedNewChat}
                         delay={1200}
                         text="New chat"
@@ -105,12 +130,25 @@ const ChatScreen: React.FC<Props> = () => {
                         horizontalOffset={44}
                         verticalOffset={78}
                     />
+
+                    {hasLegacyChatData && (
+                        <Button
+                            fullWidth
+                            type="clear"
+                            title={
+                                <Text caption medium adjustsFontSizeToFit>
+                                    {t('feature.chat.view-archived-chats')}
+                                </Text>
+                            }
+                            onPress={() => navigation.push('LegacyChat')}
+                        />
+                    )}
                 </>
             ) : (
                 <ErrorBoundary
                     fallback={() => (
-                        <View style={style.errorContainer}>
-                            <Text style={style.error}>
+                        <View style={style.centerContainer}>
+                            <Text style={style.errorText}>
                                 {t('errors.chat-list-render-error')}
                             </Text>
                         </View>
@@ -122,7 +160,11 @@ const ChatScreen: React.FC<Props> = () => {
             {!needsChatRegistration && (
                 <FAB
                     icon={
-                        <SvgImage name="Plus" color={theme.colors.secondary} />
+                        <SvgImage
+                            name="Plus"
+                            color={theme.colors.secondary}
+                            maxFontSizeMultiplier={1}
+                        />
                     }
                     color={theme.colors.blue}
                     style={style.actionButton}
@@ -156,13 +198,13 @@ const styles = (theme: Theme) =>
             shadowRadius: 4,
             shadowColor: theme.colors.primary,
         },
-        errorContainer: {
+        centerContainer: {
             flex: 1,
             justifyContent: 'center',
             alignItems: 'center',
         },
-        error: {
-            color: theme.colors.red,
+        errorText: {
+            textAlign: 'center',
         },
         registration: {
             flex: 1,

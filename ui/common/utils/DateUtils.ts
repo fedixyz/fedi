@@ -54,6 +54,9 @@ class DateUtils {
     formatPopupFederationEndsAtTimestamp = (unixSeconds: number): string => {
         return this.formatTimestamp(unixSeconds, 'LLLL do')
     }
+    formatDeviceRegistrationTimestamp = (unixSeconds: number): string => {
+        return this.formatTimestamp(unixSeconds, 'MMM dd, h:mmaaa')
+    }
 }
 
 const dateUtils = new DateUtils()

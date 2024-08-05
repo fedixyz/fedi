@@ -2,74 +2,64 @@ import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
-    selectIsChatEmpty,
-    selectNeedsChatRegistration,
+    selectIsMatrixChatEmpty,
+    selectShouldShowUpgradeChat,
 } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import Header from '../../ui/Header'
-import { NuxTooltip } from '../../ui/NuxTooltip'
-import SvgImage from '../../ui/SvgImage'
+import { Tooltip } from '../../ui/Tooltip'
 import { ChatConnectionBadge } from './ChatConnectionBadge'
+import HeaderAvatar from './HeaderAvatar'
 
 const ChatHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
-    const isChatEmpty = useAppSelector(selectIsChatEmpty)
-    const needsChatRegistration = useAppSelector(selectNeedsChatRegistration)
+    const shouldShowUpgradeChat = useAppSelector(selectShouldShowUpgradeChat)
+    const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
     const [hasViewedMemberQr, completeViewedMemberQr] =
         useNuxStep('hasViewedMemberQr')
+
+    if (shouldShowUpgradeChat) return null
+
+    const style = styles(theme)
 
     return (
         <>
             <Header
-                inline
-                containerStyle={styles(theme).container}
-                leftContainerStyle={{ flex: 2 }}
+                containerStyle={style.container}
                 headerLeft={
-                    <Text h2 medium>
+                    <Text h2 medium numberOfLines={1} adjustsFontSizeToFit>
                         {t('words.chat')}
                     </Text>
                 }
-                centerContainerStyle={{ flex: 2 }}
                 headerRight={
-                    needsChatRegistration ? null : (
-                        <>
-                            <Pressable
-                                onPress={() => {
-                                    navigation.navigate('MemberQrCode')
-                                    completeViewedMemberQr()
-                                }}
-                                hitSlop={5}>
-                                <SvgImage
-                                    name="Qr"
-                                    color={theme.colors.primary}
-                                />
-                            </Pressable>
-
-                            <NuxTooltip
-                                delay={600}
-                                shouldShow={isChatEmpty && !hasViewedMemberQr}
-                                orientation="below"
-                                side="right"
-                                text="Your username"
-                                horizontalOffset={12}
-                                verticalOffset={32}
-                            />
-                        </>
-                    )
+                    <>
+                        <HeaderAvatar
+                            onPress={() => {
+                                navigation.navigate('Settings')
+                                completeViewedMemberQr()
+                            }}
+                        />
+                        <Tooltip
+                            delay={600}
+                            shouldShow={isChatEmpty && !hasViewedMemberQr}
+                            orientation="below"
+                            side="right"
+                            text="Your username"
+                            horizontalOffset={20}
+                            verticalOffset={34}
+                        />
+                    </>
                 }
-                rightContainerStyle={styles(theme).rightContainer}
             />
-            {!needsChatRegistration && (
-                <ChatConnectionBadge offset={14} noSafeArea />
-            )}
+            <ChatConnectionBadge />
         </>
     )
 }
@@ -77,13 +67,7 @@ const ChatHeader: React.FC = () => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            paddingBottom: theme.spacing.lg,
-        },
-        rightContainer: {
-            flex: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
+            paddingBottom: theme.spacing.md,
         },
     })
 

@@ -12,6 +12,7 @@ declare module '@rneui/themed' {
             // Add new color labels here
             link: string
             primary: string
+            primary05: string
             primaryLight: string
             primaryVeryLight: string
             secondary: string
@@ -23,6 +24,7 @@ declare module '@rneui/themed' {
             grey: string
             lightGrey: string
             extraLightGrey: string
+            ghost: string
             keyboardGrey: string
             red: string
             white: string
@@ -31,6 +33,7 @@ declare module '@rneui/themed' {
             black: string
             blue: string
             blue100: string
+            blueDropShadow: string
             night: string
             fuschia: string
             // @react-navigation requires these properties
@@ -39,6 +42,10 @@ declare module '@rneui/themed' {
             text: string
             border: string
             notification: string
+            mint: string
+        }
+        multipliers: {
+            [key: string]: number
         }
         percentages: {
             [key: string]: DimensionValue
@@ -82,6 +89,11 @@ declare module '@rneui/themed' {
     export interface ButtonProps {
         fullWidth?: boolean
         day?: boolean
+        night?: boolean
+        bubble?: boolean
+    }
+    export interface CardProps {
+        bubble?: boolean
     }
 
     // Other RNE components can be extended similarly by defining them here

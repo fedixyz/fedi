@@ -1,4 +1,4 @@
-import { FedimintBridge } from '@fedi/common/utils/fedimint'
+import { BridgeError, FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
 const log = makeLog('web/lib/bridge')
@@ -40,7 +40,7 @@ async function fedimintRpc<Type = void>(
     const parsed = JSON.parse(json)
     if (parsed.error) {
         log.error(method, parsed)
-        throw Error(parsed.error)
+        throw new BridgeError(parsed)
     } else {
         return parsed.result
     }

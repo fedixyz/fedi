@@ -41,7 +41,9 @@ function DeveloperPage() {
     const toast = useToast()
 
     const federationId = activeFederation?.id
-    const federationNodes = activeFederation?.nodes
+    const federationNodes = activeFederation?.hasWallet
+        ? activeFederation.nodes
+        : undefined
 
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 

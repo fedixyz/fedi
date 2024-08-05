@@ -1,5 +1,7 @@
 import { CommonActions } from '@react-navigation/native'
 
+import { ChatType } from '@fedi/common/types'
+
 import { RootStackParamList } from '../types/navigation'
 
 export function navigate(
@@ -46,17 +48,85 @@ export function resetAfterSocialRecovery() {
     }
 }
 
-export function resetAfterGroupNameUpdate(groupId: string) {
+export function resetToChatSettings(roomId: string) {
     return {
         ...CommonActions.reset({
             index: 2,
             routes: [
                 { name: 'TabsNavigator', params: { screen: 'Chat' } },
-                { name: 'GroupChat', params: { groupId } },
+                { name: 'ChatRoomConversation', params: { roomId } },
                 {
                     name: 'GroupAdmin',
-                    params: { groupId },
+                    params: { roomId },
                 },
+            ],
+        }),
+    }
+}
+
+export function resetToLockedDevice() {
+    return {
+        ...CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'LockedDevice' }],
+        }),
+    }
+}
+
+export function resetToDirectChat(roomId: string) {
+    // Reset navigation stack on going back to the chat to give better back
+    // button behavior if directed here from Omni.
+    return {
+        ...CommonActions.reset({
+            index: 1,
+            routes: [
+                { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
+                {
+                    name: 'ChatRoomConversation',
+                    params: {
+                        roomId: roomId,
+                        chatType: ChatType.direct,
+                    },
+                },
+            ],
+        }),
+    }
+}
+
+export function resetToGroupChat(roomId: string) {
+    // Reset navigation stack on going back to the chat to give better back
+    // button behavior if directed here from Omni.
+    return {
+        ...CommonActions.reset({
+            index: 1,
+            routes: [
+                { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
+                {
+                    name: 'ChatRoomConversation',
+                    params: {
+                        roomId: roomId,
+                        chatType: ChatType.group,
+                    },
+                },
+            ],
+        }),
+    }
+}
+
+export function resetToSocialRecovery() {
+    return {
+        ...CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'CompleteSocialRecovery' }],
+        }),
+    }
+}
+export function resetToChatsScreen() {
+    return {
+        ...CommonActions.reset({
+            index: 0,
+            routes: [
+                { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
             ],
         }),
     }

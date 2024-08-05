@@ -36,10 +36,10 @@ module.exports = async ({ github, context, core }) => {
 
         // Prepare new release details
         const newTagName = `v${version}`;
-        const newTitle = `Fedi Bravo v${version.split('.').slice(0, 2).join('.')} - APK Download`;
+        const newTitle = `Fedi v${version.split('.').slice(0, 2).join('.')} - APK Download`;
         const truncatedCommitHash = commitHash.substring(0, 6);
         const newFileName = `app-production-release-${version}-${truncatedCommitHash}.apk`;
-        const newDescription = `Download & Test Fedi Bravo <br><br> Download: [${newFileName}](https://github.com/${context.repo.owner}/fedi-alpha/releases/download/${newTagName}/${newFileName})`;
+        const newDescription = `Download & Test Fedi <br><br> Download: [${newFileName}](https://github.com/${context.repo.owner}/fedi-alpha/releases/download/${newTagName}/${newFileName})`;
 
         console.log(`New release details prepared. Tag: ${newTagName}, Title: ${newTitle}`);
 
@@ -64,9 +64,8 @@ module.exports = async ({ github, context, core }) => {
 
             // Upload the APK to the target repository
             await github.rest.repos.uploadReleaseAsset({
-                url: `https://uploads.github.com/repos/${
-                    context.repo.owner
-                }/fedi-alpha/releases/${releaseId}/assets?name=${encodeURIComponent(newFileName)}`,
+                url: `https://uploads.github.com/repos/${context.repo.owner
+                    }/fedi-alpha/releases/${releaseId}/assets?name=${encodeURIComponent(newFileName)}`,
                 headers: {
                     'content-type': 'application/vnd.android.package-archive',
                     'content-length': apkBuffer.data.length,

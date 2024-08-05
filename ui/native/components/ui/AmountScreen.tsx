@@ -31,7 +31,10 @@ export const AmountScreen: React.FC<Props> = ({
     const { theme } = useTheme()
     const { height } = useWindowDimensions()
     const insets = useSafeAreaInsets()
-    const balance = useAppSelector(selectActiveFederation)?.balance
+    const activeFederation = useAppSelector(selectActiveFederation)
+    const balance = activeFederation?.hasWallet
+        ? activeFederation.balance
+        : undefined
     const balanceDisplay = useBalanceDisplay(t)
 
     const style = styles(theme, insets, height)

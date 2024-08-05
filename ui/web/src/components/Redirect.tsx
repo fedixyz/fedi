@@ -14,6 +14,6 @@ export const Redirect: React.FC<Props> = ({ path }) => {
         }
     }, [path, pathname, replace])
 
-    // Render nothing while the redirect kicks in
+    // Render nothing while the redirect removes in
     return null
 }

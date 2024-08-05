@@ -16,6 +16,7 @@ type PaymentMessageProps = {
     message: ChatMessage
 }
 
+/** @deprecated XMPP legacy code */
 const PaymentMessage: React.FC<PaymentMessageProps> = ({
     message,
 }: PaymentMessageProps) => {

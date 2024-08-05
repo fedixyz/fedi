@@ -44,7 +44,7 @@ export const NostrSignOverlay: React.FC<Props> = ({
         setIsLoading(true)
         try {
             if (!nostrEvent || !federationId) throw new Error()
-            const pubkey = await fedimint.getNostrPubKey(federationId)
+            const pubkey = await fedimint.getNostrPubKey()
             const id = eventHashFromEvent(pubkey, nostrEvent)
             const result = await fedimint.signNostrEvent(id, federationId)
             onAccept({

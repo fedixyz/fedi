@@ -1,5 +1,6 @@
+import { TFunction } from 'i18next'
+
 import type {
-    Federation,
     FedimintBridgeEventMap,
     MSats,
     Sats,
@@ -7,12 +8,14 @@ import type {
     bindings,
 } from '../types'
 import {
+    ErrorCode,
     GuardianStatus,
     RpcAmount,
     RpcFeeDetails,
     RpcPayAddressResponse,
     RpcStabilityPoolAccountInfo,
 } from '../types/bindings'
+import amountUtils from './AmountUtils'
 import { makeLog } from './log'
 
 const log = makeLog('common/utils/fedimint')
@@ -33,6 +36,14 @@ export class FedimintBridge {
     }
 
     /*** RPC METHODS ***/
+
+    async bridgeStatus() {
+        return this.rpcTyped('bridgeStatus', {})
+    }
+
+    async onAppForeground() {
+        return this.rpcTyped('onAppForeground', {})
+    }
 
     async federationPreview(inviteCode: string) {
         return this.rpcTyped('federationPreview', { inviteCode })
@@ -116,10 +127,7 @@ export class FedimintBridge {
     }
 
     async listFederations() {
-        return this.rpcTyped<'listFederations', Federation[]>(
-            'listFederations',
-            {},
-        )
+        return this.rpcTyped('listFederations', {})
     }
 
     async generateInvoice(
@@ -136,7 +144,7 @@ export class FedimintBridge {
         })
     }
 
-    async decodeInvoice(invoice: string, federationId = '') {
+    async decodeInvoice(invoice: string, federationId: string | null = null) {
         return this.rpcTyped('decodeInvoice', { invoice, federationId })
     }
 
@@ -205,8 +213,8 @@ export class FedimintBridge {
         })
     }
 
-    async getNostrPubKey(federationId: string) {
-        return this.rpcTyped('getNostrPubKey', { federationId })
+    async getNostrPubKey() {
+        return this.rpcTyped('getNostrPubKey', {})
     }
 
     async signNostrEvent(eventHash: string, federationId: string) {
@@ -242,10 +250,32 @@ export class FedimintBridge {
         return this.rpcTyped('getMnemonic', {})
     }
 
+    async checkMnemonic(mnemonic: Array<string>) {
+        return this.rpcTyped('checkMnemonic', { mnemonic })
+    }
+
     async recoverFromMnemonic(mnemonic: string[]) {
         return this.rpcTyped('recoverFromMnemonic', {
             mnemonic,
         })
+    }
+
+    async registerAsNewDevice() {
+        return this.rpcTyped('registerAsNewDevice', {})
+    }
+
+    async transferExistingDeviceRegistration(index: number) {
+        return this.rpcTyped('transferExistingDeviceRegistration', {
+            index,
+        })
+    }
+
+    async deviceIndexAssignmentStatus() {
+        return this.rpcTyped('deviceIndexAssignmentStatus', {})
+    }
+
+    async fetchRegisteredDevices() {
+        return this.rpcTyped('fetchRegisteredDevices', {})
     }
 
     /*
@@ -321,12 +351,26 @@ export class FedimintBridge {
 
     /*** MATRIX ***/
 
-    async matrixInit(args: bindings.RpcPayload<'matrixInit'>) {
-        return this.rpcTyped('matrixInit', args)
+    async matrixInit() {
+        return this.rpcTyped('matrixInit', {})
     }
 
-    async matrixGetAccountSession() {
-        return this.rpcTyped('matrixGetAccountSession', {})
+    async matrixGetAccountSession(
+        args: bindings.RpcPayload<'matrixGetAccountSession'>,
+    ) {
+        return this.rpcTyped('matrixGetAccountSession', args)
+    }
+
+    async matrixPublicRoomInfo(
+        args: bindings.RpcPayload<'matrixPublicRoomInfo'>,
+    ) {
+        return this.rpcTyped('matrixPublicRoomInfo', args)
+    }
+
+    async matrixRoomPreviewContent(
+        args: bindings.RpcPayload<'matrixRoomPreviewContent'>,
+    ) {
+        return this.rpcTyped('matrixRoomPreviewContent', args)
     }
 
     async matrixRoomList() {
@@ -337,10 +381,6 @@ export class FedimintBridge {
         args: bindings.RpcPayload<'matrixRoomListUpdateRanges'>,
     ) {
         return this.rpcTyped('matrixRoomListUpdateRanges', args)
-    }
-
-    async matrixRoomListInvites() {
-        return this.rpcTyped('matrixRoomListInvites', {})
     }
 
     async matrixRoomTimelineItems(
@@ -399,6 +439,28 @@ export class FedimintBridge {
         return this.rpcTyped('matrixRoomLeave', args)
     }
 
+    async matrixIgnoreUser(args: bindings.RpcPayload<'matrixIgnoreUser'>) {
+        return this.rpcTyped('matrixIgnoreUser', args)
+    }
+
+    async matrixUnignoreUser(args: bindings.RpcPayload<'matrixUnignoreUser'>) {
+        return this.rpcTyped('matrixUnignoreUser', args)
+    }
+
+    async matrixRoomKickUser(args: bindings.RpcPayload<'matrixRoomKickUser'>) {
+        return this.rpcTyped('matrixRoomKickUser', args)
+    }
+
+    async matrixRoomBanUser(args: bindings.RpcPayload<'matrixRoomBanUser'>) {
+        return this.rpcTyped('matrixRoomBanUser', args)
+    }
+
+    async matrixRoomUnbanUser(
+        args: bindings.RpcPayload<'matrixRoomUnbanUser'>,
+    ) {
+        return this.rpcTyped('matrixRoomUnbanUser', args)
+    }
+
     async matrixRoomObserveInfo(
         args: bindings.RpcPayload<'matrixRoomObserveInfo'>,
     ) {
@@ -443,6 +505,10 @@ export class FedimintBridge {
         return this.rpcTyped('matrixUserDirectorySearch', args)
     }
 
+    async matrixUserProfile(args: bindings.RpcPayload<'matrixUserProfile'>) {
+        return this.rpcTyped('matrixUserProfile', args)
+    }
+
     async matrixSetDisplayName(
         args: bindings.RpcPayload<'matrixSetDisplayName'>,
     ) {
@@ -467,6 +533,28 @@ export class FedimintBridge {
         return this.rpcTyped('matrixRoomSendReceipt', args)
     }
 
+    async matrixRoomMarkAsUnread(
+        args: bindings.RpcPayload<'matrixRoomMarkAsUnread'>,
+    ) {
+        return this.rpcTyped('matrixRoomMarkAsUnread', args)
+    }
+
+    async matrixSetPusher(args: bindings.RpcPayload<'matrixSetPusher'>) {
+        return this.rpcTyped('matrixSetPusher', args)
+    }
+
+    async matrixRoomGetNotificationMode(
+        args: bindings.RpcPayload<'matrixRoomGetNotificationMode'>,
+    ) {
+        return this.rpcTyped('matrixRoomGetNotificationMode', args)
+    }
+
+    async matrixRoomSetNotificationMode(
+        args: bindings.RpcPayload<'matrixRoomSetNotificationMode'>,
+    ) {
+        return this.rpcTyped('matrixRoomSetNotificationMode', args)
+    }
+
     async matrixObserverCancel(
         args: bindings.RpcPayload<'matrixObserverCancel'>,
     ) {
@@ -475,6 +563,36 @@ export class FedimintBridge {
 
     async dumpDb(args: bindings.RpcPayload<'dumpDb'>) {
         return this.rpcTyped('dumpDb', args)
+    }
+
+    async getAccruedOutstandingFediFeesPerTXType(
+        args: bindings.RpcPayload<'getAccruedOutstandingFediFeesPerTXType'>,
+    ) {
+        return this.rpcTyped('getAccruedOutstandingFediFeesPerTXType', args)
+    }
+
+    async getAccruedPendingFediFeesPerTXType(
+        args: bindings.RpcPayload<'getAccruedPendingFediFeesPerTXType'>,
+    ) {
+        return this.rpcTyped('getAccruedPendingFediFeesPerTXType', args)
+    }
+
+    /*** COMMUNITIES RPCs ***/
+
+    async communityPreview(args: bindings.RpcPayload<'communityPreview'>) {
+        return this.rpcTyped('communityPreview', args)
+    }
+
+    async joinCommunity(args: bindings.RpcPayload<'joinCommunity'>) {
+        return this.rpcTyped('joinCommunity', args)
+    }
+
+    async leaveCommunity(args: bindings.RpcPayload<'leaveCommunity'>) {
+        return this.rpcTyped('leaveCommunity', args)
+    }
+
+    async listCommunities(args: bindings.RpcPayload<'listCommunities'>) {
+        return this.rpcTyped('listCommunities', args)
     }
 
     /*** BRIDGE EVENTS ***/
@@ -508,5 +626,37 @@ export class FedimintBridge {
                 subscribedListeners.filter(l => l !== listener),
             )
         }
+    }
+}
+
+export class BridgeError extends Error {
+    public detail: string
+    public error: string
+    public code: ErrorCode | null
+
+    constructor(json: {
+        detail: string
+        error: string
+        code: ErrorCode | null
+    }) {
+        super(json.error)
+        this.error = json.error
+        this.code = json.code
+        this.detail = json.detail
+    }
+
+    public format(t: TFunction) {
+        if (
+            this.code &&
+            typeof this.code === 'object' &&
+            'insufficientBalance' in this.code &&
+            typeof this.code.insufficientBalance === 'number'
+        ) {
+            return t('errors.insufficient-balance-send', {
+                sats: amountUtils.msatToSat(this.code.insufficientBalance),
+            })
+        }
+
+        return this.error
     }
 }

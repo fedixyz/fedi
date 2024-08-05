@@ -33,16 +33,16 @@
         "@stitches/react": "^1.2.8",
         "i18next": "^23.0.1",
         "i18next-browser-languagedetector": "^7.0.1",
-        "next": "^14.0.4",
+        "next": "^14.1.1",
         "next-pwa": "^5.6.0",
         "qr-scanner": "^1.4.2",
         "qrcode": "^1.5.1",
         "qrloop": "^1.4.1",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
-        "react-i18next": "^13.0.0",
+        "react-i18next": "^14.1.0",
         "react-redux": "^8.0.5",
-        "zod": "^3.22.4"
+        "zod": "^3.22.5"
     },
     "devDependencies": {
         "@next/bundle-analyzer": "^13.4.5",

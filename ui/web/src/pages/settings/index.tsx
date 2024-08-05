@@ -1,79 +1,98 @@
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import BugIcon from '@fedi/common/assets/svgs/bug.svg'
 import InviteMembersIcon from '@fedi/common/assets/svgs/invite-members.svg'
 import LanguageIcon from '@fedi/common/assets/svgs/language.svg'
 import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
-import QRIcon from '@fedi/common/assets/svgs/qr.svg'
+import NoteIcon from '@fedi/common/assets/svgs/note.svg'
 import ScrollIcon from '@fedi/common/assets/svgs/scroll.svg'
+import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import TableExportIcon from '@fedi/common/assets/svgs/table-export.svg'
 import UsdIcon from '@fedi/common/assets/svgs/usd.svg'
-import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
-import {
-    useFederationSupportsSingleSeed,
-    useIsInviteSupported,
-} from '@fedi/common/hooks/federation'
+import UserIcon from '@fedi/common/assets/svgs/user.svg'
+import { useIsInviteSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useExportTransactions } from '@fedi/common/hooks/transactions'
 import {
     leaveFederation,
-    selectActiveFederation,
-    selectAuthenticatedMember,
+    selectAlphabeticallySortedFederations,
+    selectFederation,
+    selectHasSetMatrixDisplayName,
+    selectMatrixAuth,
+    setActiveFederationId,
 } from '@fedi/common/redux'
-import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
+import { Federation, FederationListItem } from '@fedi/common/types'
+import {
+    getFederationTosUrl,
+    supportsSingleSeed,
+} from '@fedi/common/utils/FederationUtils'
+import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
-import { Avatar } from '../../components/Avatar'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ContentBlock } from '../../components/ContentBlock'
-import { IconButton } from '../../components/IconButton'
+import { CopyInput } from '../../components/CopyInput'
 import { InviteMemberDialog } from '../../components/InviteMemberDialog'
 import * as Layout from '../../components/Layout'
-import { MemberQRDialog } from '../../components/MemberQRDialog'
-import { SettingsMenu, SettingsMenuProps } from '../../components/SettingsMenu'
-import { Text } from '../../components/Text'
+import { QRCode } from '../../components/QRCode'
+import {
+    MenuGroup,
+    SettingsMenu,
+    SettingsMenuProps,
+} from '../../components/SettingsMenu'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 
+const canLeaveFederation = (federation: FederationListItem | undefined) => {
+    return federation?.hasWallet && federation.balance < 100_000
+}
+
 function AdminPage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const member = useAppSelector(selectAuthenticatedMember)
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const toast = useToast()
-    const exportTransactions = useExportTransactions(fedimint)
-    const [isMemberQrOpen, setIsMemberQrOpen] = useState(false)
-    const [isInvitingMember, setIsInvitingMember] = useState(false)
-    const [isLeavingFederation, setIsLeavingFederation] = useState(false)
-    const [isExportingCSV, setIsExportingCSV] = useState(false)
-    const isInviteSupported = useIsInviteSupported()
-    const supportsSingleSeed = useFederationSupportsSingleSeed()
+    const matrixAuth = useAppSelector(selectMatrixAuth)
+    const hasSetMatrixDisplayName = useAppSelector(
+        selectHasSetMatrixDisplayName,
+    )
 
-    const federationId = activeFederation?.id
-    const balance = activeFederation?.balance
-    const canLeaveFederation = typeof balance === 'number' && balance < 100_000
+    const isInviteSupported = useIsInviteSupported()
+    const exportTransactions = useExportTransactions(fedimint)
+
+    const toast = useToast()
+
+    const [invitingFederationId, setInvitingFederationId] = useState<string>('')
+    const [leavingFederationId, setLeavingFederationId] = useState<string>('')
+    const [exportingFederationId, setExportingFederationId] =
+        useState<string>('')
+
+    const leavingFederation = useAppSelector(s =>
+        selectFederation(s, leavingFederationId),
+    )
 
     const handleConfirmLeaveFederation = useCallback(async () => {
-        if (!federationId) return
-        if (canLeaveFederation) {
+        if (!leavingFederation) return
+
+        if (canLeaveFederation(leavingFederation)) {
             try {
-                await dispatch(leaveFederation({ fedimint, federationId }))
+                await dispatch(
+                    leaveFederation({
+                        fedimint,
+                        federationId: leavingFederation.id,
+                    }),
+                )
             } catch (err) {
                 toast.error(t, err, 'errors.unknown-error')
-                return
             }
         }
-        setIsLeavingFederation(false)
-    }, [canLeaveFederation, federationId, dispatch, toast, t])
 
-    const tosUrl =
-        (activeFederation && getFederationTosUrl(activeFederation.meta)) ||
-        undefined
+        setLeavingFederationId('')
+    }, [leavingFederation, dispatch, toast, t])
 
-    const exportTransactionsAsCsv = async () => {
-        setIsExportingCSV(true)
+    const exportTransactionsAsCsv = async (federation: Federation) => {
+        setExportingFederationId(federation.id)
 
-        const res = await exportTransactions()
+        const res = await exportTransactions(federation)
 
         if (res.success) {
             const element = document.createElement('a')
@@ -87,13 +106,33 @@ function AdminPage() {
             toast.error(t, res.message, 'errors.unknown-error')
         }
 
-        setIsExportingCSV(false)
+        setExportingFederationId('')
     }
 
-    let menu: SettingsMenuProps['menu'] = [
-        {
-            label: t('words.federation'),
+    const sortedFederations = useAppSelector(
+        selectAlphabeticallySortedFederations,
+    )
+
+    const federationMenus: MenuGroup[] = sortedFederations.map(federation => {
+        const tosUrl = getFederationTosUrl(federation.meta) || ''
+
+        return {
+            label: federation.name,
             items: [
+                {
+                    label: t('feature.federations.invite-members'),
+                    icon: InviteMembersIcon,
+                    onClick: () => setInvitingFederationId(federation.id),
+                    disabled: !isInviteSupported,
+                },
+                {
+                    label: t('feature.backup.social-backup'),
+                    icon: SocialPeopleIcon,
+                    href: `/settings/backup/social`,
+                    onClick: () =>
+                        dispatch(setActiveFederationId(federation.id)),
+                    hidden: !supportsSingleSeed(federation),
+                },
                 {
                     label: t('feature.federations.federation-terms'),
                     icon: ScrollIcon,
@@ -101,38 +140,33 @@ function AdminPage() {
                     disabled: !tosUrl,
                 },
                 {
-                    label: t('feature.federations.invite-members'),
-                    icon: InviteMembersIcon,
-                    onClick: () => setIsInvitingMember(true),
-                    disabled: !isInviteSupported,
+                    label: t('feature.backup.export-transactions-to-csv'),
+                    icon: TableExportIcon,
+                    onClick: () =>
+                        federation.hasWallet
+                            ? exportTransactionsAsCsv(federation)
+                            : undefined,
+                    disabled: !federation.hasWallet || !!exportingFederationId,
                 },
                 {
                     label: t('feature.federations.leave-federation'),
                     icon: LeaveFederationIcon,
-                    onClick: () => setIsLeavingFederation(true),
+                    onClick: () => setLeavingFederationId(federation.id),
                 },
             ],
-        },
-        {
-            label: 'words.wallet',
-            items: [
-                {
-                    label: t('feature.backup.backup-wallet'),
-                    icon: WalletIcon,
-                    href: '/settings/backup',
-                    hidden: !supportsSingleSeed,
-                },
-                {
-                    label: t('feature.backup.export-transactions-to-csv'),
-                    icon: TableExportIcon,
-                    onClick: exportTransactionsAsCsv,
-                    disabled: isExportingCSV,
-                },
-            ],
-        },
+        }
+    })
+
+    let menu: SettingsMenuProps['menu'] = [
         {
             label: t('words.general'),
             items: [
+                {
+                    label: t('phrases.edit-profile'),
+                    icon: UserIcon,
+                    href: '/settings/edit-profile',
+                    hidden: !hasSetMatrixDisplayName,
+                },
                 {
                     label: t('words.language'),
                     icon: LanguageIcon,
@@ -143,9 +177,21 @@ function AdminPage() {
                     icon: UsdIcon,
                     href: '/settings/currency',
                 },
+                {
+                    label: t('feature.backup.personal-backup'),
+                    icon: NoteIcon,
+                    href: `/settings/backup/personal`,
+                },
+                {
+                    label: t('feature.bug.report-a-bug'),
+                    icon: BugIcon,
+                    href: `/bug-report`,
+                },
             ],
         },
+        ...federationMenus,
     ]
+
     // Filter out hidden items, filter out groups that have no items left.
     menu = menu
         .map(group => ({
@@ -154,72 +200,80 @@ function AdminPage() {
         }))
         .filter(group => group.items.length > 0)
 
+    const directChatLink = matrixAuth
+        ? encodeFediMatrixUserUri(matrixAuth.userId)
+        : ''
+
     return (
         <ContentBlock>
             <Layout.Root>
                 <Layout.Header>
-                    <Layout.Title>{t('words.settings')}</Layout.Title>
-                    {!!member && (
-                        <IconButton
-                            icon={QRIcon}
-                            size="md"
-                            onClick={() => setIsMemberQrOpen(true)}
-                        />
-                    )}
+                    <Layout.Title>{t('words.account')}</Layout.Title>
                 </Layout.Header>
                 <Layout.Content>
                     <div>
-                        {member && (
-                            <MemberDetails>
-                                <Avatar
-                                    id={member.id}
-                                    name={member.username}
-                                    size="lg"
-                                />
-                                <Text variant="h2" weight="medium">
-                                    {member.username}
-                                </Text>
-                            </MemberDetails>
+                        {hasSetMatrixDisplayName && (
+                            <Content>
+                                <QRContainer>
+                                    <QRCode
+                                        data={directChatLink}
+                                        logoOverrideUrl={matrixAuth?.avatarUrl}
+                                    />
+                                    <CopyInput
+                                        value={directChatLink}
+                                        onCopyMessage={t(
+                                            'phrases.copied-to-clipboard',
+                                        )}
+                                    />
+                                    <Layout.Title small>
+                                        {matrixAuth?.displayName}
+                                    </Layout.Title>
+                                </QRContainer>
+                            </Content>
                         )}
                         <SettingsMenu menu={menu} />
                     </div>
                 </Layout.Content>
             </Layout.Root>
 
-            <MemberQRDialog
-                open={isMemberQrOpen}
-                onOpenChange={setIsMemberQrOpen}
-            />
-
             <InviteMemberDialog
-                open={isInvitingMember}
-                onOpenChange={setIsInvitingMember}
+                open={!!invitingFederationId}
+                federationId={invitingFederationId}
+                onClose={() => setInvitingFederationId('')}
             />
 
             <ConfirmDialog
-                open={isLeavingFederation}
-                title={t('feature.federations.leave-federation')}
+                open={!!leavingFederationId}
+                title={`${t('feature.federations.leave-federation')} - ${
+                    leavingFederation?.name
+                }`}
                 description={t(
-                    canLeaveFederation
+                    canLeaveFederation(leavingFederation)
                         ? 'feature.federations.leave-federation-confirmation'
                         : 'feature.federations.leave-federation-withdraw-first',
                 )}
-                onClose={() => setIsLeavingFederation(false)}
+                onClose={() => setLeavingFederationId('')}
                 onConfirm={handleConfirmLeaveFederation}
             />
         </ContentBlock>
     )
 }
 
-const MemberDetails = styled('div', {
+const Content = styled('div', {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingTop: 16,
     gap: 16,
-    padding: '24px 16px',
-    borderRadius: 16,
-    holoGradient: '400',
+})
+
+const QRContainer = styled('div', {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
 })
 
 export default AdminPage

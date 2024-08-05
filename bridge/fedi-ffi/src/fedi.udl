@@ -4,7 +4,8 @@ enum FedimintError {
 };
 
 namespace fedi {
-  string fedimint_initialize(string data_dir, string log_level, EventSink event_sink, string device_identifier);
+  [Async]
+  string fedimint_initialize(EventSink event_sink, string init_opts_json);
 
   [Async]
   string fedimint_rpc(string method, string payload);

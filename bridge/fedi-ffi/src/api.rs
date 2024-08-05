@@ -8,21 +8,26 @@ use fedi_api_types::device_control::request::{GetDevicesForSeedQueryV0, Register
 use fedi_api_types::device_control::response::DevicesForSeedResultV0;
 use fedi_api_types::device_control::{DeviceIdentifierV0, DeviceIndexV0, SeedCommitmentV0};
 use fedi_api_types::fee_schedule::FeesV0;
-use fedi_api_types::invoice_generator::{GenerateInvoiceRequestV0, GenerateInvoiceResponseV0};
+use fedi_api_types::invoice_generator::{
+    GenerateInvoiceRequestV1, GenerateInvoiceResponseV1, TransactionDirection,
+};
+use fedimint_aead::{decrypt, LessSafeKey};
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::secret::RootSecretStrategy;
+use fedimint_core::core::ModuleKind;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{apply, async_trait_maybe_send, Amount};
+use fedimint_derive_secret::DerivableSecret;
 use lightning_invoice::Bolt11Invoice;
 use reqwest::{Client, StatusCode};
 
 use crate::constants::{
-    FEDI_DEVICE_REGISTRATION_URL, FEDI_FEE_API_URL_MAINNET, FEDI_FEE_API_URL_MUTINYNET,
-    FEDI_INVOICE_API_URL_MAINNET, FEDI_INVOICE_API_URL_MUTINYNET,
+    DEVICE_REGISTRATION_CHILD_ID, FEDI_DEVICE_REGISTRATION_URL, FEDI_FEE_API_URL_MAINNET,
+    FEDI_FEE_API_URL_MUTINYNET, FEDI_INVOICE_API_URL_MAINNET, FEDI_INVOICE_API_URL_MUTINYNET,
 };
-use crate::storage::{FediFeeSchedule, ModuleFediFeeSchedule};
+use crate::storage::{DeviceIdentifier, FediFeeSchedule, ModuleFediFeeSchedule};
+use crate::types::RpcTransactionDirection;
 
-// TODO shaurya move to device_registration module when created
 /// Represents registration information of a device using our root seed as
 /// recorded with Fedi's servers.
 pub struct RegisteredDevice {
@@ -40,7 +45,7 @@ pub struct RegisteredDevice {
     pub index: u8,
 
     /// Human-readable, unique, stable string identifier assigned to the device
-    pub identifier: String,
+    pub identifier: DeviceIdentifier,
 
     /// Timestamp of the last successful registration renewal made from the
     /// device. The more recent, the better. We expect every device to
@@ -97,6 +102,8 @@ pub trait IFediApi: MaybeSend + MaybeSync + 'static {
         &self,
         amount: Amount,
         network: Network,
+        module: ModuleKind,
+        tx_direction: RpcTransactionDirection,
     ) -> anyhow::Result<Bolt11Invoice>;
 
     /// Fetches a list of all registered devices (as recorded by Fedi's servers)
@@ -117,7 +124,8 @@ pub trait IFediApi: MaybeSend + MaybeSync + 'static {
         &self,
         seed: bip39::Mnemonic,
         device_index: u8,
-        device_identifier: String,
+        device_identifier: DeviceIdentifier,
+        encrypted_device_identifier: String,
         force_overwrite: bool,
     ) -> anyhow::Result<(), RegisterDeviceError>;
 }
@@ -200,6 +208,8 @@ impl IFediApi for LiveFediApi {
         &self,
         amount: Amount,
         network: Network,
+        module: ModuleKind,
+        tx_direction: RpcTransactionDirection,
     ) -> anyhow::Result<Bolt11Invoice> {
         let api_url = match network {
             Network::Bitcoin => FEDI_INVOICE_API_URL_MAINNET,
@@ -209,8 +219,13 @@ impl IFediApi for LiveFediApi {
         let invoice_v0 = fedimint_core::task::timeout(Duration::from_secs(15), async {
             self.client
                 .post(api_url)
-                .json(&GenerateInvoiceRequestV0 {
+                .json(&GenerateInvoiceRequestV1 {
                     amount_msat: amount.msats,
+                    module,
+                    tx_direction: match tx_direction {
+                        RpcTransactionDirection::Send => TransactionDirection::Send,
+                        RpcTransactionDirection::Receive => TransactionDirection::Receive,
+                    },
                 })
                 .send()
                 .await
@@ -218,7 +233,7 @@ impl IFediApi for LiveFediApi {
         .await
         .context("Request to fetch fee invoice took too long")?
         .context("Fetch fee invoice response error")?
-        .json::<GenerateInvoiceResponseV0>()
+        .json::<GenerateInvoiceResponseV1>()
         .await?;
 
         Ok(Bolt11Invoice::from_str(&invoice_v0.invoice).context("Failed to parse fee invoice")?)
@@ -228,9 +243,8 @@ impl IFediApi for LiveFediApi {
         &self,
         seed: bip39::Mnemonic,
     ) -> anyhow::Result<Vec<RegisteredDevice>> {
-        let seed_commitment = SeedCommitmentV0::new(
-            Bip39RootSecretStrategy::<12>::to_root_secret(&seed).to_random_bytes(),
-        );
+        let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(&seed);
+        let seed_commitment = SeedCommitmentV0::new(root_secret.to_random_bytes());
 
         // Timeout of 2 minutes here since this fetch will either be performed during
         // onboarding and it's important for it to succeed, or it will be performed in a
@@ -253,59 +267,162 @@ impl IFediApi for LiveFediApi {
         Ok(registered_devices_v0
             .devices
             .into_iter()
-            .map(|info| RegisteredDevice {
-                index: info.device_index.0,
-                identifier: info.device_identifier.device_name,
-                last_renewed: info.timestamp.0.into(),
+            .map(|info| {
+                // If decrypting device identifier fails, attempt to use it as-is. It likely
+                // means that the original registration happened before encryption was
+                // implemented.
+                Ok(RegisteredDevice {
+                    index: info.device_index.0,
+                    identifier: process_device_identifier(
+                        &root_secret,
+                        info.device_identifier.device_name,
+                    )?,
+                    last_renewed: info.timestamp.0.into(),
+                })
             })
-            .collect())
+            .collect::<anyhow::Result<_>>()?)
     }
 
     async fn register_device_for_seed(
         &self,
         seed: bip39::Mnemonic,
         device_index: u8,
-        device_identifier: String,
+        device_identifier: DeviceIdentifier,
+        encrypted_device_identifier: String,
         force_overwrite: bool,
     ) -> Result<(), RegisterDeviceError> {
-        let seed_commitment = SeedCommitmentV0::new(
-            Bip39RootSecretStrategy::<12>::to_root_secret(&seed).to_random_bytes(),
-        );
+        let registration_closure = |secret: DerivableSecret, identifier, overwrite| async move {
+            let seed_commitment = SeedCommitmentV0::new(secret.to_random_bytes());
 
-        // Timeout of 2 minutes here since this request will either be performed during
-        // onboarding and it's important for it to succeed, or it will be performed in a
-        // background task without blocking anything.
-        let timeout_res = fedimint_core::task::timeout(Duration::from_secs(120), async {
-            self.client
-                .post(format!(
-                    "{FEDI_DEVICE_REGISTRATION_URL}/register_device_for_seed"
-                ))
-                .json(&RegisterDeviceRequestV0 {
-                    seed_commitment,
-                    device_index: DeviceIndexV0(device_index),
-                    device_identifier: DeviceIdentifierV0 {
-                        device_name: device_identifier,
-                    },
-                    force: force_overwrite,
-                })
-                .send()
-                .await
-        })
-        .await;
+            // Timeout of 2 minutes here since this request will either be performed during
+            // onboarding and it's important for it to succeed, or it will be performed in a
+            // background task without blocking anything.
+            let timeout_res = fedimint_core::task::timeout(Duration::from_secs(120), async {
+                self.client
+                    .post(format!(
+                        "{FEDI_DEVICE_REGISTRATION_URL}/register_device_for_seed"
+                    ))
+                    .json(&RegisterDeviceRequestV0 {
+                        seed_commitment,
+                        device_index: DeviceIndexV0(device_index),
+                        device_identifier: DeviceIdentifierV0 {
+                            device_name: identifier,
+                        },
+                        force: force_overwrite || overwrite,
+                    })
+                    .send()
+                    .await
+            })
+            .await;
 
-        let Ok(register_device_result_v0) = timeout_res else {
-            return Err(RegisterDeviceError::RequestTimeout);
+            let Ok(register_device_result_v0) = timeout_res else {
+                return Err(RegisterDeviceError::RequestTimeout);
+            };
+
+            match register_device_result_v0 {
+                Ok(resp) if resp.status().is_success() => Ok(()),
+                Ok(resp) if resp.status() == StatusCode::CONFLICT => {
+                    Err(RegisterDeviceError::AnotherDeviceOwnsIndex(
+                        resp.text().await.unwrap_or_default(),
+                    ))
+                }
+                Ok(resp) => Err(RegisterDeviceError::OtherServerError(
+                    resp.text().await.unwrap_or_default(),
+                )),
+                Err(e) => Err(RegisterDeviceError::ErrorSendingRequest(e.to_string())),
+            }
         };
 
-        match register_device_result_v0 {
-            Ok(resp) if resp.status().is_success() => Ok(()),
-            Ok(resp) if resp.status() == StatusCode::CONFLICT => Err(
-                RegisterDeviceError::AnotherDeviceOwnsIndex(resp.text().await.unwrap_or_default()),
-            ),
-            Ok(resp) => Err(RegisterDeviceError::OtherServerError(
-                resp.text().await.unwrap_or_default(),
-            )),
-            Err(e) => Err(RegisterDeviceError::ErrorSendingRequest(e.to_string())),
+        // First try registering with an encrypted device identifier.
+        // If an encrypted device identifier results in conflict, retry
+        // with unencrypted device identifier. It likely
+        // means that the original registration happened before
+        // encryption was implemented.
+        let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(&seed);
+        match registration_closure(
+            root_secret.clone(),
+            encrypted_device_identifier.clone(),
+            false,
+        )
+        .await
+        {
+            Err(RegisterDeviceError::AnotherDeviceOwnsIndex(_)) => {
+                // If registration first fails with encrypted device identifier, but then
+                // succeeds with the unencrypted device identifier, we go ahead and re-register
+                // with force_overwrite using the encrypted version. This is sort of like a DB
+                // migration.
+                registration_closure(root_secret.clone(), device_identifier.to_string(), false)
+                    .await?;
+                registration_closure(
+                    root_secret.clone(),
+                    encrypted_device_identifier.clone(),
+                    true,
+                )
+                .await
+            }
+            res => res,
         }
+    }
+}
+
+fn process_device_identifier(
+    root_secret: &DerivableSecret,
+    maybe_encrypted_device_identifier: String,
+) -> anyhow::Result<DeviceIdentifier> {
+    match decrypt_device_identifier(root_secret, &maybe_encrypted_device_identifier) {
+        Err(_) => FromStr::from_str(&maybe_encrypted_device_identifier),
+        res @ Ok(_) => res,
+    }
+}
+
+fn decrypt_device_identifier(
+    root_secret: &DerivableSecret,
+    encrypted_device_identifier: &str,
+) -> anyhow::Result<DeviceIdentifier> {
+    let device_id_encryption_secret = root_secret.child_key(DEVICE_REGISTRATION_CHILD_ID);
+    // Hex-decode -> decrypt -> trim padding
+    let mut decoded = hex::decode(encrypted_device_identifier)?;
+    let decrypted_bytes = decrypt(
+        &mut decoded,
+        &LessSafeKey::new(device_id_encryption_secret.to_chacha20_poly1305_key()),
+    )?;
+    let decrypted_string = String::from_utf8(decrypted_bytes.to_vec())?;
+    let unpadded_string = decrypted_string.trim_end();
+    FromStr::from_str(unpadded_string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_encrypted_device_identifier() -> anyhow::Result<()> {
+        let device_identifier_str =
+            "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
+        let device_identifier: DeviceIdentifier = FromStr::from_str(&device_identifier_str)?;
+        let mnemonic = Bip39RootSecretStrategy::<12>::random(&mut rand::thread_rng());
+        let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(&mnemonic);
+
+        let encrypted_device_identifier = device_identifier.encrypt_and_hex_encode(&root_secret)?;
+        assert_eq!(
+            device_identifier,
+            process_device_identifier(&root_secret, encrypted_device_identifier)?
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_process_unencrypted_device_identifier() -> anyhow::Result<()> {
+        let device_identifier_str =
+            "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
+        let device_identifier: DeviceIdentifier = FromStr::from_str(&device_identifier_str)?;
+        let mnemonic = Bip39RootSecretStrategy::<12>::random(&mut rand::thread_rng());
+        let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(&mnemonic);
+
+        assert_eq!(
+            device_identifier,
+            process_device_identifier(&root_secret, device_identifier_str)?
+        );
+        Ok(())
     }
 }

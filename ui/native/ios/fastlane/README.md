@@ -79,6 +79,22 @@ Check for signing certificates
 
 Check for signing certificates (Fedi Nightly)
 
+### ios renew_appstore_certs
+
+```sh
+[bundle exec] fastlane ios renew_appstore_certs
+```
+
+Generate renewed signing certificates
+
+### ios renew_appstore_certs_nightly
+
+```sh
+[bundle exec] fastlane ios renew_appstore_certs_nightly
+```
+
+Generate renewed signing certificates (Fedi Nightly)
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.

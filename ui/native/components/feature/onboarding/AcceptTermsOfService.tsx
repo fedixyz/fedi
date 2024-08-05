@@ -6,10 +6,10 @@ import Hyperlink from 'react-native-hyperlink'
 
 import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
 
-import { FederationPreview } from '../../../types'
+import { JoinPreview } from '../../../types'
 
 export type Props = {
-    federation: FederationPreview
+    federation: JoinPreview
     onAccept: () => void | Promise<void>
     onReject: () => void | Promise<void>
 }

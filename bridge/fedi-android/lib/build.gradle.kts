@@ -62,28 +62,8 @@ afterEvaluate {
                     name.set("fedi-android")
                     description.set("Fedi Kotlin language bindings.")
                     url.set("https://fedi.org")
-                    // developers {
-                    //     developer {
-                    //         id.set("")
-                    //         name.set("")
-                    //         email.set("")
-                    //     }
-                    // }
-                    // scm {
-                    //     connection.set("")
-                    //     developerConnection.set("")
-                    //     url.set("")
-                    // }
                 }
             }
         }
     }
 }
-
-// signing {
-//     val signingKeyId: String? by project
-//     val signingKey: String? by project
-//     val signingPassword: String? by project
-//     useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
-//     sign(publishing.publications)
-// }

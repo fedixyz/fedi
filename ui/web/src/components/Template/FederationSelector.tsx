@@ -10,7 +10,7 @@ import {
     selectFederations,
     setActiveFederationId,
 } from '@fedi/common/redux'
-import { Federation } from '@fedi/common/types'
+import { FederationListItem, MSats } from '@fedi/common/types'
 
 import { useAppDispatch, useAppSelector, useMediaQuery } from '../../hooks'
 import { config, styled, theme } from '../../styles'
@@ -29,7 +29,7 @@ export const FederationSelector: React.FC = () => {
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
     const handleSelectFederation = useCallback(
-        (fed: Federation) => {
+        (fed: FederationListItem) => {
             dispatch(setActiveFederationId(fed.id))
             setIsSelectorOpen(false)
         },
@@ -42,7 +42,9 @@ export const FederationSelector: React.FC = () => {
         <FederationList>
             {federations.map(fed => {
                 const { formattedPrimaryAmount, formattedSecondaryAmount } =
-                    makeFormattedAmountsFromMSats(fed.balance)
+                    makeFormattedAmountsFromMSats(
+                        fed.hasWallet ? fed.balance : (0 as MSats),
+                    )
                 return (
                     <li key={fed.id}>
                         <FederationItem
@@ -53,9 +55,11 @@ export const FederationSelector: React.FC = () => {
                                 <Text variant="caption" weight="bold">
                                     {fed.name}
                                 </Text>
-                                <Text variant="small">
-                                    {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
-                                </Text>
+                                {fed.hasWallet && (
+                                    <Text variant="small">
+                                        {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
+                                    </Text>
+                                )}
                             </div>
                         </FederationItem>
                     </li>

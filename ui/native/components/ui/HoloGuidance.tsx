@@ -95,6 +95,8 @@ const styles = (theme: Theme) =>
             width: theme.sizes.holoGuidanceCircle,
             alignItems: 'center',
             justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 4,
         },
         holoDefault: {
             height: theme.sizes.holoGuidanceCircle,

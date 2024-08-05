@@ -8,18 +8,17 @@ import {
     useRef,
 } from 'react'
 import { AppStateStatus, AppState as RNAppState } from 'react-native'
+import DeviceInfo from 'react-native-device-info'
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux'
 
 import { usePublishNotificationToken } from '@fedi/common/hooks/chat'
 import {
-    ensureHealthyXmppStream,
-    selectActiveFederationId,
     refreshActiveStabilityPool,
-    selectChatXmppClient,
     selectCurrency,
     selectStableBalance,
     selectStableBalancePending,
     selectActiveFederation,
+    ensureHealthyMatrixStream,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
@@ -139,7 +138,7 @@ export const useBridge = () => {
             if (!activeFederationId)
                 return Promise.reject(new Error('No active federation'))
 
-            return fedimint.getNostrPubKey(activeFederationId)
+            return fedimint.getNostrPubKey()
         }, [activeFederationId]),
         signNostrEvent: useCallback(
             (eventHash: string) => {
@@ -240,18 +239,13 @@ export const useBridge = () => {
     }
 }
 
-export const useXmppHealthCheck = () => {
+export const useMatrixHealthCheck = () => {
     const appStateRef = useRef<AppStateStatus>(
         RNAppState.currentState,
     ) as MutableRefObject<AppStateStatus>
     const dispatch = useAppDispatch()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
-    const xmppClient = useAppSelector(selectChatXmppClient)
 
-    // This logic is needed to help gracefully resume the XMPP websocket stream
     useEffect(() => {
-        if (!xmppClient) return
-
         // Subscribe to changes in AppState to detect when app goes from
         // background to foreground
         const subscription = RNAppState.addEventListener(
@@ -261,23 +255,18 @@ export const useXmppHealthCheck = () => {
                     appStateRef.current.match(/inactive|background/) &&
                     nextAppState === 'active'
                 ) {
-                    dispatch(
-                        ensureHealthyXmppStream({
-                            fedimint,
-                            federationId: activeFederationId as string,
-                        }),
-                    )
+                    dispatch(ensureHealthyMatrixStream())
                 }
                 appStateRef.current = nextAppState
             },
         )
         return () => subscription.remove()
-    }, [activeFederationId, dispatch, xmppClient])
+    }, [dispatch])
 }
 
 // This hook gets the device's FCM token and publishes it
-// to the XMPP server if chat is supported
-export const useXmppPushNotifications = async () => {
+// to the Matrix Sygnal server
+export const useMatrixPushNotifications = async () => {
     const { notificationsPermission } = useNotificationsPermission()
     const getDeviceToken = useMemo(() => {
         return async () => {
@@ -290,6 +279,8 @@ export const useXmppPushNotifications = async () => {
     usePublishNotificationToken(
         getDeviceToken,
         notificationsPermission !== 'granted',
+        DeviceInfo.getBundleId(),
+        DeviceInfo.getApplicationName(),
     )
 }
 

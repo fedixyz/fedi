@@ -11,7 +11,7 @@ interface LogItem {
 }
 
 const LOG_STORAGE_KEY = 'fedi:logs'
-const MAX_LOGS_STORED = 3000
+const MAX_LOGS_STORED = 15000
 const MAX_MESSAGE_LENGTH = 1000
 const MAX_ERROR_MESSAGE_LENGTH = 2000
 

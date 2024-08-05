@@ -99,7 +99,7 @@ install-xcode:
   ./scripts/install-xcode.sh
 
 pod-install:
-  ./scripts/ui/install-ios-deps.sh
+  nix develop .#xcode --command ./scripts/ui/install-ios-deps.sh
 
 clear-remote-bridge:
   # wipe remove bridge datadir

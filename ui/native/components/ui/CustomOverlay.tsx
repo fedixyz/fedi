@@ -22,8 +22,9 @@ type CustomOverlayButton = {
 }
 
 export type CustomOverlayContents = {
-    title?: string
+    title?: React.ReactNode | string
     icon?: SvgImageName
+    headerElement?: React.ReactNode
     url?: string | null
     message?: string | null
     description?: string | null
@@ -53,6 +54,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
     const {
         title,
         icon = null,
+        headerElement,
         url = null,
         message = null,
         description = null,
@@ -106,6 +108,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                             ? theme.colors.primary
                             : theme.colors.secondary,
                         borderWidth: 1,
+                        borderRadius: 60,
                     }}
                     loadingProps={{
                         color: button.primary
@@ -141,15 +144,18 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                             containerStyle={style.overlayIcon}
                         />
                     )}
+                    {headerElement}
                     {url && (
                         <Text style={style.overlayUrl} numberOfLines={5}>
                             {url}
                         </Text>
                     )}
-                    {title && (
+                    {title && typeof title === 'string' ? (
                         <Text medium style={style.overlayTitle}>
                             {title}
                         </Text>
+                    ) : (
+                        <>{title}</>
                     )}
                     {message && (
                         <Text h1 h1Style={style.overlayText}>

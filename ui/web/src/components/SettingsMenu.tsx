@@ -18,7 +18,7 @@ interface MenuItem {
     onClick?: () => void
 }
 
-interface MenuGroup {
+export interface MenuGroup {
     label: string
     items: MenuItem[]
 }

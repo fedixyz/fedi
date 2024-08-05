@@ -11,7 +11,11 @@ const AddFediModHeader: React.FC = () => {
         <Header
             backButton
             headerCenter={
-                <Text bold numberOfLines={1} adjustsFontSizeToFit>
+                <Text
+                    bold
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    maxFontSizeMultiplier={1.8}>
                     {t('feature.fedimods.add-fedi-mod')}
                 </Text>
             }

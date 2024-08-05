@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { View } from 'react-native'
 import { RejectionError } from 'webln'
 
-import { useRequestForm } from '@fedi/common/hooks/amount'
+import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectActiveFederationId } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { BridgeError } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
@@ -39,14 +40,11 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [amountInputKey, setAmountInputKey] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
-    const {
-        inputAmount,
-        setInputAmount,
-        minimumAmount,
-        maximumAmount,
-        exactAmount,
-        reset,
-    } = useRequestForm({ ecashRequest })
+    const { inputAmount, setInputAmount, minimumAmount, exactAmount, reset } =
+        useRequestForm({ ecashRequest })
+    // Ecash notes are generated from your current balance
+    // Instead of an almost-unbound balance from useRequestForm, set the upper bound to the active user's balance
+    const { maximumAmount } = useMinMaxSendAmount()
 
     // Reset form when it appears
     const isShowing = Boolean(ecashRequest)
@@ -78,7 +76,11 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
             onAcceptRef.current(res.ecash)
         } catch (error) {
             log.error('Failed to generate ecash', error, ecashRequest)
-            toast.error(t, error)
+            if (error instanceof BridgeError) {
+                toast.error(t, null, error.format(t))
+            } else {
+                toast.error(t, error)
+            }
             onRejectRef.current(error as Error)
         }
     }

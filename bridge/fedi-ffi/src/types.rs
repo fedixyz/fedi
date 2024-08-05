@@ -16,8 +16,28 @@ use ts_rs::TS;
 
 use super::federation_v2::FederationV2;
 use super::utils::to_unix_time;
-use crate::multi::MultiFederation;
+use crate::api::RegisteredDevice;
 use crate::storage::FediFeeSchedule;
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct RpcInitOpts {
+    pub data_dir: Option<String>,
+    pub log_level: Option<String>,
+    pub device_identifier: String,
+    pub app_flavor: RpcAppFlavor,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+#[ts(export, export_to = "target/bindings/")]
+pub enum RpcAppFlavor {
+    Dev,
+    Nightly,
+    Bravo,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, TS)]
 #[ts(export, export_to = "target/bindings/")]
@@ -50,6 +70,14 @@ pub struct RpcFederation {
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct RpcBridgeStatus {
+    pub matrix_setup: bool,
+    pub device_index_assignment_status: RpcDeviceIndexAssignmentStatus,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 #[ts(export, export_to = "target/bindings/")]
 pub enum RpcReturningMemberStatus {
@@ -73,8 +101,18 @@ pub struct RpcFederationPreview {
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
+pub struct RpcCommunity {
+    pub invite_code: String,
+    pub name: String,
+    pub version: u32,
+    pub meta: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
 pub enum GuardianStatus {
-    Online { guardian: String },
+    Online { guardian: String, latency_ms: u32 },
     Error { guardian: String, error: String },
     Timeout { guardian: String, elapsed: String },
 }
@@ -157,12 +195,6 @@ pub async fn federation_v2_to_rpc_federation(federation: &FederationV2) -> RpcFe
             modules: client_config_json.modules,
         }),
         fedi_fee_schedule: fedi_fee_schedule.into(),
-    }
-}
-
-pub async fn multi_federation_to_rpc_federation(multi: &MultiFederation) -> RpcFederation {
-    match multi {
-        MultiFederation::V2(federation) => federation_v2_to_rpc_federation(federation).await,
     }
 }
 
@@ -305,7 +337,9 @@ pub struct RpcSignedLnurlMessage {
     pub pubkey: RpcPublicKey,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(
+    Debug, Clone, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, TS, Encodable, Decodable,
+)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub enum RpcTransactionDirection {
@@ -313,19 +347,18 @@ pub enum RpcTransactionDirection {
     Send,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct WithdrawalDetails {
     pub address: String,
     pub txid: String,
-    #[ts(type = "number")]
-    pub fee: u64,
+    pub fee: RpcAmount,
     #[ts(type = "number")]
     pub fee_rate: u64,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcTransaction {
@@ -447,7 +480,7 @@ pub enum RpcOnchainWithdrawState {
     Failed,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcBitcoinDetails {
@@ -615,7 +648,7 @@ impl RpcOOBState {
     }
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcLightningDetails {
@@ -624,7 +657,7 @@ pub struct RpcLightningDetails {
 }
 
 // FIXME: should probaby type these as bytes
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcXmppCredentials {
@@ -643,7 +676,7 @@ pub struct LightningSendMetadata {
     pub is_fedi_fee_remittance: bool,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcStabilityPoolAccountInfo {
@@ -656,10 +689,11 @@ pub struct RpcStabilityPoolAccountInfo {
     pub is_fetched_from_server: bool,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcLockedSeek {
+    pub curr_cycle_beginning_locked_amount: RpcAmount,
     pub initial_amount: RpcAmount,
     #[ts(type = "number")]
     pub initial_amount_cents: u64,
@@ -694,6 +728,7 @@ impl From<ClientAccountInfo> for RpcStabilityPoolAccountInfo {
                         .cloned()
                         .unwrap_or_default();
                     RpcLockedSeek {
+                        curr_cycle_beginning_locked_amount: RpcAmount(l.amount),
                         initial_amount: RpcAmount(metadata.initial_amount),
                         initial_amount_cents: metadata.initial_amount_cents,
                         withdrawn_amount: RpcAmount(metadata.withdrawn_amount),
@@ -816,4 +851,33 @@ impl From<FediFeeSchedule> for RpcFediFeeSchedule {
                 .collect(),
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct RpcRegisteredDevice {
+    pub device_index: u8,
+    pub device_identifier: String,
+    #[ts(type = "number")]
+    pub last_registration_timestamp: u64,
+}
+
+impl From<RegisteredDevice> for RpcRegisteredDevice {
+    fn from(value: RegisteredDevice) -> Self {
+        Self {
+            device_index: value.index,
+            device_identifier: value.identifier.to_string(),
+            last_registration_timestamp: to_unix_time(value.last_renewed)
+                .expect("Registration timestamp must be valid"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub enum RpcDeviceIndexAssignmentStatus {
+    Assigned(u8),
+    Unassigned,
 }

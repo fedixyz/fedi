@@ -1,5 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Insets,
@@ -10,38 +10,27 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import {
-    fetchChatMember,
-    selectActiveFederationId,
-    selectAuthenticatedMember,
-    selectChatClientStatus,
-    selectChatConnectionOptions,
-    selectChatMember,
-} from '@fedi/common/redux'
+import { MatrixUser } from '@fedi/common/types/matrix'
 import { isValidInternetIdentifier } from '@fedi/common/utils/validation'
 
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { ChatMember } from '../../../types'
 import { useHasBottomTabsNavigation } from '../../../utils/hooks'
 import { OmniMemberSearchItem } from './OmniMemberSearchItem'
 
 export type OmniMemberSearchListItemType =
-    | { username: string; id: string; inputData?: string }
+    | { displayName?: string; id: string; inputData?: string }
     | { loading: true }
 type OmniMemberSearchListData = SectionListData<OmniMemberSearchListItemType>
 
 interface Props {
     query: string
-    searchedMembers: ChatMember[]
-    isExactMatch: boolean
+    searchedUsers: MatrixUser[]
     canLnurlPay: boolean
     onInput(data: string): void
 }
 
 export const OmniMemberSearchList: React.FC<Props> = ({
     query,
-    searchedMembers,
-    isExactMatch,
+    searchedUsers,
     canLnurlPay,
     onInput,
 }) => {
@@ -49,118 +38,25 @@ export const OmniMemberSearchList: React.FC<Props> = ({
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
     const hasBottomTabs = useHasBottomTabsNavigation()
-    const dispatch = useAppDispatch()
-    const federationId = useAppSelector(selectActiveFederationId)
-    const chatDomain = useAppSelector(selectChatConnectionOptions)?.domain
-    const isChatOnline = useAppSelector(selectChatClientStatus) === 'online'
-    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
-    const [isFetchingUnknownMember, setIsFetchingUnknownMember] =
-        useState(false)
-    const exactMatchMember = useAppSelector(s =>
-        chatDomain && !isExactMatch
-            ? selectChatMember(s, `${query}@${chatDomain}`)
-            : null,
-    )
-    const [fetchedMember, setFetchedMember] = useState<ChatMember>()
-
-    const hasExactMatchMember = !!exactMatchMember
-    const noHistoryMember = exactMatchMember || fetchedMember
-
-    // If their query is not an exact match, search for a potentially unknown
-    // member. Search is debounced to reduce unnecessary searches while typing.
-    useEffect(() => {
-        // If we're unable to do a search due to anything missing, clear
-        // previous result and stop showing loading indicator
-        if (
-            !query ||
-            !chatDomain ||
-            !federationId ||
-            !isChatOnline ||
-            isExactMatch ||
-            hasExactMatchMember
-        ) {
-            setIsFetchingUnknownMember(false)
-            setFetchedMember(undefined)
-            return
-        }
-
-        // Mark loading and clear previous result immediately
-        setIsFetchingUnknownMember(true)
-        setFetchedMember(undefined)
-
-        // Wrap search in async cancelable function to be called after delay
-        let canceled = false
-        const search = async () => {
-            const memberId = `${query}@${chatDomain}`
-
-            if (memberId === authenticatedMember?.id) return
-
-            try {
-                const member = await dispatch(
-                    fetchChatMember({ federationId, memberId }),
-                ).unwrap()
-                if (canceled) return
-                setFetchedMember(member)
-            } catch {
-                /* no-op */
-            }
-            if (canceled) return
-            setIsFetchingUnknownMember(false)
-        }
-
-        // On re-run of useEffect, clear search debounce and cancel in case it's in flight
-        const timeout = setTimeout(search, 500)
-        return () => {
-            clearTimeout(timeout)
-            canceled = true
-        }
-    }, [
-        query,
-        chatDomain,
-        federationId,
-        isChatOnline,
-        isExactMatch,
-        hasExactMatchMember,
-        dispatch,
-        authenticatedMember?.id,
-    ])
 
     const searchResultsSections = useMemo(() => {
         const sections: OmniMemberSearchListData[] = []
         // Show people they know that fit the search query
-        if (searchedMembers.length) {
+        if (searchedUsers.length) {
             sections.push({
                 title: t('words.people'),
-                data: searchedMembers,
+                data: searchedUsers,
             })
         }
         // If they provided a lightning address and support lnurl payments, suggest that
         if (canLnurlPay && isValidInternetIdentifier(query)) {
             sections.push({
                 title: t('phrases.lightning-address'),
-                data: [{ username: query, id: query, inputData: query }],
+                data: [{ displayName: query, id: query, inputData: query }],
             })
-        }
-        // Show members that are exact matches that we have no history with, or a loader
-        // if we're looking up if they exist
-        if (noHistoryMember && noHistoryMember.id !== authenticatedMember?.id) {
-            sections.push({
-                title: t('feature.omni.search-no-history-header'),
-                data: [noHistoryMember],
-            })
-        } else if (isFetchingUnknownMember) {
-            sections.push({ title: '', data: [{ loading: true }] })
         }
         return sections
-    }, [
-        query,
-        searchedMembers,
-        noHistoryMember,
-        isFetchingUnknownMember,
-        authenticatedMember?.id,
-        canLnurlPay,
-        t,
-    ])
+    }, [query, searchedUsers, canLnurlPay, t])
 
     const style = styles(theme, hasBottomTabs ? {} : insets)
     return (

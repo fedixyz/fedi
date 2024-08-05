@@ -2,17 +2,17 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
 import RNFS from 'react-native-fs'
 import Video from 'react-native-video'
 
 import { makeLog } from '@fedi/common/utils/log'
 
+import { Images } from '../../../assets/images'
 import {
     resetVideo,
     useBackupRecoveryContext,
 } from '../../../state/contexts/BackupRecoveryContext'
-import CheckBox from '../../ui/CheckBox'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const log = makeLog('ReviewVideo')
@@ -22,8 +22,6 @@ const ReviewVideo = () => {
     const navigation = useNavigation()
     const { theme } = useTheme()
     const [isPaused, setIsPaused] = useState(true)
-    const [confirmFaceChecked, setFaceConfirmChecked] = useState(false)
-    const [confirmVoiceChecked, setConfirmVoiceChecked] = useState(false)
     const [confirmingVideo, setConfirmingVideo] = useState(false)
     const { state, dispatch } = useBackupRecoveryContext()
     const videoFile = state.videoFile
@@ -55,58 +53,44 @@ const ReviewVideo = () => {
 
     return (
         <View style={styles(theme).container}>
-            <View style={styles(theme).cameraContainer}>
-                <Video
-                    ref={videoRef}
-                    source={{ uri: videoFile?.path }} // Can be a URL or a local file.
-                    style={styles(theme).video}
-                    paused={isPaused}
-                    ignoreSilentSwitch={'ignore'}
-                    resizeMode={'contain'}
-                    onError={error => {
-                        log.error('Video onError', error)
-                    }}
-                    onEnd={() => setIsPaused(true)}
-                />
-                {isPaused && (
-                    <Pressable
-                        style={styles(theme).playIconContainer}
-                        onPress={() => {
-                            videoRef.current?.seek(0)
-                            setIsPaused(false)
-                        }}>
-                        <SvgImage
-                            name="Play"
-                            size={SvgImageSize.lg}
-                            color={theme.colors.white}
+            <ImageBackground
+                source={Images.HoloBackground}
+                style={styles(theme).gradient}>
+                <View style={styles(theme).cameraRing}>
+                    <View style={styles(theme).cameraContainer}>
+                        <Video
+                            ref={videoRef}
+                            source={{ uri: videoFile?.path }} // Can be a URL or a local file.
+                            style={styles(theme).video}
+                            paused={isPaused}
+                            ignoreSilentSwitch={'ignore'}
+                            resizeMode={'cover'}
+                            onError={error => {
+                                log.error('Video onError', error)
+                            }}
+                            onEnd={() => setIsPaused(true)}
                         />
-                    </Pressable>
-                )}
-            </View>
+                        {isPaused && (
+                            <Pressable
+                                style={styles(theme).playIconContainer}
+                                onPress={() => {
+                                    videoRef.current?.seek(0)
+                                    setIsPaused(false)
+                                }}>
+                                <SvgImage
+                                    name="Play"
+                                    size={SvgImageSize.lg}
+                                    color={theme.colors.white}
+                                />
+                            </Pressable>
+                        )}
+                    </View>
+                </View>
+            </ImageBackground>
 
-            <Text h2 h2Style={styles(theme).instructionsText}>
+            <Text style={styles(theme).instructionsText}>
                 {t('feature.backup.please-review-backup-video')}
             </Text>
-            <View style={styles(theme).confirmationContainer}>
-                <CheckBox
-                    title={
-                        <Text style={styles(theme).checkboxText}>
-                            {t('feature.backup.review-face-confirmation')}
-                        </Text>
-                    }
-                    checked={confirmFaceChecked}
-                    onPress={() => setFaceConfirmChecked(!confirmFaceChecked)}
-                />
-                <CheckBox
-                    title={
-                        <Text style={styles(theme).checkboxText}>
-                            {t('feature.backup.review-voice-confirmation')}
-                        </Text>
-                    }
-                    checked={confirmVoiceChecked}
-                    onPress={() => setConfirmVoiceChecked(!confirmVoiceChecked)}
-                />
-            </View>
 
             <View style={styles(theme).buttonsContainer}>
                 <Button
@@ -118,7 +102,6 @@ const ReviewVideo = () => {
                 <Button
                     title={t('feature.backup.confirm-backup-video')}
                     onPress={() => setConfirmingVideo(true)}
-                    disabled={!confirmFaceChecked || !confirmVoiceChecked}
                     containerStyle={styles(theme).confirmButton}
                 />
             </View>
@@ -143,12 +126,24 @@ const styles = (theme: Theme) =>
             marginTop: theme.spacing.md,
             width: '100%',
         },
-        cameraContainer: {
+        gradient: {
+            borderRadius: 1024,
+            padding: 4,
+            overflow: 'hidden',
             height: theme.sizes.socialBackupCameraHeight,
             width: theme.sizes.socialBackupCameraWidth,
-            borderWidth: 3,
-            backgroundColor: theme.colors.primary,
-            borderColor: theme.colors.primary,
+            backgroundColor: theme.colors.red,
+        },
+        cameraRing: {
+            padding: 16,
+            borderRadius: 1024,
+            overflow: 'hidden',
+            backgroundColor: theme.colors.white,
+        },
+        cameraContainer: {
+            borderWidth: 0,
+            borderRadius: 1024,
+            overflow: 'hidden',
         },
         camera: {
             height: '100%',

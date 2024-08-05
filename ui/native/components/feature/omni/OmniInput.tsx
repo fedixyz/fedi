@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { View, StyleSheet } from 'react-native'
 
-import { useIsChatSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectActiveFederationId } from '@fedi/common/redux'
@@ -25,7 +24,7 @@ import { OmniQrScanner } from './OmniQrScanner'
 export interface OmniInputAction {
     label: React.ReactNode
     icon: SvgImageName
-    onPress(): void
+    onPress: () => void | Promise<void>
 }
 
 interface Props<T extends ParserDataType, ExpectedData> {
@@ -50,7 +49,6 @@ export function OmniInput<
     const { t } = useTranslation()
     const activeFederationId = useAppSelector(selectActiveFederationId)
     const toast = useToast()
-    const canChat = useIsChatSupported()
     const [inputMethod, setInputMethod] = useState<'scan' | 'search'>('scan')
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
@@ -69,9 +67,14 @@ export function OmniInput<
     const canLnurlWithdraw = expectedInputTypes.includes(
         ParserDataType.LnurlWithdraw as T,
     )
-    const canMemberSearch = canChat
-        ? expectedInputTypes.includes(ParserDataType.FediChatMember as T)
-        : canLnurlPay
+    const canMemberSearch = expectedInputTypes.includes(
+        ParserDataType.FediChatUser as T,
+    )
+
+    // TODO: Implement Room search for matrix (knocking)
+    // const canRoomSearch = expectedInputTypes.includes(
+    //     ParserDataType.FediChatRoom as T,
+    // )
 
     const parseInput = useCallback(
         async (input: string) => {
@@ -113,11 +116,9 @@ export function OmniInput<
         if (inputMethod !== 'search' && canMemberSearch) {
             contextualActions.push({
                 label: t(
-                    canChat
-                        ? canLnurlPay
-                            ? 'feature.omni.action-enter-username-or-ln'
-                            : 'feature.omni.action-enter-username'
-                        : 'feature.omni.action-enter-ln-address',
+                    canLnurlPay
+                        ? 'feature.omni.action-enter-username-or-ln'
+                        : 'feature.omni.action-enter-username',
                 ),
                 icon: 'Keyboard',
                 onPress: () => setInputMethod('search'),
@@ -144,7 +145,6 @@ export function OmniInput<
         customActions,
         inputMethod,
         canMemberSearch,
-        canChat,
         canLnurlPay,
         pasteLabel,
         handlePaste,

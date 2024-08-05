@@ -1,23 +1,22 @@
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
+import { RouteProp, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { t } from 'i18next'
 import React from 'react'
-import { Pressable, StyleSheet } from 'react-native'
+import { View, StyleSheet } from 'react-native'
 
 import { selectChatGroup } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import { NavigationHook, RootStackParamList } from '../../../types/navigation'
+import { RootStackParamList } from '../../../types/navigation'
 import { AvatarSize } from '../../ui/Avatar'
 import Header from '../../ui/Header'
-import { ChatConnectionBadge } from './ChatConnectionBadge'
 import GroupIcon from './GroupIcon'
 
 type GroupChatRouteProp = RouteProp<RootStackParamList, 'GroupChat'>
 
+/** @deprecated XMPP legacy code */
 const GroupHeader: React.FC = () => {
     const { theme } = useTheme()
-    const navigation = useNavigation<NavigationHook>()
     const route = useRoute<GroupChatRouteProp>()
     const { groupId } = route.params
     const group = useAppSelector(s => selectChatGroup(s, groupId))
@@ -30,13 +29,7 @@ const GroupHeader: React.FC = () => {
                 backButton
                 centerContainerStyle={styles(theme).headerCenterContainer}
                 headerCenter={
-                    <Pressable
-                        // if this is a DirectChat, header press is disabled
-                        disabled={group === undefined}
-                        style={styles(theme).groupNameContainer}
-                        onPress={() => {
-                            navigation.navigate('GroupAdmin', { groupId })
-                        }}>
+                    <View style={styles(theme).groupNameContainer}>
                         {group && (
                             <GroupIcon chat={group} size={AvatarSize.sm} />
                         )}
@@ -46,10 +39,9 @@ const GroupHeader: React.FC = () => {
                             style={styles(theme).groupNameText}>
                             {headerText}
                         </Text>
-                    </Pressable>
+                    </View>
                 }
             />
-            <ChatConnectionBadge offset={63} />
         </>
     )
 }

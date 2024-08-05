@@ -1,15 +1,18 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use matrix_sdk::notification_settings::RoomNotificationMode;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::api::client::user_directory::search_users::v3 as search_user_directory;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk::ruma::events::AnyTimelineEvent;
+use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::MilliSecondsSinceUnixEpoch;
 use matrix_sdk::RoomListEntry;
 use matrix_sdk_ui::room_list_service::SyncIndicator;
 use matrix_sdk_ui::timeline::{
-    BackPaginationStatus, EventSendState, TimelineItem, TimelineItemContent, TimelineItemKind,
+    EventSendState, LiveBackPaginationStatus, TimelineItem, TimelineItemContent, TimelineItemKind,
     VirtualTimelineItem,
 };
 use serde::{Deserialize, Serialize};
@@ -46,10 +49,8 @@ pub enum RpcTimelineEventSendState {
     SendingFailed {
         /// Details about how sending the event failed.
         error: String,
+        is_recoverable: bool,
     },
-    /// Sending has been cancelled because an earlier event in the
-    /// message-sending queue failed.
-    Cancelled,
     /// The local event has been sent successfully to the server.
     Sent {
         /// The event ID assigned by the server.
@@ -133,12 +134,16 @@ impl RpcMatrixUserDirectorySearchResponse {
     }
 }
 
-impl From<BackPaginationStatus> for RpcBackPaginationStatus {
-    fn from(value: BackPaginationStatus) -> Self {
+impl From<LiveBackPaginationStatus> for RpcBackPaginationStatus {
+    fn from(value: LiveBackPaginationStatus) -> Self {
         match value {
-            BackPaginationStatus::Idle => Self::Idle,
-            BackPaginationStatus::Paginating => Self::Paginating,
-            BackPaginationStatus::TimelineStartReached => Self::TimelineStartReached,
+            LiveBackPaginationStatus::Idle {
+                hit_start_of_timeline: false,
+            } => Self::Idle,
+            LiveBackPaginationStatus::Idle {
+                hit_start_of_timeline: true,
+            } => Self::TimelineStartReached,
+            LiveBackPaginationStatus::Paginating => Self::Paginating,
         }
     }
 }
@@ -165,12 +170,13 @@ impl RpcTimelineItem {
                 };
                 let send_state = e.send_state().map(|s| match s {
                     EventSendState::NotSentYet => RpcTimelineEventSendState::NotSentYet,
-                    EventSendState::SendingFailed { error } => {
-                        RpcTimelineEventSendState::SendingFailed {
-                            error: error.to_string(),
-                        }
-                    }
-                    EventSendState::Cancelled => RpcTimelineEventSendState::Cancelled,
+                    EventSendState::SendingFailed {
+                        error,
+                        is_recoverable,
+                    } => RpcTimelineEventSendState::SendingFailed {
+                        error: error.to_string(),
+                        is_recoverable: *is_recoverable,
+                    },
                     EventSendState::Sent { event_id } => RpcTimelineEventSendState::Sent {
                         event_id: event_id.to_string(),
                     },
@@ -196,6 +202,28 @@ impl RpcTimelineItem {
     pub fn unknown() -> Self {
         warn!("unknown timeline item");
         Self::Unknown
+    }
+
+    pub fn from_preview_item(item: &Raw<AnyTimelineEvent>) -> Option<Self> {
+        match item.deserialize().ok()? {
+            AnyTimelineEvent::MessageLike(message_event) => {
+                let event = RpcTimelineItemEvent {
+                    id: message_event.event_id().to_string(),
+                    txn_id: message_event.transaction_id().map(|tid| tid.to_string()),
+                    event_id: Some(message_event.event_id().to_string()),
+                    content: RpcTimelineItemContent::Json(
+                        item.deserialize_as::<serde_json::Value>().ok()?,
+                    ),
+                    local_echo: false, // preview is never a local echo
+                    timestamp: message_event.origin_server_ts(),
+                    sender: message_event.sender().to_owned(),
+                    send_state: None, // This is for local echos, not relevant here
+                };
+
+                Some(RpcTimelineItem::Event(event))
+            }
+            AnyTimelineEvent::State(_) => None, // Skip state events for the preview
+        }
     }
 }
 
@@ -341,6 +369,39 @@ impl From<SyncIndicator> for RpcSyncIndicator {
         match value {
             SyncIndicator::Show => Self::Show,
             SyncIndicator::Hide => Self::Hide,
+        }
+    }
+}
+
+/// Enum representing the push notification modes for a room.
+#[derive(Clone, ts_rs::TS, Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub enum RpcRoomNotificationMode {
+    /// Receive notifications for all messages.
+    AllMessages,
+    /// Receive notifications for mentions and keywords only.
+    MentionsAndKeywordsOnly,
+    /// Do not receive any notifications.
+    Mute,
+}
+
+impl From<RoomNotificationMode> for RpcRoomNotificationMode {
+    fn from(value: RoomNotificationMode) -> Self {
+        match value {
+            RoomNotificationMode::AllMessages => Self::AllMessages,
+            RoomNotificationMode::MentionsAndKeywordsOnly => Self::MentionsAndKeywordsOnly,
+            RoomNotificationMode::Mute => Self::Mute,
+        }
+    }
+}
+
+impl From<RpcRoomNotificationMode> for RoomNotificationMode {
+    fn from(value: RpcRoomNotificationMode) -> Self {
+        match value {
+            RpcRoomNotificationMode::AllMessages => Self::AllMessages,
+            RpcRoomNotificationMode::MentionsAndKeywordsOnly => Self::MentionsAndKeywordsOnly,
+            RpcRoomNotificationMode::Mute => Self::Mute,
         }
     }
 }

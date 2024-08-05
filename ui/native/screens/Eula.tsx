@@ -3,11 +3,11 @@ import React, { MutableRefObject, useRef } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { WebView } from 'react-native-webview'
 
+import { EULA_URL } from '@fedi/common/constants/tos'
+
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = BottomTabScreenProps<RootStackParamList, 'Eula'>
-
-const EULA_URL = 'https://fedi.xyz/eula-en'
 
 const Eula: React.FC<Props> = () => {
     const webview = useRef<WebView>() as MutableRefObject<WebView>

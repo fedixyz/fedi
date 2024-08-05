@@ -11,7 +11,7 @@ import {
 import Hyperlink from 'react-native-hyperlink'
 
 import { makeLog } from '@fedi/common/utils/log'
-import { decodeGroupInvitationLink } from '@fedi/common/utils/xmpp'
+import { decodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 
 import EmbeddedJoinGroupButton from './EmbeddedJoinGroupButton'
 
@@ -32,21 +32,9 @@ const MessageContents: React.FC<MessageContentsProps> = ({
 
     let text: ReactNode = null
     // Check if there are any group invite codes in the message like this
-    //      fedi:group:uuid_generated_on_group_creation:::
-    // this group invite scheme was updated to add 3 trailing colons for more
-    // reliable extraction of the code from a message, previously the format was:
-    //      fedi:group:uuid_generated_on_group_creation
-
-    // here we try to detect the new format first, then fallback to checking for
-    // the old format...
-    let regex = /fedi:group:[^\s\n]*:::/g
-    let groupCodeMatches: string[] | null = content.match(regex)
-
-    if (groupCodeMatches === null) {
-        // loosen the regex here in case there is an old group code
-        regex = /fedi:group:[^\s\n]*/g
-        groupCodeMatches = content.match(regex)
-    }
+    //      fedi:room:uuid_generated_on_group_creation:::
+    const regex = /fedi:room:[^\s\n]*:::/g
+    const groupCodeMatches: string[] | null = content.match(regex)
 
     // groupCodeMatches is null if no group invite code is found
     if (groupCodeMatches) {
@@ -81,9 +69,9 @@ const MessageContents: React.FC<MessageContentsProps> = ({
         text = (
             <View>
                 {messageElements.map((m: string, i: number) => {
-                    const isGroupCode = m.startsWith('fedi:group:')
-                    if (isGroupCode) {
-                        const groupId = decodeGroupInvitationLink(m)
+                    const isMatrixChatGroupCode = m.startsWith('fedi:room:')
+                    if (isMatrixChatGroupCode) {
+                        const groupId = decodeFediMatrixRoomUri(m)
                         return (
                             <EmbeddedJoinGroupButton
                                 key={`mi-t-${i}`}

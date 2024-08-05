@@ -1,11 +1,11 @@
 import { useNavigation } from '@react-navigation/native'
 import { Header as HeaderRNE, useTheme } from '@rneui/themed'
 import React from 'react'
-import { Pressable, ViewStyle } from 'react-native'
+import { View, ViewStyle } from 'react-native'
 
 import { reset } from '../../state/navigation'
 import { NavigationHook } from '../../types/navigation'
-import SvgImage from './SvgImage'
+import { PressableIcon } from './PressableIcon'
 
 interface HeaderBase {
     headerLeft?: React.ReactNode
@@ -15,9 +15,12 @@ interface HeaderBase {
     centerContainerStyle?: ViewStyle
     rightContainerStyle?: ViewStyle
     containerStyle?: ViewStyle
+    empty?: boolean
     dark?: boolean
     backButton?: boolean
+    onBackButtonPress?: () => void
     closeButton?: boolean
+    onClose?: () => void
     inline?: boolean
 }
 
@@ -41,32 +44,43 @@ const Header: React.FC<HeaderProps> = ({
     centerContainerStyle = {},
     rightContainerStyle = {},
     containerStyle = {},
+    empty,
     dark,
     backButton,
+    onBackButtonPress,
     closeButton,
+    onClose,
     inline,
 }: HeaderProps) => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
+
+    if (empty) {
+        return <View style={{ marginTop: theme.spacing.xxl }} />
+    }
 
     // This logic allows for custom UI in the left side of the Header
     // but the backButton prop overrides any custom headerLeft component
     let leftComponent = <>{headerLeft || null}</>
     if (backButton) {
         leftComponent = (
-            <Pressable
+            <PressableIcon
                 testID="HeaderBackButton"
                 onPress={() =>
-                    navigation.canGoBack()
+                    typeof onBackButtonPress === 'function'
+                        ? onBackButtonPress()
+                        : navigation.canGoBack()
                         ? navigation.goBack()
                         : navigation.navigate('TabsNavigator')
                 }
-                hitSlop={5}
-                style={{
-                    paddingVertical: theme.spacing.sm,
-                }}>
-                <SvgImage name="ChevronLeft" />
-            </Pressable>
+                hitSlop={10}
+                svgName="ChevronLeft"
+                containerStyle={{
+                    // shifts the width of the pressable padding
+                    // to preserve exact position
+                    transform: [{ translateX: -theme.spacing.xs }],
+                }}
+            />
         )
     }
 
@@ -75,15 +89,16 @@ const Header: React.FC<HeaderProps> = ({
     let rightComponent = <>{headerRight || null}</>
     if (closeButton) {
         rightComponent = (
-            <Pressable
+            <PressableIcon
                 testID="HeaderCloseButton"
-                onPress={() => navigation.dispatch(reset('TabsNavigator'))}
-                hitSlop={5}
-                style={{
-                    padding: theme.spacing.sm,
-                }}>
-                <SvgImage name="Close" />
-            </Pressable>
+                onPress={
+                    typeof onClose === 'function'
+                        ? onClose
+                        : () => navigation.dispatch(reset('TabsNavigator'))
+                }
+                hitSlop={10}
+                svgName="Close"
+            />
         )
     }
 
@@ -114,9 +129,7 @@ const Header: React.FC<HeaderProps> = ({
             ? theme.colors.primary
             : defaultContainerStyle.borderBottomColor,
         shadowColor: inline ? 'transparent' : defaultContainerStyle.shadowColor,
-        paddingTop: inline
-            ? theme.spacing.lg
-            : defaultContainerStyle.paddingTop,
+        paddingTop: theme.spacing.lg,
         ...containerStyle,
     }
 

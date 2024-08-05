@@ -4,11 +4,7 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable } from 'react-native'
 
-import { useToast } from '@fedi/common/hooks/toast'
-import {
-    selectChatMember,
-    selectIsActiveFederationRecovering,
-} from '@fedi/common/redux'
+import { selectIsActiveFederationRecovering } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
@@ -16,18 +12,16 @@ import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { RecoveryInProgressOverlay } from '../recovery/RecoveryInProgressOverlay'
 
 type ChatWalletButtonProps = {
-    memberId: string
+    recipientId: string
 }
 
 const ChatWalletButton: React.FC<ChatWalletButtonProps> = ({
-    memberId,
+    recipientId,
 }: ChatWalletButtonProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const [showOverlay, setShowOverlay] = useState(false)
-    const toast = useToast()
-    const member = useAppSelector(s => selectChatMember(s, memberId))
     const recoveryInProgress = useAppSelector(
         selectIsActiveFederationRecovering,
     )
@@ -36,20 +30,13 @@ const ChatWalletButton: React.FC<ChatWalletButtonProps> = ({
         <>
             <Pressable
                 onPress={() => {
-                    if (!member) {
-                        toast.show({
-                            content: t('errors.chat-member-not-found'),
-                            status: 'error',
-                        })
-                        return
-                    }
                     if (recoveryInProgress) {
                         setShowOverlay(true)
                         return
                     }
 
                     navigation.navigate('ChatWallet', {
-                        recipientId: memberId,
+                        recipientId,
                     })
                 }}>
                 <SvgImage
@@ -60,9 +47,9 @@ const ChatWalletButton: React.FC<ChatWalletButtonProps> = ({
                     }}
                     size={SvgImageSize.md}
                     color={
-                        member
-                            ? theme.colors.primary
-                            : theme.colors.primaryVeryLight
+                        recoveryInProgress
+                            ? theme.colors.primaryVeryLight
+                            : theme.colors.primary
                     }
                 />
             </Pressable>

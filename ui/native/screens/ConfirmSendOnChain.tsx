@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Overlay, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
@@ -12,13 +12,14 @@ import {
 } from '@fedi/common/hooks/amount'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
-import { FeeItem, useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
+import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectActiveFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
+import { BridgeError } from '@fedi/common/utils/fedimint'
 
 import { fedimint } from '../bridge'
-import { FeeBreakdown } from '../components/feature/send/FeeBreakdown'
+import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
@@ -69,7 +70,11 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                 unit,
             })
         } catch (err) {
-            toast.error(t, err, 'errors.unknown-error')
+            if (err instanceof BridgeError) {
+                toast.error(t, null, err.format(t))
+            } else {
+                toast.error(t, err)
+            }
         }
         setIsPayingAddress(false)
     }, [handleOmniSend, inputAmount, unit, navigationReplace, toast, t])
@@ -129,29 +134,20 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                         </Text>
                     </View>
 
-                    <Overlay
-                        isVisible={showFeeBreakdown}
-                        overlayStyle={style.overlayContainer}
-                        onBackdropPress={() => setShowFeeBreakdown(false)}>
-                        <FeeBreakdown
-                            title={feeBreakdownTitle}
-                            icon={
-                                <SvgImage
-                                    name="Info"
-                                    size={32}
-                                    color={theme.colors.orange}
-                                />
-                            }
-                            feeItems={feeItemsBreakdown.map(
-                                ({ label, formattedAmount }: FeeItem) => ({
-                                    label: label,
-                                    value: formattedAmount,
-                                }),
-                            )}
-                            onClose={() => setShowFeeBreakdown(false)}
-                            guidanceText={t('feature.fees.guidance-onchain')}
-                        />
-                    </Overlay>
+                    <FeeOverlay
+                        show={showFeeBreakdown}
+                        onDismiss={() => setShowFeeBreakdown(false)}
+                        title={feeBreakdownTitle}
+                        feeItems={feeItemsBreakdown}
+                        description={t('feature.fees.guidance-onchain')}
+                        icon={
+                            <SvgImage
+                                name="Info"
+                                size={32}
+                                color={theme.colors.orange}
+                            />
+                        }
+                    />
                 </View>
             </>
         )
@@ -266,13 +262,6 @@ const styles = (theme: Theme, insets: EdgeInsets) =>
         },
         detailsButton: {
             backgroundColor: theme.colors.offWhite,
-        },
-        overlayContainer: {
-            width: '90%',
-            maxWidth: 312,
-            padding: theme.spacing.xl,
-            borderRadius: theme.borders.defaultRadius,
-            alignItems: 'center',
         },
         secondaryAmountText: {
             color: theme.colors.darkGrey,

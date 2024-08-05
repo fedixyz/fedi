@@ -303,16 +303,17 @@ describe('parseUserInput', () => {
 
     testCases.push({
         input: `fedi:member:user@xmpp.com:::`,
-        type: ParserDataType.FediChatMember,
+        type: ParserDataType.LegacyFediChatMember,
         data: { id: 'user@xmpp.com' },
     })
     testCases.push({
         input: `fedi:group:12345:::`,
-        type: ParserDataType.FediChatGroup,
+        type: ParserDataType.LegacyFediChatGroup,
         data: { id: '12345' },
     })
     testCases.push({
         input: `fedi:user:@user:example.com`,
+        //fedi:user:@npub1a6udwnm4qlnewfda0993nn9845vk4e3z2m2r6hjh9q3kl7830sss860a0t:matrix-dendrite-homeserver2.dev.fedibtc.com
         type: ParserDataType.FediChatUser,
         data: { id: '@user:example.com' },
     })
@@ -341,6 +342,9 @@ describe('parseUserInput', () => {
                 return { amount: 1 }
             }
             throw Error('Failed to parse')
+        },
+        matrixUserProfile: async ({ userId }: { userId: string }) => {
+            if (userId === '@user:example.com') return { displayname: 'user' }
         },
     } as FedimintBridge
 

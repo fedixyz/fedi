@@ -45,7 +45,7 @@ platform :ios do
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
   end
-  
+
   desc "Push a new beta build to TestFlight"
   lane :beta do
     build_app(
@@ -62,7 +62,7 @@ platform :ios do
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
   end
-  
+
   desc "Create a release build"
   lane :build do
     build_app(
@@ -75,7 +75,7 @@ platform :ios do
       }
     )
   end
-  
+
   desc "Create a release build (Fedi Nightly)"
   lane :build_nightly do
     build_app(
@@ -118,7 +118,7 @@ platform :ios do
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
   end
-  
+
   desc "Push a new beta build to TestFlight (Fedi Nightly)"
   lane :beta_nightly do
     build_app(
@@ -157,6 +157,33 @@ platform :ios do
       app_identifier: 'org.fedi.nightly',
       generate_apple_certs: false,
       git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  # These renew commands should only ever be needed if the distribution
+  # certificates in the Apple Developer Portal have expired
+  # Details: https://www.notion.so/fedi21/Knowledge-Base-0f40176380ca43628dbd6a306bcd7e99?p=8d0c7b3d38d94474a8959649c4d11b9a&pm=s
+  desc "Generate renewed signing certificates"
+  lane :renew_appstore_certs do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.alpha',
+      generate_apple_certs: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+  end
+
+  desc "Generate renewed signing certificates (Fedi Nightly)"
+  lane :renew_appstore_certs_nightly do
+    match(
+      type: 'appstore',
+      app_identifier: 'org.fedi.nightly',
+      generate_apple_certs: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
       storage_mode: 'git',
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )

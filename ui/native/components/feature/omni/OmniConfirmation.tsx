@@ -17,23 +17,23 @@ import {
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
 import { AnyParsedData, ParserDataType } from '../../../types'
-import { NavigationHook } from '../../../types/navigation'
+import { NavigationArgs, NavigationHook } from '../../../types/navigation'
 import CustomOverlay, { CustomOverlayContents } from '../../ui/CustomOverlay'
 import RecoveryInProgress from '../recovery/RecoveryInProgress'
 
-interface Props {
-    parsedData: AnyParsedData
+interface Props<T extends AnyParsedData> {
+    parsedData: T
     goBackText?: string
     onGoBack: () => void
-    onSuccess: (parsedData: AnyParsedData) => void
+    onSuccess: (parsedData: T) => void
 }
 
-export const OmniConfirmation: React.FC<Props> = ({
+export const OmniConfirmation = <T extends AnyParsedData>({
     parsedData,
     goBackText: propsGoBackText,
     onGoBack,
     onSuccess,
-}) => {
+}: Props<T>) => {
     const { t } = useTranslation()
     const toast = useToast()
     const navigation = useNavigation()
@@ -50,7 +50,7 @@ export const OmniConfirmation: React.FC<Props> = ({
         'replace' in navigation
             ? (navigation as NavigationHook).replace
             : (navigation as NavigationHook).navigate
-    const handleNavigate = (...params: Parameters<typeof navigate>) => {
+    const handleNavigate = (...params: NavigationArgs) => {
         navigate(...params)
         onSuccess(parsedData)
     }
@@ -139,6 +139,17 @@ export const OmniConfirmation: React.FC<Props> = ({
                             invite: parsedData.data.invite,
                         }),
                 }
+            case ParserDataType.CommunityInvite:
+                return {
+                    contents: {
+                        icon: 'Federation',
+                        title: t('feature.omni.confirm-community-invite'),
+                    },
+                    continueOnPress: () =>
+                        handleNavigate('JoinFederation', {
+                            invite: parsedData.data.invite,
+                        }),
+                }
             case ParserDataType.FedimintEcash:
                 return {
                     contents: {
@@ -162,30 +173,40 @@ export const OmniConfirmation: React.FC<Props> = ({
                     continueOnPress: handleAuth,
                 }
             case ParserDataType.FediChatUser:
-                // TODO: Support me
-                return {
-                    contents: {
-                        icon: 'ScanSad',
-                        title: t('feature.omni.unsupported-unknown'),
-                    },
-                }
-            case ParserDataType.FediChatGroup:
-            case ParserDataType.FediChatMember:
                 return {
                     contents: {
                         icon: 'Chat',
-                        title: t('feature.omni.confirm-fedi-chat'),
+                        title: t('feature.omni.confirm-fedi-chat', {
+                            username: parsedData.data.displayName,
+                        }),
                     },
                     continueOnPress: () => {
-                        if (parsedData.type === ParserDataType.FediChatGroup) {
-                            handleNavigate('GroupChat', {
-                                groupId: parsedData.data.id,
-                            })
-                        } else {
-                            handleNavigate('DirectChat', {
-                                memberId: parsedData.data.id,
-                            })
-                        }
+                        handleNavigate('ChatUserConversation', {
+                            userId: parsedData.data.id,
+                            displayName: parsedData.data.displayName,
+                        })
+                    },
+                }
+            case ParserDataType.FediChatRoom:
+                // TODO: Implement join room by link for matrix (knocking)
+                // TODO: Implement navigating to room if it exists
+                return {
+                    contents: {
+                        icon: 'Chat',
+                        title: t('feature.omni.confirm-fedi-chat-group-invite'),
+                    },
+                    continueOnPress: () => {
+                        handleNavigate('ConfirmJoinPublicGroup', {
+                            groupId: parsedData.data.id,
+                        })
+                    },
+                }
+            case ParserDataType.LegacyFediChatGroup:
+            case ParserDataType.LegacyFediChatMember:
+                return {
+                    contents: {
+                        icon: 'ScanSad',
+                        title: t('feature.omni.unsupported-legacy-chat'),
                     },
                 }
             case ParserDataType.Website:

@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use fedimint_core::task::{MaybeSend, MaybeSync};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::types::{
     RpcFederation, RpcFederationId, RpcOperationId, RpcTransaction, SocialRecoveryApproval,
 };
 use crate::observable::ObservableUpdate;
-use crate::types::RpcAmount;
+use crate::types::{RpcAmount, RpcCommunity};
 
-#[derive(Serialize, Debug, TS)]
+#[derive(Serialize, Deserialize, Debug, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct TransactionEvent {
@@ -128,6 +128,15 @@ pub struct DeviceRegistrationEvent {
     pub state: DeviceRegistrationState,
 }
 
+/// Notifier for partial/whole unfilled stability pool deposit having been
+/// claimed back as e-cash.
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct StabilityPoolUnfilledDepositSweptEvent {
+    pub amount: RpcAmount,
+}
+
 /// States representing the different outcomes for device registration requests
 /// sent to Fedi's servers
 #[derive(Serialize, Debug, TS)]
@@ -161,6 +170,14 @@ pub enum DeviceRegistrationState {
     Overdue,
 }
 
+/// Notify front-end that a particular community's metadata has updated
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct CommunityMetadataUpdatedEvent {
+    pub new_community: RpcCommunity,
+}
+
 #[derive(Debug, TS)]
 #[ts(export, export_to = "target/bindings/")]
 #[ts(rename_all = "camelCase")]
@@ -175,6 +192,8 @@ pub enum Event {
     RecoveryComplete(RecoveryCompleteEvent),
     RecoveryProgress(RecoveryProgressEvent),
     DeviceRegistration(DeviceRegistrationEvent),
+    StabilityPoolUnfilledDepositSwept(StabilityPoolUnfilledDepositSweptEvent),
+    CommunityMetadataUpdated(CommunityMetadataUpdatedEvent),
 }
 
 impl Event {
@@ -259,6 +278,14 @@ impl Event {
     pub fn device_registration(state: DeviceRegistrationState) -> Self {
         Self::DeviceRegistration(DeviceRegistrationEvent { state })
     }
+
+    pub fn stability_pool_unfilled_deposit_swept(amount: RpcAmount) -> Self {
+        Self::StabilityPoolUnfilledDepositSwept(StabilityPoolUnfilledDepositSweptEvent { amount })
+    }
+
+    pub fn community_metadata_updated(new_community: RpcCommunity) -> Self {
+        Self::CommunityMetadataUpdated(CommunityMetadataUpdatedEvent { new_community })
+    }
 }
 
 /// Sends events to iOS / Android layer
@@ -325,6 +352,14 @@ pub trait TypedEventExt: IEventSink {
             Event::DeviceRegistration(event) => {
                 let body = serde_json::to_string(&event).expect("failed to json serialize");
                 IEventSink::event(self, "deviceRegistration".into(), body);
+            }
+            Event::StabilityPoolUnfilledDepositSwept(event) => {
+                let body = serde_json::to_string(&event).expect("failed to json serialize");
+                IEventSink::event(self, "stabilityPoolUnfilledDepositSwept".into(), body);
+            }
+            Event::CommunityMetadataUpdated(event) => {
+                let body = serde_json::to_string(&event).expect("failed to json serialize");
+                IEventSink::event(self, "communityMetadataUpdated".into(), body);
             }
         };
     }

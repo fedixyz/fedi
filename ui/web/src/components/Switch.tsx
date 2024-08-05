@@ -4,11 +4,7 @@ import React from 'react'
 
 import { theme } from '@fedi/common/constants/theme'
 
-interface CustomProps {
-    disabled?: boolean
-}
-
-type Props = RadixSwitch.SwitchProps & CustomProps
+type Props = RadixSwitch.SwitchProps
 
 export const Switch: React.FC<Props> = ({ disabled = false, ...props }) => {
     return (

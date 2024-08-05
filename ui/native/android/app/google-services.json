@@ -1,13 +1,13 @@
 {
     "project_info": {
-        "project_number": "472796529807",
-        "project_id": "fedi-xmpp-chat-notifications",
-        "storage_bucket": "fedi-xmpp-chat-notifications.appspot.com"
+        "project_number": "1089468211130",
+        "project_id": "fedi-matrix-push-notifications",
+        "storage_bucket": "fedi-matrix-push-notifications.appspot.com"
     },
     "client": [
         {
             "client_info": {
-                "mobilesdk_app_id": "1:472796529807:android:29056ceb88c88a5d789cfa",
+                "mobilesdk_app_id": "1:1089468211130:android:c803848e10ac59188d8783",
                 "android_client_info": {
                     "package_name": "com.fedi"
                 }
@@ -15,7 +15,7 @@
             "oauth_client": [],
             "api_key": [
                 {
-                    "current_key": "AIzaSyD1ihZCE2mQ1mgZGRoIKRT3-_izsIlcns0"
+                    "current_key": "AIzaSyCcYwoiCgoGO2OWr5AnmyHnyjarENE6EN8"
                 }
             ],
             "services": {
@@ -26,7 +26,7 @@
         },
         {
             "client_info": {
-                "mobilesdk_app_id": "1:472796529807:android:29056ceb88c88a5d789cfa",
+                "mobilesdk_app_id": "1:1089468211130:android:c803848e10ac59188d8783",
                 "android_client_info": {
                     "package_name": "com.fedi.nightly"
                 }
@@ -34,26 +34,7 @@
             "oauth_client": [],
             "api_key": [
                 {
-                    "current_key": "AIzaSyD1ihZCE2mQ1mgZGRoIKRT3-_izsIlcns0"
-                }
-            ],
-            "services": {
-                "appinvite_service": {
-                    "other_platform_oauth_client": []
-                }
-            }
-        },
-        {
-            "client_info": {
-                "mobilesdk_app_id": "1:472796529807:android:29056ceb88c88a5d789cfa",
-                "android_client_info": {
-                    "package_name": "com.fedi.bravo"
-                }
-            },
-            "oauth_client": [],
-            "api_key": [
-                {
-                    "current_key": "AIzaSyD1ihZCE2mQ1mgZGRoIKRT3-_izsIlcns0"
+                    "current_key": "AIzaSyCcYwoiCgoGO2OWr5AnmyHnyjarENE6EN8"
                 }
             ],
             "services": {

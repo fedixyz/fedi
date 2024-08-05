@@ -19,6 +19,7 @@ type IncomingPaymentActionsProps = {
     onCancel: () => void
 }
 
+/** @deprecated XMPP legacy code */
 const IncomingPaymentActions: React.FC<IncomingPaymentActionsProps> = ({
     message,
     onCancel,
@@ -141,6 +142,7 @@ type OutgoingPullPaymentProps = {
     text: string
 }
 
+/** @deprecated XMPP legacy code */
 const OutgoingPullPayment: React.FC<OutgoingPullPaymentProps> = ({
     message,
     text,

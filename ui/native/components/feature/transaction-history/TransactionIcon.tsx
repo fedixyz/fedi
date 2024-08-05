@@ -2,8 +2,8 @@ import { useTheme } from '@rneui/themed'
 import React from 'react'
 
 import { Transaction, TransactionDirection } from '../../../types'
-import { HistoryIcon, HistoryIconProps } from '../../ui/HistoryIcon'
 import SvgImage from '../../ui/SvgImage'
+import { HistoryIcon, HistoryIconProps } from './HistoryIcon'
 
 interface Props {
     txn: Transaction

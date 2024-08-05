@@ -2,6 +2,7 @@ import {
     EnhancedStore,
     UnsubscribeListener,
     createListenerMiddleware,
+    isAnyOf,
 } from '@reduxjs/toolkit'
 import { CurriedGetDefaultMiddleware } from '@reduxjs/toolkit/dist/getDefaultMiddleware'
 import type { i18n as I18n } from 'i18next'
@@ -12,24 +13,26 @@ import { Federation, StorageApi } from '../types'
 import { getMetaUrl } from '../utils/FederationUtils'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
-import { getReceivablePaymentEvents } from '../utils/matrix'
 import { hasStorageStateChanged } from '../utils/storage'
 import { chatSlice } from './chat'
 import { currencySlice, fetchCurrencyPrices } from './currency'
 import { environmentSlice, selectLanguage } from './environment'
 import {
     federationSlice,
+    joinFederation,
     refreshFederations,
     updateFederation,
     updateFederationBalance,
 } from './federation'
 import {
-    claimMatrixPayment,
+    checkForReceivablePayments,
     handleMatrixRoomTimelineObservableUpdates,
     matrixSlice,
 } from './matrix'
+import { modSlice } from './mod'
 import { nuxSlice } from './nux'
 import { recoverySlice } from './recovery'
+import { securitySlice } from './security'
 import { loadFromStorage, saveToStorage, storageSlice } from './storage'
 import { toastSlice } from './toast'
 import { addTransaction, transactionsSlice } from './transactions'
@@ -46,6 +49,7 @@ export * from './nux'
 export * from './recovery'
 export * from './toast'
 export * from './wallet'
+export * from './security'
 
 export const commonReducers = {
     chat: chatSlice.reducer,
@@ -53,12 +57,14 @@ export const commonReducers = {
     environment: environmentSlice.reducer,
     federation: federationSlice.reducer,
     matrix: matrixSlice.reducer,
+    mod: modSlice.reducer,
     nux: nuxSlice.reducer,
     recovery: recoverySlice.reducer,
     storage: storageSlice.reducer,
     toast: toastSlice.reducer,
     transactions: transactionsSlice.reducer,
     wallet: walletSlice.reducer,
+    security: securitySlice.reducer,
 }
 
 type CommonReducers = typeof commonReducers
@@ -95,6 +101,8 @@ export function initializeCommonStore({
     i18n: I18n
     detectLanguage?: () => Promise<string>
 }) {
+    const receivedPayments = new Set<string>()
+
     // Fetch the latest prices immediately.
     dispatch(fetchCurrencyPrices()).catch(err => {
         log.warn('Failed initial currency price fetch', err)
@@ -110,6 +118,12 @@ export function initializeCommonStore({
         }
         dispatch(updateFederation(federation))
     })
+
+    // Update communities on bridge events
+    const unsubscribeCommunities = fedimint.addListener(
+        'communityMetadataUpdated',
+        event => dispatch(updateFederation(event.newCommunity)),
+    )
 
     // Update balance on bridge events
     const unsubscribeBalance = fedimint.addListener('balance', event => {
@@ -129,9 +143,12 @@ export function initializeCommonStore({
     // Refresh federations on recoveryComplete event to enable UI
     const unsubscribeRecovery = fedimint.addListener(
         'recoveryComplete',
-        event => {
+        async event => {
             log.debug('Recovery complete', event)
-            dispatch(refreshFederations(fedimint))
+            await dispatch(refreshFederations(fedimint))
+            // we check for receivable chat payments from this newly
+            // joined federation after recovery is complete
+            dispatch(checkForReceivablePayments({ fedimint, receivedPayments }))
         },
     )
 
@@ -158,39 +175,24 @@ export function initializeCommonStore({
 
     // Listen for incoming payment events, and claim any we haven't attempted
     // to claim yet.
-    const receivedPayments = new Set<string>()
+    //
+    // TODO: Does this logic belong here in redux middleware?
+    // This is only called on `roomTimelineUpdate` events, so why not
+    // claim ecash in the `MatrixChatClient` (before it touches redux)?
     const unsubscribeMatrixPayments = listenerMiddleware.startListening({
-        actionCreator: handleMatrixRoomTimelineObservableUpdates,
+        matcher: isAnyOf(
+            joinFederation.fulfilled,
+            handleMatrixRoomTimelineObservableUpdates,
+        ),
         effect: (action, api) => {
             const { roomId } = action.payload
-            const state = api.getState()
-            const myId = state.matrix.auth?.userId
-            const timeline = state.matrix.roomTimelines[roomId]
-            if (!myId || !timeline) return
-            const receivablePayments = getReceivablePaymentEvents(
-                timeline,
-                myId,
+            api.dispatch(
+                checkForReceivablePayments({
+                    fedimint,
+                    roomId,
+                    receivedPayments,
+                }),
             )
-            receivablePayments.forEach(event => {
-                if (receivedPayments.has(event.content.paymentId)) return
-                receivedPayments.add(event.content.paymentId)
-                log.info(
-                    'Unclaimed matrix payment event, attempting to claim',
-                    event,
-                )
-                api.dispatch(claimMatrixPayment({ fedimint, event }))
-                    .unwrap()
-                    .then(() => {
-                        log.info('Successfully claimed matrix payment', event)
-                    })
-                    .catch(err => {
-                        log.warn(
-                            'Failed to claim matrix payment, will try again later',
-                            err,
-                        )
-                        receivedPayments.delete(event.content.paymentId)
-                    })
-            })
         },
     })
 
@@ -209,6 +211,7 @@ export function initializeCommonStore({
 
     return () => {
         unsubscribeFederation()
+        unsubscribeCommunities()
         unsubscribeBalance()
         unsubscribeTransaction()
         unsubscribeRecovery()

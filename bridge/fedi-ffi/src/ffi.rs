@@ -1,9 +1,8 @@
 use std::io::Write;
-use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use tokio::sync::Mutex;
@@ -18,8 +17,10 @@ use super::rpc::{fedimint_initialize_async, fedimint_rpc_async};
 use super::storage::IStorage;
 use crate::api::LiveFediApi;
 use crate::error::ErrorCode;
+use crate::features::{FeatureCatalog, RuntimeEnvironment};
 use crate::remote::{fedimint_remote_initialize, fedimint_remote_rpc};
 use crate::rpc::{self, rpc_error};
+use crate::types::{RpcAppFlavor, RpcInitOpts};
 
 lazy_static! {
     // Global Tokio runtime
@@ -31,38 +32,57 @@ lazy_static! {
     static ref BRIDGE: Arc<Mutex<Option<Arc<Bridge>>>> = Arc::new(Mutex::new(None));
 }
 
-pub fn fedimint_initialize(
-    data_dir: String,
-    log_level: String,
-    event_sink: Box<dyn EventSink>,
-    device_identifier: String,
-) -> String {
-    let value = std::panic::catch_unwind(AssertUnwindSafe(|| {
-        RUNTIME.block_on(fedimint_initialize_inner(
-            data_dir,
-            log_level,
-            event_sink,
-            device_identifier,
-        ))
-    }));
-    match value {
+pub async fn fedimint_initialize(event_sink: Box<dyn EventSink>, init_opts_json: String) -> String {
+    let task_result = RUNTIME
+        .spawn(fedimint_initialize_inner(event_sink, init_opts_json))
+        .await;
+    match task_result {
         Ok(Ok(())) => String::from("{}"),
         Ok(Err(e)) => {
             error!(?e);
             rpc_error(&e)
         }
-        Err(_) => rpc_error(&anyhow::format_err!(ErrorCode::Panic)),
+        Err(join_error) => {
+            if join_error.is_panic() {
+                rpc_error(&anyhow::format_err!(ErrorCode::Panic))
+            } else {
+                // it should unreachable in theory, but didn't want to brick
+                // bridge in that case. currently there are 2 errors - panic or
+                // cancelled and we cancel never this task
+                rpc_error(&anyhow::format_err!("unknown join error"))
+            }
+        }
     }
 }
 
 /// Method to instantiate a global bridge object which is required
 /// for RPC to work. The app calls this method on load.
 pub async fn fedimint_initialize_inner(
-    data_dir: String,
-    log_level: String,
     event_sink: Box<dyn EventSink>,
-    device_identifier: String,
+    init_opts_json: String,
 ) -> anyhow::Result<()> {
+    let init_opts: RpcInitOpts = match serde_json::from_str(&init_opts_json) {
+        Ok(init_opts) => init_opts,
+        Err(e) => {
+            error!(?e, "Error parsing init_opts_json");
+            bail!("Bridge init failed, cannot parse init_opts_json {:?}", e);
+        }
+    };
+    let data_dir = match init_opts.data_dir {
+        Some(data_dir) => data_dir,
+        None => {
+            error!("data_dir missing in init_opts_json");
+            bail!("Bridge init failed, data_dir missing in init_opts_json");
+        }
+    };
+    let log_level = match init_opts.log_level {
+        Some(log_level) => log_level,
+        None => {
+            error!("log_level missing in init_opts_json");
+            bail!("Bridge init failed, log_level missing in init_opts_json");
+        }
+    };
+
     if option_env!("FEDI_BRIDGE_REMOTE").is_some() {
         return fedimint_remote_initialize(event_sink).await;
     }
@@ -95,7 +115,13 @@ pub async fn fedimint_initialize_inner(
         Arc::new(storage),
         event_sink,
         Arc::new(LiveFediApi::new()),
-        device_identifier,
+        init_opts.device_identifier,
+        FeatureCatalog::new(match init_opts.app_flavor {
+            RpcAppFlavor::Dev => RuntimeEnvironment::Dev,
+            RpcAppFlavor::Nightly => RuntimeEnvironment::Staging,
+            RpcAppFlavor::Bravo => RuntimeEnvironment::Prod,
+        })
+        .into(),
     )
     .await
     {
@@ -155,6 +181,8 @@ pub fn fedimint_get_supported_events() -> Vec<String> {
         String::from("recoveryComplete"),
         String::from("recoveryProgress"),
         String::from("observableUpdate"),
+        String::from("deviceRegistration"),
+        String::from("communityMetadataUpdated"),
     ]
 }
 

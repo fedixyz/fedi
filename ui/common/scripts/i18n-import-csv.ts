@@ -41,7 +41,7 @@ async function run() {
     console.info(`Reading in ${parsedCsv.length} rows from CSV`)
     for (const row of parsedCsv) {
         const key = row[0].trim()
-        const translatedText = row[2].trim().replace(/""/g, '"')
+        const translatedText = row.at(-1)?.trim().replace(/""/g, '"')
         if (!key.includes('.')) {
             console.debug(`Skipping "${row}", looks like the header of the CSV`)
             continue

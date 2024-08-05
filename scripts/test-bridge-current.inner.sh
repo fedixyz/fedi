@@ -4,7 +4,10 @@ set -euo pipefail
 source scripts/common.sh
 
 export INCLUDE_STABILITY_POOL=1
+export FEDI_STABILITY_POOL_MODULE_ENABLE=1
 export USE_STABILITY_POOL_TEST_PARAMS=1
+export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
+export FEDI_SOCIAL_RECOVERY_MODULE_ENABLE=1
 export RUST_BACKTRACE=full
 
 # fedi packages

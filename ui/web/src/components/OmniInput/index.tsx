@@ -1,5 +1,4 @@
 import { styled } from '@stitches/react'
-import { useRouter } from 'next/router'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +9,6 @@ import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
-    fetchChatMember,
     selectActiveFederationId,
     selectChatConnectionOptions,
 } from '@fedi/common/redux'
@@ -21,7 +19,7 @@ import {
 } from '@fedi/common/types'
 import { parseUserInput } from '@fedi/common/utils/parser'
 
-import { useAppDispatch, useAppSelector } from '../../hooks'
+import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { Button } from '../Button'
 import { Icon } from '../Icon'
@@ -62,7 +60,6 @@ export function OmniInput<
     const propsRef = useUpdatingRef(props)
     const { t } = useTranslation()
     const toast = useToast()
-    const dispatch = useAppDispatch()
     const federationId = useAppSelector(selectActiveFederationId)
     const connectionOptions = useAppSelector(selectChatConnectionOptions)
     const [isScanning, setIsScanning] = useState(props.defaultToScan || false)
@@ -73,7 +70,6 @@ export function OmniInput<
     const fileInputRef = useRef<HTMLInputElement>(null)
     const isLoading = props.loading || isParsing
     const isLoadingRef = useUpdatingRef(isLoading)
-    const router = useRouter()
 
     const { customActions, inputPlaceholder, onUnexpectedSuccess } = props
     const inputLabel = props.inputLabel || 'Input data'
@@ -81,7 +77,12 @@ export function OmniInput<
 
     const parseInput = useCallback(
         async (input: string) => {
-            if (!input || isLoadingRef.current) return
+            if (isLoadingRef.current) return
+            if (!input)
+                return setInvalidData({
+                    type: ParserDataType.Unknown,
+                    data: { message: t('feature.omni.unsupported-unknown') },
+                })
             setIsParsing(true)
             const parsedData = await parseUserInput(
                 input,
@@ -96,47 +97,35 @@ export function OmniInput<
             if (expectedTypes.includes(parsedData.type)) {
                 propsRef.current.onExpectedInput(parsedData as ExpectedData)
             } else if (parsedData.type === ParserDataType.Unknown) {
-                if (
-                    !props.expectedInputTypes.includes(
-                        ParserDataType.FediChatMember as T,
-                    ) ||
-                    !federationId ||
-                    !connectionOptions?.domain
-                )
+                if (!federationId || !connectionOptions?.domain)
                     return setInvalidData(parsedData)
-
-                const fetchedMember = await dispatch(
-                    fetchChatMember({
-                        federationId,
-                        memberId: `${input}@${connectionOptions.domain}`,
-                    }),
-                )
-                    .unwrap()
-                    .catch(() => setUnexpectedData(parsedData))
-
-                if (!fetchedMember) return setUnexpectedData(parsedData)
-
-                router.push(`/chat/member/${fetchedMember.id}?action=send`)
             } else {
                 setUnexpectedData(parsedData)
             }
         },
-        [
-            propsRef,
-            isLoadingRef,
-            t,
-            federationId,
-            connectionOptions,
-            dispatch,
-            props.expectedInputTypes,
-            router,
-        ],
+        [propsRef, isLoadingRef, t, federationId, connectionOptions],
     )
 
     const handlePaste = useCallback(async () => {
         try {
-            const input = await navigator.clipboard.readText()
-            await parseInput(input)
+            let input: string | null = null
+
+            if (
+                'readText' in navigator.clipboard &&
+                typeof navigator.clipboard.readText === 'function'
+            ) {
+                try {
+                    // Newer versions of firefox allow you to paste with a confirmation similar to how iOS does it
+                    // When cancelled, it throws an error
+                    input = await navigator.clipboard.readText()
+                } catch {
+                    /*no-op*/
+                }
+            } else {
+                input = prompt(t('feature.omni.action-paste'))
+            }
+
+            await parseInput(input ?? '')
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')
         }

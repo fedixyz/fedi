@@ -2,11 +2,12 @@
 node_modules
 npm-debug.log
 yarn-error.log
+.yarn/*
 
+# ts / build
+tsconfig.tsbuildinfo
+.turbo
 dist
 
-.turbo
-
-tsconfig.tsbuildinfo
-
-common/localization/export.csv
+# watchman
+.watchman-cookie-*

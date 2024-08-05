@@ -6,7 +6,7 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint-fedi/0307c3a3373b1b6f537f2854c89d0171f41d6cf7"; #ref=ad/ad/v0.3.0-rc.3-fedi1-fedi1
+      url = "github:fedibtc/fedimint-fedi/2ea651c2da20a0380062109428b43d4702a47bae"; #ref=v0.3.2-rc.0-fed1
     };
 
     fenix = {
@@ -14,7 +14,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flakebox = {
-      url = "github:dpc/flakebox?rev=84347061440e4c504b4280d87f93a7e6718ccd11";
+      url = "github:dpc/flakebox?rev=19f4cc696fdd1422cb522fdadbe82df2473cb479";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
@@ -185,13 +185,6 @@
               pkgs.firefox
             ];
           };
-        } // lib.optionalAttrs pkgs.stdenv.isDarwin {
-          # on Darwin newest stdenv doesn't seem to work
-          # linking rocksdb
-          stdenv = pkgs.clang11Stdenv;
-          clang = llvmPackages.clang;
-          libclang = llvmPackages.libclang.lib;
-          clang-unwrapped = llvmPackages.clang-unwrapped;
         };
 
         stdTargets = flakeboxLib.mkStdTargets {
@@ -249,7 +242,7 @@
             "default" = toolchainDefault;
             "wasm32-unknown-unkown" = toolchainWasm;
           };
-          profiles = [ "dev" "ci" "release" ];
+          profiles = [ "dev" "ci" "test" "release" ];
         };
 
         lib = pkgs.lib;
@@ -277,21 +270,22 @@
           '';
         };
 
-        crossDevShell = flakeboxLib.mkDevShell (craneMultiBuild.commonEnvsShell // craneMultiBuild.commonEnvsShellRocksdbLink // {
+        crossDevShell = flakeboxLib.mkDevShell (craneMultiBuild.commonEnvsShell // craneMultiBuild.commonEnvsShellRocksdbLink // craneMultiBuild.commonArgs // {
           toolchain = toolchainAll;
-          nativeBuildInputs =
+          nativeBuildInputs = craneMultiBuild.commonArgs.nativeBuildInputs ++
             [
               fedimint-pkgs.packages.${system}.gateway-pkgs
               pkgs.fs-dir-cache
               pkgs.cargo-nextest
               pkgs.cargo-audit
+              pkgs.cargo-udeps
               pkgs.curl # wasm build needs it for some reason
               pkgs.wasm-pack
               pkgs.wasm-bindgen-cli
               pkgs.binaryen
               pkgs.gnused
               pkgs.yarn
-              pkgs.nodejs
+              pkgs.nodejs_21
               pkgs.nodePackages.prettier # for ts-bindgen
               pkgs.jdk17
               pkgs.nodePackages.typescript-language-server
@@ -311,8 +305,10 @@
               androidSdk
             ];
 
-          buildInputs = [ pkgs.openssl ];
+          buildInputs = craneMultiBuild.commonArgs.buildInputs ++ [ pkgs.openssl ];
 
+          # Use old ESLINT config format
+          ESLINT_USE_FLAT_CONFIG = false;
           FEDI_CROSS_DEV_SHELL = "1";
           shellHook = ''
             export PATH=$PATH:''${ANDROID_SDK_ROOT}/../../bin

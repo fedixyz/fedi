@@ -32,7 +32,7 @@ export const ChatNeedRegistration: React.FC = () => {
                         width="full"
                         href="/onboarding/username"
                         css={{ maxWidth: 320 }}>
-                        {t('feature.chat.register-a-username')}
+                        {t('words.continue')}
                     </Button>
                 </Content>
             </Layout.Content>

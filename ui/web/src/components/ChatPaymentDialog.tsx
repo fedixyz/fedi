@@ -1,56 +1,52 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-    useBalanceDisplay,
-    useMinMaxRequestAmount,
-    useMinMaxSendAmount,
-} from '@fedi/common/hooks/amount'
-import { useToast } from '@fedi/common/hooks/toast'
+import { useBalanceDisplay } from '@fedi/common/hooks/amount'
+import { useChatPaymentUtils } from '@fedi/common/hooks/chat'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import {
-    selectActiveFederation,
-    sendDirectMessage,
-    selectAuthenticatedMember,
-} from '@fedi/common/redux'
-import { ChatPaymentStatus, Sats } from '@fedi/common/types'
-import amountUtils from '@fedi/common/utils/AmountUtils'
+import { selectMatrixUser } from '@fedi/common/redux'
+import { Sats } from '@fedi/common/types'
 
-import { useAppDispatch, useAppSelector } from '../hooks'
+import { useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 import { AmountInput } from './AmountInput'
 import { Button } from './Button'
+import { ChatAvatar } from './ChatAvatar'
 import { Dialog } from './Dialog'
+import { Text } from './Text'
 
 interface Props {
+    roomId: string
     recipientId: string
     open: boolean
     onOpenChange(open: boolean): void
 }
 
 export const ChatPaymentDialog: React.FC<Props> = ({
-    open,
+    roomId,
     recipientId,
+    open,
     onOpenChange,
 }) => {
     const { t } = useTranslation()
-    const dispatch = useAppDispatch()
-    const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const myId = useAppSelector(selectAuthenticatedMember)?.id
-    const sendMinMax = useMinMaxSendAmount()
-    const requestMinMax = useMinMaxRequestAmount({ ecashRequest: {} })
-    const [amount, setAmount] = useState(0 as Sats)
-    const [submitAction, setSubmitAction] = useState<null | 'send' | 'request'>(
-        null,
-    )
-    const [submitAttempts, setSubmitAttempts] = useState(0)
-    const [submitType, setSubmitType] = useState<'send' | 'request'>()
     const onOpenChangeRef = useUpdatingRef(onOpenChange)
     const balanceDisplay = useBalanceDisplay(t)
-
-    const federationId = activeFederation?.id
+    const {
+        submitType,
+        setSubmitType,
+        submitAttempts,
+        setSubmitAttempts,
+        submitAction,
+        setSubmitAction,
+        amount,
+        setAmount,
+        inputMinMax,
+        canSendAmount,
+        handleSendPayment,
+        handleRequestPayment,
+    } = useChatPaymentUtils(t, fedimint, roomId, recipientId)
+    const recipient = useAppSelector(s => selectMatrixUser(s, recipientId))
 
     useEffect(() => {
         if (open) return
@@ -58,93 +54,39 @@ export const ChatPaymentDialog: React.FC<Props> = ({
         setSubmitAction(null)
         setSubmitAttempts(0)
         setSubmitType(undefined)
-    }, [open])
-
-    const sendPaymentMessage = useCallback(
-        async (token?: string) => {
-            if (!federationId || !myId) return
-            try {
-                await dispatch(
-                    sendDirectMessage({
-                        fedimint,
-                        federationId,
-                        recipientId,
-                        payment: {
-                            status: token
-                                ? ChatPaymentStatus.accepted
-                                : ChatPaymentStatus.requested,
-                            amount: amountUtils.satToMsat(amount),
-                            recipient: token ? recipientId : myId,
-                            token,
-                        },
-                    }),
-                ).unwrap()
-                onOpenChangeRef.current(false)
-            } catch (err) {
-                toast.error(t, err, 'errors.chat-unavailable')
-            }
-        },
-        [
-            dispatch,
-            federationId,
-            recipientId,
-            myId,
-            amount,
-            toast,
-            onOpenChangeRef,
-            t,
-        ],
-    )
-
-    const handleSend = useCallback(async () => {
-        if (!federationId) return
-        setSubmitType('send')
-        setSubmitAttempts(attempt => attempt + 1)
-        if (
-            amount < sendMinMax.minimumAmount ||
-            amount > sendMinMax.maximumAmount
-        ) {
-            return
-        }
-
-        setSubmitAction('send')
-        try {
-            const token = await fedimint.generateEcash(
-                amountUtils.satToMsat(amount),
-                federationId,
-            )
-            await sendPaymentMessage(token.ecash)
-        } catch (err) {
-            toast.error(t, err, 'errors.unknown-error')
-        }
-        setSubmitAction(null)
-    }, [sendPaymentMessage, amount, sendMinMax, toast, federationId, t])
+    }, [open, setAmount, setSubmitAction, setSubmitAttempts, setSubmitType])
 
     const handleRequest = useCallback(async () => {
-        setSubmitType('request')
-        setSubmitAttempts(attempt => attempt + 1)
-        if (
-            amount < requestMinMax.minimumAmount ||
-            amount > requestMinMax.maximumAmount
-        ) {
-            return
-        }
+        handleRequestPayment(() => {
+            onOpenChangeRef.current(false)
+        })
+    }, [handleRequestPayment, onOpenChangeRef])
 
-        setSubmitAction('request')
-        setSubmitType('request')
-        await sendPaymentMessage()
-        setSubmitAction(null)
-    }, [sendPaymentMessage, amount, requestMinMax])
-
-    const inputMinMax =
-        submitType === 'send'
-            ? sendMinMax
-            : submitType === 'request'
-            ? requestMinMax
-            : {}
+    const handleSend = useCallback(async () => {
+        setSubmitType('send')
+        setSubmitAttempts(attempts => attempts + 1)
+        if (!canSendAmount) return
+        handleSendPayment(() => {
+            onOpenChangeRef.current(false)
+        })
+    }, [
+        canSendAmount,
+        handleSendPayment,
+        onOpenChangeRef,
+        setSubmitAttempts,
+        setSubmitType,
+    ])
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
+            <MemberContainer>
+                {recipient && (
+                    <>
+                        <ChatAvatar size="sm" user={recipient} />
+                        <Text weight="medium">{recipient.displayName}</Text>
+                    </>
+                )}
+            </MemberContainer>
             <Balance>{balanceDisplay}</Balance>
             <AmountContainer>
                 {open && (
@@ -183,6 +125,14 @@ const Balance = styled('div', {
     fontSize: theme.fontSizes.caption,
     textAlign: 'center',
     color: theme.colors.darkGrey,
+})
+
+const MemberContainer = styled('div', {
+    display: 'flex',
+    gap: theme.space.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.space.xl,
 })
 
 const AmountContainer = styled('div', {

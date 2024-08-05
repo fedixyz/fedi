@@ -1,29 +1,22 @@
 import { useNavigation } from '@react-navigation/native'
 import { Theme } from '@rneui/themed'
-import { Card, Text, useTheme } from '@rneui/themed'
+import { useTheme } from '@rneui/themed'
 import React from 'react'
-import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
+import { LinearGradientProps } from 'react-native-linear-gradient'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
-import { selectCurrency, selectStableBalancePending } from '@fedi/common/redux'
 
 import { fedimint } from '../../../bridge'
-import { useAppSelector, useStabilityPool } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
-import SvgImage from '../../ui/SvgImage'
-import { CurrencyAvatar } from './CurrencyAvatar'
+import { BubbleCard } from '../../ui/BubbleView'
+import StabilityWalletBalance from './StabilityWalletBalance'
+import StabilityWalletTitle from './StabilityWalletTitle'
 
 const StabilityWallet: React.FC = () => {
-    const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
-    const selectedCurrency = useAppSelector(selectCurrency)
-    const stableBalancePending = useAppSelector(selectStableBalancePending)
-
-    const { formattedStableBalance, formattedStableBalancePending } =
-        useStabilityPool()
 
     const [hasOpenedStabilityPool] = useNuxStep('hasOpenedStabilityPool')
 
@@ -31,93 +24,41 @@ const StabilityWallet: React.FC = () => {
     useMonitorStabilityPool(fedimint)
 
     const style = styles(theme)
+    const gradientProps: LinearGradientProps = {
+        colors: ['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.0)'],
+        start: { x: 0, y: 0 },
+        end: { x: 0, y: 1 },
+    }
+
     return (
-        <Pressable
-            style={style.container}
-            onPress={() =>
-                navigation.navigate(
-                    hasOpenedStabilityPool
-                        ? 'StabilityHome'
-                        : 'StableBalanceIntro',
-                )
-            }>
-            <Card
-                containerStyle={style.cardContainer}
-                wrapperStyle={style.cardWrapper}>
-                <View style={style.titleContainer}>
-                    <CurrencyAvatar />
-                    <Text bold style={style.titleText}>
-                        {`${selectedCurrency} ${t('words.balance')}`}
-                    </Text>
-                    <View style={style.amountContainer}>
-                        <Text medium style={style.balanceText}>
-                            {`${formattedStableBalance}`}
-                        </Text>
-                        {stableBalancePending !== 0 && (
-                            <Text small style={style.balanceText}>
-                                {t('feature.stabilitypool.amount-pending', {
-                                    amount:
-                                        stableBalancePending > 0
-                                            ? '+' +
-                                              formattedStableBalancePending
-                                            : formattedStableBalancePending,
-                                })}
-                            </Text>
-                        )}
-                    </View>
-                    <SvgImage
-                        name="ChevronRight"
-                        color={theme.colors.primary}
-                    />
-                </View>
-            </Card>
-        </Pressable>
+        <BubbleCard
+            linearGradientProps={gradientProps}
+            containerStyle={style.card}>
+            <Pressable
+                style={style.container}
+                onPress={() =>
+                    navigation.navigate(
+                        hasOpenedStabilityPool
+                            ? 'StabilityHome'
+                            : 'StableBalanceIntro',
+                    )
+                }>
+                <StabilityWalletTitle />
+                <StabilityWalletBalance />
+            </Pressable>
+        </BubbleCard>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        card: {
+            backgroundColor: theme.colors.mint,
+        },
         container: {
-            width: '100%',
-            marginTop: theme.spacing.lg,
-        },
-        balanceText: {
-            color: theme.colors.primary,
-            marginLeft: 'auto',
-            paddingHorizontal: theme.spacing.sm,
-            textAlign: 'right',
-        },
-        cardContainer: {
-            borderRadius: theme.borders.defaultRadius,
-            backgroundColor: theme.colors.offWhite,
-            padding: theme.spacing.lg,
-            borderWidth: 0,
-            shadowColor: 'transparent',
-            margin: 0,
-        },
-        cardWrapper: {
-            flex: 1,
-            justifyContent: 'space-between',
-            gap: theme.spacing.lg,
-        },
-        titleContainer: {
-            textAlign: 'left',
             flexDirection: 'row',
+            justifyContent: 'space-between',
             alignItems: 'center',
-        },
-        titleText: {
-            color: theme.colors.primary,
-            paddingHorizontal: theme.spacing.sm,
-            flex: 1,
-        },
-        amountContainer: {
-            display: 'flex',
-            gap: theme.spacing.xs,
-            flexDirection: 'column',
-            justifyContent: 'center',
-        },
-        button: {
-            backgroundColor: theme.colors.secondary,
         },
     })
 

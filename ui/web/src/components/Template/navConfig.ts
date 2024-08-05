@@ -16,11 +16,7 @@ import { config } from '../../styles'
  */
 const navRoutes: Array<PrefixRoute | AbsoluteRoute> = [
     {
-        prefix: '/chat/group',
-        showWhen: 'desktop',
-    },
-    {
-        prefix: '/chat/member',
+        prefix: '/chat/room',
         showWhen: 'desktop',
     },
     {
@@ -29,6 +25,10 @@ const navRoutes: Array<PrefixRoute | AbsoluteRoute> = [
     },
     {
         prefix: '/onboarding',
+    },
+    {
+        prefix: '/chat/new',
+        showWhen: 'desktop',
     },
     {
         path: '/bug-report',

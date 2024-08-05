@@ -5,18 +5,19 @@ import { useTranslation } from 'react-i18next'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
-    connectChat,
-    disconnectChat,
     fetchSocialRecovery,
     refreshFederations,
-    selectActiveFederation,
-    selectAuthenticatedMember,
     selectSocialRecoveryQr,
     selectDeviceId,
     initializeDeviceId,
+    startMatrixClient,
+    selectHasSetMatrixDisplayName,
+    previewDefaultGroupChats,
+    selectAuthenticatedMember,
 } from '@fedi/common/redux'
 import { selectHasLoadedFromStorage } from '@fedi/common/redux/storage'
 import { formatErrorMessage } from '@fedi/common/utils/format'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
@@ -24,6 +25,8 @@ import { keyframes, styled, theme } from '../styles'
 import { generateDeviceId } from '../utils/browserInfo'
 import { Redirect } from './Redirect'
 import { Text } from './Text'
+
+const log = makeLog('FediBridgeInitializer')
 
 interface Props {
     children: React.ReactNode
@@ -33,17 +36,18 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const { asPath } = useRouter()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
     const deviceId = useAppSelector(selectDeviceId)
     const hasLoadedStorage = useAppSelector(selectHasLoadedFromStorage)
     const socialRecoveryId = useAppSelector(selectSocialRecoveryQr)
+    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
+    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
     const [isInitialized, setIsInitialized] = useState(false)
     const [isShowingLoading, setIsShowingLoading] = useState(false)
     const [error, setError] = useState<string>()
     const tRef = useUpdatingRef(t)
     const dispatchRef = useUpdatingRef(dispatch)
-    const federationId = activeFederation?.id
+
+    const hasLegacyChatData = !!authenticatedMember
 
     // Initialize device ID
     useEffect(() => {
@@ -62,15 +66,26 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         }, 1000)
 
         initializeBridge(deviceId)
-            .then(() =>
-                // Fetch federations and social recovery in parallel after bridge.
+            .then(() => fedimint.bridgeStatus())
+            .then(status => {
+                log.info('bridgeStatus', status)
+                // Fetch federations, social recovery, and matrix setup in parallel after bridge
                 // is initialized. Only throw (via unwrap) for refreshFederations.
-                Promise.all([
+                return Promise.all([
                     dispatchRef.current(refreshFederations(fedimint)).unwrap(),
                     dispatchRef.current(fetchSocialRecovery(fedimint)),
-                ]),
-            )
-            .then(() => setIsInitialized(true))
+                    // if there is no matrix session yet we will start the matrix
+                    // client either during recovery or during onboarding after a
+                    // display name is entered
+                    ...(status?.matrixSetup
+                        ? [dispatchRef.current(startMatrixClient({ fedimint }))]
+                        : []),
+                ])
+            })
+            .then(() => {
+                setIsInitialized(true)
+                dispatchRef.current(previewDefaultGroupChats())
+            })
             .catch(err =>
                 setError(
                     formatErrorMessage(
@@ -96,23 +111,17 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         return () => unsubscribe()
     }, [])
 
-    // Connect to chat of active federation after bridge initializes.
-    // TODO: Move this logic into redux initiailization when PWA and app both use it.
-    useEffect(() => {
-        if (!federationId || !isInitialized || !authenticatedMember?.id) return
-        dispatch(connectChat({ fedimint, federationId }))
-        return () => {
-            dispatch(disconnectChat({ federationId }))
-        }
-    }, [federationId, isInitialized, authenticatedMember?.id, dispatch])
-
     if (isInitialized && !error) {
         // If we're mid social recovery, force them to stay on the page
         if (socialRecoveryId && asPath !== '/onboarding/recover/social') {
             return <Redirect path="/onboarding/recover/social" />
         }
-        // If they haven't joined a federation, force them into onboarding
-        if (!activeFederation && !asPath.startsWith('/onboarding')) {
+        // If they haven't set a display name, force them into onboarding
+        if (
+            !hasSetDisplayName &&
+            !hasLegacyChatData &&
+            !asPath.startsWith('/onboarding')
+        ) {
             return <Redirect path="/onboarding" />
         }
         // Otherwise render the page as normal

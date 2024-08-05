@@ -3,6 +3,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Header from '../../ui/Header'
+import BackupBetaBanner from './BackupBetaBanner'
 
 type SocialBackupHeaderProps = {
     backButton?: boolean
@@ -16,15 +17,18 @@ const SocialBackupHeader: React.FC<SocialBackupHeaderProps> = ({
     const { t } = useTranslation()
 
     return (
-        <Header
-            backButton={backButton}
-            headerCenter={
-                <Text bold numberOfLines={1} adjustsFontSizeToFit>
-                    {t('feature.backup.file-backup')}
-                </Text>
-            }
-            closeButton={closeButton}
-        />
+        <>
+            <Header
+                backButton={backButton}
+                headerCenter={
+                    <Text bold numberOfLines={1} adjustsFontSizeToFit>
+                        {t('feature.backup.social-backup')}
+                    </Text>
+                }
+                closeButton={closeButton}
+            />
+            <BackupBetaBanner />
+        </>
     )
 }
 

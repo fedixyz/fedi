@@ -8,18 +8,20 @@ resolver = "2"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-anyhow = "1.0.69"
-async-trait = "0.1.64"
+anyhow = { workspace = true }
+async-trait = { workspace = true }
 console_error_panic_hook = "0.1.7"
 fedi-ffi = { version = "0.3.0", path = "../fedi-ffi" }
-futures = "0.3.26"
+futures = { workspace = true }
 gloo-file = "0.2.3"
 imbl = "2.0.0"
 js-sys = "0.3.61"
 rexie = "0.4.2"
-tokio = {version = "1.0", features = [ "time", "macros" ]}
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.16", features = ["json", "env-filter"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["time", "macros"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
 tracing-wasm = "0.2.1"
 wasm-bindgen = "=0.2.92"
 wasm-bindgen-futures = "0.4.34"

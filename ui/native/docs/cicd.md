@@ -103,13 +103,18 @@ For major or minor version bumps, simply create a release branch with the new ve
 
 ## Android
 
-The release keystore needed by Gradle to sign the APK is currently committed to source, but the JSON file containing the credentials to upload the app bundle to Play Store is injected via Github Actions secrets and decoded at build time.
+The JSON file containing the credentials to upload the app bundle to Play Store is injected via Github Actions secrets and decoded at build time.
 
 To configure this, obtain the JSON file by following the steps in the **Collect your Google credentials** section here: <https://docs.fastlane.tools/getting-started/android/setup/>
 
 Then base64-encode the JSON file `base64 -i ./path/to/service-account.json > ./service-account-encoded.txt` and copy-paste this string in the TXT file as the value of the `PLAY_STORE_JSON_CREDENTIALS_ENCODED` Github Actions Secret.
 
 The deployment workflow will then decode the JSON file at build time.
+
+The release keystore needed by Gradle to sign the APK also uses the same process to encode + decode the keystore & the credentials file:
+
+ANDROID_KEYSTORE_FILE_ENCODED: `base64 -i ./path/to/fedi-android-production.keystore > ./android-keystore-file.txt`
+ANDROID_KEYSTORE_PROPERTIES_ENCODED: `base64 -i ./path/to/keystore.properties > ./android-keystore-properties.txt`
 
 ## iOS
 
@@ -126,6 +131,8 @@ The `issuer_id` and `key_id` values are obtained from the App Store Connect dash
 Then base64-encode the JSON file `base64 -i ./path/to/asc-api-key.json > ./asc-api-key-encoded.txt` and copy-paste this string in the TXT file as the value of the `ASC_API_KEY_JSON_CREDENTIALS_ENCODED` Github Actions Secret.
 
 The deployment workflow will then decode the JSON file at build time.
+
+For iOS signing, a keychain stored on the CI runner is used. The keychain password is provided at build time via Github Actions and not stored on the runner. The keychain password must be provided as the environment variable MATCH_PASSWORD for the fastlane action to succeed.
 
 # Building Locally
 

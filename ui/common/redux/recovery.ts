@@ -1,8 +1,16 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 import { CommonState, refreshFederations } from '.'
-import { SocialRecoveryEvent } from '../types'
+import { SeedWords, SocialRecoveryEvent } from '../types'
+import {
+    RpcDeviceIndexAssignmentStatus,
+    RpcFederation,
+    RpcRegisteredDevice,
+} from '../types/bindings'
 import { FedimintBridge } from '../utils/fedimint'
+import { makeLog } from '../utils/log'
+
+const log = makeLog('common/redux/recovery')
 
 /*** Initial State ***/
 
@@ -10,6 +18,9 @@ const initialState = {
     hasCheckedForSocialRecovery: false,
     socialRecoveryQr: null as string | null,
     socialRecoveryState: null as SocialRecoveryEvent | null,
+    registeredDevices: [] as RpcRegisteredDevice[],
+    deviceIndexRequired: false,
+    shouldLockDevice: false, // TODO: persist this to localStorage?
 }
 
 export type RecoveryState = typeof initialState
@@ -25,6 +36,12 @@ export const recoverySlice = createSlice({
             action: PayloadAction<RecoveryState['socialRecoveryState']>,
         ) {
             state.socialRecoveryState = action.payload
+        },
+        setDeviceIndexRequired(state, action: PayloadAction<boolean>) {
+            state.deviceIndexRequired = action.payload
+        },
+        setShouldLockDevice(state, action: PayloadAction<boolean>) {
+            state.shouldLockDevice = action.payload
         },
     },
     extraReducers: builder => {
@@ -55,12 +72,34 @@ export const recoverySlice = createSlice({
             state.socialRecoveryQr = null
             state.socialRecoveryState = null
         })
+
+        builder.addCase(recoverFromMnemonic.fulfilled, (state, action) => {
+            state.registeredDevices = action.payload
+            // TODO: remove this for privacy reasons after we know seed reuse is stable... will be useful for debugging any problems
+            log.debug(
+                'recoverFromMnemonic registeredDevices',
+                state.registeredDevices,
+            )
+        })
+
+        builder.addCase(fetchRegisteredDevices.fulfilled, (state, action) => {
+            state.registeredDevices = action.payload
+            // TODO: remove this for privacy reasons after we know seed reuse is stable... will be useful for debugging any problems
+            log.debug(
+                'fetchRegisteredDevices registeredDevices',
+                state.registeredDevices,
+            )
+        })
     },
 })
 
 /*** Basic actions ***/
 
-export const { setSocialRecoveryState } = recoverySlice.actions
+export const {
+    setSocialRecoveryState,
+    setDeviceIndexRequired,
+    setShouldLockDevice,
+} = recoverySlice.actions
 
 /*** Async thunk actions ***/
 
@@ -97,6 +136,45 @@ export const cancelSocialRecovery = createAsyncThunk<void, FedimintBridge>(
     },
 )
 
+export const recoverFromMnemonic = createAsyncThunk<
+    RpcRegisteredDevice[],
+    { fedimint: FedimintBridge; mnemonic: SeedWords },
+    { state: CommonState }
+>('recovery/recoverFromMnemonic', async ({ fedimint, mnemonic }) => {
+    return fedimint.recoverFromMnemonic(mnemonic)
+})
+
+export const createNewWallet = createAsyncThunk<
+    RpcFederation | null,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>('recovery/createNewWallet', async ({ fedimint }) => {
+    return fedimint.registerAsNewDevice()
+})
+
+export const transferExistingWallet = createAsyncThunk<
+    RpcFederation | null,
+    { fedimint: FedimintBridge; device: RpcRegisteredDevice },
+    { state: CommonState }
+>('recovery/transferExistingWallet', async ({ fedimint, device }) => {
+    return fedimint.transferExistingDeviceRegistration(device.deviceIndex)
+})
+
+// TODO: consider removing since it is no longer used anywhere?
+export const fetchDeviceIndexAssignmentStatus = createAsyncThunk<
+    RpcDeviceIndexAssignmentStatus,
+    FedimintBridge
+>('recovery/checkDeviceAssignmentStatus', async fedimint => {
+    return fedimint.deviceIndexAssignmentStatus()
+})
+
+export const fetchRegisteredDevices = createAsyncThunk<
+    RpcRegisteredDevice[],
+    FedimintBridge
+>('recovery/fetchRegisteredDevices', async fedimint => {
+    return fedimint.fetchRegisteredDevices()
+})
+
 /*** Selectors ***/
 
 export const selectHasCheckedForSocialRecovery = (s: CommonState) =>
@@ -107,3 +185,6 @@ export const selectSocialRecoveryQr = (s: CommonState) =>
 
 export const selectSocialRecoveryState = (s: CommonState) =>
     s.recovery.socialRecoveryState
+
+export const selectRegisteredDevices = (s: CommonState) =>
+    s.recovery.registeredDevices

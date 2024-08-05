@@ -2,19 +2,20 @@ import { useRouter } from 'next/router'
 import React, { useCallback, useState, useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import { useIsChatSupported } from '@fedi/common/hooks/federation'
+import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     joinFederation,
     selectFederationIds,
+    selectHasSetMatrixDisplayName,
     setActiveFederationId,
 } from '@fedi/common/redux'
-import { FederationPreview, ParserDataType } from '@fedi/common/types'
+import { JoinPreview, ParserDataType } from '@fedi/common/types'
 import {
-    getFederationPreview,
     getFederationTosUrl,
     getFederationWelcomeMessage,
     getIsFederationSupported,
+    previewInvite,
 } from '@fedi/common/utils/FederationUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -24,6 +25,7 @@ import { fedimint } from '../../lib/bridge'
 import { config, styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { FederationAvatar } from '../FederationAvatar'
+import FederationEndedPreview from '../FederationEndedPreview'
 import { Header, Title } from '../Layout'
 import { OmniInput } from '../OmniInput'
 import { Text } from '../Text'
@@ -46,17 +48,17 @@ export const JoinFederation: React.FC = () => {
     const [isFetchingPreview, setIsFetchingPreview] = useState(false)
     const [isJoining, setIsJoining] = useState(false)
     const [isShowingTos, setIsShowingTos] = useState(false)
-    const [federationPreview, setFederationPreview] =
-        useState<FederationPreview>()
-    const isChatSupported = useIsChatSupported(federationPreview)
+    const [federationPreview, setFederationPreview] = useState<JoinPreview>()
     const federationIds = useAppSelector(selectFederationIds)
     const isSm = useMediaQuery(config.media.sm)
+    const popupInfo = usePopupFederationInfo(federationPreview?.meta)
+    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
 
     const handleCode = useCallback(
         async (code: string) => {
             setIsFetchingPreview(true)
             try {
-                const fed = await getFederationPreview(code, fedimint)
+                const fed = await previewInvite(fedimint, code)
                 if (federationIds.includes(fed.id)) {
                     dispatch(setActiveFederationId(fed.id))
                     push('/')
@@ -89,13 +91,17 @@ export const JoinFederation: React.FC = () => {
                     code: federationPreview.inviteCode,
                 }),
             ).unwrap()
-            push(isChatSupported ? '/onboarding/username' : '/')
+            push(
+                hasSetDisplayName
+                    ? '/onboarding/complete'
+                    : '/onboarding/username',
+            )
         } catch (err) {
             log.error('handleJoin', err)
             toast.error(t, err, 'errors.invalid-federation-code')
             setIsJoining(false)
         }
-    }, [federationPreview, dispatch, push, isChatSupported, toast, t])
+    }, [dispatch, federationPreview, hasSetDisplayName, push, t, toast])
 
     const tosUrl = federationPreview
         ? getFederationTosUrl(federationPreview.meta)
@@ -167,11 +173,38 @@ export const JoinFederation: React.FC = () => {
         )
     } else if (tosUrl && isShowingTos) {
         return <TermsOfService tosUrl={tosUrl} onAccept={handleJoin} />
+    } else if (popupInfo?.ended) {
+        content = (
+            <FederationPreviewOuter>
+                <FederationPreviewInner>
+                    <FederationEndedPreview
+                        popupInfo={popupInfo}
+                        federation={federationPreview}
+                    />
+                </FederationPreviewInner>
+            </FederationPreviewOuter>
+        )
+
+        actions = (
+            <>
+                <Button
+                    width="full"
+                    onClick={() => {
+                        setIsJoining(false)
+                        setFederationPreview(undefined)
+                    }}>
+                    {t('phrases.go-back')}
+                </Button>
+            </>
+        )
     } else {
         const welcomeMessage = getFederationWelcomeMessage(
             federationPreview.meta,
         )
-        const memberStatus = federationPreview.returningMemberStatus.type
+        const memberStatus = federationPreview.hasWallet
+            ? federationPreview.returningMemberStatus.type
+            : undefined
+
         const welcomeTitle =
             memberStatus === 'returningMember'
                 ? t('feature.onboarding.welcome-back-to-federation', {

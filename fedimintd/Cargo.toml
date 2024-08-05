@@ -10,13 +10,15 @@ name = "fedimintd"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 fedimintd = { workspace = true }
-tokio = { version = "1.25.0", features = ["full", "tracing"] }
-fedi-social-server = { path = "../fedi-social-server" }
-fedi-social-common = { path = "../fedi-social-common" }
+tokio = { workspace = true, features = ["full", "tracing"] }
+fedi-core = { workspace = true }
+fedi-social-server = { path = "../modules/fedi-social/server" }
+fedi-social-common = { path = "../modules/fedi-social/common" }
 fedimint-core = { workspace = true }
-stability-pool-server = { path = "../stability-pool/stability-pool-server" }
+stability-pool-server = { path = "../modules/stability-pool/server" }
+tracing = { workspace = true }
 
 [build-dependencies]
 fedimint-build = { workspace = true }

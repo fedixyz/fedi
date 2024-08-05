@@ -27,7 +27,7 @@ jobs:
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
 
-            - uses: cachix/cachix-action@v14
+            - uses: cachix/cachix-action@v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -42,6 +42,13 @@ jobs:
               id: prep-apk
               run: nix develop -c ./scripts/ci/prep-apk.sh
 
+            - name: Generate release credentials
+              env:
+                  ANDROID_KEYSTORE_FILE_ENCODED: ${{ secrets.ANDROID_KEYSTORE_FILE_ENCODED }}
+                  ANDROID_KEYSTORE_PROPERTIES_ENCODED: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES_ENCODED }}
+                  PLAY_STORE_JSON_CREDENTIALS_ENCODED: ${{ secrets.PLAY_STORE_JSON_CREDENTIALS_ENCODED }}
+              run: nix develop -c ./scripts/ci/make-android-release-creds.sh
+
             - name: Build APK
               env:
                   APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
@@ -51,7 +58,7 @@ jobs:
               run: nix develop -c ./scripts/ui/build-production-apk.sh
 
             - name: Create draft GitHub release with APK
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.prep-apk.outputs.APK_VERSION }}
                   name: 'v${{ steps.prep-apk.outputs.APK_VERSION }}'

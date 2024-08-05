@@ -20,9 +20,10 @@ export enum SvgImageSize {
     xl = 'xl',
 }
 
-type SvgImageProps = {
+export type SvgImageProps = {
     name: SvgImageName
     size?: SvgImageSize | number
+    dimensions?: { width: number; height: number }
     containerStyle?: ViewStyle
     svgProps?: SvgProps
     color?: string
@@ -32,10 +33,11 @@ type SvgImageProps = {
 const SvgImage = ({
     name,
     size = SvgImageSize.sm,
+    dimensions,
     containerStyle,
     svgProps,
     color,
-    maxFontSizeMultiplier = Infinity,
+    maxFontSizeMultiplier,
 }: SvgImageProps) => {
     const { theme } = useTheme()
     const Svg = Object(Svgs)[name]
@@ -44,15 +46,21 @@ const SvgImage = ({
     // Calculate the size. Use fontScale as a multiplier, but only at
     // half the intensity. E.g. if fontScale is 2, the multiplier is 1.5.
     const multiplier = getIconSizeMultiplier(
-        Math.min(fontScale, maxFontSizeMultiplier),
+        Math.min(
+            fontScale,
+            maxFontSizeMultiplier || theme.multipliers.defaultMaxFontMultiplier,
+        ),
     )
-    const pxSize =
-        (typeof size === 'number' ? size : theme.sizes[size]) * multiplier
+    const { width, height } = dimensions ?? { width: size, height: size }
+    const pxWidth =
+        (typeof width === 'number' ? width : theme.sizes[width]) * multiplier
+    const pxHeight =
+        (typeof height === 'number' ? height : theme.sizes[height]) * multiplier
 
     const defaultSvgProps = {
         color: color || theme.colors.primary,
-        height: pxSize,
-        width: pxSize,
+        height: pxHeight,
+        width: pxWidth,
     }
     const mergedSvgProps = {
         ...defaultSvgProps,

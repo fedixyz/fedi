@@ -23,8 +23,11 @@ export const CopyInput: React.FC<Props> = ({ value, label, onCopyMessage }) => {
         try {
             navigator.clipboard.writeText(value)
             if (onCopyMessage) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                toast.show({ content: t(onCopyMessage as any) })
+                toast.show({
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    content: t(onCopyMessage as any),
+                    status: 'success',
+                })
             }
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')

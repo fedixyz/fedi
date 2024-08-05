@@ -13,6 +13,7 @@ const initialState = {
     steps: {
         hasViewedMemberQr: false,
         hasOpenedNewChat: false,
+        hasPerformedPersonalBackup: false,
         hasOpenedStabilityPool: false,
     },
 }

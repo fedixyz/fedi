@@ -15,7 +15,7 @@ jobs:
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
 
-            - uses: cachix/cachix-action@v14
+            - uses: cachix/cachix-action@v15
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -39,10 +39,8 @@ jobs:
             - name: Execute fastlane beta lane for CI
               env:
                   GH_PAT_FEDI_FETCH_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_FETCH_IOS_CERTS }}
-                  # TODO: for prod, regenerate certificates and convert these to secrets
-                  MATCH_KEYCHAIN_NAME: 'ci-deploy.keychain'
-                  MATCH_KEYCHAIN_PASSWORD: 'fedibtc'
-                  MATCH_PASSWORD: 'fedibtc'
+                  MATCH_KEYCHAIN_NAME: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_NAME }}
+                  MATCH_PASSWORD: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_PASSWORD }}
                   # Consider: should we even have separate steps above for this?
                   BUILD_BRIDGE: 0
                   BUILD_UI_DEPS: 0
@@ -53,5 +51,5 @@ jobs:
 
             - name: Cleanup archives
               run: |
-                # this accumulates data for no good reason
-                rm -Rf $HOME/Library/Developer/Xcode/Archives
+                  # this accumulates data for no good reason
+                  rm -Rf $HOME/Library/Developer/Xcode/Archives

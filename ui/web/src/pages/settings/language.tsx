@@ -28,8 +28,40 @@ function LanguageSettings() {
             value: 'fr',
         },
         {
+            label: 'Português',
+            value: 'pt',
+        },
+        {
             label: 'Bahasa Indonesia',
             value: 'id',
+        },
+        {
+            label: 'العربية',
+            value: 'ar',
+        },
+        {
+            label: 'Juba Arabic',
+            value: 'ara',
+        },
+        {
+            label: 'Ikirundi',
+            value: 'rn',
+        },
+        {
+            label: 'Ikinyarwanda',
+            value: 'rw',
+        },
+        {
+            label: 'Soomaaliga',
+            value: 'so',
+        },
+        {
+            label: 'Kiswahili',
+            value: 'sw',
+        },
+        {
+            label: 'አማርኛ',
+            value: 'am',
         },
     ]
 

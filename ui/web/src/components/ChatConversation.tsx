@@ -4,20 +4,21 @@ import { useTranslation } from 'react-i18next'
 
 import ChevronLeftIcon from '@fedi/common/assets/svgs/chevron-left.svg'
 import SendArrowUpCircleIcon from '@fedi/common/assets/svgs/send-arrow-up-circle.svg'
-import { useUpdateLastMessageRead } from '@fedi/common/hooks/chat'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectChat, selectChatGroupRole } from '@fedi/common/redux'
 import {
-    ChatMessage as ChatMessageType,
-    ChatRole,
-    ChatType,
-} from '@fedi/common/types'
-import { makeMessageGroups } from '@fedi/common/utils/chat'
+    selectMatrixRoom,
+    selectMatrixRoomIsReadOnly,
+    selectMatrixUser,
+} from '@fedi/common/redux'
+import { ChatType, MatrixEvent } from '@fedi/common/types'
+import { makeMatrixEventGroups } from '@fedi/common/utils/matrix'
 
 import { useAutosizeTextArea, useAppSelector, useIsTouchScreen } from '../hooks'
 import { styled, theme } from '../styles'
+import { Avatar } from './Avatar'
 import { ChatAvatar } from './ChatAvatar'
-import { ChatMessageCollection } from './ChatMessageCollection'
+import { ChatEventCollection } from './ChatEventCollection'
+import { CircularLoader } from './CircularLoader'
 import { Icon } from './Icon'
 import { IconButton } from './IconButton'
 import * as Layout from './Layout'
@@ -27,41 +28,76 @@ interface Props {
     type: ChatType
     id: string
     name: string
-    messages: ChatMessageType[]
+    events: MatrixEvent[]
     headerActions?: React.ReactNode
     inputActions?: React.ReactNode
     onSendMessage(message: string): Promise<void>
+    onPaginate?: () => Promise<{ end: boolean }>
 }
 
 export const ChatConversation: React.FC<Props> = ({
     type,
     id,
     name,
-    messages,
+    events,
     headerActions,
     inputActions,
     onSendMessage,
+    onPaginate,
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
     const { back } = useRouter()
-    const chat = useAppSelector(s => selectChat(s, id))
-    const role = useAppSelector(s => selectChatGroupRole(s, id))
+    const room = useAppSelector(s => selectMatrixRoom(s, id))
+    const user = useAppSelector(s => selectMatrixUser(s, id))
+    const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
     const [value, setValue] = useState('')
     const [isSending, setIsSending] = useState(false)
+    const [hasPaginated, setHasPaginated] = useState(false)
+    const [isPaginating, setIsPaginating] = useState(false)
+    const [isAtEnd, setIsAtEnd] = useState(false)
     const isTouchScreen = useIsTouchScreen()
     const inputRef = useRef<HTMLTextAreaElement>(null)
     useAutosizeTextArea(inputRef.current, value)
 
-    const isReadOnly = chat?.broadcastOnly && role === ChatRole.visitor
-
-    const messageCollections = useMemo(
-        () => makeMessageGroups(messages, 'desc'),
-        [messages],
+    const eventGroups = useMemo(
+        () => makeMatrixEventGroups(events, 'desc'),
+        [events],
     )
 
-    // While we have the chat open, mark any message that comes in as read
-    useUpdateLastMessageRead(id, messages)
+    // Any time we get a change in the number of events, we reset hasPaginated
+    // so that the user will attempt pagination again.
+    useEffect(() => {
+        setHasPaginated(false)
+    }, [events.length])
+
+    const handleMessagesScroll = useCallback(
+        (ev: React.WheelEvent<HTMLDivElement>) => {
+            if (!onPaginate) return
+            const { clientHeight, scrollHeight } = ev.currentTarget
+            const scrollTop = Math.abs(ev.currentTarget.scrollTop)
+            if (scrollTop + clientHeight + 80 > scrollHeight) {
+                setIsPaginating(true)
+                setHasPaginated(true)
+                onPaginate()
+                    .then(({ end }) => setIsAtEnd(end))
+                    .catch(() => null)
+                    .finally(() => setIsPaginating(false))
+            }
+        },
+        [onPaginate],
+    )
+
+    // Handle loading initial messages
+    useEffect(() => {
+        if (!onPaginate) return
+        setIsPaginating(true)
+        setHasPaginated(true)
+        onPaginate()
+            .then(({ end }) => setIsAtEnd(end))
+            .catch(() => null)
+            .finally(() => setIsPaginating(false))
+    }, [onPaginate])
 
     const handleSend = useCallback(
         async (ev?: React.FormEvent) => {
@@ -99,6 +135,15 @@ export const ChatConversation: React.FC<Props> = ({
         }
     }, [inputDisabled])
 
+    let avatar: React.ReactNode
+    if (room) {
+        avatar = <ChatAvatar room={room} size="sm" />
+    } else if (user) {
+        avatar = <ChatAvatar user={user} size="sm" />
+    } else {
+        avatar = <Avatar size="sm" id={id} name={name} />
+    }
+
     return (
         <Layout.Root>
             <Layout.Header padded displaceBackIcon={!headerActions}>
@@ -112,7 +157,7 @@ export const ChatConversation: React.FC<Props> = ({
                     </BackButton>
                 </HeaderInfo>
                 <HeaderContent>
-                    <ChatAvatar chat={chat} size="sm" />
+                    {avatar}
                     <Text weight="medium">{name}</Text>
                 </HeaderContent>
 
@@ -121,14 +166,23 @@ export const ChatConversation: React.FC<Props> = ({
                 )}
             </Layout.Header>
             <Layout.Content fullWidth>
-                <Messages>
-                    {messageCollections.map(collection => (
-                        <ChatMessageCollection
+                <Messages
+                    onWheel={
+                        onPaginate && !hasPaginated && !isAtEnd
+                            ? handleMessagesScroll
+                            : undefined
+                    }>
+                    {eventGroups.map(collection => (
+                        <ChatEventCollection
                             key={collection[0][0].id}
+                            roomId={id}
                             collection={collection}
                             showUsernames={type === ChatType.group}
                         />
                     ))}
+                    <PaginationPlaceholder>
+                        {isPaginating && <CircularLoader />}
+                    </PaginationPlaceholder>
                 </Messages>
             </Layout.Content>
             <Actions onSubmit={handleSend}>
@@ -248,4 +302,13 @@ const SendButton = styled('button', {
         width: 24,
         height: 24,
     },
+})
+
+const PaginationPlaceholder = styled('div', {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 60,
+    flexShrink: 0,
+    color: theme.colors.grey,
 })

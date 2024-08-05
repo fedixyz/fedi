@@ -19,7 +19,7 @@ import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
 
 import { FALLBACK_TERMS_URL } from '../../../constants'
 import { useAppSelector } from '../../../state/hooks'
-import { FederationLogo } from '../../ui/FederationLogo'
+import { FederationLogo } from './FederationLogo'
 
 export const PopupFederationCountdown: React.FC = () => {
     const { t } = useTranslation()
@@ -61,7 +61,7 @@ export const PopupFederationCountdown: React.FC = () => {
         )
 
     return (
-        <>
+        <View style={style.container}>
             <Pressable
                 style={pillStyles}
                 onPress={() => setIsOverlayVisible(true)}>
@@ -113,12 +113,15 @@ export const PopupFederationCountdown: React.FC = () => {
                     )}
                 </View>
             </Overlay>
-        </>
+        </View>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        container: {
+            alignItems: 'center',
+        },
         pill: {
             paddingVertical: theme.spacing.xxs,
             paddingHorizontal: theme.spacing.sm,

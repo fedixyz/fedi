@@ -1,11 +1,11 @@
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
+import { ActivityIndicator, StyleSheet } from 'react-native'
 
-import { encodeDirectChatLink } from '@fedi/common/utils/xmpp'
+import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
-import Avatar, { AvatarSize } from '../../ui/Avatar'
 import SvgImage from '../../ui/SvgImage'
+import ChatUserTile from '../chat/ChatUserTile'
 import type { OmniMemberSearchListItemType } from './OmniMemberSearchList'
 
 interface Props {
@@ -22,22 +22,19 @@ export const OmniMemberSearchItem: React.FC<Props> = ({ item, onInput }) => {
 
     const style = styles(theme)
     return (
-        <Pressable
-            style={style.searchMember}
-            hitSlop={theme.spacing.md}
-            onPress={() =>
+        <ChatUserTile
+            containerStyle={style.searchMember}
+            user={item}
+            showSuffix
+            selectUser={() =>
                 onInput(
                     item.inputData
                         ? item.inputData
-                        : encodeDirectChatLink(item.id),
+                        : encodeFediMatrixUserUri(item.id),
                 )
-            }>
-            <Avatar id={item.id} name={item.username} size={AvatarSize.md} />
-            <Text numberOfLines={1} style={style.searchMemberText}>
-                {item.username}
-            </Text>
-            <SvgImage name="ChevronRight" />
-        </Pressable>
+            }
+            rightIcon={<SvgImage name="ChevronRight" />}
+        />
     )
 }
 
@@ -50,8 +47,5 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.md,
             paddingVertical: theme.spacing.sm,
             paddingHorizontal: theme.spacing.lg,
-        },
-        searchMemberText: {
-            flex: 1,
         },
     })

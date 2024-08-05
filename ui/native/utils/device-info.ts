@@ -1,6 +1,14 @@
 import RNDI from 'react-native-device-info'
 import { v4 as uuidv4 } from 'uuid'
 
+import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
+import dateUtils from '@fedi/common/utils/DateUtils'
+import { makeLog } from '@fedi/common/utils/log'
+
+import { SvgImageName } from '../components/ui/SvgImage'
+
+const log = makeLog('native/utils/device-info')
+
 /**
  * Single call to fetch all device info we want for debugging in parallel.
  */
@@ -88,4 +96,45 @@ export function getAllDeviceInfo() {
  */
 export function generateDeviceId() {
     return `${RNDI.getDeviceId()}:Mobile:${uuidv4()}`
+}
+
+export function getOsFromDeviceId() {
+    return RNDI.getDeviceId().includes('iPhone') ? 'iOS' : 'Android'
+}
+
+type FormattedDeviceInfo = {
+    deviceName: string
+    iconName: SvgImageName
+    lastSeenAt: string
+}
+export function getFormattedDeviceInfo(
+    device: RpcRegisteredDevice,
+): FormattedDeviceInfo {
+    let deviceName = 'Unknown'
+    let iconName: SvgImageName = 'Error'
+    let lastSeenAt = '-'
+    try {
+        const { deviceIdentifier, lastRegistrationTimestamp } = device
+        const [hardware, platform, uuid] = deviceIdentifier.split(':')
+        let os = hardware.includes('iPhone') ? 'iOS' : 'Android'
+        iconName = hardware.includes('iPhone') ? 'DeviceIos' : 'DeviceAndroid'
+        if (platform === 'Web') {
+            os = 'Web'
+            iconName = 'DeviceBrowser'
+        }
+        // use first 3 characters of uuid as a human-readable ID
+        const shortId = uuid.split('-')[0].substring(0, 3).toUpperCase()
+        deviceName = `${os} - ${shortId}`
+        lastSeenAt = dateUtils.formatDeviceRegistrationTimestamp(
+            lastRegistrationTimestamp,
+        )
+    } catch (error) {
+        log.error('getFormattedDeviceInfo', error)
+    }
+
+    return {
+        deviceName,
+        iconName,
+        lastSeenAt,
+    }
 }

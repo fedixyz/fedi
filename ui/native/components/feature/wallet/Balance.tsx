@@ -9,15 +9,14 @@ const Balance: React.FC = () => {
     const { theme } = useTheme()
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance()
 
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).container}>
-            <Text
-                h2
-                medium
-                style={[styles(theme).balanceText, styles(theme).topText]}>
+        <View style={style.container}>
+            <Text medium style={[style.balanceText]}>
                 {`${formattedBalanceFiat}`}
             </Text>
-            <Text caption medium style={styles(theme).balanceText}>
+            <Text small style={style.balanceText}>
                 {`${formattedBalanceSats}`}
             </Text>
         </View>
@@ -27,15 +26,11 @@ const Balance: React.FC = () => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            minHeight: 60,
+            gap: theme.spacing.xxs,
         },
         balanceText: {
-            textAlign: 'center',
+            textAlign: 'right',
             color: theme.colors.secondary,
-            marginBottom: theme.spacing.xs,
-        },
-        topText: {
-            lineHeight: 32,
         },
     })
 

@@ -11,10 +11,11 @@ export enum ParserDataType {
     Bip21 = 'bitcoin:bip21',
     FedimintEcash = 'fedimint:ecash',
     FedimintInvite = 'fedimint:invite',
-    FediChatMember = 'fedi:chatmember', // TODO: remove after matrixification
-    FediChatGroup = 'fedi:chatgroup', // TODO: remove after matrixification
-    FediChatUser = 'fedi:chatuser',
-    FediChatRoom = 'fedi:chatroom',
+    LegacyFediChatMember = 'fedi:member', // TODO: remove after matrixification
+    LegacyFediChatGroup = 'fedi:group', // TODO: remove after matrixification
+    CommunityInvite = 'fedi:community',
+    FediChatUser = 'fedi:user',
+    FediChatRoom = 'fedi:room',
     Website = 'website',
     Unknown = 'unknown',
 }
@@ -96,6 +97,13 @@ export type ParsedFedimintEcash = ParsedData<
     }
 >
 
+export type ParsedCommunityInvite = ParsedData<
+    ParserDataType.CommunityInvite,
+    {
+        invite: string
+    }
+>
+
 export type ParsedFederationInvite = ParsedData<
     ParserDataType.FedimintInvite,
     {
@@ -103,18 +111,25 @@ export type ParsedFederationInvite = ParsedData<
     }
 >
 
-export type ParsedFediChatMember = ParsedData<
-    ParserDataType.FediChatMember,
+/** @deprecated XMPP legacy code  */
+export type ParsedLegacyFediChatMember = ParsedData<
+    ParserDataType.LegacyFediChatMember,
     { id: string }
 >
 
-export type ParsedFediChatGroup = ParsedData<
-    ParserDataType.FediChatGroup,
+/** @deprecated XMPP legacy code  */
+export type ParsedLegacyFediChatGroup = ParsedData<
+    ParserDataType.LegacyFediChatGroup,
     { id: string }
 >
 
 export type ParsedFediChatUser = ParsedData<
     ParserDataType.FediChatUser,
+    { id: string; displayName: string }
+>
+
+export type ParsedFediChatRoom = ParsedData<
+    ParserDataType.FediChatRoom,
     { id: string }
 >
 
@@ -135,8 +150,10 @@ export type AnyParsedData =
     | ParsedBip21
     | ParsedFedimintEcash
     | ParsedFederationInvite
-    | ParsedFediChatMember
-    | ParsedFediChatGroup
+    | ParsedCommunityInvite
+    | ParsedLegacyFediChatMember
+    | ParsedLegacyFediChatGroup
     | ParsedFediChatUser
+    | ParsedFediChatRoom
     | ParsedWebsite
     | ParsedUnknownData

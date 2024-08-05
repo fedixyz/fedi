@@ -11,12 +11,11 @@ path = "src/main.rs"
 
 
 [dependencies]
-anyhow = "1.0.66"
-fedimint-cli = { workspace = true}
-tokio = { version = "1.25.0", features = ["full", "tracing"] }
-stability-pool-client = { path = "../stability-pool/stability-pool-client" }
-fedi-social-client = { path = "../fedi-social-client" }
-clap = { version = "4.1.6", features = ["derive", "std", "help", "usage", "error-context", "suggestions" ], default-features = false }
+anyhow = { workspace = true }
+fedimint-cli = { workspace = true }
+tokio = { workspace = true, features = ["full", "tracing"] }
+stability-pool-client = { path = "../modules/stability-pool/client" }
+fedi-social-client = { path = "../modules/fedi-social/client" }
 
 [build-dependencies]
 fedimint-build = { workspace = true }

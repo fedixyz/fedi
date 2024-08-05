@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next'
 import BitcoinIcon from '@fedi/common/assets/svgs/bitcoin.svg'
 import ListIcon from '@fedi/common/assets/svgs/list.svg'
 import { useBalance } from '@fedi/common/hooks/amount'
+import { selectActiveFederation } from '@fedi/common/redux'
 
+import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
 import { Button } from './Button'
 import { Icon } from './Icon'
@@ -18,6 +20,9 @@ export const BitcoinWallet: React.FC = () => {
     const { t } = useTranslation()
     const { pathname, push } = useRouter()
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance()
+    const activeFederation = useAppSelector(selectActiveFederation)
+
+    if (!activeFederation || !activeFederation.hasWallet) return null
 
     return (
         <Container>
@@ -54,7 +59,8 @@ export const BitcoinWallet: React.FC = () => {
                 <Button
                     variant="secondary"
                     width="full"
-                    onClick={() => push('/send')}>
+                    onClick={() => push('/send')}
+                    disabled={activeFederation.balance < 1000}>
                     {t('words.send')}
                 </Button>
             </Buttons>

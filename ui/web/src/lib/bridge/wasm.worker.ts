@@ -1,6 +1,8 @@
 // worker to run bridge in a different thread
 // request: {token: int, method: string, data: string}
 // response: {event: string, data: string} | {token: int, result: string} | {error: string}
+import { RpcInitOpts } from '@fedi/common/types/bindings'
+import { isDev } from '@fedi/common/utils/environment'
 import { makeLog } from '@fedi/common/utils/log'
 import init, {
     fedimint_initialize,
@@ -20,13 +22,27 @@ async function workerInit() {
         log.error('fedimint_initialize - deviceId not set')
         throw new Error('Failed to initialize bridge')
     }
+    const origin = self?.location?.host || ''
+    const options: RpcInitOpts = {
+        dataDir: null,
+        deviceIdentifier: deviceId,
+        logLevel: null,
+        appFlavor: {
+            type: isDev()
+                ? 'dev'
+                : origin.includes('app.fedi.xyz')
+                ? 'bravo'
+                : 'nightly',
+        },
+    }
+    const initOptsJson = JSON.stringify(options)
     const result = await fedimint_initialize(
         {
             event(event_name: string, data: string) {
                 postMessage({ event: event_name, data })
             },
         },
-        deviceId,
+        initOptsJson,
     )
 
     try {
