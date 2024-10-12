@@ -314,5 +314,7 @@ function makeLogsS3Url(id: string) {
         return ''
     }
     const url = `https://s3.console.aws.amazon.com/s3/object/${bucket}?region=${region}&prefix=${id}.tar.gz`
-    return `https://fedibtc.awsapps.com/start/#/console?account_id=792500679265&destination=${encodeURIComponent(url)}`
+    return `https://fedibtc.awsapps.com/start/#/console?account_id=792500679265&destination=${encodeURIComponent(
+        url,
+    )}`
 }

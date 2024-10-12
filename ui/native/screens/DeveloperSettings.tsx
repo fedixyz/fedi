@@ -9,18 +9,18 @@ import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
-    selectActiveFederation,
-    selectOnchainDepositsEnabled,
-    setOnchainDepositsEnabled,
-    selectStableBalanceEnabled,
-    setStableBalanceEnabled,
-    resetNuxSteps,
-    selectShowFiatTxnAmounts,
-    setShowFiatTxnAmounts,
-    selectStabilityPoolCycleStartPrice,
     refreshActiveStabilityPool,
+    resetNuxSteps,
+    selectActiveFederation,
     selectFediModDebugMode,
+    selectOnchainDepositsEnabled,
+    selectShowFiatTxnAmounts,
+    selectStabilityPoolCycleStartPrice,
+    selectStableBalanceEnabled,
     setFediModDebugMode,
+    setOnchainDepositsEnabled,
+    setShowFiatTxnAmounts,
+    setStableBalanceEnabled,
 } from '@fedi/common/redux'
 import { selectCurrency } from '@fedi/common/redux/currency'
 import {
@@ -36,7 +36,7 @@ import CheckBox from '../components/ui/CheckBox'
 import { version } from '../package.json'
 import { useAppDispatch, useAppSelector, useBridge } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
-import { shareLogsExport, shareReduxState } from '../utils/logs-export'
+import { shareLogsExport, shareReduxState } from '../utils/log'
 
 const log = makeLog('DeveloperSettings')
 
@@ -49,7 +49,6 @@ type FeesMap = { [key: string]: number }
 const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const { listGateways, switchGateway, guardianStatus } = useBridge()
     const toast = useToast()
     const [isLoadingGateways, setIsLoadingGateways] = useState<boolean>(false)
     const [gateways, setGateways] = useState<LightningGateway[]>([])
@@ -82,6 +81,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const activeFederation = useAppSelector(selectActiveFederation)
     const authenticatedGuardian = useAppSelector(
         s => s.federation.authenticatedGuardian,
+    )
+
+    const { listGateways, switchGateway, guardianStatus } = useBridge(
+        activeFederation?.id,
     )
 
     useEffect(() => {

@@ -13,12 +13,12 @@ import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux'
 
 import { usePublishNotificationToken } from '@fedi/common/hooks/chat'
 import {
+    ensureHealthyMatrixStream,
     refreshActiveStabilityPool,
     selectCurrency,
+    selectCurrencyLocale,
     selectStableBalance,
     selectStableBalancePending,
-    selectActiveFederation,
-    ensureHealthyMatrixStream,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
@@ -46,10 +46,7 @@ export const usePrevious = <T = unknown>(value: T): T | undefined => {
     return ref.current
 }
 
-export const useBridge = () => {
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const activeFederationId = activeFederation?.id
-
+export const useBridge = (activeFederationId: string | undefined) => {
     return {
         approveSocialRecoveryRequest: useCallback(
             (recoveryId: string, peerId: number, password: string) => {
@@ -140,15 +137,9 @@ export const useBridge = () => {
 
             return fedimint.getNostrPubKey()
         }, [activeFederationId]),
-        signNostrEvent: useCallback(
-            (eventHash: string) => {
-                if (!activeFederationId)
-                    return Promise.reject(new Error('No active federation'))
-
-                return fedimint.signNostrEvent(eventHash, activeFederationId)
-            },
-            [activeFederationId],
-        ),
+        signNostrEvent: useCallback((eventHash: string) => {
+            return fedimint.signNostrEvent(eventHash)
+        }, []),
         listGateways: useCallback(() => {
             if (!activeFederationId)
                 return Promise.reject(new Error('No active federation'))
@@ -195,13 +186,14 @@ export const useBridge = () => {
             [activeFederationId],
         ),
         socialRecoveryDownloadVerificationDoc: useCallback(
-            (recoveryId: string) => {
+            (recoveryId: string, peerId: number) => {
                 if (!activeFederationId)
                     return Promise.reject(new Error('No active federation'))
 
                 return fedimint.socialRecoveryDownloadVerificationDoc(
                     recoveryId,
                     activeFederationId,
+                    peerId,
                 )
             },
             [activeFederationId],
@@ -292,6 +284,7 @@ export const useStabilityPool = () => {
     const stableBalance = useAppSelector(selectStableBalance)
     const stableBalancePending = useAppSelector(selectStableBalancePending)
     const selectedCurrency = useAppSelector(selectCurrency)
+    const currencyLocale = useAppSelector(selectCurrencyLocale)
 
     const refreshBalance = useCallback(() => {
         dispatch(
@@ -316,12 +309,12 @@ export const useStabilityPool = () => {
     const formattedStableBalance = amountUtils.formatFiat(
         stableBalance,
         selectedCurrency,
-        { symbolPosition: 'end' },
+        { symbolPosition: 'end', locale: currencyLocale },
     )
     const formattedStableBalancePending = amountUtils.formatFiat(
         stableBalancePending,
         selectedCurrency,
-        { symbolPosition: 'end' },
+        { symbolPosition: 'end', locale: currencyLocale },
     )
 
     return {

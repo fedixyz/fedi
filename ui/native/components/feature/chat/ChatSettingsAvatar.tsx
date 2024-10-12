@@ -1,7 +1,6 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet } from 'react-native'
-import { View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { MatrixRoom } from '@fedi/common/types'
 

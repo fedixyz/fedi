@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
-    selectPayFromFederation,
+    selectPaymentFederation,
     selectWalletFederations,
     setPayFromFederationId,
 } from '@fedi/common/redux'
@@ -16,13 +16,15 @@ import CustomOverlay from '../../ui/CustomOverlay'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 
-const FederationWalletSelector: React.FC = () => {
+const FederationWalletSelector: React.FC<{ readonly?: boolean }> = ({
+    readonly = false,
+}) => {
     const { theme } = useTheme()
     const dispatch = useAppDispatch()
     const [opened, setOpened] = useState<boolean>(false)
     const { t } = useTranslation()
     const style = styles(theme)
-    const payFromFederation = useAppSelector(selectPayFromFederation)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const federations = useAppSelector(selectWalletFederations)
 
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
@@ -30,7 +32,7 @@ const FederationWalletSelector: React.FC = () => {
         formattedPrimaryAmount: primaryAmountToSendFrom,
         formattedSecondaryAmount: secondaryAmountToSendFrom,
     } = makeFormattedAmountsFromMSats(
-        payFromFederation?.balance || (0 as MSats),
+        paymentFederation?.balance || (0 as MSats),
     )
 
     const handleFederationSelected = useCallback(
@@ -56,7 +58,7 @@ const FederationWalletSelector: React.FC = () => {
                         {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
                     </Text>
                 </View>
-                {payFromFederation?.id === f.id && (
+                {paymentFederation?.id === f.id && (
                     <SvgImage
                         name="Check"
                         size={SvgImageSize.sm}
@@ -75,11 +77,12 @@ const FederationWalletSelector: React.FC = () => {
         <View style={style.container}>
             <Pressable
                 style={style.selectedFederation}
-                onPress={() => setOpened(true)}>
-                <FederationLogo federation={payFromFederation} size={32} />
+                onPress={() => setOpened(true)}
+                disabled={readonly}>
+                <FederationLogo federation={paymentFederation} size={32} />
                 <View style={style.tileTextContainer}>
                     <Text caption bold numberOfLines={1}>
-                        {payFromFederation?.name || ''}
+                        {paymentFederation?.name || ''}
                     </Text>
                     <Text
                         style={{ color: theme.colors.darkGrey }}
@@ -89,14 +92,16 @@ const FederationWalletSelector: React.FC = () => {
                         {`${primaryAmountToSendFrom} (${secondaryAmountToSendFrom})`}
                     </Text>
                 </View>
-                <SvgImage
-                    name="ChevronRight"
-                    size={SvgImageSize.sm}
-                    containerStyle={{
-                        transform: [{ rotate: '90deg' }],
-                        marginLeft: 'auto',
-                    }}
-                />
+                {readonly ? null : (
+                    <SvgImage
+                        name="ChevronRight"
+                        size={SvgImageSize.sm}
+                        containerStyle={{
+                            transform: [{ rotate: '90deg' }],
+                            marginLeft: 'auto',
+                        }}
+                    />
+                )}
             </Pressable>
             <CustomOverlay
                 show={opened}

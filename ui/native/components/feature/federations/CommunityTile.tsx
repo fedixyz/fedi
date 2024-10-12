@@ -1,5 +1,4 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'

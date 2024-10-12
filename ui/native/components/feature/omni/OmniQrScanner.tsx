@@ -1,8 +1,7 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { View, StyleSheet } from 'react-native'
-import { Linking } from 'react-native'
+import { Linking, StyleSheet, View } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {

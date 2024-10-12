@@ -16,7 +16,7 @@ jobs:
             contents: write
             pull-requests: write
         name: Update version to match release branch
-        runs-on: [self-hosted, linux]
+        runs-on: [self-hosted, macos, arm64]
         if: contains(github.ref, 'release/')
         steps:
             - name: Checkout repo

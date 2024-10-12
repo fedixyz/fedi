@@ -15,10 +15,13 @@ import {
 import { useAmountInput } from '@fedi/common/hooks/amount'
 import { Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { makeLog } from '@fedi/common/utils/log'
 
 import InvisibleInput from './InvisibleInput'
 import { NumpadButton } from './NumpadButton'
 import SvgImage from './SvgImage'
+
+const log = makeLog('native/components/ui/AmountInput')
 
 export type Props = {
     amount: Sats
@@ -58,6 +61,7 @@ const AmountInput: React.FC<Props> = ({
         validation,
         numpadButtons,
         handleNumpadPress,
+        currencyLocale,
     } = useAmountInput(amount, onChangeAmount, minimumAmount, maximumAmount)
     const inputRef = useRef<TextInput>(null)
     const { height, width } = useWindowDimensions()
@@ -111,7 +115,10 @@ const AmountInput: React.FC<Props> = ({
                                 ? amountUtils.formatFiat(
                                       validation.fiatValue,
                                       currency,
-                                      { symbolPosition: 'end' },
+                                      {
+                                          symbolPosition: 'end',
+                                          locale: currencyLocale,
+                                      },
                                   )
                                 : `${amountUtils.formatSats(
                                       validation.amount,
@@ -180,7 +187,13 @@ const AmountInput: React.FC<Props> = ({
                         <NumpadButton
                             key={btn}
                             btn={btn}
-                            onPress={() => handleNumpadPress(btn)}
+                            onPress={() => {
+                                try {
+                                    handleNumpadPress(btn)
+                                } catch (err) {
+                                    log.error('handleNumpadPress', err)
+                                }
+                            }}
                             disabled={isSubmitting}
                         />
                     ))}

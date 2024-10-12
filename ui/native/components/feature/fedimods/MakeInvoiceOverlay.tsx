@@ -38,8 +38,8 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
-    const { generateInvoice } = useBridge()
     const federationId = useAppSelector(selectActiveFederationId)
+    const { generateInvoice } = useBridge(federationId)
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const [submitAttempts, setSubmitAttempts] = useState(0)
@@ -108,7 +108,7 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({
             }
             contents={{
                 title: exactAmount
-                    ? t('feature.fedimods.wants-to-pay-you', {
+                    ? t('feature.fedimods.wants-to-send-you', {
                           fediMod: fediMod.title,
                       })
                     : t('feature.fedimods.enter-amount-to-withdraw', {

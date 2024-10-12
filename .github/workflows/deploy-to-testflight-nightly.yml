@@ -6,6 +6,7 @@ on:
 jobs:
     release-ios:
         name: Build iOS app and upload to TestFlight
+        timeout-minutes: 60
         runs-on: [self-hosted, macos, arm64]
         steps:
             - name: Checkout repo
@@ -37,6 +38,7 @@ jobs:
               run: nix develop -c ./scripts/ci/make-testflight-creds.sh
 
             - name: Execute fastlane beta lane for CI
+              timeout-minutes: 40
               env:
                   GH_PAT_FEDI_FETCH_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_FETCH_IOS_CERTS }}
                   MATCH_KEYCHAIN_NAME: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_NAME }}

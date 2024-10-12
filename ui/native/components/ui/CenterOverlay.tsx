@@ -2,10 +2,10 @@ import { Overlay, Theme, useTheme } from '@rneui/themed'
 import React, { useRef } from 'react'
 import {
     Animated,
-    StyleSheet,
     LayoutChangeEvent,
-    ViewStyle,
     StyleProp,
+    StyleSheet,
+    ViewStyle,
 } from 'react-native'
 
 type CenterOverlayProps = {

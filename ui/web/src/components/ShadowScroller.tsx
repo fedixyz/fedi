@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle } from 'react'
+import React, { useEffect, useImperativeHandle, useState } from 'react'
 
 import { styled, theme } from '../styles'
 

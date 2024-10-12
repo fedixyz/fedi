@@ -10,6 +10,7 @@ import commonRN from './rn/common.json'
 import commonRW from './rw/common.json'
 import commonSO from './so/common.json'
 import commonSW from './sw/common.json'
+import commonTL from './tl/common.json'
 
 export const resources = {
     en: {
@@ -26,6 +27,9 @@ export const resources = {
     },
     pt: {
         translation: commonPT,
+    },
+    tl: {
+        translation: commonTL,
     },
     ar: {
         translation: commonAR,

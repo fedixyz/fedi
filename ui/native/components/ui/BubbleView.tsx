@@ -1,7 +1,6 @@
 import { Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
-import { StyleProp, View, ViewStyle } from 'react-native'
-import { StyleSheet } from 'react-native'
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 import LinearGradient, {
     type LinearGradientProps,
 } from 'react-native-linear-gradient'

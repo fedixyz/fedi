@@ -4,8 +4,7 @@ import React from 'react'
 import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 
 import { styled, theme } from '../styles'
-import { IconProps } from './Icon'
-import { Icon } from './Icon'
+import { Icon, IconProps } from './Icon'
 import { Text } from './Text'
 
 interface MenuItem {

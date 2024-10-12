@@ -1,25 +1,26 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Theme } from '@rneui/themed'
-import { useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Keyboard, StyleSheet, View } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
-    useBalanceDisplay,
     useAmountFormatter,
+    useBalanceDisplay,
 } from '@fedi/common/hooks/amount'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
+import { selectPaymentFederation } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { makeLog } from '@fedi/common/utils/log'
 
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
-import { useBridge } from '../state/hooks'
+import { useAppSelector, useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('ConfirmSendEcash')
@@ -36,7 +37,8 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const { amount } = route.params
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const [isLoading, setIsLoading] = useState<boolean>(false)
-    const { generateEcash } = useBridge()
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const { generateEcash } = useBridge(paymentFederation?.id)
     const balanceDisplay = useBalanceDisplay(t)
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
         useFeeDisplayUtils(t)
@@ -80,6 +82,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
 
     return (
         <View style={style.container}>
+            <FederationWalletSelector />
             <SendAmounts
                 balanceDisplay={balanceDisplay}
                 formattedPrimaryAmount={formattedPrimaryAmount}

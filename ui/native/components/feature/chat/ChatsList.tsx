@@ -12,11 +12,11 @@ import {
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import {
-    selectMatrixChatsList,
-    selectMatrixStatus,
+    previewDefaultGroupChats,
     refetchMatrixRoomList,
     selectIsChatEmpty,
-    previewDefaultGroupChats,
+    selectMatrixChatsList,
+    selectMatrixStatus,
 } from '@fedi/common/redux'
 import { ChatType, MatrixRoom, MatrixSyncStatus } from '@fedi/common/types'
 

@@ -37,6 +37,12 @@ pub enum ErrorCode {
     Recovery,
     #[error("Deserializing JSON failed: {0}")]
     InvalidJson(String),
+    #[error("pay_invoice is already paid")]
+    PayLnInvoiceAlreadyPaid,
+    #[error("pay_invoice is already in progress")]
+    PayLnInvoiceAlreadyInProgress,
+    #[error("No Lightning gateway is available")]
+    NoLnGatewayAvailable,
 }
 
 pub fn get_error_code(err: &anyhow::Error) -> Option<ErrorCode> {

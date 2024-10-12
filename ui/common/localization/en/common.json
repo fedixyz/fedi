@@ -360,6 +360,8 @@
             "invite-to-group": "Invite to group",
             "join-a-group": "Join a group",
             "join-group": "Join group",
+            "leave-chat": "Leave chat",
+            "leave-chat-confirmation": "Are you sure you want to leave this chat? All message history will be lost.",
             "leave-group": "Leave group",
             "leave-group-confirmation": "Are you sure you want to leave the group? All group message history will be lost.",
             "member-not-found": "Could not find a member with the username '{{username}}'",
@@ -427,7 +429,7 @@
         "community": {
             "add-community": "Add community",
             "join-a-community": "Join a community",
-            "join-community-guidance": "Join your favorite community or community to access money and more",
+            "join-community-guidance": "Join your favorite community to access money and more",
             "or-visit-awesome-fedimint": "or Visit Awesome Fedimint"
         },
         "developer": {
@@ -461,6 +463,8 @@
             "leave-federation-withdraw-stable-first": "You must withdraw your entire {{currency}} balance before leaving.",
             "paste-federation-code": "Paste community code",
             "paste-federation-code-instead": "Paste community code instead",
+            "recover-from-scratch": "Recover from scratch",
+            "recover-from-scratch-warning": "Warning: This takes a long time. You should NOT select this option unless instructed by Fedi support.",
             "scan-federation-invite": "Scan a Community Invite"
         },
         "fedimods": {
@@ -481,7 +485,7 @@
             "payment-request": "Payment request from {{fediMod}}",
             "stable-balance-enabled": "Stable Balance",
             "stable-balance-enabled-info": "Enables ability to convert sats to stable currency",
-            "wants-to-pay-you": "{{fediMod}} wants to pay you",
+            "wants-to-send-you": "{{fediMod}} wants to send you",
             "wants-you-to-pay": "{{fediMod}} wants you to pay",
             "your-mods": "Your Mods"
         },
@@ -635,6 +639,7 @@
             "join-to-receive": "Join <bold>{{federation}}</bold> to receive",
             "maximum-invoice-amount": "Maximum invoice amount is {{maxAmount}} SATS",
             "onchain-notice": "On-chain deposits take ~10 hours to confirm. Use Lightning for instant transactions",
+            "onchain-expert-only": "For your safety: Keep the transaction size under 40 kB and DO NOT reuse this address in the future. This will help prevent any potential issues with your deposit.",
             "other-methods": "Other methods",
             "pending-transaction": "pending transaction",
             "receive-amount-unit": "Receive {{amount}} {{unit}}",
@@ -748,7 +753,6 @@
             "offline-send-warning": "On the next step, when the QR is presented, the sats will be removed from your wallet",
             "paste-payment-request": "Paste payment request",
             "paste-payment-request-instead": "Paste payment request instead",
-            "refund-in-block": "Refund in block {{block}}",
             "scan-qr-code": "Scan a Lightning QR Code",
             "send-amount-unit": "Send {{amount}} {{unit}}",
             "send-bitcoin": "Send bitcoin",
@@ -758,6 +762,7 @@
             "send-sats": "Send {{amount}} SATS",
             "send-to": "Send to",
             "send-to-offline-user": "Send to an offline user",
+            "waiting-for-refund": "Waiting for refund",
             "you-are-sending": "You are sending",
             "you-are-sending-amount-unit": "You are sending {{amount}} {{unit}}",
             "you-sent": "You sent",

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useTranslation, Trans } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { selectActiveFederation } from '@fedi/common/redux'

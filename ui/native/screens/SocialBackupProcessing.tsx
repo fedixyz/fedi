@@ -5,10 +5,11 @@ import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { selectActiveFederationId } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import HoloProgressCircle from '../components/ui/HoloProgressCircle'
-import { useBridge } from '../state/hooks'
+import { useAppSelector, useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('SocialBackupProcessing')
@@ -24,7 +25,8 @@ const SocialBackupProcessing: React.FC<Props> = ({
 }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { uploadBackupFile } = useBridge()
+    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const { uploadBackupFile } = useBridge(activeFederationId)
     const toast = useToast()
     const { videoFilePath } = route.params
     const [percentComplete, setPercentComplete] = useState<number>(0)

@@ -20,7 +20,7 @@ import { IconButton } from '../../components/IconButton'
 import * as Layout from '../../components/Layout'
 import { Text } from '../../components/Text'
 import { useAppDispatch, useAppSelector } from '../../hooks'
-import { writeBridgeFile, fedimint } from '../../lib/bridge'
+import { fedimint, writeBridgeFile } from '../../lib/bridge'
 import { theme } from '../../styles'
 
 const EditProfile = () => {

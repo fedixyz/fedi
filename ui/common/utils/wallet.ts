@@ -47,9 +47,7 @@ export const makeTxnDetailStatusText = (
                 // direction=receive instead of direction=send
                 switch (txn.lnState?.type) {
                     case 'waitingForRefund':
-                        return t('feature.send.refund-in-block', {
-                            block: txn.lnState.block_height,
-                        })
+                        return t('feature.send.waiting-for-refund')
                     case 'refunded':
                         return t('words.refund')
                     case 'canceled':
@@ -85,9 +83,7 @@ export const makeTxnDetailStatusText = (
                 if (!txn.lnState) return `${t('phrases.receive-pending')}`
                 switch (txn.lnState.type) {
                     case 'waitingForRefund':
-                        return t('feature.send.refund-in-block', {
-                            block: txn.lnState.block_height,
-                        })
+                        return t('feature.send.waiting-for-refund')
                     case 'refunded':
                         return t('words.refund')
                     case 'waitingForPayment':
@@ -104,8 +100,6 @@ export const makeTxnDetailStatusText = (
                     case 'waitingForTransaction':
                         return t('words.pending')
                     case 'waitingForConfirmation':
-                        return t('words.seen')
-                    case 'confirmed':
                         return t('words.seen')
                     case 'claimed':
                         return t('words.complete')

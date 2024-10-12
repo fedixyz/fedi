@@ -2,8 +2,8 @@ import { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 
 import {
-    showToast as reduxShowToast,
     closeToast as reduxCloseToast,
+    showToast as reduxShowToast,
 } from '@fedi/common/redux'
 import { ToastArgs } from '@fedi/common/types'
 import { formatErrorMessage } from '@fedi/common/utils/format'

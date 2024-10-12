@@ -1,5 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
 import type { CameraDeviceFormat } from 'react-native-vision-camera'

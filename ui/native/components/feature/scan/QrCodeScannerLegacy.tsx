@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StyleSheet } from 'react-native'
 import { Camera, CameraDevice } from 'react-native-vision-camera'
 import { BarcodeFormat, useScanBarcodes } from 'vision-camera-code-scanner'

@@ -2,7 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import capitalize from 'lodash/capitalize'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { View, StyleSheet } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { selectActiveFederation } from '@fedi/common/redux'
 

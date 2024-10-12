@@ -178,3 +178,14 @@ export async function fetchMetadataFromUrl(
         fetchedTitle,
     }
 }
+
+/**
+ * Filters out duplicate mods
+ */
+export const deduplicate = <T extends { id: string }>(arr: T[]) => {
+    return arr.reduce((acc, curr) => {
+        if (acc.some(item => item?.id === curr.id)) return acc
+        acc.push(curr)
+        return acc
+    }, [] as Array<T>)
+}

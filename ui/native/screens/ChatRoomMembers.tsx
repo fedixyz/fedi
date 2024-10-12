@@ -16,8 +16,8 @@ import { ChatUserActionsOverlay } from '../components/feature/chat/ChatUserActio
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { NavigationHook } from '../types/navigation'
 import type { RootStackParamList } from '../types/navigation'
+import { NavigationHook } from '../types/navigation'
 
 export type ChatRoomMembersProps = NativeStackScreenProps<
     RootStackParamList,

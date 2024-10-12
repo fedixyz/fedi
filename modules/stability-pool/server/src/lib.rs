@@ -53,7 +53,6 @@ const B: u128 = 1_000_000_000;
 #[derive(Debug, Clone)]
 pub struct StabilityPoolInit;
 
-#[async_trait]
 impl ModuleInit for StabilityPoolInit {
     type Common = StabilityPoolCommonGen;
     const DATABASE_VERSION: DatabaseVersion = DatabaseVersion(2);
@@ -100,7 +99,7 @@ impl ServerModuleInit for StabilityPoolInit {
                     local: StabilityPoolConfigLocal,
                     private: StabilityPoolConfigPrivate,
                     consensus: StabilityPoolConfigConsensus {
-                        consensus_threshold: peers.threshold() as _,
+                        consensus_threshold: peers.to_num_peers().threshold() as _,
                         oracle_config: params.consensus.oracle_config.clone(),
                         cycle_duration: params.consensus.cycle_duration,
                         collateral_ratio: params.consensus.collateral_ratio.clone(),
@@ -135,7 +134,7 @@ impl ServerModuleInit for StabilityPoolInit {
             local: StabilityPoolConfigLocal,
             private: StabilityPoolConfigPrivate,
             consensus: StabilityPoolConfigConsensus {
-                consensus_threshold: peers.peers.threshold() as _,
+                consensus_threshold: peers.peers.to_num_peers().threshold() as _,
                 oracle_config: params.consensus.oracle_config,
                 cycle_duration: params.consensus.cycle_duration,
                 collateral_ratio: params.consensus.collateral_ratio,
@@ -173,9 +172,9 @@ impl ServerModuleInit for StabilityPoolInit {
 
     fn get_database_migrations(
         &self,
-    ) -> BTreeMap<DatabaseVersion, fedimint_core::db::ServerMigrationFn> {
+    ) -> BTreeMap<DatabaseVersion, fedimint_core::db::CoreMigrationFn> {
         let mut migrations =
-            BTreeMap::<DatabaseVersion, fedimint_core::db::ServerMigrationFn>::default();
+            BTreeMap::<DatabaseVersion, fedimint_core::db::CoreMigrationFn>::default();
         migrations.insert(DatabaseVersion(1), |dbtx| migrate_to_v2(dbtx).boxed());
         migrations
     }

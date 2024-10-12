@@ -4,7 +4,7 @@ import {
     useNavigationContainerRef,
 } from '@react-navigation/native'
 import { useTheme } from '@rneui/themed'
-import React, { useCallback, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
@@ -17,8 +17,8 @@ import SwitchingFederations from './screens/SwitchingFederations'
 import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
 import { useMatrixHealthCheck, useMatrixPushNotifications } from './state/hooks'
 import {
-    MainNavigatorDrawerParamList,
     DRAWER_NAVIGATION_ID,
+    MainNavigatorDrawerParamList,
 } from './types/navigation'
 import { useIsFeatureUnlocked } from './utils/hooks/security'
 import { getLinkingConfig } from './utils/linking'

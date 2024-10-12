@@ -7,7 +7,7 @@ import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useDispatch } from 'react-redux'
 
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
-import { addCustomGlobalMod } from '@fedi/common/redux/mod'
+import { addCustomMod } from '@fedi/common/redux/mod'
 import { fetchMetadataFromUrl } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -46,7 +46,7 @@ const AddFediMod: React.FC = () => {
                 .toLowerCase()
 
             dispatch(
-                addCustomGlobalMod({
+                addCustomMod({
                     fediMod: {
                         id: `custom-${Date.now()}`,
                         title,

@@ -1,5 +1,3 @@
-import React from 'react'
-
 import { ContentBlock } from '../../../components/ContentBlock'
 import { SocialBackup } from '../../../components/SocialBackup'
 

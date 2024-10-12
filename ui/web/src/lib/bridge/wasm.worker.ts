@@ -6,8 +6,8 @@ import { isDev } from '@fedi/common/utils/environment'
 import { makeLog } from '@fedi/common/utils/log'
 import init, {
     fedimint_initialize,
-    fedimint_rpc,
     fedimint_read_file,
+    fedimint_rpc,
     fedimint_write_file,
     get_logs,
 } from '@fedi/common/wasm/'

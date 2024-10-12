@@ -2,8 +2,8 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 import {
     CommonState,
-    selectStabilityPoolCycleStartPrice,
     selectFederationMetadata,
+    selectStabilityPoolCycleStartPrice,
 } from '.'
 import { Federation, SupportedCurrency } from '../types'
 import {
@@ -21,6 +21,7 @@ const initialState = {
     btcUsdRate: 0 as number,
     fiatUsdRates: {} as Record<string, number | undefined>,
     selectedFiatCurrency: null as SupportedCurrency | null,
+    currencyLocale: undefined as string | undefined,
 }
 
 export type CurrencyState = typeof initialState
@@ -36,6 +37,9 @@ export const currencySlice = createSlice({
             action: PayloadAction<SupportedCurrency>,
         ) {
             state.selectedFiatCurrency = action.payload
+        },
+        setCurrencyLocale(state, action: PayloadAction<string>) {
+            state.currencyLocale = action.payload
         },
         resetCurrencyState() {
             return { ...initialState }
@@ -61,8 +65,11 @@ export const currencySlice = createSlice({
 
 /*** Basic actions ***/
 
-export const { changeSelectedFiatCurrency, resetCurrencyState } =
-    currencySlice.actions
+export const {
+    changeSelectedFiatCurrency,
+    setCurrencyLocale,
+    resetCurrencyState,
+} = currencySlice.actions
 
 /*** Async thunk actions ***/
 
@@ -97,6 +104,9 @@ export const fetchCurrencyPrices = createAsyncThunk<
 })
 
 /*** Selectors ***/
+
+export const selectCurrencyLocale = (s: CommonState) =>
+    s.currency.currencyLocale
 
 export const selectCurrency = (s: CommonState) => {
     if (s.currency.selectedFiatCurrency) return s.currency.selectedFiatCurrency

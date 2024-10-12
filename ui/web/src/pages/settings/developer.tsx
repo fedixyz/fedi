@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
@@ -13,9 +13,9 @@ import {
 } from '@fedi/common/redux'
 import { LightningGateway } from '@fedi/common/types'
 import {
-    makeTransactionHistoryCSV,
     makeBase64CSVUri,
     makeCSVFilename,
+    makeTransactionHistoryCSV,
 } from '@fedi/common/utils/csv'
 import { exportLogs } from '@fedi/common/utils/log'
 

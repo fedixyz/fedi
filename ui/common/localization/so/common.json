@@ -408,7 +408,7 @@
             "payment-request": "Foomka codsiga lacag_bixinta {{fediMod}}",
             "stable-balance-enabled": "Dheellitirnaan deggan",
             "stable-balance-enabled-info": "Wuxu uu awood u leeyahay in uu sats u beddelo lacag deggan",
-            "wants-to-pay-you": "{{fediMod}} wuxu raba inu lacag ku siiyo",
+            "wants-to-send-you": "{{fediMod}} wuxuu rabaa inuu ku soo diro",
             "wants-you-to-pay": "{{fediMod}} wuxu raba in aad lacag bixiso ",
             "your-mods": "Hababkaaga"
         },

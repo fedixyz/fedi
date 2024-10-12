@@ -6,15 +6,15 @@ import { XMPP_RESOURCE } from '../constants/xmpp'
 import {
     ClientConfigMetadata,
     Federation,
-    MSats,
+    FederationListItem,
     FediMod,
+    JoinPreview,
+    MSats,
+    Network,
+    PublicFederation,
     SupportedCurrency,
     SupportedMetaFields,
     XmppConnectionOptions,
-    PublicFederation,
-    FederationListItem,
-    Network,
-    JoinPreview,
 } from '../types'
 import { RpcCommunity } from '../types/bindings'
 import { FedimintBridge } from './fedimint'
@@ -80,6 +80,7 @@ const fetchExternalMetadata = async (
         if (timeoutId) {
             clearTimeout(timeoutId)
         }
+        onBackgroundSuccess && onBackgroundSuccess(metaJson)
         return metaJson
     }
 
@@ -165,20 +166,22 @@ export const fetchFederationsExternalMetadata = async (
 
     // Assemble all the promises and return the first pass of results. If they
     // provided onBackgroundSuccess, we'll call those as they come in.
-    const federationsMeta = await Promise.all(
-        externalUrls.map(async url =>
-            fetchExternalMetadata(url, handleBackgroundSuccess),
-        ),
-    ).then(results =>
-        results.reduce<ExternalMetaJson>((prev, extMeta) => {
+    const federationsMeta = await Promise.all([
+        ...externalUrls.map(url => {
+            return fetchExternalMetadata(url, res => {
+                return handleBackgroundSuccess && handleBackgroundSuccess(res)
+            })
+        }),
+    ]).then(results => {
+        return results.reduce<ExternalMetaJson>((prev, extMeta) => {
             if (!extMeta) return prev
             const entries = getFederationMetaEntries(extMeta)
             for (const entry of entries) {
                 prev[entry[0]] = entry[1]
             }
             return prev
-        }, {}),
-    )
+        }, {})
+    })
     return { ...communitiesMeta, ...federationsMeta }
 }
 
@@ -657,11 +660,15 @@ export const detectInviteCodeType = (
 export const joinFromInvite = async (
     fedimint: FedimintBridge,
     code: string,
+    recoverFromScratch = false,
 ): Promise<FederationListItem> => {
     const codeType = detectInviteCodeType(code)
     if (codeType === 'federation') {
         log.info(`joinFromInvite: joining federation with code '${code}'`)
-        const { network, ...federation } = await fedimint.joinFederation(code)
+        const { network, ...federation } = await fedimint.joinFederation(
+            code,
+            recoverFromScratch,
+        )
         return {
             ...federation,
             hasWallet: true,

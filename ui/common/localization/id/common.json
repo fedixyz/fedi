@@ -411,7 +411,7 @@
         "community": {
             "add-community": "Tambahkan komunitas",
             "join-a-community": "Bergabunglah dengan komunitas",
-            "join-community-guidance": "Bergabunglah dengan komunitas atau federasi favorit Anda untuk mengakses uang dan banyak lagi",
+            "join-community-guidance": "Bergabunglah dengan komunitas favorit Anda untuk mengakses uang dan banyak lagi",
             "or-visit-awesome-fedimint": "atau Kunjungi Fedimint yang Luar Biasa"
         },
         "developer": {
@@ -462,7 +462,7 @@
             "payment-request": "Permintaan pembayaran dari {{fediMod}}",
             "stable-balance-enabled": "Saldo Stabil",
             "stable-balance-enabled-info": "Memungkinkan kemampuan untuk mengkonversi sats ke mata uang stabil",
-            "wants-to-pay-you": "{{fediMod}} ingin membayar kamu",
+            "wants-to-send-you": "{{fediMod}} ingin mengirimkan Anda",
             "wants-you-to-pay": "{{fediMod}} ingin Anda membayar",
             "your-mods": "Modifikasi Anda"
         },

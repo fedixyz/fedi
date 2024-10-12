@@ -6,10 +6,12 @@ import { ActivityIndicator } from 'react-native'
 
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederation } from '@fedi/common/redux'
+import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { BridgeError } from '@fedi/common/utils/fedimint'
 
 import { fedimint } from '../bridge'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { useAppSelector } from '../state/hooks'
 import { ParserDataType } from '../types'
@@ -24,7 +26,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const { parsedData } = route.params
 
     const {
@@ -34,7 +36,8 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
         inputAmount,
         setInputAmount,
         handleOmniInput,
-    } = useOmniPaymentState(fedimint, activeFederation?.id)
+        exactAmount,
+    } = useOmniPaymentState(fedimint, paymentFederation?.id, true)
 
     useEffect(() => {
         handleOmniInput(parsedData)
@@ -45,9 +48,20 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
     const navigationPush = navigation.push
     const handleContinue = useCallback(async () => {
         setSubmitAttempts(attempts => attempts + 1)
-        if (inputAmount > maximumAmount || inputAmount < minimumAmount) return
+        if (
+            inputAmount > maximumAmount ||
+            inputAmount < minimumAmount ||
+            !paymentFederation
+        )
+            return
 
         try {
+            await fedimint.previewPayAddress(
+                parsedData.data.address,
+                inputAmount,
+                paymentFederation?.id,
+            )
+
             navigationPush('ConfirmSendOnChain', {
                 parsedData: {
                     type: ParserDataType.Bip21,
@@ -58,7 +72,11 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
                 },
             })
         } catch (err) {
-            toast.error(t, err, 'errors.unknown-error')
+            if (err instanceof BridgeError) {
+                toast.error(t, null, err.format(t))
+            } else {
+                toast.error(t, err)
+            }
         }
     }, [
         inputAmount,
@@ -66,6 +84,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
         maximumAmount,
         navigationPush,
         parsedData.data.address,
+        paymentFederation,
         toast,
         t,
     ])
@@ -74,12 +93,14 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <AmountScreen
-            showBalance
+            subHeader={<FederationWalletSelector />}
             amount={inputAmount}
             onChangeAmount={setInputAmount}
             minimumAmount={minimumAmount}
             maximumAmount={maximumAmount}
             submitAttempts={submitAttempts}
+            // Readonly For Bip21 URIs
+            readOnly={!!exactAmount}
             buttons={[
                 {
                     title: t('words.continue'),

@@ -6,29 +6,29 @@ import qs from 'query-string'
 import { Btc, MSats } from '../types'
 import {
     AnyParsedData,
-    ParserDataType,
     ParsedBip21,
     ParsedBitcoinAddress,
     ParsedBolt11,
     ParsedBolt12,
+    ParsedCommunityInvite,
     ParsedFederationInvite,
+    ParsedFediChatRoom,
+    ParsedFediChatUser,
     ParsedFedimintEcash,
+    ParsedLegacyFediChatGroup,
+    ParsedLegacyFediChatMember,
     ParsedLnurlAuth,
     ParsedLnurlPay,
     ParsedLnurlWithdraw,
     ParsedUnknownData,
     ParsedWebsite,
-    ParsedLegacyFediChatGroup,
-    ParsedLegacyFediChatMember,
-    ParsedFediChatUser,
-    ParsedFediChatRoom,
-    ParsedCommunityInvite,
+    ParserDataType,
 } from '../types/parser'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
 import { decodeFediMatrixRoomUri, decodeFediMatrixUserUri } from './matrix'
 import { isValidInternetIdentifier } from './validation'
-import { decodeGroupInvitationLink, decodeDirectChatLink } from './xmpp'
+import { decodeDirectChatLink, decodeGroupInvitationLink } from './xmpp'
 
 const log = makeLog('common/utils/parser')
 

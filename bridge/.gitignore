@@ -1,11 +1,13 @@
 target
 
+# android/kotlin
 .idea/
 fedi-bindings.iml
 libfediffi.so
 fedi.kt
 local.properties
 .DS_Store
+artifacts
 
 # swift related
 /.build

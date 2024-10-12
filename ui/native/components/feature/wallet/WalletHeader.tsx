@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { Theme } from '@rneui/themed'
-import { Text, useTheme } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import capitalize from 'lodash/capitalize'
 import React from 'react'
 import { useTranslation } from 'react-i18next'

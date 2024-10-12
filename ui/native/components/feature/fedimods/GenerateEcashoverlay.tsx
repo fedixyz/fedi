@@ -7,7 +7,7 @@ import { RejectionError } from 'webln'
 import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { selectActiveFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { BridgeError } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
@@ -34,7 +34,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
-    const federationId = useAppSelector(selectActiveFederationId)
+    const activeFederation = useAppSelector(selectActiveFederation)
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const [submitAttempts, setSubmitAttempts] = useState(0)
@@ -44,7 +44,9 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
         useRequestForm({ ecashRequest })
     // Ecash notes are generated from your current balance
     // Instead of an almost-unbound balance from useRequestForm, set the upper bound to the active user's balance
-    const { maximumAmount } = useMinMaxSendAmount()
+    const { maximumAmount } = useMinMaxSendAmount({
+        selectedPaymentFederation: true,
+    })
 
     // Reset form when it appears
     const isShowing = Boolean(ecashRequest)
@@ -65,12 +67,12 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
 
         try {
             setIsLoading(true)
-            if (!federationId) throw new Error()
+            if (!activeFederation) throw new Error()
             const msats = amountUtils.satToMsat(inputAmount)
 
             const res = await fedimint.generateEcash(
                 msats as MSats,
-                federationId,
+                activeFederation.id,
             )
 
             onAcceptRef.current(res.ecash)
@@ -101,7 +103,13 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
             contents={{
                 title: t('feature.stabilitypool.enter-deposit-amount'),
                 body: (
-                    <View style={{ flex: 1, paddingTop: theme.spacing.xl }}>
+                    <View
+                        style={{
+                            flex: 1,
+                            paddingTop: theme.spacing.xl,
+                            alignItems: 'center',
+                            gap: theme.spacing.lg,
+                        }}>
                         <AmountInput
                             key={amountInputKey}
                             amount={inputAmount}
@@ -110,7 +118,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
                             minimumAmount={minimumAmount}
                             maximumAmount={maximumAmount}
                             readOnly={!!exactAmount}
-                            verb={t('words.request')}
+                            verb={t('words.deposit')}
                             onChangeAmount={amount => {
                                 setSubmitAttempts(0)
                                 setInputAmount(amount)

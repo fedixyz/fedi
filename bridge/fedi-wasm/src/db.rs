@@ -118,6 +118,10 @@ impl IRawDatabase for MemAndIndexedDb {
             .expect("MemTransaction never fails");
         memtx
     }
+
+    fn checkpoint(&self, _: &std::path::Path) -> Result<(), anyhow::Error> {
+        unimplemented!()
+    }
 }
 
 #[apply(async_trait_maybe_send!)]

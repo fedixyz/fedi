@@ -3,19 +3,19 @@ import orderBy from 'lodash/orderBy'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
-    fetchSocialRecovery as reduxFetchSocialRecovery,
-    completeSocialRecovery as reduxCompleteSocialRecovery,
+    createNewWallet,
+    recoverFromMnemonic,
     cancelSocialRecovery as reduxCancelSocialRecovery,
+    completeSocialRecovery as reduxCompleteSocialRecovery,
+    fetchSocialRecovery as reduxFetchSocialRecovery,
     refreshSocialRecoveryState,
     selectHasCheckedForSocialRecovery,
+    selectHasSetMatrixDisplayName,
+    selectRegisteredDevices,
     selectSocialRecoveryQr,
     selectSocialRecoveryState,
-    recoverFromMnemonic,
-    selectRegisteredDevices,
-    transferExistingWallet,
-    createNewWallet,
     startMatrixClient,
-    selectHasSetMatrixDisplayName,
+    transferExistingWallet,
 } from '../redux'
 import { SeedWords } from '../types'
 import { RpcRegisteredDevice } from '../types/bindings'

@@ -276,31 +276,111 @@ describe('AmountUtils', () => {
         })
     })
     describe('parseFiatString', () => {
-        const expectedResult = 1234.56
         const testCases = [
             {
                 locale: 'en-US',
                 fiat: '$1,234.56',
+                expectedResult: 1234.56,
             },
             {
                 locale: 'en-CA',
                 fiat: 'US$1,234.56',
+                expectedResult: 1234.56,
             },
             {
                 locale: 'de-DE',
                 fiat: '1.234,56 €', // careful for non-standard whitespace char
+                expectedResult: 1234.56,
             },
             {
                 locale: 'fr-TG',
                 fiat: '1 234,56 CFA', // careful for non-standard whitespace char
+                expectedResult: 1234.56,
+            },
+            {
+                locale: 'en-US',
+                fiat: '$0.05',
+                expectedResult: 0.05,
+            },
+            {
+                locale: 'en-CA',
+                fiat: 'US$0.05',
+                expectedResult: 0.05,
+            },
+            {
+                locale: 'de-DE',
+                fiat: '0,05 €', // careful for non-standard whitespace char
+                expectedResult: 0.05,
+            },
+            {
+                locale: 'fr-TG',
+                fiat: '0,05 CFA', // careful for non-standard whitespace char
+                expectedResult: 0.05,
             },
         ]
 
-        testCases.forEach(({ locale, fiat }) => {
+        testCases.forEach(({ locale, fiat, expectedResult }) => {
             it(`should parse ${expectedResult} from ${fiat} in ${locale} locale`, () => {
                 const result = amountUtils.parseFiatString(fiat, { locale })
                 expect(result).toEqual(expectedResult)
             })
+        })
+
+        // Note: there used to be a bug where getThousandsSeparator returned
+        // an empty string, breaking the RegExp in parseFiatString. this
+        // shouldn't happen if a valid locale is provided but keep this
+        // test as a safeguard
+        it('should handle locale if thousands separator is empty', () => {
+            // Mock getThousandsSeparator to return an empty string
+            const originalGetThousandsSeparator =
+                amountUtils.getThousandsSeparator
+            amountUtils.getThousandsSeparator = jest.fn().mockReturnValue('')
+
+            const result = amountUtils.parseFiatString('0.005')
+            expect(result).toEqual(0.005)
+            amountUtils.getThousandsSeparator = originalGetThousandsSeparator
+        })
+    })
+    describe('getThousandsSeparator', () => {
+        const testCases = [
+            { locale: 'en-US', expectedResult: ',' },
+            { locale: 'de-DE', expectedResult: '.' },
+            { locale: 'fr-FR', expectedResult: ' ' }, // careful for non-standard whitespace char
+        ]
+
+        testCases.forEach(({ locale, expectedResult }) => {
+            it(`should return '${expectedResult}' for ${locale} locale`, () => {
+                const result = amountUtils.getThousandsSeparator({ locale })
+                expect(result).toEqual(expectedResult)
+            })
+        })
+
+        it('should use the system default locale when no locale is provided', () => {
+            const defaultSeparator = amountUtils.getThousandsSeparator({
+                locale: undefined,
+            })
+            expect(typeof defaultSeparator).toBe('string')
+            expect(defaultSeparator.length).toBe(1)
+        })
+    })
+    describe('getDecimalSeparator', () => {
+        const testCases = [
+            { locale: 'en-US', expectedResult: '.' },
+            { locale: 'de-DE', expectedResult: ',' },
+            { locale: 'fr-FR', expectedResult: ',' },
+        ]
+
+        testCases.forEach(({ locale, expectedResult }) => {
+            it(`should return '${expectedResult}' for ${locale} locale`, () => {
+                const result = amountUtils.getDecimalSeparator({ locale })
+                expect(result).toEqual(expectedResult)
+            })
+        })
+
+        it('should use the system default locale when no locale is provided', () => {
+            const defaultSeparator = amountUtils.getDecimalSeparator()
+            expect(typeof defaultSeparator).toBe('string')
+            expect(defaultSeparator.length).toBe(1)
         })
     })
 })

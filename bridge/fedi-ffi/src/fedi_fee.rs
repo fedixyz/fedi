@@ -9,13 +9,16 @@ use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, OutgoingLightningPayment};
+use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use tracing::{error, info, instrument, warn};
 
 use crate::api::IFediApi;
 use crate::constants::MILLION;
-use crate::federation_v2::db::OutstandingFediFeesPerTXTypeKey;
+use crate::federation_v2::db::{
+    OutstandingFediFeesPerTXTypeKey, OutstandingFediFeesPerTXTypeKeyPrefix,
+};
 use crate::federation_v2::{zero_gateway_fees, FederationV2};
 use crate::storage::{AppState, FediFeeSchedule, ModuleFediFeeSchedule};
 use crate::types::{LightningSendMetadata, RpcTransactionDirection};
@@ -200,13 +203,42 @@ impl FediFeeHelper {
 
 type ModuleTXDirectionLockMap = BTreeMap<(ModuleKind, RpcTransactionDirection), Arc<Mutex<()>>>;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct FediFeeRemittanceService {
     // held while remit the fees
     locks_map: Arc<Mutex<ModuleTXDirectionLockMap>>,
 }
 
 impl FediFeeRemittanceService {
+    /// On initialization, spawn a background task that attempts all remittances
+    /// one by one.
+    pub fn init(fed: &FederationV2) -> Self {
+        let service = Self {
+            locks_map: Default::default(),
+        };
+
+        let fed2 = fed.clone();
+        let service2 = service.clone();
+        fed.task_group
+            .spawn_cancellable("init_fee_remittance_service", async move {
+                let tx_types = fed2
+                    .dbtx()
+                    .await
+                    .find_by_prefix(&OutstandingFediFeesPerTXTypeKeyPrefix)
+                    .await
+                    .map(|(key, _)| (key.0, key.1))
+                    .collect::<Vec<_>>()
+                    .await;
+
+                for (module, tx_direction) in tx_types {
+                    service2
+                        .remit_fedi_fee_if_threshold_met(&fed2, module, tx_direction)
+                        .await;
+                }
+            });
+
+        service
+    }
     /// Checks whether the accrued outstanding fedi fees has surpassed the
     /// remittance threshold. If yes, queries the fee helper to obtain a
     /// lightning invoice to remit the fees. If the fees HAS surpassed

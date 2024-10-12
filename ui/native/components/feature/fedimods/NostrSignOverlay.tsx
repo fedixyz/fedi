@@ -4,7 +4,6 @@ import { Trans, useTranslation } from 'react-i18next'
 import { RejectionError } from 'webln'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 import { getNostrEventDisplay } from '@fedi/common/utils/nostr'
 import {
@@ -14,7 +13,6 @@ import {
 import { eventHashFromEvent } from '@fedi/injections/src/injectables/nostr/utils'
 
 import { fedimint } from '../../../bridge'
-import { useAppSelector } from '../../../state/hooks'
 import { FediMod } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
 
@@ -36,17 +34,16 @@ export const NostrSignOverlay: React.FC<Props> = ({
     const { t } = useTranslation()
     const toast = useToast()
     const { theme } = useTheme()
-    const federationId = useAppSelector(selectActiveFederationId)
     const [isLoading, setIsLoading] = useState(false)
 
     const handleAccept = async () => {
         log.info('Signature approved')
         setIsLoading(true)
         try {
-            if (!nostrEvent || !federationId) throw new Error()
+            if (!nostrEvent) throw new Error()
             const pubkey = await fedimint.getNostrPubKey()
             const id = eventHashFromEvent(pubkey, nostrEvent)
-            const result = await fedimint.signNostrEvent(id, federationId)
+            const result = await fedimint.signNostrEvent(id)
             onAccept({
                 id,
                 pubkey,

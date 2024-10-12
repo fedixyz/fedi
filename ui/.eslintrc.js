@@ -24,6 +24,8 @@ module.exports = {
                 ],
             },
         ],
+        'no-duplicate-imports': 'off',
+        '@typescript-eslint/no-duplicate-imports': ['error'],
     },
     extends: [
         'eslint:recommended',

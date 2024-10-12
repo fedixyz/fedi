@@ -285,6 +285,9 @@ const theme = createTheme({
                 borderBottomColor: colors.secondary,
                 // This helps maximize the clickable area for any header buttons
                 paddingVertical: 0,
+                // Avoids jitter on load
+                // ref: https://reactnavigation.org/docs/stack-navigator/#specify-a-height-in-headerstyle-to-avoid-glitches
+                height: fediTheme.sizes.xl + fediTheme.spacing.lg,
             },
             leftContainerStyle: {
                 flex: 1,

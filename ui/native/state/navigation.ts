@@ -56,7 +56,7 @@ export function resetToChatSettings(roomId: string) {
                 { name: 'TabsNavigator', params: { screen: 'Chat' } },
                 { name: 'ChatRoomConversation', params: { roomId } },
                 {
-                    name: 'GroupAdmin',
+                    name: 'RoomSettings',
                     params: { roomId },
                 },
             ],

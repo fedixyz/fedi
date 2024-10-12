@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useTheme, Text } from '@rneui/themed'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Text, useTheme } from '@rneui/themed'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, useWindowDimensions } from 'react-native'
 
 import { maxPinLength, pinNumbers } from '@fedi/common/constants/security'

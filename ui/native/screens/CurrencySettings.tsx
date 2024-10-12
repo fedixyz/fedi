@@ -6,8 +6,8 @@ import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
     changeSelectedFiatCurrency,
-    selectCurrency,
     selectCurrencies,
+    selectCurrency,
 } from '@fedi/common/redux/currency'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 

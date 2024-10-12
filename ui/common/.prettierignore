@@ -1,3 +1,4 @@
 dist
 wasm/*.js
 wasm/*.d.ts
+types/bindings.ts.inc

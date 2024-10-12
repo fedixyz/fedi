@@ -408,7 +408,7 @@
             "payment-request": "طلب الدفع من{{fediMod}}",
             "stable-balance-enabled": "توازن مستقر ",
             "stable-balance-enabled-info": "تمكن القدرة على تحويل مقاعد إلي عملة مستقرة. ",
-            "wants-to-pay-you": "{{fediMod}} يريد ان يدفع لك",
+            "wants-to-send-you": "{{fediMod}} يريد أن يرسل لك",
             "wants-you-to-pay": "{{fediMod}} يريد إن يدفع لك",
             "your-mods": "تعديلاتك "
         },

@@ -3,6 +3,7 @@ import omit from 'lodash/omit'
 import uniq from 'lodash/uniq'
 
 import { CommonState } from '../redux'
+import { ModVisibility } from '../redux/mod'
 import { Chat } from '../types'
 import {
     AnyStoredState,
@@ -15,8 +16,8 @@ import {
     StoredStateV4,
 } from '../types/storage'
 import {
-    getLatestMessageIdsForChats,
     getLatestMessage,
+    getLatestMessageIdsForChats,
     getLatestPaymentUpdate,
     getLatestPaymentUpdateIdsForChats,
 } from './chat'
@@ -28,7 +29,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     return {
-        version: 18,
+        version: 19,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -68,8 +69,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         matrixAuth: state.matrix.auth,
         protectedFeatures: state.security.protectedFeatures,
         customGlobalMods: state.mod.customGlobalMods,
-        customGlobalModVisibility: state.mod.customGlobalModVisibility,
-        suggestedGlobalModVisibility: state.mod.suggestedGlobalModVisibility,
+        modVisibility: state.mod.modVisibility,
     }
 }
 
@@ -111,13 +111,13 @@ export function hasStorageStateChanged(
         ['federation', 'activeFederationId'],
         ['federation', 'authenticatedGuardian'],
         ['federation', 'externalMeta'],
+        // TODO: migrate legacy mods to customGlobalMods
         ['federation', 'customFediMods'],
         ['matrix', 'auth'],
         ['nux', 'steps'],
         ['security', 'protectedFeatures'],
         ['mod', 'customGlobalMods'],
-        ['mod', 'customGlobalModVisibility'],
-        ['mod', 'suggestedGlobalModVisibility'],
+        ['mod', 'modVisibility'],
     ]
 
     // Check all federation's chat states, including old and new.
@@ -508,6 +508,7 @@ async function migrateStoredState(
         // storage.removeItem('deviceId')
     }
 
+    // Version 16 -> 17
     if (migrationState.version === 16) {
         migrationState = {
             ...migrationState,
@@ -519,6 +520,7 @@ async function migrateStoredState(
         }
     }
 
+    // Version 17 -> 18
     if (migrationState.version === 17) {
         migrationState = {
             ...migrationState,
@@ -526,6 +528,57 @@ async function migrateStoredState(
             customGlobalMods: {},
             customGlobalModVisibility: {},
             suggestedGlobalModVisibility: {},
+        }
+    }
+
+    // Version 18 -> 19
+    if (migrationState.version === 18) {
+        const {
+            customGlobalModVisibility,
+            suggestedGlobalModVisibility,
+            ...rest
+        } = migrationState
+        migrationState = {
+            ...rest,
+            version: 19,
+            modVisibility: {
+                // migrate the global mods visibility settings
+                ...Object.entries(suggestedGlobalModVisibility ?? {}).reduce(
+                    (acc, [modId, visibility]) => {
+                        acc[modId] = {
+                            ...visibility,
+                            isGlobal: true,
+                        }
+                        return acc
+                    },
+                    {} as Record<string, ModVisibility>,
+                ),
+                // migrate all the stored custom mods
+                ...Object.entries(migrationState.customGlobalMods ?? {}).reduce(
+                    (acc, [modId, mod]) => {
+                        if (!mod) return acc
+                        acc[modId] = {
+                            isHidden: false,
+                            isCustom: true,
+                        } as ModVisibility
+                        return acc
+                    },
+                    {} as Record<string, ModVisibility>,
+                ),
+                // Override the default visibility setting
+                // with any existing settings on the custom mods
+                ...Object.entries(customGlobalModVisibility ?? {}).reduce(
+                    (acc, [modId, visibility]) => {
+                        if (!visibility) return acc
+                        acc[modId] = {
+                            ...visibility,
+                            isCustom: true,
+                        } as ModVisibility
+                        return acc
+                    },
+                    {} as Record<string, ModVisibility>,
+                ),
+            },
         }
     }
 

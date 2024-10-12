@@ -15,12 +15,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useToast } from '@fedi/common/hooks/toast'
+import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
+    selectChatDrafts,
     selectMatrixRoom,
     selectMatrixRoomIsReadOnly,
+    setChatDraft,
 } from '@fedi/common/redux'
 
-import { useAppSelector } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import ChatWalletButton from './ChatWalletButton'
 
@@ -39,15 +42,25 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
     const existingRoom = useAppSelector(s => selectMatrixRoom(s, id))
+    const dispatch = useAppDispatch()
 
     const toast = useToast()
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
-    const [messageText, setMessageText] = useState<string>('')
+    const drafts = useAppSelector(s => selectChatDrafts(s))
     const [inputHeight, setInputHeight] = useState<number>(
         theme.sizes.minMessageInputHeight,
     )
     const [keyboardHeight, setKeyboardHeight] = useState<number>(0)
+    const [messageText, setMessageText] = useState<string>(drafts[id] ?? '')
     const inputRef = useRef<TextInput | null>(null)
+
+    useDebouncedEffect(
+        () => {
+            dispatch(setChatDraft({ roomId: id, text: messageText }))
+        },
+        [messageText, dispatch],
+        500,
+    )
 
     useEffect(() => {
         const keyboardShownListener = Keyboard.addListener(
@@ -77,7 +90,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         } catch (err) {
             toast.error(t, err, 'errors.chat-unavailable')
         }
-    }, [isSending, messageText, onMessageSubmitted, toast, t])
+    }, [isSending, messageText, onMessageSubmitted, toast, setMessageText, t])
 
     // Re-focus input after it had been disabled
     const inputDisabled = isSending || isReadOnly

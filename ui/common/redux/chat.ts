@@ -1,8 +1,8 @@
 import {
-    createSlice,
     PayloadAction,
-    createSelector,
     createAsyncThunk,
+    createSelector,
+    createSlice,
     isAnyOf,
 } from '@reduxjs/toolkit'
 import isEqual from 'lodash/isEqual'
@@ -16,17 +16,17 @@ import {
 } from '.'
 import {
     Chat,
-    ChatMessage,
-    ChatMember,
     ChatGroup,
+    ChatMember,
+    ChatMessage,
     ChatPayment,
-    Keypair,
-    ChatType,
-    XmppCredentials,
-    XmppClientStatus,
-    ChatWithLatestMessage,
     ChatPaymentStatus,
+    ChatType,
+    ChatWithLatestMessage,
     Federation,
+    Keypair,
+    XmppClientStatus,
+    XmppCredentials,
 } from '../types'
 import {
     getFederationChatServerDomain,

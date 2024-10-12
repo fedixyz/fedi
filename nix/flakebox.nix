@@ -11,6 +11,7 @@ let
     "bridge"
     "fedimintd"
     "fedimint-cli"
+    "fedi-api-types"
     "fedi-db-dump"
     "fedi-debug"
     "fedi-core"
@@ -22,7 +23,6 @@ let
     "modules/stability-pool/common"
     "modules/stability-pool/server"
     "modules/stability-pool/tests"
-    "fedi-api-types"
   ];
 
   root = builtins.path {
@@ -67,9 +67,17 @@ let
       ROCKSDB_STATIC = "true";
       ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib/";
       SNAPPY_LIB_DIR = "${pkgs.pkgsStatic.snappy}/lib/";
+      SQLITE3_STATIC = "true";
+      SQLITE3_LIB_DIR = "${pkgs.pkgsStatic.sqlite.out}/lib/";
+      SQLCIPHER_STATIC = "true";
+      SQLCIPHER_LIB_DIR = "${pkgs.pkgsStatic.sqlcipher}/lib/";
 
       "ROCKSDB_${target_underscores}_STATIC" = "true";
       "ROCKSDB_${target_underscores}_LIB_DIR" = "${pkgs.rocksdb}/lib/";
+      "SQLITE3_${target_underscores}_STATIC" = "true";
+      "SQLITE3_${target_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlite}/lib/";
+      "SQLCIPHER_${target_underscores}_STATIC" = "true";
+      "SQLCIPHER_${target_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlcipher}/lib/";
       "SNAPPY_${target_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.snappy}/lib/";
     } // pkgs.lib.optionalAttrs (!pkgs.stdenv.isDarwin) {
       # macos can't static libraries
@@ -290,6 +298,13 @@ rec {
 
   fedi-fedimintd = flakeboxLib.pickBinary { bin = "fedimintd"; pkg = fedi-fedimint-pkgs; };
   fedi-fedimint-cli = flakeboxLib.pickBinary { bin = "fedimint-cli"; pkg = fedi-fedimint-pkgs; };
+
+  fedi-api-types = fediBuildPackageGroup {
+    pname = "fedi-api-types";
+    packages = [
+      "fedi-api-types"
+    ];
+  };
 
   fedi-wasm = fediBuildPackageGroup {
     pname = "fedi-wasm";

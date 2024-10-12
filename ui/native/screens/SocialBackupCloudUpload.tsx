@@ -5,11 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { Dimensions, StyleSheet, View } from 'react-native'
 import Share from 'react-native-share'
 
+import { selectActiveFederationId } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import HoloGuidance from '../components/ui/HoloGuidance'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
-import { useBridge } from '../state/hooks'
+import { useAppSelector, useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('SocialBackupCloudUpload')
@@ -22,7 +23,8 @@ export type Props = NativeStackScreenProps<
 const SocialBackupCloudUpload: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { locateRecoveryFile } = useBridge()
+    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const { locateRecoveryFile } = useBridge(activeFederationId)
 
     const shareVideo = async () => {
         try {

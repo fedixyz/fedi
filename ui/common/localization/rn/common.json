@@ -409,7 +409,7 @@
             "payment-request": "Icipfuzo co Kwishura kuvuye kuri {{fediMod}}",
             "stable-balance-enabled": "Amafaranga asigaye arakwiye",
             "stable-balance-enabled-info": "Gushobora guhindura sats mu mafaranga ahamye ",
-            "wants-to-pay-you": "{{fediMod}} ishaka kukuriha",
+            "wants-to-send-you": "{{fediMod}} ishaka kuvuga wewe",
             "wants-you-to-pay": "{{fediMod}} ishaka ko uriha",
             "your-mods": "Mods zawe"
         },

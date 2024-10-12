@@ -7,7 +7,7 @@ import { Linking, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { selectActiveFederationFediMods } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import { Shortcut, FediMod } from '../../../types'
+import { FediMod, Shortcut } from '../../../types'
 import { NavigationHook } from '../../../types/navigation'
 import ShortcutTile from './ShortcutTile'
 

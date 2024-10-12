@@ -1,4 +1,4 @@
-import { useTheme, Theme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import { StyleSheet, View } from 'react-native'
 
 export default function PinDot({

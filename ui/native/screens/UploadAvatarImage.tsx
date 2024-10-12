@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import RNFS from 'react-native-fs'
 import { launchImageLibrary } from 'react-native-image-picker'
-import { useSafeAreaInsets, EdgeInsets } from 'react-native-safe-area-context'
+import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {

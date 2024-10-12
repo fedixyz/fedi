@@ -1,5 +1,4 @@
 import { useTheme } from '@rneui/themed'
-import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'

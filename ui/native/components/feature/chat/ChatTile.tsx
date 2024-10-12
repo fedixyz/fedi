@@ -1,6 +1,6 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { t } from 'i18next'
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import dateUtils from '@fedi/common/utils/DateUtils'

@@ -1,3 +1,4 @@
+import { makeLog } from '@fedi/common/utils/log'
 import { useIsFocused } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect } from 'react'
@@ -22,6 +23,7 @@ import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'JoinFederation'>
+const log = makeLog('JoinFederation')
 
 const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
@@ -94,7 +96,13 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     if (federationPreview) {
         return (
             <FederationPreview
-                onJoin={() => handleJoin(goToNextScreen)}
+                onJoin={recoverFromScratch => {
+                    if (recoverFromScratch)
+                        log.info(
+                            `Recovering from scratch. (federation id: ${federationPreview.id})`,
+                        )
+                    handleJoin(goToNextScreen, recoverFromScratch)
+                }}
                 onBack={() => setFederationPreview(undefined)}
                 federation={federationPreview}
             />

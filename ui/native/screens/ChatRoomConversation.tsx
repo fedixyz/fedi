@@ -40,10 +40,6 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
 
     const directUserId = room?.directUserId
 
-    // TODO: reimplement read message hook for matrix
-    // const isFocused = useIsFocused()
-    // useUpdateLastMessageRead(memberId, messages, isFocused !== true)
-
     const handleSend = useCallback(
         async (body: string) => {
             if (!body || isSending) return

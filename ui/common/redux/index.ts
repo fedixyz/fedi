@@ -47,9 +47,9 @@ export * from './federation'
 export * from './matrix'
 export * from './nux'
 export * from './recovery'
+export * from './security'
 export * from './toast'
 export * from './wallet'
-export * from './security'
 
 export const commonReducers = {
     chat: chatSlice.reducer,

@@ -1,8 +1,8 @@
 import {
-    createSlice,
     PayloadAction,
     createAsyncThunk,
     createSelector,
+    createSlice,
 } from '@reduxjs/toolkit'
 import orderBy from 'lodash/orderBy'
 
@@ -200,8 +200,10 @@ export const selectTransactionHistory = createSelector(
             if (
                 txn.bitcoin &&
                 txn.direction === TransactionDirection.receive &&
-                txn.onchainState?.type === 'waitingForTransaction' &&
-                Date.now() / 1000 - txn.createdAt > 3600
+                Date.now() / 1000 - txn.createdAt > 3600 &&
+                (!txn.onchainState ||
+                    (txn.onchainState.type !== 'waitingForConfirmation' &&
+                        txn.onchainState.type !== 'claimed'))
             ) {
                 return false
             }

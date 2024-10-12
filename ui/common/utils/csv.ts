@@ -30,11 +30,7 @@ export function makeTransactionHistoryCSV(
             } else if (txn.onchainState) {
                 const { type } = txn.onchainState
 
-                return (
-                    type === 'succeeded' ||
-                    type === 'claimed' ||
-                    type === 'confirmed'
-                )
+                return type === 'succeeded' || type === 'claimed'
             } else if (txn.oobState) {
                 const { type } = txn.oobState
 

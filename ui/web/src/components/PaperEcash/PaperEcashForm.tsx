@@ -12,6 +12,7 @@ import { MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/Button'
 import { Checkbox } from '../../components/Checkbox'
 import { Input } from '../../components/Input'
@@ -20,7 +21,6 @@ import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { EcashPaper } from '../../pages/internal/paper-ecash'
 import { styled, theme } from '../../styles'
-import { useTranslation } from 'react-i18next'
 
 const log = makeLog('PaperEcashForm')
 

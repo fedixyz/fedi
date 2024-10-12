@@ -2,10 +2,10 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-    Animated,
     ActivityIndicator,
-    StyleSheet,
+    Animated,
     Easing,
+    StyleSheet,
     ViewStyle,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'

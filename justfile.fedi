@@ -127,12 +127,6 @@ fedimint-cli-v0_2_2-rc7 *ARGS:
 fedimint-cli-v0_2_2-rc8 *ARGS:
   @just fedimint-cli "refs/tags/v0.2.2-rc8" d3e154ef0ea2fde064d6f3c3d40b9800c9a9a3ce {{ARGS}}
 
-fedi-fedimint-cli-v0_2_2-rc8 *ARGS:
-  @just fedi-fedimint-cli "deployments/v0.2.2-rc8" 719a96d26e67f39d00ca37c1c160b0556ae20622 {{ARGS}}
-
-fedi-fedimint-cli-master *ARGS:
-  @just fedi-fedimint-cli "master" 38447bb77b28c95874fcb03d6e66dc2f357c1953 {{ARGS}}
-
 tidy-up:
   @./scripts/tidy-up.sh
 

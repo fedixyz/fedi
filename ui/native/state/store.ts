@@ -6,11 +6,13 @@ import {
     commonReducers,
     fetchCurrencyPrices,
     initializeCommonStore,
+    setCurrencyLocale,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import i18n from '../localization/i18n'
+import { getNumberFormatLocale } from '../utils/device-info'
 import { storage } from '../utils/storage'
 
 const log = makeLog('native/state/store')
@@ -34,6 +36,9 @@ export function initializeNativeStore() {
         storage,
         i18n,
     })
+
+    // Get the number format locale from the system and store it for later use.
+    store.dispatch(setCurrencyLocale(getNumberFormatLocale()))
 
     // Whenever the app is brought back into the foreground, refresh prices.
     const changeSubscription = RNAppState.addEventListener('change', state => {

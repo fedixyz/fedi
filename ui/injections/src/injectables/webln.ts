@@ -1,6 +1,6 @@
-import type { WebLNProvider, RequestInvoiceArgs, KeysendArgs } from 'webln'
+import type { KeysendArgs, RequestInvoiceArgs, WebLNProvider } from 'webln'
 
-import { InjectionMessageType, InjectionMessageResponseMap } from '../types'
+import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionWebLNProvider implements WebLNProvider {

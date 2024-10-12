@@ -89,7 +89,11 @@ done
 if [ -n "$target" ]; then
   rocksdb_lib_dir="ROCKSDB_${target}_LIB_DIR"
   snappy_lib_dir="SNAPPY_${target}_LIB_DIR"
+  sqlite3_lib_dir="SQLITE3_${target}_LIB_DIR"
+  sqlcipher_lib_dir="SQLCIPHER_${target}_LIB_DIR"
   rocksdb_static="ROCKSDB_${target}_STATIC"
+  sqlite3_static="SQLITE3_${target}_STATIC"
+  sqlcipher_static="SQLCIPHER_${target}_STATIC"
   snappy_static="SNAPPY_${target}_STATIC"
 
   if [ -n "${!rocksdb_lib_dir}" ]; then
@@ -102,6 +106,16 @@ if [ -n "$target" ]; then
   else
     unset SNAPPY_LIB_DIR
   fi
+  if [ -n "${!sqlite3_lib_dir}" ]; then
+    export SQLITE3_LIB_DIR="${!sqlite3_lib_dir}"
+  else
+    unset SQLITE3_LIB_DIR
+  fi
+  if [ -n "${!sqlcipher_lib_dir}" ]; then
+    export SQLCIPHER_LIB_DIR="${!sqlcipher_lib_dir}"
+  else
+    unset SQLCIPHER_LIB_DIR
+  fi
   if [ -n "${!rocksdb_static}" ]; then
     export ROCKSDB_STATIC="${!rocksdb_static}"
   else
@@ -111,6 +125,16 @@ if [ -n "$target" ]; then
     export SNAPPY_STATIC="${!snappy_static}"
   else
     unset SNAPPY_STATIC
+  fi
+  if [ -n "${!sqlite3_static}" ]; then
+    export SQLITE3_STATIC="${!sqlite3_static}"
+  else
+    unset SQLITE3_STATIC
+  fi
+  if [ -n "${!sqlcipher_static}" ]; then
+    export SQLCIPHER_STATIC="${!sqlcipher_static}"
+  else
+    unset SQLCIPHER_STATIC
   fi
 fi
 

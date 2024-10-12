@@ -4,12 +4,10 @@ import { Trans, useTranslation } from 'react-i18next'
 import { RejectionError } from 'webln'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId } from '@fedi/common/redux'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
-import { useAppSelector } from '../../../state/hooks'
 import { FediMod, ParsedLnurlAuth } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
 
@@ -30,15 +28,14 @@ export const AuthOverlay: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
-    const federationId = useAppSelector(selectActiveFederationId)
     const [isLoading, setIsLoading] = useState(false)
 
     // Overlay components for LNURL-Auth UX
     const handleAccept = async () => {
         setIsLoading(true)
         try {
-            if (!lnurlAuthRequest || !federationId) throw new Error()
-            await lnurlAuth(fedimint, federationId, lnurlAuthRequest)
+            if (!lnurlAuthRequest) throw new Error()
+            await lnurlAuth(fedimint, lnurlAuthRequest)
             onAccept()
         } catch (e) {
             log.error('Failed to LNURL auth', e)

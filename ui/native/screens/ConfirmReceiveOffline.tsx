@@ -5,12 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { selectActiveFederationId } from '@fedi/common/redux'
 import type { MSats, Transaction } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import FiatAmount from '../components/feature/wallet/FiatAmount'
 import SvgImage from '../components/ui/SvgImage'
-import { useBridge } from '../state/hooks'
+import { useAppSelector, useBridge } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -24,7 +25,8 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
 }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const { receiveEcash, validateEcash } = useBridge()
+    const federationId = useAppSelector(selectActiveFederationId)
+    const { receiveEcash, validateEcash } = useBridge(federationId)
     const toast = useToast()
     const { ecash } = route.params
     const [amount, setAmount] = useState(0 as MSats)

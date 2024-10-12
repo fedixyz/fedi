@@ -6,14 +6,14 @@ import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     fetchSocialRecovery,
-    refreshFederations,
-    selectSocialRecoveryQr,
-    selectDeviceId,
     initializeDeviceId,
-    startMatrixClient,
-    selectHasSetMatrixDisplayName,
     previewDefaultGroupChats,
+    refreshFederations,
     selectAuthenticatedMember,
+    selectDeviceId,
+    selectHasSetMatrixDisplayName,
+    selectSocialRecoveryQr,
+    startMatrixClient,
 } from '@fedi/common/redux'
 import { selectHasLoadedFromStorage } from '@fedi/common/redux/storage'
 import { formatErrorMessage } from '@fedi/common/utils/format'

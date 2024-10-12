@@ -2,15 +2,15 @@ import { useRoute } from '@react-navigation/native'
 import { useCallback, useEffect, useState } from 'react'
 import { Platform } from 'react-native'
 import {
-    check as checkPermission,
-    request as requestPermission,
-    checkNotifications,
-    requestNotifications,
-    PermissionStatus,
     PERMISSIONS,
+    PermissionStatus,
     RESULTS,
     checkMultiple,
+    checkNotifications,
+    check as checkPermission,
     requestMultiple,
+    requestNotifications,
+    request as requestPermission,
 } from 'react-native-permissions'
 
 import { makeLog } from '@fedi/common/utils/log'

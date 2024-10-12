@@ -18,7 +18,7 @@ import {
     Transaction,
 } from '@fedi/common/types'
 
-import { MSats, FediMod } from '.'
+import { FediMod, MSats } from '.'
 
 // This type declaration allows all instances of useNavigation
 // to be aware of type-safety from RootStackParamsList
@@ -118,7 +118,7 @@ export type RootStackParamList = {
     LockedDevice: undefined
     RecordBackupVideo: undefined
     GroupChat: { groupId: string }
-    GroupAdmin: { roomId: string }
+    RoomSettings: { roomId: string }
     GroupInvite: { groupId: string }
     ScanMemberCode: { inviteToRoomId?: string } | undefined
     ScanSocialRecoveryCode: undefined

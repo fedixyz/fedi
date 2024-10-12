@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { styled, theme, CSSProp } from '../styles'
+import { CSSProp, styled, theme } from '../styles'
 
 export interface TextProps {
     variant?: 'display' | 'h1' | 'h2' | 'body' | 'caption' | 'small' | 'tiny'

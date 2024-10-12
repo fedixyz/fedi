@@ -6,12 +6,13 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { selectActiveFederationId } from '@fedi/common/redux'
 import type { SocialRecoveryQrCode } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
 import CameraPermissionsRequired from '../components/feature/scan/CameraPermissionsRequired'
 import QrCodeScanner from '../components/feature/scan/QrCodeScanner'
-import { useBridge } from '../state/hooks'
+import { useAppSelector, useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('ScanSocialRecoveryCode')
@@ -23,14 +24,19 @@ export type Props = NativeStackScreenProps<
 
 const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
-    const { socialRecoveryDownloadVerificationDoc } = useBridge()
+    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const { socialRecoveryDownloadVerificationDoc } =
+        useBridge(activeFederationId)
     const { t } = useTranslation()
     const toast = useToast()
     const [downloading, setDownloading] = useState<boolean>(false)
+    const authenticatedGuardian = useAppSelector(
+        s => s.federation.authenticatedGuardian,
+    )
 
     const handleUserInput = useCallback(
         async (input: string) => {
-            if (downloading) return
+            if (downloading || !authenticatedGuardian) return
             try {
                 const qr: SocialRecoveryQrCode = JSON.parse(input)
                 if (!qr)
@@ -43,6 +49,7 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
                     const videoPath =
                         await socialRecoveryDownloadVerificationDoc(
                             qr.recoveryId,
+                            authenticatedGuardian.peerId,
                         )
                     if (videoPath == null) {
                         toast.show(t('feature.recovery.nothing-to-download'))
@@ -75,6 +82,7 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
             toast,
             t,
             socialRecoveryDownloadVerificationDoc,
+            authenticatedGuardian,
         ],
     )
 

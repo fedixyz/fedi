@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { Theme } from '@rneui/themed'
-import { useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { Pressable, StyleSheet } from 'react-native'
 import { LinearGradientProps } from 'react-native-linear-gradient'

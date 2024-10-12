@@ -35,8 +35,8 @@ import SvgImage, {
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import {
     RootStackParamList,
-    TabsNavigatorParamList,
     TABS_NAVIGATOR_ID,
+    TabsNavigatorParamList,
 } from '../types/navigation'
 import ChatScreen from './ChatScreen'
 import Home from './Home'

@@ -27,6 +27,8 @@ if [[ $GITHUB_REF == refs/heads/release/* ]]; then
   # major vs minor vs patch version bump
   RELEASE_BRANCH_VERSION="${GITHUB_REF##*/}"
   echo "Release branch: $RELEASE_BRANCH_VERSION"
+
+  # get current version from package.json
   CURRENT_VERSION="$(npm pkg get version --ws false | sed 's/"//g')"
   echo "Current version: $CURRENT_VERSION"
   CURRENT_MINOR_VERSION="$(cut -d '.' -f 1,2 <<< "$CURRENT_VERSION")"
@@ -46,6 +48,9 @@ if [[ $GITHUB_REF == refs/heads/release/* ]]; then
   # Android: just use react-native-version
   npx react-native-version --never-amend --never-increment-build --target android
 
+  # npm should have new version in package.json
+  NEW_VERSION="$(npm pkg get version  --ws false | sed 's/"//g')"
+
   # iOS: Navigate to xcode project and update version using agvtool
   # using only the major.minor version to avoid excessive review times
   # on Testflight.
@@ -53,14 +58,13 @@ if [[ $GITHUB_REF == refs/heads/release/* ]]; then
   if command -v agvtool >/dev/null 2>&1; then
     echo "Bumping iOS marketing version to match npm"
     pushd $REPO_ROOT/ui/native/ios
-    agvtool new-marketing-version $RELEASE_BRANCH_VERSION
+    nix develop .#xcode -c agvtool new-marketing-version $NEW_VERSION
     popd
   else
     echo "Error: agvtool is not installed. Could not bump iOS version"
   fi
 
   echo "Pushing version commit to git branch"
-  NEW_VERSION="$(npm pkg get version  --ws false | sed 's/"//g')"
   echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
   echo "BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
   git add package.json android/app/build.gradle ios/ && git commit -m "chore: bump version for ${NEW_VERSION}" && git push

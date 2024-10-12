@@ -1,6 +1,6 @@
 import {
-    encodeFediMatrixUserUri,
     decodeFediMatrixUserUri,
+    encodeFediMatrixUserUri,
     isValidMatrixUserId,
 } from '../../utils/matrix'
 

@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Card, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
@@ -20,7 +20,7 @@ import AcceptTermsOfService from './AcceptTermsOfService'
 
 type Props = {
     federation: JoinPreview
-    onJoin: () => void | Promise<void>
+    onJoin: (recoverFromScratch?: boolean) => void | Promise<void>
     onBack: () => void
 }
 
@@ -30,11 +30,16 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     const [showTerms, setShowTerms] = useState<boolean>(false)
     const showJoinFederation = shouldShowJoinFederation(federation.meta)
     const [isJoining, setIsJoining] = useState(false)
+    const [selectedRecoverFromScratch, setSelectedRecoverFromScratch] =
+        useState(false)
     const tosUrl = getFederationTosUrl(federation.meta)
     const welcomeMessage = getFederationWelcomeMessage(federation.meta)
     const isSupported = getIsFederationSupported(federation)
     const popupInfo = usePopupFederationInfo(federation.meta)
     const navigation = useNavigation()
+    const isReturningMember =
+        federation.hasWallet &&
+        federation.returningMemberStatus.type === 'returningMember'
 
     const style = styles(theme)
 
@@ -89,7 +94,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     if (showTerms) {
         return (
             <AcceptTermsOfService
-                onAccept={() => onJoin()}
+                onAccept={() => onJoin(selectedRecoverFromScratch)}
                 onReject={() => setShowTerms(false)}
                 federation={federation}
             />
@@ -102,7 +107,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
             setShowTerms(true)
         } else {
             try {
-                await onJoin()
+                await onJoin(selectedRecoverFromScratch)
             } catch {
                 /* no-op, onJoin should handle */
             }
@@ -110,21 +115,18 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         setIsJoining(false)
     }
 
-    const welcomeTitle =
-        federation.hasWallet &&
-        federation.returningMemberStatus.type === 'returningMember'
-            ? t('feature.onboarding.welcome-back-to-federation', {
-                  federation: federation?.name,
-              })
-            : t('feature.onboarding.welcome-to-federation', {
-                  federation: federation?.name,
-              })
+    const welcomeTitle = isReturningMember
+        ? t('feature.onboarding.welcome-back-to-federation', {
+              federation: federation?.name,
+          })
+        : t('feature.onboarding.welcome-to-federation', {
+              federation: federation?.name,
+          })
     const welcomeInstructions =
         federation.hasWallet &&
         federation.returningMemberStatus.type === 'newMember'
             ? t('feature.onboarding.welcome-instructions-new')
-            : federation.hasWallet &&
-              federation.returningMemberStatus.type === 'returningMember'
+            : isReturningMember
             ? t('feature.onboarding.welcome-instructions-returning')
             : t('feature.onboarding.welcome-instructions-unknown')
 
@@ -166,6 +168,28 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
             <View style={style.buttonsContainer}>
                 {showJoinFederation ? (
                     <>
+                        {isReturningMember && (
+                            <View style={style.switchWrapper}>
+                                <View style={style.switchLabelContainer}>
+                                    <Text bold caption>
+                                        {t(
+                                            'feature.federations.recover-from-scratch',
+                                        )}
+                                    </Text>
+                                    <Text small>
+                                        {t(
+                                            'feature.federations.recover-from-scratch-warning',
+                                        )}
+                                    </Text>
+                                </View>
+                                <Switch
+                                    value={selectedRecoverFromScratch}
+                                    onValueChange={value => {
+                                        setSelectedRecoverFromScratch(value)
+                                    }}
+                                />
+                            </View>
+                        )}
                         <Button
                             fullWidth
                             title={t('words.continue')}
@@ -250,6 +274,22 @@ const styles = (theme: Theme) =>
         },
         unsupportedBadgeLabel: {
             color: theme.colors.white,
+        },
+        switchWrapper: {
+            margin: theme.spacing.xl,
+            padding: theme.spacing.lg,
+            display: 'flex',
+            borderRadius: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: theme.colors.offWhite,
+            gap: theme.spacing.sm,
+        },
+        switchLabelContainer: {
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: theme.spacing.md,
         },
     })
 

@@ -16,9 +16,9 @@ import App from './App'
 import { name as appName } from './app.json'
 import i18next from './localization/i18n'
 import {
-    handleForegroundFCMReceived,
     handleBackgroundFCMReceived,
     handleBackgroundNotificationUpdate,
+    handleForegroundFCMReceived,
 } from './utils/notifications'
 import { storage } from './utils/storage'
 

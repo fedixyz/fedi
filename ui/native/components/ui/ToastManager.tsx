@@ -1,13 +1,13 @@
 import { Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     Animated,
-    View,
-    Text,
-    StyleSheet,
-    useWindowDimensions,
-    Pressable,
     LayoutChangeEvent,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+    useWindowDimensions,
 } from 'react-native'
 import LinearGradient from 'react-native-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'

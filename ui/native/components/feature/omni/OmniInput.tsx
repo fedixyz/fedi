@@ -2,7 +2,7 @@ import Clipboard from '@react-native-clipboard/clipboard'
 import { Theme, useTheme } from '@rneui/themed'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { View, StyleSheet } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'

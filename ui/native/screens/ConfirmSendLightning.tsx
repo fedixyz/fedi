@@ -8,11 +8,12 @@ import { ActivityIndicator, StyleSheet } from 'react-native'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectActiveFederation } from '@fedi/common/redux'
+import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { BridgeError } from '@fedi/common/utils/fedimint'
 
 import { fedimint } from '../bridge'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { AmountScreen } from '../components/ui/AmountScreen'
@@ -31,7 +32,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
     const { parsedData } = route.params
     const {
@@ -46,7 +47,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         setInputAmount,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, activeFederation?.id)
+    } = useOmniPaymentState(fedimint, paymentFederation?.id, true)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails
@@ -141,7 +142,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
     return (
         <>
             <AmountScreen
-                showBalance
+                subHeader={<FederationWalletSelector />}
                 amount={inputAmount}
                 onChangeAmount={setInputAmount}
                 minimumAmount={minimumAmount}

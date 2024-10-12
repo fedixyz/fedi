@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { Button, Theme } from '@rneui/themed'
-import { Text, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
@@ -10,9 +9,10 @@ import {
     selectActiveFederation,
     selectActiveFederationHasWallet,
     selectReceivesDisabled,
+    setPayFromFederationId,
 } from '@fedi/common/redux/federation'
 
-import { useAppSelector } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import SvgImage from '../../ui/SvgImage'
 
@@ -25,6 +25,7 @@ const WalletButtons: React.FC<Props> = ({ offline }: Props) => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
+    const dispatch = useAppDispatch()
     const activeFederation = useAppSelector(selectActiveFederation)
     const hasWallet = useAppSelector(selectActiveFederationHasWallet)
     const receivesDisabled = useAppSelector(selectReceivesDisabled)
@@ -89,9 +90,10 @@ const WalletButtons: React.FC<Props> = ({ offline }: Props) => {
                         </Text>
                     </View>
                 }
-                onPress={() =>
+                onPress={() => {
+                    dispatch(setPayFromFederationId(activeFederation.id))
                     navigation.navigate(offline ? 'SendOfflineAmount' : 'Send')
-                }
+                }}
                 containerStyle={style.buttonContainer}
                 // Sats are rounded down from msats. Disable the send button if the user has less than 1000 msat
                 disabled={

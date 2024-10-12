@@ -12,7 +12,7 @@ import {
     submitBugReport,
     uploadBugReportLogs,
 } from '@fedi/common/utils/bug-report'
-import { makeLog, exportLogs } from '@fedi/common/utils/log'
+import { exportLogs, makeLog } from '@fedi/common/utils/log'
 import { makeTarGz } from '@fedi/common/utils/targz'
 
 import { useAppSelector, useAutosizeTextArea } from '../../hooks'

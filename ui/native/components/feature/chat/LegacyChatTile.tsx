@@ -1,5 +1,4 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
@@ -11,8 +10,7 @@ import { makePaymentText } from '@fedi/common/utils/chat'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
 import { useAppSelector } from '../../../state/hooks'
-import Avatar from '../../ui/Avatar'
-import { AvatarSize } from '../../ui/Avatar'
+import Avatar, { AvatarSize } from '../../ui/Avatar'
 import GroupIcon from './GroupIcon'
 
 type LegacyChatTileProps = {

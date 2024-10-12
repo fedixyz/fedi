@@ -1,6 +1,5 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Divider, Text, Theme } from '@rneui/themed'
-import { useTheme } from '@rneui/themed'
+import { Button, Divider, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'

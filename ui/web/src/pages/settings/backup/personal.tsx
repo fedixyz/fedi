@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import WordListIcon from '@fedi/common/assets/svgs/word-list.svg'
