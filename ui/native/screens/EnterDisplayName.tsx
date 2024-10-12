@@ -10,7 +10,7 @@ import {
     StyleSheet,
     View,
 } from 'react-native'
-import { useSafeAreaInsets, EdgeInsets } from 'react-native-safe-area-context'
+import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 

@@ -3,17 +3,18 @@
 buildscript {
     ext {
         kotlinVersion = "1.7.21"
-        buildToolsVersion = "33.0.0"
+        buildToolsVersion = "34.0.0"
         minSdkVersion = 23
-        compileSdkVersion = 33
-        targetSdkVersion = 33
+        compileSdkVersion = 34
+        targetSdkVersion = 34
 
         // for older npm packages that haven't updated
         kotlin_version = "1.7.21"   
 
+
         VisionCameraCodeScanner_minSdkVersion = 23
-        VisionCameraCodeScanner_compileSdkVersion = 33
-        VisionCameraCodeScanner_targetSdkVersion = 33
+        VisionCameraCodeScanner_compileSdkVersion = 34
+        VisionCameraCodeScanner_targetSdkVersion = 34
 
         // We use NDK 23 which has both M1 support and is the side-by-side NDK version from AGP.
         ndkVersion = "23.1.7779620"
@@ -38,8 +39,14 @@ allprojects {
         maven {
             // Required for Detox e2e testing framework
             url("$rootDir/../../node_modules/detox/Detox-android")
+        }
+        maven {
             // Required for fedi-android
-            mavenLocal()
+            def androidBridgeArtifacts = System.getenv('ANDROID_BRIDGE_ARTIFACTS')
+            if (androidBridgeArtifacts == null) {
+                throw new GradleException("ANDROID_BRIDGE_ARTIFACTS environment variable must be set")
+            }
+            url("file://${androidBridgeArtifacts}")
         }
     }
 }

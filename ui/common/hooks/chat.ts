@@ -1,42 +1,36 @@
 import { TFunction } from 'i18next'
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 
-import type { ChatMember, ChatMessage, Sats } from '@fedi/common/types'
+import type { ChatMember, Sats } from '@fedi/common/types'
 
 import { INVALID_NAME_PLACEHOLDER } from '../constants/matrix'
 import {
     configureMatrixPushNotifications,
+    previewDefaultGroupChats,
     selectActiveFederation,
     selectActiveFederationId,
     selectAuthenticatedMember,
     selectChatClientLastOnlineAt,
     selectChatClientStatus,
-    selectChatLastReadMessageTimestamps,
     selectChatLastSeenMessageTimestamp,
     selectChatMember,
     selectHasSetMatrixDisplayName,
+    selectIsMatrixReady,
     selectLatestChatMessageTimestamp,
     selectMatrixAuth,
-    selectPayFromFederation,
+    selectMatrixPushNotificationToken,
+    selectPaymentFederation,
     sendMatrixPaymentPush,
     sendMatrixPaymentRequest,
-    setLastReadMessageTimestamp,
     setLastSeenMessageTimestamp,
     setMatrixDisplayName,
-    selectMatrixPushNotificationToken,
-    selectIsMatrixReady,
     startMatrixClient,
-    previewDefaultGroupChats,
 } from '../redux'
-import {
-    getDisplayNameValidator,
-    getLatestMessage,
-    parseData,
-} from '../utils/chat'
+import { getDisplayNameValidator, parseData } from '../utils/chat'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
-import { useMinMaxSendAmount, useMinMaxRequestAmount } from './amount'
+import { useMinMaxRequestAmount, useMinMaxSendAmount } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
 
@@ -128,57 +122,6 @@ export function useUpdateLastMessageSeen(pauseUpdates?: boolean) {
         federationId,
         lastSeenMessageTimestamp,
         latestMessageTimestamp,
-        pauseUpdates,
-    ])
-}
-
-/**
- * Automatically dispatch an update to the last message read in a chat while a
- * component using this hook is mounted.
- *
- * the pauseUpdates param is used by the native app since components remain
- * mounted even when the screen is not in focus. the navigation library
- * returns isFocused = false for any screen using this hook and we can pause it
- * @deprecated XMPP legacy code
- */
-export function useUpdateLastMessageRead(
-    chatId: string,
-    messages: ChatMessage[],
-    pauseUpdates?: boolean,
-) {
-    const dispatch = useCommonDispatch()
-    const federationId = useCommonSelector(selectActiveFederation)?.id
-    const lastReadMessageTimestamps = useCommonSelector(
-        selectChatLastReadMessageTimestamps,
-    )
-    const lastReadTimestampInChat = lastReadMessageTimestamps[chatId]
-    const latestMessageTimestamp = getLatestMessage(messages)?.sentAt
-
-    useEffect(() => {
-        if (!federationId || !chatId || !latestMessageTimestamp || pauseUpdates)
-            return
-
-        // don't dispatch if we already have the latest timestamp
-        if (
-            lastReadTimestampInChat &&
-            lastReadTimestampInChat >= latestMessageTimestamp
-        )
-            return
-
-        dispatch(
-            setLastReadMessageTimestamp({
-                federationId,
-                chatId,
-                timestamp: latestMessageTimestamp,
-            }),
-        )
-    }, [
-        dispatch,
-        chatId,
-        federationId,
-        lastReadMessageTimestamps,
-        latestMessageTimestamp,
-        lastReadTimestampInChat,
         pauseUpdates,
     ])
 }
@@ -279,7 +222,7 @@ export const useChatPaymentPush = (
 ) => {
     const toast = useToast()
     const dispatch = useCommonDispatch()
-    const payFromFederation = useCommonSelector(selectPayFromFederation)
+    const payFromFederation = useCommonSelector(selectPaymentFederation)
     const federationId = payFromFederation?.id || ''
     const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
@@ -322,7 +265,7 @@ export const useChatPaymentUtils = (
     const dispatch = useCommonDispatch()
     const activeFederationId = useCommonSelector(selectActiveFederationId)
     const [federationId] = useState(activeFederationId)
-    const sendMinMax = useMinMaxSendAmount({}, true)
+    const sendMinMax = useMinMaxSendAmount({ selectedPaymentFederation: true })
     const requestMinMax = useMinMaxRequestAmount({ ecashRequest: {} })
     const [amount, setAmount] = useState(0 as Sats)
     const [submitAction, setSubmitAction] = useState<null | 'send' | 'request'>(
@@ -335,8 +278,8 @@ export const useChatPaymentUtils = (
         submitType === 'send'
             ? sendMinMax
             : submitType === 'request'
-            ? requestMinMax
-            : {}
+                ? requestMinMax
+                : {}
 
     const canRequestAmount =
         amount >= requestMinMax.minimumAmount &&

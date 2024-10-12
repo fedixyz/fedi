@@ -51,11 +51,6 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
         })
     }, [existingRoom, navigationReplace])
 
-    // TODO: reimplement read message hook for matrix
-    // Use these hooks only if the screen is in focus, otherwise use pauseUpdates
-    // const isFocused = useIsFocused()
-    // useUpdateLastMessageRead(memberId, messages, isFocused !== true)
-
     // add another check before creating another room
     const handleSend = useCallback(
         async (body: string) => {

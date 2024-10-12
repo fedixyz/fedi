@@ -1,9 +1,6 @@
-import React from 'react'
-
 import { ChatGroup } from '@fedi/common/types'
 
-import Avatar from '../../ui/Avatar'
-import { AvatarSize } from '../../ui/Avatar'
+import Avatar, { AvatarSize } from '../../ui/Avatar'
 
 type GroupIconProps = {
     chat: Pick<ChatGroup, 'id' | 'name' | 'broadcastOnly'>

@@ -1,8 +1,8 @@
 import {
-    createSlice,
     PayloadAction,
     createAsyncThunk,
     createSelector,
+    createSlice,
 } from '@reduxjs/toolkit'
 import orderBy from 'lodash/orderBy'
 import { v4 as uuidv4 } from 'uuid'
@@ -16,28 +16,28 @@ import {
     selectWalletFederations,
 } from '.'
 import {
-    MatrixUser,
-    MatrixRoom,
-    MatrixAuth,
-    MatrixRoomMember,
-    MatrixError,
-    MatrixPowerLevel,
-    MatrixSearchResults,
-    MatrixPaymentEvent,
-    MSats,
-    MatrixPaymentStatus,
-    MatrixPaymentEventContent,
-    MatrixRoomListObservableUpdates,
-    MatrixTimelineObservableUpdates,
-    MatrixRoomListItem,
-    MatrixTimelineItem,
-    MatrixEvent,
-    MatrixRoomPowerLevels,
-    MatrixSyncStatus,
-    MatrixCreateRoomOptions,
-    Sats,
-    MatrixGroupPreview,
     FederationListItem,
+    MSats,
+    MatrixAuth,
+    MatrixCreateRoomOptions,
+    MatrixError,
+    MatrixEvent,
+    MatrixGroupPreview,
+    MatrixPaymentEvent,
+    MatrixPaymentEventContent,
+    MatrixPaymentStatus,
+    MatrixPowerLevel,
+    MatrixRoom,
+    MatrixRoomListItem,
+    MatrixRoomListObservableUpdates,
+    MatrixRoomMember,
+    MatrixRoomPowerLevels,
+    MatrixSearchResults,
+    MatrixSyncStatus,
+    MatrixTimelineItem,
+    MatrixTimelineObservableUpdates,
+    MatrixUser,
+    Sats,
 } from '../types'
 import { RpcRoomId, RpcRoomNotificationMode } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
@@ -47,6 +47,7 @@ import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
     getReceivablePaymentEvents,
+    getRoomEventPowerLevel,
     getUserSuffix,
     isPaymentEvent,
     makeChatFromPreview,
@@ -54,7 +55,6 @@ import {
     mxcUrlToHttpUrl,
     shouldShowUnreadIndicator,
 } from '../utils/matrix'
-import { getRoomEventPowerLevel } from '../utils/matrix'
 import { applyObservableUpdates } from '../utils/observable'
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
@@ -94,6 +94,7 @@ const initialState = {
     errors: [] as MatrixError[],
     pushNotificationToken: null as string | null,
     groupPreviews: {} as Record<MatrixRoom['id'], MatrixGroupPreview>,
+    drafts: {} as Record<MatrixRoom['id'], string>,
 }
 
 export type MatrixState = typeof initialState
@@ -189,6 +190,17 @@ export const matrixSlice = createSlice({
         },
         resetMatrixState() {
             return { ...initialState }
+        },
+        setChatDraft(
+            state,
+            action: PayloadAction<{ roomId: MatrixRoom['id']; text: string }>,
+        ) {
+            const { roomId, text } = action.payload
+            const id = roomId as keyof MatrixState['drafts']
+
+            if (text.length === 0 && state.drafts[id]) delete state.drafts[id]
+
+            state.drafts[id] = text
         },
     },
     extraReducers: builder => {
@@ -324,6 +336,7 @@ export const {
     handleMatrixRoomListObservableUpdates,
     handleMatrixRoomTimelineObservableUpdates,
     resetMatrixState,
+    setChatDraft,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -684,12 +697,12 @@ export const checkForReceivablePayments = createAsyncThunk<
         const timeline = roomId
             ? state.matrix.roomTimelines[roomId]
             : // flattens all timelines into 1 array
-              Object.values(state.matrix.roomTimelines).reduce<
-                  MatrixTimelineItem[]
-              >((result, t) => {
-                  if (!t) return result
-                  return [...result, ...t]
-              }, [])
+            Object.values(state.matrix.roomTimelines).reduce<
+                MatrixTimelineItem[]
+            >((result, t) => {
+                if (!t) return result
+                return [...result, ...t]
+            }, [])
         if (!myId || !timeline) return
         const walletFederations = selectWalletFederations(getState())
         log.info('Looking for receivable payment events...')
@@ -1028,9 +1041,9 @@ export const selectMatrixRooms = createSelector(
                 ...room,
                 broadcastOnly: powerLevels
                     ? getRoomEventPowerLevel(powerLevels, [
-                          'm.room.message',
-                          'm.room.encrypted',
-                      ]) >= MatrixPowerLevel.Moderator
+                        'm.room.message',
+                        'm.room.encrypted',
+                    ]) >= MatrixPowerLevel.Moderator
                     : false,
             })
         }
@@ -1425,3 +1438,5 @@ export const selectDefaultMatrixRoomIds = createSelector(
         return defaultMatrixRoomIds
     },
 )
+
+export const selectChatDrafts = (s: CommonState) => s.matrix.drafts

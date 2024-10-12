@@ -10,10 +10,10 @@ import SpeakerPhoneIcon from '@fedi/common/assets/svgs/speakerphone.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     leaveMatrixRoom,
+    selectDefaultMatrixRoomIds,
     selectMatrixRoomSelfPowerLevel,
     setMatrixRoomBroadcastOnly,
     setMatrixRoomName,
-    selectDefaultMatrixRoomIds,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel, MatrixRoom } from '@fedi/common/types'
 

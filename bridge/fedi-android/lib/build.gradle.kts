@@ -61,8 +61,15 @@ afterEvaluate {
                 pom {
                     name.set("fedi-android")
                     description.set("Fedi Kotlin language bindings.")
-                    url.set("https://fedi.org")
+                    url.set("https://fedi.xyz")
                 }
+            }
+        }
+        repositories {
+            val androidBridgeArtifacts = System.getenv("ANDROID_BRIDGE_ARTIFACTS") ?: error("BRIDGE_ANDROID_ARTIFACTS environment variable must be set")
+            maven {
+                name = "fediAndroid"
+                url = uri("file://$androidBridgeArtifacts")
             }
         }
     }

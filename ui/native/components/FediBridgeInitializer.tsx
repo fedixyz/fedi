@@ -32,9 +32,11 @@ import { useAppDispatch, useAppSelector } from '../state/hooks'
 import theme from '../styles/theme'
 import { generateDeviceId } from '../utils/device-info'
 import { useAppIsInForeground } from '../utils/hooks/notifications'
+import { formatBridgeFfiLog } from '../utils/log'
 import { displayPaymentReceivedNotification } from '../utils/notifications'
 
 const log = makeLog('FediBridgeInitializer')
+const ffiLog = makeLog('ffi')
 
 interface Props {
     children: React.ReactNode
@@ -155,9 +157,8 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         const unsubscribeLog = fedimint.addListener(
             'log',
             (event: LogEvent) => {
-                // Strip escape characters
-                const stripped = event.log.replace('\\', '')
-                log.info('OS:', Platform.OS, `": log" -> "${stripped}"`)
+                const formattedLog = formatBridgeFfiLog(event)
+                ffiLog.info(formattedLog)
             },
         )
 

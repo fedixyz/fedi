@@ -19,7 +19,7 @@ export const InviteMemberDialog: React.FC<Props> = ({
 }: Props) => {
     const { t } = useTranslation()
 
-    const federation = useAppSelector((s) => selectFederation(s, federationId))
+    const federation = useAppSelector(s => selectFederation(s, federationId))
 
     const inviteCode = federation?.inviteCode
     if (!inviteCode) return null
@@ -32,7 +32,9 @@ export const InviteMemberDialog: React.FC<Props> = ({
 
     return (
         <QRDialog
-            title={`${t('feature.federations.federation-invite')} - ${federation.name}`}
+            title={`${t('feature.federations.federation-invite')} - ${
+                federation.name
+            }`}
             qrValue={inviteCode.toUpperCase()}
             copyValue={inviteCode}
             onCopyMessage={t('feature.federations.copied-federation-invite')}

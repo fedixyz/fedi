@@ -13,13 +13,11 @@ import { FedimintBridge } from './fedimint'
  */
 export async function lnurlAuth(
     fedimint: FedimintBridge,
-    federationId: string,
     lnurlData: ParsedLnurlAuth['data'],
 ) {
     const { signature, pubkey } = await fedimint.signLnurlMessage(
         lnurlData.k1,
         lnurlData.domain,
-        federationId,
     )
     const callbackUrl = new URL(lnurlData.callback)
     callbackUrl.searchParams.set('sig', signature)

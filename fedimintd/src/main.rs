@@ -23,7 +23,8 @@ async fn main() -> anyhow::Result<()> {
         || std::env::var("INCLUDE_STABILITY_POOL").is_ok();
     let include_social_recovery = is_env_var_set(FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV);
 
-    let mut fedimintd = Fedimintd::new(env!("FEDIMINT_BUILD_CODE_VERSION"))?.with_default_modules();
+    let mut fedimintd =
+        Fedimintd::new(env!("FEDIMINT_BUILD_CODE_VERSION"), Some("fedi"))?.with_default_modules();
 
     if include_stability_pool {
         let use_test_params = is_env_var_set(FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV) ||

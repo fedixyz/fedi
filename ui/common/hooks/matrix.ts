@@ -4,11 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     acceptMatrixPaymentRequest,
     cancelMatrixPayment,
+    joinMatrixRoom,
     observeMatrixRoom,
     rejectMatrixPaymentRequest,
     searchMatrixUsers,
-    selectIsMatrixReady,
     selectCanClaimPayment,
+    selectCanPayFromOtherFeds,
+    selectCanSendPayment,
+    selectIsMatrixReady,
     selectLatestMatrixRoomEventId,
     selectMatrixAuth,
     selectMatrixRoom,
@@ -16,9 +19,6 @@ import {
     selectMatrixUser,
     sendMatrixReadReceipt,
     unobserveMatrixRoom,
-    selectCanSendPayment,
-    selectCanPayFromOtherFeds,
-    joinMatrixRoom,
 } from '../redux'
 import {
     MatrixPaymentEvent,

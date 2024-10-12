@@ -4,9 +4,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use async_stream::stream;
-use bitcoin::KeyPair;
 use common::config::StabilityPoolClientConfig;
 use common::{
     amount_to_cents, AccountInfo, CancelRenewal, IntendedAction, LiquidityStats, Provide, Seek,
@@ -14,6 +13,7 @@ use common::{
     BPS_UNIT,
 };
 use db::AccountInfoKey;
+use fedimint_api_client::api::{DynModuleApi, FederationApiExt as _, FederationError};
 use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::recovery::NoModuleBackup;
 use fedimint_client::module::{ClientContext, ClientModule};
@@ -24,7 +24,6 @@ use fedimint_client::sm::{
 };
 use fedimint_client::transaction::{ClientInput, ClientOutput, TransactionBuilder};
 use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
-use fedimint_core::api::{DynModuleApi, FederationApiExt, FederationError};
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, OperationId};
 use fedimint_core::db::{
     Database, DatabaseTransaction, DatabaseVersion, IDatabaseTransactionOpsCoreTyped,
@@ -32,12 +31,11 @@ use fedimint_core::db::{
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
     ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
-    TransactionItemAmount,
 };
 use fedimint_core::task::timeout;
 use fedimint_core::{apply, async_trait_maybe_send, Amount, OutPoint, TransactionId};
 use futures::{Stream, StreamExt};
-use secp256k1_zkp::Secp256k1;
+use secp256k1_zkp::{KeyPair, Secp256k1};
 use serde::{Deserialize, Serialize};
 pub use stability_pool_common as common;
 use tokio::sync::Mutex;
@@ -48,7 +46,6 @@ mod db;
 #[derive(Debug, Clone)]
 pub struct StabilityPoolClientInit;
 
-#[apply(async_trait_maybe_send!)]
 impl ModuleInit for StabilityPoolClientInit {
     type Common = StabilityPoolCommonGen;
     const DATABASE_VERSION: DatabaseVersion = DatabaseVersion(0);
@@ -121,29 +118,14 @@ impl ClientModule for StabilityPoolClientModule {
         }
     }
 
-    fn input_amount(&self, input: &StabilityPoolInput) -> Option<TransactionItemAmount> {
-        let input = input.maybe_v0_ref()?;
-
+    fn input_fee(&self, _input: &StabilityPoolInput) -> Option<fedimint_core::Amount> {
         // TODO shaurya figure out fees
-        Some(TransactionItemAmount {
-            amount: input.amount,
-            fee: Amount::ZERO,
-        })
+        Some(Amount::ZERO)
     }
 
-    fn output_amount(&self, output: &StabilityPoolOutput) -> Option<TransactionItemAmount> {
-        let output = output.maybe_v0_ref()?;
-
+    fn output_fee(&self, _output: &StabilityPoolOutput) -> Option<fedimint_core::Amount> {
         // TODO shaurya figure out fees
-        Some(TransactionItemAmount {
-            amount: match output.intended_action {
-                IntendedAction::Seek(Seek(amount)) => amount,
-                IntendedAction::Provide(Provide { amount, .. }) => amount,
-                IntendedAction::CancelRenewal(_) => Amount::ZERO,
-                IntendedAction::UndoCancelRenewal => Amount::ZERO,
-            },
-            fee: Amount::ZERO,
-        })
+        Some(Amount::ZERO)
     }
 
     async fn handle_cli_command(
@@ -525,10 +507,7 @@ pub struct ClientAccountInfo {
 }
 
 impl StabilityPoolClientModule {
-    pub async fn account_info(
-        &self,
-        force_update: bool,
-    ) -> anyhow::Result<ClientAccountInfo, FederationError> {
+    pub async fn account_info(&self, force_update: bool) -> anyhow::Result<ClientAccountInfo> {
         let _lock = self.account_info_lock.lock().await;
         let mut dbtx = self.db.begin_transaction_nc().await;
         let db_account_info = dbtx.get_value(&AccountInfoKey).await;
@@ -564,22 +543,21 @@ impl StabilityPoolClientModule {
             });
         }
 
-        Err(FederationError::general(anyhow!("No local data present")))
+        anyhow::bail!("No local data present")
     }
 
     async fn fetch_account_info_from_server(
         &self,
         timeout_duration: Duration,
-    ) -> anyhow::Result<AccountInfo, FederationError> {
-        timeout(
+    ) -> anyhow::Result<AccountInfo> {
+        Ok(timeout(
             timeout_duration,
             self.module_api.request_current_consensus(
                 "account_info".to_string(),
                 ApiRequestErased::new(self.client_key_pair.public_key()),
             ),
         )
-        .await
-        .map_err(FederationError::general)?
+        .await??)
     }
 
     pub async fn current_cycle_index(&self) -> anyhow::Result<u64, FederationError> {
@@ -716,6 +694,7 @@ impl StabilityPoolClientModule {
 
         if unlocked_amount != Amount::ZERO {
             let input = ClientInput {
+                amount: unlocked_amount,
                 input: StabilityPoolInput::new_v0(
                     self.client_key_pair.public_key(),
                     unlocked_amount,
@@ -974,6 +953,7 @@ async fn submit_tx_with_intended_action(
     let (transaction_id, _) = match intended_action {
         IntendedAction::Seek(Seek(amount)) | IntendedAction::Provide(Provide { amount, .. }) => {
             let output = ClientOutput {
+                amount,
                 output: stability_pool_output,
                 state_machines: Arc::new(move |_, _| Vec::<StabilityPoolStateMachines>::new()),
             };
@@ -994,6 +974,7 @@ async fn submit_tx_with_intended_action(
         }
         IntendedAction::CancelRenewal(CancelRenewal { bps }) => {
             let output = ClientOutput {
+                amount: Amount::ZERO,
                 output: stability_pool_output,
                 state_machines: Arc::new(move |transaction_id, _| {
                     vec![StabilityPoolStateMachines::CancelLocked(
@@ -1091,6 +1072,7 @@ async fn claim_idle_balance_input(
     idle_balance: Amount,
 ) -> StabilityPoolCancelLockedStateMachine {
     let input = ClientInput {
+        amount: idle_balance,
         input: StabilityPoolInput::new_v0(
             context.module.client_key_pair.public_key(),
             idle_balance,
@@ -1124,6 +1106,7 @@ async fn maybe_fund_cancellation_output(
         state: match old_state.maybe_cancel_locked_bps {
             Some(bps) => {
                 let output = ClientOutput {
+                    amount: Amount::ZERO,
                     output: StabilityPoolOutput::new_v0(
                         context.module.client_key_pair.public_key(),
                         IntendedAction::CancelRenewal(CancelRenewal { bps }),

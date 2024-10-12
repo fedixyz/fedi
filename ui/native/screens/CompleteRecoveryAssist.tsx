@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import Video from 'react-native-video'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { selectActiveFederationId } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import CheckBox from '../components/ui/CheckBox'
@@ -27,7 +28,8 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
 }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { approveSocialRecoveryRequest } = useBridge()
+    const federationId = useAppSelector(selectActiveFederationId)
+    const { approveSocialRecoveryRequest } = useBridge(federationId)
     const toast = useToast()
     const { videoPath, recoveryId } = route.params
     const [isPaused, setIsPaused] = useState(true)

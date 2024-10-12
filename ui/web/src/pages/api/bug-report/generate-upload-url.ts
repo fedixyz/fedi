@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { z } from 'zod'

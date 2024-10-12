@@ -1,4 +1,4 @@
-import { useTheme, Theme, Avatar } from '@rneui/themed'
+import { Avatar, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 

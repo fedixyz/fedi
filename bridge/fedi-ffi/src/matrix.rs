@@ -334,7 +334,7 @@ impl Matrix {
         static OBSERVABLE_ID: AtomicU64 = AtomicU64::new(0);
         let id = OBSERVABLE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let observable = Observable::new(id, initial);
-        let tg = self.task_group.make_subgroup().await;
+        let tg = self.task_group.make_subgroup();
         {
             let mut observables = self.observables.lock().await;
             observables.insert(id, tg.clone());

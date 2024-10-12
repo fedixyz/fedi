@@ -5,7 +5,7 @@ import ArrowUpBadgeIcon from '@fedi/common/assets/svgs/arrow-up-badge.svg'
 import ExpiredBadgeIcon from '@fedi/common/assets/svgs/expired-badge.svg'
 import PendingBadgeIcon from '@fedi/common/assets/svgs/pending-badge.svg'
 
-import { theme, CSSProp, styled } from '../../styles'
+import { CSSProp, styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 
 export interface HistoryIconProps {

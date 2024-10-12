@@ -17,17 +17,17 @@ import {
 import { ClientConfigMetadata, Federation, JoinPreview } from '../types'
 import dateUtils from '../utils/DateUtils'
 import {
-    shouldShowOfflineWallet,
-    shouldShowSocialRecovery,
-    shouldShowInviteCode,
-    shouldEnableOnchainDeposits,
-    shouldEnableNostr,
+    fetchPublicFederations,
     getFederationChatServerDomain,
     getFederationPopupInfo,
-    shouldEnableStabilityPool,
-    shouldEnableFediInternalInjection,
-    fetchPublicFederations,
     previewInvite,
+    shouldEnableFediInternalInjection,
+    shouldEnableNostr,
+    shouldEnableOnchainDeposits,
+    shouldEnableStabilityPool,
+    shouldShowInviteCode,
+    shouldShowOfflineWallet,
+    shouldShowSocialRecovery,
 } from '../utils/FederationUtils'
 import { FedimintBridge } from '../utils/fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
@@ -274,7 +274,7 @@ export function useFederationPreview(
     )
 
     const handleJoin = useCallback(
-        async (onSuccess?: () => void) => {
+        async (onSuccess?: () => void, recoverFromScratch = false) => {
             setIsJoining(true)
             try {
                 if (!federationPreview) throw new Error()
@@ -282,6 +282,7 @@ export function useFederationPreview(
                     joinFederation({
                         fedimint,
                         code: federationPreview.inviteCode,
+                        recoverFromScratch,
                     }),
                 ).unwrap()
                 onSuccess && onSuccess()

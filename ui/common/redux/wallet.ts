@@ -1,8 +1,8 @@
 import {
-    createSlice,
     PayloadAction,
     createAsyncThunk,
     createSelector,
+    createSlice,
 } from '@reduxjs/toolkit'
 import { TFunction } from 'i18next'
 
@@ -39,6 +39,7 @@ type FederationPayloadAction<T = object> = PayloadAction<
 const initialFederationWalletState = {
     stabilityPoolAccountInfo: null as RpcStabilityPoolAccountInfo | null,
     cycleStartPrice: null as number | null,
+    averageFeeRate: null as number | null,
 }
 type FederationWalletState = typeof initialFederationWalletState
 
@@ -91,6 +92,18 @@ export const walletSlice = createSlice({
                 state[federationId] = {
                     ...federation,
                     ...action.payload,
+                }
+            },
+        )
+
+        builder.addCase(
+            fetchStabilityPoolAverageFeeRate.fulfilled,
+            (state, action) => {
+                const { federationId } = action.meta.arg
+                const federation = getFederationWalletState(state, federationId)
+                state[federationId] = {
+                    ...federation,
+                    averageFeeRate: action.payload,
                 }
             },
         )
@@ -155,6 +168,22 @@ export const fetchStabilityPoolCycleStartPrice = createAsyncThunk<
     },
 )
 
+export const fetchStabilityPoolAverageFeeRate = createAsyncThunk<
+    number,
+    { fedimint: FedimintBridge; federationId: string; numCycles: number }
+>(
+    'wallet/fetchStabilityPoolAverageFeeRate',
+    async ({ fedimint, federationId, numCycles }) => {
+        const feeRate = await fedimint.stabilityPoolAverageFeeRate(
+            federationId,
+            numCycles,
+        )
+
+        log.info('stabilityPoolAverageFeeRate', { feeRate })
+        return Number(feeRate)
+    },
+)
+
 export const refreshActiveStabilityPool = createAsyncThunk<
     void,
     { fedimint: FedimintBridge },
@@ -169,6 +198,14 @@ export const refreshActiveStabilityPool = createAsyncThunk<
         // so deposits/withdrawal amount conversions are as accurate as possible
         dispatch(fetchCurrencyPrices())
         dispatch(fetchStabilityPoolCycleStartPrice({ fedimint, federationId }))
+
+        dispatch(
+            fetchStabilityPoolAverageFeeRate({
+                fedimint,
+                federationId,
+                numCycles: 10,
+            }),
+        )
 
         await dispatch(
             fetchStabilityPoolAccountInfo({
@@ -689,28 +726,6 @@ export const selectFormattedDepositTime = createSelector(
         }
     },
 )
-/**
- * Get the max APR from the max allowed fee rate in parts per billion
- * This calculates what % of a deposit the user can expect to pay in fees
- * after 1 full year, deducting fees every 10 minutes compounding every cycle
- */
-export const selectMaximumAPR = createSelector(
-    (s: CommonState) => selectFederationStabilityPoolConfig(s),
-    config => {
-        if (!config) return 0
-        const maxFeeRatePerCycle = config.max_allowed_provide_fee_rate_ppb || 0
-        // convert parts per billion to decimal
-        const periodicRate = maxFeeRatePerCycle / 1_000_000_000
-        // Number of 10 minute cycles in a year
-        const { secs: secondsPerCycle } = config.cycle_duration
-        const secondsInYear = 365 * 24 * 60 * 60
-        const cyclesPerYear = secondsInYear / secondsPerCycle
-        const compoundedAnnualRate =
-            1 - Math.pow(1 - periodicRate, cyclesPerYear)
-        const maxFeePercentage = (compoundedAnnualRate * 100).toFixed(2)
-        return Number(maxFeePercentage)
-    },
-)
 
 export const selectStabilityPoolCycleStartPrice = (
     s: CommonState,
@@ -721,5 +736,17 @@ export const selectStabilityPoolCycleStartPrice = (
     }
     return federationId
         ? selectFederationWalletState(s, federationId).cycleStartPrice
+        : null
+}
+
+export const selectStabilityPoolAverageFeeRate = (
+    s: CommonState,
+    federationId?: Federation['id'],
+) => {
+    if (!federationId) {
+        federationId = selectActiveFederationId(s)
+    }
+    return federationId
+        ? selectFederationWalletState(s, federationId).averageFeeRate
         : null
 }

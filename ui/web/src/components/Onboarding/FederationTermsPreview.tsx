@@ -1,7 +1,7 @@
 import { Dispatch, SetStateAction, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { theme, styled } from '../../styles'
+import { styled, theme } from '../../styles'
 import { CircularLoader } from '../CircularLoader'
 import { Text } from '../Text'
 

@@ -411,7 +411,7 @@
         "community": {
             "add-community": "Ajouter une communauté",
             "join-a-community": "Rejoignez une communauté",
-            "join-community-guidance": "Rejoignez votre communauté ou fédération préférée pour accéder à de l'argent et bien plus encore",
+            "join-community-guidance": "Rejoignez votre communauté préférée pour accéder à de l'argent et bien plus encore",
             "or-visit-awesome-fedimint": "ou visitez Awesome Fedimint"
         },
         "developer": {
@@ -462,7 +462,7 @@
             "payment-request": "Demande de paiement de {{fedimod}}",
             "stable-balance-enabled": "Solde stable",
             "stable-balance-enabled-info": "Permet de convertir des sats en monnaie stable",
-            "wants-to-pay-you": "{{fedimod}} souhaite vous payer",
+            "wants-to-send-you": "{{fediMod}} veut vous envoyer",
             "wants-you-to-pay": "{{fediMod}} veut que vous payiez",
             "your-mods": "Vos modules"
         },

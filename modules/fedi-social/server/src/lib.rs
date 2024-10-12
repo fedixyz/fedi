@@ -46,7 +46,6 @@ use crate::common::{
 #[derive(Clone, Debug)]
 pub struct FediSocialInit;
 
-#[async_trait]
 impl ModuleInit for FediSocialInit {
     type Common = FediSocialCommonGen;
     const DATABASE_VERSION: DatabaseVersion = DatabaseVersion(0);
@@ -133,7 +132,10 @@ impl ServerModuleInit for FediSocialInit {
         peers: &[PeerId],
         _params: &ConfigGenModuleParams,
     ) -> BTreeMap<PeerId, ServerModuleConfig> {
-        let sks = fedimint_threshold_crypto::SecretKeySet::random(peers.degree(), &mut OsRng);
+        let sks = fedimint_threshold_crypto::SecretKeySet::random(
+            peers.to_num_peers().degree(),
+            &mut OsRng,
+        );
         let pks = sks.public_keys();
 
         let server_cfg = peers.iter().map(|&peer| {
@@ -146,7 +148,8 @@ impl ServerModuleInit for FediSocialInit {
                         sk_share: fedimint_threshold_crypto::serde_impl::SerdeSecret(sk),
                     },
                     consensus: FediSocialConsensusConfig {
-                        threshold: u32::try_from(peers.threshold()).expect("must not fail"),
+                        threshold: u32::try_from(peers.to_num_peers().threshold())
+                            .expect("must not fail"),
                         pk_set: pks.clone(),
                     },
                     local: FediSocialConfigLocal {},
@@ -176,7 +179,8 @@ impl ServerModuleInit for FediSocialInit {
             },
             consensus: FediSocialConsensusConfig {
                 pk_set: public_key_set,
-                threshold: u32::try_from(peers.peer_ids().threshold()).expect("must not fail"),
+                threshold: u32::try_from(peers.peer_ids().to_num_peers().threshold())
+                    .expect("must not fail"),
             },
             local: FediSocialConfigLocal {},
         };

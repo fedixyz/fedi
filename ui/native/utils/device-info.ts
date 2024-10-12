@@ -5,6 +5,7 @@ import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { getNumberFormatSettings } from 'react-native-localize'
 import { SvgImageName } from '../components/ui/SvgImage'
 
 const log = makeLog('native/utils/device-info')
@@ -137,4 +138,27 @@ export function getFormattedDeviceInfo(
         iconName,
         lastSeenAt,
     }
+}
+
+/**
+ * Derives a locale that respects the user's number format settings.
+ * This is a bit hacky but necessary since react-native-localize seems
+ * to prefer language-based selection for the locale instead of number
+ * format based selection which is problematic if the user has English
+ * language set but with a non-USD number format.
+ */
+export function getNumberFormatLocale() {
+    const numberSettings = getNumberFormatSettings()
+    // The default 'en-US' covers:
+    // - USA, UK, Australia, Canada (English), ...
+    // Example: 1,234,567.89 (en-US, en-GB, en-AU)
+    let derivedLocale = 'en-US'
+    if (numberSettings.groupingSeparator === '.') {
+        derivedLocale = 'de-DE' // German, Spanish, Italian, many EU countries, ...
+        // Examples: 1.234.567,89 (de-DE, es-ES, it-IT)
+    } else if (numberSettings.groupingSeparator === ' ') {
+        derivedLocale = 'fr-FR' // French, Russian, ...
+        // Examples: 1 234 567,89 (fr-FR, ru-RU)
+    }
+    return derivedLocale
 }

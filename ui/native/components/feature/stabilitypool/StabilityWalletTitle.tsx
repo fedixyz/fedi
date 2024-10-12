@@ -1,5 +1,4 @@
-import { Theme } from '@rneui/themed'
-import { Text, useTheme } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import toLower from 'lodash/toLower'
 import toUpper from 'lodash/toUpper'
 import React from 'react'

@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Theme, useTheme, Text } from '@rneui/themed'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View, useWindowDimensions } from 'react-native'
 

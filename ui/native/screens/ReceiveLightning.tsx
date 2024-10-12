@@ -39,7 +39,8 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const insets = useSafeAreaInsets()
-    const { generateAddress, generateInvoice } = useBridge()
+    const activeFederationId = useAppSelector(selectActiveFederation)?.id
+    const { generateAddress, generateInvoice } = useBridge(activeFederationId)
     const {
         inputAmount: amount,
         setInputAmount: setAmount,
@@ -51,7 +52,6 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
         lnurlWithdrawal,
     })
     const toast = useToast()
-    const activeFederationId = useAppSelector(selectActiveFederation)?.id
     const [invoice, setInvoice] = useState<string>('')
     const [generatingInvoice, setGeneratingInvoice] = useState<boolean>(false)
     const [submitAttempts, setSubmitAttempts] = useState(0)

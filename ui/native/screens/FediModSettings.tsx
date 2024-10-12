@@ -3,22 +3,20 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+    Image,
     Pressable,
     ScrollView,
     StyleSheet,
     View,
-    Image,
     useWindowDimensions,
 } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { CommonState } from '@fedi/common/redux'
 import {
-    removeCustomGlobalMod,
-    selectGlobalCustomMods,
-    selectGlobalSuggestedMods,
-    setCustomGlobalModVisibility,
-    setSuggestedGlobalModVisibility,
+    removeCustomMod,
+    selectConfigurableMods,
+    selectModsVisibility,
+    setModVisibility,
 } from '@fedi/common/redux/mod'
 import { FediMod } from '@fedi/common/types'
 
@@ -36,17 +34,10 @@ const FediModSettings: React.FC = () => {
     const insets = useSafeAreaInsets()
     const navigation = useNavigation()
 
-    const suggestedFediMods = useAppSelector(selectGlobalSuggestedMods)
-    const suggestedVisibility = useAppSelector(
-        (s: CommonState) => s.mod.suggestedGlobalModVisibility,
-    )
+    const mods = useAppSelector(selectConfigurableMods)
+    const modsVisibility = useAppSelector(selectModsVisibility)
 
-    const customFediMods = useAppSelector(selectGlobalCustomMods)
-    const customVisibility = useAppSelector(
-        (s: CommonState) => s.mod.customGlobalModVisibility,
-    )
-
-    const reduxDispatch = useAppDispatch()
+    const dispatch = useAppDispatch()
 
     const [deletingMod, setDeletingMod] = useState<FediMod>()
     const [isDeleting, setIsDeleting] = useState<boolean>(false)
@@ -63,28 +54,16 @@ const FediModSettings: React.FC = () => {
         setDeletingMod(fediMod)
     }
 
-    const handleToggleCustomVisibility = useCallback(
+    const handleToggleModVisibility = useCallback(
         (mod: FediMod) => {
-            reduxDispatch(
-                setCustomGlobalModVisibility({
+            dispatch(
+                setModVisibility({
                     modId: mod.id,
-                    isHidden: !customVisibility[mod.id]?.isHidden,
+                    isHidden: !modsVisibility[mod.id]?.isHidden,
                 }),
             )
         },
-        [customVisibility, reduxDispatch],
-    )
-
-    const handleToggleSuggestedVisibility = useCallback(
-        (mod: FediMod) => {
-            reduxDispatch(
-                setSuggestedGlobalModVisibility({
-                    modId: mod.id,
-                    isHidden: !suggestedVisibility[mod.id]?.isHidden,
-                }),
-            )
-        },
-        [suggestedVisibility, reduxDispatch],
+        [modsVisibility, dispatch],
     )
 
     const confirmationContent: CustomOverlayContents = useMemo(() => {
@@ -95,7 +74,7 @@ const FediModSettings: React.FC = () => {
 
             setIsDeleting(true)
 
-            reduxDispatch(removeCustomGlobalMod({ modId: deletingMod.id }))
+            dispatch(removeCustomMod({ modId: deletingMod.id }))
 
             setDeletingMod(undefined)
             setIsDeleting(false)
@@ -125,43 +104,25 @@ const FediModSettings: React.FC = () => {
                 },
             ],
         }
-    }, [t, deletingMod, reduxDispatch, style.modTile])
+    }, [t, deletingMod, dispatch, style.modTile])
 
-    const renderCustomMods = useCallback(() => {
-        return customFediMods.map(mod => {
-            const isHidden = customVisibility[mod.id]?.isHidden
+    const renderMods = useCallback(() => {
+        return mods.map(mod => {
+            const isHidden = modsVisibility[mod.id]?.isHidden
+            const isCustom = modsVisibility[mod.id]?.isCustom
 
             return (
                 <ModRow
                     key={mod.id}
                     isHidden={isHidden}
                     mod={mod}
+                    onToggleVisibility={handleToggleModVisibility}
                     onDelete={handleDeletePress}
-                    onToggleVisibility={handleToggleCustomVisibility}
-                    canDelete
+                    canDelete={isCustom}
                 />
             )
         })
-    }, [customFediMods, customVisibility, handleToggleCustomVisibility])
-
-    const renderSuggestedMods = useCallback(() => {
-        return suggestedFediMods.map(mod => {
-            const isHidden = suggestedVisibility[mod.id]?.isHidden
-
-            return (
-                <ModRow
-                    key={mod.id}
-                    isHidden={isHidden}
-                    mod={mod}
-                    onToggleVisibility={handleToggleSuggestedVisibility}
-                />
-            )
-        })
-    }, [
-        suggestedFediMods,
-        suggestedVisibility,
-        handleToggleSuggestedVisibility,
-    ])
+    }, [mods, modsVisibility, handleToggleModVisibility])
 
     return (
         <View style={style.container}>
@@ -169,14 +130,13 @@ const FediModSettings: React.FC = () => {
                 style={style.scrollContainer}
                 contentContainerStyle={style.contentContainer}
                 overScrollMode="auto">
-                {customFediMods.length > 0 || suggestedFediMods.length > 0 ? (
+                {mods.length > 0 ? (
                     <>
                         <Text style={style.label}>
                             {t('feature.fedimods.your-mods')}
                         </Text>
                         <View style={style.fediModsContainer}>
-                            {renderSuggestedMods()}
-                            {renderCustomMods()}
+                            {renderMods()}
                         </View>
 
                         <CustomOverlay

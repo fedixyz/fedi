@@ -9,7 +9,7 @@ use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::Amount;
 use fedimint_ln_client::pay::GatewayPayError;
 use fedimint_ln_client::{LnPayState, LnReceiveState};
-use fedimint_wallet_client::{BitcoinTransactionData, DepositState, WithdrawState};
+use fedimint_wallet_client::{DepositStateV2, WithdrawState};
 use serde::{Deserialize, Serialize};
 use stability_pool_client::ClientAccountInfo;
 use ts_rs::TS;
@@ -165,8 +165,8 @@ pub async fn federation_v2_to_rpc_federation(federation: &FederationV2) -> RpcFe
     let id = RpcFederationId(federation.federation_id().to_string());
     let name = federation.federation_name();
     let network = federation.get_network();
-    let client_config = federation.client.get_config();
-    let meta = federation.client.get_config().global.meta.clone();
+    let client_config = federation.client.config().await;
+    let meta = federation.get_cached_meta().await;
     let nodes = client_config
         .global
         .api_endpoints
@@ -174,7 +174,7 @@ pub async fn federation_v2_to_rpc_federation(federation: &FederationV2) -> RpcFe
         .iter()
         .map(|(peer_id, peer_url)| (RpcPeerId(*peer_id), peer_url.clone()))
         .collect();
-    let client_config_json = federation.client.get_config_json();
+    let client_config_json = federation.client.get_config_json().await;
     let (invite_code, fedi_fee_schedule, balance) = futures::join!(
         federation.get_invite_code(),
         federation.fedi_fee_schedule(),
@@ -409,21 +409,18 @@ pub enum RpcOnchainState {
 }
 
 impl RpcOnchainState {
-    pub fn from_deposit_state(opt: Option<DepositState>) -> Option<RpcOnchainState> {
+    pub fn from_deposit_state(opt: Option<DepositStateV2>) -> Option<RpcOnchainState> {
         let state = match opt? {
-            DepositState::WaitingForTransaction => RpcOnchainDepositState::WaitingForTransaction,
-            DepositState::WaitingForConfirmation(data) => {
+            DepositStateV2::WaitingForTransaction => RpcOnchainDepositState::WaitingForTransaction,
+            DepositStateV2::WaitingForConfirmation { btc_out_point, .. } => {
                 RpcOnchainDepositState::WaitingForConfirmation(
-                    RpcOnchainDepositTransactionData::new(&data),
+                    RpcOnchainDepositTransactionData::new(&btc_out_point),
                 )
             }
-            DepositState::Confirmed(data) => {
-                RpcOnchainDepositState::Confirmed(RpcOnchainDepositTransactionData::new(&data))
-            }
-            DepositState::Claimed(data) => {
-                RpcOnchainDepositState::Claimed(RpcOnchainDepositTransactionData::new(&data))
-            }
-            DepositState::Failed(_) => RpcOnchainDepositState::Failed,
+            DepositStateV2::Claimed { btc_out_point, .. } => RpcOnchainDepositState::Claimed(
+                RpcOnchainDepositTransactionData::new(&btc_out_point),
+            ),
+            DepositStateV2::Failed(_) => RpcOnchainDepositState::Failed,
         };
         Some(Self::DepositState(state))
     }
@@ -450,7 +447,6 @@ impl RpcOnchainState {
 pub enum RpcOnchainDepositState {
     WaitingForTransaction,
     WaitingForConfirmation(RpcOnchainDepositTransactionData),
-    Confirmed(RpcOnchainDepositTransactionData),
     Claimed(RpcOnchainDepositTransactionData),
     Failed,
 }
@@ -463,9 +459,9 @@ pub struct RpcOnchainDepositTransactionData {
 }
 
 impl RpcOnchainDepositTransactionData {
-    pub fn new(data: &BitcoinTransactionData) -> Self {
+    pub fn new(outpoint: &bitcoin::OutPoint) -> Self {
         Self {
-            txid: data.btc_transaction.txid().to_string(),
+            txid: outpoint.txid.to_string(),
         }
     }
 }
@@ -485,8 +481,6 @@ pub enum RpcOnchainWithdrawState {
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcBitcoinDetails {
     pub address: String,
-    #[ts(type = "number")]
-    pub expires_at: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -521,14 +515,12 @@ impl RpcLnState {
         opt.map(|state| match state {
             LnPayState::Created => RpcLnState::PayState(RpcLnPayState::Created),
             LnPayState::Canceled => RpcLnState::PayState(RpcLnPayState::Canceled),
-            LnPayState::Funded => RpcLnState::PayState(RpcLnPayState::Funded),
-            LnPayState::WaitingForRefund {
-                block_height,
-                gateway_error,
-            } => RpcLnState::PayState(RpcLnPayState::WaitingForRefund {
-                block_height,
-                gateway_error,
-            }),
+            LnPayState::Funded { block_height } => {
+                RpcLnState::PayState(RpcLnPayState::Funded { block_height })
+            }
+            LnPayState::WaitingForRefund { error_reason } => {
+                RpcLnState::PayState(RpcLnPayState::WaitingForRefund { error_reason })
+            }
             LnPayState::AwaitingChange => RpcLnState::PayState(RpcLnPayState::AwaitingChange),
             LnPayState::Success { preimage } => {
                 RpcLnState::PayState(RpcLnPayState::Success { preimage })
@@ -548,11 +540,11 @@ impl RpcLnState {
 pub enum RpcLnPayState {
     Created,
     Canceled,
-    Funded,
-    WaitingForRefund {
+    Funded {
         block_height: u32,
-        #[ts(type = "string")]
-        gateway_error: GatewayPayError,
+    },
+    WaitingForRefund {
+        error_reason: String,
     },
     AwaitingChange,
     Success {
@@ -657,7 +649,7 @@ pub struct RpcLightningDetails {
 }
 
 // FIXME: should probaby type these as bytes
-#[derive(Debug, Deserialize, Serialize, TS)]
+#[derive(Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcXmppCredentials {
@@ -666,8 +658,22 @@ pub struct RpcXmppCredentials {
     pub username: Option<String>,
 }
 
+// Implement Debug manually to ignore sensitive fields
+impl std::fmt::Debug for RpcXmppCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RpcXmppCredentials")
+            .field("username", &self.username)
+            .finish()
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EcashReceiveMetadata {
+    pub internal: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct EcashSendMetadata {
     pub internal: bool,
 }
 

@@ -7,7 +7,4 @@ edition = "2021"
 anyhow = { workspace = true }
 clap = { workspace = true }
 devimint = { workspace = true }
-fedi-core = { workspace = true }
-futures = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tracing = { workspace = true }

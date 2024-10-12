@@ -6,6 +6,7 @@ on:
 jobs:
     release-android:
         name: Build Android AAB & Upload to Google Play Dev Console
+        timeout-minutes: 80
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
@@ -20,12 +21,6 @@ jobs:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-            - name: Build bridge
-              run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
-
-            - name: Build UI dependencies
-              run: nix develop -c ./scripts/ui/build-deps.sh
-
             - name: Generate release credentials
               env:
                   ANDROID_KEYSTORE_FILE_ENCODED: ${{ secrets.ANDROID_KEYSTORE_FILE_ENCODED }}
@@ -34,8 +29,11 @@ jobs:
               run: nix develop -c ./scripts/ci/make-android-release-creds.sh
 
             - name: Execute Fastlane command
+              timeout-minutes: 60
               env:
-                  # Consider: should we even have separate steps above for this?
-                  BUILD_BRIDGE: 0
-                  BUILD_UI_DEPS: 0
-              run: nix develop -c ./scripts/ui/deploy-to-google-play.sh
+                  BUILD_BRIDGE: 1
+                  BUILD_UI_DEPS: 1
+              run: |
+                nix develop -c \
+                  env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android \
+                  ./scripts/ui/deploy-to-google-play.sh

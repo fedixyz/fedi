@@ -68,3 +68,43 @@ export function upsertRecordEntity<T extends { id: string }>(
         },
     }
 }
+
+/**
+ * Same logic as upsertRecordEntity but allows us to pass in the entityId
+ */
+export function upsertRecordEntityId<T>(
+    record: Record<string, T> | null | undefined,
+    entity: T,
+    entityId: string,
+) {
+    record = record || {}
+    if (record[entityId] && isEqual(record[entityId], entity)) {
+        return record
+    }
+    return {
+        ...record,
+        [entityId]: {
+            ...(record[entityId] || {}),
+            ...entity,
+        },
+    }
+}
+
+/**
+ * Same logic as upsertRecordEntityId but allows us to pass
+ * in the entityId
+ */
+export function upsertRecordList<T>(
+    record: Record<string, T[] | undefined> | null | undefined,
+    entity: T[],
+    entityId: string,
+) {
+    record = record || {}
+    if (record[entityId] && isEqual(record[entityId], entity)) {
+        return record
+    }
+    return {
+        ...record,
+        [entityId]: [...(record[entityId] || []), ...entity],
+    }
+}

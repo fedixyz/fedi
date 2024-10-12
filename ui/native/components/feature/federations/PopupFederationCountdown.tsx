@@ -1,13 +1,13 @@
-import { Theme, useTheme, Text, Overlay, Button } from '@rneui/themed'
+import { Button, Overlay, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
+    Linking,
     Pressable,
     StyleProp,
     StyleSheet,
-    ViewStyle,
     View,
-    Linking,
+    ViewStyle,
 } from 'react-native'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'

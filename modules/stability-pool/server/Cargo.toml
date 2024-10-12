@@ -9,8 +9,6 @@ async-trait = { workspace = true }
 fedimint-core = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }
-strum = { workspace = true }
-strum_macros = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
 secp256k1-zkp = { workspace = true }

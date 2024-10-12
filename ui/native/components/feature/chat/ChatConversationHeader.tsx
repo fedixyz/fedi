@@ -31,7 +31,6 @@ const ChatConversationHeader: React.FC = () => {
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const preview = useAppSelector(s => selectGroupPreview(s, roomId))
     const user = useAppSelector(s => selectMatrixUser(s, userId))
-    const isGroupChat = room?.directUserId === undefined
 
     const style = styles(theme)
 
@@ -74,14 +73,12 @@ const ChatConversationHeader: React.FC = () => {
                 centerContainerStyle={style.headerCenterContainer}
                 headerCenter={
                     <Pressable
-                        disabled={!isGroupChat}
                         style={style.memberContainer}
                         hitSlop={10}
                         onPress={() => {
                             // make sure we have joined room and its not just a preview to show admin settings
-                            // TODO: implement admin settings for 1on1 chat
-                            if (isGroupChat && room) {
-                                navigation.navigate('GroupAdmin', { roomId })
+                            if (room) {
+                                navigation.navigate('RoomSettings', { roomId })
                             }
                         }}>
                         {avatar}

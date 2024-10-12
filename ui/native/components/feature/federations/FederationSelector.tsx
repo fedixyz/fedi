@@ -7,8 +7,8 @@ import { selectActiveFederation } from '@fedi/common/redux'
 
 import { useAppSelector, usePrevious } from '../../../state/hooks'
 import {
-    DrawerNavigationHook,
     DRAWER_NAVIGATION_ID,
+    DrawerNavigationHook,
     NavigationHook,
 } from '../../../types/navigation'
 import HoloGradient from '../../ui/HoloGradient'

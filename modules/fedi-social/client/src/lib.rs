@@ -18,7 +18,6 @@ use fedimint_core::{apply, async_trait_maybe_send};
 #[derive(Debug, Clone)]
 pub struct FediSocialClientInit;
 
-#[apply(async_trait_maybe_send!)]
 impl ModuleInit for FediSocialClientInit {
     type Common = FediSocialCommonGen;
 
@@ -60,17 +59,17 @@ impl ClientModule for FediSocialClientModule {
 
     fn context(&self) -> Self::ModuleStateMachineContext {}
 
-    fn input_amount(
+    fn input_fee(
         &self,
         _input: &<Self::Common as fedimint_core::module::ModuleCommon>::Input,
-    ) -> Option<fedimint_core::module::TransactionItemAmount> {
+    ) -> Option<fedimint_core::Amount> {
         unreachable!("FediSocial does not have any inputs")
     }
 
-    fn output_amount(
+    fn output_fee(
         &self,
         _output: &<Self::Common as fedimint_core::module::ModuleCommon>::Output,
-    ) -> Option<fedimint_core::module::TransactionItemAmount> {
+    ) -> Option<fedimint_core::Amount> {
         unreachable!("FediSocial does not have any outputs")
     }
 }

@@ -1,10 +1,10 @@
 import { Theme, useTheme } from '@rneui/themed'
 import {
-    StyleSheet,
     Pressable as BasePressable,
     PressableProps as BaseProps,
-    ViewStyle,
     StyleProp,
+    StyleSheet,
+    ViewStyle,
 } from 'react-native'
 
 export type PressableProps = {

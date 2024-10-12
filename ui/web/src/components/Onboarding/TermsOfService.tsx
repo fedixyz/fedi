@@ -6,8 +6,9 @@ import { config } from '../../styles'
 import { Button } from '../Button'
 import { Header, Title } from '../Layout'
 import { Text } from '../Text'
-import FederationTermsPreview from './FederationTermsPreview'
-import { ExternalTosLink } from './FederationTermsPreview'
+import FederationTermsPreview, {
+    ExternalTosLink,
+} from './FederationTermsPreview'
 import {
     OnboardingActions,
     OnboardingContainer,

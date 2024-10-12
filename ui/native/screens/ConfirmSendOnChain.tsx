@@ -6,19 +6,17 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import {
-    useAmountFormatter,
-    useBalanceDisplay,
-} from '@fedi/common/hooks/amount'
+import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectActiveFederation } from '@fedi/common/redux'
+import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { BridgeError } from '@fedi/common/utils/fedimint'
 
 import { fedimint } from '../bridge'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
@@ -35,11 +33,10 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const { parsedData } = route.params
     const [unit] = useState('sats')
     const { feeBreakdownTitle, makeOnchainFeeContent } = useFeeDisplayUtils(t)
-    const balanceDisplay = useBalanceDisplay(t)
     const {
         isReadyToPay,
         inputAmount,
@@ -47,7 +44,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
         sendTo,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, activeFederation?.id)
+    } = useOmniPaymentState(fedimint, paymentFederation?.id, true)
     const { makeFormattedAmountsFromSats } = useAmountFormatter()
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(inputAmount)
@@ -156,13 +153,11 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <View style={style.container}>
-            <Text
-                caption
-                style={style.balance}
-                numberOfLines={1}
-                adjustsFontSizeToFit>
-                {balanceDisplay}
-            </Text>
+            {/*
+              You already have the chance to select the payFromFederation in SendOnchainAmount.
+              Since we no-op any feeDetails errors in useOmniPaymentState, this has the potential to crash the app with bridge errors.
+            */}
+            <FederationWalletSelector readonly />
             <View style={style.amountContainer}>
                 <Text h1 numberOfLines={1}>
                     {formattedPrimaryAmount}

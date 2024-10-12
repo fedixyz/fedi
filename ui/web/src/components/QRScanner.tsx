@@ -1,10 +1,10 @@
 import type QrScanner from 'qr-scanner'
 import {
+    State as FrameState,
     areFramesComplete,
     framesToData,
     parseFramesReducer,
     progressOfFrames,
-    State as FrameState,
 } from 'qrloop'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

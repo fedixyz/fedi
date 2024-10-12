@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use devimint::external::Bitcoind;
+use devimint::federation::Federation;
 use devimint::util::{Command, ProcessManager};
 use devimint::{cmd, dev_fed, vars, DevFed};
 use fedimint_core::task::TaskGroup;
@@ -47,8 +48,8 @@ async fn starter_test() -> anyhow::Result<()> {
     // Peg in for seeker and provider and verify balances
     fed.await_block_sync().await?;
     let (seeker_peg_in_op_id, provider_peg_in_op_id) = tokio::try_join!(
-        seeker.initiate_peg_in(&bitcoind, seeker_peg_in_sats),
-        provider.initiate_peg_in(&bitcoind, provider_peg_in_sats)
+        seeker.initiate_peg_in(&fed, &bitcoind, seeker_peg_in_sats),
+        provider.initiate_peg_in(&fed, &bitcoind, provider_peg_in_sats)
     )?;
     bitcoind.mine_blocks(30).await?;
     tokio::try_join!(
@@ -615,7 +616,7 @@ impl ForkedClient {
         })
     }
 
-    pub async fn cmd(&self) -> Command {
+    pub fn cmd(&self) -> Command {
         cmd!(
             "fedimint-cli",
             format!("--data-dir={}", self.data_dir_path.display())
@@ -632,13 +633,24 @@ impl ForkedClient {
             .unwrap())
     }
 
-    async fn initiate_peg_in(&self, bitcoind: &Bitcoind, amount: u64) -> anyhow::Result<String> {
+    async fn initiate_peg_in(
+        &self,
+        fed: &Federation,
+        bitcoind: &Bitcoind,
+        amount: u64,
+    ) -> anyhow::Result<String> {
+        let deposit_fees = fed.deposit_fees()?;
         info!(self.name, amount, "Peg-in");
         let deposit = cmd!(self, "deposit-address").out_json().await?;
         let deposit_address = deposit["address"].as_str().unwrap();
         let deposit_operation_id = deposit["operation_id"].as_str().unwrap();
 
-        bitcoind.send_to(deposit_address.to_owned(), amount).await?;
+        bitcoind
+            .send_to(
+                deposit_address.to_owned(),
+                amount + deposit_fees.msats / 1000,
+            )
+            .await?;
         Ok(deposit_operation_id.to_string())
     }
 

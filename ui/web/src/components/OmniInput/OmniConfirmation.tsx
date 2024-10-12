@@ -17,8 +17,7 @@ import { ALLOWED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parse
 import { useRouteStateContext } from '../../context/RouteStateContext'
 import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
-import { keyframes, styled } from '../../styles'
-import { theme } from '../../styles'
+import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { Icon } from '../Icon'
 import { Text } from '../Text'
@@ -43,11 +42,10 @@ export const OmniConfirmation: React.FC<Props> = ({
     const router = useRouter()
 
     const handleAuth = async () => {
-        if (!activeFederationId || parsedData.type !== ParserDataType.LnurlAuth)
-            return
+        if (parsedData.type !== ParserDataType.LnurlAuth) return
         setIsLoading(true)
         try {
-            await lnurlAuth(fedimint, activeFederationId, parsedData.data)
+            await lnurlAuth(fedimint, parsedData.data)
             onSuccess(parsedData)
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')

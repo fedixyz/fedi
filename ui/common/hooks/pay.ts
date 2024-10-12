@@ -66,6 +66,7 @@ interface OmniPaymentState {
 export function useOmniPaymentState(
     fedimint: FedimintBridge,
     federationId: string | undefined,
+    selectedPaymentFederation = false,
 ): OmniPaymentState {
     const [feeDetails, setFeeDetails] = useState<RpcFeeDetails>()
     const [invoice, setInvoice] = useState<Invoice>()
@@ -80,7 +81,9 @@ export function useOmniPaymentState(
         maximumAmount,
         description,
         sendTo,
-    } = useSendForm({ btcAddress, bip21Payment, invoice, lnurlPayment })
+    } = useSendForm(
+        { btcAddress, bip21Payment, invoice, lnurlPayment, selectedPaymentFederation },
+    )
 
     useEffect(() => {
         const getOnchainFeeDetails = async () => {

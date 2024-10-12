@@ -1,4 +1,3 @@
-import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'

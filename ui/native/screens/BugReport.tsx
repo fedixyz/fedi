@@ -12,7 +12,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import DeviceInfo from 'react-native-device-info'
-import { readFile, exists } from 'react-native-fs'
+import { exists, readFile } from 'react-native-fs'
 import { Asset } from 'react-native-image-picker'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { v4 as uuidv4 } from 'uuid'
@@ -35,10 +35,7 @@ import { Attachments } from '../components/ui/Attachments'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
-import {
-    attachmentsToFiles,
-    generateLogsExportGzip,
-} from '../utils/logs-export'
+import { attachmentsToFiles, generateLogsExportGzip } from '../utils/log'
 
 const log = makeLog('BugReport')
 

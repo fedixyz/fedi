@@ -16,6 +16,9 @@ $REPO_ROOT/scripts/enforce-nix.sh
 # the "xcrun xctrace list devices" command. The list includes both physical devices 
 # connected to the machine and simulators. Once the user selects a device, the script 
 # extracts the device ID, which can then be used to run commands specifically for that device.
+# File to store the previously selected device ID
+DEVICE_ID_FILE="/tmp/selected_device_id"
+
 devices=()
 xcrunDevicesList=$(nix develop .#xcode --command xcrun xctrace list devices)
 while IFS= read -r line; do
@@ -28,11 +31,43 @@ if [ ${#devices[@]} -eq 0 ]; then
     exit 1
 fi
 
-# Set the default choice to the last device
-defaultChoice=${#devices[@]}
+# Function to extract device ID from a device string
+extract_device_id() {
+    echo "$1" | sed -n -E 's/.*\(([^)]+)\).*/\1/p'
+}
 
-# allow the user to select from the list
-if [[ "$SELECT_IOS_DEVICE" == "1" ]]; then
+# Check if the device ID file exists and if the stored ID matches any current device
+if [[ -f "$DEVICE_ID_FILE" ]]; then
+    last_selected_device_id=$(cat "$DEVICE_ID_FILE")
+    matching_device=""
+    
+    for device in "${devices[@]}"; do
+        current_device_id=$(extract_device_id "$device")
+        if [[ "$current_device_id" == "$last_selected_device_id" ]]; then
+            matching_device="$device"
+            break
+        fi
+    done
+    
+    if [[ -n "$matching_device" ]]; then
+        echo "Last selected device: $matching_device"
+        echo "Would you like to use this device again? (press ENTER/Y/y for yes, any other key for no -- will proceed after 10 seconds...): "
+        
+        # Read user input with timeout
+        if read -t 10 user_choice; then
+            user_choice=${user_choice:-Y}
+        else
+            user_choice="Y"
+        fi
+
+        if [[ "$user_choice" =~ ^[Yy]$ ]]; then
+            selectedDevice="$matching_device"
+        fi
+    fi
+fi
+
+# If no device is selected yet, allow the user to choose one
+if [[ -z "$selectedDevice" ]]; then
     echo "Select a device:"
     for i in "${!devices[@]}"; do 
         echo "$((i+1))) ${devices[$i]}"
@@ -40,18 +75,18 @@ if [[ "$SELECT_IOS_DEVICE" == "1" ]]; then
 
     # Prompt for user input and use the default choice if none is given
     read -p "Enter choice: " choice
-    choice=${choice:-$defaultChoice}
+    choice=${choice:-${#devices[@]}}
 
     selectedDevice=${devices[$((choice-1))]}  # adjust for 0-indexing
-
-    echo "You selected device: $selectedDevice"
-else
-    # If SELECT_IOS_DEVICE is 0, select the default device without prompting the user
-    selectedDevice=${devices[$((defaultChoice-1))]}
 fi
 
 # Extract the device ID
-FEDI_DEVICE_ID=$(echo "$selectedDevice" | sed -n -E 's/.*\(([^)]+)\).*/\1/p')
+FEDI_DEVICE_ID=$(extract_device_id "$selectedDevice")
+
+# Store the selected device ID for future use
+echo "$FEDI_DEVICE_ID" > "$DEVICE_ID_FILE"
+
+echo "You selected device: $selectedDevice"
 
 cd $REPO_ROOT/ui/native
 echo "Building & installing ios app bundle"

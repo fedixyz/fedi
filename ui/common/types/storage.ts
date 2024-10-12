@@ -4,7 +4,7 @@
 import { ProtectedFeatures } from '../redux'
 import { ModVisibility } from '../redux/mod'
 import { Chat, ChatGroup, ChatMember, ChatMessage } from './chat'
-import { Federation, Guardian, FediMod, SupportedCurrency } from './fedimint'
+import { Federation, FediMod, Guardian, SupportedCurrency } from './fedimint'
 
 export interface StoredStateV0 {
     version: 0 // Not a real version, just implemented for demonstrative purposes
@@ -182,6 +182,15 @@ export interface StoredStateV18 extends Omit<StoredStateV17, 'version'> {
     suggestedGlobalModVisibility: Record<FediMod['id'], ModVisibility>
 }
 
+export interface StoredStateV19
+    extends Omit<
+        StoredStateV18,
+        'version' | 'customGlobalModVisibility' | 'suggestedGlobalModVisibility'
+    > {
+    version: 19
+    modVisibility: Record<FediMod['id'], ModVisibility>
+}
+
 /*** Union of all past shapes of stored state ***/
 export type AnyStoredState =
     | StoredStateV0
@@ -203,9 +212,10 @@ export type AnyStoredState =
     | StoredStateV16
     | StoredStateV17
     | StoredStateV18
+    | StoredStateV19
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV18
+export type LatestStoredState = StoredStateV19
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

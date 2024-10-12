@@ -1,6 +1,6 @@
 import notifee from '@notifee/react-native'
 import { useFocusEffect } from '@react-navigation/native'
-import { useRef, useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
 
 import { makeLog } from '@fedi/common/utils/log'

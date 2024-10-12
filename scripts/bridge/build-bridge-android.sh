@@ -46,6 +46,7 @@ cd $BRIDGE_ROOT/fedi-ffi
 # note: using '--target-dir' or otherwise this build will completely invalidate previous ones already in the ./target
 cargo run --target-dir "${CARGO_BUILD_TARGET_DIR}/pkg/fedi-ffi/ffi-bindgen-run" --package ffi-bindgen -- generate --language kotlin --out-dir $BRIDGE_ROOT/fedi-android/lib/src/main/kotlin "$BRIDGE_ROOT/fedi-ffi/src/fedi.udl"
 
-# publish android live to local maven
+# publish android package to a local maven repository so the app can locate it
 cd $BRIDGE_ROOT/fedi-android
-./gradlew publishToMavenLocal
+mkdir -p "$ANDROID_BRIDGE_ARTIFACTS"
+./gradlew publishMavenPublicationToFediAndroidRepository

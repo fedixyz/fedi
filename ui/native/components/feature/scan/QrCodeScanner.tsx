@@ -1,11 +1,11 @@
 import { useIsFocused } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import {
+    State as FrameState,
     areFramesComplete,
     framesToData,
     parseFramesReducer,
     progressOfFrames,
-    State as FrameState,
 } from 'qrloop'
 import React, { useRef, useState } from 'react'
 import { StyleSheet, Vibration, View } from 'react-native'

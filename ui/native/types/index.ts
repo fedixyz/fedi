@@ -2,7 +2,7 @@ import { jid } from '@xmpp/client'
 import { JID } from '@xmpp/jid'
 import { ImageSourcePropType } from 'react-native'
 
-import { MSats, Invoice } from '@fedi/common/types'
+import { Invoice, MSats } from '@fedi/common/types'
 
 import { FediModImages } from '../assets/images'
 import { DEFAULT_GROUP_NAME } from '../constants'
@@ -58,6 +58,7 @@ export type ShortcutIcon = {
     url?: string
     image?: ImageSourcePropType
 }
+// TODO: Refactor classes to use functional-friendly types
 export class Shortcut extends Base {
     title: string
     description?: string
@@ -65,6 +66,7 @@ export class Shortcut extends Base {
     type: ShortcutType
     color?: string
 }
+// TODO: Refactor classes to use functional-friendly types
 export class FediMod extends Shortcut {
     id: string
     type = ShortcutType.fediMod
@@ -78,6 +80,7 @@ export class FediMod extends Shortcut {
         }
     }
 }
+// TODO: Refactor classes to use functional-friendly types
 export class Screen extends Shortcut {
     type = ShortcutType.screen
     screenName: keyof RootStackParamList
@@ -89,6 +92,7 @@ export enum ChatType {
     direct = 'direct',
     group = 'group',
 }
+// TODO: Refactor classes to use functional-friendly types
 export class Chat extends Base {
     id: string
     name?: string
@@ -105,6 +109,7 @@ export class Chat extends Base {
         if (data.members) this.members = this.members?.map(m => new Member(m))
     }
 }
+// TODO: Refactor classes to use functional-friendly types
 export class Group extends Chat {
     broadcastOnly?: boolean
     myRole?: string
@@ -161,6 +166,7 @@ export type GroupSettings = {
     showMessageHistory: boolean
 }
 
+// TODO: Refactor classes to use functional-friendly types
 export class Member extends Base {
     jid: JID
     publicKeyHex?: string
@@ -174,6 +180,7 @@ export class Member extends Base {
     }
 }
 
+// TODO: Refactor classes to use functional-friendly types
 export class Message extends Base {
     id?: string
     content: string
@@ -202,6 +209,7 @@ export type MessageAction = {
     handler: () => void
 }
 
+// TODO: Refactor classes to use functional-friendly types
 export class Payment extends Base {
     amount: MSats
     status: PaymentStatus

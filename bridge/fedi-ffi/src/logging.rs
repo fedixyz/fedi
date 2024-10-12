@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
 use anyhow::Context;
+use fedimint_logging::{LOG_CLIENT, LOG_CLIENT_MODULE_WALLET, LOG_CLIENT_REACTOR};
 use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
 use tracing::metadata::LevelFilter;
 use tracing_appender::non_blocking::NonBlocking;
@@ -70,7 +71,7 @@ pub fn init_logging(
     );
 
     let reg = reg.with(log_file_layer.with_filter(EnvFilter::new(
-        "info,fedimint_client=debug,fediffi=trace,client::reactor=trace",
+        format!("info,{LOG_CLIENT}=debug,fediffi=trace,{LOG_CLIENT_REACTOR}=trace,{LOG_CLIENT_MODULE_WALLET}=trace"),
     )));
 
     let res = if cfg!(target_os = "android") && option_env!("FEDI_DEV_LOGS").is_some() {

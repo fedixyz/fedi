@@ -1,12 +1,12 @@
 {
   inputs = {
     nixpkgs = {
-      url = "github:NixOS/nixpkgs/nixos-23.11";
+      url = "github:NixOS/nixpkgs/nixos-24.05";
     };
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint/2ea651c2da20a0380062109428b43d4702a47bae"; #ref=v0.3.2-rc.0-fed1
+      url = "github:fedibtc/fedimint?ref=v0.4.2-rc.0-fed";
     };
 
     fenix = {
@@ -14,13 +14,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flakebox = {
-      url = "github:dpc/flakebox?rev=19f4cc696fdd1422cb522fdadbe82df2473cb479";
+      url = "github:fedibtc/flakebox?rev=12d5ee4f6c47bc01f07ec6f5848a83db265902d3";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
 
     fs-dir-cache = {
-      url = "github:dpc/fs-dir-cache?rev=a6371f48f84512ea06a8ac671f9cdc141a732673";
+      url = "github:fedibtc/fs-dir-cache?rev=a6371f48f84512ea06a8ac671f9cdc141a732673";
     };
 
     android-nixpkgs = {
@@ -119,9 +119,11 @@
             build-tools-30-0-3
             build-tools-32-0-0
             build-tools-33-0-0
+            build-tools-34-0-0
             platform-tools
             platforms-android-31
             platforms-android-33
+            platforms-android-34
             emulator
             ndk-bundle
             ndk-23-1-7779620
@@ -285,7 +287,7 @@
               pkgs.binaryen
               pkgs.gnused
               pkgs.yarn
-              pkgs.nodejs_21
+              pkgs.nodejs_22
               pkgs.nodePackages.prettier # for ts-bindgen
               pkgs.jdk17
               pkgs.nodePackages.typescript-language-server
@@ -321,6 +323,10 @@
             export PATH="''${REPO_ROOT}/nix/cargo-wrapper/:$PATH"
             export RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
             export CARGO_BUILD_TARGET_DIR="''${CARGO_BUILD_TARGET_DIR:-''${REPO_ROOT}/target-nix}"
+
+            # this is where we publish the android bridge package so the react native app
+            # can find it as a local maven dependency
+            export ANDROID_BRIDGE_ARTIFACTS="''${REPO_ROOT}/bridge/fedi-android/artifacts"
           '';
         });
       in
@@ -336,6 +342,7 @@
           fedi-fedimintd = craneMultiBuild.fedi-fedimintd;
           fedi-fedimint-cli = craneMultiBuild.fedi-fedimint-cli;
 
+          fedi-api-types = craneMultiBuild.fedi-api-types;
           fedi-wasm = craneMultiBuild.wasm32-unknown.release.fedi-wasm;
         };
 

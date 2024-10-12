@@ -1,8 +1,8 @@
 import {
     AnyInjectionRequestMessage,
-    InjectionMessageType,
-    InjectionMessageHandlers,
     InjectionMessageHandler,
+    InjectionMessageHandlers,
+    InjectionMessageType,
 } from './types'
 
 export * from './types'

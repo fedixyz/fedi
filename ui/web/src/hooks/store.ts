@@ -1,6 +1,6 @@
-import { useDispatch, useSelector, TypedUseSelectorHook } from 'react-redux'
+import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux'
 
-import type { AppState, AppDispatch } from '../state/store'
+import type { AppDispatch, AppState } from '../state/store'
 
 /**
  * Provides a `dispatch` function that allows you to dispatch redux actions.

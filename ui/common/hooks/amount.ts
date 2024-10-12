@@ -1,26 +1,28 @@
 import { TFunction } from 'i18next'
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { RequestInvoiceArgs } from 'webln'
 
 import {
-    selectBtcExchangeRate,
-    selectCurrency,
-    selectMaxInvoiceAmount,
-    selectFederationMetadata,
-    selectFederationBalance,
     selectAmountInputType,
-    setAmountInputType,
+    selectBtcExchangeRate,
     selectBtcUsdExchangeRate,
-    selectMinimumDepositAmount,
-    selectWithdrawableStableBalanceMsats,
-    selectMinimumWithdrawAmountMsats,
-    selectShowFiatTxnAmounts,
+    selectCurrency,
+    selectCurrencyLocale,
+    selectFederationBalance,
+    selectFederationMetadata,
+    selectMaxInvoiceAmount,
     selectMaxStableBalanceSats,
+    selectMinimumDepositAmount,
+    selectMinimumWithdrawAmountMsats,
+    selectPaymentFederationBalance,
+    selectShowFiatTxnAmounts,
     selectStableBalanceSats,
-    selectPayFromFederationBalance,
+    selectWithdrawableStableBalanceMsats,
+    setAmountInputType,
 } from '../redux'
 import {
     Btc,
+    EcashRequest,
     Invoice,
     MSats,
     ParsedBip21,
@@ -31,7 +33,6 @@ import {
     SupportedCurrency,
     UsdCents,
 } from '../types'
-import { EcashRequest } from '../types'
 import amountUtils from '../utils/AmountUtils'
 import { getFederationDefaultCurrency } from '../utils/FederationUtils'
 import stringUtils from '../utils/StringUtils'
@@ -49,6 +50,7 @@ interface SendAmountArgs {
     bip21Payment?: ParsedBip21['data'] | null
     invoice?: Invoice | null
     lnurlPayment?: ParsedLnurlPay['data'] | null
+    selectedPaymentFederation?: boolean
 }
 
 export type FormattedAmounts = {
@@ -72,6 +74,7 @@ export type NumpadButtonValue = (typeof numpadButtons)[number]
 
 export const useBtcFiatPrice = () => {
     const selectedFiatCurrency = useCommonSelector(selectCurrency)
+    const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const exchangeRate: number = useCommonSelector(selectBtcExchangeRate)
     const btcUsdExchangeRate: number = useCommonSelector(
         selectBtcUsdExchangeRate,
@@ -87,9 +90,15 @@ export const useBtcFiatPrice = () => {
                 )
                 return amountUtils.formatFiat(amount, selectedFiatCurrency, {
                     symbolPosition,
+                    locale: currencyLocale,
                 })
             },
-            [btcUsdExchangeRate, exchangeRate, selectedFiatCurrency],
+            [
+                btcUsdExchangeRate,
+                currencyLocale,
+                exchangeRate,
+                selectedFiatCurrency,
+            ],
         ),
         convertSatsToFiat: useCallback(
             (sats: Sats) => {
@@ -102,18 +111,20 @@ export const useBtcFiatPrice = () => {
                 const amount = amountUtils.satToFiat(sats, exchangeRate)
                 return amountUtils.formatFiat(amount, selectedFiatCurrency, {
                     symbolPosition,
+                    locale: currencyLocale,
                 })
             },
-            [exchangeRate, selectedFiatCurrency],
+            [exchangeRate, selectedFiatCurrency, currencyLocale],
         ),
         convertSatsToFormattedUsd: useCallback(
             (sats: Sats, symbolPosition: AmountSymbolPosition = 'end') => {
                 const amount = amountUtils.satToFiat(sats, btcUsdExchangeRate)
                 return amountUtils.formatFiat(amount, SupportedCurrency.USD, {
                     symbolPosition,
+                    locale: currencyLocale,
                 })
             },
-            [btcUsdExchangeRate],
+            [btcUsdExchangeRate, currencyLocale],
         ),
     }
 }
@@ -210,6 +221,7 @@ export function useAmountInput(
     const btcToFiatRate = useCommonSelector(selectBtcExchangeRate)
     const btcToFiatRateRef = useUpdatingRef(btcToFiatRate)
     const currency = useCommonSelector(selectCurrency)
+    const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const federationMetadata = useCommonSelector(selectFederationMetadata)
     const defaultAmountInputType = useCommonSelector(selectAmountInputType)
 
@@ -228,7 +240,7 @@ export function useAmountInput(
         amountUtils.formatFiat(
             amountUtils.satToFiat(amount, btcToFiatRate),
             currency,
-            { symbolPosition: 'none' },
+            { symbolPosition: 'none', locale: currencyLocale },
         ),
     )
 
@@ -248,7 +260,9 @@ export function useAmountInput(
     const handleChangeSats = useCallback(
         (value: string) => {
             // can be 1,000 or 1.000 or 1 000
-            const thousandsSeparator = amountUtils.getThousandsSeparator()
+            const thousandsSeparator = amountUtils.getThousandsSeparator({
+                locale: currencyLocale,
+            })
             // replacing periods requires a special regex
             let escapeSeparator = thousandsSeparator
             if (thousandsSeparator === '.') {
@@ -262,22 +276,29 @@ export function useAmountInput(
             setFiatValue(
                 amountUtils.formatFiat(fiat, currency, {
                     symbolPosition: 'none',
+                    locale: currencyLocale,
                 }),
             )
         },
-        [clampSats, onChangeAmount, currency, btcToFiatRateRef],
+        [currencyLocale, clampSats, btcToFiatRateRef, onChangeAmount, currency],
     )
 
     const handleChangeFiat = useCallback(
         (value: string) => {
-            let fiat = amountUtils.parseFiatString(value)
+            let fiat = amountUtils.parseFiatString(value, {
+                locale: currencyLocale,
+            })
             if (Number.isNaN(fiat) || fiat < 0) {
                 fiat = 0
             }
 
             // If they've added or removed a sigdig, offset all numbers by a tens place
-            const decimals = amountUtils.getCurrencyDecimals(currency)
-            const decimalSeparator = amountUtils.getDecimalSeparator()
+            const decimals = amountUtils.getCurrencyDecimals(currency, {
+                locale: currencyLocale,
+            })
+            const decimalSeparator = amountUtils.getDecimalSeparator({
+                locale: currencyLocale,
+            })
             const valueDecimals = value.split(decimalSeparator)[1]?.length || 0
             if (valueDecimals > decimals) {
                 fiat = fiat * 10
@@ -322,11 +343,13 @@ export function useAmountInput(
             setFiatValue(
                 amountUtils.formatFiat(fiat, currency, {
                     symbolPosition: 'none',
+                    locale: currencyLocale,
                 }),
             )
             setSatsValue(amountUtils.formatSats(sats))
         },
         [
+            currencyLocale,
             currency,
             clampSats,
             btcToFiatRateRef,
@@ -389,6 +412,7 @@ export function useAmountInput(
         handleChangeSats,
         currency,
         currencySymbol,
+        currencyLocale,
         numpadButtons,
         handleNumpadPress,
         validation,
@@ -460,15 +484,16 @@ export function useMinMaxRequestAmount({
  * Get the minimum and maximum amount you can send. Optionally take in an
  * LNURL pay request as part of the calculation.
  */
-export function useMinMaxSendAmount(
-    { invoice, lnurlPayment }: SendAmountArgs = {},
+export function useMinMaxSendAmount({
+    invoice,
+    lnurlPayment,
     // TODO: Remove this option in favor of always using payFromFederation once
     // https://github.com/fedibtc/fedi/issues/4070 is finished
-    usePayFromFederationBalance = false,
-) {
+    selectedPaymentFederation,
+}: SendAmountArgs = {}) {
     const balance = useCommonSelector(s =>
-        usePayFromFederationBalance
-            ? selectPayFromFederationBalance(s)
+        selectedPaymentFederation
+            ? selectPaymentFederationBalance(s)
             : selectFederationBalance(s),
     )
 
@@ -531,9 +556,9 @@ export function useMinMaxDepositAmount() {
         maxStableBalanceSats === 0
             ? balanceSats
             : (Math.min(
-                  balanceSats,
-                  Math.max(0, maxStableBalanceSats - stableBalanceSats),
-              ) as Sats)
+                balanceSats,
+                Math.max(0, maxStableBalanceSats - stableBalanceSats),
+            ) as Sats)
 
     return { minimumAmount, maximumAmount }
 }
@@ -563,7 +588,7 @@ export function useRequestForm(args: RequestAmountArgs = {}) {
         args.lnurlWithdrawal &&
         args.lnurlWithdrawal.minWithdrawable &&
         args.lnurlWithdrawal.minWithdrawable ===
-            args.lnurlWithdrawal.maxWithdrawable
+        args.lnurlWithdrawal.maxWithdrawable
     ) {
         exactAmount = amountUtils.msatToSat(
             args.lnurlWithdrawal.minWithdrawable,
@@ -637,11 +662,13 @@ export function useSendForm({
     bip21Payment,
     invoice,
     lnurlPayment,
+    selectedPaymentFederation,
 }: SendAmountArgs = {}) {
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
     const { minimumAmount, maximumAmount } = useMinMaxSendAmount({
         invoice,
         lnurlPayment,
+        selectedPaymentFederation,
     })
     const minimumAmountRef = useUpdatingRef(minimumAmount)
 

@@ -3,7 +3,8 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, bail};
 use fedimint_core::task::TaskGroup;
-use fedimint_core::util::{retry, FibonacciBackoff};
+use fedimint_core::util::backon::FibonacciBuilder as FibonacciBackoff;
+use fedimint_core::util::retry;
 use tracing::{error, info};
 
 use crate::api::{IFediApi, RegisterDeviceError, RegisteredDevice};
@@ -96,7 +97,7 @@ impl DeviceRegistrationService {
         task_group: &TaskGroup,
         event_sink: EventSink,
     ) {
-        let subgroup = task_group.make_subgroup().await;
+        let subgroup = task_group.make_subgroup();
         subgroup.spawn_cancellable(
             "device_registration_service",
             renew_registration_periodically(

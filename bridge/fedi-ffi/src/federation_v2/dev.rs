@@ -3,8 +3,8 @@
 /// emulator
 use std::str::FromStr;
 
-use fedimint_core::api::InviteCode;
 use fedimint_core::config::ClientConfig;
+use fedimint_core::invite_code::InviteCode;
 use fedimint_core::util::SafeUrl;
 use tracing::info;
 
@@ -34,6 +34,7 @@ pub fn override_localhost_invite_code(invite_code: &mut InviteCode) {
         override_localhost(&invite_code.url()),
         invite_code.peer(),
         invite_code.federation_id(),
+        invite_code.api_secret(),
     );
 }
 

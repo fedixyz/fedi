@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { Text } from '@rneui/themed'
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { selectSocialRecoveryState } from '@fedi/common/redux'
@@ -106,7 +106,6 @@ import FederationGreeting from './FederationGreeting'
 import FederationInvite from './FederationInvite'
 import FediModBrowser from './FediModBrowser'
 import FediModSettings from './FediModSettings'
-import GroupAdmin from './GroupAdmin'
 import Initializing from './Initializing'
 import JoinFederation from './JoinFederation'
 import LanguageSettings from './LanguageSettings'
@@ -132,6 +131,7 @@ import RecoveryWalletTransfer from './RecoveryWalletTransfer'
 import RecoveryWords from './RecoveryWords'
 import ResetPin from './ResetPin'
 import ResetPinStart from './ResetPinStart'
+import RoomSettings from './RoomSettings'
 import ScanMemberCode from './ScanMemberCode'
 import ScanSocialRecoveryCode from './ScanSocialRecoveryCode'
 import SelectRecoveryFileFailure from './SelectRecoveryFileFailure'
@@ -440,8 +440,8 @@ export const MainNavigator = () => {
                                     })}
                                 />
                                 <Stack.Screen
-                                    name="GroupAdmin"
-                                    component={GroupAdmin}
+                                    name="RoomSettings"
+                                    component={RoomSettings}
                                 />
                                 <Stack.Screen
                                     name="ChatWallet"

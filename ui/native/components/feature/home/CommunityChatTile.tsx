@@ -1,6 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { t } from 'i18next'
-import React from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 
 import { selectActiveFederation } from '@fedi/common/redux'

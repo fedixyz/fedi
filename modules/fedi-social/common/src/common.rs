@@ -108,7 +108,8 @@ impl VerificationDocument {
 
         Self(
             // add checksum of the original data
-            hash.iter()
+            hash.as_byte_array()
+                .iter()
                 .copied()
                 .chain(
                     // XOR the data with a simple pattern, just
@@ -127,7 +128,7 @@ impl VerificationDocument {
             .collect();
         let hash = sha256::Hash::hash(&raw_data);
 
-        if hash.as_ref() != &self.0[..Self::HASH_LENGHT] {
+        if hash.as_byte_array() != &self.0[..Self::HASH_LENGHT] {
             anyhow::bail!("The verification document raw data does not match the checksum");
         }
 
@@ -241,6 +242,10 @@ impl BackupRequest {
             signature,
         })
     }
+
+    pub fn id(&self) -> BackupId {
+        self.id
+    }
 }
 
 /// Signed [`BackupRequest`]
@@ -252,13 +257,17 @@ pub struct SignedBackupRequest {
 }
 
 impl SignedBackupRequest {
+    pub fn backup_id(&self) -> BackupId {
+        self.request.id()
+    }
+
     pub fn verify_valid<C>(&self, ctx: &Secp256k1<C>) -> Result<&BackupRequest, secp256k1::Error>
     where
         C: Signing + Verification,
     {
         ctx.verify_schnorr(
             &self.signature,
-            &Message::from_slice(&self.request.hash()).expect("Can't fail"),
+            &Message::from_slice(self.request.hash().as_ref()).expect("Can't fail"),
             &self.request.id.0.x_only_public_key().0,
         )?;
 
@@ -315,7 +324,7 @@ impl SignedRecoveryRequest {
     {
         ctx.verify_schnorr(
             &self.signature,
-            &Message::from_slice(&self.request.hash()).expect("Can't fail"),
+            &Message::from_slice(self.request.hash().as_byte_array()).expect("Can't fail"),
             &self.request.id.0.x_only_public_key().0,
         )?;
 

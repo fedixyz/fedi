@@ -221,7 +221,7 @@ impl IFediApi for LiveFediApi {
                 .post(api_url)
                 .json(&GenerateInvoiceRequestV1 {
                     amount_msat: amount.msats,
-                    module,
+                    module: module.to_string(),
                     tx_direction: match tx_direction {
                         RpcTransactionDirection::Send => TransactionDirection::Send,
                         RpcTransactionDirection::Receive => TransactionDirection::Receive,

@@ -49,6 +49,10 @@ export class FedimintBridge {
         return this.rpcTyped('federationPreview', { inviteCode })
     }
 
+    async stabilityPoolAverageFeeRate(federationId: string, numCycles: number) {
+        return this.rpcTyped('stabilityPoolAverageFeeRate', { federationId, numCycles })
+    }
+
     async stabilityPoolWithdraw(
         lockedBps: number,
         unlockedAmount: RpcAmount,
@@ -118,8 +122,11 @@ export class FedimintBridge {
         })
     }
 
-    async joinFederation(inviteCode: string) {
-        return this.rpcTyped('joinFederation', { inviteCode })
+    async joinFederation(inviteCode: string, recoverFromScratch = false) {
+        return this.rpcTyped('joinFederation', {
+            inviteCode,
+            recoverFromScratch,
+        })
     }
 
     async leaveFederation(federationId: string) {
@@ -201,15 +208,10 @@ export class FedimintBridge {
         })
     }
 
-    async signLnurlMessage(
-        message: string,
-        domain: string,
-        federationId: string,
-    ) {
+    async signLnurlMessage(message: string, domain: string) {
         return this.rpcTyped('signLnurlMessage', {
             message,
             domain,
-            federationId,
         })
     }
 
@@ -217,10 +219,9 @@ export class FedimintBridge {
         return this.rpcTyped('getNostrPubKey', {})
     }
 
-    async signNostrEvent(eventHash: string, federationId: string) {
+    async signNostrEvent(eventHash: string) {
         return this.rpcTyped('signNostrEvent', {
             eventHash,
-            federationId,
         })
     }
 
@@ -334,10 +335,12 @@ export class FedimintBridge {
     async socialRecoveryDownloadVerificationDoc(
         recoveryId: string,
         federationId: string,
+        peerId: number,
     ) {
         return this.rpcTyped('socialRecoveryDownloadVerificationDoc', {
             federationId,
             recoveryId,
+            peerId,
         })
     }
 

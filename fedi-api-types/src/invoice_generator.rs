@@ -1,4 +1,3 @@
-use fedimint_core::core::ModuleKind;
 use serde::{Deserialize, Serialize};
 
 // v0 - deprecated
@@ -21,7 +20,7 @@ pub struct GenerateInvoiceResponseV0 {
 #[serde(tag = "type", rename = "v1")]
 pub struct GenerateInvoiceRequestV1 {
     pub amount_msat: u64,
-    pub module: ModuleKind,
+    pub module: String,
     pub tx_direction: TransactionDirection,
 }
 
@@ -35,4 +34,11 @@ pub enum TransactionDirection {
 #[serde(tag = "type", rename = "v1")]
 pub struct GenerateInvoiceResponseV1 {
     pub invoice: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v1")]
+pub struct InvoiceRequestMemoV1 {
+    pub module: String,
+    pub tx_direction: TransactionDirection,
 }

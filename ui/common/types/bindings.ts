@@ -65,6 +65,9 @@ export type ErrorCode =
     | 'timeout'
     | 'recovery'
     | { invalidJson: string }
+    | 'payLnInvoiceAlreadyPaid'
+    | 'payLnInvoiceAlreadyInProgress'
+    | 'noLnGatewayAvailable'
 
 export type Event =
     | { transaction: TransactionEvent }
@@ -144,7 +147,6 @@ export type RpcBackPaginationStatus =
 
 export interface RpcBitcoinDetails {
     address: string
-    expiresAt: number
 }
 
 export interface RpcBridgeStatus {
@@ -247,8 +249,8 @@ export interface RpcLightningGateway {
 export type RpcLnPayState =
     | { type: 'created' }
     | { type: 'canceled' }
-    | { type: 'funded' }
-    | { type: 'waitingForRefund'; block_height: number; gateway_error: string }
+    | { type: 'funded'; block_height: number }
+    | { type: 'waitingForRefund'; error_reason: string }
     | { type: 'awaitingChange' }
     | { type: 'success'; preimage: string }
     | { type: 'refunded'; gateway_error: string }
@@ -314,7 +316,7 @@ export interface RpcMethods {
     ]
     onAppForeground: [Record<string, never>, null]
     joinFederation: [
-        { inviteCode: string },
+        { inviteCode: string; recoverFromScratch: boolean },
         {
             balance: RpcAmount
             id: RpcFederationId
@@ -477,7 +479,11 @@ export interface RpcMethods {
         }>,
     ]
     socialRecoveryDownloadVerificationDoc: [
-        { federationId: RpcFederationId; recoveryId: RpcRecoveryId },
+        {
+            federationId: RpcFederationId
+            recoveryId: RpcRecoveryId
+            peerId: RpcPeerId
+        },
         string | null,
     ]
     approveSocialRecoveryRequest: [
@@ -490,7 +496,7 @@ export interface RpcMethods {
         null,
     ]
     signLnurlMessage: [
-        { message: string; domain: string; federationId: RpcFederationId },
+        { message: string; domain: string },
         { signature: string; pubkey: RpcPublicKey },
     ]
     backupStatus: [
@@ -507,10 +513,7 @@ export interface RpcMethods {
     ]
     getNostrPubKey: [Record<string, never>, string]
     getNostrPubKeyBech32: [Record<string, never>, string]
-    signNostrEvent: [
-        { eventHash: string; federationId: RpcFederationId },
-        string,
-    ]
+    signNostrEvent: [{ eventHash: string }, string]
     stabilityPoolAccountInfo: [
         { federationId: RpcFederationId; forceUpdate: boolean },
         {
@@ -537,7 +540,7 @@ export interface RpcMethods {
         string,
     ]
     stabilityPoolAverageFeeRate: [
-        { federationId: RpcFederationId; numCycles: bigint },
+        { federationId: RpcFederationId; numCycles: number },
         bigint,
     ]
     stabilityPoolAvailableLiquidity: [{ federationId: RpcFederationId }, MSats]
@@ -775,7 +778,6 @@ export type RpcOOBState = RpcOOBSpendState | RpcOOBReissueState
 export type RpcOnchainDepositState =
     | { type: 'waitingForTransaction' }
     | ({ type: 'waitingForConfirmation' } & RpcOnchainDepositTransactionData)
-    | ({ type: 'confirmed' } & RpcOnchainDepositTransactionData)
     | ({ type: 'claimed' } & RpcOnchainDepositTransactionData)
     | { type: 'failed' }
 

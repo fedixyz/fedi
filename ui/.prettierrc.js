@@ -9,4 +9,5 @@ module.exports = {
     trailingComma: 'all',
     importOrder: ['<THIRD_PARTY_MODULES>', '^@fedi/(.*)$', '^[./]'],
     importOrderSeparation: true,
+    plugins: [require('prettier-plugin-organize-imports')],
 }

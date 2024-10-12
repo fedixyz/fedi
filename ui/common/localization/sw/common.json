@@ -391,7 +391,7 @@
             "payment-request": "Ombi ya malipo kutoka kwa {{fediMod}}",
             "stable-balance-enabled": "Solde stable",
             "stable-balance-enabled-info": "Inawezesha uwezo ya kubadilisha sats kuwa makuta stable",
-            "wants-to-pay-you": "{{fediMod}} inataka kukulipa",
+            "wants-to-send-you": "{{fediMod}} inataka kukutumia",
             "wants-you-to-pay": "{{fediMod}} inataka ulipe",
             "your-mods": "Mods zako"
         },

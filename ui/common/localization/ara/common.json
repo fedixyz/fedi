@@ -409,7 +409,7 @@
             "payment-request": "Talabu ta dafa sagit {{fediMod}}",
             "stable-balance-enabled": "Bagi taki fi mahal to",
             "stable-balance-enabled-info": "Gadir ashan bi kati sats ta omula al gowi",
-            "wants-to-pay-you": "{{fediMod}} der dafa inta",
+            "wants-to-send-you": "{{fediMod}} der dafa inta",
             "wants-you-to-pay": "{{fediMod}} der dafa inta",
             "your-mods": "Mods taki"
         },

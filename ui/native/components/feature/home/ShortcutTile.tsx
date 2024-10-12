@@ -1,5 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
     Image,
     ImageSourcePropType,

@@ -3,7 +3,7 @@ use std::fmt;
 
 use anyhow::format_err;
 use bitcoin::secp256k1;
-use fedimint_core::api::DynModuleApi;
+use fedimint_api_client::api::{DynModuleApi, FederationApiExt};
 use fedimint_core::config::ClientConfig;
 use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::encoding::{Decodable, Encodable};
@@ -191,7 +191,7 @@ impl SocialBackup {
 }
 
 /// The state of recovery, that can be serialized and stored
-#[derive(Encodable, Decodable, Clone, Debug, Serialize, Deserialize)]
+#[derive(Encodable, Decodable, Clone, Serialize, Deserialize)]
 pub struct SocialRecoveryState {
     signing_sk: SerdeEncodable<secp256k1::SecretKey>,
     encryption_key: [u8; 32],
@@ -201,6 +201,17 @@ pub struct SocialRecoveryState {
     >,
     shares: BTreeMap<PeerId, SerdeEncodable<fedimint_threshold_crypto::DecryptionShare>>,
     pub client_config: String,
+}
+
+// Implement Debug manually to ignore sensitive fields
+impl fmt::Debug for SocialRecoveryState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SocialRecoveryState")
+            .field("double_encrypted_seed", &self.double_encrypted_seed)
+            .field("shares", &self.shares)
+            .field("client_config", &self.client_config)
+            .finish()
+    }
 }
 
 impl SocialRecoveryState {
@@ -296,7 +307,7 @@ impl SocialRecoveryClient {
         &self,
         req: &SignedRecoveryRequest,
     ) -> anyhow::Result<()> {
-        self.api.social_recovery(self.module_id, req).await?;
+        self.api.start_social_recovery(self.module_id, req).await?;
         Ok(())
     }
 
@@ -405,16 +416,15 @@ impl SocialVerification {
         id: RecoveryId,
         admin_password: &str,
     ) -> anyhow::Result<()> {
-        let encrypted_share = self
+        let _: Option<()> = self
             .api
-            .request_raw(
+            .request_single_peer_typed(
+                None,
+                "approve_recovery".to_owned(),
+                ApiRequestErased::new((id, admin_password)),
                 self.peer_id,
-                "approve_recovery",
-                &[ApiRequestErased::new((id, admin_password)).to_json()],
             )
             .await?;
-
-        let _: Option<()> = serde_json::from_value(encrypted_share)?;
 
         Ok(())
     }

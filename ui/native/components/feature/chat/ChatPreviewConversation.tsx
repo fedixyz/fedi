@@ -1,5 +1,5 @@
 import { useIsFocused } from '@react-navigation/native'
-import { Theme, useTheme, Text } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {

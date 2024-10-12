@@ -14,7 +14,7 @@ import { Template } from '../components/Template'
 import { ToastManager } from '../components/ToastManager'
 import { RouteStateProvider } from '../context/RouteStateContext'
 import { fedimint } from '../lib/bridge'
-import { store, initializeWebStore } from '../state/store'
+import { initializeWebStore, store } from '../state/store'
 import { globalStyles } from '../styles'
 import { asyncLocalStorage } from '../utils/localstorage'
 

@@ -3,8 +3,8 @@ import { Linking } from 'react-native'
 
 import { makeLog } from '@fedi/common/utils/log'
 import {
-    isValidMatrixUserId,
     isValidMatrixRoomId,
+    isValidMatrixUserId,
 } from '@fedi/common/utils/matrix'
 
 import { NavigationLinkingConfig } from '../types/navigation'

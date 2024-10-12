@@ -6,7 +6,7 @@ import {
     SupportedCurrency,
 } from '@fedi/common/types'
 
-import { InjectionMessageType, InjectionMessageResponseMap } from '../types'
+import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionFediProvider {

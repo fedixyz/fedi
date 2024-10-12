@@ -409,7 +409,7 @@
             "payment-request": "የክፍያ ጥያቄ ከ {{fediMod}}",
             "stable-balance-enabled": "የተረጋጋ ሚዛን",
             "stable-balance-enabled-info": "ሳት ወደ የተረጋጋ ምንዛሬ የመቀየር ችሎታን ያስችላል",
-            "wants-to-pay-you": "{{fediMod}} ሊከፍልህ ይፈልጋል",
+            "wants-to-send-you": "{{fediMod}} ልከልከ ይፈልጋል",
             "wants-you-to-pay": "{{fediMod}} ሊከፍልህ ይፈልጋል",
             "your-mods": "የእርስዎ Mods"
         },

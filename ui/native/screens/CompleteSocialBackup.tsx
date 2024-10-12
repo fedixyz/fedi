@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import Share from 'react-native-share'
 
+import { selectActiveFederationId } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import HoloGuidance from '../components/ui/HoloGuidance'
@@ -13,7 +14,7 @@ import {
     completeSocialBackup,
     useBackupRecoveryContext,
 } from '../state/contexts/BackupRecoveryContext'
-import { useBridge } from '../state/hooks'
+import { useAppSelector, useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('CompleteSocialBackup')
@@ -28,7 +29,8 @@ const BACKUPS_REQUIRED = 2
 const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { locateRecoveryFile } = useBridge()
+    const federationId = useAppSelector(selectActiveFederationId)
+    const { locateRecoveryFile } = useBridge(federationId)
     const [backupsCompleted, setBackupsCompleted] = useState<number>(0)
     const { dispatch } = useBackupRecoveryContext()
     const [isCreatingBackup, setIsCreatingBackup] = useState(false)

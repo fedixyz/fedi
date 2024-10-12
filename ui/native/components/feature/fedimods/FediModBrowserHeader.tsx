@@ -47,6 +47,7 @@ const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
                         caption
                         medium
                         numberOfLines={1}
+                        ellipsizeMode="tail"
                         adjustsFontSizeToFit
                         style={style.titleText}>
                         {fediMod.title}
@@ -79,8 +80,12 @@ const styles = (theme: Theme) =>
             flexShrink: 0,
         },
         titleContainer: {
+            display: 'flex',
             flexGrow: 1,
+            flexShrink: 1,
+            flexDirection: 'row',
             alignItems: 'center',
+            overflow: 'hidden',
         },
         arrow: {
             paddingHorizontal: 0,

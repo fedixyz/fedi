@@ -2,12 +2,12 @@ import { Button, Overlay, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef, useState } from 'react'
 import {
     Animated,
+    Easing,
+    Insets,
+    LayoutChangeEvent,
+    Platform,
     StyleSheet,
     View,
-    Easing,
-    Platform,
-    LayoutChangeEvent,
-    Insets,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 

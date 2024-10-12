@@ -3,7 +3,7 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { useSafeAreaInsets, EdgeInsets } from 'react-native-safe-area-context'
+import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { getMatrixRoomPreview, selectGroupPreviews } from '@fedi/common/redux'

@@ -7,25 +7,21 @@ import {
     Dimensions,
     Linking,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     View,
     useWindowDimensions,
 } from 'react-native'
 
-import {
-    selectVisibleCustomMods,
-    selectVisibleSuggestedMods,
-    setCustomGlobalModVisibility,
-    setSuggestedGlobalModVisibility,
-} from '@fedi/common/redux/mod'
+import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
 
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
 import ShortcutTile from '../components/feature/home/ShortcutTile'
 import SvgImage from '../components/ui/SvgImage'
 import { Tooltip } from '../components/ui/Tooltip'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { Shortcut, FediMod } from '../types'
+import { FediMod, Shortcut } from '../types'
 import { NavigationHook } from '../types/navigation'
 
 const Mods: React.FC = () => {
@@ -34,8 +30,7 @@ const Mods: React.FC = () => {
     const navigation = useNavigation<NavigationHook>()
     const dispatch = useAppDispatch()
 
-    const suggestedMods = useAppSelector(selectVisibleSuggestedMods)
-    const customMods = useAppSelector(selectVisibleCustomMods)
+    const mods = useAppSelector(selectAllVisibleMods)
     const { width, fontScale } = useWindowDimensions()
 
     const columns = width / fontScale < 300 ? 2 : 3
@@ -63,26 +58,13 @@ const Mods: React.FC = () => {
     }
 
     const toggleHideMod = (modId: FediMod['id']) => {
-        const isGlobal = suggestedMods.some(mod => mod.id === modId)
-
-        if (isGlobal) {
-            dispatch(
-                setSuggestedGlobalModVisibility({
-                    modId,
-                    isHidden: true,
-                }),
-            )
-        } else {
-            dispatch(setCustomGlobalModVisibility({ modId, isHidden: true }))
-        }
+        dispatch(setModVisibility({ modId, isHidden: true }))
 
         setActionsMod(undefined)
     }
 
     const renderFediModShortcuts = () => {
-        const fediModShortcuts = [...suggestedMods, ...customMods].map(
-            s => new FediMod(s),
-        )
+        const fediModShortcuts = mods.map(s => new FediMod(s))
         return fediModShortcuts.map((s: FediMod) => {
             return (
                 <View key={`fediMod-s-${s.id}`} style={style.shortcut}>
@@ -120,7 +102,7 @@ const Mods: React.FC = () => {
     // while also left-justifying rows with 1 or 2 tiles so we just
     // make sure to fill the remaining space with invisible elements
     const renderBuffers = () => {
-        const totalShortcuts = customMods.length
+        const totalShortcuts = mods.length
         const bufferCount = columns - (totalShortcuts % columns)
 
         return new Array(bufferCount).fill('').map((b, i) => {
@@ -136,11 +118,11 @@ const Mods: React.FC = () => {
     return (
         <View style={style.container}>
             <ModsHeader />
-            {customMods.length > 0 || suggestedMods.length > 0 ? (
-                <View style={style.listContainer}>
+            {mods.length > 0 ? (
+                <ScrollView contentContainerStyle={style.listContainer}>
                     {renderFediModShortcuts()}
                     {renderBuffers()}
-                </View>
+                </ScrollView>
             ) : (
                 <View style={style.empty}>
                     <Pressable

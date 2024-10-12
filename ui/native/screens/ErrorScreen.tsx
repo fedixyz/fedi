@@ -10,7 +10,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { version } from '../package.json'
-import { shareLogsExport } from '../utils/logs-export'
+import { shareLogsExport } from '../utils/log'
 
 const log = makeLog('ErrorScreen')
 

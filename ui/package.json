@@ -2,7 +2,7 @@
     "version": "1.0.0",
     "private": true,
     "engines": {
-        "yarn": "1.22.19"
+        "yarn": "1.22.22"
     },
     "workspaces": {
         "packages": [
@@ -24,6 +24,7 @@
         "test": "turbo run test"
     },
     "devDependencies": {
+        "prettier-plugin-organize-imports": "^4.0.0",
         "syncpack": "^9.8.4",
         "turbo": "^1.10.7"
     }

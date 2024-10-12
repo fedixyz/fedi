@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useMinMaxSendAmount } from '@fedi/common/hooks/amount'
 
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { Sats } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -36,7 +37,7 @@ const SendOfflineAmount: React.FC<Props> = () => {
 
     return (
         <AmountScreen
-            showBalance
+            subHeader={<FederationWalletSelector />}
             amount={amount}
             onChangeAmount={onChangeAmount}
             minimumAmount={minimumAmount}

@@ -25,7 +25,8 @@ export function renderStyledQrSvg(
     const moduleShape = size > 60 ? 'square' : options.moduleShape || 'dot'
 
     const avatarPictureDimension = 700
-    const avatarPicturePosition = ((moduleSize * size) / 2) - (avatarPictureDimension / 2)
+    const avatarPicturePosition =
+        (moduleSize * size) / 2 - avatarPictureDimension / 2
 
     const qrSvg = `
         <svg
@@ -79,15 +80,22 @@ export function renderStyledQrSvg(
 
             ${
                 options.logoOverrideUrl && !options.hideLogo
-                ?
-                    `<clipPath id="rounded-avatar">
-                        <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${avatarPictureDimension / 2}" ry="${avatarPictureDimension / 2}" />
+                    ? `<clipPath id="rounded-avatar">
+                        <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${
+                          avatarPictureDimension / 2
+                      }" ry="${avatarPictureDimension / 2}" />
                     </clipPath>
 
-                    <image href="${options.logoOverrideUrl}" x="${avatarPicturePosition}" y=${avatarPicturePosition} width="${avatarPictureDimension}", height="${avatarPictureDimension}" clip-path="url(#rounded-avatar)" />
+                    <image href="${
+                        options.logoOverrideUrl
+                    }" x="${avatarPicturePosition}" y=${avatarPicturePosition} width="${avatarPictureDimension}", height="${avatarPictureDimension}" clip-path="url(#rounded-avatar)" />
 
-                    <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${avatarPictureDimension / 2}" ry="${avatarPictureDimension / 2}" fill="none" stroke="black" stroke-width="32" />`
-                : ''
+                    <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${
+                          avatarPictureDimension / 2
+                      }" ry="${
+                          avatarPictureDimension / 2
+                      }" fill="none" stroke="black" stroke-width="32" />`
+                    : ''
             }
         </svg>
 `

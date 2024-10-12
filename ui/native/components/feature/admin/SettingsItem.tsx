@@ -10,7 +10,7 @@ import * as Svgs from '../../../assets/images/svgs'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 
-type SettingsItemProps = {
+export type SettingsItemProps = {
     disabled?: boolean
     image: React.ReactNode
     label: string

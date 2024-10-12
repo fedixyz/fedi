@@ -10,10 +10,9 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }
+fedimint-api-client = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-strum = { workspace = true }
-strum_macros = { workspace = true }
 bitcoin = { workspace = true, features = ["rand", "serde"] }
 tracing = { workspace = true }
 secp256k1-zkp = { workspace = true, features = ["serde", "bitcoin_hashes"] }

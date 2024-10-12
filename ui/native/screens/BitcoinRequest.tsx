@@ -26,8 +26,8 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const insets = useSafeAreaInsets()
-    const { generateAddress } = useBridge()
     const federationId = useAppSelector(selectActiveFederationId)
+    const { generateAddress } = useBridge(federationId)
     const { uri } = route.params
     const isOnchainSupported = useIsOnchainDepositSupported()
 

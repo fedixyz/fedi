@@ -13,7 +13,7 @@ import {
 import { ChatType, MatrixEvent } from '@fedi/common/types'
 import { makeMatrixEventGroups } from '@fedi/common/utils/matrix'
 
-import { useAutosizeTextArea, useAppSelector, useIsTouchScreen } from '../hooks'
+import { useAppSelector, useAutosizeTextArea, useIsTouchScreen } from '../hooks'
 import { styled, theme } from '../styles'
 import { Avatar } from './Avatar'
 import { ChatAvatar } from './ChatAvatar'

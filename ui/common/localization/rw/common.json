@@ -408,7 +408,7 @@
             "payment-request": "Ukwishyura kwasabwe na {{fediMod}}",
             "stable-balance-enabled": "Ikinyuranyo gihamye",
             "stable-balance-enabled-info": "Iha ububasha bwo guhindura SATS mu ifaranga rihamye",
-            "wants-to-pay-you": "{{fediMod}} ishaka kukwishyura",
+            "wants-to-send-you": "{{fediMod}} ishaka kuvuga wewe",
             "wants-you-to-pay": "{{fediMod}} ishaka ko wishyura",
             "your-mods": "Mods yawe"
         },

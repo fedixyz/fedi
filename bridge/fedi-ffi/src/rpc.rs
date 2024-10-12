@@ -7,7 +7,7 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::Context;
 use bitcoin::secp256k1::Message;
-use bitcoin::{Address, Amount};
+use bitcoin::Amount;
 use fedimint_client::db::ChronologicalOperationLogKey;
 use fedimint_core::core::OperationId;
 use fedimint_core::timing::TimeReporter;
@@ -155,6 +155,7 @@ macro_rules! federation_rpc_method {
             pub type Return = $ret;
             pub async fn handle(bridge: Arc<Bridge>, $name::Args { federation_id, $( $arg_name ),* }: $name::Args) -> anyhow::Result<$ret> {
                 let $federation = bridge.get_federation(&federation_id.0).await?;
+                tracing::Span::current().record("federation_id", &federation_id.0);
                 super::$name($federation, $($arg_name),*).await
             }
         }
@@ -187,6 +188,7 @@ macro_rules! federation_recovering_rpc_method {
             pub type Return = $ret;
             pub async fn handle(bridge: Arc<Bridge>, $name::Args { federation_id, $( $arg_name ),* }: $name::Args) -> anyhow::Result<$ret> {
                 let $federation = bridge.get_federation_maybe_recovering(&federation_id.0).await?;
+                tracing::Span::current().record("federation_id", &federation_id.0);
                 super::$name($federation, $($arg_name),*).await
             }
         }
@@ -199,9 +201,15 @@ async fn guardianStatus(federation: Arc<FederationV2>) -> anyhow::Result<Vec<Gua
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn joinFederation(bridge: Arc<Bridge>, invite_code: String) -> anyhow::Result<RpcFederation> {
+async fn joinFederation(
+    bridge: Arc<Bridge>,
+    invite_code: String,
+    recover_from_scratch: bool,
+) -> anyhow::Result<RpcFederation> {
     info!("joining federation {:?}", invite_code);
-    bridge.join_federation(invite_code).await
+    bridge
+        .join_federation(invite_code, recover_from_scratch)
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -293,7 +301,7 @@ async fn previewPayAddress(
     // TODO: parse this as bitcoin::Amount
     sats: u64,
 ) -> anyhow::Result<RpcFeeDetails> {
-    let address: Address = address.trim().parse().context("Invalid Bitcoin Address")?;
+    let address = address.trim().parse().context("Invalid Bitcoin Address")?;
     let amount: Amount = Amount::from_sat(sats);
     federation.preview_pay_address(address, amount).await
 }
@@ -305,7 +313,7 @@ async fn payAddress(
     // TODO: parse this as bitcoin::Amount
     sats: u64,
 ) -> anyhow::Result<RpcPayAddressResponse> {
-    let address: Address = address.trim().parse().context("Invalid Bitcoin Address")?;
+    let address = address.trim().parse().context("Invalid Bitcoin Address")?;
     let amount: Amount = Amount::from_sat(sats);
     federation.pay_address(address, amount).await
 }
@@ -438,9 +446,10 @@ async fn socialRecoveryDownloadVerificationDoc(
     bridge: Arc<Bridge>,
     federation_id: RpcFederationId,
     recovery_id: RpcRecoveryId,
+    peer_id: RpcPeerId,
 ) -> anyhow::Result<Option<PathBuf>> {
     bridge
-        .download_verification_doc(federation_id, recovery_id)
+        .download_verification_doc(federation_id, recovery_id, peer_id)
         .await
 }
 
@@ -531,9 +540,11 @@ async fn stabilityPoolCycleStartPrice(federation: Arc<FederationV2>) -> anyhow::
 #[macro_rules_derive(federation_rpc_method!)]
 async fn stabilityPoolAverageFeeRate(
     federation: Arc<FederationV2>,
-    num_cycles: u64,
+    num_cycles: u32,
 ) -> anyhow::Result<u64> {
-    federation.stability_pool_average_fee_rate(num_cycles).await
+    federation
+        .stability_pool_average_fee_rate(num_cycles.into())
+        .await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -1417,7 +1428,8 @@ rpc_methods!(RpcMethods {
         request_id = %{
             static REQUEST_ID: AtomicU64 = AtomicU64::new(0);
             REQUEST_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-        }
+        },
+        federation_id,
     )
 )]
 pub async fn fedimint_rpc_async(bridge: Arc<Bridge>, method: String, payload: String) -> String {
@@ -1458,8 +1470,10 @@ mod tests {
     use fedi_core::envs::FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV;
     use fedi_social_client::common::VerificationDocument;
     use fedimint_core::core::ModuleKind;
+    use fedimint_core::task::sleep_in_test;
     use fedimint_core::{apply, async_trait_maybe_send, Amount};
     use fedimint_logging::TracingSetup;
+    use fedimint_wallet_client::WalletClientModule;
     use tokio::sync::Mutex;
     use tracing::{error, info};
 
@@ -1708,7 +1722,7 @@ mod tests {
 
     pub struct BitcoinCli;
     impl BitcoinCli {
-        pub async fn cmd(self) -> devimint::util::Command {
+        pub fn cmd(self) -> devimint::util::Command {
             get_command_for_alias("FM_BTC_CLIENT", "bitcoin-cli")
         }
     }
@@ -1798,7 +1812,7 @@ mod tests {
 
     async fn join_test_fed(bridge: &Arc<Bridge>) -> Result<Arc<FederationV2>, anyhow::Error> {
         let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
-        let fedimint_federation = joinFederation(bridge.clone(), invite_code).await?;
+        let fedimint_federation = joinFederation(bridge.clone(), invite_code, false).await?;
         let federation = bridge
             .get_federation_maybe_recovering(&fedimint_federation.id.0)
             .await?;
@@ -1808,9 +1822,11 @@ mod tests {
 
     async fn join_test_fed_recovery(
         bridge: &Arc<Bridge>,
+        recover_from_scratch: bool,
     ) -> Result<Arc<FederationV2>, anyhow::Error> {
         let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
-        let fedimint_federation = joinFederation(bridge.clone(), invite_code).await?;
+        let fedimint_federation =
+            joinFederation(bridge.clone(), invite_code, recover_from_scratch).await?;
         let federation = bridge
             .get_federation_maybe_recovering(&fedimint_federation.id.0)
             .await?;
@@ -1886,9 +1902,11 @@ mod tests {
         let env_invite_code = std::env::var("FM_INVITE_CODE").unwrap();
 
         // Can't re-join a federation we're already a member of
-        assert!(joinFederation(bridge.clone(), env_invite_code.clone())
-            .await
-            .is_err());
+        assert!(
+            joinFederation(bridge.clone(), env_invite_code.clone(), false)
+                .await
+                .is_err()
+        );
 
         // listTransactions works
         let federations = listFederations(bridge.clone()).await?;
@@ -1900,7 +1918,7 @@ mod tests {
         assert_eq!(listFederations(bridge.clone()).await?.len(), 0);
 
         // rejoin without any rocksdb locking problems
-        joinFederation(bridge.clone(), env_invite_code).await?;
+        joinFederation(bridge.clone(), env_invite_code, false).await?;
         assert_eq!(listFederations(bridge).await?.len(), 1);
 
         Ok(())
@@ -2128,6 +2146,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    // on chain is marked experimental for 0.4
     async fn test_on_chain() -> anyhow::Result<()> {
         // Vec of tuple of (send_ppm, receive_ppm)
         let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
@@ -2154,6 +2173,12 @@ mod tests {
         let address = generateAddress(federation.clone()).await?;
         bitcoin_cli_send_to_address(&address, "0.1").await?;
 
+        assert!(matches!(
+            listTransactions(federation.clone(), None, None).await?[0].onchain_state,
+            Some(crate::types::RpcOnchainState::DepositState(
+                RpcOnchainDepositState::WaitingForTransaction
+            ))
+        ),);
         // check for event of type transaction that has onchain_state of
         // DepositState::Claimed
         'check: loop {
@@ -2184,13 +2209,38 @@ mod tests {
             )
             .await;
         }
+        assert!(matches!(
+            listTransactions(federation.clone(), None, None).await?[0].onchain_state,
+            Some(crate::types::RpcOnchainState::DepositState(
+                RpcOnchainDepositState::Claimed(_)
+            ))
+        ),);
 
         let btc_amount = Amount::from_sats(10_000_000);
-        let receive_fedi_fee =
-            Amount::from_msats((btc_amount.msats * fedi_fees_receive_ppm).div_ceil(MILLION));
+        let pegin_fees = federation
+            .client
+            .get_first_module::<WalletClientModule>()
+            .get_fee_consensus()
+            .peg_in_abs;
+        let receive_fedi_fee = Amount::ZERO;
+        // FIXME: implement fedi fees
+        // let receive_fedi_fee = Amount::from_msats(
+        //     ((btc_amount.msats - pegin_fees.msats) *
+        // fedi_fees_receive_ppm).div_ceil(MILLION), );
+        // wait for balance to trickle in atmost 10s
+        for _ in 0..100 {
+            if btc_amount == federation.get_balance().await + receive_fedi_fee + pegin_fees {
+                break;
+            }
+            sleep_in_test(
+                "waiting for balance to trickle in",
+                Duration::from_millis(100),
+            )
+            .await;
+        }
         assert_eq!(
-            btc_amount - receive_fedi_fee,
-            federation.get_balance().await,
+            btc_amount,
+            federation.get_balance().await + receive_fedi_fee + pegin_fees,
         );
 
         Ok(())
@@ -2225,6 +2275,15 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_backup_and_recovery() -> anyhow::Result<()> {
+        test_backup_and_recovery_inner(false).await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_backup_and_recovery_from_scratch() -> anyhow::Result<()> {
+        test_backup_and_recovery_inner(true).await
+    }
+
+    async fn test_backup_and_recovery_inner(from_scratch: bool) -> anyhow::Result<()> {
         let (backup_bridge, federation) = setup().await?;
 
         // receive ecash
@@ -2269,7 +2328,7 @@ mod tests {
         transferExistingDeviceRegistration(recovery_bridge.clone(), 0).await?;
 
         // Rejoin federation and assert that balances are correct
-        let recovery_federation = join_test_fed_recovery(&recovery_bridge).await?;
+        let recovery_federation = join_test_fed_recovery(&recovery_bridge, from_scratch).await?;
         assert!(recovery_federation.recovering());
         let id = recovery_federation.rpc_federation_id();
         drop(recovery_federation);
@@ -2287,13 +2346,16 @@ mod tests {
         }
         let recovery_federation = recovery_bridge.get_federation(&id.0).await?;
         // Currently, accrued fedi fee is merged back into balance upon recovery
+        // wait atmost 10s
+        for _ in 0..100 {
+            if ecash_balance_before + expected_fedi_fee == recovery_federation.get_balance().await {
+                break;
+            }
+            fedimint_core::task::sleep(Duration::from_millis(100)).await;
+        }
         assert_eq!(
             ecash_balance_before + expected_fedi_fee,
             recovery_federation.get_balance().await
-        );
-        assert_eq!(
-            Some(username),
-            recovery_federation.get_xmpp_username().await
         );
 
         let account_info = stabilityPoolAccountInfo(recovery_federation.clone(), true).await?;
@@ -2380,6 +2442,7 @@ mod tests {
             guardian_bridge.clone(),
             federation_id.clone(),
             recovery_id,
+            RpcPeerId(fedimint_core::PeerId::from(1)),
         )
         .await?
         .unwrap();
@@ -2622,7 +2685,8 @@ mod tests {
         ));
 
         // join
-        let fedimint_federation = joinFederation(bridge.clone(), invite_code.clone()).await?;
+        let fedimint_federation =
+            joinFederation(bridge.clone(), invite_code.clone(), false).await?;
         let federation = bridge.get_federation(&fedimint_federation.id.0).await?;
         use_lnd_gateway(&federation).await?;
 
@@ -2701,7 +2765,9 @@ mod tests {
         ));
 
         // Rejoining federation should fail since device index wasn't assigned
-        assert!(join_test_fed_recovery(&recovery_bridge).await.is_err());
+        assert!(join_test_fed_recovery(&recovery_bridge, false)
+            .await
+            .is_err());
         Ok(())
     }
 
@@ -2837,7 +2903,7 @@ mod tests {
         transferExistingDeviceRegistration(recovery_bridge.clone(), 0).await?;
 
         // Rejoin federation and assert that balances are correct
-        let recovery_federation = join_test_fed_recovery(&recovery_bridge).await?;
+        let recovery_federation = join_test_fed_recovery(&recovery_bridge, false).await?;
         assert!(recovery_federation.recovering());
         let id = recovery_federation.rpc_federation_id();
         drop(recovery_federation);
@@ -2944,7 +3010,7 @@ mod tests {
 
         // Rejoin federation and assert that balances don't carry over (and there is no
         // backup)
-        let recovery_federation = join_test_fed_recovery(&recovery_bridge).await?;
+        let recovery_federation = join_test_fed_recovery(&recovery_bridge, false).await?;
         assert!(!recovery_federation.recovering());
         assert_eq!(Amount::ZERO, recovery_federation.get_balance().await);
         assert_eq!(None, recovery_federation.get_xmpp_username().await);

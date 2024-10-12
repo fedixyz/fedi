@@ -7,7 +7,7 @@ import { RejectionError } from 'webln'
 import { useSendForm } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { BridgeError } from '@fedi/common/utils/fedimint'
 import { lnurlPay } from '@fedi/common/utils/lnurl'
@@ -18,6 +18,7 @@ import { useAppSelector, useBridge } from '../../../state/hooks'
 import { FediMod, Invoice, ParsedLnurlPay } from '../../../types'
 import AmountInput from '../../ui/AmountInput'
 import CustomOverlay from '../../ui/CustomOverlay'
+import FederationWalletSelector from '../send/FederationWalletSelector'
 
 const log = makeLog('SendPaymentOverlay')
 
@@ -39,8 +40,8 @@ export const SendPaymentOverlay: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
-    const { payInvoice } = useBridge()
-    const federationId = useAppSelector(selectActiveFederationId)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const { payInvoice } = useBridge(paymentFederation?.id)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [amountInputKey, setAmountInputKey] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
@@ -72,14 +73,14 @@ export const SendPaymentOverlay: React.FC<Props> = ({
 
         setIsLoading(true)
         try {
-            if (!federationId) throw new Error()
+            if (!paymentFederation) throw new Error()
             if (invoice) {
                 const res = await payInvoice(invoice.invoice)
                 onAcceptRef.current(res)
             } else if (lnurlPayment) {
                 const res = await lnurlPay(
                     fedimint,
-                    federationId,
+                    paymentFederation.id,
                     lnurlPayment,
                     amountUtils.satToMsat(inputAmount),
                 )
@@ -115,7 +116,14 @@ export const SendPaymentOverlay: React.FC<Props> = ({
                     fediMod: fediMod.title,
                 }),
                 body: (
-                    <View style={{ flex: 1, paddingTop: theme.spacing.xl }}>
+                    <View
+                        style={{
+                            flex: 1,
+                            paddingTop: theme.spacing.xl,
+                            alignItems: 'center',
+                            gap: theme.spacing.lg,
+                        }}>
+                        <FederationWalletSelector />
                         <AmountInput
                             key={amountInputKey}
                             amount={inputAmount}

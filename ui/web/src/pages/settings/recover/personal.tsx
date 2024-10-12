@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import React, { useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BIP39_WORD_LIST } from '@fedi/common/constants/bip39'
