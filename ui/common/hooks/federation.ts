@@ -21,8 +21,6 @@ import {
     getFederationChatServerDomain,
     getFederationPopupInfo,
     previewInvite,
-    shouldEnableFediInternalInjection,
-    shouldEnableNostr,
     shouldEnableOnchainDeposits,
     shouldEnableStabilityPool,
     shouldShowInviteCode,
@@ -116,18 +114,6 @@ export function useIsOnchainDepositSupported() {
         userEnabledOnchainDeposits ||
         shouldEnableOnchainDeposits(activeFederation.meta)
     )
-}
-
-export function useIsNostrEnabled() {
-    const activeFederation = useCommonSelector(selectActiveFederation)
-    if (!activeFederation) return false
-    return shouldEnableNostr(activeFederation)
-}
-
-export function useIsFediInternalInjectionEnabled() {
-    const activeFederation = useCommonSelector(selectActiveFederation)
-    if (!activeFederation) return false
-    return shouldEnableFediInternalInjection(activeFederation.meta)
 }
 
 export function usePopupFederationInfo(metadata?: ClientConfigMetadata) {

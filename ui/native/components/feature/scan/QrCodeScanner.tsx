@@ -1,4 +1,5 @@
-import { useIsFocused } from '@react-navigation/native'
+import { URDecoder } from '@ngraveio/bc-ur'
+import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import {
     State as FrameState,
@@ -32,12 +33,21 @@ type OnReadCodeData = {
 const QrCodeScanner: React.FC<Props> = ({ processing, onQrCodeDetected }) => {
     const { theme } = useTheme()
     const [frames, setFrames] = useState<FrameState | null>(null)
+    const [urFrames, setUrFrames] = useState<string[] | null>(null)
     const [progress, setProgress] = useState(0)
     const isFocused = useIsFocused()
     const cameraRef = useRef<Camera>(null)
     const previousDataRef = useRef<string | null>(null)
     const previousDataTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
     const framesRef = useUpdatingRef(frames)
+    const urFramesRef = useUpdatingRef(urFrames)
+    const decoder = useRef<URDecoder>()
+
+    useFocusEffect(() => {
+        if (previousDataRef.current) previousDataRef.current = null
+        if (decoder.current) return
+        decoder.current = new URDecoder()
+    })
 
     const handleDetected = (data: string) => {
         // Only call the detection function if QR data is different
@@ -55,30 +65,77 @@ const QrCodeScanner: React.FC<Props> = ({ processing, onQrCodeDetected }) => {
         }, 5000)
     }
 
+    // Fedi loop'd qr codes
+    const handleScanLegacy = (data: string) => {
+        if (data.startsWith('ur')) return
+        const newFrames = parseFramesReducer(framesRef.current, data)
+        setFrames(newFrames)
+        setProgress(progressOfFrames(newFrames))
+        if (areFramesComplete(newFrames)) {
+            // Convert the data to a string. If it's binary encoded, convert as base64.
+            const frameData = framesToData(newFrames)
+            const strData = frameData.toString(
+                getBufferEncoding(frameData) === 'binary' ? 'base64' : 'utf8',
+            )
+            handleDetected(strData)
+            // Reset frames & progress after short delay
+            setTimeout(() => {
+                setFrames(null)
+                setProgress(0)
+            }, 300)
+        }
+    }
+
+    // ref: https://github.com/ngraveio/bc-ur
+    // For cashu (TODO: encode fedimint notes with UR like cashu)
+    const handleScanBcUr = (data: string) => {
+        if (!data.startsWith('ur')) return
+        // Create the decoder object
+        if (!decoder.current) {
+            return
+        }
+        // Don't try to receive the same part twice
+        if (urFramesRef.current?.includes(data)) return
+        setUrFrames([...(urFramesRef.current ?? []), data])
+        decoder.current.receivePart(data)
+        const newProgress = decoder.current.estimatedPercentComplete()
+        setProgress(newProgress)
+        if (decoder.current.isComplete() && decoder.current.isSuccess()) {
+            // Get the UR representation of the message
+            const ur = decoder.current.resultUR()
+            // Decode the CBOR message to a Buffer
+            const decoded = ur.decodeCBOR()
+            // get the original message, assuming it was a JSON object
+            const originalMessage = decoded.toString()
+            handleDetected(originalMessage)
+            setTimeout(() => {
+                setProgress(0)
+                setUrFrames(null)
+                decoder.current = new URDecoder()
+            }, 300)
+        } else if (decoder.current.isComplete()) {
+            setProgress(0)
+            setUrFrames(null)
+            decoder.current = new URDecoder()
+            // If the decoder is complete, but not successful, log the error
+            throw new Error('Decoder error')
+        }
+    }
+
     const handleScan = (data: string) => {
         // Ignore scans while processing
         if (processing) return
 
+        try {
+            handleScanBcUr(data)
+        } catch (err) {
+            setProgress(0)
+            setUrFrames(null)
+        }
+
         // Attempt to parse qrloop'd QR codes first
         try {
-            const newFrames = parseFramesReducer(framesRef.current, data)
-            setFrames(newFrames)
-            setProgress(progressOfFrames(newFrames))
-            if (areFramesComplete(newFrames)) {
-                // Convert the data to a string. If it's binary encoded, convert as base64.
-                const frameData = framesToData(newFrames)
-                const strData = frameData.toString(
-                    getBufferEncoding(frameData) === 'binary'
-                        ? 'base64'
-                        : 'utf8',
-                )
-                handleDetected(strData)
-                // Reset frames & progress after short delay
-                setTimeout(() => {
-                    setFrames(null)
-                    setProgress(0)
-                }, 300)
-            }
+            handleScanLegacy(data)
         } catch (err) {
             // Fall back to regular ol' QR code
             handleDetected(data)

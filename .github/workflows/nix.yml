@@ -162,9 +162,6 @@ jobs:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-            - name: Build fedi-api-types
-              run: nix build -L .#ci.fedi-api-types
-
             - name: Build fedi-fedimint-pkgs
               run: nix build -L .#ci.fedi-fedimint-pkgs
 

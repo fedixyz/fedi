@@ -1803,7 +1803,6 @@ version = "0.4.0"
 dependencies = [
  "anyhow",
  "chrono",
- "fedimint-core",
  "hex",
  "serde",
 ]

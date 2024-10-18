@@ -45,4 +45,5 @@ export const FediModImages: ImagesMap = {
     'stackernews': require('@fedi/common/assets/images/fedimods/stackernews.png'),
     'stakwork': require('@fedi/common/assets/images/fedimods/stakwork.png'),
     'wavlake': require('@fedi/common/assets/images/fedimods/wavlake.png'),
+    'support': require('@fedi/common/assets/images/fedimods/support.png'),
 }

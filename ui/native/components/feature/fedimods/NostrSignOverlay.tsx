@@ -41,12 +41,12 @@ export const NostrSignOverlay: React.FC<Props> = ({
         setIsLoading(true)
         try {
             if (!nostrEvent) throw new Error()
-            const pubkey = await fedimint.getNostrPubKey()
-            const id = eventHashFromEvent(pubkey, nostrEvent)
+            const { hex } = await fedimint.getNostrPubkey()
+            const id = eventHashFromEvent(hex, nostrEvent)
             const result = await fedimint.signNostrEvent(id)
             onAccept({
                 id,
-                pubkey,
+                pubkey: hex,
                 created_at: nostrEvent.created_at,
                 kind: nostrEvent.kind,
                 content: nostrEvent.content,

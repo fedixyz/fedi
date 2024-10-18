@@ -30,13 +30,14 @@ import React, {
 
 import {
     ParsedBolt11,
+    ParsedCashuEcash,
     ParsedFederationInvite,
     ParsedLnurlPay,
     ParsedLnurlWithdraw,
 } from '@fedi/common/types'
 
 interface RouteStateByPath {
-    '/send': ParsedLnurlPay | ParsedBolt11
+    '/send': ParsedLnurlPay | ParsedBolt11 | ParsedCashuEcash
     '/request': ParsedLnurlWithdraw
     '/onboarding/join': ParsedFederationInvite
 }

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
 use bitcoin::bech32::{self, ToBase32};
-use bitcoin::key::XOnlyPublicKey;
+use bitcoin::key::{KeyPair, XOnlyPublicKey};
 use bitcoin::secp256k1::{Message, Secp256k1};
 use fedi_social_client::{
     self, FediSocialCommonGen, RecoveryFile, SocialRecoveryClient, SocialRecoveryState,
@@ -46,8 +46,8 @@ use crate::storage::{
     AppState, DatabaseInfo, FederationInfo, FediFeeSchedule, ModuleFediFeeSchedule,
 };
 use crate::types::{
-    RpcBridgeStatus, RpcDeviceIndexAssignmentStatus, RpcFederationPreview, RpcRegisteredDevice,
-    RpcReturningMemberStatus,
+    RpcBridgeStatus, RpcDeviceIndexAssignmentStatus, RpcFederationPreview, RpcNostrPubkey,
+    RpcNostrSecret, RpcRegisteredDevice, RpcReturningMemberStatus,
 };
 use crate::utils::required_threashold_of;
 
@@ -980,14 +980,13 @@ impl Bridge {
         })
     }
 
-    pub async fn get_nostr_pub_key_hex(&self) -> Result<String> {
-        Ok(self.nostr_pubkey().await.to_string())
-    }
-
-    pub async fn get_nostr_pub_key(&self) -> Result<String> {
+    pub async fn get_nostr_pubkey(&self) -> Result<RpcNostrPubkey> {
         let nostr_pubkey = self.nostr_pubkey().await;
         let data = nostr_pubkey.serialize().to_base32();
-        Ok(bech32::encode("npub", data, bech32::Variant::Bech32)?)
+        Ok(RpcNostrPubkey {
+            npub: bech32::encode("npub", data, bech32::Variant::Bech32)?,
+            hex: nostr_pubkey.to_string(),
+        })
     }
 
     async fn nostr_pubkey(&self) -> XOnlyPublicKey {
@@ -997,6 +996,26 @@ impl Bridge {
         let nostr_keypair = nostr_secret.to_secp_key(&secp);
 
         nostr_keypair.x_only_public_key().0
+    }
+
+    pub async fn get_nostr_secret(&self) -> Result<RpcNostrSecret> {
+        let secp = Secp256k1::new();
+        let bytes = self.nostr_secret_key(&secp).await?.secret_bytes();
+        let nsec = bech32::encode("nsec", bytes.to_base32(), bech32::Variant::Bech32)?;
+        let hex = hex::encode(bytes);
+
+        Ok(RpcNostrSecret { hex, nsec })
+    }
+
+    async fn nostr_secret_key<Ctx: bitcoin::secp256k1::Context + bitcoin::secp256k1::Signing>(
+        &self,
+        secp: &Secp256k1<Ctx>,
+    ) -> anyhow::Result<KeyPair> {
+        let global_root_secret = self.app_state.root_secret().await;
+        let nostr_secret = global_root_secret.child_key(ChildId(NOSTR_CHILD_ID));
+        let nostr_keypair = nostr_secret.to_secp_key(secp);
+
+        Ok(nostr_keypair)
     }
 
     pub async fn sign_nostr_event(&self, event_hash: String) -> Result<String> {

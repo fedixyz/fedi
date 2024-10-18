@@ -10,5 +10,3 @@ serde.workspace = true
 anyhow.workspace = true
 hex = { version = "0.4.3", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-
-fedimint-core = { workspace = true }

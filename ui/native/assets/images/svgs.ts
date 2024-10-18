@@ -77,6 +77,7 @@ export { default as LockSquareRounded } from '@fedi/common/assets/svgs/lock-squa
 export { default as NewModIcon } from '@fedi/common/assets/svgs/new-mod-icon.svg'
 export { default as NewRoom } from '@fedi/common/assets/svgs/new-room.svg'
 export { default as NorthStar } from '@fedi/common/assets/svgs/north-star.svg'
+export { default as Nostr } from '@fedi/common/assets/svgs/nostr.svg'
 export { default as Note } from '@fedi/common/assets/svgs/note.svg'
 export { default as Notification } from '@fedi/common/assets/svgs/notification.svg'
 export { default as Offline } from '@fedi/common/assets/svgs/offline.svg'

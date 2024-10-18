@@ -54,7 +54,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({
         minimumAmount,
         maximumAmount,
         reset,
-    } = useSendForm({ invoice, lnurlPayment })
+    } = useSendForm({ invoice, lnurlPayment, t })
 
     // Reset form when it appears, requires a key bump to flush state.
     const isShowing = Boolean(invoice || lnurlPayment)

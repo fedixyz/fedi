@@ -10,6 +10,7 @@ import {
     ParsedBitcoinAddress,
     ParsedBolt11,
     ParsedBolt12,
+    ParsedCashuEcash,
     ParsedCommunityInvite,
     ParsedFederationInvite,
     ParsedFediChatRoom,
@@ -24,6 +25,7 @@ import {
     ParsedWebsite,
     ParserDataType,
 } from '../types/parser'
+import { validateCashuTokens } from './cashu'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
 import { decodeFediMatrixRoomUri, decodeFediMatrixUserUri } from './matrix'
@@ -79,6 +81,7 @@ export function parseUserInput<T extends TFunction>(
             parseFedimintInvite(raw),
             parseCommunityInvite(raw),
             parseFedimintEcash(raw, fedimint),
+            parseCashuEcash(raw),
         ]
 
         // Return the first parser to come back with a non-falsy value.
@@ -493,8 +496,20 @@ async function parseFedimintEcash(
     fedimint: FedimintBridge,
 ): Promise<ParsedFedimintEcash | undefined> {
     try {
+        if (raw.startsWith('cashu')) throw new Error()
         await fedimint.validateEcash(raw)
         return { type: ParserDataType.FedimintEcash, data: { token: raw } }
+    } catch {
+        // no-op
+    }
+}
+
+async function parseCashuEcash(
+    raw: string,
+): Promise<ParsedCashuEcash | undefined> {
+    try {
+        await validateCashuTokens(raw)
+        return { type: ParserDataType.CashuEcash, data: { token: raw } }
     } catch {
         // no-op
     }

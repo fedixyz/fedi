@@ -10,6 +10,7 @@ import {
     fetchRegisteredDevices,
     fetchSocialRecovery,
     initializeDeviceId,
+    initializeNostrKeys,
     previewDefaultGroupChats,
     refreshFederations,
     selectDeviceId,
@@ -94,6 +95,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 return Promise.all([
                     dispatchRef.current(refreshFederations(fedimint)).unwrap(),
                     dispatchRef.current(fetchSocialRecovery(fedimint)),
+                    dispatchRef.current(initializeNostrKeys({ fedimint })),
                     // this happens when the user entered seed words but quit the app
                     // before completing device index selection so we fetch devices
                     // again since that typically gets fetched from recoverFromMnemonic

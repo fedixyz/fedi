@@ -50,7 +50,8 @@ use crate::observable::{Observable, ObservableVec};
 use crate::types::{
     GuardianStatus, RpcBridgeStatus, RpcCommunity, RpcDeviceIndexAssignmentStatus, RpcEcashInfo,
     RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse, RpcLightningGateway,
-    RpcPayAddressResponse, RpcRegisteredDevice, RpcTransactionDirection,
+    RpcNostrPubkey, RpcNostrSecret, RpcPayAddressResponse, RpcRegisteredDevice,
+    RpcTransactionDirection,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -502,13 +503,13 @@ async fn backupStatus(federation: Arc<FederationV2>) -> anyhow::Result<BackupSer
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getNostrPubKey(bridge: Arc<Bridge>) -> anyhow::Result<String> {
-    bridge.get_nostr_pub_key_hex().await
+async fn getNostrSecret(bridge: Arc<Bridge>) -> anyhow::Result<RpcNostrSecret> {
+    bridge.get_nostr_secret().await
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getNostrPubKeyBech32(bridge: Arc<Bridge>) -> anyhow::Result<String> {
-    bridge.get_nostr_pub_key().await
+async fn getNostrPubkey(bridge: Arc<Bridge>) -> anyhow::Result<RpcNostrPubkey> {
+    bridge.get_nostr_pubkey().await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -689,7 +690,7 @@ async fn matrixInit(bridge: Arc<Bridge>) -> anyhow::Result<()> {
     if bridge.matrix.initialized() {
         return Ok(());
     }
-    let nostr_pubkey = bridge.get_nostr_pub_key().await?;
+    let nostr_pubkey = bridge.get_nostr_pubkey().await?.npub;
     let matrix_secret = bridge.get_matrix_secret().await;
     bridge
         .matrix
@@ -1280,15 +1281,16 @@ macro_rules! rpc_methods {
 
         impl $name {
             pub async fn handle(bridge: Arc<Bridge>, method: &str, payload: String) -> anyhow::Result<String> {
-                match method {
+                let future = match method {
                 $(
-                    stringify!($method) => handle_wrapper($method::handle, bridge, payload).await,
+                    stringify!($method) => Box::pin(handle_wrapper($method::handle, bridge, payload)) as fedimint_core::util::BoxFuture<_>,
                 )*
-                    other => Err(anyhow::anyhow!(format!(
+                    other => return Err(anyhow::anyhow!(format!(
                         "Unrecognized RPC command: {}",
                         other
                     ))),
-                }
+                };
+                future.await
             }
         }
     };
@@ -1343,8 +1345,8 @@ rpc_methods!(RpcMethods {
     xmppCredentials,
     backupXmppUsername,
     // Nostr
-    getNostrPubKey,
-    getNostrPubKeyBech32,
+    getNostrPubkey,
+    getNostrSecret,
     signNostrEvent,
     // Stability Pool
     stabilityPoolAccountInfo,

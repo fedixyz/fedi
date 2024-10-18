@@ -1,3 +1,4 @@
+import { URDecoder } from '@ngraveio/bc-ur'
 import type QrScanner from 'qr-scanner'
 import {
     State as FrameState,
@@ -33,46 +34,113 @@ export const QRScanner: React.FC<Props> = ({ processing, onScan }) => {
     const qrScannerRef = useRef<QrScanner | null>(null)
     const [mediaError, setMediaError] = useState<string>()
     const [frames, setFrames] = useState<FrameState | null>(null)
+    const [urFrames, setUrFrames] = useState<string[] | null>(null)
     const [progress, setProgress] = useState(0)
     const [isLoading, setIsLoading] = useState(true)
 
     // Maintain a ref to onScan and frames to avoid re-running useEffects
     const framesRef = useUpdatingRef(frames)
     const onScanRef = useUpdatingRef(onScan)
+    const urFramesRef = useUpdatingRef(urFrames)
+    const decoder = useRef<URDecoder>()
+
+    useEffect(() => {
+        if (decoder.current) return
+        decoder.current = new URDecoder()
+    }, [])
+
+    const handleDetected = useCallback(
+        (strData: string, result: ScanResult) => {
+            onScanRef.current({
+                data: strData,
+                cornerPoints: result.cornerPoints,
+            })
+        },
+        [onScanRef],
+    )
+
+    // Fedi loop'd qr codes
+    const handleScanLegacy = useCallback(
+        (result: ScanResult) => {
+            if (result.data.startsWith('ur')) return
+            const newFrames = parseFramesReducer(framesRef.current, result.data)
+            if (areFramesComplete(newFrames)) {
+                // Convert the data to a string. If it's binary encoded, convert as base64.
+                const frameData = framesToData(newFrames)
+                const strData = frameData.toString(
+                    getBufferEncoding(frameData) === 'binary'
+                        ? 'base64'
+                        : 'utf8',
+                )
+                handleDetected(strData, result)
+            }
+            setFrames(newFrames)
+            setProgress(progressOfFrames(newFrames))
+        },
+        [framesRef, handleDetected],
+    )
+
+    // ref: https://github.com/ngraveio/bc-ur
+    // For cashu (TODO: encode fedimint notes with UR like cashu)
+    const handleScanBcUr = useCallback(
+        (result: ScanResult) => {
+            // console.warn('urDATA', result.data, result.data.startsWith('ur'))
+            if (!result.data.startsWith('ur')) return
+            // Create the decoder object
+            if (!decoder.current) {
+                return
+            }
+            // Don't try to receive the same part twice
+            if (urFramesRef.current?.includes(result.data)) return
+            setUrFrames([...(urFramesRef.current ?? []), result.data])
+            // console.warn('res', decoder.current.receivedPartIndexes())
+            decoder.current.receivePart(result.data)
+            const newProgress = decoder.current.estimatedPercentComplete()
+            setProgress(newProgress)
+            if (decoder.current.isComplete() && decoder.current.isSuccess()) {
+                // Get the UR representation of the message
+                const ur = decoder.current.resultUR()
+                // Decode the CBOR message to a Buffer
+                const decoded = ur.decodeCBOR()
+                // get the original message, assuming it was a JSON object
+                const originalMessage = decoded.toString()
+                handleDetected(originalMessage, result)
+                setTimeout(() => {
+                    setProgress(0)
+                    decoder.current = new URDecoder()
+                }, 300)
+            } else if (decoder.current.isComplete()) {
+                setProgress(0)
+                decoder.current = new URDecoder()
+                // If the decoder is complete, but not successful, log the error
+                throw new Error('Decoder error')
+            }
+        },
+        [handleDetected, urFramesRef],
+    )
 
     const handleScan = useCallback(
         (result: ScanResult) => {
+            // Attempt to parse cashu encoded qr
+            try {
+                handleScanBcUr(result)
+            } catch (e) {
+                setProgress(0)
+            }
             // Attempt to parse qrloop'd QR codes first
             try {
-                const newFrames = parseFramesReducer(
-                    framesRef.current,
-                    result.data,
-                )
-                if (areFramesComplete(newFrames)) {
-                    // Convert the data to a string. If it's binary encoded, convert as base64.
-                    const frameData = framesToData(newFrames)
-                    const strData = frameData.toString(
-                        getBufferEncoding(frameData) === 'binary'
-                            ? 'base64'
-                            : 'utf8',
-                    )
-                    onScanRef.current({
-                        data: strData,
-                        cornerPoints: result.cornerPoints,
-                    })
-                }
-                setFrames(newFrames)
-                setProgress(progressOfFrames(newFrames))
+                handleScanLegacy(result)
             } catch (err) {
                 // Fall back to regular ol' QR code
                 onScanRef.current(result)
             }
         },
-        [framesRef, onScanRef],
+        [handleScanBcUr, handleScanLegacy, onScanRef],
     )
 
     // Sets up QrScanner using device camera
     const handleScannerSetup = useCallback(async () => {
+        if (!decoder.current) decoder.current = new URDecoder()
         if (!videoEl) return
         try {
             // Listen for when we start playing to hide loader
@@ -107,6 +175,7 @@ export const QRScanner: React.FC<Props> = ({ processing, onScan }) => {
             if (qrScanner) {
                 qrScanner.destroy()
                 qrScannerRef.current = null
+                decoder.current = undefined
             }
         }
     }, [handleScannerSetup])
@@ -133,10 +202,10 @@ export const QRScanner: React.FC<Props> = ({ processing, onScan }) => {
                 </Progress>
             )}
             {mediaError && (
-                <Error>
+                <ErrorComponent>
                     <Icon icon={ErrorIcon} />
                     <Text variant="caption">{mediaError}</Text>
-                </Error>
+                </ErrorComponent>
             )}
         </Container>
     )
@@ -215,7 +284,7 @@ const ProgressPercent = styled('div', {
     textShadow: `0 1px 1px ${theme.colors.primary}`,
 })
 
-const Error = styled('div', {
+const ErrorComponent = styled('div', {
     position: 'absolute',
     top: 0,
     left: 0,

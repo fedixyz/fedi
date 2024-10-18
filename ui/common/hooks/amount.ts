@@ -36,6 +36,7 @@ import {
 import amountUtils from '../utils/AmountUtils'
 import { getFederationDefaultCurrency } from '../utils/FederationUtils'
 import stringUtils from '../utils/StringUtils'
+import { MeltSummary } from '../utils/cashu'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useUpdatingRef } from './util'
 
@@ -51,6 +52,8 @@ interface SendAmountArgs {
     invoice?: Invoice | null
     lnurlPayment?: ParsedLnurlPay['data'] | null
     selectedPaymentFederation?: boolean
+    cashuMeltSummary?: MeltSummary | null
+    t?: TFunction
 }
 
 export type FormattedAmounts = {
@@ -484,13 +487,16 @@ export function useMinMaxRequestAmount({
  * Get the minimum and maximum amount you can send. Optionally take in an
  * LNURL pay request as part of the calculation.
  */
-export function useMinMaxSendAmount({
-    invoice,
-    lnurlPayment,
+export function useMinMaxSendAmount(
+    {
+        invoice,
+        lnurlPayment,
+        cashuMeltSummary,
+        selectedPaymentFederation,
+    }: SendAmountArgs = {},
     // TODO: Remove this option in favor of always using payFromFederation once
     // https://github.com/fedibtc/fedi/issues/4070 is finished
-    selectedPaymentFederation,
-}: SendAmountArgs = {}) {
+) {
     const balance = useCommonSelector(s =>
         selectedPaymentFederation
             ? selectPaymentFederationBalance(s)
@@ -511,7 +517,9 @@ export function useMinMaxSendAmount({
         let minimumAmount = 1 as Sats // Cannot send millisat amounts
         let maximumAmount = amountUtils.msatToSat(balance)
 
-        if (invoiceAmount) {
+        if (cashuMeltSummary) {
+            minimumAmount = amountUtils.msatToSat(cashuMeltSummary.totalAmount)
+        } else if (invoiceAmount) {
             minimumAmount = amountUtils.msatToSat(invoiceAmount)
         } else {
             if (minSendable) {
@@ -525,7 +533,7 @@ export function useMinMaxSendAmount({
             }
         }
         return { minimumAmount, maximumAmount }
-    }, [balance, invoiceAmount, minSendable, maxSendable])
+    }, [balance, cashuMeltSummary, invoiceAmount, minSendable, maxSendable])
 }
 
 /**
@@ -556,9 +564,9 @@ export function useMinMaxDepositAmount() {
         maxStableBalanceSats === 0
             ? balanceSats
             : (Math.min(
-                balanceSats,
-                Math.max(0, maxStableBalanceSats - stableBalanceSats),
-            ) as Sats)
+                  balanceSats,
+                  Math.max(0, maxStableBalanceSats - stableBalanceSats),
+              ) as Sats)
 
     return { minimumAmount, maximumAmount }
 }
@@ -588,7 +596,7 @@ export function useRequestForm(args: RequestAmountArgs = {}) {
         args.lnurlWithdrawal &&
         args.lnurlWithdrawal.minWithdrawable &&
         args.lnurlWithdrawal.minWithdrawable ===
-        args.lnurlWithdrawal.maxWithdrawable
+            args.lnurlWithdrawal.maxWithdrawable
     ) {
         exactAmount = amountUtils.msatToSat(
             args.lnurlWithdrawal.minWithdrawable,
@@ -663,12 +671,17 @@ export function useSendForm({
     invoice,
     lnurlPayment,
     selectedPaymentFederation,
-}: SendAmountArgs = {}) {
+    cashuMeltSummary,
+    t,
+}: SendAmountArgs) {
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
+    if (!t) throw new Error('useSendForm requires a t function')
     const { minimumAmount, maximumAmount } = useMinMaxSendAmount({
         invoice,
         lnurlPayment,
         selectedPaymentFederation,
+        cashuMeltSummary,
+        t,
     })
     const minimumAmountRef = useUpdatingRef(minimumAmount)
 
@@ -694,6 +707,10 @@ export function useSendForm({
         sendTo = stringUtils.truncateMiddleOfString(bip21Payment.address, 8)
     } else if (btcAddress) {
         sendTo = stringUtils.truncateMiddleOfString(btcAddress.address, 8)
+    } else if (cashuMeltSummary) {
+        exactAmount = amountUtils.msatToSat(cashuMeltSummary.totalAmount)
+        description = t('feature.omni.confirm-melt-cashu')
+        // totalFees = amountUtils.msatToSat(cashuMeltSummary.totalFees)
     }
 
     const reset = useCallback(() => {

@@ -1,53 +1,54 @@
-import { useNavigation } from '@react-navigation/native'
-import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
+import { useCommonSelector } from '@fedi/common/hooks/redux'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectPaymentFederation } from '@fedi/common/redux'
+import type { Sats, Transaction } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { BridgeError } from '@fedi/common/utils/fedimint'
+import { fedimint } from '@fedi/native/bridge'
 
-import { fedimint } from '../bridge'
-import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppSelector } from '../state/hooks'
-import { NavigationHook, RootStackParamList } from '../types/navigation'
+import { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
-    'ConfirmSendLightning'
+    'ConfirmReceiveCashu'
 >
 
-const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
+const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
     const { theme } = useTheme()
+    const style = styles(theme)
     const { t } = useTranslation()
-    const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
-    const paymentFederation = useAppSelector(selectPaymentFederation)
-    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
     const { parsedData } = route.params
+
+    const activeWalletFederationId =
+        useCommonSelector(selectPaymentFederation)?.id ?? ''
+    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
+    const [isPayingInvoice, setIsPayingInvoice] = useState<boolean>(false)
+    const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
+    const [submitAttempts, setSubmitAttempts] = useState(0)
+
     const {
         isReadyToPay,
         exactAmount,
-        minimumAmount,
-        maximumAmount,
-        inputAmount,
         description,
         feeDetails,
         sendTo,
-        setInputAmount,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, paymentFederation?.id, true, t)
+    } = useOmniPaymentState(fedimint, activeWalletFederationId, true, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails
@@ -56,26 +57,28 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
     }, [feeDetails, makeLightningFeeContent])
 
     useEffect(() => {
-        handleOmniInput(parsedData)
-    }, [handleOmniInput, parsedData])
-
-    const [unit] = useState('sats')
-    const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
-
-    const [isPayingInvoice, setIsPayingInvoice] = useState<boolean>(false)
-    const [submitAttempts, setSubmitAttempts] = useState(0)
+        try {
+            handleOmniInput(parsedData)
+        } catch (err) {
+            if (err instanceof BridgeError) {
+                toast.error(t, null, err.format(t))
+            } else {
+                toast.error(t, err)
+            }
+        }
+    }, [handleOmniInput, parsedData, t, toast])
 
     const navigationReplace = navigation.replace
     const handleSend = useCallback(async () => {
         setSubmitAttempts(attempts => attempts + 1)
-        if (inputAmount > maximumAmount || inputAmount < minimumAmount) return
-
+        if (!exactAmount) return
         setIsPayingInvoice(true)
         try {
-            await handleOmniSend(inputAmount)
-            navigationReplace('SendSuccess', {
-                amount: amountUtils.satToMsat(inputAmount),
-                unit,
+            await handleOmniSend(exactAmount)
+            navigationReplace('ReceiveSuccess', {
+                tx: {
+                    amount: amountUtils.satToMsat(exactAmount),
+                } as Transaction,
             })
         } catch (err) {
             if (err instanceof BridgeError) {
@@ -85,18 +88,15 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
             }
         }
         setIsPayingInvoice(false)
-    }, [
-        handleOmniSend,
-        inputAmount,
-        minimumAmount,
-        maximumAmount,
-        unit,
-        navigationReplace,
-        toast,
-        t,
-    ])
+    }, [handleOmniSend, exactAmount, navigationReplace, toast, t])
 
-    if (!isReadyToPay) return <ActivityIndicator />
+    if (!isReadyToPay)
+        return (
+            <View style={style.loadingContainer}>
+                <Text style={style.loadingText}>{t('words.loading')}</Text>
+                <ActivityIndicator />
+            </View>
+        )
 
     const renderDetails = () => {
         if (!feeDetails) return null
@@ -137,50 +137,35 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
             </>
         )
     }
-    const style = styles(theme)
 
     return (
         <>
             <AmountScreen
-                subHeader={<FederationWalletSelector />}
-                amount={inputAmount}
-                onChangeAmount={setInputAmount}
-                minimumAmount={minimumAmount}
-                maximumAmount={maximumAmount}
+                amount={exactAmount ?? (0 as Sats)}
                 submitAttempts={submitAttempts}
                 isSubmitting={isPayingInvoice}
-                readOnly={!!exactAmount}
+                readOnly={true}
                 description={description}
                 subContent={renderDetails()}
-                buttons={
-                    !exactAmount
-                        ? [
-                              {
-                                  title: (
-                                      <Text
-                                          medium
-                                          caption
-                                          style={style.buttonText}>
-                                          {t('words.send')}
-                                      </Text>
-                                  ),
-                                  onPress: handleSend,
-                                  loading: isPayingInvoice,
-                                  disabled: isPayingInvoice,
-                              },
-                          ]
-                        : []
-                }
             />
         </>
     )
 }
 
-export default ConfirmSendLightning
-
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        loadingContainer: {
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: theme.spacing.xl,
+        },
+        loadingText: {
+            color: theme.colors.secondary,
+        },
         buttonText: {
             color: theme.colors.secondary,
         },
     })
+
+export default ConfirmReceiveCashu

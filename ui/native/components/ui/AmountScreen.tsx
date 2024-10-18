@@ -17,14 +17,14 @@ interface Props extends AmountInputProps {
     subHeader?: React.ReactNode | null
     subContent?: React.ReactNode | null
     description?: string
-    buttons: ButtonProps[]
+    buttons?: ButtonProps[]
 }
 
 export const AmountScreen: React.FC<Props> = ({
     showBalance,
     subHeader = null,
     subContent = null,
-    buttons,
+    buttons = [],
     ...amountInputProps
 }) => {
     const { t } = useTranslation()

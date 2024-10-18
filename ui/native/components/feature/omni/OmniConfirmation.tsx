@@ -149,6 +149,18 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                             invite: parsedData.data.invite,
                         }),
                 }
+            case ParserDataType.CashuEcash:
+                return {
+                    contents: {
+                        icon: 'Bolt',
+                        title: t('feature.omni.confirm-cashu-token'),
+                    },
+                    continueOnPress: () => {
+                        handleNavigate('ConfirmReceiveCashu', {
+                            parsedData,
+                        })
+                    },
+                }
             case ParserDataType.FedimintEcash:
                 return {
                     contents: {

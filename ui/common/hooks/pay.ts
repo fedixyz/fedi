@@ -1,8 +1,10 @@
+import { TFunction } from 'i18next'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
     AnyParsedData,
     Invoice,
+    MSats,
     ParsedBip21,
     ParsedBitcoinAddress,
     ParsedLnurlPay,
@@ -11,6 +13,13 @@ import {
 } from '../types'
 import { RpcFeeDetails } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
+import {
+    decodeCashuTokens,
+    type MeltResult,
+    getMeltQuotes,
+    MeltSummary,
+    executeMelts,
+} from '../utils/cashu'
 import { FedimintBridge } from '../utils/fedimint'
 import { lnurlPay } from '../utils/lnurl'
 import { useSendForm } from './amount'
@@ -20,6 +29,7 @@ const expectedOmniInputTypes = [
     ParserDataType.Bip21,
     ParserDataType.Bolt11,
     ParserDataType.LnurlPay,
+    ParserDataType.CashuEcash,
 ] as const
 type ExpectedInputData = Extract<
     AnyParsedData,
@@ -44,7 +54,7 @@ interface OmniPaymentState {
     /** Handles sending the payment when the user has confirmed, can throw errors */
     handleOmniSend: (
         amount: Sats,
-    ) => Promise<{ preimage: string } | { txid: string }>
+    ) => Promise<{ preimage: string } | { txid: string } | MeltResult>
     /** For passing to <AmountInput amount /> prop or useAmountInput */
     inputAmount: Sats
     /** For passing to <AmountInput onChangeAmount /> prop useAmountInput */
@@ -67,9 +77,11 @@ export function useOmniPaymentState(
     fedimint: FedimintBridge,
     federationId: string | undefined,
     selectedPaymentFederation = false,
+    t: TFunction,
 ): OmniPaymentState {
     const [feeDetails, setFeeDetails] = useState<RpcFeeDetails>()
     const [invoice, setInvoice] = useState<Invoice>()
+    const [cashuMeltSummary, setCashuMeltSummary] = useState<MeltSummary>()
     const [lnurlPayment, setLnurlPayment] = useState<ParsedLnurlPay['data']>()
     const [bip21Payment, setBip21Payment] = useState<ParsedBip21['data']>()
     const [btcAddress, setBtcAddress] = useState<ParsedBitcoinAddress['data']>()
@@ -81,9 +93,15 @@ export function useOmniPaymentState(
         maximumAmount,
         description,
         sendTo,
-    } = useSendForm(
-        { btcAddress, bip21Payment, invoice, lnurlPayment, selectedPaymentFederation },
-    )
+    } = useSendForm({
+        btcAddress,
+        bip21Payment,
+        invoice,
+        lnurlPayment,
+        selectedPaymentFederation,
+        cashuMeltSummary,
+        t,
+    })
 
     useEffect(() => {
         const getOnchainFeeDetails = async () => {
@@ -144,9 +162,26 @@ export function useOmniPaymentState(
                 setBtcAddress({ address: input.data.address })
             } else if (input.type === ParserDataType.BitcoinAddress) {
                 setBtcAddress(input.data)
+            } else if (
+                input.type === ParserDataType.CashuEcash &&
+                federationId
+            ) {
+                const tokens = decodeCashuTokens(input.data.token)
+                const meltSummary = await getMeltQuotes(
+                    tokens,
+                    fedimint,
+                    federationId,
+                )
+                setCashuMeltSummary(meltSummary)
+                setInputAmount(amountUtils.msatToSat(meltSummary.totalAmount))
+                setFeeDetails({
+                    fediFee: 0 as MSats,
+                    networkFee: meltSummary.totalFees,
+                    federationFee: 0 as MSats,
+                })
             }
         },
-        [federationId, fedimint, setInputAmount],
+        [federationId, fedimint, setInputAmount, setCashuMeltSummary],
     )
 
     const handleOmniSend = useCallback(
@@ -175,6 +210,8 @@ export function useOmniPaymentState(
                     amount,
                     federationId,
                 )
+            } else if (cashuMeltSummary) {
+                return executeMelts(cashuMeltSummary)
             } else {
                 throw new Error(
                     'Requires invoice, lnurl payment, bip21 payment, or btc address to send',
@@ -187,6 +224,7 @@ export function useOmniPaymentState(
             lnurlPayment,
             bip21Payment,
             btcAddress,
+            cashuMeltSummary,
             fedimint,
         ],
     )
@@ -198,11 +236,16 @@ export function useOmniPaymentState(
         setBtcAddress(undefined)
         setBip21Payment(undefined)
         setInputAmount(0 as Sats)
+        setCashuMeltSummary(undefined)
     }, [setInputAmount])
 
     return {
         isReadyToPay:
-            !!invoice || !!lnurlPayment || !!btcAddress || !!bip21Payment,
+            !!invoice ||
+            !!lnurlPayment ||
+            !!btcAddress ||
+            !!bip21Payment ||
+            !!cashuMeltSummary,
         exactAmount,
         minimumAmount,
         maximumAmount,
