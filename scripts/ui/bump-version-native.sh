@@ -20,25 +20,30 @@ fi
 pushd $REPO_ROOT/ui/native
 
 # Here we bump the version and commit to the repo, but only allow if
-# script is running on a release branch in CI
+# script is running on a release branch or backport branch in CI
 echo "Checking GITHUB_REF: $GITHUB_REF"
-if [[ $GITHUB_REF == refs/heads/release/* ]]; then
-  # Compare release branch with current version to determine
+if [[ $GITHUB_REF == refs/heads/release/* ]] || [[ $GITHUB_REF == refs/heads/backport/* ]]; then
+  # Compare release/backport branch with current version to determine
   # major vs minor vs patch version bump
-  RELEASE_BRANCH_VERSION="${GITHUB_REF##*/}"
-  echo "Release branch: $RELEASE_BRANCH_VERSION"
+  BRANCH_VERSION="${GITHUB_REF##*/}"
+  echo "Branch version: $BRANCH_VERSION"
 
   # get current version from package.json
   CURRENT_VERSION="$(npm pkg get version --ws false | sed 's/"//g')"
   echo "Current version: $CURRENT_VERSION"
-  CURRENT_MINOR_VERSION="$(cut -d '.' -f 1,2 <<< "$CURRENT_VERSION")"
-  if [[ "$CURRENT_MINOR_VERSION" != "$RELEASE_BRANCH_VERSION" ]] && [[ "$RELEASE_BRANCH_VERSION" == *"."* ]];
-  then
-      echo 'Bumping npm minor version to $RELEASE_BRANCH_VERSION.0'
-      npm version --allow-same-version --force $RELEASE_BRANCH_VERSION.0
-  else
+
+  if [[ $GITHUB_REF == refs/heads/release/* ]]; then
+    CURRENT_MINOR_VERSION="$(cut -d '.' -f 1,2 <<< "$CURRENT_VERSION")"
+    if [[ "$CURRENT_MINOR_VERSION" != "$BRANCH_VERSION" ]] && [[ "$BRANCH_VERSION" == *"."* ]]; then
+      echo "Bumping npm minor version to $BRANCH_VERSION.0"
+      npm version --allow-same-version --force $BRANCH_VERSION.0
+    else
       echo 'Bumping npm patch version'
       npm version --allow-same-version --force patch
+    fi
+  elif [[ $GITHUB_REF == refs/heads/backport/* ]]; then
+    echo "Bumping npm version to $BRANCH_VERSION"
+    npm version --allow-same-version --force $BRANCH_VERSION
   fi
 
   # app stores expect these version codes to increment so update

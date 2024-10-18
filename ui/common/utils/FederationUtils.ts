@@ -385,19 +385,6 @@ export const shouldEnableOnchainDeposits = (metadata: ClientConfigMetadata) => {
         : onchainDepositsDisabled !== 'true'
 }
 
-export const shouldEnableFediInternalInjection = (
-    metadata: ClientConfigMetadata,
-) => {
-    const fediInternalInjectionDisabled = getMetaField(
-        SupportedMetaFields.fedi_internal_injection_disabled,
-        metadata,
-    )
-    // Disable fedi internal injection by default if not specified in meta
-    return fediInternalInjectionDisabled === null
-        ? true
-        : fediInternalInjectionDisabled !== 'true'
-}
-
 export const shouldEnableStabilityPool = (metadata: ClientConfigMetadata) => {
     const stabilityPoolDisabled = getMetaField(
         SupportedMetaFields.stability_pool_disabled,
@@ -407,15 +394,6 @@ export const shouldEnableStabilityPool = (metadata: ClientConfigMetadata) => {
     return stabilityPoolDisabled === null
         ? false
         : stabilityPoolDisabled !== 'true'
-}
-
-export const shouldEnableNostr = (federation: FederationListItem) => {
-    // Nostr RPCs not supported on v0 federations
-    if (federation.version === 0) {
-        return false
-    }
-
-    return true
 }
 
 // TODO: Determine if no-wallet communities breaks this

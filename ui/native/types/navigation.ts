@@ -12,6 +12,7 @@ import {
     ParsedBip21,
     ParsedBitcoinAddress,
     ParsedBolt11,
+    ParsedCashuEcash,
     ParsedLnurlPay,
     ParsedLnurlWithdraw,
     Sats,
@@ -76,6 +77,7 @@ export type RootStackParamList = {
     }
     ConfirmRecoveryAssist: undefined
     ConfirmReceiveOffline: { ecash: string }
+    ConfirmReceiveCashu: { parsedData: ParsedCashuEcash }
     ConfirmSendLightning: { parsedData: ParsedBolt11 | ParsedLnurlPay }
     ConfirmSendOnChain: { parsedData: ParsedBip21 }
     ConnectedFederationsDrawer: undefined
@@ -96,6 +98,7 @@ export type RootStackParamList = {
     LanguageSettings: undefined
     MemberQrCode: undefined
     NewMessage: undefined
+    NostrSettings: undefined
     NotificationsPermission:
         | { nextScreen: keyof RootStackParamList }
         | undefined

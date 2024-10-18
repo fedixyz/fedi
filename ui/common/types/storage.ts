@@ -172,7 +172,7 @@ export interface StoredStateV16 extends Omit<StoredStateV15, 'version'> {
 
 export interface StoredStateV17 extends Omit<StoredStateV16, 'version'> {
     version: 17
-    protectedFeatures: ProtectedFeatures
+    protectedFeatures: Pick<ProtectedFeatures, 'app' | 'changePin'>
 }
 
 export interface StoredStateV18 extends Omit<StoredStateV17, 'version'> {
@@ -189,6 +189,14 @@ export interface StoredStateV19
     > {
     version: 19
     modVisibility: Record<FediMod['id'], ModVisibility>
+}
+
+export interface StoredStateV20 extends Omit<StoredStateV19, 'version'> {
+    version: 20
+    protectedFeatures: Pick<
+        ProtectedFeatures,
+        'app' | 'changePin' | 'nostrSettings'
+    >
 }
 
 /*** Union of all past shapes of stored state ***/
@@ -213,9 +221,10 @@ export type AnyStoredState =
     | StoredStateV17
     | StoredStateV18
     | StoredStateV19
+    | StoredStateV20
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV19
+export type LatestStoredState = StoredStateV20
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

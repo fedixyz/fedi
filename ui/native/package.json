@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "1.19.3",
+    "version": "1.19.4",
     "private": true,
     "engines": {
         "node": ">=16"
@@ -45,6 +45,7 @@
         "accounting-js": "^1.1.1",
         "bech32": "^2.0.0",
         "date-fns": "^2.29.3",
+        "fast-text-encoding": "^1.0.6",
         "html-to-text": "^9.0.5",
         "i18next": "^23.0.1",
         "install": "^0.13.0",

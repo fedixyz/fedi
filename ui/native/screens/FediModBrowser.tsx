@@ -19,10 +19,6 @@ import {
     UnsupportedMethodError,
 } from 'webln'
 
-import {
-    useIsFediInternalInjectionEnabled,
-    useIsNostrEnabled,
-} from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectActiveFederation,
@@ -32,6 +28,7 @@ import {
     selectIsActiveFederationRecovering,
     selectLanguage,
     selectMatrixAuth,
+    selectNostrNpub,
     selectPaymentFederation,
 } from '@fedi/common/redux'
 import {
@@ -108,7 +105,8 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const activeFederation = useAppSelector(selectActiveFederation)
-    const { listGateways, getNostrPubKey } = useBridge(activeFederation?.id)
+    const { listGateways } = useBridge(activeFederation?.id)
+    const nostrPublic = useAppSelector(selectNostrNpub)
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const member = useAppSelector(selectMatrixAuth)
     const hasSetMatrixDisplayName = useAppSelector(
@@ -117,8 +115,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
     const currency = useAppSelector(selectCurrency)
     const language = useAppSelector(selectLanguage)
-    const nostrEnabled = useIsNostrEnabled()
-    const fediInternalEnabled = useIsFediInternalInjectionEnabled()
     const toast = useToast()
     const recoveryInProgress = useAppSelector(
         selectIsActiveFederationRecovering,
@@ -321,13 +317,12 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         },
         [InjectionMessageType.nostr_getPublicKey]: async () => {
             log.info('nostr.getPublicKey')
-            try {
-                const pub_key = await getNostrPubKey()
-                return pub_key
-            } catch (err) {
-                log.warn('nostr.getPublicKey', err)
+
+            if (!nostrPublic) {
                 throw new Error(t('errors.get-nostr-pubkey-failed'))
             }
+
+            return nostrPublic.hex
         },
         [InjectionMessageType.nostr_signEvent]: async evt => {
             log.info('nostr.signEvent', evt)
@@ -499,8 +494,8 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 injectedJavaScriptBeforeContentLoaded={generateInjectionJs({
                     webln: true,
                     eruda: fediModDebugMode,
-                    nostr: nostrEnabled,
-                    fediInternal: fediInternalEnabled,
+                    nostr: true,
+                    fediInternal: true,
                 })}
                 allowsInlineMediaPlayback
                 onMessage={onMessage}

@@ -328,6 +328,22 @@ pub struct RpcPeerId(#[ts(type = "number")] pub fedimint_core::PeerId);
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcPublicKey(#[ts(type = "string")] pub bitcoin::secp256k1::PublicKey);
 
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct RpcNostrSecret {
+    pub hex: String,
+    pub nsec: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct RpcNostrPubkey {
+    pub hex: String,
+    pub npub: String,
+}
+
 #[derive(Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]

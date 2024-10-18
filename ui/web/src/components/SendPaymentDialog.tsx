@@ -65,7 +65,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         handleOmniInput,
         handleOmniSend,
         resetOmniPaymentState,
-    } = useOmniPaymentState(fedimint, activeFederationId)
+    } = useOmniPaymentState(fedimint, activeFederationId, false, t)
     const { setQuery, searchedMembers } =
         useChatMemberSearch(membersWithHistory)
 

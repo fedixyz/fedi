@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
     createNewWallet,
+    initializeNostrKeys,
     recoverFromMnemonic,
     cancelSocialRecovery as reduxCancelSocialRecovery,
     completeSocialRecovery as reduxCompleteSocialRecovery,
@@ -103,6 +104,12 @@ export function usePersonalRecovery(t: TFunction, fedimint: FedimintBridge) {
                 // for an initial registration if this is the 1st time using global chat
                 // or an initial login if the user has already set their display name
                 await dispatch(startMatrixClient({ fedimint })).unwrap()
+                // this is called already on initial app load with a fresh seed
+                // but after recovery the nostr keys will be different so we need
+                // to force a refresh of the new keys
+                await dispatch(
+                    initializeNostrKeys({ fedimint, forceRefresh: true }),
+                ).unwrap()
 
                 onSuccess()
             } catch (err) {

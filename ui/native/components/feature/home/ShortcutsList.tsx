@@ -35,6 +35,21 @@ const ShortcutsList: React.FC = () => {
 
     const renderFediModShortcuts = () => {
         const fediModShortcuts = fediMods.map(s => new FediMod(s))
+
+        if (
+            !fediModShortcuts.some(
+                x => new URL(x.url).hostname === 'support.fedi.xyz',
+            )
+        ) {
+            fediModShortcuts.push(
+                new FediMod({
+                    id: 'support',
+                    title: 'Support',
+                    url: 'https://support.fedi.xyz',
+                }),
+            )
+        }
+
         return fediModShortcuts.map((s: FediMod, i: number) => {
             return (
                 <View key={`fediMod-s-${i}`} style={style.shortcut}>

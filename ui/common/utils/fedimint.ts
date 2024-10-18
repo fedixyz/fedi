@@ -50,7 +50,10 @@ export class FedimintBridge {
     }
 
     async stabilityPoolAverageFeeRate(federationId: string, numCycles: number) {
-        return this.rpcTyped('stabilityPoolAverageFeeRate', { federationId, numCycles })
+        return this.rpcTyped('stabilityPoolAverageFeeRate', {
+            federationId,
+            numCycles,
+        })
     }
 
     async stabilityPoolWithdraw(
@@ -215,8 +218,12 @@ export class FedimintBridge {
         })
     }
 
-    async getNostrPubKey() {
-        return this.rpcTyped('getNostrPubKey', {})
+    async getNostrPubkey() {
+        return this.rpcTyped('getNostrPubkey', {})
+    }
+
+    async getNostrSecret() {
+        return this.rpcTyped('getNostrSecret', {})
     }
 
     async signNostrEvent(eventHash: string) {

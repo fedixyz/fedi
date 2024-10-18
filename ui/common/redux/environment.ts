@@ -2,6 +2,8 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import type { i18n } from 'i18next'
 
 import { CommonState } from '.'
+import { RpcNostrPubkey, RpcNostrSecret } from '../types/bindings'
+import { FedimintBridge } from '../utils/fedimint'
 import { loadFromStorage } from './storage'
 
 /*** Initial State ***/
@@ -15,6 +17,8 @@ const initialState = {
     amountInputType: undefined as 'sats' | 'fiat' | undefined,
     showFiatTxnAmounts: true,
     deviceId: undefined as string | undefined,
+    nostrNpub: undefined as RpcNostrPubkey | undefined,
+    nostrNsec: undefined as RpcNostrSecret | undefined,
 }
 
 export type EnvironmentState = typeof initialState
@@ -48,6 +52,12 @@ export const environmentSlice = createSlice({
         },
         setDeviceId(state, action: PayloadAction<string>) {
             state.deviceId = action.payload
+        },
+        setNostrNpub(state, action: PayloadAction<RpcNostrPubkey>) {
+            state.nostrNpub = action.payload
+        },
+        setNostrNsec(state, action: PayloadAction<RpcNostrSecret>) {
+            state.nostrNsec = action.payload
         },
     },
     extraReducers: builder => {
@@ -91,6 +101,8 @@ export const {
     setStableBalanceEnabled,
     setShowFiatTxnAmounts,
     setDeviceId,
+    setNostrNpub,
+    setNostrNsec,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -111,6 +123,19 @@ export const initializeDeviceId = createAsyncThunk<
     ({ getDeviceId }, { getState, dispatch }) => {
         if (getState().environment.deviceId) return
         dispatch(setDeviceId(getDeviceId()))
+    },
+)
+
+export const initializeNostrKeys = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; forceRefresh?: boolean },
+    { state: CommonState }
+>(
+    'environment/initializeNostrKeys',
+    async ({ fedimint, forceRefresh }, { getState, dispatch }) => {
+        if (!forceRefresh && getState().environment.nostrNpub) return
+        dispatch(setNostrNpub(await fedimint.getNostrPubkey()))
+        dispatch(setNostrNsec(await fedimint.getNostrSecret()))
     },
 )
 
@@ -137,3 +162,7 @@ export const selectShowFiatTxnAmounts = (s: CommonState) =>
     s.environment.showFiatTxnAmounts
 
 export const selectDeviceId = (s: CommonState) => s.environment.deviceId
+
+export const selectNostrNpub = (s: CommonState) => s.environment.nostrNpub
+
+export const selectNostrNsec = (s: CommonState) => s.environment.nostrNsec

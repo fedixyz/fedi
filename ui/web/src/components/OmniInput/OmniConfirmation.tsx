@@ -138,6 +138,12 @@ export const OmniConfirmation: React.FC<Props> = ({
                     continueOnClick: () =>
                         pushWithState('/onboarding/join', parsedData),
                 }
+            case ParserDataType.CashuEcash:
+                return {
+                    icon: BoltIcon,
+                    text: t('feature.omni.confirm-cashu-token'),
+                    continueOnClick: () => pushWithState('/send', parsedData),
+                }
             case ParserDataType.FedimintEcash:
                 return {
                     icon: BoltIcon,
