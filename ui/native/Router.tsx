@@ -77,7 +77,10 @@ const Router = () => {
             <Drawer.Navigator
                 id={DRAWER_NAVIGATION_ID}
                 drawerContent={ConnectedFederationsDrawer}
-                screenOptions={{ swipeEnabled: isAppUnlocked }}>
+                screenOptions={{
+                    swipeEnabled: isAppUnlocked,
+                    freezeOnBlur: true,
+                }}>
                 <Drawer.Screen
                     name="MainNavigator"
                     component={MainNavigator}

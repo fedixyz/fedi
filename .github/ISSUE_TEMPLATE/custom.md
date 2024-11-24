@@ -14,6 +14,7 @@ _Please fill in as many fields as you can so we can swiftly investigate_
 
 #### Context
 _Federation_: 
+_Fedi app version_:
 _Phone OS_: 
 _User Name_"
 

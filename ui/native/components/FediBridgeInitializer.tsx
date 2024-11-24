@@ -11,7 +11,7 @@ import {
     fetchSocialRecovery,
     initializeDeviceId,
     initializeNostrKeys,
-    previewDefaultGroupChats,
+    previewAllDefaultChats,
     refreshFederations,
     selectDeviceId,
     setDeviceIndexRequired,
@@ -93,7 +93,6 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 // These all happen in parallel after bridge is initialized
                 // Only throw (via unwrap) for refreshFederations.
                 return Promise.all([
-                    dispatchRef.current(refreshFederations(fedimint)).unwrap(),
                     dispatchRef.current(fetchSocialRecovery(fedimint)),
                     dispatchRef.current(initializeNostrKeys({ fedimint })),
                     // this happens when the user entered seed words but quit the app
@@ -117,8 +116,17 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 ])
             })
             .then(() => {
+                // wait until after the matrix client is started to refresh federations because
+                // the latest metadata may include new default chats that require
+                // matrix to fetch the room previews
+                return dispatchRef
+                    .current(refreshFederations(fedimint))
+                    .unwrap()
+            })
+            .then(() => {
                 setBridgeIsReady(true)
-                dispatchRef.current(previewDefaultGroupChats())
+                // preview chats after matrix client has finished initializing
+                dispatchRef.current(previewAllDefaultChats())
             })
             .catch(err => {
                 log.error(

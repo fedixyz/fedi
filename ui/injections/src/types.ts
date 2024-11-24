@@ -9,7 +9,7 @@ import type {
 
 import {
     EcashRequest,
-    FederationListItem,
+    LoadedFederationListItem,
     MSats,
     SupportedCurrency,
 } from '@fedi/common/types'
@@ -88,7 +88,7 @@ export type InjectionMessageResponseMap = {
     }
     [InjectionMessageType.fedi_getActiveFederation]: {
         message: void
-        response: Pick<FederationListItem, 'id' | 'name' | 'network'>
+        response: Pick<LoadedFederationListItem, 'id' | 'name' | 'network'>
     }
     [InjectionMessageType.fedi_getCurrencyCode]: {
         message: void

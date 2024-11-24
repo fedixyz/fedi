@@ -7,7 +7,7 @@ import EncryptionUtils from '@fedi/common/utils/EncryptionUtils'
 import { GLOBAL_MATRIX_SERVER } from '../constants/matrix'
 import { FormattedAmounts } from '../hooks/amount'
 import {
-    Federation,
+    LoadedFederation,
     MSats,
     MatrixEvent,
     MatrixGroupPreview,
@@ -41,6 +41,17 @@ export const mxcUrlToHttpUrl = (
     return url.toString()
 }
 
+const fileSchema = z
+    .object({
+        hashes: z.object({
+            sha256: z.string(),
+        }),
+        url: z.string().url(),
+        v: z.literal('v2'),
+    })
+    // Don't strip off additional decryption keys from the file object
+    .passthrough()
+
 const contentSchemas = {
     /* Matrix standard events, not an exhaustive list */
     'm.text': z.object({
@@ -60,18 +71,27 @@ const contentSchemas = {
             w: z.number(),
             h: z.number(),
         }),
+        file: fileSchema,
     }),
     'm.video': z.object({
         msgtype: z.literal('m.video'),
         body: z.string(),
-        url: z.string(),
         info: z.object({
             mimetype: z.string(),
             size: z.number(),
             w: z.number(),
             h: z.number(),
-            duration: z.number(),
         }),
+        file: fileSchema,
+    }),
+    'm.file': z.object({
+        msgtype: z.literal('m.file'),
+        body: z.string(),
+        info: z.object({
+            mimetype: z.string(),
+            size: z.number(),
+        }),
+        file: fileSchema,
     }),
     'm.emote': z.object({
         msgtype: z.literal('m.emote'),
@@ -132,6 +152,12 @@ const contentSchemas = {
         // invites enabled, and allow people to join to accept ecash?
         inviteCode: z.string().optional(),
     }),
+    'xyz.fedi.deleted': z.object({
+        msgtype: z.literal('xyz.fedi.deleted'),
+        body: z.string(),
+        redacts: z.string(),
+        reason: z.string().optional(),
+    }),
 }
 
 interface MatrixEventUnknownContent {
@@ -139,6 +165,9 @@ interface MatrixEventUnknownContent {
     body: string
     originalContent: unknown
 }
+
+export type MatrixEventContentType<T extends keyof typeof contentSchemas> =
+    z.infer<(typeof contentSchemas)[T]>
 
 export type MatrixEventContent =
     | z.infer<(typeof contentSchemas)[keyof typeof contentSchemas]>
@@ -238,6 +267,8 @@ export function makeChatFromPreview(preview: MatrixGroupPreview) {
             // TODO: get this from members list if we have them
             displayName: previewContent?.senderId || '',
             senderId: previewContent?.senderId || '',
+            // TODO: handle if deleted messages are returned in public group previews
+            isDeleted: false,
         }
     }
 
@@ -344,7 +375,7 @@ export function isPaymentEvent(
 export function getReceivablePaymentEvents(
     timeline: MatrixTimelineItem[],
     myId: string,
-    myFederations: Federation[],
+    myFederations: LoadedFederation[],
 ) {
     const latestPayments: Record<string, MatrixPaymentEvent> = {}
     timeline.forEach(item => {
@@ -468,4 +499,26 @@ export function shouldShowUnreadIndicator(
     if (notificationCount && notificationCount > 0) return true
     if (isMarkedUnread) return true
     return false
+}
+
+export function isDeletedEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<MatrixEventContentType<'xyz.fedi.deleted'>> {
+    return event.content.msgtype === 'xyz.fedi.deleted'
+}
+
+export function isTextEvent(event: MatrixEvent): event is MatrixEvent<MatrixEventContentType<'m.text'>> {
+    return event.content.msgtype === 'm.text'
+}
+
+export function isImageEvent(event: MatrixEvent): event is MatrixEvent<MatrixEventContentType<'m.image'>> {
+    return event.content.msgtype === 'm.image'
+}
+
+export function isFileEvent(event: MatrixEvent): event is MatrixEvent<MatrixEventContentType<'m.file'>> {
+    return event.content.msgtype === 'm.file'
+}
+
+export function isVideoEvent(event: MatrixEvent): event is MatrixEvent<MatrixEventContentType<'m.video'>> {
+    return event.content.msgtype === 'm.video'
 }

@@ -4,11 +4,9 @@ use fedimint_core::task::{MaybeSend, MaybeSync};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::types::{
-    RpcFederation, RpcFederationId, RpcOperationId, RpcTransaction, SocialRecoveryApproval,
-};
+use super::types::{RpcFederationId, RpcOperationId, RpcTransaction, SocialRecoveryApproval};
 use crate::observable::ObservableUpdate;
-use crate::types::{RpcAmount, RpcCommunity};
+use crate::types::{RpcAmount, RpcCommunity, RpcFederationMaybeLoading};
 
 #[derive(Serialize, Deserialize, Debug, TS)]
 #[serde(rename_all = "camelCase")]
@@ -184,7 +182,7 @@ pub struct CommunityMetadataUpdatedEvent {
 pub enum Event {
     Transaction(Box<TransactionEvent>),
     Log(LogEvent),
-    Federation(RpcFederation),
+    Federation(RpcFederationMaybeLoading),
     Balance(BalanceEvent),
     Panic(PanicEvent),
     StabilityPoolDeposit(StabilityPoolDepositEvent),
@@ -206,7 +204,7 @@ impl Event {
     pub fn log(log: String) -> Self {
         Self::Log(LogEvent { log })
     }
-    pub fn federation(federation: RpcFederation) -> Self {
+    pub fn federation(federation: RpcFederationMaybeLoading) -> Self {
         Self::Federation(federation)
     }
     pub fn balance(federation_id: String, balance: fedimint_core::Amount) -> Self {

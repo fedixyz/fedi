@@ -1,0 +1,75 @@
+name: Release Fedi (Production)
+on:
+    workflow_dispatch:
+
+jobs:
+    release-production-apk:
+        name: Build Android APK and upload to GitHub draft release
+        runs-on: [self-hosted, linux]
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+              with:
+                  submodules: true
+
+            - uses: cachix/install-nix-action@v30
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Build bridge
+              run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
+
+            - name: Build UI dependencies
+              run: nix develop -c ./scripts/ui/build-deps.sh
+
+            - name: Prep for APK build
+              id: prep-apk
+              run: nix develop -c ./scripts/ci/prep-apk.sh
+
+            - name: Build APK
+              env:
+                  APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
+                  # Consider: should we even have separate steps above for this?
+                  BUILD_BRIDGE: 0
+                  BUILD_UI_DEPS: 0
+              run: nix develop -c ./scripts/ui/build-production-apk.sh
+
+            - name: Verify bridge hash
+              env:
+                  APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
+              run: |
+                  set -euo pipefail
+
+                  bash ./scripts/ci/verify-bridge-hash.sh "$APK_PATH" "${{ github.sha }}"
+
+            - name: Create draft GitHub release with APK
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: v${{ steps.prep-apk.outputs.APK_VERSION }}
+                  name: 'Fedi v${{ steps.prep-apk.outputs.APK_VERSION }}'
+                  body: 'Built from commit: ${{ github.sha }}'
+                  draft: true
+                  append_body: true
+                  files: ${{ steps.prep-apk.outputs.APK_PATH }}
+
+    call-deployment-workflow:
+        name: Trigger deployment to Google Play for Internal Testing
+        needs: release-production-apk # wait for APK build so we can reuse cached bridge artifacts
+        uses: ./.github/workflows/deploy-to-gp-internal-testing.yml
+        secrets: inherit
+        if: >-
+            startsWith(github.ref, 'refs/heads/release/') || 
+            startsWith(github.ref, 'refs/heads/master')
+
+    call-deployment-workflow-testflight:
+        name: Trigger deployment to TestFlight
+        uses: ./.github/workflows/deploy-to-testflight.yml
+        secrets: inherit
+        if: >-
+            startsWith(github.ref, 'refs/heads/release/') || 
+            startsWith(github.ref, 'refs/heads/master')

@@ -10,6 +10,14 @@ export function upsertListItem<T extends { id: string }>(
     list: T[] | null | undefined,
     item: T,
     /**
+     * If the item has nested fields, pass in the keys of the nested fields to
+     * merge so we don't overwrite the entire object.
+     * needed for federation.meta for example
+     * You should NOT pass in fields that are not objects like federation.init_state
+     * for example would be useless
+     */
+    nestedFields?: (keyof T)[],
+    /**
      * A sorting function to call when a new item is added or existing item is
      * modified. Must be in ascending order so that the newest item is at the
      * end of the array, otherwise when combined with `limit`, new items will
@@ -23,7 +31,15 @@ export function upsertListItem<T extends { id: string }>(
     let newList = list.map(oldItem => {
         if (oldItem.id !== item.id) return oldItem
         addToEnd = false
-        const updatedEntity = { ...oldItem, ...item }
+        const updatedEntity: T = { ...oldItem, ...item }
+        if (nestedFields) {
+            nestedFields.map(field => {
+                updatedEntity[field] = {
+                    ...oldItem[field],
+                    ...item[field],
+                }
+            })
+        }
         wasEqual = isEqual(oldItem, updatedEntity)
         return updatedEntity
     })

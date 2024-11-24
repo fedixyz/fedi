@@ -11,6 +11,8 @@
 
     <!-- Required to use @notifee/react-native -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" tools:node="remove" />
+    <!-- Required to save images to the camera roll -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <application
         android:name=".MainApplication"

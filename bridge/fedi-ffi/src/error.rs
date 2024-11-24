@@ -43,6 +43,8 @@ pub enum ErrorCode {
     PayLnInvoiceAlreadyInProgress,
     #[error("No Lightning gateway is available")]
     NoLnGatewayAvailable,
+    #[error("Module of type {0} is not available")]
+    ModuleNotFound(String),
 }
 
 pub fn get_error_code(err: &anyhow::Error) -> Option<ErrorCode> {

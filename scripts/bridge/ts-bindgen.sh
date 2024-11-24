@@ -15,4 +15,4 @@ rm -f $BRIDGE_ROOT/fedi-ffi/target/bindings/*.ts
 cargo test -- export_bindings
 # concat all .ts files, remove imports, remove comments, add bindings.ts.inc at top
 cat $BRIDGE_ROOT/fedi-ffi/target/bindings/*.ts | sed '/^import /d; s://.*$::' | cat $EXPORT_FILE.inc - > $EXPORT_FILE
-prettier --write $EXPORT_FILE
+prettier --no-config --write $EXPORT_FILE

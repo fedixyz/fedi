@@ -25,6 +25,7 @@ const LanguageSettings: React.FC = () => {
         fr: 'Français',
         id: 'Bahasa Indonesia',
         tl: 'Tagalog',
+        my: 'ဘာသာမန်',
         pt: 'Português',
         ar: 'العربية',
         ara: 'Juba Arabic',

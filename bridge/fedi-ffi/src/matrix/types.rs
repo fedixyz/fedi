@@ -148,8 +148,8 @@ impl From<LiveBackPaginationStatus> for RpcBackPaginationStatus {
     }
 }
 
-impl RpcTimelineItem {
-    pub fn from_timeline_item(item: Arc<TimelineItem>) -> Self {
+impl From<Arc<TimelineItem>> for RpcTimelineItem {
+    fn from(item: Arc<TimelineItem>) -> Self {
         match **item {
             TimelineItemKind::Event(ref e) => {
                 let content = if let Some(json) = e.latest_json() {
@@ -198,7 +198,9 @@ impl RpcTimelineItem {
             },
         }
     }
+}
 
+impl RpcTimelineItem {
     pub fn unknown() -> Self {
         warn!("unknown timeline item");
         Self::Unknown

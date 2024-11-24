@@ -33,7 +33,7 @@ rm -f $(find $CARGO_BUILD_TARGET_DIR/pkg/ffi-bindgen -name libfediffi.a | grep -
 
 # build binaries for each supported target
 for target in "${TARGETS[@]}"; do
-  cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}/pkg/fedi-ffi" --package fedi-ffi ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} --target $target $CARGO_FLAGS
+  cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}" --package fedi-ffi ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} --target $target $CARGO_FLAGS
 done
 
 # make sure build artifacts are available to the fedi-swift Xcode package

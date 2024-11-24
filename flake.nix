@@ -6,7 +6,7 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.4.2-rc.0-fed";
+      url = "github:fedibtc/fedimint?ref=v0.4.3-rc.2-fed4";
     };
 
     fenix = {
@@ -14,7 +14,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flakebox = {
-      url = "github:fedibtc/flakebox?rev=12d5ee4f6c47bc01f07ec6f5848a83db265902d3";
+      url = "github:fedibtc/flakebox?rev=675075a4049253289e7cce634b1b6443b046ed1b";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
@@ -23,13 +23,18 @@
       url = "github:fedibtc/fs-dir-cache?rev=a6371f48f84512ea06a8ac671f9cdc141a732673";
     };
 
+    cargo-deluxe = {
+      url = "github:rustshop/cargo-deluxe?rev=da124f8fffa731a647420065f204601f9a20b289";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     android-nixpkgs = {
       url = "github:tadfisher/android-nixpkgs?rev=6370a3aafe37ed453bfdc4af578eb26339f8fee0"; # stable
       # inputs.nixpkgs.follows = "fedimint-pkgs/nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, fedimint-pkgs, fs-dir-cache, android-nixpkgs, flakebox, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, fedimint-pkgs, fs-dir-cache, cargo-deluxe, android-nixpkgs, flakebox, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs-unstable = import nixpkgs-unstable {
@@ -45,19 +50,17 @@
               fs-dir-cache = fs-dir-cache.packages.${system}.default;
               fastlane = pkgs-unstable.fastlane;
               convco = pkgs-unstable.convco;
-
-              mprocs = prev.mprocs.overrideAttrs (final: prev: {
-                patches = prev.patches ++ [
-                  (builtins.fetchurl {
-                    url = "https://github.com/pvolok/mprocs/pull/88.patch";
-                    name = "clipboard-fix.patch";
-                    sha256 = "sha256-9dx1vaEQ6kD66M+vsJLIq1FK+nEObuXSi3cmpSZuQWk=";
-                  })
-                ];
+              cargo-deluxe = cargo-deluxe.packages.${system}.default;
+              snappy = prev.snappy.overrideAttrs (f: p: rec {
+                version = "1.2.1";
+                  src = prev.fetchFromGitHub {
+                  owner = "google";
+                  repo = "snappy";
+                  rev = version;
+                  hash = "sha256-IzKzrMDjh+Weor+OrKdX62cAKYTdDXgldxCgNE2/8vk=";
+                };
               });
-
             })
-            fedimint-pkgs.overlays.all
           ];
         };
 
@@ -171,7 +174,7 @@
         };
 
         toolchainArgs = let llvmPackages = pkgs.llvmPackages_11; in {
-          extraRustFlags = "--cfg tokio_unstable -Z threads=0 --cfg=curve25519_dalek_backend=\"serial\"";
+          extraRustFlags = "--cfg tokio_unstable -Z threads=5 --cfg=curve25519_dalek_backend=\"serial\" -Csymbol-mangling-version=v0";
 
           components = [
             "rustc"
@@ -317,12 +320,10 @@
             alias create-avd="avdmanager create avd --force --name phone --package 'system-images;android-32;google_apis;arm64-v8a' --path $PWD/avd";
             alias emulator="emulator -avd phone"
 
-            # hijack cargo for our evil purposes
-            export CARGO_ORIG_BIN="$(${pkgs.which}/bin/which cargo)"
             export REPO_ROOT="$(git rev-parse --show-toplevel)"
-            export PATH="''${REPO_ROOT}/nix/cargo-wrapper/:$PATH"
             export RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
             export CARGO_BUILD_TARGET_DIR="''${CARGO_BUILD_TARGET_DIR:-''${REPO_ROOT}/target-nix}"
+            export UPSTREAM_FEDIMINTD_NIX_PKG=${fedimint-pkgs.packages.${system}.fedimintd}
 
             # this is where we publish the android bridge package so the react native app
             # can find it as a local maven dependency

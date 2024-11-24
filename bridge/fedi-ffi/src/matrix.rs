@@ -1,15 +1,16 @@
-use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
-use eyeball::Subscriber;
-use fedimint_core::task::{MaybeSend, MaybeSync, TaskGroup};
+use fedimint_core::task::TaskGroup;
 use fedimint_derive_secret::DerivableSecret;
-use futures::{Future, StreamExt};
+use futures::StreamExt;
+use matrix_sdk::attachment::{
+    AttachmentConfig, AttachmentInfo, BaseFileInfo, BaseImageInfo, BaseVideoInfo,
+};
 use matrix_sdk::encryption::BackupDownloadStrategy;
+use matrix_sdk::media::{MediaFormat, MediaRequest};
 use matrix_sdk::notification_settings::NotificationSettings;
 pub use matrix_sdk::ruma::api::client::account::register::v3 as register;
 use matrix_sdk::ruma::api::client::directory::get_public_rooms_filtered::v3 as get_public_rooms_filtered;
@@ -22,26 +23,34 @@ use matrix_sdk::ruma::api::client::room::Visibility;
 use matrix_sdk::ruma::api::client::state::send_state_event;
 use matrix_sdk::ruma::api::client::uiaa;
 use matrix_sdk::ruma::directory::PublicRoomsChunk;
+use matrix_sdk::ruma::events::message::TextContentBlock;
+use matrix_sdk::ruma::events::poll::end::PollEndEventContent;
+use matrix_sdk::ruma::events::poll::response::{PollResponseEventContent, SelectionsContentBlock};
+use matrix_sdk::ruma::events::poll::start::{
+    PollAnswer, PollAnswers, PollContentBlock, PollStartEventContent,
+};
 use matrix_sdk::ruma::events::receipt::ReceiptThread;
 use matrix_sdk::ruma::events::room::encryption::RoomEncryptionEventContent;
-use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
+use matrix_sdk::ruma::events::room::message::{
+    MessageType, RoomMessageEventContent, RoomMessageEventContentWithoutRelation,
+};
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
+use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::events::{AnySyncTimelineEvent, InitialStateEvent};
-use matrix_sdk::ruma::{assign, OwnedMxcUri, RoomId, UserId};
+use matrix_sdk::ruma::{assign, EventId, OwnedMxcUri, RoomId, UInt, UserId};
 use matrix_sdk::sliding_sync::Ranges;
 use matrix_sdk::{Client, RoomInfo, RoomMemberships};
 use matrix_sdk_ui::sync_service::{self, SyncService};
 use matrix_sdk_ui::timeline::default_event_filter;
 use matrix_sdk_ui::{room_list_service, RoomListService};
 use mime::Mime;
-use serde::Serialize;
-use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 use crate::error::ErrorCode;
-use crate::event::{EventSink, TypedEventExt};
-use crate::observable::{Observable, ObservableUpdate, ObservableVec, ObservableVecUpdate};
+use crate::event::EventSink;
+use crate::observable::{Observable, ObservablePool, ObservableVec};
 use crate::storage::AppState;
+use crate::types::RpcMediaUploadParams;
 
 mod types;
 pub use types::*;
@@ -54,11 +63,9 @@ pub struct Matrix {
     sync_service: Arc<SyncService>,
     /// manages list of room visible to user.
     room_list_service: Arc<RoomListService>,
-    event_sink: EventSink,
     task_group: TaskGroup,
     notification_settings: NotificationSettings,
-    /// list of active observables
-    observables: Arc<Mutex<HashMap<u64, TaskGroup>>>,
+    observable_pool: ObservablePool,
 }
 
 impl Matrix {
@@ -130,9 +137,8 @@ impl Matrix {
             client,
             room_list_service: sync_service.room_list_service(),
             sync_service: Arc::new(sync_service),
-            event_sink,
+            observable_pool: ObservablePool::new(event_sink, task_group.clone()),
             task_group,
-            observables: Default::default(),
         };
         let encryption_passphrase = Self::encryption_passphrase(matrix_secret);
         matrix
@@ -320,72 +326,8 @@ impl Matrix {
         })
     }
 
-    /// make observable with `initial` value and run `func` in a task group.
-    /// `func` can send observable updates.
-    pub async fn make_observable<T, Fut>(
-        &self,
-        initial: T,
-        func: impl FnOnce(Self, u64) -> Fut + MaybeSend + 'static,
-    ) -> Result<Observable<T>>
-    where
-        T: 'static,
-        Fut: Future<Output = Result<()>> + MaybeSend + MaybeSync + 'static,
-    {
-        static OBSERVABLE_ID: AtomicU64 = AtomicU64::new(0);
-        let id = OBSERVABLE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let observable = Observable::new(id, initial);
-        let tg = self.task_group.make_subgroup();
-        {
-            let mut observables = self.observables.lock().await;
-            observables.insert(id, tg.clone());
-            // should be independent of number of rooms and number of messages
-            const OBSERVABLE_WARN_LIMIT: usize = 20;
-            let observable_counts = observables.len();
-            if OBSERVABLE_WARN_LIMIT < observable_counts {
-                warn!(%observable_counts, "frontend is using too many observabes, likely forgot to unsubscribe");
-            }
-        };
-        let this = self.clone();
-        tg.spawn_cancellable(
-            format!("observable type={}", std::any::type_name::<T>()),
-            func(this, id),
-        );
-        Ok(observable)
-    }
-
-    /// Convert eyeball::Subscriber to rpc Observable type.
-    pub async fn make_observable_from_subscriber<T>(
-        &self,
-        mut sub: Subscriber<T>,
-    ) -> Result<Observable<T>>
-    where
-        T: std::fmt::Debug + Clone + Serialize + MaybeSend + MaybeSync + 'static,
-    {
-        self.make_observable(sub.get(), move |this, id| async move {
-            let mut update_index = 0;
-            while let Some(value) = sub.next().await {
-                this.send_observable_update(ObservableUpdate::new(id, update_index, value))
-                    .await;
-                update_index += 1;
-            }
-            Ok(())
-        })
-        .await
-    }
-
     pub async fn observable_cancel(&self, id: u64) -> Result<()> {
-        let Some(tg) = self.observables.lock().await.remove(&id) else {
-            bail!(ErrorCode::UnknownObservable);
-        };
-        tg.shutdown_join_all(None).await?;
-        Ok(())
-    }
-
-    pub async fn send_observable_update<T: Clone + Serialize + std::fmt::Debug>(
-        &self,
-        event: ObservableUpdate<T>,
-    ) {
-        self.event_sink.observable_update(event);
+        self.observable_pool.observable_cancel(id).await
     }
 
     /// All chats in matrix are rooms, whether DM or group chats.
@@ -398,29 +340,10 @@ impl Matrix {
         &self,
         list: room_list_service::RoomList,
     ) -> Result<Observable<imbl::Vector<RpcRoomListEntry>>> {
-        let (initial, mut stream) = list.entries();
-        self.make_observable(
-            initial.into_iter().map(RpcRoomListEntry::from).collect(),
-            move |this, id| async move {
-                let mut update_index = 0;
-                while let Some(diffs) = stream.next().await {
-                    this.send_observable_update(
-                        ObservableVecUpdate::<RpcRoomListEntry>::new_diffs(
-                            id,
-                            update_index,
-                            diffs
-                                .into_iter()
-                                .map(|x| x.map(RpcRoomListEntry::from))
-                                .collect(),
-                        ),
-                    )
-                    .await;
-                    update_index += 1;
-                }
-                Ok(())
-            },
-        )
-        .await
+        let (initial, stream) = list.entries();
+        self.observable_pool
+            .make_observable_from_vec_diff_stream(initial, stream)
+            .await
     }
 
     pub async fn room_list_update_ranges(&self, ranges: Ranges) -> Result<()> {
@@ -435,41 +358,27 @@ impl Matrix {
     ///
     /// We delay the events by 2 seconds to avoid flickering.
     pub async fn observe_sync_status(&self) -> Result<Observable<RpcSyncIndicator>> {
-        let mut stream = Box::pin(
-            self.room_list_service
-                .sync_indicator(Duration::from_secs(2), Duration::from_secs(2)),
-        );
-        // first item is emitted immediately
-        self.make_observable(
-            stream
-                .next()
-                .await
-                .map(|x| x.into())
-                .context("first element not found in stream")?,
-            |this, id| async move {
-                let mut index = 0;
-                while let Some(item) = stream.next().await {
-                    info!("matrix sync status: {item:?}");
-                    this.send_observable_update(ObservableUpdate::new(
-                        id,
-                        index,
-                        RpcSyncIndicator::from(item),
-                    ))
-                    .await;
-                    index += 1;
-                }
-                Ok(())
-            },
-        )
-        .await
+        self.observable_pool
+            .make_observable_from_stream(
+                None,
+                self.room_list_service
+                    .sync_indicator(Duration::from_secs(2), Duration::from_secs(2)),
+            )
+            .await
     }
 
-    async fn room(&self, room_id: &RoomId) -> Result<room_list_service::Room, anyhow::Error> {
-        Ok(self.room_list_service.room(room_id)?)
+    async fn room(
+        &self,
+        room_id: &RoomId,
+    ) -> Result<room_list_service::Room, room_list_service::Error> {
+        self.room_list_service.room(room_id)
     }
 
     /// See [`matrix_sdk_ui::Timeline`].
-    async fn timeline(&self, room_id: &RoomId) -> Result<Arc<matrix_sdk_ui::Timeline>> {
+    async fn timeline(
+        &self,
+        room_id: &RoomId,
+    ) -> Result<Arc<matrix_sdk_ui::Timeline>, room_list_service::Error> {
         let room = self.room(room_id).await?;
         if !room.is_timeline_initialized() {
             room.init_timeline_with_builder(
@@ -497,30 +406,10 @@ impl Matrix {
         room_id: &RoomId,
     ) -> Result<ObservableVec<RpcTimelineItem>> {
         let timeline = self.timeline(room_id).await?;
-        let (initial, mut stream) = timeline.subscribe_batched().await;
-        self.make_observable(
-            initial
-                .into_iter()
-                .map(RpcTimelineItem::from_timeline_item)
-                .collect(),
-            move |this, id| async move {
-                let mut update_index = 0;
-                while let Some(diffs) = stream.next().await {
-                    this.send_observable_update(ObservableVecUpdate::new_diffs(
-                        id,
-                        update_index,
-                        diffs
-                            .into_iter()
-                            .map(|x| x.map(RpcTimelineItem::from_timeline_item))
-                            .collect(),
-                    ))
-                    .await;
-                    update_index += 1;
-                }
-                Ok(())
-            },
-        )
-        .await
+        let (initial, stream) = timeline.subscribe_batched().await;
+        self.observable_pool
+            .make_observable_from_vec_diff_stream(initial, stream)
+            .await
     }
 
     pub async fn room_timeline_items_paginate_backwards(
@@ -542,24 +431,9 @@ impl Matrix {
             .live_back_pagination_status()
             .await
             .context("we only have live rooms")?;
-        self.make_observable(
-            RpcBackPaginationStatus::from(current),
-            move |this, id| async move {
-                let mut stream = std::pin::pin!(stream);
-                let mut update_index = 0;
-                while let Some(value) = stream.next().await {
-                    this.send_observable_update(ObservableUpdate::new(
-                        id,
-                        update_index,
-                        RpcBackPaginationStatus::from(value),
-                    ))
-                    .await;
-                    update_index += 1;
-                }
-                Ok(())
-            },
-        )
-        .await
+        self.observable_pool
+            .make_observable_from_stream(Some(current), stream)
+            .await
     }
 
     pub async fn send_message_text(&self, room_id: &RoomId, message: String) -> anyhow::Result<()> {
@@ -593,7 +467,7 @@ impl Matrix {
     pub async fn wait_for_room_id(&self, room_id: &RoomId) -> Result<()> {
         fedimint_core::task::timeout(Duration::from_secs(20), async {
             loop {
-                match self.room_list_service.room(room_id) {
+                match self.timeline(room_id).await {
                     Ok(_) => return Ok(()),
                     Err(room_list_service::Error::RoomNotFound(_)) => {
                         fedimint_core::task::sleep(Duration::from_millis(100)).await;
@@ -654,7 +528,9 @@ impl Matrix {
 
     pub async fn room_observe_info(&self, room_id: &RoomId) -> Result<Observable<RoomInfo>> {
         let sub = self.room(room_id).await?.inner_room().subscribe_info();
-        self.make_observable_from_subscriber(sub).await
+        self.observable_pool
+            .make_observable_from_subscriber(sub)
+            .await
     }
 
     pub async fn room_invite_user_by_id(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
@@ -901,6 +777,154 @@ impl Matrix {
             .filter_map(RpcTimelineItem::from_preview_item)
             .collect())
     }
+
+    pub async fn send_attachment(
+        &self,
+        room_id: &RoomId,
+        filename: String,
+        params: RpcMediaUploadParams,
+        data: Vec<u8>,
+    ) -> Result<()> {
+        let mime = params
+            .mime_type
+            .parse::<Mime>()
+            .context(ErrorCode::BadRequest)?;
+
+        let size = Some(UInt::from(data.len() as u32));
+
+        let width = params.width.map(UInt::from);
+
+        let height = params.height.map(UInt::from);
+
+        let info = match mime.type_() {
+            mime::IMAGE => AttachmentInfo::Image(BaseImageInfo {
+                width,
+                height,
+                size,
+                blurhash: None,
+            }),
+            mime::VIDEO => AttachmentInfo::Video(BaseVideoInfo {
+                width,
+                height,
+                size,
+                duration: None,
+                blurhash: None,
+            }),
+            _ => AttachmentInfo::File(BaseFileInfo { size }),
+        };
+
+        let config = AttachmentConfig::default().info(info);
+
+        self.room(room_id)
+            .await?
+            .send_attachment(&filename, &mime, data, config)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn edit_message(
+        &self,
+        room_id: &RoomId,
+        event_id: &EventId,
+        new_content: String,
+    ) -> Result<()> {
+        let timeline = self.timeline(room_id).await?;
+        let edit_info = timeline
+            .edit_info_from_event_id(event_id)
+            .await
+            .context("failed to get edit info")?;
+
+        let new_content = RoomMessageEventContentWithoutRelation::text_plain(new_content);
+
+        timeline.edit(new_content, edit_info).await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_message(
+        &self,
+        room_id: &RoomId,
+        event_id: &EventId,
+        reason: Option<String>,
+    ) -> Result<()> {
+        let timeline = self.timeline(room_id).await?;
+        let event = timeline
+            .item_by_event_id(event_id)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Event not found"))?;
+
+        timeline.redact(&event, reason.as_deref()).await?;
+
+        Ok(())
+    }
+
+    pub async fn download_file(&self, source: MediaSource) -> Result<Vec<u8>> {
+        let request = MediaRequest {
+            source,
+            format: MediaFormat::File,
+        };
+
+        let content = self
+            .client
+            .media()
+            .get_media_content(&request, false)
+            .await?;
+        Ok(content)
+    }
+
+    pub async fn start_poll(
+        &self,
+        room_id: &RoomId,
+        question: String,
+        answers: Vec<String>,
+    ) -> Result<()> {
+        let timeline = self.timeline(room_id).await?;
+
+        let poll_answers: PollAnswers = answers
+            .into_iter()
+            .enumerate()
+            .map(|(i, text)| PollAnswer::new(i.to_string(), TextContentBlock::plain(text)))
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid number of poll answers"))?;
+
+        let poll_content =
+            PollContentBlock::new(TextContentBlock::plain(question.clone()), poll_answers);
+
+        let content = PollStartEventContent::new(
+            TextContentBlock::plain(format!("Poll: {}", question)),
+            poll_content,
+        );
+
+        timeline.send(content.into()).await?;
+        Ok(())
+    }
+
+    pub async fn end_poll(&self, room_id: &RoomId, poll_start_id: &EventId) -> Result<()> {
+        let timeline = self.timeline(room_id).await?;
+
+        let content =
+            PollEndEventContent::with_plain_text("This poll has ended", poll_start_id.to_owned());
+
+        timeline.send(content.into()).await?;
+        Ok(())
+    }
+
+    pub async fn respond_to_poll(
+        &self,
+        room_id: &RoomId,
+        poll_start_id: &EventId,
+        selections: Vec<String>,
+    ) -> Result<()> {
+        let timeline = self.timeline(room_id).await?;
+
+        let selections_content = SelectionsContentBlock::from(selections);
+
+        let content = PollResponseEventContent::new(selections_content, poll_start_id.to_owned());
+
+        timeline.send(content.into()).await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -919,8 +943,8 @@ mod tests {
     use crate::event::IEventSink;
     use crate::ffi::PathBasedStorage;
 
-    const TEST_HOME_SERVER: &str = "matrix-synapse-homeserver2.dev.fedibtc.com";
-    const TEST_SLIDING_SYNC: &str = "https://sliding.matrix-synapse-homeserver2.dev.fedibtc.com";
+    const TEST_HOME_SERVER: &str = "staging.m1.8fa.in";
+    const TEST_SLIDING_SYNC: &str = "https://staging.sliding.m1.8fa.in";
 
     async fn mk_matrix_login(
         user_name: &str,
@@ -1088,5 +1112,59 @@ mod tests {
             home_server,
         );
         info!("password: {password}");
+    }
+
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_send_and_download_attachment() -> Result<()> {
+        TracingSetup::default().init().unwrap();
+        let (matrix, _event_rx, _temp_dir) = mk_matrix_new_user().await?;
+        let (matrix2, _event_rx, _temp_dir) = mk_matrix_new_user().await?;
+
+        // Create a room
+        let room_id = matrix
+            .create_or_get_dm(matrix2.client.user_id().unwrap())
+            .await?;
+
+        // Prepare attachment data
+        let filename = "test.txt".to_string();
+        let mime_type = "text/plain".to_string();
+        let data = b"Hello, World!".to_vec();
+
+        // Send attachment
+        matrix
+            .send_attachment(
+                &room_id,
+                filename.clone(),
+                RpcMediaUploadParams {
+                    mime_type,
+                    width: None,
+                    height: None,
+                },
+                data.clone(),
+            )
+            .await?;
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+
+        let timeline = matrix.timeline(&room_id).await?;
+        let event = timeline
+            .latest_event()
+            .await
+            .context("expected last event")?;
+        let source = match event.content().as_message().unwrap().msgtype() {
+            MessageType::File(f) => f.source.clone(),
+            _ => unreachable!(),
+        };
+
+        // Download the file
+        let downloaded_data = matrix.download_file(source).await?;
+
+        // Assert that the downloaded data matches the original data
+        assert_eq!(
+            downloaded_data, data,
+            "Downloaded data does not match original data"
+        );
+
+        Ok(())
     }
 }

@@ -61,59 +61,43 @@ let
   };
   commonEnvsShellRocksdbLink =
     let
-      target_underscores = lib.strings.replaceStrings [ "-" ] [ "_" ] pkgs.stdenv.buildPlatform.config;
+      build_arch_underscores = lib.strings.replaceStrings [ "-" ] [ "_" ] pkgs.stdenv.buildPlatform.config;
     in
     {
-      ROCKSDB_STATIC = "true";
-      ROCKSDB_LIB_DIR = "${pkgs.rocksdb}/lib/";
-      SNAPPY_LIB_DIR = "${pkgs.pkgsStatic.snappy}/lib/";
-      SQLITE3_STATIC = "true";
-      SQLITE3_LIB_DIR = "${pkgs.pkgsStatic.sqlite.out}/lib/";
-      SQLCIPHER_STATIC = "true";
-      SQLCIPHER_LIB_DIR = "${pkgs.pkgsStatic.sqlcipher}/lib/";
-
-      "ROCKSDB_${target_underscores}_STATIC" = "true";
-      "ROCKSDB_${target_underscores}_LIB_DIR" = "${pkgs.rocksdb}/lib/";
-      "SQLITE3_${target_underscores}_STATIC" = "true";
-      "SQLITE3_${target_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlite}/lib/";
-      "SQLCIPHER_${target_underscores}_STATIC" = "true";
-      "SQLCIPHER_${target_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlcipher}/lib/";
-      "SNAPPY_${target_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.snappy}/lib/";
+      # for cargo-deluxe
+      CARGO_TARGET_SPECIFIC_ENVS = builtins.concatStringsSep "," [
+        "ROCKSDB_target_STATIC"
+        "ROCKSDB_target_LIB_DIR"
+        "SNAPPY_target_STATIC"
+        "SNAPPY_target_LIB_DIR"
+        "SNAPPY_target_COMPILE"
+        "SQLITE3_target_STATIC"
+        "SQLITE3_target_LIB_DIR"
+        "SQLCIPHER_target_STATIC"
+        "SQLCIPHER_target_LIB_DIR"
+      ];
     } // pkgs.lib.optionalAttrs (!pkgs.stdenv.isDarwin) {
-      # macos can't static libraries
-      SNAPPY_STATIC = "true";
-      "SNAPPY_${target_underscores}_STATIC" = "true";
-    } // pkgs.lib.optionalAttrs (!pkgs.stdenv.isDarwin) {
-      # TODO: could we used the android-nixpkgs toolchain instead of another one?
-      # BROKEN: seems to produce binaries that crash; needs investigation
-      # ROCKSDB_aarch64_linux_android_STATIC = "true";
-      # SNAPPY_aarch64_linux_android_STATIC = "true";
-      # ROCKSDB_aarch64_linux_android_LIB_DIR = "${pkgs-unstable.pkgsCross.aarch64-android-prebuilt.rocksdb}/lib/";
-      # SNAPPY_aarch64_linux_android_LIB_DIR = "${pkgs-unstable.pkgsCross.aarch64-android-prebuilt.pkgsStatic.snappy}/lib/";
+      "ROCKSDB_${build_arch_underscores}_STATIC" = "true";
+      "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${pkgs.rocksdb}/lib/";
 
-      # BROKEN
-      # error: "No timer implementation for this platform"
-      # ROCKSDB_armv7_linux_androideabi_STATIC = "true";
-      # SNAPPY_armv7_linux_androideabi_STATIC = "true";
-      # ROCKSDB_armv7_linux_androideabi_LIB_DIR = "${pkgs-unstable.pkgsCross.armv7a-android-prebuilt.rocksdb}/lib/";
-      # SNAPPY_armv7_linux_androideabi_LIB_DIR = "${pkgs-unstable.pkgsCross.armv7a-android-prebuilt.pkgsStatic.snappy}/lib/";
+      # does not produce static lib in most versions
+      "SNAPPY_${build_arch_underscores}_STATIC" = "true";
+      "SNAPPY_${build_arch_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.snappy}/lib/";
+      # "SNAPPY_${build_arch_underscores}_COMPILE" = "true";
 
-      # x86-64-linux-android doesn't have a toolchain in nixpkgs
+
+      "SQLITE3_${build_arch_underscores}_STATIC" = "true";
+      "SQLITE3_${build_arch_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlite.out}/lib/";
+
+      "SQLCIPHER_${build_arch_underscores}_LIB_DIR" = "${pkgs.pkgsStatic.sqlcipher}/lib/";
+      "SQLCIPHER_${build_arch_underscores}_STATIC" = "true";
     } // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
-      # broken: fails to compile with:
-      # `linux-headers-android-common> sh: line 1: gcc: command not found`
-      # ROCKSDB_aarch64_linux_android_STATIC = "true";
-      # SNAPPY_aarch64_linux_android_STATIC = "true";
-      # ROCKSDB_aarch64_linux_android_LIB_DIR = "${pkgs-unstable.pkgsCross.aarch64-android.rocksdb}/lib/";
-      # SNAPPY_aarch64_linux_android_LIB_DIR = "${pkgs-unstable.pkgsCross.aarch64-android.pkgsStatic.snappy}/lib/";
+      # tons of problems, just compile
+      # "SNAPPY_${build_arch_underscores}_LIB_DIR" = "${pkgs.snappy}/lib/";
+      "SNAPPY_${build_arch_underscores}_COMPILE" = "true";
 
-      # requires downloading Xcode manually and adding to /nix/store
-      # then running with `env NIXPKGS_ALLOW_UNFREE=1 nix develop -L --impure`
-      # maybe we could live with it?
-      # ROCKSDB_aarch64_apple_ios_STATIC = "true";
-      # SNAPPY_aarch64_apple_ios_STATIC = "true";
-      # ROCKSDB_aarch64_apple_ios_LIB_DIR = "${pkgs-unstable.pkgsCross.iphone64.rocksdb}/lib/";
-      # SNAPPY_aarch64_apple_ios_LIB_DIR = "${pkgs-unstable.pkgsCross.iphone64.pkgsStatic.snappy}/lib/";
+      "SQLITE3_${build_arch_underscores}_LIB_DIR" = "${pkgs.sqlite.out}/lib/";
+      "SQLCIPHER_${build_arch_underscores}_LIB_DIR" = "${pkgs.sqlcipher}/lib/";
     };
 
   commonArgs =
@@ -123,6 +107,12 @@ let
       moreutils-ts = pkgs.writeShellScriptBin "ts" "exec ${pkgs.moreutils}/bin/ts \"$@\"";
     in
     {
+      packages = [
+        # flakebox adds toolchains via `packages`, which seems to always take precedence
+        # `nativeBuildInputs` in `mkShell`, so we need to add it here as well.
+        (lib.hiPrio pkgs.cargo-deluxe)
+      ];
+
       buildInputs = builtins.attrValues
         {
           inherit (pkgs) openssl;
@@ -137,6 +127,8 @@ let
         inherit (pkgs) perl;
         inherit moreutils-ts;
       }) ++ [
+        (lib.hiPrio pkgs.cargo-deluxe)
+
         # add a command that can be used to lower both CPU and IO priority
         # of a command to help make it more friendly to other things
         # potentially sharing the CI or dev machine
@@ -313,6 +305,13 @@ rec {
     ];
   };
 
+  fedi-ffi = fediBuildPackageGroup {
+    pname = "fedi-ffi";
+    packages = [
+      "fedi-ffi"
+    ];
+  };
+
   testStabilityPool = craneLib.buildCommand (commonTestArgs // {
     pname = "fedi-test-stability-pool";
     cargoArtifacts = workspaceBuild;
@@ -321,7 +320,7 @@ rec {
 
     cmd = ''
       patchShebangs ./scripts
-      export FM_CARGO_DENY_COMPILATION=1
+      export CARGO_DENY_COMPILATION=1
 
       # check that all expected binaries are available
       for i in lnd lightningd gatewayd esplora electrs bitcoind ; do
@@ -345,7 +344,7 @@ rec {
 
     cmd = ''
       patchShebangs ./scripts
-      export FM_CARGO_DENY_COMPILATION=1
+      export CARGO_DENY_COMPILATION=1
 
       # check that all expected binaries are available
       for i in lnd lightningd gatewayd esplora electrs bitcoind ; do
@@ -365,11 +364,11 @@ rec {
 
     cmd = ''
       patchShebangs ./scripts
-      export FM_CARGO_DENY_COMPILATION=1
 
       export HOME=/tmp
       export FM_TEST_CI_ALL_TIMES=${builtins.toString 1}
       export FM_TEST_CI_ALL_DISABLE_ETA=1
+      export UPSTREAM_FEDIMINTD_NIX_PKG=${fedimint-pkgs.packages.${system}.fedimintd}
       ./scripts/test-ci-all.sh
     '';
   });
@@ -388,6 +387,9 @@ rec {
           fedi-fedimint-pkgs
           pkgs.bash
           pkgs.coreutils
+          pkgs.busybox
+          pkgs.curl
+          pkgs.rsync
         ];
         config = {
           Cmd = [ ]; # entrypoint will handle empty vs non-empty cmd
@@ -410,7 +412,7 @@ rec {
 
       fedi-fedimint-cli = pkgs.dockerTools.buildLayeredImage {
         name = "fedi-fedimint-cli";
-        contents = [ fedi-fedimint-cli pkgs.bash pkgs.coreutils ];
+        contents = [ fedi-fedimint-cli pkgs.bash pkgs.coreutils pkgs.busybox pkgs.curl pkgs.rsync ];
         config = {
           Cmd = [
             "${fedimint-pkgs}/bin/fedimint-cli"

@@ -175,7 +175,7 @@ impl ServerModuleInit for StabilityPoolInit {
     ) -> BTreeMap<DatabaseVersion, fedimint_core::db::CoreMigrationFn> {
         let mut migrations =
             BTreeMap::<DatabaseVersion, fedimint_core::db::CoreMigrationFn>::default();
-        migrations.insert(DatabaseVersion(1), |dbtx| migrate_to_v2(dbtx).boxed());
+        migrations.insert(DatabaseVersion(1), |ctx| migrate_to_v2(ctx).boxed());
         migrations
     }
 }

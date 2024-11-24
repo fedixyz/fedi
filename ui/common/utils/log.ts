@@ -1,4 +1,5 @@
 import { StorageApi } from '../types'
+import { isDev } from './environment'
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -118,9 +119,11 @@ function innerLog(
     }
     cachedLogs.push(logItem)
 
-    // eslint-disable-next-line no-console
-    const consoleFn = console[level]
-    consoleFn(context ? `[${context}] ${message}` : message, ...extra)
+    if (isDev()) {
+        // eslint-disable-next-line no-console
+        const consoleFn = console[level]
+        consoleFn(context ? `[${context}] ${message}` : message, ...extra)
+    }
 
     // Force a save if we have more than 20 logs in the cache. Otherwise save
     // after a brief delay.

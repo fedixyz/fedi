@@ -3,7 +3,10 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect } from 'react'
 import { Pressable, StyleSheet } from 'react-native'
 
-import { selectActiveFederation } from '@fedi/common/redux'
+import {
+    selectActiveFederation,
+    selectShouldShowDegradedStatus,
+} from '@fedi/common/redux'
 
 import { useAppSelector, usePrevious } from '../../../state/hooks'
 import {
@@ -12,12 +15,18 @@ import {
     NavigationHook,
 } from '../../../types/navigation'
 import HoloGradient from '../../ui/HoloGradient'
+import { ConnectionIcon } from './ConnectionIcon'
 import { FederationLogo } from './FederationLogo'
 
 const FederationSelector: React.FC = () => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const activeFederation = useAppSelector(selectActiveFederation)
+    const shouldShowDegradedStatus = useAppSelector(s =>
+        activeFederation
+            ? selectShouldShowDegradedStatus(s, activeFederation)
+            : false,
+    )
     const previousActiveFederation = usePrevious(activeFederation)
     const drawerNavigator = navigation.getParent(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +71,13 @@ const FederationSelector: React.FC = () => {
                         style={style.federationName}>
                         {activeFederation?.name}
                     </Text>
+                    {/* Hides this tag if there is a local internet problem */}
+                    {shouldShowDegradedStatus && (
+                        <ConnectionIcon
+                            status={activeFederation.status}
+                            size={18}
+                        />
+                    )}
                 </Pressable>
             </HoloGradient>
         </>
@@ -92,7 +108,7 @@ const styles = (theme: Theme) =>
         },
         federationName: {
             flexGrow: 1,
-            maxWidth: '80%',
+            maxWidth: '85%',
         },
     })
 

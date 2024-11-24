@@ -55,15 +55,25 @@ export const Attachments: React.FC<Props> = ({
         <View style={style.container}>
             {attachments.map(asset => (
                 <View key={asset.uri} style={style.asset}>
-                    <Image
-                        source={{
-                            uri: asset.uri,
-                            width: asset.width,
-                            height: asset.height,
-                        }}
-                        style={style.image}
-                        resizeMode="cover"
-                    />
+                    {asset.type?.startsWith('image') ? (
+                        <Image
+                            source={{
+                                uri: asset.uri,
+                                width: asset.width,
+                                height: asset.height,
+                            }}
+                            style={style.image}
+                            resizeMode="cover"
+                        />
+                    ) : asset.type?.startsWith('video') ? (
+                        <View style={style.preview}>
+                            <SvgImage name="Video" />
+                        </View>
+                    ) : (
+                        <View style={style.preview}>
+                            <SvgImage name="File" />
+                        </View>
+                    )}
                     <Pressable
                         style={style.removeButton}
                         onPress={() =>
@@ -128,5 +138,14 @@ const styles = (theme: Theme) =>
         uploadButtonTitle: {
             marginLeft: theme.spacing.sm,
             color: theme.colors.primary,
+        },
+        preview: {
+            backgroundColor: theme.colors.extraLightGrey,
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderRadius: 8,
         },
     })

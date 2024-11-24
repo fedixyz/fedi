@@ -16,6 +16,7 @@ import {
 } from '../state/contexts/BackupRecoveryContext'
 import { useAppSelector, useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
+import { prefixFileUri } from '../utils/media'
 
 const log = makeLog('CompleteSocialBackup')
 
@@ -42,7 +43,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
             await Share.open({
                 title: 'Your Fedi Backup File',
                 // FIXME: this needs file:// prefix ... should do this with a util?
-                url: `file://${recoveryFilePath}`,
+                url: prefixFileUri(recoveryFilePath),
             })
             setBackupsCompleted(
                 Math.min(BACKUPS_REQUIRED, backupsCompleted + 1),

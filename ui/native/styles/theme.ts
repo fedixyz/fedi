@@ -57,7 +57,7 @@ const themeDefaults = {
         progressCircle: dimensions.height * 0.25,
         progressInnerCircle: dimensions.height * 0.25 - 10,
         maxMessageWidth: dimensions.width * 0.75,
-        minMessageInputHeight: 48,
+        minMessageInputHeight: 30,
         maxMessageInputHeight: 120,
         recordButtonOuter: 68,
         recordButtonInner: 56,

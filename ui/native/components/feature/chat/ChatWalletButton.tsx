@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable } from 'react-native'
 
@@ -26,25 +26,21 @@ const ChatWalletButton: React.FC<ChatWalletButtonProps> = ({
         selectIsActiveFederationRecovering,
     )
 
+    const handlePress = useCallback(() => {
+        if (recoveryInProgress) {
+            setShowOverlay(true)
+            return
+        }
+        navigation.navigate('ChatWallet', {
+            recipientId,
+        })
+    }, [recoveryInProgress, recipientId, navigation])
+
     return (
         <>
-            <Pressable
-                onPress={() => {
-                    if (recoveryInProgress) {
-                        setShowOverlay(true)
-                        return
-                    }
-
-                    navigation.navigate('ChatWallet', {
-                        recipientId,
-                    })
-                }}>
+            <Pressable onPress={handlePress} hitSlop={10}>
                 <SvgImage
                     name="Wallet"
-                    containerStyle={{
-                        marginRight: theme.spacing.md,
-                        marginBottom: theme.spacing.sm,
-                    }}
                     size={SvgImageSize.md}
                     color={
                         recoveryInProgress

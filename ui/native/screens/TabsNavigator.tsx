@@ -107,6 +107,7 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
                 initialRouteName={route.params?.initialRouteName || 'Home'}
                 id={TABS_NAVIGATOR_ID}
                 screenOptions={({ route: screenRoute }) => ({
+                    freezeOnBlur: true,
                     tabBarButton: props => {
                         switch (screenRoute.name) {
                             case 'Home':

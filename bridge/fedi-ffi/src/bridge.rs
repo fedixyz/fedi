@@ -1,3 +1,4 @@
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -24,7 +25,7 @@ use fedimint_core::PeerId;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use futures::future::join_all;
 use tokio::sync::{Mutex, OnceCell};
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, warn};
 
 use super::event::EventSink;
 use super::storage::Storage;
@@ -43,17 +44,24 @@ use crate::federation_v2::{self, FederationV2};
 use crate::fedi_fee::FediFeeHelper;
 use crate::matrix::Matrix;
 use crate::storage::{
-    AppState, DatabaseInfo, FederationInfo, FediFeeSchedule, ModuleFediFeeSchedule,
+    AppState, DatabaseInfo, FederationInfo, FediFeeSchedule, FiatFXInfo, ModuleFediFeeSchedule,
 };
 use crate::types::{
-    RpcBridgeStatus, RpcDeviceIndexAssignmentStatus, RpcFederationPreview, RpcNostrPubkey,
-    RpcNostrSecret, RpcRegisteredDevice, RpcReturningMemberStatus,
+    RpcBridgeStatus, RpcDeviceIndexAssignmentStatus, RpcFederationMaybeLoading,
+    RpcFederationPreview, RpcNostrPubkey, RpcNostrSecret, RpcRegisteredDevice,
 };
 use crate::utils::required_threashold_of;
 
 // FIXME: federation-specific filename
 pub const RECOVERY_FILENAME: &str = "backup.fedi";
 pub const VERIFICATION_FILENAME: &str = "verification.mp4";
+
+#[derive(Clone)]
+pub enum FederationMaybeLoading {
+    Loading,
+    Ready(Arc<FederationV2>),
+    Failed(Arc<anyhow::Error>),
+}
 
 /// This is instantiated once as a global. When RPC commands come in, this
 /// struct is used as a router to look up the federation and handle the RPC
@@ -62,7 +70,7 @@ pub const VERIFICATION_FILENAME: &str = "verification.mp4";
 pub struct Bridge {
     pub storage: Storage,
     pub app_state: Arc<AppState>,
-    pub federations: Arc<Mutex<BTreeMap<String, Arc<FederationV2>>>>,
+    pub federations: Arc<Mutex<BTreeMap<String, FederationMaybeLoading>>>,
     pub communities: Arc<Communities>,
     pub event_sink: EventSink,
     pub task_group: TaskGroup,
@@ -104,78 +112,7 @@ impl Bridge {
         )
         .into();
 
-        let root_mnemonic = app_state.root_mnemonic().await;
-
-        let device_index = app_state.device_index().await;
-
-        // load joined federations
-        let joined_federations = app_state
-            .with_read_lock(|state| state.joined_federations.clone())
-            .await
-            .into_iter()
-            .collect::<Vec<_>>();
-
         let global_db = storage.federation_database_v2("global").await?;
-
-        let federations = joined_federations
-            .iter()
-            // Ignore older version
-            .filter(|(_, info)| info.version >= 2)
-            .map(|(federation_id_str, federation_info)| {
-                async {
-                    Ok::<(String, Arc<FederationV2>), anyhow::Error>((
-                        federation_id_str.clone(),
-                        match federation_info.version {
-                            2 => {
-                                let db = match &federation_info.database {
-                                    DatabaseInfo::DatabaseName(db_name) => {
-                                        storage.federation_database_v2(db_name).await?
-                                    }
-                                    DatabaseInfo::DatabasePrefix(prefix) => {
-                                        // use varint encoding so most of prefixes serialize to
-                                        // single byte
-                                        global_db.with_prefix(prefix.consensus_encode_to_vec())
-                                    }
-                                };
-                                Arc::new(
-                                    FederationV2::from_db(
-                                        db,
-                                        event_sink.clone(),
-                                        task_group.make_subgroup(),
-                                        &root_mnemonic,
-                                        // Always present when join federations exist
-                                        device_index.context(
-                                            "device index must exist when joined federations exist",
-                                        )?,
-                                        fedi_fee_helper.clone(),
-                                        feature_catalog.clone(),
-                                    )
-                                    .await
-                                    .with_context(|| {
-                                        format!("loading federation {}", federation_id_str.clone())
-                                    })?,
-                                )
-                            }
-                            n => bail!("Invalid federation version {n}"),
-                        },
-                    ))
-                }
-                .instrument(info_span!("federation", federation_id = federation_id_str))
-            });
-
-        let federations = Arc::new(Mutex::new(
-            futures::future::join_all(federations)
-                .await
-                .into_iter()
-                .filter_map(|federation_res| match federation_res {
-                    Ok((id, federation)) => Some((id, federation)),
-                    Err(e) => {
-                        error!("Could not initialize federation client: {e:?}");
-                        None
-                    }
-                })
-                .collect::<BTreeMap<_, _>>(),
-        ));
 
         // Load communities module
         let communities = Communities::init(
@@ -186,23 +123,10 @@ impl Bridge {
         .await
         .into();
 
-        // Spawn a new task to asynchronously fetch the fee schedule and update app
-        // state
-        fedi_fee_helper
-            .fetch_and_update_fedi_fee_schedule(
-                federations
-                    .lock()
-                    .await
-                    .iter()
-                    .filter_map(|(id, fed)| Some((id.clone(), fed.get_network()?)))
-                    .collect(),
-            )
-            .await;
-
         let bridge = Self {
             storage,
             app_state,
-            federations,
+            federations: Arc::default(),
             communities,
             event_sink,
             task_group,
@@ -213,11 +137,137 @@ impl Bridge {
             global_db,
             feature_catalog,
         };
-        let federations = bridge.federations.lock().await.clone();
-        for federation in federations.into_values() {
-            Self::restart_federation_on_recovery(bridge.clone(), federation).await;
-        }
+        Self::load_joined_federations_in_background(bridge.clone()).await?;
         Ok(bridge)
+    }
+
+    async fn load_joined_federations_in_background(bridge: Bridge) -> Result<()> {
+        let joined_federations = bridge
+            .app_state
+            .with_read_lock(|state| state.joined_federations.clone())
+            .await;
+
+        let mut futures = Vec::new();
+        let mut federations = bridge.federations.lock().await;
+        for (federation_id, federation_info) in joined_federations {
+            if federation_info.version < 2 {
+                error!(version = federation_info.version, %federation_id, "Invalid federation version");
+                continue;
+            }
+            federations.insert(federation_id.clone(), FederationMaybeLoading::Loading);
+
+            futures.push(Bridge::load_federation(
+                bridge.clone(),
+                federation_id.clone(),
+                federation_info,
+            ));
+        }
+        drop(federations);
+
+        // FIXME: update after each federation is loaded.
+        bridge.task_group.clone().spawn_cancellable(
+            "load federation and update fedi fee schedule",
+            async move {
+                futures::future::join_all(futures).await;
+                bridge.update_fedi_fees_schedule().await;
+            },
+        );
+
+        Ok(())
+    }
+
+    async fn update_fedi_fees_schedule(&self) {
+        // Spawn a new task to asynchronously fetch the fee schedule and update app
+        // state
+        let fed_network_map = self
+            .federations
+            .lock()
+            .await
+            .iter()
+            .filter_map(|(id, fed)| match fed {
+                FederationMaybeLoading::Ready(fed) => Some((id.clone(), fed.get_network()?)),
+                _ => None,
+            })
+            .collect();
+
+        self.fedi_fee_helper
+            .fetch_and_update_fedi_fee_schedule(fed_network_map)
+            .await;
+    }
+
+    #[tracing::instrument(skip_all, err, fields(federation_id = federation_id_str))]
+    async fn load_federation(
+        bridge: Bridge,
+        federation_id_str: String,
+        federation_info: FederationInfo,
+    ) -> Result<()> {
+        let root_mnemonic = bridge.app_state.root_mnemonic().await;
+        let device_index = bridge
+            .app_state
+            .device_index()
+            .await
+            .context("device index must exist when joined federations exist")?;
+
+        let db = match &federation_info.database {
+            DatabaseInfo::DatabaseName(db_name) => {
+                bridge.storage.federation_database_v2(db_name).await?
+            }
+            DatabaseInfo::DatabasePrefix(prefix) => bridge
+                .global_db
+                .with_prefix(prefix.consensus_encode_to_vec()),
+        };
+
+        let federation_result = FederationV2::from_db(
+            db,
+            bridge.event_sink.clone(),
+            bridge.task_group.make_subgroup(),
+            &root_mnemonic,
+            device_index,
+            bridge.fedi_fee_helper.clone(),
+            bridge.feature_catalog.clone(),
+            bridge.app_state.clone(),
+        )
+        .await;
+
+        match federation_result {
+            Ok(federation) => {
+                let federation_arc = Arc::new(federation);
+                bridge.federations.lock().await.insert(
+                    federation_id_str.clone(),
+                    FederationMaybeLoading::Ready(federation_arc.clone()),
+                );
+
+                bridge
+                    .send_federation_event(RpcFederationMaybeLoading::Ready(
+                        federation_v2_to_rpc_federation(&federation_arc).await,
+                    ))
+                    .await;
+                if federation_arc.recovering() {
+                    Self::restart_federation_on_recovery(bridge.clone(), federation_arc).await;
+                }
+            }
+            Err(err) => {
+                error!(%err, "federation failed to load");
+                bridge
+                    .send_federation_event(RpcFederationMaybeLoading::Failed {
+                        error: err.to_string(),
+                        id: RpcFederationId(federation_id_str.clone()),
+                    })
+                    .await;
+                bridge.federations.lock().await.insert(
+                    federation_id_str.clone(),
+                    FederationMaybeLoading::Failed(Arc::new(err)),
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Send whenever federation is loaded.
+    pub async fn send_federation_event(&self, rpc_federation: RpcFederationMaybeLoading) {
+        let event = Event::federation(rpc_federation);
+        self.event_sink.typed_event(&event);
     }
 
     pub async fn bridge_status(&self) -> anyhow::Result<RpcBridgeStatus> {
@@ -268,10 +318,7 @@ impl Bridge {
     }
 
     /// Restart the federation on recovery if the federation is recovering.
-    pub async fn restart_federation_on_recovery(this: Self, federation: Arc<FederationV2>) {
-        if !federation.recovering() {
-            return;
-        }
+    async fn restart_federation_on_recovery(this: Self, federation: Arc<FederationV2>) {
         this.task_group.clone().spawn(
             "waiting for recovery to replace federation",
             move |_| async move {
@@ -286,7 +333,9 @@ impl Bridge {
                 let client = inner_federation.client.clone();
                 let mut federation_lock = this.federations.lock().await;
                 let db = client.db().clone();
-                drop(federation_lock.remove(&federation_id));
+                drop(
+                    federation_lock.insert(federation_id.clone(), FederationMaybeLoading::Loading),
+                );
                 info!(%federation_id, "removed from federation list");
 
                 if let Err(error) = tg.shutdown_join_all(None).await {
@@ -323,6 +372,7 @@ impl Bridge {
                     device_index,
                     this.fedi_fee_helper.clone(),
                     this.feature_catalog.clone(),
+                    this.app_state.clone(),
                 )
                 .await
                 .with_context(|| format!("loading federation {}", federation_id.clone()))?;
@@ -330,7 +380,7 @@ impl Bridge {
                 if federation_v2.recovering() {
                     error!(%federation_id, "federation must be recovered after restart on recovery completed once");
                 }
-                federation_lock.insert(federation_id.clone(), Arc::new(federation_v2));
+                federation_lock.insert(federation_id.clone(), FederationMaybeLoading::Ready(Arc::new(federation_v2)));
                 info!(%federation_id, "reinserted to federation list");
                 drop(federation_lock);
 
@@ -372,6 +422,19 @@ impl Bridge {
             Err(e) => {
                 error!("failed to join v2 federation {e:?}");
                 error_code = error_code.or(get_error_code(&e));
+
+                // If error code is NOT "AlreadyJoined" AND
+                // If federation is still under loading state,
+                // then let's remove it so that another attempt can happen later
+                if !matches!(error_code, Some(ErrorCode::AlreadyJoined)) {
+                    let invite_code = InviteCode::from_str(&invite_code_string)?;
+                    let mut federations = self.federations.lock().await;
+                    if let Some(FederationMaybeLoading::Loading) =
+                        federations.get(&invite_code.federation_id().to_string())
+                    {
+                        federations.remove(&invite_code.federation_id().to_string());
+                    }
+                }
             }
         }
         if let Some(error_code) = error_code {
@@ -385,15 +448,16 @@ impl Bridge {
         invite_code_string: String,
         recover_from_scratch: bool,
     ) -> Result<Arc<FederationV2>> {
-        // Check if we've already joined this federation
+        // Check if we've already joined this federation. If we have throw error,
+        // otherwise write loading state
         let invite_code = InviteCode::from_str(&invite_code_string)?;
-        if self
-            .get_federation_maybe_recovering(&invite_code.federation_id().to_string())
-            .await
-            .is_ok()
-        {
+        let mut federations = self.federations.lock().await;
+        if let Entry::Vacant(e) = federations.entry(invite_code.federation_id().to_string()) {
+            e.insert(FederationMaybeLoading::Loading);
+        } else {
             bail!(ErrorCode::AlreadyJoined)
         }
+        drop(federations);
 
         let root_mnemonic = self.app_state.root_mnemonic().await;
         let device_index = self.app_state.ensure_device_index().await?;
@@ -416,6 +480,7 @@ impl Bridge {
             recover_from_scratch,
             self.fedi_fee_helper.clone(),
             self.feature_catalog.clone(),
+            self.app_state.clone(),
         )
         .await?;
         let federation_id = federation.federation_id();
@@ -426,7 +491,7 @@ impl Bridge {
         // DB file is random so there shouldn't be any collisions.
         self.app_state
             .with_write_lock(|state| {
-                state.joined_federations.insert(
+                let old_value = state.joined_federations.insert(
                     federation_id.to_string(),
                     FederationInfo {
                         version: 2,
@@ -434,24 +499,22 @@ impl Bridge {
                         fedi_fee_schedule: FediFeeSchedule::default(),
                     },
                 );
+                assert!(old_value.is_none(), "must not override a federation");
             })
             .await?;
         let federation_arc = Arc::new(federation);
-        federations
-            .entry(federation_id.to_string())
-            .or_insert_with(|| federation_arc.clone());
-        Self::restart_federation_on_recovery(self.clone(), federation_arc.clone()).await;
+        federations.insert(
+            federation_id.to_string(),
+            FederationMaybeLoading::Ready(federation_arc.clone()),
+        );
+        drop(federations);
+        if federation_arc.recovering() {
+            Self::restart_federation_on_recovery(self.clone(), federation_arc.clone()).await;
+        }
 
         // Spawn a new task to asynchronously fetch the fee schedule and update app
         // state
-        self.fedi_fee_helper
-            .fetch_and_update_fedi_fee_schedule(
-                federations
-                    .iter()
-                    .filter_map(|(id, fed)| Some((id.clone(), fed.get_network()?)))
-                    .collect(),
-            )
-            .await;
+        self.update_fedi_fees_schedule().await;
 
         Ok(federation_arc)
     }
@@ -460,30 +523,13 @@ impl Bridge {
         let invite_code = invite_code.to_lowercase();
         let root_mnemonic = self.app_state.root_mnemonic().await;
         let device_index = self.app_state.ensure_device_index().await?;
-        let (config, backup) = FederationV2::download_client_config(
+        FederationV2::federation_preview(
             &invite_code,
             &root_mnemonic,
             device_index,
             self.feature_catalog.override_localhost.is_some(),
         )
         .await
-        .context("failed to connect")?;
-        Ok(RpcFederationPreview {
-            id: RpcFederationId(config.global.calculate_federation_id().to_string()),
-            name: config
-                .global
-                .federation_name()
-                .map(|x| x.to_owned())
-                .unwrap_or(config.global.calculate_federation_id().to_string()[0..8].to_string()),
-            meta: config.global.meta,
-            invite_code: invite_code.to_string(),
-            version: 2,
-            returning_member_status: match backup {
-                Ok(Some(_)) => RpcReturningMemberStatus::ReturningMember,
-                Ok(None) => RpcReturningMemberStatus::NewMember,
-                Err(_) => RpcReturningMemberStatus::Unknown,
-            },
-        })
     }
 
     /// Look up federation by id from in-memory hashmap
@@ -498,22 +544,44 @@ impl Bridge {
         &self,
         federation_id: &str,
     ) -> Result<Arc<FederationV2>> {
+        match self.get_federation_maybe_loading(federation_id).await? {
+            FederationMaybeLoading::Ready(federation) => Ok(federation),
+            FederationMaybeLoading::Loading => bail!("Federation is still loading"),
+            FederationMaybeLoading::Failed(e) => bail!("Federation failed to load: {}", e),
+        }
+    }
+    /// Look up federation by id from in-memory hashmap
+    async fn get_federation_maybe_loading(
+        &self,
+        federation_id: &str,
+    ) -> Result<FederationMaybeLoading> {
         let lock = self.federations.lock().await;
         lock.get(federation_id)
             .cloned()
             .ok_or_else(|| anyhow!("Federation not found"))
     }
 
-    pub async fn list_federations(&self) -> Vec<RpcFederation> {
+    pub async fn list_federations(&self) -> Vec<RpcFederationMaybeLoading> {
         let federations = self.federations.lock().await.clone();
-        join_all(federations.into_values().map(|federation| async move {
-            federation_v2_to_rpc_federation(&federation.clone()).await
+        join_all(federations.into_iter().map(|(id, federation)| async move {
+            match federation {
+                FederationMaybeLoading::Ready(fed) => {
+                    RpcFederationMaybeLoading::Ready(federation_v2_to_rpc_federation(&fed).await)
+                }
+                FederationMaybeLoading::Loading => RpcFederationMaybeLoading::Loading {
+                    id: RpcFederationId(id),
+                },
+                FederationMaybeLoading::Failed(err) => RpcFederationMaybeLoading::Failed {
+                    error: err.to_string(),
+                    id: RpcFederationId(id),
+                },
+            }
         }))
         .await
     }
 
     pub async fn leave_federation(&self, federation_id_str: &str) -> Result<()> {
-        // check if federation exists and not recovering
+        // check if federation is loaded and not recovering
         self.get_federation(federation_id_str).await?;
         // delete federation from app state (global DB)
         let federation_id = federation_id_str.to_owned();
@@ -539,24 +607,26 @@ impl Bridge {
             bail!("federation must be present in state");
         };
 
-        if let Err(error) = federation
-            .task_group
-            .clone()
-            .shutdown_join_all(Some(Duration::from_secs(20)))
-            .await
-        {
-            warn!(%error, "failed to shutdown task group cleanly");
-        }
+        if let FederationMaybeLoading::Ready(federation) = federation {
+            if let Err(error) = federation
+                .task_group
+                .clone()
+                .shutdown_join_all(Some(Duration::from_secs(20)))
+                .await
+            {
+                warn!(%error, "failed to shutdown task group cleanly");
+            }
 
-        if fedimint_core::task::timeout(
-            Duration::from_secs(20),
-            Self::wait_till_fully_dropped(federation),
-        )
-        .await
-        .is_err()
-        {
-            info!("failed to drop federation, not deleting the database");
-            return Ok(());
+            if fedimint_core::task::timeout(
+                Duration::from_secs(20),
+                Self::wait_till_fully_dropped(federation),
+            )
+            .await
+            .is_err()
+            {
+                info!("failed to drop federation, not deleting the database");
+                return Ok(());
+            }
         }
 
         match removed_federation_info.database {
@@ -601,6 +671,12 @@ impl Bridge {
             .word_iter()
             .map(|x| x.to_owned())
             .collect())
+    }
+
+    pub async fn update_cached_fiat_fx_info(&self, info: FiatFXInfo) -> anyhow::Result<()> {
+        self.app_state
+            .with_write_lock(|state| state.cached_fiat_fx_info = Some(info))
+            .await
     }
 
     /// Enable logging of potentially sensitive information.

@@ -207,21 +207,6 @@ export const useBridge = (activeFederationId: string | undefined) => {
             },
             [activeFederationId],
         ),
-        getXmppCredentials: useCallback(() => {
-            if (!activeFederationId)
-                return Promise.reject(new Error('No active federation'))
-
-            return fedimint.getXmppCredentials(activeFederationId)
-        }, [activeFederationId]),
-        backupXmppUsername: useCallback(
-            (username: string) => {
-                if (!activeFederationId)
-                    return Promise.reject(new Error('No active federation'))
-
-                return fedimint.backupXmppUsername(username, activeFederationId)
-            },
-            [activeFederationId],
-        ),
     }
 }
 

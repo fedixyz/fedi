@@ -17,6 +17,7 @@ fedimint-ln-client = { workspace = true }
 fedimint-api-client = { workspace = true }
 fedimint-ln-common = { workspace = true }
 fedimint-wallet-client = { workspace = true }
+fedimint-meta-client = { workspace = true }
 fedi-social-client = { workspace = true }
 stability-pool-client = { path = "../../modules/stability-pool/client" }
 fedi-db-dump = { path = "../../fedi-db-dump" }

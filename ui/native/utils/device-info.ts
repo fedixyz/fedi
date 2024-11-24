@@ -5,7 +5,7 @@ import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { getNumberFormatSettings } from 'react-native-localize'
+import { getNumberFormatSettings, getTimeZone } from 'react-native-localize'
 import { SvgImageName } from '../components/ui/SvgImage'
 
 const log = makeLog('native/utils/device-info')
@@ -60,7 +60,12 @@ export function getAllDeviceInfo() {
         'isDisplayZoomed',
     ] satisfies Array<keyof typeof RNDI>
 
-    const promises = methodsToCall.map(async method => {
+    const promises: Array<
+        Promise<{
+            method: string
+            value: string | number | boolean | object
+        } | null>
+    > = methodsToCall.map(async method => {
         try {
             const value = await RNDI[method]()
             return { method, value }
@@ -70,6 +75,15 @@ export function getAllDeviceInfo() {
             return null
         }
     })
+
+    promises.push(
+        new Promise(resolve =>
+            resolve({
+                method: 'getTimeZone',
+                value: getTimeZone(),
+            }),
+        ),
+    )
 
     return Promise.all(promises).then(results => {
         const info: Record<string, string | number | boolean | object> = {}
@@ -161,4 +175,8 @@ export function getNumberFormatLocale() {
         // Examples: 1 234 567,89 (fr-FR, ru-RU)
     }
     return derivedLocale
+}
+
+export const isNightly = () => {
+    return RNDI.getBundleId().includes('nightly')
 }

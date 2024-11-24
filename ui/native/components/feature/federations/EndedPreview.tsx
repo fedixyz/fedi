@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 
-import { FederationListItem, JoinPreview } from '../../../types'
+import { JoinPreview, LoadedFederationListItem } from '../../../types'
 import { FederationLogo } from './FederationLogo'
 
 export default function FederationEndedPreview({
@@ -12,7 +12,7 @@ export default function FederationEndedPreview({
     federation,
 }: {
     popupInfo: ReturnType<typeof usePopupFederationInfo>
-    federation: FederationListItem | JoinPreview
+    federation: LoadedFederationListItem | JoinPreview
 }) {
     const { theme } = useTheme()
     const { t } = useTranslation()

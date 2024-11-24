@@ -39,11 +39,13 @@ type MessagesListProps = {
     type: ChatType
     id: string
     multiUserChat?: boolean
+    isPublic?: boolean
 }
 
 const ChatConversation: React.FC<MessagesListProps> = ({
     type,
     id,
+    isPublic = true,
 }: MessagesListProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -58,10 +60,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
     const dispatch = useAppDispatch()
-
-    const handleSelectMember = useCallback((userId: string) => {
-        setSelectedUserId(userId)
-    }, [])
 
     // Room is empty if we're the only member
     const isAlone =
@@ -87,7 +85,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         setHasPaginated(false)
     }, [events.length])
 
-    const style = styles(theme)
+    const style = useMemo(() => styles(theme), [theme])
 
     // Animate new message button in and out
     useEffect(() => {
@@ -130,11 +128,11 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         if (isPaginating || hasPaginated || isAtEnd) return
         setIsPaginating(true)
         setHasPaginated(true)
-        dispatch(paginateMatrixRoomTimeline({ roomId: id, limit: 30 }))
+        await dispatch(paginateMatrixRoomTimeline({ roomId: id, limit: 30 }))
             .unwrap()
             .then(({ end }) => setIsAtEnd(end))
             .finally(() => setIsPaginating(false))
-    }, [id, dispatch, isPaginating, hasPaginated, isAtEnd])
+    }, [hasPaginated, id, isAtEnd, isPaginating, dispatch])
 
     // Mark hasNewMessages as false when we scroll to the bottom, and keep a ref up to date
     const handleScroll = useCallback(
@@ -158,11 +156,12 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     roomId={id}
                     collection={item}
                     showUsernames={type === ChatType.group}
-                    onSelect={handleSelectMember}
+                    onSelect={setSelectedUserId}
+                    isPublic={isPublic}
                 />
             )
         },
-        [handleSelectMember, id, type],
+        [id, type, isPublic],
     )
 
     return (
@@ -192,9 +191,9 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                         )
                     }
                     onScroll={handleScroll}
-                    // adjust this for more/less aggressive loading
-                    onEndReachedThreshold={1}
                     inverted={events.length > 0}
+                    // adjust this for more/less aggressive loading
+                    onEndReachedThreshold={0.1}
                     onEndReached={handlePaginate}
                     refreshing={isPaginating}
                     maintainVisibleContentPosition={{

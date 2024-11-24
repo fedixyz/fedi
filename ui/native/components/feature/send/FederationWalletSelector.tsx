@@ -11,7 +11,7 @@ import {
 } from '@fedi/common/redux'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { Federation, MSats } from '../../../types'
+import { LoadedFederation, MSats } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -36,13 +36,13 @@ const FederationWalletSelector: React.FC<{ readonly?: boolean }> = ({
     )
 
     const handleFederationSelected = useCallback(
-        (fed: Federation) => {
+        (fed: LoadedFederation) => {
             dispatch(setPayFromFederationId(fed.id))
         },
         [dispatch],
     )
 
-    const renderFederation = (f: Federation) => {
+    const renderFederation = (f: LoadedFederation) => {
         const { formattedPrimaryAmount, formattedSecondaryAmount } =
             makeFormattedAmountsFromMSats(f?.balance || (0 as MSats))
         return (

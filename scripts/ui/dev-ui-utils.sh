@@ -11,7 +11,7 @@ else
 fi
 
 while true; do
-    echo "Select an option:"
+    echo -e "\nDev Utils: Select an option:"
     echo "L - run the linter for all /ui code"
     echo "T - run tests for all /ui code"
     echo "U - run linter + tests for all /ui code"
@@ -23,6 +23,9 @@ while true; do
     echo "B - rebuild bridge & reinstall apps (both android + ios)"
     echo "w - rebuild wasm"
     echo "t - rebuild Typescript bindings"
+    echo "c - clean UI files"
+    echo "n - reinstall node_modules"
+    echo "p - reinstall pods"
     echo "q - quit"
     
     read -rsn1 input
@@ -84,6 +87,17 @@ while true; do
         t)
             echo "Building Rust-Typescript bindings"
             $REPO_ROOT/scripts/bridge/ts-bindgen.sh
+            ;;
+        c)
+            $REPO_ROOT/scripts/ui/clean-ui.sh
+            ;;
+        n)
+            echo "Reinstalling node_modules"
+            pushd $REPO_ROOT/ui && yarn install && popd
+            ;;
+        p)
+            echo "Reinstalling pods"
+            nix develop .#xcode -c $REPO_ROOT/scripts/ui/install-ios-deps.sh
             ;;
         q)
             echo "Exiting."

@@ -7,7 +7,7 @@ import type { ChatMember, Sats } from '@fedi/common/types'
 import { INVALID_NAME_PLACEHOLDER } from '../constants/matrix'
 import {
     configureMatrixPushNotifications,
-    previewDefaultGroupChats,
+    previewAllDefaultChats,
     selectActiveFederation,
     selectActiveFederationId,
     selectAuthenticatedMember,
@@ -430,7 +430,7 @@ export const useDisplayNameForm = (t: TFunction, fedimint?: FedimintBridge) => {
                     // matrix client when registering for the first time
                     await dispatch(startMatrixClient({ fedimint }))
                     // TODO: find a better place for this action
-                    dispatch(previewDefaultGroupChats())
+                    dispatch(previewAllDefaultChats())
                 }
                 await dispatch(
                     setMatrixDisplayName({ displayName: username }),

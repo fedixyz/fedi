@@ -93,6 +93,11 @@ pub struct AppStateRaw {
     pub matrix_display_name: Option<String>,
     // NOTE: if you ever remove fields from AppState, don't delete the field.
     // just comment it out to prevent field reuse in future.
+
+    // App State stores a cached copy of the app's display currency along with the BTC -> display
+    // currency exchange rate. This cached info is used to attach historical fiat values to TXs as
+    // they are recorded.
+    pub cached_fiat_fx_info: Option<FiatFXInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -283,6 +288,16 @@ pub struct CommunityInfo {
     pub meta: CommunityJson,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct FiatFXInfo {
+    /// Code of the currency that's set as display currency in the app.
+    pub fiat_code: String,
+
+    /// 1 BTC equivalent in the display currency. This value is recorded in
+    /// hundredths, such as cents.
+    pub btc_to_fiat_hundredths: u64,
+}
+
 pub struct AppState {
     raw: RwLock<Arc<AppStateRaw>>,
     storage: Storage,
@@ -347,6 +362,7 @@ impl AppState {
                 last_device_registration_timestamp: None,
                 next_federation_db_prefix: default_next_federation_prefix(),
                 matrix_display_name: None,
+                cached_fiat_fx_info: None,
             })),
             storage,
         }
@@ -501,6 +517,11 @@ impl AppState {
             value
         })
         .await
+    }
+
+    pub async fn get_cached_fiat_fx_info(&self) -> Option<FiatFXInfo> {
+        self.with_read_lock(|state| state.cached_fiat_fx_info.clone())
+            .await
     }
 }
 

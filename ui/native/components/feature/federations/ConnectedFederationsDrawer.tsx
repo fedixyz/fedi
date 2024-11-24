@@ -11,12 +11,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { selectActiveFederation, selectFederations } from '@fedi/common/redux'
-import { FederationListItem } from '@fedi/common/types'
+import { LoadedFederationListItem } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import HoloGradient from '../../ui/HoloGradient'
 import CommunityTile from './CommunityTile'
+import CommunityTileLoading from './CommunityTileLoading'
 
 const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
     props: DrawerContentComponentProps,
@@ -31,7 +32,7 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
     const insets = useSafeAreaInsets()
 
     const handleTilePress = useCallback(
-        (c: FederationListItem) => {
+        (c: LoadedFederationListItem) => {
             // Dismiss drawer if active federation is clicked
             if (c.id === activeFederation?.id) {
                 return drawerNavigation.closeDrawer()
@@ -52,7 +53,7 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
     )
 
     const handleQrPress = useCallback(
-        (c: FederationListItem) => {
+        (c: LoadedFederationListItem) => {
             mainNavigation.navigate('FederationInvite', {
                 inviteLink: c.inviteCode,
             })
@@ -60,6 +61,14 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
         [mainNavigation],
     )
 
+    const handleStatusPress = useCallback(
+        (c: LoadedFederationListItem) => {
+            mainNavigation.navigate('FederationDetails', {
+                federationId: c.id,
+            })
+        },
+        [mainNavigation],
+    )
     const style = styles(theme)
     return (
         <HoloGradient
@@ -90,17 +99,32 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
                         {t('words.communities')}
                     </Text>
                     <View style={style.communitiesList}>
-                        {federations.map((f, i) => (
-                            <CommunityTile
-                                key={`di-${i}`}
-                                community={f}
-                                onSelect={() => handleTilePress(f)}
-                                onSelectQr={() => handleQrPress(f)}
-                                isActiveCommunity={
-                                    activeFederation?.id === f.id
-                                }
-                            />
-                        ))}
+                        {federations.map((f, i) => {
+                            if (f.init_state === 'ready') {
+                                const community: LoadedFederationListItem = f
+                                return (
+                                    <CommunityTile
+                                        key={`di-${i}`}
+                                        community={community}
+                                        onSelect={() =>
+                                            handleTilePress(community)
+                                        }
+                                        onSelectQr={() =>
+                                            handleQrPress(community)
+                                        }
+                                        onSelectStatus={() =>
+                                            handleStatusPress(community)
+                                        }
+                                        isActiveCommunity={
+                                            activeFederation?.id ===
+                                            community.id
+                                        }
+                                    />
+                                )
+                            } else {
+                                return <CommunityTileLoading />
+                            }
+                        })}
                     </View>
                 </View>
             </DrawerContentScrollView>

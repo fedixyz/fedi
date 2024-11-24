@@ -25,7 +25,7 @@ echo "Building android bridge for targets: ${TARGETS[*]}"
 # build binaries for each supported target
 for target in "${TARGETS[@]}"; do
   echo "Building android bridge for $target"
-  cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}/pkg/fedi-ffi" ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} -p fedi-ffi --target $target
+  cargo build --target-dir "${CARGO_BUILD_TARGET_DIR}" ${CARGO_PROFILE:+--profile ${CARGO_PROFILE}} -p fedi-ffi --target $target
 
   if [ "${target:-}" == "aarch64-linux-android" ]; then
     JNILIBS_PATH=arm64-v8a
@@ -44,7 +44,7 @@ done
 # build android lib with ffi-bindgen inside nix
 cd $BRIDGE_ROOT/fedi-ffi
 # note: using '--target-dir' or otherwise this build will completely invalidate previous ones already in the ./target
-cargo run --target-dir "${CARGO_BUILD_TARGET_DIR}/pkg/fedi-ffi/ffi-bindgen-run" --package ffi-bindgen -- generate --language kotlin --out-dir $BRIDGE_ROOT/fedi-android/lib/src/main/kotlin "$BRIDGE_ROOT/fedi-ffi/src/fedi.udl"
+cargo run --target-dir "${CARGO_BUILD_TARGET_DIR}/ffi-bindgen-run" --package ffi-bindgen -- generate --language kotlin --out-dir $BRIDGE_ROOT/fedi-android/lib/src/main/kotlin "$BRIDGE_ROOT/fedi-ffi/src/fedi.udl"
 
 # publish android package to a local maven repository so the app can locate it
 cd $BRIDGE_ROOT/fedi-android

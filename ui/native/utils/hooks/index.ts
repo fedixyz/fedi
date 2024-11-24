@@ -78,6 +78,104 @@ export function useNotificationsPermission() {
     return { notificationsPermission, requestNotificationsPermission }
 }
 
+/*
+ * Permissions hook for storing files to the OS filesystem
+ * which is required for downloading files from chat messages
+ */
+export function useDownloadPermission() {
+    const [downloadPermission, setDownloadPermission] =
+        useState<PermissionStatus>()
+
+    const getPermissions = useCallback(() => {
+        switch (Platform.OS) {
+            case 'ios':
+                // TODO: Update to react-native-permissions v4 and use
+                // PHOTO_LIBRARY_ADD_ONLY since we shouldn't need read
+                // access to the photo library
+                return [PERMISSIONS.IOS.PHOTO_LIBRARY]
+
+            case 'android':
+                // Android 10+ doesn't require any permission to download files
+                if (Platform.Version >= 29) {
+                    return []
+                } else {
+                    return [PERMISSIONS.ANDROID.WRITE_EXTERNAL_STORAGE]
+                }
+
+            default:
+                return null
+        }
+    }, [])
+
+    useEffect(() => {
+        const permissions = getPermissions()
+
+        if (permissions === null) {
+            log.error('useDownloadPermission: unsupported platform')
+            setDownloadPermission('unavailable')
+            return
+        }
+
+        checkMultiple(permissions)
+            .then(statuses => {
+                let allGranted = true
+
+                for (const permission of permissions) {
+                    if (statuses[permission] !== RESULTS.GRANTED) {
+                        allGranted = false
+                        break
+                    }
+                }
+
+                setDownloadPermission(
+                    allGranted ? RESULTS.GRANTED : RESULTS.DENIED,
+                )
+            })
+            .catch(err => {
+                log.error('useDownloadPermission check', err)
+                setDownloadPermission('unavailable')
+            })
+    }, [getPermissions])
+
+    const requestDownloadPermission =
+        useCallback((): Promise<PermissionStatus> => {
+            const permissions = getPermissions()
+            log.info('requestStoragePermission permissions', permissions)
+            if (permissions === null) {
+                log.error('requestDownloadPermission: unsupported platform')
+                throw new Error('Unsupported platform')
+            }
+
+            return requestMultiple(permissions)
+                .then(statuses => {
+                    let allGranted = true
+                    log.info('requestDownloadPermission statuses', statuses)
+
+                    for (const permission of permissions) {
+                        if (statuses[permission] !== RESULTS.GRANTED) {
+                            allGranted = false
+                            break
+                        }
+                    }
+
+                    const result = allGranted ? RESULTS.GRANTED : RESULTS.DENIED
+
+                    setDownloadPermission(result)
+                    return result
+                })
+                .catch(err => {
+                    log.error('useDownloadPermission check', err)
+                    setDownloadPermission('unavailable')
+                    return RESULTS.UNAVAILABLE
+                })
+        }, [getPermissions])
+
+    return { downloadPermission, requestDownloadPermission }
+}
+/*
+ * Permissions hook for reading from the OS filesystem
+ * which is required for attaching files to chat messages
+ */
 export function useStoragePermission() {
     const [storagePermission, setStoragePermission] =
         useState<PermissionStatus>()
@@ -91,7 +189,6 @@ export function useStoragePermission() {
                 if (Platform.Version >= 33) {
                     return [PERMISSIONS.ANDROID.READ_MEDIA_IMAGES]
                 }
-
                 return [PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE]
 
             default:
@@ -129,34 +226,36 @@ export function useStoragePermission() {
             })
     }, [getPermissions])
 
-    const requestStoragePermission = useCallback(() => {
-        const permissions = getPermissions()
+    const requestStoragePermission =
+        useCallback((): Promise<PermissionStatus> => {
+            const permissions = getPermissions()
+            if (permissions === null) {
+                log.error('requestStoragePermission: unsupported platform')
+                throw new Error('Unsupported platform')
+            }
 
-        if (permissions === null) {
-            log.error('requestStoragePermission: unsupported platform')
-            throw new Error('Unsupported platform')
-        }
+            return requestMultiple(permissions)
+                .then(statuses => {
+                    let allGranted = true
 
-        return requestMultiple(permissions)
-            .then(statuses => {
-                let allGranted = true
-
-                for (const permission of permissions) {
-                    if (statuses[permission] !== RESULTS.GRANTED) {
-                        allGranted = false
-                        break
+                    for (const permission of permissions) {
+                        if (statuses[permission] !== RESULTS.GRANTED) {
+                            allGranted = false
+                            break
+                        }
                     }
-                }
 
-                setStoragePermission(
-                    allGranted ? RESULTS.GRANTED : RESULTS.DENIED,
-                )
-            })
-            .catch(err => {
-                log.error('useStoragePermission check', err)
-                setStoragePermission('unavailable')
-            })
-    }, [getPermissions])
+                    const result = allGranted ? RESULTS.GRANTED : RESULTS.DENIED
+
+                    setStoragePermission(result)
+                    return result
+                })
+                .catch(err => {
+                    log.error('useStoragePermission check', err)
+                    setStoragePermission('unavailable')
+                    return RESULTS.UNAVAILABLE
+                })
+        }, [getPermissions])
 
     return { storagePermission, requestStoragePermission }
 }

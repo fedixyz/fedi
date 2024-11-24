@@ -1,7 +1,7 @@
-name: Deploy Public APK to Github
+name: Deploy Public APK
 on:
     release:
-        # these events will not fire for draft releases
+        # will not fire for draft releases
         types: [published, edited]
 
 jobs:
@@ -11,14 +11,45 @@ jobs:
             - name: Checkout script in repo
               uses: actions/checkout@v4
 
-            - name: Run publish-release
+            - name: Prepare APK for Vercel deployment
               uses: actions/github-script@v7
-              id: publish-release
+              id: prepare-apk
               env:
-                  RELEASE_ID: ${{ github.event.release.id }}
+                  RELEASE_ID: ${{ github.event.release.id || vars.TEST_RELEASE_ID }}
+                  SOURCE_FEDI_ORG: ${{ vars.SOURCE_FEDI_ORG }}
+                  SOURCE_FEDI_REPO: ${{ vars.SOURCE_FEDI_REPO }}
               with:
-                  github-token: ${{ secrets.DEPLOY_APK_ACCESS_TOKEN }}
+                  github-token: ${{ secrets.DOWNLOAD_APK_ACCESS_TOKEN }}
                   result-encoding: string
                   script: |
-                      const script = require('./scripts/ci/deploy-public-apk.js')
+                      const script = require('./scripts/ci/prepare-apk.js')
+                      await script({github, context, core})
+
+            - uses: cachix/install-nix-action@v30
+              with:
+                  nix_path: nixpkgs=channel:nixos-23.05
+
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Deploy APK to Vercel
+              id: deploy
+              env:
+                  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+                  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_APK_PROJECT_ID }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+              run: nix develop .#vercel -c ./scripts/ci/vercel-apk.sh
+
+            - name: Update public repo
+              uses: actions/github-script@v7
+              env:
+                  PUBLIC_APK_URL: ${{ vars.PUBLIC_APK_URL }}
+                  PUBLIC_FEDI_ORG: ${{ vars.PUBLIC_FEDI_ORG }}
+                  PUBLIC_FEDI_REPO: ${{ vars.PUBLIC_FEDI_REPO }}
+              with:
+                  github-token: ${{ secrets.PUBLISH_APK_ACCESS_TOKEN }}
+                  script: |
+                      const script = require('./scripts/ci/publish-release.js')
                       await script({github, context, core})

@@ -5,7 +5,7 @@ use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{impl_db_lookup, impl_db_record, Amount};
 
-use crate::types::{OperationFediFeeStatus, RpcTransactionDirection};
+use crate::types::{OperationFediFeeStatus, RpcTransactionDirection, TransactionDateFiatInfo};
 
 #[repr(u8)]
 pub enum BridgeDbPrefix {
@@ -15,6 +15,7 @@ pub enum BridgeDbPrefix {
     #[allow(dead_code)]
     FedimintUserData = 0xb0,
     ClientConfig = 0xb1,
+    #[deprecated]
     XmppUsername = 0xb2,
     InviteCode = 0xb3,
     LastBackupTimestamp = 0xb4,
@@ -43,6 +44,11 @@ pub enum BridgeDbPrefix {
     OutstandingFediFeesPerTXType = 0xbd,
     PendingFediFeesPerTXType = 0xbe,
 
+    // For each TX, we record the fiat display currency and the fiat value at the time of the TX.
+    // This is so that we can display historical values in the TX list as opposed to constantly
+    // updating live fiat values.
+    TransactionDateFiatInfo = 0xbf,
+
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
     #[allow(dead_code)]
@@ -56,15 +62,6 @@ impl_db_record!(
     key = FediRawClientConfigKey,
     value = String,
     db_prefix = BridgeDbPrefix::ClientConfig,
-);
-
-#[derive(Debug, Decodable, Encodable)]
-pub struct XmppUsernameKey;
-
-impl_db_record!(
-    key = XmppUsernameKey,
-    value = String,
-    db_prefix = BridgeDbPrefix::XmppUsername,
 );
 
 #[derive(Debug, Decodable, Encodable)]
@@ -171,4 +168,13 @@ impl_db_record!(
 impl_db_lookup!(
     key = PendingFediFeesPerTXTypeKey,
     query_prefix = PendingFediFeesPerTXTypeKeyPrefix,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct TransactionDateFiatInfoKey(pub OperationId);
+
+impl_db_record!(
+    key = TransactionDateFiatInfoKey,
+    value = TransactionDateFiatInfo,
+    db_prefix = BridgeDbPrefix::TransactionDateFiatInfo,
 );

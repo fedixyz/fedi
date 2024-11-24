@@ -7,7 +7,7 @@ import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     fetchSocialRecovery,
     initializeDeviceId,
-    previewDefaultGroupChats,
+    previewAllDefaultChats,
     refreshFederations,
     selectAuthenticatedMember,
     selectDeviceId,
@@ -84,7 +84,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
             })
             .then(() => {
                 setIsInitialized(true)
-                dispatchRef.current(previewDefaultGroupChats())
+                dispatchRef.current(previewAllDefaultChats())
             })
             .catch(err =>
                 setError(

@@ -115,7 +115,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 240051929
-        versionName "1.19.4"
+        versionName "1.20.6"
     }
 
     packagingOptions {
@@ -193,22 +193,6 @@ android {
     }
     flavorDimensions "env"
     productFlavors {
-        bitcoinlake {
-            dimension "env"
-            applicationIdSuffix ".bitcoinlake"
-        }
-        bitcoinjungle {
-            dimension "env"
-            applicationIdSuffix ".bitcoinjungle"
-        }
-        bitcoinekasi {
-            dimension "env"
-            applicationIdSuffix ".bitcoinekasi"
-        }
-        bravo {
-            dimension "env"
-            applicationIdSuffix ".bravo"
-        }
         nightly {
             dimension "env"
             applicationIdSuffix ".nightly"
@@ -227,6 +211,13 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
 
     implementation "org.fedi:fedi-android:0.1.2"
+
+    // For animated GIF support
+    implementation 'com.facebook.fresco:animated-gif:2.5.0'
+
+    // For WebP support, including animated WebP
+    implementation 'com.facebook.fresco:animated-webp:2.5.0'
+    implementation 'com.facebook.fresco:webpsupport:2.5.0'
 
     // coroutines for async rpc
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1")

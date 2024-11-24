@@ -1,5 +1,4 @@
 import { NativeEventEmitter, NativeModules } from 'react-native'
-import DeviceInfo from 'react-native-device-info'
 import RNFS from 'react-native-fs'
 
 import { FedimintBridgeEventMap } from '@fedi/common/types'
@@ -7,6 +6,7 @@ import { RpcInitOpts } from '@fedi/common/types/bindings'
 import { isDev } from '@fedi/common/utils/environment'
 import { BridgeError, FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
+import { isNightly } from './utils/device-info'
 
 const { BridgeNativeEventEmitter, FedimintFfi } = NativeModules
 
@@ -50,11 +50,7 @@ export async function initializeBridge(deviceId: string) {
         deviceIdentifier: deviceId,
         logLevel: 'info',
         appFlavor: {
-            type: isDev()
-                ? 'dev'
-                : DeviceInfo.getBundleId().includes('nightly')
-                ? 'nightly'
-                : 'bravo',
+            type: isDev() ? 'dev' : isNightly() ? 'nightly' : 'bravo',
         },
     }
     log.info(

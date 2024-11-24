@@ -23,6 +23,7 @@ import {
     getFederationWelcomeMessage,
 } from '@fedi/common/utils/FederationUtils'
 
+import ConnectionStatusCard from '../components/feature/federations/ConnectionStatusCard'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -66,32 +67,58 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
     return (
         <View style={style.container}>
             <View style={style.content}>
-                <FederationLogo federation={federation} size={96} />
-                <Text h2 medium>
-                    {federation.name}
-                </Text>
-                {popupInfo && <PopupFederationPill federation={federation} />}
-                {welcomeMessage && (
-                    <Text style={{ textAlign: 'center' }}>
-                        {welcomeMessage}
+                <FederationLogo federation={federation} size={72} />
+                <View style={style.textContainer}>
+                    <Text
+                        h2
+                        medium
+                        maxFontSizeMultiplier={1.2}
+                        style={style.title}>
+                        {federation.name}
                     </Text>
-                )}
-                <Text>
-                    {t('phrases.wallet-balance', {
-                        balance: amountUtils.formatSats(walletBalance),
-                    })}
-                </Text>
-                <Text>
-                    {t('phrases.spend-limit', {
-                        limit: amountUtils.formatSats(spendLimit),
-                    })}
-                </Text>
+                    {popupInfo && (
+                        <PopupFederationPill federation={federation} />
+                    )}
+                    {welcomeMessage && (
+                        <Text
+                            medium
+                            style={style.textStyle}
+                            maxFontSizeMultiplier={1.2}>
+                            {welcomeMessage}
+                        </Text>
+                    )}
+                    <View style={style.balanceContainer}>
+                        <Text
+                            medium
+                            style={style.textStyle}
+                            maxFontSizeMultiplier={1.2}>
+                            {t('phrases.wallet-balance', {
+                                balance: amountUtils.formatSats(walletBalance),
+                            })}
+                        </Text>
+                        <Text
+                            medium
+                            style={style.textStyle}
+                            maxFontSizeMultiplier={1.2}>
+                            {t('phrases.spend-limit', {
+                                limit: amountUtils.formatSats(spendLimit),
+                            })}
+                        </Text>
+                    </View>
+                </View>
+                <ConnectionStatusCard
+                    status={federation.status}
+                    hideArrow={true}
+                />
             </View>
             {tosUrl && (
                 <Pressable
                     onPress={() => Linking.openURL(tosUrl)}
                     style={style.tosLink}>
-                    <Text>
+                    <Text
+                        adjustsFontSizeToFit
+                        style={style.textStyle}
+                        numberOfLines={1}>
                         {t(
                             'feature.federations.federation-terms-and-conditions',
                         )}
@@ -160,6 +187,21 @@ const styles = (theme: Theme, insets: EdgeInsets) =>
             alignItems: 'center',
             justifyContent: 'center',
             gap: 16,
+        },
+        textContainer: {
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: theme.spacing.md,
+        },
+        balanceContainer: {
+            alignItems: 'center',
+        },
+        title: {
+            textAlign: 'center',
+        },
+        textStyle: {
+            lineHeight: 20,
+            textAlign: 'center',
         },
         pillEndsSoon: {
             backgroundColor: theme.colors.red,

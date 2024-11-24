@@ -12,7 +12,9 @@ import {
     GuardianStatus,
     RpcAmount,
     RpcFeeDetails,
+    RpcMediaSource,
     RpcPayAddressResponse,
+    RpcRoomId,
     RpcStabilityPoolAccountInfo,
 } from '../types/bindings'
 import amountUtils from './AmountUtils'
@@ -232,14 +234,6 @@ export class FedimintBridge {
         })
     }
 
-    async getXmppCredentials(federationId: string) {
-        return this.rpcTyped('xmppCredentials', { federationId })
-    }
-
-    async backupXmppUsername(username: string, federationId: string) {
-        return this.rpcTyped('backupXmppUsername', { username, federationId })
-    }
-
     async listGateways(federationId: string) {
         return this.rpcTyped('listGateways', { federationId })
     }
@@ -360,6 +354,34 @@ export class FedimintBridge {
     }
 
     /*** MATRIX ***/
+
+    async matrixSendAttachment(args: bindings.RpcPayload<'matrixSendAttachment'>) {
+        return this.rpcTyped('matrixSendAttachment', args)
+    }
+
+    async matrixEditMessage(roomId: RpcRoomId, eventId: string, newContent: string) {
+        return this.rpcTyped('matrixEditMessage', { roomId, eventId, newContent })
+    }
+
+    async matrixDeleteMessage(roomId: RpcRoomId, eventId: string, reason: string | null) {
+        return this.rpcTyped('matrixDeleteMessage', { roomId, eventId, reason })
+    }
+
+    async matrixDownloadFile(path: string, mediaSource: RpcMediaSource) {
+        return this.rpcTyped('matrixDownloadFile', { path, mediaSource })
+    }
+
+    async matrixStartPoll(roomId: RpcRoomId, question: string, answers: Array<string>) {
+        return this.rpcTyped('matrixStartPoll', { roomId, question, answers })
+    }
+
+    async matrixEndPoll(roomId: RpcRoomId, pollStartId: string) {
+        return this.rpcTyped('matrixEndPoll', { roomId, pollStartId })
+    }
+
+    async matrixRespondToPoll(roomId: RpcRoomId, pollStartId: string, selections: Array<string>) {
+        return this.rpcTyped('matrixRespondToPoll', { roomId, pollStartId, selections })
+    }
 
     async matrixInit() {
         return this.rpcTyped('matrixInit', {})

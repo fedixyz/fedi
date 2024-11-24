@@ -9,6 +9,7 @@ import {
     RecoveryProgressEvent,
     RpcCommunity,
     RpcFederation,
+    RpcFederationMaybeLoading,
     RpcFederationPreview,
     RpcInvoice,
     RpcLightningGateway,
@@ -147,18 +148,51 @@ export enum Network {
     regtest = 'regtest',
 }
 
-export type Federation = Omit<RpcFederation, 'network' | 'meta'> & {
-    meta: ClientConfigMetadata
-    network: Network
+/**
+ * Connection Status of a federation's guardians
+ *
+ * - online: all guardians are online
+ * - unstable: At least one guardian is offline, but
+ *   consensus is still met
+ * - offline: Consensus is not met
+ */
+export type FederationStatus = 'online' | 'unstable' | 'offline'
+
+export interface LoadingFederation {
+    id: string
+    meta?: never
+    readonly init_state: 'loading'
     readonly hasWallet: true
 }
+export interface FederationInitFailure {
+    id: string
+    error: string
+    meta?: never
+    readonly init_state: 'failed'
+    readonly hasWallet: true
+}
+
+export type LoadedFederation = Omit<RpcFederation, 'network' | 'meta'> & {
+    meta: ClientConfigMetadata
+    network: Network | undefined
+    status: FederationStatus
+    readonly init_state: 'ready'
+    readonly hasWallet: true
+}
+
+export type Federation =
+    | LoadingFederation
+    | FederationInitFailure
+    | LoadedFederation
 
 export type Community = Omit<RpcCommunity, 'meta'> & {
     id: Federation['id']
     meta: ClientConfigMetadata
+    status: FederationStatus
     // Added for compatibility with Mods
     readonly network: undefined
     readonly hasWallet: false
+    readonly init_state: 'ready'
 }
 
 export type RpcCommunityPreview = RpcCommunity
@@ -170,7 +204,9 @@ export type JoinPreview = FederationPreview | CommunityPreview
 // Check if hasWallet is true to determine if it's a wallet type or community
 export type FederationListItem = Federation | Community
 
-export type PublicFederation = Pick<Federation, 'id' | 'name' | 'meta'>
+export type LoadedFederationListItem = LoadedFederation | Community
+
+export type PublicFederation = Pick<LoadedFederation, 'id' | 'name' | 'meta'>
 
 export type SeedWords = RpcResponse<'getMnemonic'>
 
@@ -197,7 +233,7 @@ export type FederationPreview = Omit<RpcFederationPreview, 'meta'> & {
  * Mocked-out social backup and recovery events
  */
 
-export type FederationEvent = Federation
+export type FederationEvent = RpcFederationMaybeLoading
 
 export interface TransactionEvent {
     federationId: string

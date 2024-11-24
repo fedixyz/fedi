@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "1.19.4",
+    "version": "1.20.6",
     "private": true,
     "engines": {
         "node": ">=16"
@@ -23,12 +23,16 @@
         "lint": "yarn lint:tsc && yarn lint:eslint",
         "lint:tsc": "tsc --noEmit",
         "lint:eslint": "eslint . --ext .js,.jsx,.ts,.tsx",
-        "format": "prettier --write ."
+        "format": "prettier --write .",
+        "devtools": "( npx react-devtools > /dev/null 2>&1 & )"
     },
     "dependencies": {
+        "@likashefqet/react-native-image-zoom": "^4.1.0",
         "@notifee/react-native": "7.8.0",
         "@react-native-async-storage/async-storage": "1.18.2",
+        "@react-native-camera-roll/camera-roll": "^7.8.3",
         "@react-native-clipboard/clipboard": "^1.11.1",
+        "@react-native-community/netinfo": "^11.4.0",
         "@react-native-firebase/app": "^17.5.0",
         "@react-native-firebase/messaging": "^17.5.0",
         "@react-navigation/bottom-tabs": "^6.4.1",

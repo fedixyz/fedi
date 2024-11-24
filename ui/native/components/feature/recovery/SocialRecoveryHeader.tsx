@@ -57,13 +57,13 @@ const SocialRecoveryHeader: React.FC<SocialRecoveryHeaderProps> = ({
             }
             closeButton={closeButton}
             headerRight={
-                cancelButton && (
+                cancelButton ? (
                     <>
                         <Pressable onPress={onCloseButton}>
                             <SvgImage name="Close" />
                         </Pressable>
                     </>
-                )
+                ) : undefined
             }
         />
     )
