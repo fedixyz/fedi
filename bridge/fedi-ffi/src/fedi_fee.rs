@@ -8,7 +8,7 @@ use fedimint_core::core::ModuleKind;
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::Amount;
-use fedimint_ln_client::{LightningClientModule, OutgoingLightningPayment};
+use fedimint_ln_client::OutgoingLightningPayment;
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
 use tokio::sync::{Mutex, OwnedMutexGuard};
@@ -16,6 +16,7 @@ use tracing::{error, info, instrument, warn};
 
 use crate::api::IFediApi;
 use crate::constants::MILLION;
+use crate::federation_v2::client::ClientExt;
 use crate::federation_v2::db::{
     OutstandingFediFeesPerTXTypeKey, OutstandingFediFeesPerTXTypeKeyPrefix,
 };
@@ -352,7 +353,7 @@ impl FediFeeRemittanceService {
         let extra_meta = LightningSendMetadata {
             is_fedi_fee_remittance: true,
         };
-        let ln = fed.client.get_first_module::<LightningClientModule>();
+        let ln = fed.client.ln()?;
         let OutgoingLightningPayment { payment_type, .. } = ln
             .pay_bolt11_invoice(gateway, invoice.to_owned(), extra_meta.clone())
             .await?;

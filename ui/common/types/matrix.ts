@@ -36,6 +36,7 @@ export interface MatrixRoomPreview {
     avatarUrl?: string
     body: string
     timestamp: number
+    isDeleted: boolean
 }
 export type MatrixGroupPreview = {
     info: MatrixRoom

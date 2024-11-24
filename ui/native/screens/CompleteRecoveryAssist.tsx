@@ -14,6 +14,7 @@ import LineBreak from '../components/ui/LineBreak'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppSelector, useBridge } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
+import { prefixFileUri } from '../utils/media'
 
 const log = makeLog('CompleteRecoveryAssist')
 
@@ -84,7 +85,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
             <View style={styles(theme).cameraContainer}>
                 <Video
                     ref={videoRef}
-                    source={{ uri: `file://${videoPath}` }} // Can be a URL or a local file.
+                    source={{ uri: prefixFileUri(videoPath) }} // Can be a URL or a local file.
                     style={[
                         styles(theme).video,
                         isPaused ? styles(theme).shaded : {},

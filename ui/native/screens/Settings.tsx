@@ -49,7 +49,7 @@ import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { Federation, FederationListItem } from '../types'
+import { LoadedFederation, LoadedFederationListItem } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('Settings')
@@ -92,7 +92,7 @@ const Settings: React.FC<Props> = ({ navigation }: Props) => {
     // FIXME: this needs some kind of loading state
     // TODO: this should be an thunkified action creator
     const handleLeaveFederation = useCallback(
-        async (federation: FederationListItem) => {
+        async (federation: LoadedFederationListItem) => {
             try {
                 // FIXME: currently this specific order of operations fixes a
                 // bug where the username would get stuck in storage and when
@@ -124,7 +124,7 @@ const Settings: React.FC<Props> = ({ navigation }: Props) => {
     )
 
     // TODO: Implement leaving no-wallet communities
-    const confirmLeaveFederation = (federation: FederationListItem) => {
+    const confirmLeaveFederation = (federation: LoadedFederationListItem) => {
         const alertTitle = `${t('feature.federations.leave-federation')} - ${
             federation.name
         }`
@@ -164,7 +164,7 @@ const Settings: React.FC<Props> = ({ navigation }: Props) => {
         // Don't allow leaving sats balance is greater than 100
         else if (
             federation.hasWallet &&
-            amountUtils.msatToSat((federation as Federation).balance) > 100
+            amountUtils.msatToSat(federation.balance) > 100
         ) {
             Alert.alert(
                 alertTitle,
@@ -192,7 +192,7 @@ const Settings: React.FC<Props> = ({ navigation }: Props) => {
         }
     }
 
-    const exportTransactionsAsCsv = async (federation: Federation) => {
+    const exportTransactionsAsCsv = async (federation: LoadedFederation) => {
         setExportingFederationId(federation.id)
 
         const res = await exportTransactions(federation)
@@ -290,7 +290,7 @@ const Settings: React.FC<Props> = ({ navigation }: Props) => {
                     label={t('feature.backup.export-transactions-to-csv')}
                     onPress={() =>
                         federation.hasWallet &&
-                        exportTransactionsAsCsv(federation as Federation)
+                        exportTransactionsAsCsv(federation)
                     }
                     disabled={!!exportingFederationId}
                 />

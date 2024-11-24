@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::SystemTime;
 
-use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::db::{IDatabaseTransactionOpsCoreTyped, MigrationContext};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{impl_db_lookup, impl_db_record, Amount, PeerId, TransactionId};
 use secp256k1_zkp::PublicKey;
@@ -233,7 +233,8 @@ impl_db_lookup!(
 );
 
 /// Migrate DB from version 1 to version 2 by wiping everything
-pub async fn migrate_to_v2(dbtx: &mut DatabaseTransaction<'_>) -> Result<(), anyhow::Error> {
+pub async fn migrate_to_v2(mut ctx: MigrationContext<'_>) -> Result<(), anyhow::Error> {
+    let mut dbtx = ctx.dbtx();
     dbtx.remove_by_prefix(&IdleBalanceKeyPrefix).await;
     dbtx.remove_by_prefix(&StagedSeeksKeyPrefix).await;
     dbtx.remove_by_prefix(&StagedProvidesKeyPrefix).await;

@@ -96,25 +96,25 @@ tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
 fedimint_threshold_crypto = { version = "0.2.1", package = "fedimint-threshold-crypto" }
 
-fedimintd = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-cli = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-build = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-server = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-client-legacy = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-aead = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-devimint = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
-ln-gateway = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.2-rc.1-fed-3" }
+fedimintd = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-cli = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-build = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-core = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-server = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-api-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-derive-secret = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-mint-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-wallet-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-ln-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-ln-common = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-meta-client = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-aead = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-rocksdb = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-bip39 = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+fedimint-logging = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+devimint = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
+ln-gateway = { git = "https://github.com/fedibtc/fedimint", tag = "v0.4.3-rc.2-fed4" }
 
 
 # Uncomment these to use local fedimint v2

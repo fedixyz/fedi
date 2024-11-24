@@ -1,6 +1,6 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import {
@@ -32,25 +32,25 @@ const ChatConversationHeader: React.FC = () => {
     const preview = useAppSelector(s => selectGroupPreview(s, roomId))
     const user = useAppSelector(s => selectMatrixUser(s, userId))
 
-    const style = styles(theme)
+    const style = useMemo(() => styles(theme), [theme])
 
-    let avatar: React.ReactNode
-    let name = ''
-    if (room) {
-        name = room?.name
-        avatar = <ChatAvatar room={room} size={AvatarSize.sm} />
-    } else if (preview) {
-        name = preview?.info.name
-        avatar = <ChatAvatar room={preview.info} size={AvatarSize.sm} />
-    } else if (user) {
-        name = user?.displayName || user?.id
-        avatar = <ChatAvatar user={user} size={AvatarSize.sm} />
-    } else if (displayName) {
-        const placeHolderUser = { id: '', displayName }
-        name = displayName
-        avatar = <ChatAvatar size={AvatarSize.sm} user={placeHolderUser} />
-    } else {
-        avatar = (
+    const name = useMemo(() => {
+        if (room) return room?.name
+        else if (preview) return preview?.info.name
+        else if (user) return user?.displayName || user?.id
+        return displayName || ''
+    }, [displayName, preview, room, user])
+
+    const avatar = useMemo(() => {
+        if (room) return <ChatAvatar room={room} size={AvatarSize.sm} />
+        else if (preview)
+            return <ChatAvatar room={preview.info} size={AvatarSize.sm} />
+        else if (user) return <ChatAvatar user={user} size={AvatarSize.sm} />
+        else if (displayName) {
+            const placeHolderUser = { id: '', displayName }
+            return <ChatAvatar size={AvatarSize.sm} user={placeHolderUser} />
+        }
+        return (
             <Avatar
                 size={AvatarSize.sm}
                 id={''}
@@ -60,55 +60,62 @@ const ChatConversationHeader: React.FC = () => {
                 }
             />
         )
-    }
+    }, [displayName, name, preview, room, theme, user])
 
-    return (
-        <>
-            <Header
-                backButton
-                onBackButtonPress={() =>
-                    navigation.dispatch(resetToChatsScreen())
-                }
-                containerStyle={style.container}
-                centerContainerStyle={style.headerCenterContainer}
-                headerCenter={
-                    <Pressable
-                        style={style.memberContainer}
-                        hitSlop={10}
-                        onPress={() => {
-                            // make sure we have joined room and its not just a preview to show admin settings
-                            if (room) {
-                                navigation.navigate('RoomSettings', { roomId })
+    const handleBackButtonPress = useCallback(() => {
+        navigation.dispatch(resetToChatsScreen())
+    }, [navigation])
+
+    const HeaderCenter = useMemo(() => {
+        return (
+            <Pressable
+                style={style.memberContainer}
+                hitSlop={10}
+                onPress={() => {
+                    // make sure we have joined room and its not just a preview to show admin settings
+                    if (room) {
+                        navigation.navigate('RoomSettings', { roomId })
+                    }
+                }}>
+                <>
+                    {avatar}
+                    <View style={style.textContainer}>
+                        <Text
+                            bold
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            maxFontSizeMultiplier={
+                                theme.multipliers.headerMaxFontMultiplier
                             }
-                        }}>
-                        {avatar}
-                        <View style={style.textContainer}>
+                            style={style.memberText}>
+                            {name}
+                        </Text>
+                        {room?.directUserId && (
                             <Text
-                                bold
+                                caption
                                 numberOfLines={1}
                                 adjustsFontSizeToFit
                                 maxFontSizeMultiplier={
                                     theme.multipliers.headerMaxFontMultiplier
                                 }
-                                style={style.memberText}>
-                                {name}
+                                style={style.shortIdText}>
+                                {getUserSuffix(room.directUserId)}
                             </Text>
-                            {room?.directUserId && (
-                                <Text
-                                    caption
-                                    numberOfLines={1}
-                                    adjustsFontSizeToFit
-                                    maxFontSizeMultiplier={
-                                        theme.multipliers
-                                            .headerMaxFontMultiplier
-                                    }
-                                    style={style.shortIdText}>
-                                    {getUserSuffix(room.directUserId)}
-                                </Text>
-                            )}
-                        </View>
-                    </Pressable>
-                }
+                        )}
+                    </View>
+                </>
+            </Pressable>
+        )
+    }, [avatar, name, navigation, room, roomId, theme, style])
+
+    return (
+        <>
+            <Header
+                backButton
+                onBackButtonPress={handleBackButtonPress}
+                containerStyle={style.container}
+                centerContainerStyle={style.headerCenterContainer}
+                headerCenter={HeaderCenter}
             />
             <ChatConnectionBadge offset={40} />
         </>

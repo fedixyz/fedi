@@ -33,6 +33,10 @@ const ChatTile = ({ room, onSelect, onLongPress }: ChatTileProps) => {
         [showUnreadIndicator],
     )
     const previewMessage = useMemo(() => room?.preview?.body, [room?.preview])
+    const previewMessageIsDeleted = useMemo(
+        () => room?.preview?.isDeleted,
+        [room?.preview],
+    )
 
     return (
         <Pressable
@@ -92,7 +96,9 @@ const ChatTile = ({ room, onSelect, onLongPress }: ChatTileProps) => {
                                 HACK: public rooms don't show a preview message so you have to click into it to paginate backwards
                                 TODO: Replace with proper room previews
                             */}
-                            {room.isPublic && room.broadcastOnly
+                            {previewMessageIsDeleted
+                                ? t('feature.chat.message-deleted')
+                                : room.isPublic && room.broadcastOnly
                                 ? t('feature.chat.click-here-for-announcements')
                                 : t('feature.chat.no-messages')}
                         </Text>

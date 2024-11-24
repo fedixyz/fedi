@@ -48,10 +48,8 @@ export const makeTxnDetailStatusText = (
                 switch (txn.lnState?.type) {
                     case 'waitingForRefund':
                         return t('feature.send.waiting-for-refund')
-                    case 'refunded':
-                        return t('words.refund')
                     case 'canceled':
-                        return t('words.expired')
+                    case 'refunded':
                     case 'failed':
                         return t('words.failed')
                     default:
@@ -100,6 +98,8 @@ export const makeTxnDetailStatusText = (
                     case 'waitingForTransaction':
                         return t('words.pending')
                     case 'waitingForConfirmation':
+                        return t('words.seen')
+                    case 'confirmed':
                         return t('words.seen')
                     case 'claimed':
                         return t('words.complete')
@@ -269,10 +269,13 @@ export const makeTxnStatusText = (t: TFunction, txn: Transaction): string => {
                 switch (txn.lnState?.type) {
                     case 'waitingForRefund':
                         return t('phrases.refund-pending')
-                    case 'refunded':
-                        return t('words.refund')
+                    case 'success':
+                        return t('phrases.sent-bitcoin')
+                    case 'created':
+                    case 'funded':
+                        return t('words.pending')
                     case 'canceled':
-                        return t('words.expired')
+                    case 'refunded':
                     case 'failed':
                         return t('words.failed')
                     default:
@@ -459,6 +462,16 @@ export const makeTxnDetailItems = (
             copyable: true,
             truncated: true,
         })
+
+        if (txn.lnState?.type === 'success' && txn.direction === 'send') {
+            items.push({
+                label: t('words.preimage'),
+                value: txn.lnState.preimage,
+                copiedMessage: t('phrases.copied-to-clipboard'),
+                copyable: true,
+                truncated: true,
+            })
+        }
     }
     if (txn.bitcoin) {
         items.push({

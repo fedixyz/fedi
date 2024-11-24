@@ -11,7 +11,7 @@ export FEDI_SOCIAL_RECOVERY_MODULE_ENABLE=1
 export RUST_BACKTRACE=full
 
 # fedi packages
-source scripts/build.sh ""
+source scripts/test-common.sh ""
 echo "Running in temporary directory $FM_TEST_DIR"
 
 export FM_ADMIN_PASSWORD=p

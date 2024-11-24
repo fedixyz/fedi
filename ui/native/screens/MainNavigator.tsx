@@ -78,10 +78,12 @@ import AddFediMod from './AddFediMod'
 import BitcoinRequest from './BitcoinRequest'
 import BugReport from './BugReport'
 import BugReportSuccess from './BugReportSuccess'
+import ChatImageViewer from './ChatImageViewer'
 import ChatRoomConversation from './ChatRoomConversation'
 import ChatRoomInvite from './ChatRoomInvite'
 import ChatRoomMembers from './ChatRoomMembers'
 import ChatUserConversation from './ChatUserConversation'
+import ChatVideoViewer from './ChatVideoViewer'
 import ChatWallet from './ChatWallet'
 import ChooseBackupMethod from './ChooseBackupMethod'
 import ChooseRecoveryMethod from './ChooseRecoveryMethod'
@@ -210,6 +212,7 @@ export const MainNavigator = () => {
         <Stack.Navigator
             screenOptions={{
                 orientation: 'portrait',
+                freezeOnBlur: true,
             }}
             initialRouteName={'Initializing'}
             id={MAIN_NAVIGATOR_ID}>
@@ -478,6 +481,16 @@ export const MainNavigator = () => {
                                             />
                                         ),
                                     })}
+                                />
+                                <Stack.Screen
+                                    name="ChatImageViewer"
+                                    component={ChatImageViewer}
+                                    options={() => ({ headerShown: false })}
+                                />
+                                <Stack.Screen
+                                    name="ChatVideoViewer"
+                                    component={ChatVideoViewer}
+                                    options={() => ({ headerShown: false })}
                                 />
                             </Stack.Group>
 

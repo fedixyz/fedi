@@ -1,18 +1,22 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { StyleSheet, View } from 'react-native'
+import { Pressable as NativePressable, StyleSheet, View } from 'react-native'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
+import { selectShouldShowDegradedStatus } from '@fedi/common/redux'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 
-import { FederationListItem, MSats } from '../../../types'
+import { useAppSelector } from '../../../state/hooks'
+import { LoadedFederationListItem, MSats } from '../../../types'
 import { Pressable } from '../../ui/Pressable'
 import { PressableIcon } from '../../ui/PressableIcon'
 import { FederationLogo } from '../federations/FederationLogo'
+import { ConnectionTag } from './ConnectionTag'
 
 type CommunityTileProps = {
-    community: FederationListItem
+    community: LoadedFederationListItem
     onSelect?: () => void
     onSelectQr?: () => void
+    onSelectStatus?: () => void
     showQr?: boolean
     isActiveCommunity?: boolean
 }
@@ -21,10 +25,14 @@ const CommunityTile = ({
     community,
     onSelect = () => null,
     onSelectQr = () => null,
+    onSelectStatus = () => null,
     isActiveCommunity = false,
 }: CommunityTileProps) => {
     const { theme } = useTheme()
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const shouldShowDegradedStatus = useAppSelector(s =>
+        selectShouldShowDegradedStatus(s, community),
+    )
 
     const { formattedSecondaryAmount, formattedPrimaryAmount } =
         makeFormattedAmountsFromMSats(
@@ -58,6 +66,15 @@ const CommunityTile = ({
                             </Text>
                         </View>
                     )}
+                    {/* Hides this tag if there is a local internet problem */}
+                    {shouldShowDegradedStatus && (
+                        <NativePressable onPress={onSelectStatus}>
+                            <ConnectionTag
+                                status={community.status}
+                                size="small"
+                            />
+                        </NativePressable>
+                    )}
                 </View>
             </View>
             {showInviteCode && (
@@ -78,7 +95,6 @@ const styles = (theme: Theme) =>
             justifyContent: 'space-between',
             borderRadius: 0,
             paddingHorizontal: theme.spacing.lg,
-            paddingVertical: theme.spacing.lg,
             alignItems: 'center',
             flexDirection: 'row',
             gap: theme.spacing.lg,

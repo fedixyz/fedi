@@ -1,7 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { selectFederation } from '@fedi/common/redux'
+import { selectLoadedFederation } from '@fedi/common/redux'
 
 import { useAppSelector } from '../hooks'
 import { QRDialog } from './QRDialog'
@@ -19,7 +19,9 @@ export const InviteMemberDialog: React.FC<Props> = ({
 }: Props) => {
     const { t } = useTranslation()
 
-    const federation = useAppSelector(s => selectFederation(s, federationId))
+    const federation = useAppSelector(s =>
+        selectLoadedFederation(s, federationId),
+    )
 
     const inviteCode = federation?.inviteCode
     if (!inviteCode) return null

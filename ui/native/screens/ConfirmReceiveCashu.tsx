@@ -107,7 +107,8 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
                     onPressFees={() => setShowFeeBreakdown(true)}
                     formattedTotalFee={formattedTotalFee}
                     onSend={handleSend}
-                    senderText={t('feature.stabilitypool.bitcoin-balance')}
+                    senderText={t('feature.receive.cashu-ecash')}
+                    sendButtonText={t('words.melt')}
                     receiverText={sendTo ?? ''}
                     isLoading={isPayingInvoice}
                 />

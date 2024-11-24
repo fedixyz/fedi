@@ -31,6 +31,10 @@ function LanguageSettings() {
             value: 'pt',
         },
         {
+            label: 'ဘာသာမန်',
+            value: 'my',
+        },
+        {
             label: 'Bahasa Indonesia',
             value: 'id',
         },

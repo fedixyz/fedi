@@ -70,6 +70,16 @@ pub struct RpcFederation {
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[serde(tag = "init_state")]
+#[ts(export, export_to = "target/bindings/")]
+pub enum RpcFederationMaybeLoading {
+    Loading { id: RpcFederationId },
+    Failed { error: String, id: RpcFederationId },
+    Ready(RpcFederation),
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub struct RpcBridgeStatus {
     pub matrix_setup: bool,
@@ -286,18 +296,16 @@ pub struct RpcLightningGateway {
     pub active: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct FediBackupMetadata {
-    // TODO: would be nice to rename this to xmpp_username but would need to basically migrate the
-    // backups
-    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    // don't use this field
+    username: Option<String>,
 }
 
 impl FediBackupMetadata {
-    pub fn new(xmpp_username: Option<String>) -> Self {
-        Self {
-            username: xmpp_username,
-        }
+    pub fn new() -> Self {
+        Self { username: None }
     }
 }
 
@@ -353,6 +361,15 @@ pub struct RpcSignedLnurlMessage {
     pub pubkey: RpcPublicKey,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "target/bindings/")]
+pub struct RpcMediaUploadParams {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub mime_type: String,
+}
+
 #[derive(
     Debug, Clone, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, TS, Encodable, Decodable,
 )]
@@ -392,6 +409,94 @@ pub struct RpcTransaction {
     pub oob_state: Option<RpcOOBState>,
     pub onchain_withdrawal_details: Option<WithdrawalDetails>,
     pub stability_pool_state: Option<RpcStabilityPoolTransactionState>,
+    pub tx_date_fiat_info: Option<TransactionDateFiatInfo>,
+}
+
+impl RpcTransaction {
+    pub fn new(
+        id: String,
+        created_at: u64,
+        amount: RpcAmount,
+        direction: RpcTransactionDirection,
+        fedi_fee_status: Option<RpcOperationFediFeeStatus>,
+        tx_date_fiat_info: Option<TransactionDateFiatInfo>,
+    ) -> Self {
+        Self {
+            id,
+            created_at,
+            amount,
+            direction,
+            fedi_fee_status,
+            notes: Default::default(),
+            onchain_state: Default::default(),
+            bitcoin: Default::default(),
+            ln_state: Default::default(),
+            lightning: Default::default(),
+            oob_state: Default::default(),
+            onchain_withdrawal_details: Default::default(),
+            stability_pool_state: Default::default(),
+            tx_date_fiat_info,
+        }
+    }
+
+    pub fn with_notes(self, notes: String) -> Self {
+        Self { notes, ..self }
+    }
+
+    pub fn with_onchain_state(self, onchain_state: RpcOnchainState) -> Self {
+        Self {
+            onchain_state: Some(onchain_state),
+            ..self
+        }
+    }
+
+    pub fn with_bitcoin(self, bitcoin: RpcBitcoinDetails) -> Self {
+        Self {
+            bitcoin: Some(bitcoin),
+            ..self
+        }
+    }
+
+    pub fn with_ln_state(self, ln_state: RpcLnState) -> Self {
+        Self {
+            ln_state: Some(ln_state),
+            ..self
+        }
+    }
+
+    pub fn with_lightning(self, lightning: RpcLightningDetails) -> Self {
+        Self {
+            lightning: Some(lightning),
+            ..self
+        }
+    }
+
+    pub fn with_oob_state(self, oob_state: RpcOOBState) -> Self {
+        Self {
+            oob_state: Some(oob_state),
+            ..self
+        }
+    }
+
+    pub fn with_onchain_withdrawal_details(
+        self,
+        onchain_withdrawal_details: WithdrawalDetails,
+    ) -> Self {
+        Self {
+            onchain_withdrawal_details: Some(onchain_withdrawal_details),
+            ..self
+        }
+    }
+
+    pub fn with_stability_pool_state(
+        self,
+        stability_pool_state: RpcStabilityPoolTransactionState,
+    ) -> Self {
+        Self {
+            stability_pool_state: Some(stability_pool_state),
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -425,8 +530,8 @@ pub enum RpcOnchainState {
 }
 
 impl RpcOnchainState {
-    pub fn from_deposit_state(opt: Option<DepositStateV2>) -> Option<RpcOnchainState> {
-        let state = match opt? {
+    pub fn from_deposit_state(state: DepositStateV2) -> RpcOnchainState {
+        Self::DepositState(match state {
             DepositStateV2::WaitingForTransaction => RpcOnchainDepositState::WaitingForTransaction,
             DepositStateV2::WaitingForConfirmation { btc_out_point, .. } => {
                 RpcOnchainDepositState::WaitingForConfirmation(
@@ -436,13 +541,15 @@ impl RpcOnchainState {
             DepositStateV2::Claimed { btc_out_point, .. } => RpcOnchainDepositState::Claimed(
                 RpcOnchainDepositTransactionData::new(&btc_out_point),
             ),
+            DepositStateV2::Confirmed { btc_out_point, .. } => RpcOnchainDepositState::Confirmed(
+                RpcOnchainDepositTransactionData::new(&btc_out_point),
+            ),
             DepositStateV2::Failed(_) => RpcOnchainDepositState::Failed,
-        };
-        Some(Self::DepositState(state))
+        })
     }
 
-    pub fn from_withdraw_state(opt: Option<WithdrawState>) -> Option<RpcOnchainState> {
-        opt.map(|state| match state {
+    pub fn from_withdraw_state(state: WithdrawState) -> RpcOnchainState {
+        match state {
             WithdrawState::Created => {
                 RpcOnchainState::WithdrawState(RpcOnchainWithdrawState::Created)
             }
@@ -452,7 +559,7 @@ impl RpcOnchainState {
             WithdrawState::Failed(_) => {
                 RpcOnchainState::WithdrawState(RpcOnchainWithdrawState::Failed)
             }
-        })
+        }
     }
 }
 
@@ -463,6 +570,7 @@ impl RpcOnchainState {
 pub enum RpcOnchainDepositState {
     WaitingForTransaction,
     WaitingForConfirmation(RpcOnchainDepositTransactionData),
+    Confirmed(RpcOnchainDepositTransactionData),
     Claimed(RpcOnchainDepositTransactionData),
     Failed,
 }
@@ -509,8 +617,8 @@ pub enum RpcLnState {
 }
 
 impl RpcLnState {
-    pub fn from_ln_recv_state(opt: Option<LnReceiveState>) -> Option<RpcLnState> {
-        opt.map(|state| match state {
+    pub fn from_ln_recv_state(state: LnReceiveState) -> RpcLnState {
+        match state {
             LnReceiveState::Created => RpcLnState::RecvState(RpcLnReceiveState::Created),
             LnReceiveState::WaitingForPayment { invoice, timeout } => {
                 RpcLnState::RecvState(RpcLnReceiveState::WaitingForPayment { invoice, timeout })
@@ -525,10 +633,10 @@ impl RpcLnState {
                 RpcLnState::RecvState(RpcLnReceiveState::AwaitingFunds)
             }
             LnReceiveState::Claimed => RpcLnState::RecvState(RpcLnReceiveState::Claimed),
-        })
+        }
     }
-    pub fn from_ln_pay_state(opt: Option<LnPayState>) -> Option<RpcLnState> {
-        opt.map(|state| match state {
+    pub fn from_ln_pay_state(state: LnPayState) -> RpcLnState {
+        match state {
             LnPayState::Created => RpcLnState::PayState(RpcLnPayState::Created),
             LnPayState::Canceled => RpcLnState::PayState(RpcLnPayState::Canceled),
             LnPayState::Funded { block_height } => {
@@ -545,7 +653,7 @@ impl RpcLnState {
                 RpcLnState::PayState(RpcLnPayState::Refunded { gateway_error })
             }
             LnPayState::UnexpectedError { .. } => RpcLnState::PayState(RpcLnPayState::Failed),
-        })
+        }
     }
 }
 
@@ -664,23 +772,18 @@ pub struct RpcLightningDetails {
     pub fee: Option<RpcAmount>,
 }
 
-// FIXME: should probaby type these as bytes
-#[derive(Deserialize, Serialize, TS)]
+// In order to display time-of-transaction fiat value and currency, we need to
+// store this info for each transaction. We store the currency code as simply a
+// string so that new currency codes added on the front-end side don't require
+// additional bridge work. The value is recorded as hundredths, which would
+// typically correspond to cents.
+#[derive(Debug, Serialize, Deserialize, TS, Encodable, Decodable)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
-pub struct RpcXmppCredentials {
-    pub password: String,
-    pub keypair_seed: String,
-    pub username: Option<String>,
-}
-
-// Implement Debug manually to ignore sensitive fields
-impl std::fmt::Debug for RpcXmppCredentials {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RpcXmppCredentials")
-            .field("username", &self.username)
-            .finish()
-    }
+pub struct TransactionDateFiatInfo {
+    pub fiat_code: String,
+    #[ts(type = "number")]
+    pub fiat_value_hundredths: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -776,7 +879,7 @@ impl From<ClientAccountInfo> for RpcStabilityPoolAccountInfo {
 /// is to be debited) is not in the user's possession until the
 /// operation completes. So for receives, we just record the ppm, and when the
 /// operation succeeds, we debit the fee.
-#[derive(Debug, Encodable, Decodable)]
+#[derive(Debug, Encodable, Decodable, Clone)]
 pub enum OperationFediFeeStatus {
     PendingSend { fedi_fee: Amount },
     PendingReceive { fedi_fee_ppm: u64 },

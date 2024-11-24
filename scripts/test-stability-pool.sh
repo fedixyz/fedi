@@ -4,6 +4,7 @@
 set -euo pipefail
 
 source scripts/common.sh
+source scripts/test-common.sh
 
 export RUST_LOG="${RUST_LOG:-info}"
 export RUST_BACKTRACE=1
@@ -11,8 +12,6 @@ export INCLUDE_STABILITY_POOL=1
 export FEDI_STABILITY_POOL_MODULE_ENABLE=1
 export USE_STABILITY_POOL_TEST_PARAMS=1
 export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
-
-source ./scripts/build.sh ""
 
 # needs the compiled binaries in the PATH
 PATH="$CARGO_BIN_DIR:$PATH"

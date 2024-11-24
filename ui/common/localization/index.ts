@@ -11,6 +11,7 @@ import commonRW from './rw/common.json'
 import commonSO from './so/common.json'
 import commonSW from './sw/common.json'
 import commonTL from './tl/common.json'
+import commonMY from './my/common.json'
 
 export const resources = {
     en: {
@@ -51,5 +52,8 @@ export const resources = {
     },
     am: {
         translation: commonAM,
+    },
+    my: {
+        translation: commonMY,
     },
 }

@@ -85,7 +85,7 @@ const CommunityChatTile = ({
                     <SvgImage
                         name="ChevronRightSmall"
                         color={theme.colors.grey}
-                        dimensions={{ width: 8, height: 16 }}
+                        dimensions={{ width: 10, height: 18 }}
                     />
                 </>
             </Pressable>

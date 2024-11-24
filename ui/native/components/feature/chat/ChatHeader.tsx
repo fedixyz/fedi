@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -26,9 +26,9 @@ const ChatHeader: React.FC = () => {
     const [hasViewedMemberQr, completeViewedMemberQr] =
         useNuxStep('hasViewedMemberQr')
 
-    if (shouldShowUpgradeChat) return null
+    const style = useMemo(() => styles(theme), [theme])
 
-    const style = styles(theme)
+    if (shouldShowUpgradeChat) return null
 
     return (
         <>

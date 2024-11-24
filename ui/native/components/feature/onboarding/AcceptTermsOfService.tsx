@@ -49,8 +49,11 @@ const AcceptTermsOfService: React.FC<Props> = ({
                     title={t('feature.onboarding.i-accept')}
                     onPress={async () => {
                         setIsAccepting(true)
-                        await onAccept()
-                        setIsAccepting(false)
+                        try {
+                            await onAccept()
+                        } catch {
+                            setIsAccepting(false)
+                        }
                     }}
                     containerStyle={styles(theme).button}
                     loading={isAccepting}

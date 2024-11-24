@@ -1,3 +1,4 @@
+import NetInfo from '@react-native-community/netinfo'
 import { configureStore } from '@reduxjs/toolkit'
 import { AppState as RNAppState } from 'react-native'
 
@@ -7,6 +8,7 @@ import {
     fetchCurrencyPrices,
     initializeCommonStore,
     setCurrencyLocale,
+    setNetworkInfo,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -48,8 +50,15 @@ export function initializeNativeStore() {
         }
     })
 
+    // Whenever the app changes its network state, update the store
+    const networkSubscription = NetInfo.addEventListener(state => {
+        log.debug('Network status changed', state)
+        store.dispatch(setNetworkInfo(state))
+    })
+
     return () => {
         unsubscribe()
         changeSubscription.remove()
+        networkSubscription()
     }
 }

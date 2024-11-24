@@ -39,11 +39,6 @@ const WalletHeader: React.FC = () => {
                         <Text bold style={style.title}>
                             {t('words.bitcoin')}
                         </Text>
-                        <SvgImage
-                            name="ChevronRightSmall"
-                            color={theme.colors.secondary}
-                            dimensions={{ width: 6, height: 12 }}
-                        />
                     </View>
                     {network && network !== Network.bitcoin && (
                         <Text small medium style={style.title}>

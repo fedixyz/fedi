@@ -1,7 +1,7 @@
 name: Release Fedi Nightly
 on:
     workflow_dispatch:
-    schedule:
+    schedule: # runs every day at 5am UTC
         - cron: '0 5 * * *'
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
               with:
                   submodules: true
 
-            - uses: cachix/install-nix-action@v26
+            - uses: cachix/install-nix-action@v30
               with:
                   nix_path: nixpkgs=channel:nixos-22.05
 

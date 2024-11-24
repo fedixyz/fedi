@@ -39,11 +39,6 @@ const WalletHeader: React.FC = () => {
                             t('words.balance'),
                         )}`}
                     </Text>
-                    <SvgImage
-                        name="ChevronRightSmall"
-                        color={theme.colors.secondary}
-                        dimensions={{ width: 6, height: 12 }}
-                    />
                 </View>
                 <SvgImage
                     name="Beta"

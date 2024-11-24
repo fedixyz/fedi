@@ -105,14 +105,15 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         setIsJoining(true)
         if (tosUrl) {
             setShowTerms(true)
+            setIsJoining(false)
         } else {
             try {
                 await onJoin(selectedRecoverFromScratch)
             } catch {
+                setIsJoining(false)
                 /* no-op, onJoin should handle */
             }
         }
-        setIsJoining(false)
     }
 
     const welcomeTitle = isReturningMember

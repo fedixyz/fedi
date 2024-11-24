@@ -12,7 +12,9 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { fedimint } from '../../../bridge'
 import { NavigationHook } from '../../../types/navigation'
 import HoloLoader from '../../ui/HoloLoader'
+import { OptionalGradient } from '../../ui/OptionalGradient'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import { bubbleGradient } from './ChatEvent'
 import ReceiveForeignEcashOverlay from './ReceiveForeignEcashOverlay'
 
 type Props = {
@@ -105,7 +107,9 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
     }
 
     return (
-        <>
+        <OptionalGradient
+            gradient={bubbleGradient}
+            style={[style.bubbleInner, style.orangeBubble]}>
             <Text style={style.messageText}>{messageText}</Text>
             {extra || null}
             {isHandlingForeignEcash && (
@@ -119,7 +123,7 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
                     }}
                 />
             )}
-        </>
+        </OptionalGradient>
     )
 }
 
@@ -153,6 +157,12 @@ const styles = (theme: Theme) =>
         },
         messageText: {
             color: theme.colors.secondary,
+        },
+        orangeBubble: {
+            backgroundColor: theme.colors.orange,
+        },
+        bubbleInner: {
+            padding: 10,
         },
     })
 

@@ -7,6 +7,7 @@ import { StyleSheet, View } from 'react-native'
 import { selectStableBalancePending } from '@fedi/common/redux/wallet'
 
 import { useAppSelector, useStabilityPool } from '../../../state/hooks'
+import SvgImage from '../../ui/SvgImage'
 
 const Balance: React.FC = () => {
     const { t } = useTranslation()
@@ -23,24 +24,32 @@ const Balance: React.FC = () => {
 
     return (
         <View style={style.container}>
-            <Text
-                medium
-                style={style.balanceText}
-                adjustsFontSizeToFit
-                numberOfLines={1}>
-                {`${formattedStableBalance}`}
-            </Text>
-            {stableBalancePending !== 0 && (
+            <View style={style.balanceContainer}>
                 <Text
-                    small
+                    medium
                     style={style.balanceText}
                     adjustsFontSizeToFit
                     numberOfLines={1}>
-                    {t('feature.stabilitypool.amount-pending', {
-                        amount: formattedPending,
-                    })}
+                    {`${formattedStableBalance}`}
                 </Text>
-            )}
+                {stableBalancePending !== 0 && (
+                    <Text
+                        small
+                        style={style.balanceText}
+                        adjustsFontSizeToFit
+                        numberOfLines={1}>
+                        {t('feature.stabilitypool.amount-pending', {
+                            amount: formattedPending,
+                        })}
+                    </Text>
+                )}
+            </View>
+            <SvgImage
+                name="ChevronRightSmall"
+                color={theme.colors.secondary}
+                dimensions={{ width: 10, height: 18 }}
+                svgProps={{ style: style.svgStyle }}
+            />
         </View>
     )
 }
@@ -48,12 +57,20 @@ const Balance: React.FC = () => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 0,
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.lg,
+        },
+        balanceContainer: {
             gap: theme.spacing.xxs,
         },
         balanceText: {
             textAlign: 'right',
             color: theme.colors.secondary,
+        },
+        svgStyle: {
+            opacity: 0.7,
         },
     })
 

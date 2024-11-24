@@ -12,7 +12,7 @@ import {
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import {
-    previewDefaultGroupChats,
+    previewAllDefaultChats,
     refetchMatrixRoomList,
     selectIsChatEmpty,
     selectMatrixChatsList,
@@ -45,7 +45,7 @@ const ChatsList: React.FC = () => {
         setIsRefetching(true)
         Promise.all([
             dispatch(refetchMatrixRoomList()),
-            dispatch(previewDefaultGroupChats()),
+            dispatch(previewAllDefaultChats()),
         ])
             .catch(() => null) // no-op
             .finally(() => setIsRefetching(false))

@@ -10,6 +10,7 @@ export type Props = {
     onSend: () => void
     formattedTotalFee: string
     senderText: string | React.ReactNode
+    sendButtonText?: string
     receiverText?: string | React.ReactNode
     isLoading?: boolean
 }
@@ -20,6 +21,7 @@ const SendPreviewDetails: React.FC<Props> = ({
     formattedTotalFee,
     receiverText,
     senderText,
+    sendButtonText,
     isLoading = false,
 }) => {
     const { theme } = useTheme()
@@ -97,7 +99,7 @@ const SendPreviewDetails: React.FC<Props> = ({
                 loading={isLoading}
                 title={
                     <Text medium caption style={style.buttonText}>
-                        {t('words.send')}
+                        {sendButtonText ?? t('words.send')}
                     </Text>
                 }
             />

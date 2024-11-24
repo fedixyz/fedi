@@ -26,7 +26,6 @@ import {
     Federation,
     Keypair,
     XmppClientStatus,
-    XmppCredentials,
 } from '../types'
 import {
     getFederationChatServerDomain,
@@ -59,7 +58,6 @@ const initialFederationChatState = {
     clientLastOnlineAt: 0,
     clientError: null as string | null,
     authenticatedMember: null as ChatMember | null,
-    credentials: null as XmppCredentials | null,
     messages: [] as ChatMessage[],
     groups: [] as ChatGroup[],
     groupRoles: {} as Record<Chat['id'], string | undefined>,
@@ -585,10 +583,6 @@ const selectFederationChatState = (
         s.chat,
         federationId || selectActiveFederation(s)?.id || '',
     )
-
-/** @deprecated XMPP legacy code */
-export const selectChatCredentials = (s: CommonState) =>
-    selectFederationChatState(s).credentials
 
 /** @deprecated XMPP legacy code */
 export const selectChatEncryptionKeys = (s: CommonState) =>

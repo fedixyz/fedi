@@ -20,6 +20,10 @@ use tracing_subscriber::{EnvFilter, Layer};
 
 use super::event::{Event, EventSink, TypedEventExt};
 
+pub fn default_log_filter() -> String {
+    format!("info,{LOG_CLIENT}=debug,fediffi=trace,{LOG_CLIENT_REACTOR}=trace,{LOG_CLIENT_MODULE_WALLET}=trace")
+}
+
 pub struct ReactNativeLayer(pub EventSink);
 
 impl<S> Layer<S> for ReactNativeLayer
@@ -70,9 +74,7 @@ pub fn init_logging(
             .with_filter(EnvFilter::from_str(log_filter).unwrap_or_default()),
     );
 
-    let reg = reg.with(log_file_layer.with_filter(EnvFilter::new(
-        format!("info,{LOG_CLIENT}=debug,fediffi=trace,{LOG_CLIENT_REACTOR}=trace,{LOG_CLIENT_MODULE_WALLET}=trace"),
-    )));
+    let reg = reg.with(log_file_layer.with_filter(EnvFilter::new(default_log_filter())));
 
     let res = if cfg!(target_os = "android") && option_env!("FEDI_DEV_LOGS").is_some() {
         let time = fedimint_core::time::now()

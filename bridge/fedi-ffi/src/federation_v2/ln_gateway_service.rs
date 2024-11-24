@@ -4,30 +4,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bitcoin::secp256k1::{self, PublicKey};
-use fedimint_client::{Client, ClientHandle, ClientModuleInstance};
+use fedimint_client::{Client, ClientHandle};
 use fedimint_core::config::META_VETTED_GATEWAYS_KEY;
 use fedimint_core::db::{AutocommitError, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::task::TaskGroup;
-use fedimint_ln_client::LightningClientModule;
 use fedimint_ln_common::{LightningGateway, LightningGatewayAnnouncement};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use tracing::warn;
 
+use super::client::ClientExt;
 use super::db::LastActiveGatewayKey;
 
 #[derive(Debug, Clone)]
 pub struct LnGatewayService {}
-
-pub trait ClientExt {
-    fn ln(&self) -> ClientModuleInstance<'_, LightningClientModule>;
-}
-
-impl ClientExt for Client {
-    fn ln(&self) -> ClientModuleInstance<'_, LightningClientModule> {
-        self.get_first_module()
-    }
-}
 
 /// Duration to fetch updates before gateways are about to expire
 const ABOUT_TO_EXPIRE_DURATION: Duration = Duration::from_secs(30);
@@ -35,12 +25,12 @@ const ABOUT_TO_EXPIRE_DURATION: Duration = Duration::from_secs(30);
 impl LnGatewayService {
     pub fn new(client: Arc<ClientHandle>, task_group: &TaskGroup) -> Self {
         task_group.spawn_cancellable("gateway_update_cache", async move {
-            client
-                .ln()
-                .update_gateway_cache_continuously(|gws| {
+            if let Ok(ln) = client.ln() {
+                ln.update_gateway_cache_continuously(|gws| {
                     Self::maybe_filter_vetted_gateways(&client, gws)
                 })
                 .await
+            }
         });
         Self {}
     }
@@ -117,15 +107,16 @@ impl LnGatewayService {
         &self,
         client: &Client,
     ) -> anyhow::Result<Option<LightningGateway>> {
+        let ln = client.ln()?;
         let last_active_gateway_id = self.get_active_gateway(client).await;
-        let mut gws = Self::selectable_gateways(client, client.ln().list_gateways().await).await;
+        let mut gws = Self::selectable_gateways(client, ln.list_gateways().await).await;
 
         // this should be rare, the background service should keep the gateways updated.
         if gws.is_empty() {
-            if let Err(error) = client.ln().update_gateway_cache().await {
+            if let Err(error) = ln.update_gateway_cache().await {
                 warn!(?error, "updating gateway cache failed");
             }
-            gws = Self::selectable_gateways(client, client.ln().list_gateways().await).await;
+            gws = Self::selectable_gateways(client, ln.list_gateways().await).await;
         }
 
         if let Some(gw) = gws

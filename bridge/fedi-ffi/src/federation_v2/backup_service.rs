@@ -14,7 +14,7 @@ use ts_rs::TS;
 
 use super::super::constants::BACKUP_FREQUENCY;
 use super::super::types::FediBackupMetadata;
-use super::db::{LastBackupTimestampKey, XmppUsernameKey};
+use super::db::LastBackupTimestampKey;
 use crate::utils::to_unix_time;
 
 #[derive(Default)]
@@ -74,13 +74,7 @@ impl BackupService {
     }
 
     async fn backup_inner(&self, client: &Client) -> Result<()> {
-        let username = client
-            .db()
-            .begin_transaction_nc()
-            .await
-            .get_value(&XmppUsernameKey)
-            .await;
-        let backup = FediBackupMetadata::new(username);
+        let backup = FediBackupMetadata::new();
         client
             .backup_to_federation(Metadata::from_json_serialized(backup))
             .await?;

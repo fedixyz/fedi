@@ -115,6 +115,10 @@ lint-ui:
 test-ui:
   pushd ./ui && yarn test && popd
 
+# run UI tests
+clean-ui:
+  @./scripts/ui/clean-ui.sh
+
 fedimint-cli REF REV *ARGS:
   @nix run "git+https://github.com/fedimint/fedimint.git?ref={{REF}}&rev={{REV}}#ci.fedimint-cli" -- {{ARGS}}
 

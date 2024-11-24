@@ -1,3 +1,4 @@
+pub mod client;
 pub mod db;
 mod dev;
 mod meta;
@@ -15,7 +16,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::secp256k1::PublicKey;
 use bitcoin::{Address, Network};
-use db::{FediRawClientConfigKey, InviteCodeKey, TransactionNotesKey, XmppUsernameKey};
+use client::ClientExt;
+use db::{FediRawClientConfigKey, InviteCodeKey, TransactionNotesKey};
 use fedi_social_client::common::VerificationDocument;
 use fedi_social_client::{
     FediSocialClientInit, RecoveryFile, RecoveryId, SocialBackup, SocialRecoveryClient,
@@ -26,9 +28,8 @@ use fedimint_api_client::api::{
 };
 use fedimint_api_client::download_from_invite_code;
 use fedimint_bip39::Bip39RootSecretStrategy;
-use fedimint_client::backup::{ClientBackup, Metadata};
 use fedimint_client::db::ChronologicalOperationLogKey;
-use fedimint_client::meta::MetaService;
+use fedimint_client::meta::{FetchKind, MetaService, MetaSource};
 use fedimint_client::module::recovery::RecoveryProgress;
 use fedimint_client::module::ClientModule;
 use fedimint_client::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
@@ -45,40 +46,41 @@ use fedimint_core::module::ApiRequestErased;
 use fedimint_core::task::{timeout, MaybeSend, MaybeSync, TaskGroup};
 use fedimint_core::timing::TimeReporter;
 use fedimint_core::util::backon::FibonacciBuilder as FibonacciBackoff;
-use fedimint_core::{maybe_add_send_sync, Amount, PeerId};
+use fedimint_core::{maybe_add_send_sync, Amount, PeerId, SATS_PER_BITCOIN};
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use fedimint_ln_client::{
-    InternalPayState, LightningClientInit, LightningClientModule, LightningOperationMeta,
-    LightningOperationMetaPay, LightningOperationMetaVariant, LnPayState, LnReceiveState,
-    OutgoingLightningPayment, PayBolt11InvoiceError, PayType,
+    InternalPayState, LightningClientInit, LightningOperationMeta, LightningOperationMetaPay,
+    LightningOperationMetaVariant, LnPayState, LnReceiveState, OutgoingLightningPayment,
+    PayBolt11InvoiceError, PayType,
 };
 use fedimint_ln_common::config::FeeToAmount;
 use fedimint_ln_common::LightningGateway;
+use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use fedimint_mint_client::{
     spendable_notes_to_operation_id, MintClientInit, MintClientModule, MintOperationMeta,
     MintOperationMetaVariant, OOBNotes, ReissueExternalNotesState, SelectNotesWithExactAmount,
 };
 use fedimint_wallet_client::{
-    DepositStateV2, PegOutFees, WalletClientInit, WalletClientModule, WalletOperationMeta,
-    WalletOperationMetaVariant, WithdrawState,
+    DepositStateV2, PegOutFees, WalletClientInit, WalletOperationMeta, WalletOperationMetaVariant,
+    WithdrawState,
 };
 use futures::{FutureExt, StreamExt};
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
 use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries, MetaServiceExt};
 use serde::de::DeserializeOwned;
 use stability_pool_client::{
-    ClientAccountInfo, StabilityPoolClientInit, StabilityPoolClientModule,
-    StabilityPoolDepositOperationState, StabilityPoolMeta, StabilityPoolWithdrawalOperationState,
+    ClientAccountInfo, StabilityPoolClientInit, StabilityPoolDepositOperationState,
+    StabilityPoolMeta, StabilityPoolWithdrawalOperationState,
 };
 use tokio::sync::{Mutex, OnceCell};
-use tracing::{error, info, warn, Level};
+use tracing::{error, info, instrument, warn, Level};
 
 use self::backup_service::BackupService;
 pub use self::backup_service::BackupServiceStatus;
 use self::db::{
     LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey, OutstandingFediFeesPerTXTypeKey,
     OutstandingFediFeesPerTXTypeKeyPrefix, PendingFediFeesPerTXTypeKey,
-    PendingFediFeesPerTXTypeKeyPrefix,
+    PendingFediFeesPerTXTypeKeyPrefix, TransactionDateFiatInfoKey,
 };
 use self::dev::{
     override_localhost, override_localhost_client_config, override_localhost_invite_code,
@@ -87,25 +89,25 @@ use self::ln_gateway_service::LnGatewayService;
 use self::stability_pool_sweeper_service::StabilityPoolSweeperService;
 use super::constants::{
     LIGHTNING_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE, ONE_WEEK, PAY_INVOICE_TIMEOUT,
-    REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE, WALLET_OPERATION_TYPE, XMPP_CHILD_ID,
-    XMPP_KEYPAIR_SEED, XMPP_PASSWORD,
+    REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE, WALLET_OPERATION_TYPE,
 };
 use super::event::{Event, EventSink, TypedEventExt};
 use super::types::{
-    federation_v2_to_rpc_federation, FediBackupMetadata, RpcAmount, RpcInvoice,
-    RpcLightningGateway, RpcPayInvoiceResponse, RpcPublicKey, RpcXmppCredentials,
+    federation_v2_to_rpc_federation, RpcAmount, RpcInvoice, RpcLightningGateway,
+    RpcPayInvoiceResponse, RpcPublicKey,
 };
 use crate::error::ErrorCode;
 use crate::event::RecoveryProgressEvent;
 use crate::features::FeatureCatalog;
 use crate::fedi_fee::{FediFeeHelper, FediFeeRemittanceService};
-use crate::storage::FediFeeSchedule;
+use crate::storage::{AppState, FediFeeSchedule};
 use crate::types::{
     EcashReceiveMetadata, EcashSendMetadata, GuardianStatus, LightningSendMetadata,
-    OperationFediFeeStatus, RpcBitcoinDetails, RpcEcashInfo, RpcFederationId, RpcFeeDetails,
-    RpcGenerateEcashResponse, RpcLightningDetails, RpcLnState, RpcOOBState, RpcOnchainState,
-    RpcOperationFediFeeStatus, RpcPayAddressResponse, RpcStabilityPoolTransactionState,
-    RpcTransaction, RpcTransactionDirection, WithdrawalDetails,
+    OperationFediFeeStatus, RpcBitcoinDetails, RpcEcashInfo, RpcFederationId,
+    RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse,
+    RpcLightningDetails, RpcLnState, RpcOOBState, RpcOnchainState, RpcOperationFediFeeStatus,
+    RpcPayAddressResponse, RpcReturningMemberStatus, RpcStabilityPoolTransactionState,
+    RpcTransaction, RpcTransactionDirection, TransactionDateFiatInfo, WithdrawalDetails,
 };
 use crate::utils::{display_currency, to_unix_time, unix_now};
 
@@ -167,14 +169,16 @@ pub struct FederationV2 {
     // virtual balance) and the time of use (spending ecash and recording fee).
     pub spend_guard: Arc<Mutex<()>>,
     pub feature_catalog: Arc<FeatureCatalog>,
+    pub app_state: Arc<AppState>,
 }
 
 impl FederationV2 {
     /// Instantiate Federation from FediConfig
     async fn build_client_builder(db: Database) -> anyhow::Result<ClientBuilder> {
         let mut client_builder = fedimint_client::Client::builder(db).await?;
-        client_builder
-            .with_meta_service(MetaService::new(LegacyMetaSourceWithExternalUrl::default()));
+        client_builder.with_meta_service(MetaService::new(MetaModuleMetaSourceWithFallback::new(
+            LegacyMetaSourceWithExternalUrl::default(),
+        )));
         client_builder.with_module(MintClientInit);
         client_builder.with_module(LightningClientInit::default());
         client_builder.with_module(WalletClientInit(None));
@@ -191,6 +195,7 @@ impl FederationV2 {
         secret: DerivableSecret,
         fedi_fee_helper: Arc<FediFeeHelper>,
         feature_catalog: Arc<FeatureCatalog>,
+        app_state: Arc<AppState>,
     ) -> Self {
         let recovering = ng.has_pending_recoveries();
         let client = Arc::new(ng);
@@ -208,6 +213,7 @@ impl FederationV2 {
             client,
             spend_guard: Default::default(),
             feature_catalog,
+            app_state,
         };
         if !recovering {
             federation.start_background_tasks().await;
@@ -248,6 +254,8 @@ impl FederationV2 {
         let federation = self.clone();
         self.task_group
             .spawn_cancellable("send_meta_updates", async move {
+                federation.client.meta_service().wait_initialization().await;
+                federation.send_federation_event().await;
                 let mut subscribe_to_updates =
                     std::pin::pin!(federation.client.meta_service().subscribe_to_updates());
                 while subscribe_to_updates.next().await.is_some() {
@@ -259,10 +267,7 @@ impl FederationV2 {
         // seeks don't accidentally disappear if a test takes longer than expected and a
         // stability pool cycle elapses during the course of the test.
         #[cfg(not(test))]
-        if self
-            .client
-            .get_first_instance(&stability_pool_client::common::KIND)
-            .is_some()
+        if self.client.sp().is_ok()
             && self
                 .stability_pool_sweeper_service
                 .set(StabilityPoolSweeperService::new(
@@ -295,6 +300,7 @@ impl FederationV2 {
     }
 
     /// Instantiate Federation from FediConfig
+    #[allow(clippy::too_many_arguments)]
     pub async fn from_db(
         db: Database,
         event_sink: EventSink,
@@ -303,6 +309,7 @@ impl FederationV2 {
         device_index: u8,
         fedi_fee_helper: Arc<FediFeeHelper>,
         feature_catalog: Arc<FeatureCatalog>,
+        app_state: Arc<AppState>,
     ) -> anyhow::Result<Self> {
         let client_builder = Self::build_client_builder(db.clone()).await?;
         let config = Client::get_config_from_db(&db)
@@ -330,21 +337,23 @@ impl FederationV2 {
             auxiliary_secret,
             fedi_fee_helper,
             feature_catalog,
+            app_state,
         )
         .await)
     }
 
-    pub async fn download_client_config(
-        invite_code_string: &str,
+    pub async fn federation_preview(
+        invite_code: &str,
         root_mnemonic: &bip39::Mnemonic,
         device_index: u8,
         should_override_localhost: bool,
-    ) -> anyhow::Result<(ClientConfig, anyhow::Result<Option<ClientBackup>>)> {
-        let mut invite_code: InviteCode = InviteCode::from_str(invite_code_string)?;
+    ) -> Result<RpcFederationPreview> {
+        let invite_code = invite_code.to_lowercase();
+        let mut invite_code = InviteCode::from_str(&invite_code)?;
         if should_override_localhost {
             override_localhost_invite_code(&mut invite_code);
         }
-        let api = DynGlobalApi::from_invite_code(&invite_code);
+        let api_single_gaurdian = DynGlobalApi::from_invite_code(&invite_code);
         let client_root_sercet = {
             let federation_id = invite_code.federation_id();
             // We do an additional derivation using `DerivableSecret::federation_key` since
@@ -352,17 +361,44 @@ impl FederationV2 {
             Self::client_root_secret_from_root_mnemonic(root_mnemonic, &federation_id, device_index)
                 .federation_key(&federation_id)
         };
-
-        // we only use this to check if backup exists
         let decoders = ModuleDecoderRegistry::default().with_fallback();
         let (client_config, backup) = tokio::join!(
             download_from_invite_code(&invite_code),
-            Client::download_backup_from_federation_static(&api, &client_root_sercet, &decoders,)
+            Client::download_backup_from_federation_static(
+                &api_single_gaurdian,
+                &client_root_sercet,
+                &decoders,
+            )
         );
+        let config = client_config.context("failed to connect")?;
 
-        Ok((client_config?, backup))
+        let meta_source =
+            MetaModuleMetaSourceWithFallback::new(LegacyMetaSourceWithExternalUrl::default());
+        let meta = meta_source
+            .fetch(&config, &api_single_gaurdian, FetchKind::Initial, None)
+            .await?
+            .values
+            .into_iter()
+            .map(|(k, v)| (k.0, v.0))
+            .collect();
+
+        Ok(RpcFederationPreview {
+            id: RpcFederationId(config.global.calculate_federation_id().to_string()),
+            name: config
+                .global
+                .federation_name()
+                .map(|x| x.to_owned())
+                .unwrap_or(config.global.calculate_federation_id().to_string()[0..8].to_string()),
+            meta,
+            invite_code: invite_code.to_string(),
+            version: 2,
+            returning_member_status: match backup {
+                Ok(Some(_)) => RpcReturningMemberStatus::ReturningMember,
+                Ok(None) => RpcReturningMemberStatus::NewMember,
+                Err(_) => RpcReturningMemberStatus::Unknown,
+            },
+        })
     }
-
     /// Download federation configs using an invite code. Save client config to
     /// correct database with Storage.
     #[allow(clippy::too_many_arguments)]
@@ -376,6 +412,7 @@ impl FederationV2 {
         recover_from_scratch: bool,
         fedi_fee_helper: Arc<FediFeeHelper>,
         feature_catalog: Arc<FeatureCatalog>,
+        app_state: Arc<AppState>,
     ) -> Result<Self> {
         let mut invite_code =
             InviteCode::from_str(&invite_code_string).context("invalid invite code")?;
@@ -426,11 +463,11 @@ impl FederationV2 {
                 .await?
         } else {
             info!("backup not found");
+            // FIXME: api secret
             client_builder
                 .join(client_secret, client_config, None)
                 .await?
         };
-        let metadata = client.get_metadata().await;
         let this = Self::new(
             client,
             event_sink,
@@ -438,9 +475,9 @@ impl FederationV2 {
             auxiliary_secret,
             fedi_fee_helper,
             feature_catalog,
+            app_state,
         )
         .await;
-        this.save_restored_metadata(metadata).await?;
         Ok(this)
     }
 
@@ -468,11 +505,7 @@ impl FederationV2 {
         if self.recovering() {
             None
         } else {
-            Some(
-                self.client
-                    .get_first_module::<WalletClientModule>()
-                    .get_network(),
-            )
+            self.client.wallet().map(|module| module.get_network()).ok()
         }
     }
 
@@ -485,14 +518,32 @@ impl FederationV2 {
     }
 
     pub async fn get_cached_meta(&self) -> MetaEntries {
-        match self
-            .client
-            .meta_service()
-            .entries_from_db(self.client.db())
-            .await
+        let cfg_fetcher = async { self.client.config().await.global.meta };
+
+        // Wait at most 2s for very first meta fetching
+        match timeout(
+            Duration::from_secs(2),
+            self.client.meta_service().entries(self.client.db()),
+        )
+        .await
         {
-            Some(entries) => entries,
-            None => self.client.config().await.global.meta,
+            Ok(Some(entries)) => entries,
+            Ok(None) => cfg_fetcher.await,
+            Err(_) => {
+                warn!(
+                    "Timeout when fetching meta for federation ID {}",
+                    self.federation_id()
+                );
+                match self
+                    .client
+                    .meta_service()
+                    .entries_from_db(self.client.db())
+                    .await
+                {
+                    Some(entries) => entries,
+                    None => cfg_fetcher.await,
+                }
+            }
         }
     }
 
@@ -518,13 +569,25 @@ impl FederationV2 {
         if self.recovering() {
             return Amount::ZERO;
         }
-        let mint_client = self.client.get_first_module::<MintClientModule>();
+        let Ok(mint_client) = self.client.mint() else {
+            return Amount::ZERO;
+        };
         let mut dbtx = mint_client.db.begin_transaction_nc().await;
-        mint_client
+        let raw_fedimint_balance = mint_client
             .get_wallet_summary(&mut dbtx)
             .await
-            .total_amount()
-            - (self.get_outstanding_fedi_fees().await + self.get_pending_fedi_fees().await)
+            .total_amount();
+        let fedi_fee_sum =
+            self.get_outstanding_fedi_fees().await + self.get_pending_fedi_fees().await;
+        if raw_fedimint_balance < fedi_fee_sum {
+            warn!(
+                "Fee {} is somehow greater than fm balance {} for federation {}",
+                fedi_fee_sum,
+                raw_fedimint_balance,
+                self.federation_id()
+            );
+        }
+        raw_fedimint_balance.saturating_sub(fedi_fee_sum)
     }
 
     pub async fn guardian_status(&self) -> anyhow::Result<Vec<GuardianStatus>> {
@@ -637,21 +700,21 @@ impl FederationV2 {
     /// Generate bitcoin address
     pub async fn generate_address(&self) -> Result<String> {
         // FIXME: add fedi fees once fedimint await primary module outputs
-        // let fedi_fee_ppm = self
-        //     .fedi_fee_helper
-        //     .get_fedi_fee_ppm(
-        //         self.federation_id().to_string(),
-        //         fedimint_wallet_client::KIND,
-        //         RpcTransactionDirection::Receive,
-        //     )
-        //     .await?;
+        let fedi_fee_ppm = self
+            .fedi_fee_helper
+            .get_fedi_fee_ppm(
+                self.federation_id().to_string(),
+                fedimint_wallet_client::KIND,
+                RpcTransactionDirection::Receive,
+            )
+            .await?;
         let (operation_id, address, _) = self
             .client
-            .get_first_module::<WalletClientModule>()
+            .wallet()?
             .allocate_deposit_address_expert_only(())
             .await?;
-        // self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
-        //     .await?;
+        self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
+            .await?;
 
         self.subscribe_deposit(operation_id, address.to_string())
             .await?;
@@ -677,7 +740,7 @@ impl FederationV2 {
         let gateway = self.select_gateway().await?;
         let (operation_id, invoice, _) = self
             .client
-            .get_first_module::<LightningClientModule>()
+            .ln()?
             .create_bolt11_invoice(
                 amount.0,
                 lightning_invoice::Bolt11InvoiceDescription::Direct(
@@ -691,6 +754,7 @@ impl FederationV2 {
 
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
             .await?;
+        let _ = self.record_tx_date_fiat_info(operation_id, amount.0).await;
         self.subscribe_invoice(operation_id, invoice.clone())
             .await?;
 
@@ -712,7 +776,10 @@ impl FederationV2 {
         fed.task_group
             .clone()
             .spawn_cancellable("subscribe deposit", async move {
-                let wallet = fed.client.get_first_module::<WalletClientModule>();
+                let Ok(wallet) = fed.client.wallet() else {
+                    error!("Wallet module not present!");
+                    return;
+                };
                 let Ok(mut updates) = wallet
                     .subscribe_deposit(operation_id)
                     .await
@@ -723,6 +790,13 @@ impl FederationV2 {
                 else {
                     return;
                 };
+                let pending_fedi_fee_status = fed
+                    .client
+                    .db()
+                    .begin_transaction_nc()
+                    .await
+                    .get_value(&OperationFediFeeStatusKey(operation_id))
+                    .await;
                 while let Some(update) = updates.next().await {
                     info!("Update: {:?}", update);
                     fed.update_operation_state(operation_id, update.clone())
@@ -730,36 +804,40 @@ impl FederationV2 {
                     let deposit_outcome = update.clone();
                     match update {
                         DepositStateV2::WaitingForConfirmation { btc_deposited, .. }
+                        | DepositStateV2::Confirmed { btc_deposited, .. }
                         | DepositStateV2::Claimed { btc_deposited, .. } => {
-                            let fees = wallet.get_fee_consensus().peg_in_abs;
-                            let amount = Amount::from_sats(btc_deposited.to_sat()) - fees;
+                            let federation_fees = wallet.get_fee_consensus().peg_in_abs;
+                            let amount =
+                                Amount::from_sats(btc_deposited.to_sat()) - federation_fees;
                             // FIXME: add fedi fees once fedimint await primary module outputs
-                            // let fedi_fee_status = fed
-                            //     .write_success_receive_fedi_fee(operation_id, amount)
-                            //     .await
-                            //     .map(|(_, status)| status)
-                            //     .ok()
-                            //     .map(Into::into);
-                            let onchain_details = Some(RpcBitcoinDetails {
+                            let fedi_fee_status = if let DepositStateV2::Claimed { .. } = &update {
+                                fed.write_success_receive_fedi_fee(operation_id, amount)
+                                    .await
+                                    .map(|(_, status)| status)
+                                    .ok()
+                            } else {
+                                pending_fedi_fee_status.clone()
+                            };
+                            let _ = fed.record_tx_date_fiat_info(operation_id, amount).await;
+                            let tx_date_fiat_info = fed
+                                .dbtx()
+                                .await
+                                .get_value(&TransactionDateFiatInfoKey(operation_id))
+                                .await;
+                            let transaction = RpcTransaction::new(
+                                operation_id.fmt_full().to_string(),
+                                unix_now().expect("unix time should exist"),
+                                RpcAmount(amount),
+                                RpcTransactionDirection::Receive,
+                                fedi_fee_status.map(Into::into),
+                                tx_date_fiat_info,
+                            )
+                            .with_onchain_state(RpcOnchainState::from_deposit_state(
+                                deposit_outcome,
+                            ))
+                            .with_bitcoin(RpcBitcoinDetails {
                                 address: address.clone(),
                             });
-                            let transaction = RpcTransaction {
-                                id: operation_id.fmt_full().to_string(),
-                                created_at: unix_now().expect("unix time should exist"),
-                                amount: RpcAmount(amount),
-                                fedi_fee_status: None,
-                                direction: RpcTransactionDirection::Receive,
-                                notes: "".into(),
-                                onchain_state: RpcOnchainState::from_deposit_state(Some(
-                                    deposit_outcome,
-                                )),
-                                bitcoin: onchain_details,
-                                ln_state: None,
-                                lightning: None,
-                                oob_state: None,
-                                onchain_withdrawal_details: None,
-                                stability_pool_state: None,
-                            };
                             info!("send_transaction_event: {:?}", transaction);
                             fed.send_transaction_event(transaction);
                         }
@@ -785,13 +863,15 @@ impl FederationV2 {
         self.task_group
             .clone()
             .spawn("subscribe invoice", move |_| async move {
-                let mut updates = fed
-                    .client
-                    .get_first_module::<LightningClientModule>()
-                    .subscribe_ln_receive(operation_id)
-                    .await
-                    .unwrap() // FIXME
-                    .into_stream();
+                let Ok(ln) = fed.client.ln() else {
+                    error!("Lightning module not found!");
+                    return;
+                };
+                let Ok(updates) = ln.subscribe_ln_receive(operation_id).await else {
+                    error!("Lightning operation with ID {:?} not found!", operation_id);
+                    return;
+                };
+                let mut updates = updates.into_stream();
                 while let Some(update) = updates.next().await {
                     info!("Update: {:?}", update);
                     match update {
@@ -805,24 +885,24 @@ impl FederationV2 {
                                 .map(|(_, status)| status)
                                 .ok()
                                 .map(Into::into);
-                            let transaction = RpcTransaction {
-                                id: operation_id.fmt_full().to_string(),
-                                created_at: unix_now().expect("unix time should exist"),
-                                amount: RpcAmount(amount),
+                            let tx_date_fiat_info = fed
+                                .dbtx()
+                                .await
+                                .get_value(&TransactionDateFiatInfoKey(operation_id))
+                                .await;
+                            let transaction = RpcTransaction::new(
+                                operation_id.fmt_full().to_string(),
+                                unix_now().expect("unix time should exist"),
+                                RpcAmount(amount),
+                                RpcTransactionDirection::Receive,
                                 fedi_fee_status,
-                                direction: RpcTransactionDirection::Receive,
-                                notes: "".into(),
-                                bitcoin: None,
-                                onchain_state: None,
-                                ln_state: RpcLnState::from_ln_recv_state(Some(update)),
-                                lightning: Some(RpcLightningDetails {
-                                    invoice: invoice.to_string(),
-                                    fee: None,
-                                }),
-                                oob_state: None,
-                                onchain_withdrawal_details: None,
-                                stability_pool_state: None,
-                            };
+                                tx_date_fiat_info,
+                            )
+                            .with_ln_state(RpcLnState::from_ln_recv_state(update))
+                            .with_lightning(RpcLightningDetails {
+                                invoice: invoice.to_string(),
+                                fee: None,
+                            });
                             fed.send_transaction_event(transaction);
                         }
                         LnReceiveState::Canceled { reason } => {
@@ -864,7 +944,7 @@ impl FederationV2 {
             if !is_internal_payment {
                 let gateways = self
                     .client
-                    .get_first_module::<LightningClientModule>()
+                    .ln()?
                     .list_gateways()
                     .await
                     .into_iter()
@@ -935,7 +1015,8 @@ impl FederationV2 {
 
         let spend_guard = self.spend_guard.lock().await;
         let virtual_balance = self.get_balance().await;
-        if amount.msats + fedi_fee + network_fee > virtual_balance.msats {
+        let est_total_spend = amount.msats + fedi_fee + network_fee;
+        if est_total_spend > virtual_balance.msats {
             bail!(ErrorCode::InsufficientBalance(RpcAmount(
                 get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, Some(gateway_fees))
             )));
@@ -945,7 +1026,7 @@ impl FederationV2 {
         let extra_meta = LightningSendMetadata {
             is_fedi_fee_remittance: false,
         };
-        let ln = self.client.get_first_module::<LightningClientModule>();
+        let ln = self.client.ln()?;
         let OutgoingLightningPayment { payment_type, .. } = match ln
             .pay_bolt11_invoice(gateway, invoice.to_owned(), extra_meta.clone())
             .await
@@ -978,6 +1059,12 @@ impl FederationV2 {
             .await?;
         drop(spend_guard);
 
+        let _ = self
+            .record_tx_date_fiat_info(
+                payment_type.operation_id(),
+                Amount::from_msats(est_total_spend),
+            )
+            .await;
         let response = timeout(
             PAY_INVOICE_TIMEOUT,
             self.subscribe_to_ln_pay(payment_type, extra_meta, invoice.clone()),
@@ -1005,7 +1092,7 @@ impl FederationV2 {
             .await?;
         let network_fees = self
             .client
-            .get_first_module::<WalletClientModule>()
+            .wallet()?
             .get_withdraw_fees(address.clone(), amount)
             .await?;
 
@@ -1033,6 +1120,7 @@ impl FederationV2 {
         address: Address<NetworkUnchecked>,
         amount: bitcoin::Amount,
     ) -> Result<RpcPayAddressResponse> {
+        let wallet = self.client.wallet()?;
         let fedi_fee_ppm = self
             .fedi_fee_helper
             .get_fedi_fee_ppm(
@@ -1041,11 +1129,7 @@ impl FederationV2 {
                 RpcTransactionDirection::Send,
             )
             .await?;
-        let network_fees = self
-            .client
-            .get_first_module::<WalletClientModule>()
-            .get_withdraw_fees(address.clone(), amount)
-            .await?;
+        let network_fees = wallet.get_withdraw_fees(address.clone(), amount).await?;
 
         let amount_msat = amount.to_sat() * 1000;
         let fedi_fee = (amount_msat * fedi_fee_ppm).div_ceil(MILLION);
@@ -1060,17 +1144,14 @@ impl FederationV2 {
             )));
         }
 
-        let operation_id = self
-            .client
-            .get_first_module::<WalletClientModule>()
-            .withdraw(address, amount, network_fees, ())
-            .await?;
+        let operation_id = wallet.withdraw(address, amount, network_fees, ()).await?;
         self.write_pending_send_fedi_fee(operation_id, Amount::from_msats(fedi_fee))
             .await?;
         drop(spend_guard);
-        let mut updates = self
-            .client
-            .get_first_module::<WalletClientModule>()
+        let _ = self
+            .record_tx_date_fiat_info(operation_id, Amount::from_msats(est_total_spend))
+            .await;
+        let mut updates = wallet
             .subscribe_withdraw_updates(operation_id)
             .await?
             .into_stream();
@@ -1101,12 +1182,10 @@ impl FederationV2 {
         &self,
         operation_id: OperationId,
     ) -> Option<(WithdrawState, Option<bitcoin::Txid>)> {
-        let mut updates = match self
-            .client
-            .get_first_module::<WalletClientModule>()
-            .subscribe_withdraw_updates(operation_id)
-            .await
-        {
+        let Ok(wallet) = self.client.wallet() else {
+            return None;
+        };
+        let mut updates = match wallet.subscribe_withdraw_updates(operation_id).await {
             Err(_) => return None,
             Ok(stream) => stream.into_stream(),
         };
@@ -1304,14 +1383,10 @@ impl FederationV2 {
         extra_meta: LightningSendMetadata,
         _invoice: Bolt11Invoice,
     ) -> Result<RpcPayInvoiceResponse> {
+        let ln = self.client.ln()?;
         match pay_type {
             PayType::Internal(operation_id) => {
-                let mut updates = self
-                    .client
-                    .get_first_module::<LightningClientModule>()
-                    .subscribe_internal_pay(operation_id)
-                    .await?
-                    .into_stream();
+                let mut updates = ln.subscribe_internal_pay(operation_id).await?.into_stream();
 
                 while let Some(update) = updates.next().await {
                     // Skip updating fee status if payment is for fee remittance
@@ -1358,12 +1433,7 @@ impl FederationV2 {
                 Err(anyhow!("Internal lightning payment failed"))
             }
             PayType::Lightning(operation_id) => {
-                let mut updates = self
-                    .client
-                    .get_first_module::<LightningClientModule>()
-                    .subscribe_ln_pay(operation_id)
-                    .await?
-                    .into_stream();
+                let mut updates = ln.subscribe_ln_pay(operation_id).await?.into_stream();
                 while let Some(update) = updates.next().await {
                     self.update_operation_state(operation_id, update.clone())
                         .await;
@@ -1414,9 +1484,9 @@ impl FederationV2 {
     /// "federation" events when one is observed
     async fn subscribe_balance_updates(&mut self) {
         let federation = self.clone();
-        self.task_group.spawn(
+        self.task_group.spawn_cancellable(
             format!("{:?} balance subscription", federation.federation_name()),
-            |_| async move {
+            async move {
                 // always send an initial balance event
                 federation.send_balance_event().await;
                 let mut updates = federation.client.subscribe_balance_changes().await;
@@ -1481,10 +1551,10 @@ impl FederationV2 {
         ));
     }
 
-    /// Send whenever social recovery state changes
+    /// Send whenever federation meta keys change
     pub async fn send_federation_event(&self) {
         let rpc_federation = federation_v2_to_rpc_federation(&Arc::new(self.clone())).await;
-        let event = Event::federation(rpc_federation);
+        let event = Event::federation(RpcFederationMaybeLoading::Ready(rpc_federation));
         self.event_sink.typed_event(&event);
     }
 
@@ -1494,11 +1564,7 @@ impl FederationV2 {
 
     /// List all lightning gateways registered with the federation
     pub async fn list_gateways(&self) -> anyhow::Result<Vec<RpcLightningGateway>> {
-        let gateways = self
-            .client
-            .get_first_module::<LightningClientModule>()
-            .list_gateways()
-            .await;
+        let gateways = self.client.ln()?.list_gateways().await;
         let active_gw = self
             .gateway_service()?
             .get_active_gateway(&self.client)
@@ -1531,11 +1597,12 @@ impl FederationV2 {
         // TODO: include metadata as 2nd argument
         let operation_id = self
             .client
-            .get_first_module::<MintClientModule>()
+            .mint()?
             .reissue_external_notes(ecash, meta)
             .await?;
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
             .await?;
+        let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
         self.subscribe_to_operation(operation_id).await?;
         Ok(amount)
     }
@@ -1589,7 +1656,7 @@ impl FederationV2 {
                 .map_or(false, |x| x.internal);
         let mut updates = self
             .client
-            .get_first_module::<MintClientModule>()
+            .mint()?
             .subscribe_reissue_external_notes(operation_id)
             .await
             .unwrap()
@@ -1622,21 +1689,21 @@ impl FederationV2 {
                     .get_value(&OperationFediFeeStatusKey(operation_id))
                     .await
                     .map(Into::into);
-                self.send_transaction_event(RpcTransaction {
-                    id: operation_id.fmt_full().to_string(),
-                    created_at: unix_now().expect("unix time should exist"),
-                    direction: RpcTransactionDirection::Receive,
-                    notes: "".into(),
-                    onchain_state: None,
-                    bitcoin: None,
-                    ln_state: None,
-                    amount: RpcAmount(meta.amount),
-                    lightning: None,
-                    oob_state: Some(RpcOOBState::from_reissue_v2(update.clone())),
-                    onchain_withdrawal_details: None,
-                    stability_pool_state: None,
+                let tx_date_fiat_info = self
+                    .dbtx()
+                    .await
+                    .get_value(&TransactionDateFiatInfoKey(operation_id))
+                    .await;
+                let transaction = RpcTransaction::new(
+                    operation_id.fmt_full().to_string(),
+                    unix_now().expect("unix time should exist"),
+                    RpcAmount(meta.amount),
+                    RpcTransactionDirection::Receive,
                     fedi_fee_status,
-                });
+                    tx_date_fiat_info,
+                )
+                .with_oob_state(RpcOOBState::from_reissue_v2(update.clone()));
+                self.send_transaction_event(transaction);
             }
             if let ReissueExternalNotesState::Failed(e) = update {
                 updates.next().await;
@@ -1665,15 +1732,15 @@ impl FederationV2 {
             )));
         }
 
+        let mint = self.client.mint()?;
+
         // If generating EXACT amount works, use those notes. Otherwise, generate using
         // AT LEAST strategy, marking it as internal TX (so we can filter it out).
         // Immediately cancel, which will reissue the notes attempting to fill in lower
         // denominations. And then generate using AT LEAST strategy again, which
         // will now have a high chance to producing the exact amount.
         let cancel_time = fedimint_core::time::now() + ONE_WEEK;
-        let (spend_guard, operation_id, notes) = match self
-            .client
-            .get_first_module::<MintClientModule>()
+        let (spend_guard, operation_id, notes) = match mint
             .spend_notes_with_selector(
                 &SelectNotesWithExactAmount,
                 amount,
@@ -1685,9 +1752,7 @@ impl FederationV2 {
         {
             Ok((operation_id, notes)) => (spend_guard, operation_id, notes),
             Err(_) => {
-                let (_, notes) = self
-                    .client
-                    .get_first_module::<MintClientModule>()
+                let (_, notes) = mint
                     .spend_notes(
                         amount,
                         ONE_WEEK,
@@ -1700,9 +1765,7 @@ impl FederationV2 {
                 // try to make change
                 timeout(REISSUE_ECASH_TIMEOUT, async {
                     let notes_amount = notes.total_amount();
-                    let operation_id = self
-                        .client
-                        .get_first_module::<MintClientModule>()
+                    let operation_id = mint
                         .reissue_external_notes(notes, EcashReceiveMetadata { internal: true })
                         .await?;
                     self.subscribe_to_ecash_reissue(operation_id, notes_amount)
@@ -1718,9 +1781,7 @@ impl FederationV2 {
                         get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
                     )));
                 }
-                let (operation_id, notes) = self
-                    .client
-                    .get_first_module::<MintClientModule>()
+                let (operation_id, notes) = mint
                     .spend_notes(
                         amount,
                         ONE_WEEK,
@@ -1737,6 +1798,10 @@ impl FederationV2 {
         // spend_guard must be dropped after writing fee since virtual balance only
         // updates once fee is written
         drop(spend_guard);
+
+        let _ = self
+            .record_tx_date_fiat_info(operation_id, amount + fedi_fee)
+            .await;
         self.subscribe_to_operation(operation_id).await?;
 
         Ok(RpcGenerateEcashResponse {
@@ -1749,10 +1814,7 @@ impl FederationV2 {
         let op_id = spendable_notes_to_operation_id(ecash.notes());
         // NOTE: try_cancel_spend_notes itself is not presisted across restarts.
         // it uses inmemory channel.
-        self.client
-            .get_first_module::<MintClientModule>()
-            .try_cancel_spend_notes(op_id)
-            .await;
+        self.client.mint()?.try_cancel_spend_notes(op_id).await;
         self.subscribe_oob_spend(op_id).await?;
         Ok(())
     }
@@ -1760,7 +1822,7 @@ impl FederationV2 {
     async fn subscribe_oob_spend(&self, op_id: OperationId) -> Result<(), anyhow::Error> {
         let mut updates = self
             .client
-            .get_first_module::<MintClientModule>()
+            .mint()?
             .subscribe_spend_notes(op_id)
             .await?
             .into_stream();
@@ -1834,19 +1896,6 @@ impl FederationV2 {
         Ok(self.backup_service.status(&self.client).await)
     }
 
-    /// Extract username (and potentially more in future) from recovered
-    /// metadata and save it to database
-    pub async fn save_restored_metadata(&self, metadata: Metadata) -> Result<()> {
-        if let Ok(fedi_backup_metadata) = metadata.to_json_deserialized::<FediBackupMetadata>() {
-            if let Some(username) = fedi_backup_metadata.username {
-                self.save_xmpp_username(&username).await?;
-            }
-        } else {
-            warn!("failed to parse metadata");
-        };
-        Ok(())
-    }
-
     //
     // Social Recovery
     //
@@ -1858,11 +1907,11 @@ impl FederationV2 {
         root_secret.child_key(SOCIAL_RECOVERY_SECRET_CHILD_ID)
     }
 
-    fn social_api(&self) -> DynModuleApi {
+    fn social_api(&self) -> anyhow::Result<DynModuleApi> {
         let social_module = self
             .client
-            .get_first_module::<fedi_social_client::FediSocialClientModule>();
-        social_module.api
+            .try_get_first_module::<fedi_social_client::FediSocialClientModule>()?;
+        Ok(social_module.api)
     }
 
     pub async fn decoded_config(&self) -> Result<ClientConfig> {
@@ -1887,12 +1936,16 @@ impl FederationV2 {
             .get_first_module_by_kind::<fedi_social_client::config::FediSocialClientConfig>(
                 "fedi-social",
             )
-            .expect("needs social recovery module client config");
+            .map_err(|_| {
+                anyhow!(ErrorCode::ModuleNotFound(
+                    fedi_social_client::KIND.to_string()
+                ))
+            })?;
         Ok(SocialBackup {
             module_secret: Self::social_recovery_secret_static(&self.root_secret()),
             module_id,
             config: cfg.clone(),
-            api: self.social_api(),
+            api: self.social_api()?,
         })
     }
 
@@ -1906,8 +1959,12 @@ impl FederationV2 {
             .get_first_module_by_kind::<fedi_social_client::config::FediSocialClientConfig>(
                 "fedi-social",
             )
-            .expect("needs social recovery module client config");
-        SocialRecoveryClient::new_start(module_id, cfg.clone(), self.social_api(), recovery_file)
+            .map_err(|_| {
+                anyhow!(ErrorCode::ModuleNotFound(
+                    fedi_social_client::KIND.to_string()
+                ))
+            })?;
+        SocialRecoveryClient::new_start(module_id, cfg.clone(), self.social_api()?, recovery_file)
     }
 
     /// Continue social recovery session
@@ -1920,18 +1977,22 @@ impl FederationV2 {
             .get_first_module_by_kind::<fedi_social_client::config::FediSocialClientConfig>(
                 "fedi-social",
             )
-            .expect("needs social recovery module client config");
+            .map_err(|_| {
+                anyhow!(ErrorCode::ModuleNotFound(
+                    fedi_social_client::KIND.to_string()
+                ))
+            })?;
         Ok(SocialRecoveryClient::new_continue(
             module_id,
             cfg.clone(),
-            self.social_api(),
+            self.social_api()?,
             prev_state,
         ))
     }
 
     /// Get social verification client for a guardian
     pub async fn social_verification(&self, peer_id: PeerId) -> Result<SocialVerification> {
-        Ok(SocialVerification::new(self.social_api(), peer_id))
+        Ok(SocialVerification::new(self.social_api()?, peer_id))
     }
 
     /// Upload social recovery recovery file to federation given a recovery
@@ -1999,26 +2060,6 @@ impl FederationV2 {
         Ok(())
     }
 
-    /// Returns an XMPP password derived from client secret. This enables
-    /// recovery of XMPP account after recovering wallet.
-    pub async fn get_xmpp_credentials(&self) -> RpcXmppCredentials {
-        let root_secret = self.root_secret();
-        let xmpp_secret = root_secret.child_key(ChildId(XMPP_CHILD_ID));
-        let password_bytes: [u8; 16] = xmpp_secret
-            .child_key(ChildId(XMPP_PASSWORD))
-            .to_random_bytes();
-        let keypair_seed_bytes: [u8; 32] = xmpp_secret
-            .child_key(ChildId(XMPP_KEYPAIR_SEED))
-            .to_random_bytes();
-        let username = self.get_xmpp_username().await;
-
-        RpcXmppCredentials {
-            password: hex::encode(password_bytes),
-            keypair_seed: hex::encode(keypair_seed_bytes),
-            username,
-        }
-    }
-
     pub async fn get_ln_pay_outcome(
         &self,
         operation_id: OperationId,
@@ -2050,12 +2091,11 @@ impl FederationV2 {
             return Some(outcome);
         }
 
-        match self
-            .client
-            .get_first_module::<WalletClientModule>()
-            .subscribe_deposit(operation_id)
-            .await
-        {
+        let Ok(wallet) = self.client.wallet() else {
+            return None;
+        };
+
+        match wallet.subscribe_deposit(operation_id).await {
             Err(_) => None,
             Ok(UpdateStreamOrOutcome::Outcome(outcome)) => Some(outcome),
             // don't block
@@ -2102,6 +2142,7 @@ impl FederationV2 {
                         .get_value(&TransactionNotesKey(op.0.operation_id))
                         .await
                         .unwrap_or_default();
+                    let tx_date_fiat_info = self.dbtx().await.get_value(&TransactionDateFiatInfoKey(op.0.operation_id)).await;
                     let fedi_fee_status = self
                         .client
                         .db()
@@ -2128,119 +2169,110 @@ impl FederationV2 {
                                     if extra_meta.is_fedi_fee_remittance {
                                         None
                                     } else {
-                                        Some(RpcTransaction {
-                                            id: op.0.operation_id.fmt_full().to_string(),
-                                            created_at: to_unix_time(op.0.creation_time)
-                                                .expect("unix time should exist"),
-                                            amount: RpcAmount(Amount {
+                                        let mut transaction = RpcTransaction::new(
+                                            op.0.operation_id.fmt_full().to_string(),
+                                            to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                            RpcAmount(Amount {
                                                 msats: invoice.amount_milli_satoshis().unwrap() + fedi_fee_msats + fee.msats,
                                             }),
+                                            RpcTransactionDirection::Send,
                                             fedi_fee_status,
-                                            direction: RpcTransactionDirection::Send,
-                                            notes,
-                                            onchain_state: None,
-                                            bitcoin: None,
-                                            ln_state: RpcLnState::from_ln_pay_state(
-                                                self.get_ln_pay_outcome(op.0.operation_id, op.1).await,
-                                            ),
-                                            lightning: Some(RpcLightningDetails {
-                                                invoice: invoice.to_string(),
-                                                fee: Some(RpcAmount(fee)),
-                                            }),
-                                            oob_state: None,
-                                            onchain_withdrawal_details: None,
-                                            stability_pool_state: None,
-                                        })
+                                            tx_date_fiat_info
+                                        )
+                                        .with_notes(notes)
+                                        .with_lightning(RpcLightningDetails {
+                                            invoice: invoice.to_string(),
+                                            fee: Some(RpcAmount(fee)),
+                                        });
+
+                                        if let Some(state) = self.get_ln_pay_outcome(op.0.operation_id, op.1).await {
+                                            transaction = transaction.with_ln_state(RpcLnState::from_ln_pay_state(state));
+                                        }
+                                        Some(transaction)
                                     }
                                 }
                                 LightningOperationMetaVariant::Receive{ invoice, .. } => {
-                                    let ln_state = RpcLnState::from_ln_recv_state(
-                                        op.1.outcome::<LnReceiveState>(),
-                                    );
-                                    Some(RpcTransaction {
-                                        id: op.0.operation_id.fmt_full().to_string(),
-                                        created_at: to_unix_time(op.0.creation_time)
-                                            .expect("unix time should exist"),
-                                        amount: RpcAmount(Amount {
+                                    let mut transaction = RpcTransaction::new(
+                                        op.0.operation_id.fmt_full().to_string(),
+                                        to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                        RpcAmount(Amount {
                                             msats: invoice.amount_milli_satoshis().unwrap(),
                                         }),
+                                        RpcTransactionDirection::Receive,
                                         fedi_fee_status,
-                                        direction: RpcTransactionDirection::Receive,
-                                        notes,
-                                        onchain_state: None,
-                                        bitcoin: None,
-                                        ln_state,
-                                        lightning: Some(RpcLightningDetails {
-                                            invoice: invoice.to_string(),
-                                            fee: None,
-                                        }),
-                                        oob_state: None,
-                                        onchain_withdrawal_details: None,
-                                        stability_pool_state: None,
-                                    })
+                                        tx_date_fiat_info
+                                    )
+                                    .with_notes(notes)
+                                    .with_lightning(RpcLightningDetails {
+                                        invoice: invoice.to_string(),
+                                        fee: None,
+                                    });
+
+                                    if let Some(state) = op.1.outcome::<LnReceiveState>() {
+                                        transaction = transaction.with_ln_state(RpcLnState::from_ln_recv_state(state));
+                                    }
+                                    Some(transaction)
                                 }
                                 LightningOperationMetaVariant::Claim { .. } => unreachable!("claims are not supported"),
                             }
                         },
                         STABILITY_POOL_OPERATION_TYPE => match op.1.meta() {
                             StabilityPoolMeta::Deposit { txid, amount, .. } => {
-                                let stability_pool_state = match self.stability_pool_account_info(false).await {
-                                    Ok(ClientAccountInfo { account_info, .. }) => if let Some(metadata) = account_info.seeks_metadata.get(&txid) {
-                                        Some(RpcStabilityPoolTransactionState::CompleteDeposit { initial_amount_cents: metadata.initial_amount_cents, fees_paid_so_far: RpcAmount(metadata.fees_paid_so_far) })
+                                let mut transaction = RpcTransaction::new(
+                                    op.0.operation_id.fmt_full().to_string(),
+                                    to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                    RpcAmount(amount + Amount::from_msats(fedi_fee_msats)),
+                                    RpcTransactionDirection::Send,
+                                    fedi_fee_status,
+                                    tx_date_fiat_info
+                                )
+                                .with_notes(notes);
+
+                                if let Ok(ClientAccountInfo { account_info, .. }) = self.stability_pool_account_info(false).await {
+                                    let state = if let Some(metadata) = account_info.seeks_metadata.get(&txid) {
+                                        RpcStabilityPoolTransactionState::CompleteDeposit {
+                                            initial_amount_cents: metadata.initial_amount_cents,
+                                            fees_paid_so_far: RpcAmount(metadata.fees_paid_so_far)
+                                        }
                                     } else {
-                                        Some(RpcStabilityPoolTransactionState::PendingDeposit)
-                                    },
-                                    Err(_) => None,
-                                };
-                                Some(RpcTransaction {
-                                id: op.0.operation_id.fmt_full().to_string(),
-                                created_at: to_unix_time(op.0.creation_time)
-                                    .expect("unix time should exist"),
-                                amount: RpcAmount(amount + Amount::from_msats(fedi_fee_msats)),
-                                fedi_fee_status,
-                                direction: RpcTransactionDirection::Send,
-                                notes,
-                                onchain_state: None,
-                                bitcoin: None,
-                                ln_state: None,
-                                lightning: None,
-                                oob_state: None,
-                                onchain_withdrawal_details: None,
-                                stability_pool_state,
-                            })},
+                                        RpcStabilityPoolTransactionState::PendingDeposit
+                                    };
+                                    transaction = transaction.with_stability_pool_state(state);
+                                }
+                                Some(transaction)
+                            },
                             StabilityPoolMeta::Withdrawal { estimated_withdrawal_cents, .. } | StabilityPoolMeta::CancelRenewal { estimated_withdrawal_cents, .. } => {
                                 let outcome = self
                                     .get_client_operation_outcome(op.0.operation_id, op.1)
                                     .await;
-                                Some(RpcTransaction {
-                                    id: op.0.operation_id.fmt_full().to_string(),
-                                    created_at: to_unix_time(op.0.creation_time)
-                                        .expect("unix time should exist"),
-                                    amount: match outcome {
-                                        Some(StabilityPoolWithdrawalOperationState::WithdrawUnlockedInitiated(amount) |
-                                            StabilityPoolWithdrawalOperationState::WithdrawUnlockedAccepted(amount) |
-                                            StabilityPoolWithdrawalOperationState::Success(amount) |
-                                            StabilityPoolWithdrawalOperationState::CancellationInitiated(Some(amount)) |
-                                            StabilityPoolWithdrawalOperationState::CancellationAccepted(Some(amount)) |
-                                            StabilityPoolWithdrawalOperationState::WithdrawIdleInitiated(amount) |
-                                            StabilityPoolWithdrawalOperationState::WithdrawIdleAccepted(amount)) => RpcAmount(amount),
-                                        _ => RpcAmount(Amount::ZERO),
-                                    },
+                                let amount = match outcome {
+                                    Some(StabilityPoolWithdrawalOperationState::WithdrawUnlockedInitiated(amount) |
+                                        StabilityPoolWithdrawalOperationState::WithdrawUnlockedAccepted(amount) |
+                                        StabilityPoolWithdrawalOperationState::Success(amount) |
+                                        StabilityPoolWithdrawalOperationState::CancellationInitiated(Some(amount)) |
+                                        StabilityPoolWithdrawalOperationState::CancellationAccepted(Some(amount)) |
+                                        StabilityPoolWithdrawalOperationState::WithdrawIdleInitiated(amount) |
+                                        StabilityPoolWithdrawalOperationState::WithdrawIdleAccepted(amount)) => RpcAmount(amount),
+                                    _ => RpcAmount(Amount::ZERO),
+                                };
+                                let mut transaction = RpcTransaction::new(
+                                    op.0.operation_id.fmt_full().to_string(),
+                                    to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                    amount,
+                                    RpcTransactionDirection::Receive,
                                     fedi_fee_status,
-                                    direction: RpcTransactionDirection::Receive,
-                                    notes,
-                                    onchain_state: None,
-                                    bitcoin: None,
-                                    ln_state: None,
-                                    lightning: None,
-                                    oob_state: None,
-                                    onchain_withdrawal_details: None,
-                                    stability_pool_state: match outcome {
-                                        Some(StabilityPoolWithdrawalOperationState::Success(_)) => Some(RpcStabilityPoolTransactionState::CompleteWithdrawal { estimated_withdrawal_cents }),
-                                        Some(_) => Some(RpcStabilityPoolTransactionState::PendingWithdrawal { estimated_withdrawal_cents }),
-                                        None => None,
-                                    }
-                                })
+                                    tx_date_fiat_info
+                                )
+                                .with_notes(notes);
+
+                                if let Some(outcome) = outcome {
+                                    let state = match outcome {
+                                        StabilityPoolWithdrawalOperationState::Success(_) => RpcStabilityPoolTransactionState::CompleteWithdrawal { estimated_withdrawal_cents },
+                                        _ => RpcStabilityPoolTransactionState::PendingWithdrawal { estimated_withdrawal_cents },
+                                    };
+                                    transaction = transaction.with_stability_pool_state(state);
+                                }
+                                Some(transaction)
                             }
                         },
                         MINT_OPERATION_TYPE => {
@@ -2252,25 +2284,21 @@ impl FederationV2 {
                                     )
                                     .map_or(false, |x| x.internal);
                                     if !internal {
-                                        Some(RpcTransaction {
-                                            id: op.0.operation_id.fmt_full().to_string(),
-                                            created_at: to_unix_time(op.0.creation_time)
-                                                .expect("unix time should exist"),
-                                            direction: RpcTransactionDirection::Receive,
-                                            notes,
-                                            onchain_state: None,
-                                            bitcoin: None,
-                                            ln_state: None,
-                                            amount: RpcAmount(mint_meta.amount),
+                                        let mut transaction = RpcTransaction::new(
+                                            op.0.operation_id.fmt_full().to_string(),
+                                            to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                            RpcAmount(mint_meta.amount),
+                                            RpcTransactionDirection::Receive,
                                             fedi_fee_status,
-                                            lightning: None,
-                                            oob_state: self
-                                                .get_client_operation_outcome(op.0.operation_id, op.1)
-                                                .await
-                                                .map(RpcOOBState::from_reissue_v2),
-                                            onchain_withdrawal_details: None,
-                                            stability_pool_state: None,
-                                        })
+                                            tx_date_fiat_info
+                                        )
+                                        .with_notes(notes);
+
+                                        if let Some(outcome) = self.get_client_operation_outcome(op.0.operation_id, op.1).await {
+                                            let state = RpcOOBState::from_reissue_v2(outcome);
+                                            transaction = transaction.with_oob_state(state);
+                                        }
+                                        Some(transaction)
                                     } else {
                                         None
                                     }
@@ -2284,25 +2312,21 @@ impl FederationV2 {
                                     .map_or(false, |x| x.internal);
 
                                     if !internal {
-                                        Some(RpcTransaction {
-                                            id: op.0.operation_id.fmt_full().to_string(),
-                                            created_at: to_unix_time(op.0.creation_time)
-                                                .expect("unix time should exist"),
-                                            direction: RpcTransactionDirection::Send,
-                                            notes,
-                                            onchain_state: None,
-                                            bitcoin: None,
-                                            ln_state: None,
-                                            amount: RpcAmount(requested_amount + Amount::from_msats(fedi_fee_msats)),
+                                        let mut transaction = RpcTransaction::new(
+                                            op.0.operation_id.fmt_full().to_string(),
+                                            to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                            RpcAmount(requested_amount + Amount::from_msats(fedi_fee_msats)),
+                                            RpcTransactionDirection::Send,
                                             fedi_fee_status,
-                                            lightning: None,
-                                            oob_state: self
-                                                .get_client_operation_outcome(op.0.operation_id, op.1)
-                                                .await
-                                                .map(RpcOOBState::from_spend_v2),
-                                            onchain_withdrawal_details: None,
-                                            stability_pool_state: None,
-                                        })
+                                            tx_date_fiat_info
+                                        )
+                                        .with_notes(notes);
+
+                                        if let Some(outcome) = self.get_client_operation_outcome(op.0.operation_id, op.1).await {
+                                            let state = RpcOOBState::from_spend_v2(outcome);
+                                            transaction = transaction.with_oob_state(state);
+                                        }
+                                        Some(transaction)
                                     } else {
                                         None
                                     }
@@ -2317,36 +2341,35 @@ impl FederationV2 {
                                     ..
                                 } => {
                                     let outcome = self.get_deposit_outcome(op.0.operation_id).await;
-                                    let onchain_state =
-                                        RpcOnchainState::from_deposit_state(outcome.clone());
-
-                                    Some(RpcTransaction {
-                                        id: op.0.operation_id.fmt_full().to_string(),
-                                        created_at: to_unix_time(op.0.creation_time)
-                                            .expect("unix time should exist"),
-                                        direction: RpcTransactionDirection::Receive,
-                                        notes,
-                                        onchain_state: onchain_state.clone(),
-                                        bitcoin: Some(RpcBitcoinDetails {
-                                            address: address.assume_checked().to_string(),
-                                        }),
-                                        ln_state: None,
-                                        amount: match outcome {
-                                            Some(
-                                                DepositStateV2::WaitingForConfirmation { btc_deposited, ..}
-                                                | DepositStateV2::Claimed { btc_deposited, ..},
-                                            ) => {
-                                                let fees = self.client.get_first_module::<WalletClientModule>().get_fee_consensus().peg_in_abs;
-                                                RpcAmount(Amount::from_sats(btc_deposited.to_sat()) - fees)
-                                            },
-                                            _ => RpcAmount(Amount::ZERO),
+                                    let amount = match outcome {
+                                        Some(
+                                            DepositStateV2::WaitingForConfirmation { btc_deposited, ..}
+                                            | DepositStateV2::Claimed { btc_deposited, ..},
+                                        ) => {
+                                            let wallet = self.client.wallet();
+                                            let fees = wallet.map(|w| w.get_fee_consensus().peg_in_abs).unwrap_or(Amount::ZERO);
+                                            RpcAmount(Amount::from_sats(btc_deposited.to_sat()) - fees)
                                         },
+                                        _ => RpcAmount(Amount::ZERO),
+                                    };
+                                    let mut transaction = RpcTransaction::new(
+                                        op.0.operation_id.fmt_full().to_string(),
+                                        to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                        amount,
+                                        RpcTransactionDirection::Receive,
                                         fedi_fee_status,
-                                        lightning: None,
-                                        oob_state: None,
-                                        onchain_withdrawal_details: None,
-                                        stability_pool_state: None,
-                                    })
+                                        tx_date_fiat_info
+                                    )
+                                    .with_notes(notes)
+                                    .with_bitcoin(RpcBitcoinDetails {
+                                        address: address.assume_checked().to_string(),
+                                    });
+
+                                    if let Some(outcome) = outcome {
+                                        let state = RpcOnchainState::from_deposit_state(outcome.clone());
+                                        transaction = transaction.with_onchain_state(state);
+                                    }
+                                    Some(transaction)
                                 }
                                 WalletOperationMetaVariant::Withdraw {
                                     address,
@@ -2365,35 +2388,28 @@ impl FederationV2 {
                                         .await
                                         .expect("Expected a withdrawal outcome but got None");
 
-                                    let onchain_state =
-                                        RpcOnchainState::from_withdraw_state(Some(outcome));
-
                                     let txid_str = match txid {
                                         Some(n) => n.to_string(),
                                         None => "".to_string(),
                                     };
 
-                                    Some(RpcTransaction {
-                                        id: op.0.operation_id.fmt_full().to_string(),
-                                        created_at: to_unix_time(op.0.creation_time)
-                                            .expect("unix time should exist"),
-                                        amount: rpc_amount,
+                                    let transaction = RpcTransaction::new(
+                                        op.0.operation_id.fmt_full().to_string(),
+                                        to_unix_time(op.0.creation_time).expect("unix time should exist"),
+                                        rpc_amount,
+                                        RpcTransactionDirection::Send,
                                         fedi_fee_status,
-                                        direction: RpcTransactionDirection::Send,
-                                        notes,
-                                        onchain_state,
-                                        bitcoin: None,
-                                        ln_state: None,
-                                        lightning: None,
-                                        oob_state: None,
-                                        onchain_withdrawal_details: Some(WithdrawalDetails {
-                                            address: address.assume_checked().to_string(),
-                                            txid: txid_str,
-                                            fee: RpcAmount(Amount::from_sats(fee.amount().to_sat())),
-                                            fee_rate: fee.fee_rate.sats_per_kvb,
-                                        }),
-                                        stability_pool_state: None,
-                                    })
+                                        tx_date_fiat_info
+                                    )
+                                    .with_notes(notes)
+                                    .with_onchain_state(RpcOnchainState::from_withdraw_state(outcome))
+                                    .with_onchain_withdrawal_details(WithdrawalDetails {
+                                        address: address.assume_checked().to_string(),
+                                        txid: txid_str,
+                                        fee: RpcAmount(Amount::from_sats(fee.amount().to_sat())),
+                                        fee_rate: fee.fee_rate.sats_per_kvb,
+                                    });
+                                    Some(transaction)
                                 }
                                 WalletOperationMetaVariant::RbfWithdraw { rbf: _, change: _ } => None,
                             }
@@ -2421,19 +2437,6 @@ impl FederationV2 {
     ) -> Result<()> {
         let mut dbtx = self.dbtx().await;
         dbtx.insert_entry(&TransactionNotesKey(transaction), &notes)
-            .await;
-        dbtx.commit_tx_result().await
-    }
-
-    // Database
-
-    pub async fn get_xmpp_username(&self) -> Option<String> {
-        self.dbtx().await.get_value(&XmppUsernameKey).await
-    }
-
-    pub async fn save_xmpp_username(&self, username: &str) -> Result<()> {
-        let mut dbtx = self.dbtx().await;
-        dbtx.insert_entry(&XmppUsernameKey, &username.to_owned())
             .await;
         dbtx.commit_tx_result().await
     }
@@ -2480,7 +2483,7 @@ impl FederationV2 {
         force_update: bool,
     ) -> Result<ClientAccountInfo> {
         self.client
-            .get_first_module::<StabilityPoolClientModule>()
+            .sp()?
             .account_info(force_update)
             .await
             .context("Error when fetching account info")
@@ -2488,7 +2491,7 @@ impl FederationV2 {
 
     pub async fn stability_pool_next_cycle_start_time(&self) -> Result<u64> {
         self.client
-            .get_first_module::<StabilityPoolClientModule>()
+            .sp()?
             .next_cycle_start_time()
             .await
             .context("Error when fetching next cycle start time")
@@ -2496,7 +2499,7 @@ impl FederationV2 {
 
     pub async fn stability_pool_cycle_start_price(&self) -> Result<u64> {
         self.client
-            .get_first_module::<StabilityPoolClientModule>()
+            .sp()?
             .cycle_start_price()
             .await
             .context("Error when fetching cycle start price")
@@ -2504,7 +2507,7 @@ impl FederationV2 {
 
     pub async fn stability_pool_average_fee_rate(&self, num_cycles: u64) -> Result<u64> {
         self.client
-            .get_first_module::<StabilityPoolClientModule>()
+            .sp()?
             .average_fee_rate(num_cycles)
             .await
             .context("Error when fetching average fee rate")
@@ -2513,7 +2516,7 @@ impl FederationV2 {
     pub async fn stability_pool_available_liquidity(&self) -> Result<RpcAmount> {
         let stats = self
             .client
-            .get_first_module::<StabilityPoolClientModule>()
+            .sp()?
             .liquidity_stats()
             .await
             .context("Error when fetching liquidity stats")?;
@@ -2545,10 +2548,13 @@ impl FederationV2 {
             )));
         }
 
-        let module = self.client.get_first_module::<StabilityPoolClientModule>();
+        let module = self.client.sp()?;
         let operation_id = module.deposit_to_seek(amount).await?;
         self.write_pending_send_fedi_fee(operation_id, fedi_fee)
             .await?;
+        let _ = self
+            .record_tx_date_fiat_info(operation_id, amount + fedi_fee)
+            .await;
         drop(spend_guard);
 
         if let Ok(index) = module.current_cycle_index().await {
@@ -2606,7 +2612,7 @@ impl FederationV2 {
             .await?;
         let (operation_id, _) = self
             .client
-            .get_first_module::<StabilityPoolClientModule>()
+            .sp()?
             .withdraw(unlocked_amount, locked_bps)
             .await?;
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
@@ -2621,9 +2627,11 @@ impl FederationV2 {
     }
 
     async fn subscribe_stability_pool_deposit_to_seek(&self, operation_id: OperationId) {
-        let update_stream = self
-            .client
-            .get_first_module::<StabilityPoolClientModule>()
+        let Ok(stability_pool) = self.client.sp() else {
+            return;
+        };
+
+        let update_stream = stability_pool
             .subscribe_deposit_operation(operation_id)
             .await;
         if let Ok(update_stream) = update_stream {
@@ -2654,11 +2662,11 @@ impl FederationV2 {
     }
 
     async fn subscribe_stability_pool_withdraw(&self, operation_id: OperationId) {
-        let update_stream = self
-            .client
-            .get_first_module::<StabilityPoolClientModule>()
-            .subscribe_withdraw(operation_id)
-            .await;
+        let Ok(stability_pool) = self.client.sp() else {
+            return;
+        };
+
+        let update_stream = stability_pool.subscribe_withdraw(operation_id).await;
         if let Ok(update_stream) = update_stream {
             let mut updates = update_stream.into_stream();
             while let Some(state) = updates.next().await {
@@ -2669,6 +2677,7 @@ impl FederationV2 {
                         let _ = self
                             .write_success_receive_fedi_fee(operation_id, amount)
                             .await;
+                        let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
                     }
                     StabilityPoolWithdrawalOperationState::InvalidOperationType
                     | StabilityPoolWithdrawalOperationState::TxRejected(_)
@@ -3157,6 +3166,51 @@ impl FederationV2 {
         }
 
         res
+    }
+
+    #[instrument(skip(self), fields(fiat_code, fiat_value_hundredths), err, ret)]
+    async fn record_tx_date_fiat_info(
+        &self,
+        operation_id: OperationId,
+        amount: Amount,
+    ) -> anyhow::Result<()> {
+        // Early return if we've already recorded the fiat info for given operation
+        let mut dbtx = self.dbtx().await;
+        let op_db_key = TransactionDateFiatInfoKey(operation_id);
+        if dbtx.get_value(&op_db_key).await.is_some() {
+            info!("Transaction date fiat info already exists for given OP ID, not overwriting");
+            return Ok(());
+        }
+
+        let Some(cached_fiat_fx_info) = self.app_state.get_cached_fiat_fx_info().await else {
+            bail!("No cached fiat FX info present");
+        };
+        let fiat_code = cached_fiat_fx_info.fiat_code.clone();
+        tracing::Span::current().record("fiat_code", &fiat_code);
+
+        // Using cents below for readability
+        // 1 BTC = (btc_to_fiat_hundredths) cents
+        // => 10^8 sats = (btc_to_fiat_hundredths) cents
+        // => 10^11 msats = (btc_to_fiat_hundredths) cents
+        // => 1 msat = (btc_to_fiat_hundredths) / 10^11 cents
+        // => amount msat = amount * (btc_to_fiat_hundredths) / 10^11 cents
+        let fiat_value_hundredths =
+            (amount.msats * cached_fiat_fx_info.btc_to_fiat_hundredths) / (SATS_PER_BITCOIN * 1000);
+        tracing::Span::current().record("fiat_value_hundredths", fiat_value_hundredths);
+        dbtx.insert_entry(
+            &TransactionDateFiatInfoKey(operation_id),
+            &TransactionDateFiatInfo {
+                fiat_code,
+                fiat_value_hundredths,
+            },
+        )
+        .await;
+        match dbtx.commit_tx_result().await {
+            Ok(_) => info!("Successfully logged transaction date fiat info"),
+            Err(e) => error!(?e, "Error logging transaction date fiat info"),
+        };
+
+        Ok(())
     }
 }
 

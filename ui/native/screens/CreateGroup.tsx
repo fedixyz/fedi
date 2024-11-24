@@ -101,6 +101,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                     inputContainerStyle={style.textInputInner}
                     autoCapitalize={'none'}
                     autoCorrect={false}
+                    selectTextOnFocus
                 />
             </View>
             <View style={style.switchWrapper}>

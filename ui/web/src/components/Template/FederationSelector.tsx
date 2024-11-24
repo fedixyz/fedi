@@ -7,7 +7,7 @@ import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
     selectActiveFederation,
-    selectFederations,
+    selectLoadedFederations,
     setActiveFederationId,
 } from '@fedi/common/redux'
 import { FederationListItem, MSats } from '@fedi/common/types'
@@ -23,7 +23,7 @@ export const FederationSelector: React.FC = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const activeFederation = useAppSelector(selectActiveFederation)
-    const federations = useAppSelector(selectFederations)
+    const federations = useAppSelector(selectLoadedFederations)
     const [isSelectorOpen, setIsSelectorOpen] = useState(false)
     const isSmall = useMediaQuery(config.media.sm)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()

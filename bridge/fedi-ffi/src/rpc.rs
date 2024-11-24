@@ -18,6 +18,8 @@ use matrix_sdk::ruma::api::client::profile::get_profile;
 use matrix_sdk::ruma::api::client::push::Pusher;
 use matrix_sdk::ruma::directory::PublicRoomsChunk;
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
+use matrix_sdk::ruma::events::room::MediaSource;
+use matrix_sdk::ruma::OwnedEventId;
 use matrix_sdk::sliding_sync::Ranges;
 use matrix_sdk::RoomInfo;
 use mime::Mime;
@@ -33,7 +35,7 @@ use super::storage::Storage;
 use super::types::{
     RpcAmount, RpcFederation, RpcFederationId, RpcInvoice, RpcOperationId, RpcPayInvoiceResponse,
     RpcPeerId, RpcPublicKey, RpcRecoveryId, RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo,
-    RpcTransaction, RpcXmppCredentials, SocialRecoveryQr,
+    RpcTransaction, SocialRecoveryQr,
 };
 use crate::api::IFediApi;
 use crate::constants::{GLOBAL_MATRIX_SERVER, GLOBAL_MATRIX_SLIDING_SYNC_PROXY};
@@ -47,11 +49,12 @@ use crate::matrix::{
     RpcRoomNotificationMode, RpcSyncIndicator, RpcTimelineItem, RpcUserId,
 };
 use crate::observable::{Observable, ObservableVec};
+use crate::storage::FiatFXInfo;
 use crate::types::{
     GuardianStatus, RpcBridgeStatus, RpcCommunity, RpcDeviceIndexAssignmentStatus, RpcEcashInfo,
-    RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse, RpcLightningGateway,
-    RpcNostrPubkey, RpcNostrSecret, RpcPayAddressResponse, RpcRegisteredDevice,
-    RpcTransactionDirection,
+    RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse,
+    RpcLightningGateway, RpcMediaUploadParams, RpcNostrPubkey, RpcNostrSecret,
+    RpcPayAddressResponse, RpcRegisteredDevice, RpcTransactionDirection,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -222,7 +225,7 @@ async fn federationPreview(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn listFederations(bridge: Arc<Bridge>) -> anyhow::Result<Vec<RpcFederation>> {
+async fn listFederations(bridge: Arc<Bridge>) -> anyhow::Result<Vec<RpcFederationMaybeLoading>> {
     Ok(bridge.list_federations().await)
 }
 
@@ -339,6 +342,20 @@ async fn receiveEcash(
 #[macro_rules_derive(rpc_method!)]
 async fn validateEcash(_bridge: Arc<Bridge>, ecash: String) -> anyhow::Result<RpcEcashInfo> {
     FederationV2::validate_ecash(ecash)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn updateCachedFiatFXInfo(
+    bridge: Arc<Bridge>,
+    fiat_code: String,
+    btc_to_fiat_hundredths: u64,
+) -> anyhow::Result<()> {
+    bridge
+        .update_cached_fiat_fx_info(FiatFXInfo {
+            fiat_code,
+            btc_to_fiat_hundredths,
+        })
+        .await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -484,16 +501,8 @@ async fn signLnurlMessage(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
-async fn xmppCredentials(federation: Arc<FederationV2>) -> anyhow::Result<RpcXmppCredentials> {
-    Ok(federation.get_xmpp_credentials().await)
-}
-
-#[macro_rules_derive(federation_rpc_method!)]
-async fn backupXmppUsername(federation: Arc<FederationV2>, username: String) -> anyhow::Result<()> {
-    federation.save_xmpp_username(&username).await?;
-    if !federation.recovering() {
-        federation.backup().await?;
-    }
+async fn backupNow(federation: Arc<FederationV2>) -> anyhow::Result<()> {
+    federation.backup().await?;
     Ok(())
 }
 
@@ -864,6 +873,29 @@ async fn matrixRoomPreviewContent(
 ) -> anyhow::Result<Vec<RpcTimelineItem>> {
     let matrix = get_matrix(&bridge).await?;
     matrix.preview_room_content(&room_id.into_typed()?).await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixSendAttachment(
+    bridge: Arc<Bridge>,
+    room_id: RpcRoomId,
+    filename: String,
+    file_path: PathBuf,
+    params: RpcMediaUploadParams,
+) -> anyhow::Result<()> {
+    let matrix = get_matrix(&bridge).await?;
+
+    let file_data = bridge
+        .storage
+        .read_file(&file_path)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("File not found"))?;
+
+    matrix
+        .send_attachment(&room_id.into_typed()?, filename, params, file_data)
+        .await?;
+
+    Ok(())
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -1245,6 +1277,93 @@ async fn matrixSetPusher(bridge: Arc<Bridge>, pusher: RpcPusher) -> anyhow::Resu
     let matrix = get_matrix(&bridge).await?;
     matrix.set_pusher(pusher.0).await
 }
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixEditMessage(
+    bridge: Arc<Bridge>,
+    room_id: RpcRoomId,
+    event_id: String,
+    new_content: String,
+) -> anyhow::Result<()> {
+    let matrix = get_matrix(&bridge).await?;
+    matrix
+        .edit_message(
+            &room_id.into_typed()?,
+            &event_id.parse::<OwnedEventId>()?,
+            new_content,
+        )
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixDeleteMessage(
+    bridge: Arc<Bridge>,
+    room_id: RpcRoomId,
+    event_id: String,
+    reason: Option<String>,
+) -> anyhow::Result<()> {
+    let matrix = get_matrix(&bridge).await?;
+    matrix
+        .delete_message(
+            &room_id.into_typed()?,
+            &event_id.parse::<OwnedEventId>()?,
+            reason,
+        )
+        .await
+}
+
+ts_type_de!(RpcMediaSource: MediaSource = "any");
+#[macro_rules_derive(rpc_method!)]
+async fn matrixDownloadFile(
+    bridge: Arc<Bridge>,
+    path: PathBuf,
+    media_source: RpcMediaSource,
+) -> anyhow::Result<PathBuf> {
+    let matrix = get_matrix(&bridge).await?;
+    let content = matrix.download_file(media_source.0).await?;
+    bridge.storage.write_file(&path, content).await?;
+    Ok(bridge.storage.platform_path(&path))
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixStartPoll(
+    bridge: Arc<Bridge>,
+    room_id: RpcRoomId,
+    question: String,
+    answers: Vec<String>,
+) -> anyhow::Result<()> {
+    let matrix = get_matrix(&bridge).await?;
+    matrix
+        .start_poll(&room_id.into_typed()?, question, answers)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixEndPoll(
+    bridge: Arc<Bridge>,
+    room_id: RpcRoomId,
+    poll_start_id: String,
+) -> anyhow::Result<()> {
+    let matrix = get_matrix(&bridge).await?;
+    let poll_start_event_id = OwnedEventId::try_from(poll_start_id)?;
+    matrix
+        .end_poll(&room_id.into_typed()?, &poll_start_event_id)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixRespondToPoll(
+    bridge: Arc<Bridge>,
+    room_id: RpcRoomId,
+    poll_start_id: String,
+    selections: Vec<String>,
+) -> anyhow::Result<()> {
+    let matrix = get_matrix(&bridge).await?;
+    let poll_start_event_id = OwnedEventId::try_from(poll_start_id)?;
+    matrix
+        .respond_to_poll(&room_id.into_typed()?, &poll_start_event_id, selections)
+        .await
+}
 // converts from a typed handler into untyped handler
 async fn handle_wrapper<Args, F, Fut, R>(
     f: F,
@@ -1321,9 +1440,11 @@ rpc_methods!(RpcMethods {
     validateEcash,
     cancelEcash,
     // Transactions
+    updateCachedFiatFXInfo,
     listTransactions,
     updateTransactionNotes,
     // Recovery
+    backupNow,
     getMnemonic,
     checkMnemonic,
     recoverFromMnemonic,
@@ -1341,9 +1462,6 @@ rpc_methods!(RpcMethods {
     signLnurlMessage,
     // backup
     backupStatus,
-    // XMPP
-    xmppCredentials,
-    backupXmppUsername,
     // Nostr
     getNostrPubkey,
     getNostrSecret,
@@ -1386,6 +1504,7 @@ rpc_methods!(RpcMethods {
     matrixRoomObserveTimelineItemsPaginateBackwards,
     matrixSendMessage,
     matrixSendMessageJson,
+    matrixSendAttachment,
     matrixRoomCreate,
     matrixRoomCreateOrGetDm,
     matrixRoomJoin,
@@ -1415,6 +1534,12 @@ rpc_methods!(RpcMethods {
     matrixRoomPreviewContent,
     matrixPublicRoomInfo,
     matrixRoomMarkAsUnread,
+    matrixEditMessage,
+    matrixDeleteMessage,
+    matrixDownloadFile,
+    matrixStartPoll,
+    matrixEndPoll,
+    matrixRespondToPoll,
 
     // Communities
     communityPreview,
@@ -1438,7 +1563,8 @@ pub async fn fedimint_rpc_async(bridge: Arc<Bridge>, method: String, payload: St
     let _g = TimeReporter::new(format!("fedimint_rpc {method}")).level(Level::INFO);
     let sensitive_log = bridge.sensitive_log().await;
     if sensitive_log {
-        tracing::info!(%payload);
+        let trunc_fmt = format!("{payload:.1000}");
+        tracing::info!(payload = %trunc_fmt);
     } else {
         info!("rpc call");
     }
@@ -1446,8 +1572,18 @@ pub async fn fedimint_rpc_async(bridge: Arc<Bridge>, method: String, payload: St
     let result = RpcMethods::handle(bridge, &method, payload).await;
 
     if sensitive_log {
-        tracing::info!(?result);
+        match &result {
+            Ok(ok) => {
+                let trunc_fmt = format!("{ok:.1000}");
+                tracing::info!(result_ok = %trunc_fmt);
+            }
+            Err(err) => {
+                let trunc_fmt = format!("{err:.1000}");
+                tracing::info!(result_err = %trunc_fmt);
+            }
+        }
     }
+
     result.unwrap_or_else(|error| {
         error!(%error, "rpc_error");
         rpc_error(&error)
@@ -1472,10 +1608,8 @@ mod tests {
     use fedi_core::envs::FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV;
     use fedi_social_client::common::VerificationDocument;
     use fedimint_core::core::ModuleKind;
-    use fedimint_core::task::sleep_in_test;
     use fedimint_core::{apply, async_trait_maybe_send, Amount};
     use fedimint_logging::TracingSetup;
-    use fedimint_wallet_client::WalletClientModule;
     use tokio::sync::Mutex;
     use tracing::{error, info};
 
@@ -1483,10 +1617,13 @@ mod tests {
     use crate::api::{RegisterDeviceError, RegisteredDevice};
     use crate::community::CommunityInvite;
     use crate::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_FILE_PATH, MILLION};
+    use crate::envs::USE_UPSTREAM_FEDIMINTD_ENV;
     use crate::event::{DeviceRegistrationEvent, TransactionEvent};
     use crate::features::RuntimeEnvironment;
+    use crate::federation_v2::client::ClientExt;
     use crate::federation_v2::FederationV2;
     use crate::ffi::PathBasedStorage;
+    use crate::logging::default_log_filter;
     use crate::storage::{DeviceIdentifier, FediFeeSchedule, IStorage};
     use crate::types::{
         RpcLnReceiveState, RpcLnState, RpcOOBReissueState, RpcOOBState, RpcOnchainDepositState,
@@ -1529,13 +1666,21 @@ mod tests {
     struct MockFediApi {
         // (seed, index) => (device identifier, last registration timestamp)
         registry: Mutex<HashMap<(bip39::Mnemonic, u8), (DeviceIdentifier, SystemTime)>>,
+
+        // Invoice that will be returned whenever fetch_fedi_invoice is called
+        fedi_fee_invoice: Option<Bolt11Invoice>,
     }
 
     impl MockFediApi {
         fn new() -> Self {
             Self {
                 registry: Mutex::new(HashMap::new()),
+                fedi_fee_invoice: None,
             }
+        }
+
+        fn set_fedi_fee_invoice(&mut self, invoice: Bolt11Invoice) {
+            self.fedi_fee_invoice = Some(invoice);
         }
     }
 
@@ -1555,7 +1700,9 @@ mod tests {
             _module: ModuleKind,
             _tx_direction: RpcTransactionDirection,
         ) -> anyhow::Result<Bolt11Invoice> {
-            unimplemented!("TODO shaurya implement when testing");
+            self.fedi_fee_invoice
+                .clone()
+                .ok_or(anyhow!("Invoice not set"))
         }
 
         async fn fetch_registered_devices_for_seed(
@@ -1633,7 +1780,11 @@ mod tests {
             .unwrap()
             .parse()
             .unwrap();
-        let gateways = federation.list_gateways().await?;
+        let mut gateways = federation.list_gateways().await?;
+        if gateways.is_empty() {
+            federation.select_gateway().await?;
+            gateways = federation.list_gateways().await?;
+        }
         for gateway in gateways {
             if gateway.node_pub_key.0 == lnd_node_pubkey {
                 federation.switch_gateway(&gateway.gateway_id.0).await?;
@@ -1785,13 +1936,28 @@ mod tests {
         fedi_api: Arc<dyn IFediApi>,
         feature_catalog: Arc<FeatureCatalog>,
     ) -> anyhow::Result<Arc<Bridge>> {
+        setup_bridge_custom_with_data_dir(
+            device_identifier,
+            fedi_api,
+            feature_catalog,
+            create_data_dir(),
+        )
+        .await
+    }
+
+    async fn setup_bridge_custom_with_data_dir(
+        device_identifier: String,
+        fedi_api: Arc<dyn IFediApi>,
+        feature_catalog: Arc<FeatureCatalog>,
+        data_dir: PathBuf,
+    ) -> anyhow::Result<Arc<Bridge>> {
         INIT_TRACING.call_once(|| {
             TracingSetup::default()
+                .with_directive(&default_log_filter())
                 .init()
                 .expect("Failed to initialize tracing");
         });
         let event_sink = Arc::new(FakeEventSink::new());
-        let data_dir = create_data_dir();
         let storage = Arc::new(PathBasedStorage::new(data_dir).await?);
         let bridge = match fedimint_initialize_async(
             storage,
@@ -1834,6 +2000,16 @@ mod tests {
             .await?;
         Ok(federation)
     }
+
+    fn should_skip_test_using_stock_fedimintd() -> bool {
+        if std::env::var(USE_UPSTREAM_FEDIMINTD_ENV).is_ok() {
+            info!("Skipping test as we're using stock/upstream fedimintd binary");
+            true
+        } else {
+            false
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_doesnt_overwrite_seed_in_invalid_fedi_file() -> anyhow::Result<()> {
         INIT_TRACING.call_once(|| {
@@ -1913,7 +2089,10 @@ mod tests {
         // listTransactions works
         let federations = listFederations(bridge.clone()).await?;
         assert_eq!(federations.len(), 1);
-        assert_eq!(env_invite_code.clone(), federations[0].invite_code);
+        let RpcFederationMaybeLoading::Ready(rpc_federation) = &federations[0] else {
+            panic!("federation is not loaded");
+        };
+        assert_eq!(env_invite_code.clone(), rpc_federation.invite_code);
 
         // leaveFederation works
         leaveFederation(bridge.clone(), federation.rpc_federation_id()).await?;
@@ -1923,6 +2102,61 @@ mod tests {
         joinFederation(bridge.clone(), env_invite_code, false).await?;
         assert_eq!(listFederations(bridge).await?.len(), 1);
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_join_concurrent() -> anyhow::Result<()> {
+        let device_identifier = "bridge:test:70c2ad23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
+
+        let mock_fedi_api = Arc::new(MockFediApi::new());
+        let data_dir = create_data_dir();
+        let federation_id;
+        let amount;
+        // first app launch
+        {
+            let bridge = setup_bridge_custom_with_data_dir(
+                device_identifier.clone(),
+                mock_fedi_api.clone(),
+                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+                data_dir.clone(),
+            )
+            .await?;
+            let env_invite_code = std::env::var("FM_INVITE_CODE").unwrap();
+
+            // Can't re-join a federation we're already a member of
+            let (res1, res2) = tokio::join!(
+                joinFederation(bridge.clone(), env_invite_code.clone(), false),
+                joinFederation(bridge.clone(), env_invite_code.clone(), false),
+            );
+            federation_id = match (res1, res2) {
+                (Ok(f), Err(_)) | (Err(_), Ok(f)) => f.id,
+                _ => panic!("exactly one of two concurrent join federation must fail"),
+            };
+
+            let federation = bridge.get_federation(&federation_id.0).await?;
+            let ecash = cli_generate_ecash(fedimint_core::Amount::from_msats(10_000)).await?;
+            amount = receiveEcash(federation.clone(), ecash).await?.0;
+            wait_for_ecash_reissue(&federation).await?;
+            bridge
+                .task_group
+                .clone()
+                .shutdown_join_all(Duration::from_secs(5))
+                .await?;
+        }
+
+        // second app launch
+        {
+            let bridge = setup_bridge_custom_with_data_dir(
+                device_identifier,
+                mock_fedi_api,
+                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+                data_dir,
+            )
+            .await?;
+            let rpc_federation = wait_for_federation_ready(bridge, federation_id).await?;
+            assert_eq!(rpc_federation.balance.0, amount);
+        }
         Ok(())
     }
 
@@ -2219,27 +2453,10 @@ mod tests {
         ),);
 
         let btc_amount = Amount::from_sats(10_000_000);
-        let pegin_fees = federation
-            .client
-            .get_first_module::<WalletClientModule>()
-            .get_fee_consensus()
-            .peg_in_abs;
-        let receive_fedi_fee = Amount::ZERO;
-        // FIXME: implement fedi fees
-        // let receive_fedi_fee = Amount::from_msats(
-        //     ((btc_amount.msats - pegin_fees.msats) *
-        // fedi_fees_receive_ppm).div_ceil(MILLION), );
-        // wait for balance to trickle in atmost 10s
-        for _ in 0..100 {
-            if btc_amount == federation.get_balance().await + receive_fedi_fee + pegin_fees {
-                break;
-            }
-            sleep_in_test(
-                "waiting for balance to trickle in",
-                Duration::from_millis(100),
-            )
-            .await;
-        }
+        let pegin_fees = federation.client.wallet()?.get_fee_consensus().peg_in_abs;
+        let receive_fedi_fee = Amount::from_msats(
+            ((btc_amount.msats - pegin_fees.msats) * fedi_fees_receive_ppm).div_ceil(MILLION),
+        );
         assert_eq!(
             btc_amount,
             federation.get_balance().await + receive_fedi_fee + pegin_fees,
@@ -2277,11 +2494,17 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_backup_and_recovery() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
         test_backup_and_recovery_inner(false).await
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_backup_and_recovery_from_scratch() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
         test_backup_and_recovery_inner(true).await
     }
 
@@ -2311,9 +2534,7 @@ mod tests {
 
         let ecash_balance_before = federation.get_balance().await;
 
-        // set username and do a backup
-        let username = "satoshi".to_string();
-        backupXmppUsername(federation.clone(), username.clone()).await?;
+        backupNow(federation.clone()).await?;
         // give some time for backup to complete before shutting down the bridge
         fedimint_core::task::sleep(Duration::from_secs(1)).await;
 
@@ -2378,6 +2599,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_social_backup_and_recovery() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
         std::env::set_var(FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV, "1");
 
         let (original_bridge, federation) = setup().await?;
@@ -2409,8 +2634,7 @@ mod tests {
 
         // set username and do a backup
         let federation_id = federation.rpc_federation_id();
-        let username = "satoshi".to_string();
-        backupXmppUsername(federation.clone(), username.clone()).await?;
+        backupNow(federation.clone()).await?;
 
         // Get original mnemonic (for comparison later)
         let initial_words = getMnemonic(original_bridge.clone()).await?;
@@ -2491,13 +2715,8 @@ mod tests {
 
         // Assert that balances are correct
         let recovery_federation = recovery_bridge
-            .federations
-            .lock()
-            .await
-            .clone()
-            .into_values()
-            .next()
-            .ok_or(anyhow!("Rejoined federation must exist"))?;
+            .get_federation_maybe_recovering(&federation_id.0)
+            .await?;
         assert!(recovery_federation.recovering());
         let id = recovery_federation.rpc_federation_id();
         drop(recovery_federation);
@@ -2531,6 +2750,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_stability_pool() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
         // Vec of tuple of (send_ppm, receive_ppm)
         let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
         for (send_ppm, receive_ppm) in fee_ppm_values {
@@ -2697,8 +2920,7 @@ mod tests {
         federation.receive_ecash(ecash).await?;
         wait_for_ecash_reissue(&federation).await?;
         let federation_id = federation.rpc_federation_id();
-        let username = "satoshi".to_string();
-        backupXmppUsername(federation.clone(), username.clone()).await?;
+        backupNow(federation.clone()).await?;
 
         // extract mnemonic, leave federation and drop bridge
         let mnemonic = getMnemonic(bridge.clone()).await?;
@@ -2740,9 +2962,7 @@ mod tests {
             RpcDeviceIndexAssignmentStatus::Assigned(0)
         ));
 
-        // set username and do a backup
-        let username = "satoshi".to_string();
-        backupXmppUsername(federation.clone(), username.clone()).await?;
+        backupNow(federation.clone()).await?;
         // give some time for backup to complete before shutting down the bridge
         fedimint_core::task::sleep(Duration::from_secs(1)).await;
 
@@ -2775,6 +2995,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_transfer_device_registration_no_feds() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
         let device_identifier_1 = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::new());
         let bridge_1 = setup_bridge_custom(
@@ -2848,6 +3072,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_transfer_device_registration_post_recovery() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
         let device_identifier_1 = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::new());
         let (backup_bridge, federation) = setup_custom(
@@ -2880,9 +3108,7 @@ mod tests {
 
         let ecash_balance_before = federation.get_balance().await;
 
-        // set username and do a backup
-        let username = "satoshi".to_string();
-        backupXmppUsername(federation.clone(), username.clone()).await?;
+        backupNow(federation.clone()).await?;
         // give some time for backup to complete before shutting down the bridge
         fedimint_core::task::sleep(Duration::from_secs(1)).await;
 
@@ -2927,10 +3153,6 @@ mod tests {
             ecash_balance_before + expected_fedi_fee,
             recovery_federation.get_balance().await
         );
-        assert_eq!(
-            Some(username),
-            recovery_federation.get_xmpp_username().await
-        );
 
         let account_info = stabilityPoolAccountInfo(recovery_federation.clone(), true).await?;
         assert_eq!(account_info.idle_balance.0, Amount::ZERO);
@@ -2966,6 +3188,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_new_device_registration_post_recovery() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
         let device_identifier_1 = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::new());
         let (backup_bridge, federation) = setup_custom(
@@ -2986,9 +3212,7 @@ mod tests {
         let amount_to_deposit = Amount::from_msats(110_000);
         stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
 
-        // set username and do a backup
-        let username = "satoshi".to_string();
-        backupXmppUsername(federation.clone(), username.clone()).await?;
+        backupNow(federation.clone()).await?;
         // give some time for backup to complete before shutting down the bridge
         fedimint_core::task::sleep(Duration::from_secs(1)).await;
 
@@ -3015,7 +3239,6 @@ mod tests {
         let recovery_federation = join_test_fed_recovery(&recovery_bridge, false).await?;
         assert!(!recovery_federation.recovering());
         assert_eq!(Amount::ZERO, recovery_federation.get_balance().await);
-        assert_eq!(None, recovery_federation.get_xmpp_username().await);
 
         let account_info = stabilityPoolAccountInfo(recovery_federation.clone(), true).await?;
         assert_eq!(account_info.idle_balance.0, Amount::ZERO);
@@ -3294,5 +3517,209 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_fee_remittance_on_startup() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
+        // Setup bridge, join test federation, set SP send fee ppm
+        let device_identifier = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
+        let (bridge, federation) = setup_custom(
+            device_identifier.clone(),
+            Arc::new(MockFediApi::new()),
+            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+        )
+        .await?;
+        setStabilityPoolModuleFediFeeSchedule(
+            bridge.clone(),
+            federation.rpc_federation_id(),
+            210_000,
+            0,
+        )
+        .await?;
+
+        // Receive ecash, verify no pending or outstanding fees
+        let ecash = cli_generate_ecash(Amount::from_msats(2_000_000)).await?;
+        let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
+        federation.receive_ecash(ecash).await?;
+        wait_for_ecash_reissue(&federation).await?;
+        assert_eq!(ecash_receive_amount, federation.get_balance().await);
+        assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
+        assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+
+        // Make SP deposit, verify pending fees
+        let amount_to_deposit = Amount::from_msats(1_000_000);
+        stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
+        assert_eq!(
+            Amount::from_msats(210_000),
+            federation.get_pending_fedi_fees().await
+        );
+        assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+
+        // Wait for SP deposit to be accepted, verify outstanding fees
+        loop {
+            // Wait until deposit operation succeeds
+            // Initiated -> TxAccepted -> Success
+            if bridge
+                .event_sink
+                .num_events_of_type("stabilityPoolDeposit".into())
+                == 3
+            {
+                break;
+            }
+
+            fedimint_core::task::sleep(Duration::from_millis(100)).await;
+        }
+        assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
+        assert_eq!(
+            Amount::from_msats(210_000),
+            federation.get_outstanding_fedi_fees().await
+        );
+
+        // No fee can be remitted just yet cuz we haven't mocked invoice endpoint
+
+        // Extract data dir and drop bridge
+        let federation_id = federation.federation_id();
+        let data_dir = bridge.storage.platform_path(Path::new(""));
+        drop(federation);
+        bridge
+            .task_group
+            .clone()
+            .shutdown_join_all(Duration::from_secs(5))
+            .await?;
+        drop(bridge);
+
+        // Mock fee remittance endpoint
+        let label = "fedi_fee_app_startup";
+        let fedi_fee_invoice = cli_generate_invoice(label, &Amount::from_msats(210_000)).await?;
+        let mut mock_fedi_api = MockFediApi::new();
+        mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
+
+        // Create new bridge using same data dir
+        let new_bridge = setup_bridge_custom_with_data_dir(
+            device_identifier,
+            Arc::new(mock_fedi_api),
+            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+            data_dir,
+        )
+        .await?;
+
+        // Wait for fedi fee to be remitted (timeout of 5s)
+        fedimint_core::task::timeout(Duration::from_secs(5), cln_wait_invoice(label)).await??;
+
+        // Ensure outstanding fee has been cleared
+        let federation = new_bridge
+            .get_federation(&federation_id.to_string())
+            .await?;
+        assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
+        assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_fee_remittance_post_successful_tx() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
+        // Mock fee remittance endpoint
+        let label = "fedi_fee_post_tx";
+        let fedi_fee_invoice = cli_generate_invoice(label, &Amount::from_msats(210_000)).await?;
+        let mut mock_fedi_api = MockFediApi::new();
+        mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
+
+        // Setup bridge, join test federation, set SP send fee ppm
+        let device_identifier = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
+        let (bridge, federation) = setup_custom(
+            device_identifier.clone(),
+            Arc::new(mock_fedi_api),
+            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+        )
+        .await?;
+        setStabilityPoolModuleFediFeeSchedule(
+            bridge.clone(),
+            federation.rpc_federation_id(),
+            210_000,
+            0,
+        )
+        .await?;
+
+        // Receive ecash, verify no pending or outstanding fees
+        let ecash = cli_generate_ecash(Amount::from_msats(2_000_000)).await?;
+        let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
+        federation.receive_ecash(ecash).await?;
+        wait_for_ecash_reissue(&federation).await?;
+        assert_eq!(ecash_receive_amount, federation.get_balance().await);
+        assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
+        assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+
+        // Make SP deposit, verify pending fees
+        let amount_to_deposit = Amount::from_msats(1_000_000);
+        stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
+        assert_eq!(
+            Amount::from_msats(210_000),
+            federation.get_pending_fedi_fees().await
+        );
+        assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+
+        // Wait for SP deposit to be accepted, verify fee remittance
+        loop {
+            // Wait until deposit operation succeeds
+            // Initiated -> TxAccepted -> Success
+            if bridge
+                .event_sink
+                .num_events_of_type("stabilityPoolDeposit".into())
+                == 3
+            {
+                break;
+            }
+
+            fedimint_core::task::sleep(Duration::from_millis(100)).await;
+        }
+
+        // Wait for fedi fee to be remitted
+        fedimint_core::task::timeout(Duration::from_secs(30), cln_wait_invoice(label)).await??;
+
+        // Ensure outstanding fee has been cleared
+        assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
+        assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
+
+        Ok(())
+    }
+
+    async fn wait_for_federation_ready(
+        bridge: Arc<Bridge>,
+        federation_id: RpcFederationId,
+    ) -> anyhow::Result<RpcFederation> {
+        fedimint_core::task::timeout(Duration::from_secs(2), async move {
+            'check: loop {
+                let federations = bridge.list_federations().await;
+                let rpc_federation = federations.into_iter().find_map(|f| {
+                    if let RpcFederationMaybeLoading::Ready(fed @ RpcFederation { .. }) = f {
+                        if fed.id == federation_id {
+                            Some(fed)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(rpc_federation) = rpc_federation {
+                    break 'check Ok::<_, anyhow::Error>(rpc_federation);
+                }
+                fedimint_core::task::sleep_in_test(
+                    "waiting for federation ready event",
+                    Duration::from_millis(100),
+                )
+                .await;
+            }
+        })
+        .await?
     }
 }

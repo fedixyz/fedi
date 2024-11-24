@@ -16,7 +16,11 @@ import { makeLog } from '@fedi/common/utils/log'
 import { fedimint } from '../bridge'
 import ChatConversation from '../components/feature/chat/ChatConversation'
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
-import MessageInput from '../components/feature/chat/MessageInput'
+import MessageInput, {
+    InputAttachment,
+    InputMedia,
+} from '../components/feature/chat/MessageInput'
+import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -38,27 +42,52 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
     const toast = useToast()
 
-    const directUserId = room?.directUserId
+    const directUserId = useMemo(() => room?.directUserId, [room])
 
     const handleSend = useCallback(
-        async (body: string) => {
-            if (!body || isSending) return
+        async (
+            body: string,
+            attachments: Array<InputAttachment | InputMedia> = [],
+        ) => {
+            if ((!body && !attachments.length) || isSending) return
+
             setIsSending(true)
             try {
-                await dispatch(
-                    sendMatrixMessage({
-                        fedimint,
+                if (body) {
+                    await dispatch(
+                        sendMatrixMessage({
+                            fedimint,
+                            roomId,
+                            body,
+                            // TODO: support intercepting bolt11 for group chats
+                            options: { interceptBolt11: chatType === 'direct' },
+                        }),
+                    ).unwrap()
+                }
+
+                for (const att of attachments) {
+                    const resolvedUri = decodeURI(att.uri)
+                    const filePath = resolvedUri.startsWith('file://')
+                        ? resolvedUri.slice(7)
+                        : resolvedUri
+
+                    await fedimint.matrixSendAttachment({
                         roomId,
-                        body,
-                        // TODO: support intercepting bolt11 for group chats
-                        options: { interceptBolt11: chatType === 'direct' },
-                    }),
-                ).unwrap()
+                        filename: att.fileName,
+                        params: {
+                            mimeType: att.mimeType,
+                            width: 'width' in att ? att.width : null,
+                            height: 'height' in att ? att.height : null,
+                        },
+                        filePath,
+                    })
+                }
             } catch (err) {
                 log.error('error sending message', err)
                 toast.error(t, 'errors.unknown-error')
+            } finally {
+                setIsSending(false)
             }
-            setIsSending(false)
         },
         [chatType, dispatch, isSending, roomId, t, toast],
     )
@@ -66,16 +95,21 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const content = useMemo(() => {
         return (
             <>
-                <ChatConversation type={chatType} id={roomId || ''} />
+                <ChatConversation
+                    type={chatType}
+                    id={roomId || ''}
+                    isPublic={room?.isPublic}
+                />
                 <MessageInput
                     onMessageSubmitted={handleSend}
                     id={roomId || directUserId || ''}
+                    isPublic={room?.isPublic}
                 />
             </>
         )
-    }, [roomId, directUserId, chatType, handleSend])
+    }, [roomId, directUserId, chatType, handleSend, room])
 
-    const style = styles(theme)
+    const style = useMemo(() => styles(theme), [theme])
 
     if (!room) {
         if (groupPreview) {
@@ -91,7 +125,12 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         )
     }
 
-    return <View style={style.container}>{content}</View>
+    return (
+        <>
+            <View style={style.container}>{content}</View>
+            <SelectedMessageOverlay isPublic={!!room.isPublic} />
+        </>
+    )
 }
 
 const styles = (_: Theme) =>

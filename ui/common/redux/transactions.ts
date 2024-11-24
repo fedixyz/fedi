@@ -203,6 +203,7 @@ export const selectTransactionHistory = createSelector(
                 Date.now() / 1000 - txn.createdAt > 3600 &&
                 (!txn.onchainState ||
                     (txn.onchainState.type !== 'waitingForConfirmation' &&
+                        txn.onchainState.type !== 'confirmed' &&
                         txn.onchainState.type !== 'claimed'))
             ) {
                 return false
