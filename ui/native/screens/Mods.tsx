@@ -1,10 +1,9 @@
 import { useNavigation } from '@react-navigation/native'
 import type { Theme } from '@rneui/themed'
-import { useTheme } from '@rneui/themed'
+import { Tooltip, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-    Dimensions,
     Linking,
     Pressable,
     ScrollView,
@@ -19,7 +18,6 @@ import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
 import ShortcutTile from '../components/feature/home/ShortcutTile'
 import SvgImage from '../components/ui/SvgImage'
-import { Tooltip } from '../components/ui/Tooltip'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
 import { NavigationHook } from '../types/navigation'
@@ -65,34 +63,34 @@ const Mods: React.FC = () => {
 
     const renderFediModShortcuts = () => {
         const fediModShortcuts = mods.map(s => new FediMod(s))
-        return fediModShortcuts.map((s: FediMod) => {
+        return fediModShortcuts.map((s: FediMod, i) => {
             return (
-                <View key={`fediMod-s-${s.id}`} style={style.shortcut}>
-                    {/* an invisible overlay so we can hide the tooltip on outside press */}
-                    <Pressable
-                        style={style.tooltipOverlay}
-                        onPress={() => setActionsMod(undefined)}
-                    />
+                <View key={`fediMod-s-${i}`} style={style.shortcut}>
                     <Tooltip
-                        shouldShow={actionsMod?.id === s.id}
-                        orientation="above"
-                        verticalOffset={96}
-                        horizontalOffset={48}
-                        text="">
-                        <Pressable
-                            style={style.tooltipAction}
-                            onPress={() => toggleHideMod(s.id)}>
-                            <Text style={style.tooltipText}>
-                                {t('words.hide')}
-                            </Text>
-                            <SvgImage name="Eye" />
-                        </Pressable>
+                        visible={actionsMod?.id === s.id}
+                        onClose={() => setActionsMod(undefined)}
+                        withPointer
+                        popover={
+                            <Pressable
+                                style={style.tooltipAction}
+                                onPress={() => toggleHideMod(s.id)}>
+                                <Text style={style.tooltipText}>
+                                    {t('words.hide')}
+                                </Text>
+                                <SvgImage name="Eye" />
+                            </Pressable>
+                        }
+                        closeOnlyOnBackdropPress
+                        withOverlay
+                        overlayColor={theme.colors.overlay}
+                        width={96}
+                        backgroundColor={theme.colors.blue100}>
+                        <ShortcutTile
+                            shortcut={s}
+                            onSelect={onSelectFediMod}
+                            onHold={handleModHold}
+                        />
                     </Tooltip>
-                    <ShortcutTile
-                        shortcut={s}
-                        onSelect={onSelectFediMod}
-                        onHold={handleModHold}
-                    />
                 </View>
             )
         })
@@ -164,15 +162,11 @@ const styles = (theme: Theme, columns: number) =>
         },
         tooltipAction: {
             flexDirection: 'row',
-            gap: theme.sizes.xs,
+            alignItems: 'center',
+            gap: theme.spacing.sm,
         },
         tooltipText: {
             color: theme.colors.primary,
-        },
-        tooltipOverlay: {
-            height: Dimensions.get('window').height,
-            width: Dimensions.get('window').width,
-            position: 'absolute',
         },
     })
 

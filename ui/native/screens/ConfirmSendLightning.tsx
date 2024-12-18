@@ -10,7 +10,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { BridgeError } from '@fedi/common/utils/fedimint'
 
 import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
@@ -78,11 +77,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
                 unit,
             })
         } catch (err) {
-            if (err instanceof BridgeError) {
-                toast.error(t, null, err.format(t))
-            } else {
-                toast.error(t, err)
-            }
+            toast.error(t, err)
         }
         setIsPayingInvoice(false)
     }, [

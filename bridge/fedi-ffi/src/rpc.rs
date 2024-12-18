@@ -512,6 +512,11 @@ async fn backupStatus(federation: Arc<FederationV2>) -> anyhow::Result<BackupSer
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn fedimintVersion(_bridge: Arc<Bridge>) -> anyhow::Result<String> {
+    Ok(fedimint_core::version::cargo_pkg().to_string())
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn getNostrSecret(bridge: Arc<Bridge>) -> anyhow::Result<RpcNostrSecret> {
     bridge.get_nostr_secret().await
 }
@@ -1418,6 +1423,7 @@ macro_rules! rpc_methods {
 rpc_methods!(RpcMethods {
     bridgeStatus,
     onAppForeground,
+    fedimintVersion,
     // Federations
     joinFederation,
     federationPreview,

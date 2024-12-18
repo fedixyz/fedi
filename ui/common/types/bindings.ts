@@ -334,6 +334,7 @@ export interface RpcMethods {
     },
   ];
   onAppForeground: [Record<string, never>, null];
+  fedimintVersion: [Record<string, never>, string];
   joinFederation: [
     { inviteCode: string; recoverFromScratch: boolean },
     {

@@ -4,7 +4,8 @@ use fedimint_derive_secret::ChildId;
 
 pub const PAY_INVOICE_TIMEOUT: Duration = Duration::from_secs(90);
 pub const REISSUE_ECASH_TIMEOUT: Duration = Duration::from_secs(60);
-pub const ONE_WEEK: Duration = Duration::from_secs(604800);
+/// 3 days
+pub const ECASH_AUTO_CANCEL_DURATION: Duration = Duration::from_secs(60 * 60 * 24 * 3);
 pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 pub const LNURL_CHILD_ID: u64 = 11;
 pub const XMPP_CHILD_ID: u64 = 10;

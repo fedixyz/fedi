@@ -77,6 +77,7 @@ const themeDefaults = {
     borders: {
         defaultRadius: 16,
         qrCodeRadius: 20,
+        settingsRadius: 21,
         fediModTileRadius: 12,
         progressBarRadius: 4,
     },

@@ -13,7 +13,6 @@ import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
-import { BridgeError } from '@fedi/common/utils/fedimint'
 
 import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
@@ -67,11 +66,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                 unit,
             })
         } catch (err) {
-            if (err instanceof BridgeError) {
-                toast.error(t, null, err.format(t))
-            } else {
-                toast.error(t, err)
-            }
+            toast.error(t, err)
         }
         setIsPayingAddress(false)
     }, [handleOmniSend, inputAmount, unit, navigationReplace, toast, t])

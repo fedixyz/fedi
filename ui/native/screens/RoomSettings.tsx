@@ -16,12 +16,11 @@ import {
 import { MatrixPowerLevel } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
+import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import SettingsItem, {
     SettingsItemProps,
-} from '../components/feature/admin/SettingsItem'
-import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
+} from '../components/feature/settings/SettingsItem'
 import HoloLoader from '../components/ui/HoloLoader'
-import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -122,7 +121,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             // non-default groups: anyone can see members list
             if (isAdmin || !isDefaultGroup) {
                 items.push({
-                    image: <SvgImage name="SocialPeople" />,
+                    icon: 'SocialPeople',
                     label: `${amountUtils.formatNumber(memberCount)} ${t(
                         'words.members',
                     )}`,
@@ -131,24 +130,24 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             }
             items.push(
                 {
-                    image: <SvgImage name="Room" />,
+                    icon: 'Room',
                     label: t('feature.chat.invite-to-group'),
                     onPress: handleInviteMember,
                     disabled: !isAdmin,
                 },
                 {
-                    image: <SvgImage name="LeaveRoom" />,
+                    icon: 'LeaveRoom',
                     label: t('feature.chat.leave-group'),
                     onPress: handleLeaveChat,
                 },
                 {
-                    image: <SvgImage name="Edit" />,
+                    icon: 'Edit',
                     label: t('feature.chat.change-group-name'),
                     onPress: handleChangeGroupName,
                     disabled: !isAdmin,
                 },
                 {
-                    image: <SvgImage name="SpeakerPhone" />,
+                    icon: 'SpeakerPhone',
                     label: t('feature.chat.broadcast-only'),
                     action: (
                         <Switch
@@ -165,7 +164,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             )
         } else {
             items.push({
-                image: <SvgImage name="LeaveRoom" />,
+                icon: 'LeaveRoom',
                 label: t('feature.chat.leave-chat'),
                 onPress: handleLeaveChat,
             })
@@ -194,12 +193,14 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             <ChatSettingsAvatar room={room} />
             <ScrollView bounces={false} contentContainerStyle={style.content}>
                 <View style={style.sectionContainer}>
-                    <Text style={style.sectionTitle}>
+                    <Text color={theme.colors.primaryLight}>
                         {t('feature.chat.chat-settings')}
                     </Text>
-                    {settingsItems.map((item, index) => (
-                        <SettingsItem key={`si-${index}`} {...item} />
-                    ))}
+                    <View style={style.settingsItems}>
+                        {settingsItems.map((item, index) => (
+                            <SettingsItem key={`si-${index}`} {...item} />
+                        ))}
+                    </View>
                 </View>
             </ScrollView>
         </View>
@@ -213,12 +214,12 @@ const styles = (theme: Theme) =>
             padding: theme.spacing.lg,
         },
         sectionContainer: {
-            flexDirection: 'column',
-            alignItems: 'flex-start',
+            gap: theme.spacing.lg,
         },
-        sectionTitle: {
-            color: theme.colors.primaryLight,
-            paddingVertical: theme.spacing.sm,
+        settingsItems: {
+            backgroundColor: theme.colors.offWhite100,
+            borderRadius: theme.borders.settingsRadius,
+            padding: theme.spacing.xs,
         },
         content: {
             height: '100%',

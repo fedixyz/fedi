@@ -88,8 +88,9 @@ use self::dev::{
 use self::ln_gateway_service::LnGatewayService;
 use self::stability_pool_sweeper_service::StabilityPoolSweeperService;
 use super::constants::{
-    LIGHTNING_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE, ONE_WEEK, PAY_INVOICE_TIMEOUT,
-    REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE, WALLET_OPERATION_TYPE,
+    ECASH_AUTO_CANCEL_DURATION, LIGHTNING_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE,
+    PAY_INVOICE_TIMEOUT, REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE,
+    WALLET_OPERATION_TYPE,
 };
 use super::event::{Event, EventSink, TypedEventExt};
 use super::types::{
@@ -1739,12 +1740,12 @@ impl FederationV2 {
         // Immediately cancel, which will reissue the notes attempting to fill in lower
         // denominations. And then generate using AT LEAST strategy again, which
         // will now have a high chance to producing the exact amount.
-        let cancel_time = fedimint_core::time::now() + ONE_WEEK;
+        let cancel_time = fedimint_core::time::now() + ECASH_AUTO_CANCEL_DURATION;
         let (spend_guard, operation_id, notes) = match mint
             .spend_notes_with_selector(
                 &SelectNotesWithExactAmount,
                 amount,
-                ONE_WEEK,
+                ECASH_AUTO_CANCEL_DURATION,
                 false,
                 EcashSendMetadata { internal: false },
             )
@@ -1755,7 +1756,7 @@ impl FederationV2 {
                 let (_, notes) = mint
                     .spend_notes(
                         amount,
-                        ONE_WEEK,
+                        ECASH_AUTO_CANCEL_DURATION,
                         false,
                         EcashSendMetadata { internal: true },
                     )
@@ -1784,7 +1785,7 @@ impl FederationV2 {
                 let (operation_id, notes) = mint
                     .spend_notes(
                         amount,
-                        ONE_WEEK,
+                        ECASH_AUTO_CANCEL_DURATION,
                         false,
                         EcashSendMetadata { internal: false },
                     )

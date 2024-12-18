@@ -36,6 +36,7 @@ declare module '@rneui/themed' {
             blueDropShadow: string
             night: string
             fuschia: string
+            overlay: string
             // @react-navigation requires these properties
             background: string
             card: string
@@ -61,6 +62,7 @@ declare module '@rneui/themed' {
             qrCodeRadius: number
             fediModTileRadius: number
             progressBarRadius: number
+            settingsRadius: number
         }
     }
 

@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
+import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +13,7 @@ import {
 } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { selectActiveFederationFediMods } from '@fedi/common/redux'
 import {
     removeCustomMod,
     selectConfigurableMods,
@@ -26,56 +28,66 @@ import CustomOverlay, {
 } from '../components/ui/CustomOverlay'
 import SvgImage, { getIconSizeMultiplier } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { RootStackParamList } from '../types/navigation'
 
-const FediModSettings: React.FC = () => {
+export type Props = NativeStackScreenProps<
+    RootStackParamList,
+    'FediModSettings' | 'FederationModSettings'
+>
+
+const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
     const { t } = useTranslation()
     const insets = useSafeAreaInsets()
     const navigation = useNavigation()
 
-    const mods = useAppSelector(selectConfigurableMods)
-    const modsVisibility = useAppSelector(selectModsVisibility)
-
     const dispatch = useAppDispatch()
+    const { type } = route.params
+
+    const selectConfigMods = useAppSelector(selectConfigurableMods)
+    const selectActiveFedMods = useAppSelector(selectActiveFederationFediMods)
+
+    // Select the correct data based on the type
+    const mods = type === 'fedi' ? selectConfigMods : selectActiveFedMods
+
+    const modsVisibility = useAppSelector(selectModsVisibility)
 
     const [deletingMod, setDeletingMod] = useState<FediMod>()
     const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
     useEffect(() => {
-        if (deletingMod === undefined) {
+        if (!deletingMod) {
             setIsDeleting(false)
         }
     }, [deletingMod])
 
     const style = styles(theme, fontScale, insets)
 
-    const handleDeletePress = (fediMod: FediMod) => {
-        setDeletingMod(fediMod)
+    const handleDeletePress = (mod: FediMod) => {
+        setDeletingMod(mod)
     }
 
-    const handleToggleModVisibility = useCallback(
+    const handleToggleVisibility = useCallback(
         (mod: FediMod) => {
+            const visibilityKey =
+                type === 'fedi' ? 'isHidden' : 'isHiddenCommunity'
             dispatch(
                 setModVisibility({
                     modId: mod.id,
-                    isHidden: !modsVisibility[mod.id]?.isHidden,
+                    [visibilityKey]: !modsVisibility[mod.id]?.[visibilityKey],
                 }),
             )
         },
-        [modsVisibility, dispatch],
+        [modsVisibility, dispatch, type],
     )
 
     const confirmationContent: CustomOverlayContents = useMemo(() => {
         const confirmModDeletion = () => {
-            if (!deletingMod) {
-                return
-            }
+            if (!deletingMod) return
 
             setIsDeleting(true)
-
             dispatch(removeCustomMod({ modId: deletingMod.id }))
-
             setDeletingMod(undefined)
             setIsDeleting(false)
         }
@@ -108,21 +120,26 @@ const FediModSettings: React.FC = () => {
 
     const renderMods = useCallback(() => {
         return mods.map(mod => {
-            const isHidden = modsVisibility[mod.id]?.isHidden
-            const isCustom = modsVisibility[mod.id]?.isCustom
+            const visibilityKey =
+                type === 'fedi' ? 'isHidden' : 'isHiddenCommunity'
+            const isHidden = modsVisibility[mod.id]?.[visibilityKey]
+            const canDelete = modsVisibility[mod.id]?.isCustom
 
             return (
                 <ModRow
                     key={mod.id}
                     isHidden={isHidden}
                     mod={mod}
-                    onToggleVisibility={handleToggleModVisibility}
-                    onDelete={handleDeletePress}
-                    canDelete={isCustom}
+                    onToggleVisibility={handleToggleVisibility}
+                    onDelete={
+                        type === 'fedi' && canDelete
+                            ? handleDeletePress
+                            : undefined
+                    }
                 />
             )
         })
-    }, [mods, modsVisibility, handleToggleModVisibility])
+    }, [mods, modsVisibility, handleToggleVisibility, type])
 
     return (
         <View style={style.container}>
@@ -156,55 +173,50 @@ const FediModSettings: React.FC = () => {
                     </View>
                 )}
             </ScrollView>
-            <Button onPress={() => navigation.navigate('AddFediMod')}>
-                {t('feature.fedimods.add-a-mod')}
-            </Button>
+            {type === 'fedi' && (
+                <Button onPress={() => navigation.navigate('AddFediMod')}>
+                    {t('feature.fedimods.add-a-mod')}
+                </Button>
+            )}
         </View>
     )
 }
 
 interface ModRowProps {
-    canDelete?: boolean
     isHidden: boolean
     mod: FediMod
     onDelete?: (mod: FediMod) => void
     onToggleVisibility: (mod: FediMod) => void
 }
 
-const ModRow = ({
-    canDelete,
+const ModRow: React.FC<ModRowProps> = ({
     isHidden,
     mod,
     onDelete,
     onToggleVisibility,
-}: ModRowProps) => {
+}) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
     const insets = useSafeAreaInsets()
-    const [loaded, setLoaded] = useState(false)
-    // use local image if we have it
-    // then try image url
-    // fallback to default
+
     const [imageSrc, setImageSrc] = useState(
         FediModImages[mod.id] ||
             (mod.imageUrl ? { uri: mod.imageUrl } : FediModImages.default),
     )
+
+    const [loaded, setLoaded] = useState(false)
 
     const style = styles(theme, fontScale, insets)
 
     return (
         <View key={mod.id} style={style.fediMod}>
             <Image
-                style={[style.iconImage, !loaded ? style.loadingState : {}]}
+                style={[style.iconImage, !loaded && style.loadingState]}
                 source={imageSrc}
                 resizeMode="contain"
-                // use fallback if url fails to load
-                onError={() => {
-                    setImageSrc(FediModImages.default)
-                }}
+                onError={() => setImageSrc(FediModImages.default)}
                 onLoadEnd={() => setLoaded(true)}
             />
-
             <View style={style.fediModText}>
                 <Text>{mod.title}</Text>
                 <Text small>{mod.url}</Text>
@@ -212,8 +224,8 @@ const ModRow = ({
             <Pressable onPress={() => onToggleVisibility(mod)}>
                 <SvgImage name={isHidden ? 'EyeClosed' : 'Eye'} size={24} />
             </Pressable>
-            {canDelete && (
-                <Pressable onPress={() => onDelete?.(mod)}>
+            {onDelete && (
+                <Pressable onPress={() => onDelete(mod)}>
                     <SvgImage name="Close" size={24} />
                 </Pressable>
             )}
@@ -285,4 +297,4 @@ const styles = (theme: Theme, fontScale: number, insets: EdgeInsets) => {
     })
 }
 
-export default FediModSettings
+export default FediModSettingsScreen

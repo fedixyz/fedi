@@ -26,6 +26,7 @@ const initialState = {
     deviceId: undefined as string | undefined,
     nostrNpub: undefined as RpcNostrPubkey | undefined,
     nostrNsec: undefined as RpcNostrSecret | undefined,
+    fedimintVersion: undefined as string | undefined,
 }
 
 export type EnvironmentState = typeof initialState
@@ -68,6 +69,9 @@ export const environmentSlice = createSlice({
         },
         setNostrNsec(state, action: PayloadAction<RpcNostrSecret>) {
             state.nostrNsec = action.payload
+        },
+        setFedimintVersion(state, action: PayloadAction<string>) {
+            state.fedimintVersion = action.payload
         },
     },
     extraReducers: builder => {
@@ -114,6 +118,7 @@ export const {
     setDeviceId,
     setNostrNpub,
     setNostrNsec,
+    setFedimintVersion,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -147,6 +152,19 @@ export const initializeNostrKeys = createAsyncThunk<
         if (!forceRefresh && getState().environment.nostrNpub) return
         dispatch(setNostrNpub(await fedimint.getNostrPubkey()))
         dispatch(setNostrNsec(await fedimint.getNostrSecret()))
+    },
+)
+
+export const initializeFedimintVersion = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>(
+    'environment/initializeFedimintVersion',
+    async ({ fedimint }, { dispatch }) => {
+        const version = await fedimint.fedimintVersion()
+
+        dispatch(setFedimintVersion(version))
     },
 )
 
@@ -195,3 +213,6 @@ export const selectDeviceId = (s: CommonState) => s.environment.deviceId
 export const selectNostrNpub = (s: CommonState) => s.environment.nostrNpub
 
 export const selectNostrNsec = (s: CommonState) => s.environment.nostrNsec
+
+export const selectFedimintVersion = (s: CommonState) =>
+    s.environment.fedimintVersion

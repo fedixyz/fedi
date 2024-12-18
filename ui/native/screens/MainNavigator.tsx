@@ -6,12 +6,6 @@ import { useTranslation } from 'react-i18next'
 
 import { selectSocialRecoveryState } from '@fedi/common/redux'
 
-import AddFediModHeader from '../components/feature/admin/AddFediModHeader'
-import CurrencySettingsHeader from '../components/feature/admin/CurrencySettingsHeader'
-import EditProfileSettingsHeader from '../components/feature/admin/EditProfileSettingsHeader'
-import FediModSettingsHeader from '../components/feature/admin/FediModSettingsHeader'
-import LanguageSettingsHeader from '../components/feature/admin/LanguageSettingsHeader'
-import SettingsHeader from '../components/feature/admin/SettingsHeader'
 import ChooseBackupMethodHeader from '../components/feature/backup/ChooseBackupMethodHeader'
 import PersonalBackupHeader from '../components/feature/backup/PersonalBackupHeader'
 import RecoveryWordsHeader from '../components/feature/backup/RecoveryWordsHeader'
@@ -54,6 +48,7 @@ import SendBitcoinHeader from '../components/feature/send/SendBitcoinHeader'
 import SendBitcoinOfflineHeader from '../components/feature/send/SendBitcoinOfflineHeader'
 import SendBitcoinOfflineQrHeader from '../components/feature/send/SendBitcoinOfflineQrHeader'
 import SendHeader from '../components/feature/send/SendHeader'
+import SettingsHeader from '../components/feature/settings/SettingsHeader'
 import ConfirmDepositHeader from '../components/feature/stabilitypool/ConfirmDepositHeader'
 import ConfirmWithdrawHeader from '../components/feature/stabilitypool/ConfirmWithdrawHeader'
 import DepositInitiatedHeader from '../components/feature/stabilitypool/DepositInitiatedHeader'
@@ -64,6 +59,7 @@ import StabilityWithdrawHeader from '../components/feature/stabilitypool/Stabili
 import StableBalanceIntroHeader from '../components/feature/stabilitypool/StableBalanceIntroHeader'
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
 import TransactionsHeader from '../components/feature/transaction-history/TransactionsHeader'
+import { CenteredHeader } from '../components/ui/CenteredHeader'
 import Header from '../components/ui/Header'
 import { useAppSelector } from '../state/hooks'
 import {
@@ -805,35 +801,66 @@ export const MainNavigator = () => {
                                 name="FediModSettings"
                                 component={FediModSettings}
                                 options={() => ({
-                                    header: () => <FediModSettingsHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.fedimods.fedi-mods',
+                                            )}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen
                                 name="AddFediMod"
                                 component={AddFediMod}
                                 options={() => ({
-                                    header: () => <AddFediModHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.fedimods.fedi-mods',
+                                            )}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen
                                 name="EditProfileSettings"
                                 component={EditProfileSettings}
                                 options={() => ({
-                                    header: () => <EditProfileSettingsHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('phrases.edit-profile')}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen
                                 name="LanguageSettings"
                                 component={LanguageSettings}
                                 options={() => ({
-                                    header: () => <LanguageSettingsHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('words.language')}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen
                                 name="CurrencySettings"
                                 component={CurrencySettings}
                                 options={() => ({
-                                    header: () => <CurrencySettingsHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'phrases.display-currency',
+                                            )}
+                                        />
+                                    ),
                                 })}
                             />
                             {isChangePinUnlocked ? (
@@ -885,6 +912,20 @@ export const MainNavigator = () => {
                                 component={FederationDetails}
                                 options={() => ({
                                     header: () => <FederationDetailsHeader />,
+                                })}
+                            />
+                            <Stack.Screen
+                                name="FederationModSettings"
+                                component={FediModSettings}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.federations.federation-mods',
+                                            )}
+                                        />
+                                    ),
                                 })}
                             />
                             {/* Stability Pools */}

@@ -483,8 +483,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         {directUserId && (
                             <ChatWalletButton recipientId={directUserId} />
                         )}
-                        {/* uploading media only available in DMs and private groups to prevent unencrypted media uploads */}
-                        {!isPublic && (
+                        {/* uploading media only available in DMs and private groups to prevent unencrypted media uploads, also hide if we can't send messages (readonly) */}
+                        {!isPublic && !isReadOnly && (
                             <>
                                 <Pressable
                                     onPress={handleUploadImage}
