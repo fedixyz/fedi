@@ -9,7 +9,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectActiveFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { BridgeError } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
@@ -78,11 +77,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
             onAcceptRef.current(res.ecash)
         } catch (error) {
             log.error('Failed to generate ecash', error, ecashRequest)
-            if (error instanceof BridgeError) {
-                toast.error(t, null, error.format(t))
-            } else {
-                toast.error(t, error)
-            }
+            toast.error(t, error)
             onRejectRef.current(error as Error)
         }
     }

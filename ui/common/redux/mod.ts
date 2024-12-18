@@ -10,6 +10,7 @@ import { loadFromStorage } from './storage'
 
 // using an interface here to explicitly define "visibility" instead of an ambigious bool
 export interface ModVisibility {
+    isHiddenCommunity: boolean
     isHidden: boolean
     // true if the mod is included in the global mods list
     isGlobal?: boolean
@@ -78,13 +79,15 @@ export const modSlice = createSlice({
             state,
             action: PayloadAction<{
                 modId: FediMod['id']
-                isHidden: boolean
+                isHidden?: boolean
+                isHiddenCommunity?: boolean
             }>,
         ) {
-            const { modId, isHidden } = action.payload
+            const { modId, isHidden, isHiddenCommunity } = action.payload
             state.modVisibility[modId] = {
                 ...(state.modVisibility[modId] ?? {}),
-                isHidden,
+                ...(isHidden !== undefined && { isHidden }),
+                ...(isHiddenCommunity !== undefined && { isHiddenCommunity }),
             }
         },
     },
@@ -169,20 +172,6 @@ export const selectVisibleCustomMods = createSelector(
                 return true
             }
 
-            return !visibility.isHidden
-        }),
-)
-
-// Community-set mods
-export const selectVisibleCommunityMods = createSelector(
-    (s: CommonState) => s.mod.modVisibility,
-    selectCommunityMods,
-    (modVisibility, mods) =>
-        mods.filter(mod => {
-            const visibility = modVisibility[mod.id]
-            if (!visibility) {
-                return true
-            }
             return !visibility.isHidden
         }),
 )

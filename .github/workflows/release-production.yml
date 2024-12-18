@@ -21,6 +21,13 @@ jobs:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
+            - name: Generate release credentials
+              env:
+                  ANDROID_KEYSTORE_FILE_ENCODED: ${{ secrets.ANDROID_KEYSTORE_FILE_ENCODED }}
+                  ANDROID_KEYSTORE_PROPERTIES_ENCODED: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES_ENCODED }}
+                  PLAY_STORE_JSON_CREDENTIALS_ENCODED: ${{ secrets.PLAY_STORE_JSON_CREDENTIALS_ENCODED }}
+              run: nix develop -c ./scripts/ci/make-android-release-creds.sh
+
             - name: Build bridge
               run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
 

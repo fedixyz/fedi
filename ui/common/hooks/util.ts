@@ -39,3 +39,15 @@ export const useDebounce = <T>(value: T, delay = 1000): T => {
 
     return debouncedValue
 }
+
+export const useDebouncePress = (onPress: () => void, delay = 200) => {
+    const timerRef = useRef<NodeJS.Timeout>()
+    return () => {
+        if (!timerRef.current) {
+            onPress()
+            timerRef.current = setTimeout(() => {
+                timerRef.current = undefined
+            }, delay)
+        }
+    }
+}

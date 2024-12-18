@@ -11,7 +11,6 @@ import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import type { Sats, Transaction } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { BridgeError } from '@fedi/common/utils/fedimint'
 import { fedimint } from '@fedi/native/bridge'
 
 import FeeOverlay from '../components/feature/send/FeeOverlay'
@@ -60,11 +59,7 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
         try {
             handleOmniInput(parsedData)
         } catch (err) {
-            if (err instanceof BridgeError) {
-                toast.error(t, null, err.format(t))
-            } else {
-                toast.error(t, err)
-            }
+            toast.error(t, err)
         }
     }, [handleOmniInput, parsedData, t, toast])
 
@@ -81,11 +76,7 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
                 } as Transaction,
             })
         } catch (err) {
-            if (err instanceof BridgeError) {
-                toast.error(t, null, err.format(t))
-            } else {
-                toast.error(t, err)
-            }
+            toast.error(t, err)
         }
         setIsPayingInvoice(false)
     }, [handleOmniSend, exactAmount, navigationReplace, toast, t])

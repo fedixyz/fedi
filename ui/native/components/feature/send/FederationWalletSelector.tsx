@@ -129,7 +129,7 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             alignItems: 'center',
             width: 280,
-            backgroundColor: theme.colors.offWhite,
+            backgroundColor: theme.colors.offWhite100,
             borderRadius: 44,
             paddingHorizontal: theme.spacing.lg,
             paddingVertical: theme.spacing.sm,

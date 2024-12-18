@@ -50,12 +50,13 @@ export function useTransactionHistory(fedimint: FedimintBridge) {
             args?: Pick<
                 Parameters<typeof reduxFetchTransactions>[0],
                 'limit' | 'more' | 'refresh'
-            >,
+            > & { federationId?: string },
         ) => {
-            if (!activeFederationId) throw new Error('errors.unknown-error')
+            const federationId = args?.federationId ?? activeFederationId
+            if (!federationId) throw new Error('errors.unknown-error')
             return dispatch(
                 reduxFetchTransactions({
-                    federationId: activeFederationId,
+                    federationId,
                     fedimint,
                     ...args,
                 }),
@@ -231,6 +232,7 @@ export function useExportTransactions(fedimint: FedimintBridge) {
                 transactions = await fetchTransactions({
                     // TODO: find a better way than a hardcoded value
                     limit: 10000,
+                    federationId: federation.id,
                 })
 
                 const fileName = makeCSVFilename(

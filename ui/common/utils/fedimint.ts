@@ -17,7 +17,7 @@ import {
     RpcRoomId,
     RpcStabilityPoolAccountInfo,
 } from '../types/bindings'
-import amountUtils from './AmountUtils'
+import { formatBridgeError } from './error'
 import { makeLog } from './log'
 
 const log = makeLog('common/utils/fedimint')
@@ -136,6 +136,10 @@ export class FedimintBridge {
 
     async leaveFederation(federationId: string) {
         return this.rpcTyped('leaveFederation', { federationId })
+    }
+
+    async fedimintVersion() {
+        return this.rpcTyped('fedimintVersion', {})
     }
 
     async listFederations() {
@@ -678,17 +682,6 @@ export class BridgeError extends Error {
     }
 
     public format(t: TFunction) {
-        if (
-            this.code &&
-            typeof this.code === 'object' &&
-            'insufficientBalance' in this.code &&
-            typeof this.code.insufficientBalance === 'number'
-        ) {
-            return t('errors.insufficient-balance-send', {
-                sats: amountUtils.msatToSat(this.code.insufficientBalance),
-            })
-        }
-
-        return this.error
+        return formatBridgeError(this, t)
     }
 }

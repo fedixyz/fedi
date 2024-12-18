@@ -35,6 +35,7 @@ export const theme = {
         ghost: alphaHex(HEX_COLORS.lightGrey, 60),
         success: HEX_COLORS.green,
         secondary: HEX_COLORS.white,
+        overlay: alphaHex(HEX_COLORS.black, 25),
         ...HEX_COLORS,
     },
     fontSizes: {

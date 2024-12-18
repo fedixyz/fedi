@@ -1,6 +1,6 @@
 import { Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
+import { Platform, StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 import LinearGradient, {
     type LinearGradientProps,
 } from 'react-native-linear-gradient'
@@ -43,8 +43,12 @@ export const BubbleView = ({
             onLayout={({ nativeEvent }) => {
                 setWidth(nativeEvent.layout.width)
             }}>
-            <View style={[style.shadow, topShadow]} />
-            <View style={[style.shadow, bottomShadow]} />
+            {Platform.OS === 'ios' && (
+                <>
+                    <View style={[style.shadow, topShadow]} />
+                    <View style={[style.shadow, bottomShadow]} />
+                </>
+            )}
             {children}
         </View>
     )
@@ -68,8 +72,12 @@ export const BubbleGradient = ({
             onLayout={({ nativeEvent }) => {
                 setWidth(nativeEvent.layout.width)
             }}>
-            <View style={[style.shadow, style.top]} />
-            <View style={[style.shadow, style.bottom]} />
+            {Platform.OS === 'ios' && (
+                <>
+                    <View style={[style.shadow, style.top]} />
+                    <View style={[style.shadow, style.bottom]} />
+                </>
+            )}
             {children}
         </LinearGradient>
     )

@@ -972,7 +972,7 @@ export class MatrixChatClient {
         if (eventContent.kind === 'json') {
             content = eventContent.value.content
         } else {
-            content = item.value.content.value
+            content = eventContent.value
         }
         /*
          * We detect and handle redacted messages in two ways:
@@ -998,13 +998,6 @@ export class MatrixChatClient {
 
         if (!content) return null
 
-        if (roomId === '!wtRHgcDfnuvWGdHBTx:m1.8fa.in') {
-            log.debug(
-                'serializeTimelineItem item.value.content',
-                JSON.stringify(content),
-            )
-        }
-        // const content =
         return {
             roomId,
             id: item.value.id,

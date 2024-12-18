@@ -152,6 +152,7 @@
         "expires-in": "Expires in",
         "failed-to-decode-invoice": "Failed to decode invoice",
         "federation-fee": "Community fee",
+        "fedimint-version": "Fedimint {{version}}",
         "fedi-app-terms-of-service": "Fedi App Terms of Service",
         "fedi-fee": "Fedi fee",
         "fee-details": "Fee details",
@@ -236,6 +237,7 @@
         "invalid-group-code": "This is not a valid group code",
         "invalid-username": "Must be 21 characters or less and cannot include uppercase letters",
         "invalid-username-banned": "Please enter a different display name",
+        "invoice-already-paid": "This invoice has already been paid.",
         "no-lightning-gateways": "No lightning gateways found for this user",
         "onchain-deposits-disabled": "Onchain deposits have been disabled for this community",
         "only-group-owners-can-change-name": "Only group owners can change the group name",
@@ -474,6 +476,7 @@
             "copied-federation-invite": "Copied community invite link",
             "enter-federation-code": "Enter a community code",
             "federation-details": "Community Details",
+            "federation-mods": "Community Mods",
             "federation-invite": "Community invite",
             "federation-terms": "Community Terms",
             "federation-terms-and-conditions": "Community Terms & Conditions",
@@ -539,7 +542,8 @@
         },
         "notifications": {
             "new-messages": "You have new messages",
-            "new-messages-count": "You have {{unread}} new messages"
+            "new-messages-count": "You have {{unread}} new messages",
+            "notification-settings": "Notification Settings"
         },
         "omni": {
             "action-enter-ln-address": "Enter lightning address",

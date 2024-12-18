@@ -1,6 +1,7 @@
 import { TFunction } from 'i18next'
 
 import { SupportedCurrency } from '../types'
+import { BridgeError } from './fedimint'
 
 /**
  * Attempts to turn an unknown error object into a user-readable message.
@@ -13,6 +14,8 @@ export function formatErrorMessage<T extends TFunction>(
     defaultMessage = 'errors.unknown-error',
 ) {
     if (!err) return t(defaultMessage as Parameters<T>[0], defaultMessage)
+    if (err instanceof BridgeError) return err.format(t)
+
     if (typeof err === 'string') {
         return t(err as Parameters<T>[0], err)
     }
