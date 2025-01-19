@@ -9,6 +9,7 @@ import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
+    listGateways,
     refreshActiveStabilityPool,
     resetNuxSteps,
     selectActiveFederation,
@@ -29,12 +30,16 @@ import {
     SupportedCurrency,
 } from '@fedi/common/types'
 import { GuardianStatus } from '@fedi/common/types/bindings'
+import {
+    getGuardianStatuses,
+    switchGateway,
+} from '@fedi/common/utils/FederationUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import CheckBox from '../components/ui/CheckBox'
 import { version } from '../package.json'
-import { useAppDispatch, useAppSelector, useBridge } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { shareLogsExport, shareReduxState } from '../utils/log'
 
@@ -81,10 +86,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const activeFederation = useAppSelector(selectActiveFederation)
     const authenticatedGuardian = useAppSelector(
         s => s.federation.authenticatedGuardian,
-    )
-
-    const { listGateways, switchGateway, guardianStatus } = useBridge(
-        activeFederation?.id,
     )
 
     useEffect(() => {
@@ -150,18 +151,29 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
 
     useEffect(() => {
         const loadGuardianStatus = async () => {
-            const status = await guardianStatus()
+            if (!activeFederation?.id) return
+            const status = await getGuardianStatuses(
+                fedimint,
+                activeFederation.id,
+            )
             setGuardianOnlineStatus(status)
         }
 
         loadGuardianStatus()
-    }, [guardianStatus])
+    }, [activeFederation])
 
     useEffect(() => {
         const getGatewaysList = async () => {
             setIsLoadingGateways(true)
             try {
-                const _gateways = await listGateways()
+                if (!activeFederation?.id)
+                    throw new Error('No active federation')
+                const _gateways = await reduxDispatch(
+                    listGateways({
+                        fedimint,
+                        federationId: activeFederation?.id,
+                    }),
+                ).unwrap()
                 setGateways(_gateways)
             } catch (e) {
                 toast.show({
@@ -173,7 +185,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
 
         getGatewaysList()
-    }, [toast, listGateways, t])
+    }, [toast, t, activeFederation, reduxDispatch])
 
     useEffect(() => {
         if (stabilityPoolSupported)
@@ -182,7 +194,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
 
     const handleSelectGateway = async (gateway: LightningGateway) => {
         try {
-            await switchGateway(gateway.gatewayId)
+            if (!activeFederation?.id) throw new Error('No active federation')
+            await switchGateway(
+                fedimint,
+                activeFederation.id,
+                gateway.nodePubKey,
+            )
         } catch (e) {
             toast.show({
                 content: t('errors.failed-to-switch-gateways'),

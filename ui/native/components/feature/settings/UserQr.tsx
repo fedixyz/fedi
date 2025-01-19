@@ -1,9 +1,11 @@
-import { selectMatrixDisplayNameSuffix } from '@fedi/common/redux/matrix'
-import { MatrixAuth } from '@fedi/common/types'
-import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
+
+import { selectMatrixDisplayNameSuffix } from '@fedi/common/redux/matrix'
+import { MatrixAuth } from '@fedi/common/types'
+import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
+
 import { useAppSelector } from '../../../state/hooks'
 import QRCodeContainer from '../../ui/QRCodeContainer'
 

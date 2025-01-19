@@ -13,8 +13,12 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
-import { selectVisibleCommunityMods } from '@fedi/common/redux'
-import { setModVisibility } from '@fedi/common/redux/mod'
+import { useCommonSelector } from '@fedi/common/hooks/redux'
+import { selectActiveFederationId } from '@fedi/common/redux'
+import {
+    selectVisibleCommunityMods,
+    setModVisibility,
+} from '@fedi/common/redux/mod'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut } from '../../../types'
@@ -31,7 +35,8 @@ const ShortcutsList: React.FC = () => {
     const { t } = useTranslation()
     const [actionsMod, setActionsMod] = useState<FediMod>()
     const dispatch = useAppDispatch()
-
+    const activeFederationId = useCommonSelector(selectActiveFederationId)
+    const [federationId] = useState(activeFederationId)
     const columns = width / fontScale < 300 ? 2 : 3
     const style = styles(theme, columns)
 
@@ -54,7 +59,13 @@ const ShortcutsList: React.FC = () => {
     }
 
     const toggleHideMod = (modId: FediMod['id']) => {
-        dispatch(setModVisibility({ modId, isHiddenCommunity: true }))
+        dispatch(
+            setModVisibility({
+                modId,
+                isHiddenCommunity: true,
+                federationId: federationId,
+            }),
+        )
         setActionsMod(undefined)
     }
     const renderFediModShortcuts = () => {

@@ -3,12 +3,13 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { selectNostrNpub, selectNostrNsec } from '@fedi/common/redux'
+
 import { CopyButton } from '../components/ui/CopyButton'
 import HoloLoader from '../components/ui/HoloLoader'
 import { PressableIcon } from '../components/ui/PressableIcon'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -17,16 +18,15 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'NostrSettings'>
 const NostrSettings: React.FC<Props> = (_: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
 
     const nostrPublic = useAppSelector(selectNostrNpub)
     const nostrSecret = useAppSelector(selectNostrNsec)
     const [showNsec, setShowNsec] = useState(false)
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaContainer style={style.container} edges="notop">
             <View style={style.section}>
                 <View style={style.header}>
                     <Text medium>{t('feature.nostr.nostr-public-key')}</Text>
@@ -74,21 +74,15 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
                     <HoloLoader size={32} />
                 )}
             </View>
-        </View>
+        </SafeAreaContainer>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             width: '100%',
-            flexDirection: 'column',
             gap: theme.spacing.lg,
-            paddingTop: theme.spacing.lg,
-            paddingLeft: insets.left + theme.spacing.lg,
-            paddingRight: insets.right + theme.spacing.lg,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
         },
         section: {
             display: 'flex',

@@ -1,8 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
+import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { FederationStatus } from '@fedi/common/types'
-import { useTranslation } from 'react-i18next'
+
 import { ConnectionTag } from './ConnectionTag'
 
 type Props = {

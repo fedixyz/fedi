@@ -6,3 +6,7 @@ export function isValidInternetIdentifier(str: string): boolean {
     // https://datatracker.ietf.org/doc/html/rfc5322#section-3.4.1
     return !!str.match(/^[^@\s]+@[^@\s]+\.[^@\s]+$/)
 }
+
+export function isValidSupportTicketNumber(str: string): boolean {
+    return !!str.match(/^#?(\d+)$/)
+}

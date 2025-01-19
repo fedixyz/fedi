@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::ops::Not;
 use std::time::Duration;
 
 use anyhow::anyhow;
@@ -17,6 +18,7 @@ use ts_rs::TS;
 use super::federation_v2::FederationV2;
 use super::utils::to_unix_time;
 use crate::api::RegisteredDevice;
+use crate::federation_v2::client::ClientExt;
 use crate::storage::FediFeeSchedule;
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -66,6 +68,7 @@ pub struct RpcFederation {
     pub version: u32,
     pub client_config: Option<RpcJsonClientConfig>,
     pub fedi_fee_schedule: RpcFediFeeSchedule,
+    pub had_reused_ecash: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -190,6 +193,11 @@ pub async fn federation_v2_to_rpc_federation(federation: &FederationV2) -> RpcFe
         federation.fedi_fee_schedule(),
         federation.get_balance(),
     );
+    let had_reused_ecash = if let Ok(x) = federation.client.mint() {
+        x.reused_note_secrets().await.is_empty().not()
+    } else {
+        false
+    };
     RpcFederation {
         balance: RpcAmount(balance),
         id,
@@ -205,15 +213,23 @@ pub async fn federation_v2_to_rpc_federation(federation: &FederationV2) -> RpcFe
             modules: client_config_json.modules,
         }),
         fedi_fee_schedule: fedi_fee_schedule.into(),
+        had_reused_ecash,
     }
 }
 
-#[derive(Clone, Debug, Serialize, TS)]
+#[derive(Debug, Serialize, Deserialize, TS, Clone)]
 #[serde(rename_all = "camelCase")]
+#[serde(tag = "federation_type")]
 #[ts(export, export_to = "target/bindings/")]
-pub struct RpcEcashInfo {
-    pub amount: RpcAmount,
-    pub federation_id: Option<RpcFederationId>,
+pub enum RpcEcashInfo {
+    Joined {
+        federation_id: RpcFederationId,
+        amount: RpcAmount,
+    },
+    NotJoined {
+        federation_invite: Option<String>,
+        amount: RpcAmount,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, TS)]

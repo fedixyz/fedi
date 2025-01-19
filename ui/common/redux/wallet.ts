@@ -15,10 +15,13 @@ import {
     selectBtcUsdExchangeRate,
     selectFederationBalance,
     selectFederationStabilityPoolConfig,
+    selectReusedEcashFederations,
 } from '.'
 import { Federation, MSats, Usd, UsdCents } from '../types'
 import {
+    JSONObject,
     RpcAmount,
+    RpcEcashInfo,
     RpcLockedSeek,
     RpcStabilityPoolAccountInfo,
     StabilityPoolDepositEvent,
@@ -131,6 +134,92 @@ export const {
 } = walletSlice.actions
 
 /*** Async thunk actions ***/
+
+export const generateAddress = createAsyncThunk<
+    string,
+    { fedimint: FedimintBridge; federationId: string },
+    { state: CommonState }
+>('wallet/generateAddress', async ({ fedimint, federationId }) => {
+    return fedimint.generateAddress(federationId)
+})
+
+export const generateEcash = createAsyncThunk<
+    { ecash: string; cancelAt: number },
+    { fedimint: FedimintBridge; federationId: string; amount: MSats },
+    { state: CommonState }
+>('wallet/generateEcash', async ({ fedimint, federationId, amount }) => {
+    return fedimint.generateEcash(amount, federationId)
+})
+
+export const generateInvoice = createAsyncThunk<
+    string,
+    {
+        fedimint: FedimintBridge
+        federationId: string
+        amount: MSats
+        description: string
+    },
+    { state: CommonState }
+>(
+    'wallet/generateInvoice',
+    async ({ fedimint, federationId, amount, description }) => {
+        return fedimint.generateInvoice(amount, description, federationId)
+    },
+)
+
+export const payInvoice = createAsyncThunk<
+    { preimage: string },
+    { fedimint: FedimintBridge; federationId: string; invoice: string },
+    { state: CommonState }
+>('wallet/payInvoice', async ({ fedimint, federationId, invoice }) => {
+    return fedimint.payInvoice(invoice, federationId)
+})
+
+export const receiveEcash = createAsyncThunk<
+    MSats,
+    { fedimint: FedimintBridge; federationId: string; ecash: string },
+    { state: CommonState }
+>('wallet/receiveEcash', async ({ fedimint, federationId, ecash }) => {
+    return fedimint.receiveEcash(ecash, federationId)
+})
+
+export const validateEcash = createAsyncThunk<
+    RpcEcashInfo,
+    { fedimint: FedimintBridge; ecash: string },
+    { state: CommonState }
+>('wallet/validateEcash', async ({ fedimint, ecash }) => {
+    return fedimint.validateEcash(ecash)
+})
+
+export const generateReusedEcashProofs = createAsyncThunk<
+    JSONObject[],
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>('wallet/generateReusedEcashProofs', async ({ fedimint }, { getState }) => {
+    const state = getState()
+    const reusedEcashFederations = selectReusedEcashFederations(state)
+
+    const proofs = await Promise.allSettled(
+        reusedEcashFederations.map(f =>
+            fedimint.generateReusedEcashProofs(f.id),
+        ),
+    )
+
+    const errors = proofs.filter(p => p.status === 'rejected')
+    if (errors.length > 0) {
+        log.error(
+            'Failed to generate reused ecash proofs',
+            JSON.stringify(errors),
+        )
+    }
+
+    const settledProofs = proofs.filter(
+        (p): p is PromiseFulfilledResult<JSONObject> =>
+            p.status === 'fulfilled',
+    )
+
+    return settledProofs.map(p => p.value)
+})
 
 export const fetchStabilityPoolAccountInfo = createAsyncThunk<
     RpcStabilityPoolAccountInfo,

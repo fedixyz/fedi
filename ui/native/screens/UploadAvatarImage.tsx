@@ -2,10 +2,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import RNFS from 'react-native-fs'
 import { launchImageLibrary } from 'react-native-image-picker'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -16,6 +15,7 @@ import {
 import { fedimint } from '../bridge'
 import { StoragePermissionGate } from '../components/feature/permissions/StoragePermissionGate'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -25,13 +25,12 @@ export type Props = NativeStackScreenProps<
 >
 
 const UploadAvatarImage: React.FC<Props> = ({ navigation }: Props) => {
-    const insets = useSafeAreaInsets()
     const { theme } = useTheme()
     const { t } = useTranslation()
     const toast = useToast()
     const dispatch = useAppDispatch()
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     const [isUploading, setIsUploading] = useState<boolean>(false)
     const [didUpload, setDidUpload] = useState<boolean>(false)
@@ -135,9 +134,7 @@ const UploadAvatarImage: React.FC<Props> = ({ navigation }: Props) => {
                     type="clear"
                 />
             }>
-            <ScrollView
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={style.container}>
+            <SafeAreaContainer style={style.container} edges="notop">
                 <View style={style.avatarContainer}>
                     <Avatar
                         id={matrixAuth?.userId || ''}
@@ -152,19 +149,16 @@ const UploadAvatarImage: React.FC<Props> = ({ navigation }: Props) => {
                 {didUpload
                     ? renderPostUploadButtons()
                     : renderPreUploadButtons()}
-            </ScrollView>
+            </SafeAreaContainer>
         </StoragePermissionGate>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             alignItems: 'center',
             justifyContent: 'flex-start',
-            padding: theme.spacing.xl,
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
         },
         avatarContainer: {
             alignItems: 'center',

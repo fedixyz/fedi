@@ -1,7 +1,9 @@
-import { useToast } from '@fedi/common/hooks/toast'
 import Clipboard from '@react-native-clipboard/clipboard'
 import { useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
+
+import { useToast } from '@fedi/common/hooks/toast'
+
 import { PressableIcon } from './PressableIcon'
 
 export function CopyButton({ value }: { value: string }) {

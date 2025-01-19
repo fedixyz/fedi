@@ -1,6 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
 
 import {
@@ -10,7 +11,6 @@ import {
     selectMatrixAuth,
 } from '@fedi/common/redux'
 
-import { useTranslation } from 'react-i18next'
 import { CommunitySettings } from '../components/feature/settings/CommunitySettings'
 import { GeneralSettings } from '../components/feature/settings/GeneralSettings'
 import { UserQr } from '../components/feature/settings/UserQr'

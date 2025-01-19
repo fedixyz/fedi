@@ -115,6 +115,14 @@ lint-ui:
 test-ui:
   pushd ./ui && yarn test && popd
 
+# run UI code formatter to check for formatting errors
+check-ui-code:
+  @./scripts/ci/check-ui-code-formatting.sh
+
+# run UI code formatter to fix formatting errors
+format-ui-code:
+  export MODE="write" && ./scripts/ci/check-ui-code-formatting.sh
+
 # run UI tests
 clean-ui:
   @./scripts/ui/clean-ui.sh

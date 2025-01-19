@@ -1,11 +1,13 @@
 import RNDI from 'react-native-device-info'
+import { exists, readFile } from 'react-native-fs'
+import { getNumberFormatSettings, getTimeZone } from 'react-native-localize'
 import { v4 as uuidv4 } from 'uuid'
 
 import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import dateUtils from '@fedi/common/utils/DateUtils'
+import { type FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { getNumberFormatSettings, getTimeZone } from 'react-native-localize'
 import { SvgImageName } from '../components/ui/SvgImage'
 
 const log = makeLog('native/utils/device-info')
@@ -179,4 +181,24 @@ export function getNumberFormatLocale() {
 
 export const isNightly = () => {
     return RNDI.getBundleId().includes('nightly')
+}
+
+export const dumpDB = async (
+    fedimint: FedimintBridge,
+    federationId: string | undefined,
+) => {
+    if (!federationId) {
+        log.warn('Cannot include DB dump, no active federation is selected')
+        return null
+    }
+    const dumpedDbPath = await fedimint.dumpDb({
+        federationId,
+    })
+    if (await exists(dumpedDbPath)) {
+        const dumpBuffer = await readFile(dumpedDbPath, 'base64')
+        return {
+            name: 'db.dump',
+            content: dumpBuffer,
+        }
+    }
 }

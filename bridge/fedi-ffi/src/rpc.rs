@@ -8,6 +8,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use anyhow::Context;
 use bitcoin::secp256k1::Message;
 use bitcoin::Amount;
+use fedi_bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
 use fedimint_client::db::ChronologicalOperationLogKey;
 use fedimint_core::core::OperationId;
 use fedimint_core::timing::TimeReporter;
@@ -326,8 +327,9 @@ async fn payAddress(
 async fn generateEcash(
     federation: Arc<FederationV2>,
     amount: RpcAmount,
+    include_invite: bool,
 ) -> anyhow::Result<RpcGenerateEcashResponse> {
-    federation.generate_ecash(amount.0).await
+    federation.generate_ecash(amount.0, include_invite).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -340,8 +342,8 @@ async fn receiveEcash(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn validateEcash(_bridge: Arc<Bridge>, ecash: String) -> anyhow::Result<RpcEcashInfo> {
-    FederationV2::validate_ecash(ecash)
+async fn validateEcash(bridge: Arc<Bridge>, ecash: String) -> anyhow::Result<RpcEcashInfo> {
+    bridge.validate_ecash(ecash).await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -829,6 +831,17 @@ macro_rules! ts_type_serde {
     };
 }
 
+ts_type_ser!(RpcReusedEcashProofs: SerializedReusedEcashProofs = "JSONObject");
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn generateReusedEcashProofs(
+    federation: Arc<FederationV2>,
+) -> anyhow::Result<RpcReusedEcashProofs> {
+    Ok(RpcReusedEcashProofs(
+        federation.generate_reused_ecash_proofs().await?,
+    ))
+}
+
 // we are really binding generator pushing to its limits.
 ts_type_ser!(
     ObservableRoomList: ObservableVec<RpcRoomListEntry> = "ObservableVec<RpcRoomListEntry>"
@@ -953,7 +966,7 @@ async fn matrixSendMessage(
         .await
 }
 
-ts_type_de!(CustomMessageData: serde_json::Map<String, serde_json::Value> = "Record<string, any>");
+ts_type_de!(CustomMessageData: serde_json::Map<String, serde_json::Value> = "Record<string, JSONValue>");
 #[macro_rules_derive(rpc_method!)]
 async fn matrixSendMessageJson(
     bridge: Arc<Bridge>,
@@ -968,7 +981,7 @@ async fn matrixSendMessageJson(
         .await
 }
 
-ts_type_de!(CreateRoomRequest: matrix::create_room::Request = "any");
+ts_type_de!(CreateRoomRequest: matrix::create_room::Request = "JSONObject");
 
 #[macro_rules_derive(rpc_method!)]
 async fn matrixRoomCreate(
@@ -1009,8 +1022,7 @@ async fn matrixRoomLeave(bridge: Arc<Bridge>, room_id: RpcRoomId) -> anyhow::Res
     matrix.room_leave(&room_id.into_typed()?).await
 }
 
-// sorry for any
-ts_type_ser!(ObservableRoomInfo: Observable<RoomInfo> = "Observable<any>");
+ts_type_ser!(ObservableRoomInfo: Observable<RoomInfo> = "Observable<JSONObject>");
 
 #[macro_rules_derive(rpc_method!)]
 async fn matrixRoomObserveInfo(
@@ -1157,7 +1169,7 @@ async fn matrixUserDirectorySearch(
         .await
 }
 
-ts_type_ser!(RpcPublicRoomChunk: PublicRoomsChunk = "any");
+ts_type_ser!(RpcPublicRoomChunk: PublicRoomsChunk = "JSONObject");
 
 #[macro_rules_derive(rpc_method!)]
 async fn matrixPublicRoomInfo(
@@ -1194,7 +1206,7 @@ async fn matrixUploadMedia(
     matrix.upload_file(mime, file).await
 }
 
-ts_type_serde!(RpcRoomPowerLevelsEventContent: RoomPowerLevelsEventContent = "any");
+ts_type_serde!(RpcRoomPowerLevelsEventContent: RoomPowerLevelsEventContent = "JSONObject");
 #[macro_rules_derive(rpc_method!)]
 async fn matrixRoomGetPowerLevels(
     bridge: Arc<Bridge>,
@@ -1265,7 +1277,7 @@ async fn matrixRoomMarkAsUnread(
         .await
 }
 
-ts_type_ser!(UserProfile: get_profile::v3::Response = "any");
+ts_type_ser!(UserProfile: get_profile::v3::Response = "JSONObject");
 #[macro_rules_derive(rpc_method!)]
 async fn matrixUserProfile(bridge: Arc<Bridge>, user_id: RpcUserId) -> anyhow::Result<UserProfile> {
     let matrix = get_matrix(&bridge).await?;
@@ -1275,7 +1287,7 @@ async fn matrixUserProfile(bridge: Arc<Bridge>, user_id: RpcUserId) -> anyhow::R
         .map(UserProfile)
 }
 
-ts_type_de!(RpcPusher: Pusher = "any");
+ts_type_de!(RpcPusher: Pusher = "JSONObject");
 
 #[macro_rules_derive(rpc_method!)]
 async fn matrixSetPusher(bridge: Arc<Bridge>, pusher: RpcPusher) -> anyhow::Result<()> {
@@ -1317,7 +1329,7 @@ async fn matrixDeleteMessage(
         .await
 }
 
-ts_type_de!(RpcMediaSource: MediaSource = "any");
+ts_type_de!(RpcMediaSource: MediaSource = "JSONObject");
 #[macro_rules_derive(rpc_method!)]
 async fn matrixDownloadFile(
     bridge: Arc<Bridge>,
@@ -1454,6 +1466,7 @@ rpc_methods!(RpcMethods {
     getMnemonic,
     checkMnemonic,
     recoverFromMnemonic,
+    generateReusedEcashProofs,
     // Social recovery
     uploadBackupFile,
     locateRecoveryFile,
@@ -1837,8 +1850,16 @@ mod tests {
         cmd!(FedimintCli, "reissue", ecash).run().await?;
         Ok(())
     }
-
-    pub fn copy_recursively<A: AsRef<Path>>(
+    async fn copy_recursively(
+        source: impl AsRef<Path>,
+        destination: impl AsRef<Path>,
+    ) -> anyhow::Result<()> {
+        let source = source.as_ref().to_path_buf();
+        let destination = destination.as_ref().to_path_buf();
+        tokio::task::spawn_blocking(move || copy_recursively_inner(source, destination)).await??;
+        Ok(())
+    }
+    pub fn copy_recursively_inner<A: AsRef<Path>>(
         source: impl AsRef<Path>,
         destination: A,
     ) -> std::io::Result<()> {
@@ -1847,7 +1868,7 @@ mod tests {
             let entry = entry?;
             let filetype = entry.file_type()?;
             if filetype.is_dir() {
-                copy_recursively(entry.path(), destination.as_ref().join(entry.file_name()))?;
+                copy_recursively_inner(entry.path(), destination.as_ref().join(entry.file_name()))?;
             } else {
                 std::fs::copy(entry.path(), destination.as_ref().join(entry.file_name()))?;
             }
@@ -2063,7 +2084,7 @@ mod tests {
         // database (fedi alpha mutinynet v0)
         let data_dir = create_data_dir();
         let fixture_dir = get_fixture_dir().join("v0_db");
-        copy_recursively(fixture_dir, &data_dir)?;
+        copy_recursively(fixture_dir, &data_dir).await?;
         let storage = Arc::new(PathBasedStorage::new(data_dir).await?);
         let fedi_api = Arc::new(MockFediApi::new());
         let bridge = fedimint_initialize_async(
@@ -2297,7 +2318,7 @@ mod tests {
         // ecash_receive_amount
         if receive_fedi_fee != Amount::ZERO {
             assert!(
-                generateEcash(federation.clone(), RpcAmount(ecash_receive_amount))
+                generateEcash(federation.clone(), RpcAmount(ecash_receive_amount), false)
                     .await
                     .is_err()
             );
@@ -2305,7 +2326,7 @@ mod tests {
         let ecash_send_amount = Amount::from_msats(ecash_receive_amount.msats / 2);
         let send_fedi_fee =
             Amount::from_msats((ecash_send_amount.msats * fedi_fees_send_ppm).div_ceil(MILLION));
-        let send_ecash = generateEcash(federation.clone(), RpcAmount(ecash_send_amount))
+        let send_ecash = generateEcash(federation.clone(), RpcAmount(ecash_send_amount), false)
             .await?
             .ecash;
 
@@ -2335,6 +2356,9 @@ mod tests {
                     "oob state must be present on ecash reissue"
                 ))),
                 Some(RpcOOBState::Reissue(RpcOOBReissueState::Done)) => Ok(()),
+                Some(RpcOOBState::Reissue(RpcOOBReissueState::Failed { error })) => {
+                    Err(ControlFlow::Break(anyhow!(error)))
+                }
                 Some(RpcOOBState::Reissue(_)) => {
                     Err(ControlFlow::Continue(anyhow!("not done yet")))
                 }
@@ -2374,7 +2398,7 @@ mod tests {
             Amount::from_msats((fedi_fee_ppm * iteration_amount.msats).div_ceil(MILLION));
 
         for _ in 0..iterations {
-            generateEcash(federation.clone(), RpcAmount(iteration_amount))
+            generateEcash(federation.clone(), RpcAmount(iteration_amount), false)
                 .await
                 .context("generateEcash")?;
         }
@@ -2489,6 +2513,7 @@ mod tests {
         let send_ecash = generateEcash(
             federation.clone(),
             RpcAmount(Amount::from_msats(ecash_receive_amount.msats / 2)),
+            false,
         )
         .await?
         .ecash;
@@ -3694,6 +3719,103 @@ mod tests {
         assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
         assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_reused_ecash_proofs() -> anyhow::Result<()> {
+        let bridge_dir1 = create_data_dir();
+        let bridge_dir2 = create_data_dir();
+
+        let mnemonic;
+        // trigger seed reuse
+        {
+            let device_identifier1 = "bridge:test:d4d743a7-b343-48e3-a5f9-90d032af3e98".to_owned();
+            let fedi_api = Arc::new(MockFediApi::new());
+            let bridge1 = setup_bridge_custom_with_data_dir(
+                device_identifier1.clone(),
+                fedi_api.clone(),
+                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+                bridge_dir1.clone(),
+            )
+            .await?;
+            mnemonic = getMnemonic(bridge1.clone()).await?;
+
+            // trigger seed reuse: a second bridge with same seed and same device identifier
+            let bridge2 = setup_bridge_custom_with_data_dir(
+                device_identifier1.clone(),
+                fedi_api.clone(),
+                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+                bridge_dir2.clone(),
+            )
+            .await?;
+            recoverFromMnemonic(bridge2.clone(), mnemonic.clone()).await?;
+            transferExistingDeviceRegistration(bridge2.clone(), 0).await?;
+
+            let (federation_b1, federation_b2) =
+                tokio::try_join!(join_test_fed(&bridge1), join_test_fed(&bridge2))?;
+            let ecash_receive_amount = fedimint_core::Amount::from_msats(10000);
+
+            // use some note indices
+            let ecash1 = cli_generate_ecash(ecash_receive_amount).await?;
+            receiveEcash(federation_b1.clone(), ecash1).await?;
+            wait_for_ecash_reissue(&federation_b1).await?;
+
+            // trigger note index reuse
+            let ecash2 = cli_generate_ecash(ecash_receive_amount).await?;
+            receiveEcash(federation_b2.clone(), ecash2).await?;
+            // this will still pass but federation will have unspendable ecash
+            wait_for_ecash_reissue(&federation_b2).await?;
+
+            // kill both bridges
+            drop(federation_b1);
+            drop(federation_b2);
+            tokio::try_join!(
+                bridge1
+                    .task_group
+                    .clone()
+                    .shutdown_join_all(Duration::from_secs(5)),
+                bridge2
+                    .task_group
+                    .clone()
+                    .shutdown_join_all(Duration::from_secs(5))
+            )?;
+            drop(bridge1);
+            drop(bridge2);
+        }
+
+        let bridge = setup_bridge().await?;
+        recoverFromMnemonic(bridge.clone(), mnemonic).await?;
+        registerAsNewDevice(bridge.clone()).await?;
+        let recovery_federation = join_test_fed_recovery(&bridge, true).await?;
+        assert!(recovery_federation.recovering());
+        let id = recovery_federation.rpc_federation_id();
+        drop(recovery_federation);
+        loop {
+            // Wait until recovery complete
+            if bridge
+                .event_sink
+                .num_events_of_type("recoveryComplete".into())
+                == 1
+            {
+                break;
+            }
+
+            fedimint_core::task::sleep(Duration::from_millis(100)).await;
+        }
+        let federation = bridge.get_federation(&id.0).await?;
+        let proofs = generateReusedEcashProofs(federation.clone()).await?;
+        assert!(
+            proofs.0.total_amount_msats > Amount::ZERO,
+            "there must be some amount in proof"
+        );
+        proofs
+            .0
+            .deserialize()?
+            .into_iter()
+            .map(|x| x.verify())
+            .collect::<anyhow::Result<Vec<_>>>()
+            .context("verification failed")?;
         Ok(())
     }
 

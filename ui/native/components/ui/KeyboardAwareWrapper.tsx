@@ -1,4 +1,3 @@
-import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import {
     Keyboard,
@@ -8,7 +7,7 @@ import {
     StyleSheet,
     ViewStyle,
 } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 /*
     UI Component: KeyboardAwareWrapper
@@ -38,14 +37,10 @@ const KeyboardAwareWrapper: React.FC<KeyboardAwareWrapperProps> = ({
     dismissableAreaStyle = {},
 }: KeyboardAwareWrapperProps) => {
     const insets = useSafeAreaInsets()
-    const { theme } = useTheme()
 
-    const mergedContainerStyles = [
-        styles(theme, insets).container,
-        containerStyle,
-    ]
+    const mergedContainerStyles = [style.container, containerStyle]
     const mergedDismissableAreaStyles = [
-        styles(theme, insets).dismissableArea,
+        style.dismissableArea,
         dismissableAreaStyle,
     ]
 
@@ -65,17 +60,16 @@ const KeyboardAwareWrapper: React.FC<KeyboardAwareWrapperProps> = ({
     )
 }
 
-const styles = (_theme: Theme, _insets: EdgeInsets) =>
-    StyleSheet.create({
-        container: {
-            flex: 1,
-            alignItems: 'center',
-        },
-        dismissableArea: {
-            flex: 1,
-            alignItems: 'center',
-            width: '100%',
-        },
-    })
+const style = StyleSheet.create({
+    container: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    dismissableArea: {
+        flex: 1,
+        alignItems: 'center',
+        width: '100%',
+    },
+})
 
 export default KeyboardAwareWrapper

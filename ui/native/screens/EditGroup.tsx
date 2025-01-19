@@ -3,7 +3,6 @@ import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectMatrixRoom, setMatrixRoomName } from '@fedi/common/redux'
@@ -11,6 +10,7 @@ import { selectMatrixRoom, setMatrixRoomName } from '@fedi/common/redux'
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import HoloLoader from '../components/ui/HoloLoader'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToChatSettings } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -18,7 +18,6 @@ import type { RootStackParamList } from '../types/navigation'
 export type Props = NativeStackScreenProps<RootStackParamList, 'EditGroup'>
 
 const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
-    const insets = useSafeAreaInsets()
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
@@ -28,7 +27,7 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
     const [editingGroupName, setEditingGroupName] = useState<boolean>(false)
     const toast = useToast()
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     const handleEditRoomName = useCallback(async () => {
         if (!room || !groupName) return
@@ -51,7 +50,7 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
 
     return (
         <KeyboardAwareWrapper>
-            <View style={style.container}>
+            <SafeAreaContainer style={style.container} edges="notop">
                 <ChatSettingsAvatar room={room} />
                 <View style={style.inputWrapper}>
                     <Text caption style={style.inputLabel}>
@@ -76,19 +75,16 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                     disabled={!groupName || editingGroupName}
                     containerStyle={style.button}
                 />
-            </View>
+            </SafeAreaContainer>
         </KeyboardAwareWrapper>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            padding: theme.spacing.lg,
-            paddingBottom: theme.spacing.xl + insets.bottom,
             width: '100%',
         },
         button: {

@@ -79,8 +79,8 @@ pub struct RpcTimelineItemEvent {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "target/bindings/")]
 pub enum RpcTimelineItemContent {
-    Message(#[ts(type = "any")] RoomMessageEventContent),
-    Json(#[ts(type = "any")] serde_json::Value),
+    Message(#[ts(type = "JSONObject")] RoomMessageEventContent),
+    Json(#[ts(type = "JSONValue")] serde_json::Value),
     RedactedMessage,
     Unknown,
 }

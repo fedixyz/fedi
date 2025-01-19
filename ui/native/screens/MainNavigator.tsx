@@ -10,7 +10,6 @@ import ChooseBackupMethodHeader from '../components/feature/backup/ChooseBackupM
 import PersonalBackupHeader from '../components/feature/backup/PersonalBackupHeader'
 import RecoveryWordsHeader from '../components/feature/backup/RecoveryWordsHeader'
 import SocialBackupHeader from '../components/feature/backup/SocialBackupHeader'
-import BugReportHeader from '../components/feature/bug/BugReportHeader'
 import ChatConversationHeader from '../components/feature/chat/ChatConversationHeader'
 import ConfirmJoinPublicGroupHeader from '../components/feature/chat/ConfirmJoinPublicGroupHeader'
 import DefaultChatHeader from '../components/feature/chat/DefaultChatHeader'
@@ -72,7 +71,6 @@ import { MAIN_NAVIGATOR_ID, RootStackParamList } from '../types/navigation'
 import { useIsFeatureUnlocked } from '../utils/hooks/security'
 import AddFediMod from './AddFediMod'
 import BitcoinRequest from './BitcoinRequest'
-import BugReport from './BugReport'
 import BugReportSuccess from './BugReportSuccess'
 import ChatImageViewer from './ChatImageViewer'
 import ChatRoomConversation from './ChatRoomConversation'
@@ -146,6 +144,7 @@ import SendOnChainAmount from './SendOnChainAmount'
 import SendSuccess from './SendSuccess'
 import SetPin from './SetPin'
 import Settings from './Settings'
+import ShareLogs from './ShareLogs'
 import SocialBackupCloudUpload from './SocialBackupCloudUpload'
 import SocialBackupProcessing from './SocialBackupProcessing'
 import SocialBackupSuccess from './SocialBackupSuccess'
@@ -992,12 +991,19 @@ export const MainNavigator = () => {
                                     header: () => <StableBalanceIntroHeader />,
                                 })}
                             />
-                            {/* Bug report */}
+                            {/* Share Logs */}
                             <Stack.Screen
-                                name="BugReport"
-                                component={BugReport}
+                                name="ShareLogs"
+                                component={ShareLogs}
                                 options={() => ({
-                                    header: () => <BugReportHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.developer.share-logs',
+                                            )}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen

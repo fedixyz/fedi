@@ -3,7 +3,7 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -33,7 +33,6 @@ export type Props = NativeStackScreenProps<
 
 const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const { amount } = route.params
@@ -71,7 +70,7 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
         }
     }
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     const renderDetails = () => {
         const feeContent = makeStabilityPoolFeeContent(amount)
@@ -203,7 +202,9 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     }
 
     return (
-        <View style={style.container}>
+        <SafeAreaView
+            style={style.container}
+            edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             <View style={style.conversionIndicator}>
                 <SvgImage
                     name="BitcoinCircle"
@@ -233,20 +234,17 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                     }
                 />
             </View>
-        </View>
+        </SafeAreaView>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flexDirection: 'column',
             flex: 1,
             alignItems: 'center',
-            paddingTop: theme.spacing.lg,
-            paddingLeft: theme.spacing.lg + insets.left,
-            paddingRight: theme.spacing.lg + insets.right,
-            paddingBottom: Math.max(theme.spacing.lg, insets.bottom),
+            padding: theme.spacing.lg,
         },
         amountText: {
             marginTop: 'auto',

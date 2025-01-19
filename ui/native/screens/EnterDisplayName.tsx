@@ -6,15 +6,14 @@ import {
     Keyboard,
     KeyboardEvent,
     Platform,
-    ScrollView,
     StyleSheet,
     View,
 } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 
 import { fedimint } from '../bridge'
+import { SafeScrollArea } from '../components/ui/SafeArea'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -23,7 +22,6 @@ export type Props = NativeStackScreenProps<
 >
 
 const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
-    const insets = useSafeAreaInsets()
     const { theme } = useTheme()
     const { t } = useTranslation()
     const [buttonIsOverlapping, setButtonIsOverlapping] =
@@ -87,15 +85,16 @@ const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
         })
     }, [handleSubmitDisplayName, navigation])
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <ScrollView
+        <SafeScrollArea
             keyboardShouldPersistTaps="handled"
+            edges="all"
             contentContainerStyle={[
                 style.container,
                 keyboardHeight > 0 && Platform.OS === 'ios'
-                    ? { paddingBottom: keyboardHeight + theme.spacing.xl }
+                    ? { paddingBottom: keyboardHeight }
                     : {},
                 buttonIsOverlapping ? { flex: 0 } : {},
             ]}>
@@ -149,18 +148,15 @@ const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
                     loading={isSubmitting}
                 />
             </View>
-        </ScrollView>
+        </SafeScrollArea>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             alignItems: 'center',
             justifyContent: 'flex-start',
-            padding: theme.spacing.xl,
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
         },
         buttonContainer: {
             marginTop: 'auto',

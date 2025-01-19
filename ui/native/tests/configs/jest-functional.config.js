@@ -11,4 +11,5 @@ module.exports = {
             { configFile: './babel.config.js' },
         ],
     },
+    passWithNoTests: true,
 }

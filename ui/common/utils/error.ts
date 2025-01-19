@@ -1,4 +1,5 @@
 import { ResourceKey, TFunction } from 'i18next'
+
 import { ErrorCode } from '../types/bindings'
 import { BridgeError } from '../utils/fedimint'
 import amountUtils from './AmountUtils'

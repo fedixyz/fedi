@@ -10,7 +10,7 @@ import { loadFromStorage } from './storage'
 
 // using an interface here to explicitly define "visibility" instead of an ambigious bool
 export interface ModVisibility {
-    isHiddenCommunity: boolean
+    isHiddenCommunity?: boolean
     isHidden: boolean
     // true if the mod is included in the global mods list
     isGlobal?: boolean
@@ -18,6 +18,7 @@ export interface ModVisibility {
     isCommunity?: boolean
     // true if the mod was created by the user
     isCustom?: boolean
+    federationId?: string | null
 }
 
 const initialState = {
@@ -81,14 +82,36 @@ export const modSlice = createSlice({
                 modId: FediMod['id']
                 isHidden?: boolean
                 isHiddenCommunity?: boolean
+                federationId?: string
             }>,
         ) {
-            const { modId, isHidden, isHiddenCommunity } = action.payload
-            state.modVisibility[modId] = {
-                ...(state.modVisibility[modId] ?? {}),
-                ...(isHidden !== undefined && { isHidden }),
-                ...(isHiddenCommunity !== undefined && { isHiddenCommunity }),
+            const { modId, isHidden, isHiddenCommunity, federationId } =
+                action.payload
+            const currentVisibility = state.modVisibility[modId] ?? {}
+            let newVisibility = { ...currentVisibility }
+
+            if (isHiddenCommunity !== undefined) {
+                // Community mods: store isHiddenCommunity and federationId
+                newVisibility.isHiddenCommunity = isHiddenCommunity
+                if (federationId !== undefined) {
+                    newVisibility.federationId = federationId
+                }
+            } else if (isHidden !== undefined) {
+                // Global mods: store isHidden and remove federationId and isHiddenCommunity
+                const {
+                    federationId: _fedId,
+                    isHiddenCommunity: _hiddenComm,
+                    ...rest
+                } = newVisibility
+                void _fedId
+                void _hiddenComm
+                newVisibility = {
+                    ...rest,
+                    isHidden,
+                }
             }
+
+            state.modVisibility[modId] = newVisibility
         },
     },
     extraReducers: builder => {
@@ -174,6 +197,38 @@ export const selectVisibleCustomMods = createSelector(
 
             return !visibility.isHidden
         }),
+)
+
+export const selectVisibleCommunityMods = createSelector(
+    (s: CommonState) => s.federation.activeFederationId, // Get active federation ID
+    (s: CommonState) => s.federation.customFediMods, // Get all community mods
+    (s: CommonState) => s.mod.modVisibility, // Get mod visibility data
+    (activeFederationId, customFediMods, modVisibility) => {
+        if (!activeFederationId) return [] // If no active federation, return empty array
+
+        // Get the mods for the active federation
+        const activeFederationMods = customFediMods[activeFederationId] ?? []
+
+        // Filter mods based on visibility, excluding those hidden for the current federation
+        return activeFederationMods.filter(mod => {
+            const visibility = modVisibility[mod.id]
+
+            // If no visibility entry, mod is visible by default
+            if (!visibility) {
+                return true
+            }
+
+            // Hide only if isHiddenCommunity is true AND federationId matches the active federation
+            if (
+                visibility.isHiddenCommunity &&
+                visibility.federationId === activeFederationId
+            ) {
+                return false
+            }
+
+            return true
+        })
+    },
 )
 
 export const selectModsVisibility = (s: CommonState) => s.mod.modVisibility

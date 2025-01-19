@@ -278,8 +278,8 @@ export const useChatPaymentUtils = (
         submitType === 'send'
             ? sendMinMax
             : submitType === 'request'
-                ? requestMinMax
-                : {}
+            ? requestMinMax
+            : {}
 
     const canRequestAmount =
         amount >= requestMinMax.minimumAmount &&

@@ -268,5 +268,6 @@ export function initializeCommonStore({
         unsubscribeRecovery()
         unsubscribeStorage()
         unsubscribeMatrixPayments()
+        unsubscribeInitialLang()
     }
 }

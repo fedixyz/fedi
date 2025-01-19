@@ -7,7 +7,6 @@ import {
 import isEqual from 'lodash/isEqual'
 import omit from 'lodash/omit'
 import orderBy from 'lodash/orderBy'
-import { makeLog } from '../utils/log'
 
 import {
     CommonState,
@@ -46,6 +45,7 @@ import {
     joinFromInvite,
 } from '../utils/FederationUtils'
 import type { FedimintBridge } from '../utils/fedimint'
+import { makeLog } from '../utils/log'
 import { makeChatFromPreview } from '../utils/matrix'
 import { upsertListItem, upsertRecordEntityId } from '../utils/redux'
 import { loadFromStorage } from './storage'
@@ -494,6 +494,19 @@ export const leaveFederation = createAsyncThunk<
     },
 )
 
+export const listGateways = createAsyncThunk<
+    {
+        nodePubKey: string
+        gatewayId: string
+        api: string
+        active: boolean
+    }[],
+    { fedimint: FedimintBridge; federationId: string },
+    { state: CommonState }
+>('federation/listGateways', async ({ fedimint, federationId }) => {
+    return fedimint.listGateways(federationId)
+})
+
 /*** Selectors ***/
 
 export const selectLoadedFederations = createSelector(
@@ -593,6 +606,13 @@ export const selectLoadedFederation = (s: CommonState, id: string) =>
 export const selectActiveFederationId = (s: CommonState) => {
     return selectActiveFederation(s)?.id
 }
+
+export const selectReusedEcashFederations = createSelector(
+    selectLoadedFederations,
+    federations => {
+        return federations.filter(f => f.hadReusedEcash)
+    },
+)
 
 export const selectPaymentFederation = createSelector(
     selectWalletFederations,
@@ -813,11 +833,6 @@ export const selectReceivesDisabled = createSelector(
     },
 )
 
-export const selectCommunityMods = createSelector(
-    (s: CommonState) => s.federation.customFediMods,
-    customFediMods => Object.values(customFediMods).flatMap(mods => mods ?? []),
-)
-
 export const selectActiveFederationFediMods = createSelector(
     (s: CommonState) => s.federation.activeFederationId,
     (s: CommonState) => s.federation.customFediMods,
@@ -828,23 +843,19 @@ export const selectActiveFederationFediMods = createSelector(
     },
 )
 
-export const selectVisibleCommunityMods = createSelector(
-    (s: CommonState) => s.federation.activeFederationId, // Get active federation ID
-    (s: CommonState) => s.federation.customFediMods, // Get all community mods
-    (s: CommonState) => s.mod.modVisibility, // Get mod visibility data
-    (activeFederationId, customFediMods, modVisibility) => {
-        if (!activeFederationId) return [] // If no active federation, return empty array
-
-        // Get the mods for the active federation
-        const activeFederationMods = customFediMods[activeFederationId] ?? []
-
-        // Filter mods based on visibility, excluding hidden community mods
-        return activeFederationMods.filter(mod => {
-            const visibility = modVisibility[mod.id]
-            return !visibility?.isHiddenCommunity // Show only visible community mods
-        })
-    },
+export const selectCommunityMods = createSelector(
+    (s: CommonState) => s.federation.customFediMods,
+    customFediMods => Object.values(customFediMods).flatMap(mods => mods ?? []),
 )
+
+export const selectFederationFediModsById = (
+    state: CommonState,
+    federationId: string,
+) => {
+    return federationId
+        ? state.federation.customFediMods[federationId] || []
+        : []
+}
 
 export const selectFederationGroupChats = createSelector(
     selectFederationMetadata,

@@ -1,5 +1,7 @@
+import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
     Platform,
@@ -8,15 +10,14 @@ import {
     View,
 } from 'react-native'
 import { TemporaryDirectoryPath, exists } from 'react-native-fs'
+import Video from 'react-native-video'
 
 import { setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
-import { useNavigation } from '@react-navigation/native'
-import { useTranslation } from 'react-i18next'
-import Video from 'react-native-video'
+
 import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import { pathJoin, prefixFileUri } from '../../../utils/media'

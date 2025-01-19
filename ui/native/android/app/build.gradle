@@ -115,7 +115,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 240051929
-        versionName "1.20.8"
+        versionName "1.20.12"
     }
 
     packagingOptions {

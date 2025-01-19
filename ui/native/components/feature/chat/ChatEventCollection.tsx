@@ -1,17 +1,12 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import isEqual from 'lodash/isEqual'
-import React, { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import React, { memo, useMemo } from 'react'
+import { StyleSheet, View } from 'react-native'
 
-import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
-import { MatrixEvent, MatrixRoomMember } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 
-import { useAppSelector } from '../../../state/hooks'
-import SvgImage from '../../ui/SvgImage'
-import ChatAvatar from './ChatAvatar'
-import ChatEvent from './ChatEvent'
+import { MatrixEvent } from '../../../types'
+import ChatEventTimeFrame from './ChatEventTimeFrame'
 
 interface Props {
     roomId: string
@@ -24,18 +19,6 @@ interface Props {
 const ChatEventCollection: React.FC<Props> = memo(
     ({ roomId, collection, onSelect, showUsernames, isPublic }: Props) => {
         const { theme } = useTheme()
-        const { t } = useTranslation()
-
-        const matrixAuth = useAppSelector(selectMatrixAuth)
-        const roomMembers = useAppSelector(s =>
-            selectMatrixRoomMembers(s, roomId),
-        )
-
-        const handlePress = useCallback(
-            (member?: MatrixRoomMember) =>
-                member && member?.membership !== 'leave' && onSelect(member.id),
-            [onSelect],
-        )
 
         const earliestEvent = useMemo(
             () => collection.slice(-1)[0].slice(-1)[0],
@@ -56,70 +39,16 @@ const ChatEventCollection: React.FC<Props> = memo(
                     </View>
                 )}
                 <View style={style.sendersContainer}>
-                    {collection.map((events, index) => {
-                        if (!events.length) return null
-                        const sentBy = events[0].senderId || ''
-
-                        const roomMember = roomMembers.find(
-                            m => m.id === sentBy,
-                        )
-                        const isMe = sentBy === matrixAuth?.userId
-                        const hasLeft = roomMember?.membership === 'leave'
-                        const isBanned = roomMember?.membership === 'ban'
-                        const isAdmin = roomMember?.powerLevel === 100
-                        const displayName = isBanned
-                            ? t('feature.chat.removed-member')
-                            : hasLeft
-                            ? t('feature.chat.former-member')
-                            : roomMember?.displayName || '...'
-                        return (
-                            <View
-                                style={style.senderGroup}
-                                key={`ceci-${index}`}>
-                                {showUsernames && !isMe && (
-                                    <View style={style.senderNameContainer}>
-                                        <Text small>{displayName}</Text>
-                                        {isAdmin && (
-                                            <SvgImage
-                                                size={12}
-                                                name="AdminBadge"
-                                            />
-                                        )}
-                                    </View>
-                                )}
-                                <View style={style.senderGroupContent}>
-                                    {!isMe && showUsernames && (
-                                        <Pressable
-                                            style={style.senderAvatar}
-                                            hitSlop={30}
-                                            pressRetentionOffset={30}
-                                            onPress={() =>
-                                                handlePress(roomMember)
-                                            }
-                                            onLongPress={() =>
-                                                handlePress(roomMember)
-                                            }>
-                                            <ChatAvatar
-                                                user={
-                                                    roomMember || { id: sentBy }
-                                                }
-                                            />
-                                        </Pressable>
-                                    )}
-                                    <View style={style.senderMessages}>
-                                        {events.map((event, eindex) => (
-                                            <ChatEvent
-                                                key={`ceci-eb-${event.id}`}
-                                                event={event}
-                                                last={eindex === 0}
-                                                isPublic={isPublic}
-                                            />
-                                        ))}
-                                    </View>
-                                </View>
-                            </View>
-                        )
-                    })}
+                    {collection.map(events => (
+                        <ChatEventTimeFrame
+                            key={events.at(-1)?.eventId}
+                            events={events}
+                            roomId={roomId}
+                            showUsernames={showUsernames}
+                            isPublic={isPublic}
+                            onSelect={onSelect}
+                        />
+                    ))}
                 </View>
             </View>
         )

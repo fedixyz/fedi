@@ -1,13 +1,18 @@
+import { useNavigation } from '@react-navigation/native'
+import { Theme, useTheme } from '@rneui/themed'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Linking, StyleSheet, View } from 'react-native'
+import { requestNotifications } from 'react-native-permissions'
+
 import { EULA_URL } from '@fedi/common/constants/tos'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { selectDeveloperMode } from '@fedi/common/redux/environment'
-import { useNavigation } from '@react-navigation/native'
-import { Theme, useTheme } from '@rneui/themed'
-import { useTranslation } from 'react-i18next'
-import { Linking, StyleSheet, View } from 'react-native'
+
 import { usePinContext } from '../../../state/contexts/PinContext'
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
+import { useNotificationsPermission } from '../../../utils/hooks'
 import SettingsItem from './SettingsItem'
 
 export const GeneralSettings = () => {
@@ -15,6 +20,7 @@ export const GeneralSettings = () => {
     const { t } = useTranslation()
     const style = styles(theme)
     const navigation = useNavigation<NavigationHook>()
+    const { notificationsPermission } = useNotificationsPermission()
 
     const developerMode = useAppSelector(selectDeveloperMode)
     const [hasPerformedPersonalBackup] = useNuxStep(
@@ -33,6 +39,25 @@ export const GeneralSettings = () => {
             navigation.navigate('CreatePinInstructions')
         }
     }
+
+    const handleNotificationSettings = useCallback(async () => {
+        // If not granted, ask for permission
+        if (notificationsPermission !== 'granted') {
+            // Request Permission
+            const { status: notificationsStatus } = await requestNotifications([
+                'alert',
+                'sound',
+            ])
+
+            // Re-check. If not granted, open settings
+            if (notificationsStatus !== 'granted') {
+                Linking.openSettings()
+            }
+        } else {
+            // If already granted, open settings
+            Linking.openSettings()
+        }
+    }, [notificationsPermission])
 
     return (
         <View style={style.container}>
@@ -90,14 +115,9 @@ export const GeneralSettings = () => {
                 onPress={() => navigation.navigate('NostrSettings')}
             />
             <SettingsItem
-                icon="Bug"
-                label={t('feature.bug.report-a-bug')}
-                onPress={() => navigation.navigate('BugReport')}
-            />
-            <SettingsItem
                 icon="SpeakerPhone"
                 label={t('feature.notifications.notification-settings')}
-                onPress={() => Linking.openSettings()}
+                onPress={handleNotificationSettings}
             />
             <SettingsItem
                 icon="Scroll"

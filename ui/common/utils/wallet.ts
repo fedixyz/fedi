@@ -354,6 +354,19 @@ export const makeTxnStatusText = (t: TFunction, txn: Transaction): string => {
                     default:
                         return t('words.received')
                 }
+            } else if (txn.oobState) {
+                switch (txn.oobState.type) {
+                    case 'done':
+                        return t('words.complete')
+                    case 'failed':
+                        return t('words.failed')
+                    case 'created':
+                        return t('words.pending')
+                    case 'issuing':
+                        return t('words.pending')
+                    default:
+                        return ''
+                }
             } else {
                 return t('words.received')
             }

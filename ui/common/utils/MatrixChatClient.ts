@@ -22,6 +22,7 @@ import {
     MatrixUser,
 } from '../types'
 import {
+    JSONObject,
     ObservableUpdate,
     ObservableVecUpdate,
     RpcBackPaginationStatus,
@@ -296,7 +297,8 @@ export class MatrixChatClient {
         const oldPowerLevels = await this.fedimint.matrixRoomGetPowerLevels({
             roomId,
         })
-        const users = oldPowerLevels.users || {}
+        // TODO: narrow return type of matrixRoomGetPowerLevels RPC.
+        const users = (oldPowerLevels.users as Record<string, number>) || {}
         users[userId] = powerLevel
         const newPowerLevels = {
             ...oldPowerLevels,
@@ -315,7 +317,8 @@ export class MatrixChatClient {
             roomId,
             msgtype,
             body,
-            data,
+            // TODO: Update zod schemas to remove .passthrough() & remove this cast
+            data: data as JSONObject,
         })
     }
 
@@ -346,12 +349,9 @@ export class MatrixChatClient {
             .then(this.serializeUserDirectorySearchResponse)
     }
 
-    async fetchMatrixProfile(
-        userId: MatrixUser['id'],
-    ): Promise<{ displayname: string }> {
-        return await this.fedimint.matrixUserProfile({
-            userId,
-        })
+    async fetchMatrixProfile(userId: MatrixUser['id']) {
+        // TODO: Add narrower types to matrixUserProfile RPC
+        return await this.fedimint.matrixUserProfile({ userId })
     }
 
     async setDisplayName(displayName: string) {

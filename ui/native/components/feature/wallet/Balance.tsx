@@ -4,6 +4,7 @@ import React from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
+
 import SvgImage from '../../ui/SvgImage'
 
 const Balance: React.FC = () => {

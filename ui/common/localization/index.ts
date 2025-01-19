@@ -5,13 +5,13 @@ import commonEN from './en/common.json'
 import commonES from './es/common.json'
 import commonFR from './fr/common.json'
 import commonID from './id/common.json'
+import commonMY from './my/common.json'
 import commonPT from './pt/common.json'
 import commonRN from './rn/common.json'
 import commonRW from './rw/common.json'
 import commonSO from './so/common.json'
 import commonSW from './sw/common.json'
 import commonTL from './tl/common.json'
-import commonMY from './my/common.json'
 
 export const resources = {
     en: {

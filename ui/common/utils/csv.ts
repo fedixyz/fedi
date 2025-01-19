@@ -3,6 +3,14 @@ import { MSats, Transaction } from '../types'
 
 type CSVColumns<T> = { name: string; getValue: (item: T) => string | number }[]
 
+const getTxType = (tx: Transaction) => {
+    if (tx.bitcoin) return 'on-chain'
+    if (tx.lightning) return 'lightning'
+    if (tx.stabilityPoolState) return 'stability-pool'
+    if (tx.oobState) return 'ecash'
+    return 'unknown'
+}
+
 export function makeTransactionHistoryCSV(
     txs: Transaction[],
     makeFormattedAmountsFromMSats: (
@@ -25,16 +33,26 @@ export function makeTransactionHistoryCSV(
                 const { type } = txn.stabilityPoolState
 
                 return (
-                    type === 'completeDeposit' || type === 'completeWithdrawal'
+                    type === 'completeDeposit' ||
+                    type === 'completeWithdrawal' ||
+                    type === 'pendingDeposit'
                 )
             } else if (txn.onchainState) {
                 const { type } = txn.onchainState
 
-                return type === 'succeeded' || type === 'claimed' || type === 'confirmed'
+                return (
+                    type === 'succeeded' ||
+                    type === 'claimed' ||
+                    type === 'confirmed'
+                )
             } else if (txn.oobState) {
                 const { type } = txn.oobState
-
-                return type === 'success'
+                return (
+                    type === 'success' ||
+                    type === 'userCanceledFailure' ||
+                    type === 'done' ||
+                    type === 'created'
+                )
             }
 
             return false
@@ -55,8 +73,7 @@ export function makeTransactionHistoryCSV(
         },
         {
             name: 'Type',
-            getValue: tx =>
-                tx.bitcoin ? 'on-chain' : tx.lightning ? 'lightning' : 'ecash',
+            getValue: tx => getTxType(tx),
         },
         {
             name: 'Amount (fiat)',

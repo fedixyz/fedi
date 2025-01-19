@@ -2,25 +2,26 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Keyboard, StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Alert, Keyboard, StyleSheet } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import {
     useAmountFormatter,
     useBalanceDisplay,
 } from '@fedi/common/hooks/amount'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectPaymentFederation } from '@fedi/common/redux'
+import { generateEcash, selectPaymentFederation } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
-import { useAppSelector, useBridge } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('ConfirmSendEcash')
@@ -32,13 +33,12 @@ export type Props = NativeStackScreenProps<
 
 const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const { amount } = route.params
+    const dispatch = useAppDispatch()
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const { generateEcash } = useBridge(paymentFederation?.id)
     const balanceDisplay = useBalanceDisplay(t)
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
         useFeeDisplayUtils(t)
@@ -53,14 +53,21 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
         Keyboard.dismiss()
         setIsLoading(true)
         try {
+            if (!paymentFederation?.id) throw new Error('No payment federation')
             const millis = amountUtils.satToMsat(Number(amount) as Sats)
-            const { ecash } = await generateEcash(millis)
+            const { ecash } = await dispatch(
+                generateEcash({
+                    fedimint,
+                    federationId: paymentFederation?.id,
+                    amount: millis,
+                }),
+            ).unwrap()
             navigation.navigate('SendOfflineQr', { ecash, amount: millis })
         } catch (error) {
             log.error('onGenerateEcash', error)
         }
         setIsLoading(false)
-    }, [amount, generateEcash, navigation])
+    }, [amount, navigation, paymentFederation, dispatch])
 
     const handleConfirm = useCallback(() => {
         Alert.alert(
@@ -78,10 +85,12 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
         )
     }, [handleSend, t])
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaView
+            style={style.container}
+            edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             <FederationWalletSelector />
             <SendAmounts
                 balanceDisplay={balanceDisplay}
@@ -102,20 +111,17 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
                 feeItems={feeItemsBreakdown}
                 description={ecashFeesGuidanceText}
             />
-        </View>
+        </SafeAreaView>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flexDirection: 'column',
             flex: 1,
             alignItems: 'center',
-            paddingTop: theme.spacing.lg,
-            paddingLeft: theme.spacing.lg + insets.left,
-            paddingRight: theme.spacing.lg + insets.right,
-            paddingBottom: Math.max(theme.spacing.lg, insets.bottom),
+            padding: theme.spacing.lg,
         },
         amountContainer: {
             marginTop: 'auto',

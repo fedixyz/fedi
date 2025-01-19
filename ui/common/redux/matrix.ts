@@ -1103,9 +1103,9 @@ export const selectMatrixRooms = createSelector(
                 ...room,
                 broadcastOnly: powerLevels
                     ? getRoomEventPowerLevel(powerLevels, [
-                        'm.room.message',
-                        'm.room.encrypted',
-                    ]) >= MatrixPowerLevel.Moderator
+                          'm.room.message',
+                          'm.room.encrypted',
+                      ]) >= MatrixPowerLevel.Moderator
                     : false,
             })
         }

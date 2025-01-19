@@ -55,7 +55,6 @@ export type TabsNavigatorParamList = {
 export type RootStackParamList = {
     AddFediMod: undefined
     BitcoinRequest: { uri: string }
-    BugReport: undefined
     BugReportSuccess: undefined
     CameraPermission: { nextScreen: keyof RootStackParamList } | undefined
     ChatImageViewer: { uri: string }
@@ -91,11 +90,11 @@ export type RootStackParamList = {
     EditProfileSettings: undefined
     Eula: undefined
     FederationDetails: { federationId: string }
-    FederationModSettings: { type?: string }
+    FederationModSettings: { type?: string; federationId?: string }
     FederationInvite: { inviteLink: string }
     FederationGreeting: undefined
     FederationAcceptTerms: { federation: FederationPreview }
-    FediModSettings: { type?: string }
+    FediModSettings: { type?: string; federationId?: string }
     Initializing: undefined
     JoinFederation: { invite?: string }
     LanguageSettings: undefined
@@ -136,6 +135,7 @@ export type RootStackParamList = {
     SendOnChainAmount: { parsedData: ParsedBip21 | ParsedBitcoinAddress }
     SendSuccess: { amount: MSats; unit: string }
     Settings: undefined
+    ShareLogs: undefined
     FediModBrowser: { fediMod: FediMod }
     Splash: undefined
     StabilityConfirmDeposit: { amount: Sats }

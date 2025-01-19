@@ -8,11 +8,11 @@ import {
     StyleSheet,
     View,
 } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { FeeItem } from '@fedi/common/hooks/transactions'
 
+import { SafeAreaContainer } from '../../ui/SafeArea'
 import { HistoryDetailProps } from './HistoryDetail'
 import HistoryDetailOverlay from './HistoryDetailOverlay'
 import { HistoryRow, HistoryRowProps } from './HistoryRow'
@@ -39,7 +39,6 @@ export function HistoryList<T extends { id: string }>({
 }: Props<T>): React.ReactElement {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
     const selectedItem = useMemo(
         () =>
@@ -66,7 +65,7 @@ export function HistoryList<T extends { id: string }>({
         )
     }
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     if (loading) {
         return (
@@ -87,7 +86,7 @@ export function HistoryList<T extends { id: string }>({
     }
 
     return (
-        <View style={style.container}>
+        <SafeAreaContainer style={style.container} edges="bottom">
             <FlatList
                 data={rows}
                 renderItem={renderRow}
@@ -115,21 +114,19 @@ export function HistoryList<T extends { id: string }>({
                 }
                 feeItems={feeItems}
             />
-        </View>
+        </SafeAreaContainer>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flex: 1,
             width: '100%',
+            paddingBottom: 0,
         },
         content: {
             paddingTop: theme.spacing.xl,
-            paddingLeft: insets.left,
-            paddingRight: insets.right,
-            paddingBottom: Math.min(insets.bottom, theme.spacing.lg),
         },
         emptyContainer: {
             flex: 1,

@@ -3,7 +3,6 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
     useAmountFormatter,
@@ -21,6 +20,7 @@ import FederationWalletSelector from '../components/feature/send/FederationWalle
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -32,7 +32,6 @@ export type Props = NativeStackScreenProps<
 
 const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const { amount, roomId } = route.params
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
@@ -62,10 +61,10 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
         })
     }, [amount, handleSendPayment, navigation, roomId])
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaContainer style={style.container} edges="notop">
             <FederationWalletSelector />
             <SendAmounts
                 balanceDisplay={balanceDisplay}
@@ -119,20 +118,16 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
                 feeItems={feeItemsBreakdown}
                 description={ecashFeesGuidanceText}
             />
-        </View>
+        </SafeAreaContainer>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flexDirection: 'column',
             flex: 1,
             alignItems: 'center',
-            paddingTop: theme.spacing.lg,
-            paddingLeft: theme.spacing.lg + insets.left,
-            paddingRight: theme.spacing.lg + insets.right,
-            paddingBottom: Math.max(theme.spacing.lg, insets.bottom),
         },
         darkGrey: {
             color: theme.colors.darkGrey,

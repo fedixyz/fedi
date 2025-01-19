@@ -6,13 +6,17 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import {
+    selectActiveFederationId,
+    socialRecoveryDownloadVerificationDoc,
+} from '@fedi/common/redux'
 import type { SocialRecoveryQrCode } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../bridge'
 import CameraPermissionsRequired from '../components/feature/scan/CameraPermissionsRequired'
 import QrCodeScanner from '../components/feature/scan/QrCodeScanner'
-import { useAppSelector, useBridge } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('ScanSocialRecoveryCode')
@@ -25,8 +29,7 @@ export type Props = NativeStackScreenProps<
 const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const activeFederationId = useAppSelector(selectActiveFederationId)
-    const { socialRecoveryDownloadVerificationDoc } =
-        useBridge(activeFederationId)
+    const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const toast = useToast()
     const [downloading, setDownloading] = useState<boolean>(false)
@@ -46,11 +49,16 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
                 try {
                     setDownloading(true)
                     // FIXME: this is getting called over-and-over
-                    const videoPath =
-                        await socialRecoveryDownloadVerificationDoc(
-                            qr.recoveryId,
-                            authenticatedGuardian.peerId,
-                        )
+                    if (!activeFederationId)
+                        throw new Error('No active federation')
+                    const videoPath = await dispatch(
+                        socialRecoveryDownloadVerificationDoc({
+                            fedimint,
+                            recoveryId: qr.recoveryId,
+                            peerId: authenticatedGuardian.peerId,
+                            federationId: activeFederationId,
+                        }),
+                    ).unwrap()
                     if (videoPath == null) {
                         toast.show(t('feature.recovery.nothing-to-download'))
                     } else {
@@ -81,8 +89,9 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
             navigation,
             toast,
             t,
-            socialRecoveryDownloadVerificationDoc,
             authenticatedGuardian,
+            activeFederationId,
+            dispatch,
         ],
     )
 

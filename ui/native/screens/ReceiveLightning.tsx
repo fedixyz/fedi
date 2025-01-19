@@ -1,20 +1,16 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    ActivityIndicator,
-    Insets,
-    Keyboard,
-    StyleSheet,
-    View,
-} from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { ActivityIndicator, Keyboard, StyleSheet, View } from 'react-native'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederation } from '@fedi/common/redux'
+import {
+    generateAddress,
+    generateInvoice,
+    selectActiveFederation,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { lnurlWithdraw } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
@@ -23,7 +19,8 @@ import { fedimint } from '../bridge'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import RequestTypeSwitcher from '../components/feature/receive/RequestTypeSwitcher'
 import { AmountScreen } from '../components/ui/AmountScreen'
-import { useAppSelector, useBridge } from '../state/hooks'
+import { SafeScrollArea } from '../components/ui/SafeArea'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { BitcoinOrLightning, BtcLnUri, Sats } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -36,11 +33,9 @@ export type Props = NativeStackScreenProps<
 
 const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
     const lnurlWithdrawal = route.params?.parsedData?.data
-    const { theme } = useTheme()
     const { t } = useTranslation()
-    const insets = useSafeAreaInsets()
+    const dispatch = useAppDispatch()
     const activeFederationId = useAppSelector(selectActiveFederation)?.id
-    const { generateAddress, generateInvoice } = useBridge(activeFederationId)
     const {
         inputAmount: amount,
         setInputAmount: setAmount,
@@ -65,11 +60,16 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
 
     useEffect(() => {
         const createNewInvoice = async () => {
+            if (!activeFederationId) return
             try {
-                const newInvoice = await generateInvoice(
-                    amountUtils.satToMsat(amount),
-                    memo,
-                )
+                const newInvoice = await dispatch(
+                    generateInvoice({
+                        fedimint,
+                        federationId: activeFederationId,
+                        amount: amountUtils.satToMsat(amount),
+                        description: memo,
+                    }),
+                ).unwrap()
                 setInvoice(newInvoice)
             } catch (error) {
                 toast.show({
@@ -81,7 +81,15 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
         if (generatingInvoice) {
             createNewInvoice()
         }
-    }, [t, toast, amount, generateInvoice, generatingInvoice, memo])
+    }, [
+        t,
+        toast,
+        amount,
+        generatingInvoice,
+        memo,
+        activeFederationId,
+        dispatch,
+    ])
 
     useEffect(() => {
         if (invoice) {
@@ -96,9 +104,15 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
     useEffect(() => {
         if (requestType === BitcoinOrLightning.bitcoin && !onchainAddress) {
             const generateOnchainAddress = async () => {
+                if (!activeFederationId) return
                 try {
                     setIsLoading(true)
-                    const newAddress = await generateAddress()
+                    const newAddress = await dispatch(
+                        generateAddress({
+                            fedimint,
+                            federationId: activeFederationId,
+                        }),
+                    ).unwrap()
 
                     setOnchainAddress(newAddress)
                 } catch (error) {
@@ -109,7 +123,7 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
 
             generateOnchainAddress()
         }
-    }, [generateAddress, onchainAddress, requestType])
+    }, [onchainAddress, requestType, activeFederationId, dispatch])
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)
@@ -158,10 +172,8 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
         }
     }
 
-    const style = styles(theme, insets)
-
     return (
-        <View style={style.container}>
+        <SafeScrollArea edges="all">
             {showOnchainDeposits && (
                 <RequestTypeSwitcher
                     requestType={requestType}
@@ -173,7 +185,7 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
                 />
             )}
             {requestType === BitcoinOrLightning.bitcoin && onchainAddress ? (
-                <View style={style.onchainContainer}>
+                <View style={style.qrContainer}>
                     {isLoading ? (
                         <ActivityIndicator />
                     ) : (
@@ -213,23 +225,17 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
                             },
                         },
                     ]}
+                    isIndependent={false}
                 />
             )}
-        </View>
+        </SafeScrollArea>
     )
 }
 
-const styles = (theme: Theme, insets: Insets) =>
-    StyleSheet.create({
-        container: {
-            flex: 1,
-            alignItems: 'center',
-            padding: theme.spacing.xl,
-        },
-        onchainContainer: {
-            marginTop: 'auto',
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
-        },
-    })
+const style = StyleSheet.create({
+    qrContainer: {
+        flex: 1,
+    },
+})
 
 export default ReceiveLightning

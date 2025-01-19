@@ -36,9 +36,9 @@ clean_android() {
 }
 
 clean_all() {
-    clean_node_modules
     clean_ios
     clean_android
+    clean_node_modules
 }
 
 while true; do

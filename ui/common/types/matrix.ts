@@ -1,5 +1,9 @@
 import type { MatrixEventContent } from '../utils/matrix'
-import type { ObservableVecUpdate, RpcMatrixMembership } from './bindings'
+import type {
+    JSONObject,
+    ObservableVecUpdate,
+    RpcMatrixMembership,
+} from './bindings'
 
 export { MatrixEventContent }
 
@@ -25,8 +29,8 @@ export interface MatrixRoomPowerLevels {
     redact?: number
     state_default?: number
     events_default?: number
-    events?: Record<string, number | undefined>
-    users?: Record<string, number | undefined>
+    events?: Record<string, number>
+    users?: Record<string, number>
 }
 
 export interface MatrixRoomPreview {
@@ -152,18 +156,18 @@ export type MatrixPaymentEventContent = PickEventContentType<
 
 export type MatrixPaymentEvent = MatrixEvent<MatrixPaymentEventContent>
 
-interface StateEvent {
-    content: object
+export type StateEvent = {
+    content: JSONObject
     state_key?: string
     type: string
 }
 /** Taken from matrix-js-sdk's `ICreateRoomOpts` */
-export interface MatrixCreateRoomOptions {
+export type MatrixCreateRoomOptions = {
     visibility?: 'public' | 'private'
     name?: string
     topic?: string
     preset?: 'private_chat' | 'trusted_private_chat' | 'public_chat'
-    creation_content?: object
+    creation_content?: JSONObject
     invite?: string[]
     is_direct?: boolean
     power_level_content_override?: {

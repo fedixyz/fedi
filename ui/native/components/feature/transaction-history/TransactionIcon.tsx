@@ -19,7 +19,9 @@ export const TransactionIcon: React.FC<Props> = ({ txn }) => {
         txn.lnState?.type === 'waitingForPayment' ||
         (txn.bitcoin && txn.onchainState?.type !== 'claimed') ||
         (txn.lightning && !txn.lnState) ||
-        txn.stabilityPoolState?.type === 'pendingWithdrawal'
+        txn.stabilityPoolState?.type === 'pendingWithdrawal' ||
+        txn.oobState?.type === 'created' ||
+        txn.oobState?.type === 'issuing'
     ) {
         badge = 'pending'
     } else if (txn.lnState?.type === 'canceled') {

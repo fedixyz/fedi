@@ -1,6 +1,8 @@
-import { FederationStatus } from '@fedi/common/types'
 import { Theme, useTheme } from '@rneui/themed'
 import { StyleSheet } from 'react-native'
+
+import { FederationStatus } from '@fedi/common/types'
+
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 type Props = {

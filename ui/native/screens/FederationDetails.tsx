@@ -10,7 +10,6 @@ import {
     View,
     ViewStyle,
 } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { selectAlphabeticallySortedFederations } from '@fedi/common/redux'
@@ -25,6 +24,7 @@ import {
 
 import ConnectionStatusCard from '../components/feature/federations/ConnectionStatusCard'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -45,7 +45,6 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
     )
 
     const popupInfo = usePopupFederationInfo(federation?.meta)
-    const insets = useSafeAreaInsets()
 
     if (!federation) return null
 
@@ -62,10 +61,10 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
         ? ((maxInvoiceMsats / 1000) as Sats)
         : (1_000_000_000 as Sats)
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaContainer edges="notop">
             <View style={style.content}>
                 <FederationLogo federation={federation} size={72} />
                 <View style={style.textContainer}>
@@ -125,7 +124,7 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                     </Text>
                 </Pressable>
             )}
-        </View>
+        </SafeAreaContainer>
     )
 }
 
@@ -137,9 +136,8 @@ const PopupFederationPill = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const popupInfo = usePopupFederationInfo(federation?.meta)
-    const insets = useSafeAreaInsets()
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     if (!popupInfo) return null
 
@@ -173,14 +171,13 @@ const PopupFederationPill = ({
     return <View style={pillStyles}>{countdownI18nText}</View>
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            padding: theme.spacing.xl,
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
+            padding: theme.spacing.lg,
         },
         content: {
             flex: 1,

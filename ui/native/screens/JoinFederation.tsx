@@ -1,4 +1,3 @@
-import { makeLog } from '@fedi/common/utils/log'
 import { useIsFocused } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect } from 'react'
@@ -10,6 +9,7 @@ import {
     useLatestPublicFederations,
 } from '@fedi/common/hooks/federation'
 import { selectMatrixAuth } from '@fedi/common/redux'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import {
