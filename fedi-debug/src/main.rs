@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use clap::Parser;
-use fedi_db_dump::import_db_dump;
+use fedi_bug_report::db_dump::import_db_dump;
 
 #[derive(Parser)]
 enum Command {

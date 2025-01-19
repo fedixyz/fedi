@@ -11,9 +11,8 @@ import {
     View,
     useWindowDimensions,
 } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { selectActiveFederationFediMods } from '@fedi/common/redux'
+import { selectFederationFediModsById } from '@fedi/common/redux'
 import {
     removeCustomMod,
     selectConfigurableMods,
@@ -26,6 +25,7 @@ import { FediModImages } from '../assets/images'
 import CustomOverlay, {
     CustomOverlayContents,
 } from '../components/ui/CustomOverlay'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage, { getIconSizeMultiplier } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
@@ -39,17 +39,18 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
     const { t } = useTranslation()
-    const insets = useSafeAreaInsets()
     const navigation = useNavigation()
 
     const dispatch = useAppDispatch()
-    const { type } = route.params
+    const { type, federationId } = route.params
 
     const selectConfigMods = useAppSelector(selectConfigurableMods)
-    const selectActiveFedMods = useAppSelector(selectActiveFederationFediMods)
+    const federationMods = useAppSelector(state =>
+        federationId ? selectFederationFediModsById(state, federationId) : [],
+    )
 
     // Select the correct data based on the type
-    const mods = type === 'fedi' ? selectConfigMods : selectActiveFedMods
+    const mods = type === 'fedi' ? selectConfigMods : federationMods
 
     const modsVisibility = useAppSelector(selectModsVisibility)
 
@@ -62,7 +63,7 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
         }
     }, [deletingMod])
 
-    const style = styles(theme, fontScale, insets)
+    const style = styles(theme, fontScale)
 
     const handleDeletePress = (mod: FediMod) => {
         setDeletingMod(mod)
@@ -76,10 +77,11 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
                 setModVisibility({
                     modId: mod.id,
                     [visibilityKey]: !modsVisibility[mod.id]?.[visibilityKey],
+                    federationId: federationId,
                 }),
             )
         },
-        [modsVisibility, dispatch, type],
+        [modsVisibility, dispatch, type, federationId],
     )
 
     const confirmationContent: CustomOverlayContents = useMemo(() => {
@@ -120,10 +122,20 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
 
     const renderMods = useCallback(() => {
         return mods.map(mod => {
-            const visibilityKey =
-                type === 'fedi' ? 'isHidden' : 'isHiddenCommunity'
-            const isHidden = modsVisibility[mod.id]?.[visibilityKey]
-            const canDelete = modsVisibility[mod.id]?.isCustom
+            const visibility = modsVisibility[mod.id]
+            let isHidden = false
+
+            if (type === 'fedi') {
+                isHidden = !!visibility?.isHidden
+            } else {
+                // Only consider the mod hidden in this federation if federationId matches
+                isHidden = !!(
+                    visibility?.isHiddenCommunity &&
+                    visibility?.federationId === federationId
+                )
+            }
+
+            const canDelete = visibility?.isCustom
 
             return (
                 <ModRow
@@ -139,10 +151,10 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
                 />
             )
         })
-    }, [mods, modsVisibility, handleToggleVisibility, type])
+    }, [mods, modsVisibility, handleToggleVisibility, type, federationId])
 
     return (
-        <View style={style.container}>
+        <SafeAreaContainer style={style.container} edges="notop">
             <ScrollView
                 style={style.scrollContainer}
                 contentContainerStyle={style.contentContainer}
@@ -173,12 +185,10 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
                     </View>
                 )}
             </ScrollView>
-            {type === 'fedi' && (
-                <Button onPress={() => navigation.navigate('AddFediMod')}>
-                    {t('feature.fedimods.add-a-mod')}
-                </Button>
-            )}
-        </View>
+            <Button onPress={() => navigation.navigate('AddFediMod')}>
+                {t('feature.fedimods.add-a-mod')}
+            </Button>
+        </SafeAreaContainer>
     )
 }
 
@@ -197,16 +207,16 @@ const ModRow: React.FC<ModRowProps> = ({
 }) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
-    const insets = useSafeAreaInsets()
-
+    const [loaded, setLoaded] = useState(false)
+    // use local image if we have it
+    // then try image url
+    // fallback to default
     const [imageSrc, setImageSrc] = useState(
         FediModImages[mod.id] ||
             (mod.imageUrl ? { uri: mod.imageUrl } : FediModImages.default),
     )
 
-    const [loaded, setLoaded] = useState(false)
-
-    const style = styles(theme, fontScale, insets)
+    const style = styles(theme, fontScale)
 
     return (
         <View key={mod.id} style={style.fediMod}>
@@ -233,7 +243,7 @@ const ModRow: React.FC<ModRowProps> = ({
     )
 }
 
-const styles = (theme: Theme, fontScale: number, insets: EdgeInsets) => {
+const styles = (theme: Theme, fontScale: number) => {
     const iconSize = theme.sizes.lg * getIconSizeMultiplier(fontScale)
 
     return StyleSheet.create({
@@ -245,13 +255,7 @@ const styles = (theme: Theme, fontScale: number, insets: EdgeInsets) => {
             gap: theme.spacing.lg,
         },
         container: {
-            flex: 1,
-            flexDirection: 'column',
             gap: theme.spacing.md,
-            paddingTop: theme.spacing.lg,
-            paddingLeft: insets.left + theme.spacing.lg,
-            paddingRight: insets.right + theme.spacing.lg,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
         },
         empty: {
             flex: 1,

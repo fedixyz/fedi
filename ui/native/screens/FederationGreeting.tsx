@@ -2,13 +2,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Insets, StyleSheet, View } from 'react-native'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { StyleSheet, View } from 'react-native'
 
 import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { NotificationsPermissionGate } from '../components/feature/permissions/NotificationsPermissionGate'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -20,13 +20,13 @@ export type Props = NativeStackScreenProps<
 const FederationGreeting: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const insets = useSafeAreaInsets()
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
+
     return (
         <NotificationsPermissionGate>
-            <SafeAreaView edges={['left', 'right']} style={style.container}>
+            <SafeAreaContainer style={style.container} edges="notop">
                 <View style={style.contentContainer}>
                     <View style={style.avatarContainer}>
                         <Avatar
@@ -55,19 +55,16 @@ const FederationGreeting: React.FC<Props> = ({ navigation }: Props) => {
                     }}
                     containerStyle={style.button}
                 />
-            </SafeAreaView>
+            </SafeAreaContainer>
         </NotificationsPermissionGate>
     )
 }
 
-const styles = (theme: Theme, insets: Insets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            padding: theme.spacing.xl,
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
         },
         button: {
             marginTop: 'auto',

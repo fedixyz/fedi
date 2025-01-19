@@ -7,7 +7,7 @@ const API_ORIGIN =
         ? 'https://fedi-ashen.vercel.app'
         : 'https://app.fedi.xyz'
 // const API_ORIGIN = '' // Local PWA (relative path)
-// const API_ORIGIN = 'http://192.168.0.102:3000' // Local iOS
+// const API_ORIGIN = 'http://localhost:3000' // Local iOS
 // const API_ORIGIN = 'http://10.0.2.2:3000' // Local Android
 
 const log = makeLog('common/utils/bug-report')
@@ -49,13 +49,8 @@ export async function uploadBugReportLogs(id: string, gzip: Buffer) {
 }
 
 export async function submitBugReport(args: {
-    id: string
-    description: string
-    federationName?: string
-    username?: string
-    email?: string
-    platform?: string
-    version?: string
+    id: string // uuid
+    ticketNumber?: string // support ticket number
 }) {
     const res = await fetch(`${API_ORIGIN}/api/bug-report/submit`, {
         method: 'POST',

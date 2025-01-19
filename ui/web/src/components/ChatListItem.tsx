@@ -4,8 +4,8 @@ import React, { useMemo } from 'react'
 
 import { MatrixRoom } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
-
 import { shouldShowUnreadIndicator } from '@fedi/common/utils/matrix'
+
 import { styled, theme } from '../styles'
 import { ChatAvatar } from './ChatAvatar'
 import { NotificationDot } from './NotificationDot'

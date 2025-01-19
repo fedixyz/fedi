@@ -1,16 +1,10 @@
 import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    GestureResponderEvent,
-    ScrollView,
-    StyleSheet,
-    View,
-} from 'react-native'
+import { GestureResponderEvent, StyleSheet, View } from 'react-native'
 import RNFS from 'react-native-fs'
 import { launchImageLibrary } from 'react-native-image-picker'
 import { RESULTS } from 'react-native-permissions'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -23,6 +17,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import { fedimint } from '../bridge'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import { Pressable } from '../components/ui/Pressable'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { useStoragePermission } from '../utils/hooks'
 
@@ -30,7 +25,6 @@ const log = makeLog('EditProfile')
 
 const EditProfileSettings: React.FC = () => {
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const toast = useToast()
     const dispatch = useAppDispatch()
@@ -39,7 +33,7 @@ const EditProfileSettings: React.FC = () => {
     const { storagePermission, requestStoragePermission } =
         useStoragePermission()
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     const [buttonIsOverlapping, setButtonIsOverlapping] = useState<boolean>()
     const [keyboardHeight] = useState<number>(0)
@@ -148,10 +142,7 @@ const EditProfileSettings: React.FC = () => {
         errorMessage !== null
 
     return (
-        <ScrollView
-            style={style.scrollContainer}
-            contentContainerStyle={style.contentContainer}
-            overScrollMode="auto">
+        <SafeAreaContainer style={style.container} edges="notop">
             <View>
                 <Pressable
                     onPress={handleAvatarPress}
@@ -166,7 +157,7 @@ const EditProfileSettings: React.FC = () => {
                 </Pressable>
             </View>
 
-            <View style={style.container}>
+            <View style={style.content}>
                 <Text caption style={style.inputLabel}>
                     {t('feature.chat.display-name')}
                 </Text>
@@ -205,11 +196,11 @@ const EditProfileSettings: React.FC = () => {
                     loading={isSubmitting}
                 />
             </View>
-        </ScrollView>
+        </SafeAreaContainer>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         scrollContainer: {
             flex: 1,
@@ -223,15 +214,10 @@ const styles = (theme: Theme, insets: EdgeInsets) =>
             marginTop: 'auto',
             width: '100%',
         },
-        contentContainer: {
-            flexGrow: 1,
-            paddingTop: theme.spacing.lg,
-            paddingLeft: insets.left + theme.spacing.lg,
-            paddingRight: insets.right + theme.spacing.lg,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
+        container: {
             gap: theme.spacing.md,
         },
-        container: {
+        content: {
             flex: 1,
             flexDirection: 'column',
             marginTop: theme.spacing.md,

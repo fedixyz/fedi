@@ -83,30 +83,34 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({ uri, type }: ReceiveQrProps) => {
 
     return (
         <View style={style.container}>
-            <Card containerStyle={style.roundedCardContainer}>
-                {uri.fullString && (
-                    <QRCode
-                        value={uri.fullString}
-                        size={QR_CODE_SIZE}
-                        logo={Images.FediQrLogo}
-                    />
-                )}
-                <View style={style.uriInfoContainer}>
-                    <Text style={style.uriTypeText}>
-                        {type === BitcoinOrLightning.lightning
-                            ? t('phrases.lightning-request')
-                            : t('phrases.onchain-address')}
-                    </Text>
-                    <Text style={style.uriBodyString} numberOfLines={1}>
-                        {stringUtils.truncateMiddleOfString(uri.body, 6)}
-                    </Text>
-                </View>
-                {type === BitcoinOrLightning.bitcoin && (
-                    <View style={style.warningContainer}>
-                        <OnchainDepositInfo />
+            <View style={style.cardContainer}>
+                <Card containerStyle={style.roundedCardContainer}>
+                    {uri.fullString && (
+                        <View style={style.centered}>
+                            <QRCode
+                                value={uri.fullString}
+                                size={QR_CODE_SIZE}
+                                logo={Images.FediQrLogo}
+                            />
+                        </View>
+                    )}
+                    <View style={style.uriInfoContainer}>
+                        <Text style={style.uriTypeText}>
+                            {type === BitcoinOrLightning.lightning
+                                ? t('phrases.lightning-request')
+                                : t('phrases.onchain-address')}
+                        </Text>
+                        <Text style={style.uriBodyString} numberOfLines={1}>
+                            {stringUtils.truncateMiddleOfString(uri.body, 6)}
+                        </Text>
                     </View>
-                )}
-            </Card>
+                    {type === BitcoinOrLightning.bitcoin && (
+                        <View style={style.centered}>
+                            <OnchainDepositInfo />
+                        </View>
+                    )}
+                </Card>
+            </View>
             <View style={style.buttonsContainer}>
                 <Button
                     title={t('words.share')}
@@ -127,18 +131,23 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'space-between',
             width: '100%',
+            flex: 1,
+            gap: theme.spacing.xl,
+        },
+        cardContainer: {
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
         },
         buttonsContainer: {
             width: '100%',
             flexDirection: 'row',
             justifyContent: 'space-between',
-            marginTop: theme.spacing.xl,
         },
         button: {
             width: '48%',
-            marginTop: theme.spacing.md,
         },
         uriInfoContainer: {
             flexDirection: 'row',
@@ -156,8 +165,9 @@ const styles = (theme: Theme) =>
         roundedCardContainer: {
             borderRadius: 20,
             width: '100%',
+            paddingTop: theme.spacing.xl,
         },
-        warningContainer: {
+        centered: {
             alignItems: 'center',
             justifyContent: 'center',
         },

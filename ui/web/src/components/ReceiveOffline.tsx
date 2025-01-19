@@ -7,8 +7,8 @@ import { MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import {
     decodeCashuTokens,
-    getMeltQuotes,
     executeMelts,
+    getMeltQuotes,
 } from '@fedi/common/utils/cashu'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 

@@ -14,11 +14,11 @@ import {
 import { RpcFeeDetails } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import {
-    decodeCashuTokens,
-    type MeltResult,
-    getMeltQuotes,
     MeltSummary,
+    decodeCashuTokens,
     executeMelts,
+    getMeltQuotes,
+    type MeltResult,
 } from '../utils/cashu'
 import { FedimintBridge } from '../utils/fedimint'
 import { lnurlPay } from '../utils/lnurl'

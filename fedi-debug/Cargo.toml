@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 fedimint-rocksdb = { workspace = true }
 fedimint-core = { workspace = true }
-fedi-db-dump = { path = "../fedi-db-dump" }
+fedi-bug-report = { path = "../fedi-bug-report" }
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }

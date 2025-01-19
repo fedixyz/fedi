@@ -5,16 +5,17 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import Share from 'react-native-share'
 
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../bridge'
 import HoloGuidance from '../components/ui/HoloGuidance'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import {
     completeSocialBackup,
     useBackupRecoveryContext,
 } from '../state/contexts/BackupRecoveryContext'
-import { useAppSelector, useBridge } from '../state/hooks'
+import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 import { prefixFileUri } from '../utils/media'
 
@@ -30,8 +31,7 @@ const BACKUPS_REQUIRED = 2
 const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const federationId = useAppSelector(selectActiveFederationId)
-    const { locateRecoveryFile } = useBridge(federationId)
+    const appDispatch = useAppDispatch()
     const [backupsCompleted, setBackupsCompleted] = useState<number>(0)
     const { dispatch } = useBackupRecoveryContext()
     const [isCreatingBackup, setIsCreatingBackup] = useState(false)
@@ -39,7 +39,9 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const createBackup = async () => {
         setIsCreatingBackup(true)
         try {
-            const recoveryFilePath = await locateRecoveryFile()
+            const recoveryFilePath = await appDispatch(
+                locateRecoveryFile(fedimint),
+            ).unwrap()
             await Share.open({
                 title: 'Your Fedi Backup File',
                 // FIXME: this needs file:// prefix ... should do this with a util?

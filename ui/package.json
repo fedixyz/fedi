@@ -21,10 +21,10 @@
         "dev:native": "turbo run dev --parallel --filter=native...",
         "lint": "turbo run lint",
         "format": "turbo run format",
+        "format:check": "turbo run format:check --parallel",
         "test": "turbo run test"
     },
     "devDependencies": {
-        "prettier-plugin-organize-imports": "^4.0.0",
         "syncpack": "^9.8.4",
         "turbo": "^1.10.7"
     }

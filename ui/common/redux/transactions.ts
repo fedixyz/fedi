@@ -7,7 +7,7 @@ import {
 import orderBy from 'lodash/orderBy'
 
 import { CommonState } from '.'
-import { Federation, Transaction, TransactionDirection } from '../types'
+import { Federation, Transaction } from '../types'
 import { FedimintBridge } from '../utils/fedimint'
 
 type FederationPayloadAction<T = object> = PayloadAction<
@@ -189,31 +189,8 @@ export const selectTransactions = (
         federationId || s.federation.activeFederationId || '',
     ).transactions
 
-/**
- * Selects all transactions with any that should not be seen by users filtered out.
- */
-export const selectTransactionHistory = createSelector(
-    selectTransactions,
-    transactions =>
-        transactions.filter(txn => {
-            // Filter out on-chain transactions older than 1 hour
-            if (
-                txn.bitcoin &&
-                txn.direction === TransactionDirection.receive &&
-                Date.now() / 1000 - txn.createdAt > 3600 &&
-                (!txn.onchainState ||
-                    (txn.onchainState.type !== 'waitingForConfirmation' &&
-                        txn.onchainState.type !== 'confirmed' &&
-                        txn.onchainState.type !== 'claimed'))
-            ) {
-                return false
-            }
-            return true
-        }),
-)
-
 export const selectStabilityTransactionHistory = createSelector(
-    selectTransactionHistory,
+    selectTransactions,
     transactions =>
         transactions.filter(txn => {
             if (txn.stabilityPoolState) {

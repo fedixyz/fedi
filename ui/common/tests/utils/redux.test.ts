@@ -25,6 +25,7 @@ const baseFed: LoadedFederation = {
         modules: {},
     },
     hasWallet: true,
+    hadReusedEcash: false,
     status: 'online',
     init_state: 'ready',
 }

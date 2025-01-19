@@ -7,11 +7,6 @@ use serde_with::de::DeserializeAsWrap;
 use serde_with::ser::SerializeAsWrap;
 use serde_with::{DeserializeAs, SerializeAs};
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
-#[serde(transparent)]
-#[ts(export, export_to = "target/bindings/")]
-pub struct TsAny(#[ts(type = "any")] pub serde_json::Value);
-
 #[derive(Clone, Debug)]
 pub struct SerdeAs<T, U> {
     pub inner: T,

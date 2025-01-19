@@ -1,8 +1,10 @@
+import { Theme, useTheme } from '@rneui/themed'
+import { Pressable, StyleSheet } from 'react-native'
+
 import { selectMatrixAuth, setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
-import { Theme, useTheme } from '@rneui/themed'
-import { Pressable, StyleSheet } from 'react-native'
+
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import { bubbleGradient } from './ChatEvent'

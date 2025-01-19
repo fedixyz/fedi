@@ -370,7 +370,7 @@ describe('parseUserInput', () => {
         matrixUserProfile: async ({ userId }: { userId: string }) => {
             if (userId === '@user:example.com') return { displayname: 'user' }
         },
-    } as FedimintBridge
+    } as unknown as FedimintBridge
 
     const truncate = (str: string) =>
         str.length > 40 ? `${str.slice(0, 37)}...` : str

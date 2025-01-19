@@ -1,5 +1,6 @@
 import { dataToFrames } from 'qrloop'
 import React, { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -12,7 +13,6 @@ import { MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/Button'
 import { Checkbox } from '../../components/Checkbox'
 import { Input } from '../../components/Input'

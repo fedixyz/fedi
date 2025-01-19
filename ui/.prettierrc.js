@@ -1,3 +1,4 @@
+/** @type {import('prettier').Config} */
 module.exports = {
     arrowParens: 'avoid',
     bracketSameLine: true,
@@ -9,5 +10,5 @@ module.exports = {
     trailingComma: 'all',
     importOrder: ['<THIRD_PARTY_MODULES>', '^@fedi/(.*)$', '^[./]'],
     importOrderSeparation: true,
-    plugins: [require('prettier-plugin-organize-imports')],
+    plugins: ['@trivago/prettier-plugin-sort-imports'],
 }

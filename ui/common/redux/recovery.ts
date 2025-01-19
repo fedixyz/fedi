@@ -175,6 +175,66 @@ export const fetchRegisteredDevices = createAsyncThunk<
     return fedimint.fetchRegisteredDevices()
 })
 
+export const approveSocialRecoveryRequest = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        recoveryId: string
+        peerId: number
+        password: string
+        federationId: string
+    },
+    { state: CommonState }
+>(
+    'recovery/approveSocialRecoveryRequest',
+    async ({ fedimint, recoveryId, peerId, password, federationId }) => {
+        await fedimint.approveSocialRecoveryRequest(
+            recoveryId,
+            peerId,
+            password,
+            federationId,
+        )
+    },
+)
+
+export const locateRecoveryFile = createAsyncThunk<string, FedimintBridge>(
+    'recovery/locateRecoveryFile',
+    async fedimint => {
+        return fedimint.locateRecoveryFile()
+    },
+)
+
+export const socialRecoveryDownloadVerificationDoc = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        recoveryId: string
+        peerId: number
+        federationId: string
+    },
+    { state: CommonState }
+>(
+    'recovery/socialRecoveryDownloadVerificationDoc',
+    async ({ fedimint, recoveryId, federationId, peerId }) => {
+        await fedimint.socialRecoveryDownloadVerificationDoc(
+            recoveryId,
+            federationId,
+            peerId,
+        )
+    },
+)
+
+export const uploadBackupFile = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; federationId: string; videoFilePath: string },
+    { state: CommonState }
+>(
+    'recovery/uploadBackupFile',
+    async ({ fedimint, federationId, videoFilePath }) => {
+        await fedimint.uploadBackupFile(videoFilePath, federationId)
+    },
+)
+
 /*** Selectors ***/
 
 export const selectHasCheckedForSocialRecovery = (s: CommonState) =>

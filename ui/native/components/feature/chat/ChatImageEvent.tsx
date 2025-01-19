@@ -1,5 +1,7 @@
+import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
     Image,
@@ -14,8 +16,7 @@ import { MatrixEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
-import { useNavigation } from '@react-navigation/native'
-import { useTranslation } from 'react-i18next'
+
 import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import { pathJoin, prefixFileUri } from '../../../utils/media'

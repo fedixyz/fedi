@@ -441,6 +441,9 @@ async function parseFediUri(
         // Fetch profile info for displayName
         const { displayname } = await fedimint.matrixUserProfile({ userId: id })
 
+        // TODO: narrow return type of matrixUserProfile RPC and remove this check
+        if (typeof displayname !== 'string') throw new Error()
+
         return {
             type: ParserDataType.FediChatUser,
             data: { id, displayName: displayname },

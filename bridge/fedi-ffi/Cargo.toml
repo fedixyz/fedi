@@ -12,6 +12,7 @@ fedi-api-types = { workspace = true }
 fedi-core = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }
+fedimint-tbs = { workspace = true }
 fedimint-mint-client = { workspace = true }
 fedimint-ln-client = { workspace = true }
 fedimint-api-client = { workspace = true }
@@ -20,7 +21,7 @@ fedimint-wallet-client = { workspace = true }
 fedimint-meta-client = { workspace = true }
 fedi-social-client = { workspace = true }
 stability-pool-client = { path = "../../modules/stability-pool/client" }
-fedi-db-dump = { path = "../../fedi-db-dump" }
+fedi-bug-report = { path = "../../fedi-bug-report" }
 fedimint-derive-secret = { workspace = true }
 fedimint-logging = { workspace = true }
 fedimint-bip39 = { workspace = true }

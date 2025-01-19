@@ -1,15 +1,15 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Text } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { getMatrixRoomPreview, selectGroupPreviews } from '@fedi/common/redux'
 import { MatrixGroupPreview } from '@fedi/common/types'
 
 import HoloGradient from '../components/ui/HoloGradient'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToGroupChat } from '../state/navigation'
 import { RootStackParamList } from '../types/navigation'
@@ -23,7 +23,6 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
     const { groupId } = route.params
 
     const { t } = useTranslation()
-    const { theme } = useTheme()
     const { joinPublicGroup } = useMatrixChatInvites(t)
 
     const dispatch = useAppDispatch()
@@ -33,7 +32,6 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
         MatrixGroupPreview | null | undefined
     >(undefined)
 
-    const insets = useSafeAreaInsets()
     const groupPreviews = useAppSelector(selectGroupPreviews)
 
     const handleJoinGroup = useCallback(async () => {
@@ -48,8 +46,6 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
                 setIsJoiningGroup(false)
             })
     }, [groupId, joinPublicGroup, navigation])
-
-    const style = styles(theme, insets)
 
     useEffect(() => {
         const defaultGroup = groupPreviews[groupId]
@@ -70,7 +66,7 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
     }, [groupPreviews, groupId, dispatch])
 
     return previewGroup === undefined ? null : (
-        <View style={style.container}>
+        <SafeAreaContainer padding="xl" edges="notop">
             <View style={style.content}>
                 <HoloGradient level="400" gradientStyle={style.icon}>
                     <Text style={style.iconText}>👋</Text>
@@ -89,44 +85,36 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
             <Button onPress={handleJoinGroup} loading={isJoiningGroup}>
                 {t('words.continue')}
             </Button>
-        </View>
+        </SafeAreaContainer>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
-    StyleSheet.create({
-        container: {
-            display: 'flex',
-            flexGrow: 1,
-            flexDirection: 'column',
-            padding: theme.spacing.xl,
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
-        },
-        content: {
-            display: 'flex',
-            flexGrow: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            gap: 12,
-        },
-        buttonText: {
-            textAlign: 'center',
-        },
-        icon: {
-            width: 64,
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 64,
-        },
-        iconText: {
-            fontSize: 24,
-        },
-        messageNotice: {
-            textAlign: 'center',
-        },
-    })
+const style = StyleSheet.create({
+    content: {
+        display: 'flex',
+        flexGrow: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: 12,
+    },
+    buttonText: {
+        textAlign: 'center',
+    },
+    icon: {
+        width: 64,
+        height: 64,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 64,
+    },
+    iconText: {
+        fontSize: 24,
+    },
+    messageNotice: {
+        textAlign: 'center',
+    },
+})
 
 export default ConfirmJoinPublicGroup

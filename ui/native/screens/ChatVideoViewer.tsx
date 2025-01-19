@@ -1,3 +1,4 @@
+import { CameraRoll } from '@react-native-camera-roll/camera-roll'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
@@ -9,14 +10,14 @@ import {
     StyleSheet,
     View,
 } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
-
-import { useToast } from '@fedi/common/hooks/toast'
-import { makeLog } from '@fedi/common/utils/log'
-import { CameraRoll } from '@react-native-camera-roll/camera-roll'
 import { exists } from 'react-native-fs'
 import { PermissionStatus, RESULTS } from 'react-native-permissions'
 import Video from 'react-native-video'
+
+import { useToast } from '@fedi/common/hooks/toast'
+import { makeLog } from '@fedi/common/utils/log'
+
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
 import { useDownloadPermission } from '../utils/hooks'
@@ -29,7 +30,6 @@ export type Props = NativeStackScreenProps<
 const log = makeLog('ChatVideoViewer')
 
 const ChatVideoViewer: React.FC<Props> = ({ route, navigation }: Props) => {
-    const insets = useSafeAreaInsets()
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { uri } = route.params
@@ -70,10 +70,10 @@ const ChatVideoViewer: React.FC<Props> = ({ route, navigation }: Props) => {
         }
     }, [uri, downloadPermission, requestDownloadPermission, t, toast])
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.fullScreenContainer}>
+        <SafeAreaContainer style={style.fullScreenContainer} edges="vertical">
             <View style={style.fullScreenVideoHeader}>
                 <Pressable
                     onPress={() => {
@@ -98,17 +98,13 @@ const ChatVideoViewer: React.FC<Props> = ({ route, navigation }: Props) => {
                 controls
                 resizeMode="contain"
             />
-        </View>
+        </SafeAreaContainer>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         fullScreenContainer: {
-            paddingTop: insets.top,
-            paddingBottom: insets.bottom,
-            display: 'flex',
-            flex: 1,
             backgroundColor: theme.colors.night,
         },
         fullScreenVideo: {

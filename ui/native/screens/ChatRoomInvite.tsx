@@ -4,7 +4,6 @@ import { Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FlatList, ListRenderItem, StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -23,6 +22,7 @@ import HoloLoader from '../components/ui/HoloLoader'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import QRScreen from '../components/ui/QRScreen'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { MatrixUser } from '../types'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
@@ -33,7 +33,6 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
     const { roomId } = route.params
     const navigation = useNavigation<NavigationHook>()
     const dispatch = useAppDispatch()
-    const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { error } = useToast()
@@ -68,7 +67,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
     )
 
     const renderEmpty = useCallback(() => {
-        const style = styles(theme, insets)
+        const style = styles(theme)
         return searchError ? (
             <View style={style.empty}>
                 <Text color={theme.colors.primaryLight}>
@@ -92,11 +91,11 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                 </Text>
             </View>
         )
-    }, [query, isSearching, searchError, theme, insets, t])
+    }, [query, isSearching, searchError, theme, t])
 
     if (!matrixAuth || !room) return null
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     // TODO: for now public rooms are reserved for the default groups use case which are auto-joined
     // so we should not need to invite anyone. When requesting to join a room is implemented we
@@ -164,7 +163,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <KeyboardAwareWrapper>
-            <View style={style.container}>
+            <SafeAreaContainer style={style.container} edges="notop">
                 <View style={style.inputWrapper}>
                     <ChatSettingsAvatar room={room} />
                     <Text bold style={style.inputLabel}>
@@ -192,17 +191,15 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                     />
                 </View>
                 {searchContent}
-            </View>
+            </SafeAreaContainer>
         </KeyboardAwareWrapper>
     )
 }
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            padding: theme.spacing.lg,
-            paddingHorizontal: theme.spacing.xl + insets.left,
-            paddingBottom: insets.bottom,
+            paddingLeft: theme.spacing.xl,
+            paddingRight: theme.spacing.xl,
             width: '100%',
         },
         inputWrapper: {

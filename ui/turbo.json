@@ -20,7 +20,10 @@
         "@fedi/web#lint": {
             "dependsOn": ["@fedi/common#build"]
         },
-        "format": {},
+        "format": {
+            "cache": false
+        },
+        "format:check": {},
         "dev": {
             "cache": false,
             "persistent": true

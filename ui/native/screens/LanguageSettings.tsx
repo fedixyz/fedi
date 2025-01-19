@@ -1,12 +1,12 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { StyleSheet } from 'react-native'
 
 import { changeLanguage, selectLanguage } from '@fedi/common/redux'
 
 import CheckBox from '../components/ui/CheckBox'
+import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 
@@ -14,10 +14,9 @@ const LanguageSettings: React.FC = () => {
     const { theme } = useTheme()
     const { i18n } = useTranslation()
     const dispatch = useAppDispatch()
-    const insets = useSafeAreaInsets()
     const language = useAppSelector(selectLanguage)
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     const languages = {
         en: 'English',
@@ -37,50 +36,33 @@ const LanguageSettings: React.FC = () => {
     }
 
     return (
-        <ScrollView
-            style={style.scrollContainer}
-            contentContainerStyle={style.contentContainer}
-            overScrollMode="auto">
-            <View style={style.container}>
-                {Object.entries(languages).map(([lang, display]) => (
-                    <CheckBox
-                        key={lang}
-                        checkedIcon={<SvgImage name="RadioSelected" />}
-                        uncheckedIcon={<SvgImage name="RadioUnselected" />}
-                        title={<Text style={style.radioText}>{display}</Text>}
-                        checked={(language || i18n.language) === lang}
-                        onPress={() => {
-                            dispatch(
-                                changeLanguage({
-                                    i18n,
-                                    language: lang,
-                                }),
-                            )
-                        }}
-                        containerStyle={style.radioContainer}
-                    />
-                ))}
-            </View>
-        </ScrollView>
+        <SafeScrollArea style={style.container} edges="notop">
+            {Object.entries(languages).map(([lang, display]) => (
+                <CheckBox
+                    key={lang}
+                    checkedIcon={<SvgImage name="RadioSelected" />}
+                    uncheckedIcon={<SvgImage name="RadioUnselected" />}
+                    title={<Text style={style.radioText}>{display}</Text>}
+                    checked={(language || i18n.language) === lang}
+                    onPress={() => {
+                        dispatch(
+                            changeLanguage({
+                                i18n,
+                                language: lang,
+                            }),
+                        )
+                    }}
+                    containerStyle={style.radioContainer}
+                />
+            ))}
+        </SafeScrollArea>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
-        scrollContainer: {
-            flex: 1,
-        },
-        contentContainer: {
-            flexGrow: 1,
-            paddingTop: theme.spacing.lg,
-            paddingLeft: insets.left + theme.spacing.lg,
-            paddingRight: insets.right + theme.spacing.lg,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
-            gap: theme.spacing.md,
-        },
         container: {
-            flex: 1,
-            flexDirection: 'column',
+            paddingTop: theme.spacing.lg,
         },
         radioContainer: {
             margin: 0,

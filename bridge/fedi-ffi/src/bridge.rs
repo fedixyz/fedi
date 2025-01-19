@@ -23,6 +23,7 @@ use fedimint_core::module::CommonModuleInit;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::PeerId;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
+use fedimint_mint_client::OOBNotes;
 use futures::future::join_all;
 use tokio::sync::{Mutex, OnceCell};
 use tracing::{debug, error, info, warn};
@@ -47,8 +48,9 @@ use crate::storage::{
     AppState, DatabaseInfo, FederationInfo, FediFeeSchedule, FiatFXInfo, ModuleFediFeeSchedule,
 };
 use crate::types::{
-    RpcBridgeStatus, RpcDeviceIndexAssignmentStatus, RpcFederationMaybeLoading,
-    RpcFederationPreview, RpcNostrPubkey, RpcNostrSecret, RpcRegisteredDevice,
+    RpcAmount, RpcBridgeStatus, RpcDeviceIndexAssignmentStatus, RpcEcashInfo,
+    RpcFederationMaybeLoading, RpcFederationPreview, RpcNostrPubkey, RpcNostrSecret,
+    RpcRegisteredDevice,
 };
 use crate::utils::required_threashold_of;
 
@@ -294,7 +296,7 @@ impl Bridge {
         let federation = self.get_federation(federation_id).await?;
         let db = federation.client.db().clone();
         let mut buffer = Vec::new();
-        fedi_db_dump::dump_db(&db, &mut buffer).await?;
+        fedi_bug_report::db_dump::dump_db(&db, &mut buffer).await?;
         self.storage
             .write_file(db_dump_path.as_ref(), buffer)
             .await?;
@@ -642,6 +644,28 @@ impl Bridge {
         }
 
         Ok(())
+    }
+
+    pub async fn validate_ecash(&self, ecash: String) -> Result<RpcEcashInfo> {
+        let oob = OOBNotes::from_str(&ecash)?;
+        let prefix = oob.federation_id_prefix().to_string();
+        let id = self
+            .federations
+            .lock()
+            .await
+            .keys()
+            .find(|x| x.starts_with(&prefix))
+            .cloned();
+        match id {
+            Some(id) => Ok(RpcEcashInfo::Joined {
+                federation_id: RpcFederationId(id),
+                amount: RpcAmount(oob.total_amount()),
+            }),
+            None => Ok(RpcEcashInfo::NotJoined {
+                federation_invite: oob.federation_invite().map(|invite| invite.to_string()),
+                amount: RpcAmount(oob.total_amount()),
+            }),
+        }
     }
 
     // FIXME: doesn't need result

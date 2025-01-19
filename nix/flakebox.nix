@@ -12,7 +12,7 @@ let
     "fedimintd"
     "fedimint-cli"
     "fedi-api-types"
-    "fedi-db-dump"
+    "fedi-bug-report"
     "fedi-debug"
     "fedi-core"
     "devi"

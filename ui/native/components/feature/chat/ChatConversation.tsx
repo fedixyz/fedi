@@ -152,7 +152,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         ({ item }) => {
             return (
                 <ChatEventCollection
-                    key={item[0][0].id}
+                    key={item[0].at(-1)?.eventId}
                     roomId={id}
                     collection={item}
                     showUsernames={type === ChatType.group}
@@ -171,7 +171,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     data={eventGroups}
                     ref={listRef}
                     renderItem={renderEventGroup}
-                    keyExtractor={item => `cc-fl-${item[0][0]?.id}`}
+                    keyExtractor={item => item[0].at(-1)?.eventId as string}
                     style={[
                         style.listContainer,
                         {

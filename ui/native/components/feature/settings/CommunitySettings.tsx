@@ -1,3 +1,10 @@
+import { useNavigation } from '@react-navigation/native'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import { ListItem, Text, Theme, useTheme } from '@rneui/themed'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Linking, StyleSheet, View } from 'react-native'
+
 import { useDebouncePress } from '@fedi/common/hooks/util'
 import { setActiveFederationId } from '@fedi/common/redux/federation'
 import { LoadedFederation } from '@fedi/common/types'
@@ -6,12 +13,7 @@ import {
     shouldShowInviteCode,
     supportsSingleSeed,
 } from '@fedi/common/utils/FederationUtils'
-import { useNavigation } from '@react-navigation/native'
-import { NativeStackNavigationProp } from '@react-navigation/native-stack'
-import { ListItem, Text, Theme, useTheme } from '@rneui/themed'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Linking, StyleSheet, View } from 'react-native'
+
 import { useAppDispatch } from '../../../state/hooks'
 import { RootStackParamList } from '../../../types/navigation'
 import { useNativeExport } from '../../../utils/hooks/export'
@@ -92,6 +94,7 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
                         onPress={() => {
                             navigation.navigate('FederationModSettings', {
                                 type: 'community',
+                                federationId: community.id,
                             })
                         }}
                     />

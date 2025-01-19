@@ -1,8 +1,7 @@
 import { Button, ButtonProps, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Insets, StyleSheet, View, useWindowDimensions } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { StyleSheet, View, useWindowDimensions } from 'react-native'
 
 import { useBalanceDisplay } from '@fedi/common/hooks/amount'
 import { selectActiveFederation } from '@fedi/common/redux'
@@ -11,6 +10,7 @@ import { hexToRgba } from '@fedi/common/utils/color'
 import { useAppSelector } from '../../state/hooks'
 import AmountInput, { Props as AmountInputProps } from './AmountInput'
 import KeyboardAwareWrapper from './KeyboardAwareWrapper'
+import { SafeAreaContainer } from './SafeArea'
 
 interface Props extends AmountInputProps {
     showBalance?: boolean
@@ -18,6 +18,8 @@ interface Props extends AmountInputProps {
     subContent?: React.ReactNode | null
     description?: string
     buttons?: ButtonProps[]
+    // Whether AmountScreen is independently being used as a screen. Defaults to true.
+    isIndependent?: boolean
 }
 
 export const AmountScreen: React.FC<Props> = ({
@@ -25,23 +27,26 @@ export const AmountScreen: React.FC<Props> = ({
     subHeader = null,
     subContent = null,
     buttons = [],
+    isIndependent = true,
     ...amountInputProps
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { height } = useWindowDimensions()
-    const insets = useSafeAreaInsets()
     const activeFederation = useAppSelector(selectActiveFederation)
     const balance = activeFederation?.hasWallet
         ? activeFederation.balance
         : undefined
     const balanceDisplay = useBalanceDisplay(t)
 
-    const style = styles(theme, insets, height)
+    const style = styles(theme, height)
 
     return (
         <KeyboardAwareWrapper>
-            <View style={style.container}>
+            <SafeAreaContainer
+                style={style.container}
+                edges={isIndependent ? 'notop' : 'none'}
+                padding="xl">
                 <View style={style.subHeader}>
                     {subHeader}
                     {showBalance && typeof balance === 'number' && (
@@ -68,17 +73,14 @@ export const AmountScreen: React.FC<Props> = ({
                         />
                     ))}
                 </View>
-            </View>
+            </SafeAreaContainer>
         </KeyboardAwareWrapper>
     )
 }
 
-const styles = (theme: Theme, insets: Insets, height: number) =>
+const styles = (theme: Theme, height: number) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            paddingHorizontal: theme.spacing.xl,
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
             width: '100%',
             gap: theme.spacing.xl,
         },

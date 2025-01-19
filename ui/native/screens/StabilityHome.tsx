@@ -5,7 +5,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View, useWindowDimensions } from 'react-native'
 import * as Progress from 'react-native-progress'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -26,7 +26,6 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'StabilityHome'>
 
 const StabilityHome: React.FC<Props> = () => {
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const toast = useToast()
     const { width } = useWindowDimensions()
@@ -42,10 +41,12 @@ const StabilityHome: React.FC<Props> = () => {
     const { formattedStableBalance, formattedStableBalancePending } =
         useStabilityPool()
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaView
+            style={style.container}
+            edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             <StabilityBitcoinBanner />
             <View style={style.content}>
                 <View style={style.balanceContainer}>
@@ -146,11 +147,11 @@ const StabilityHome: React.FC<Props> = () => {
                     />
                 </View>
             </View>
-        </View>
+        </SafeAreaView>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flex: 1,
@@ -161,9 +162,7 @@ const styles = (theme: Theme, insets: EdgeInsets) =>
             flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            paddingLeft: theme.spacing.lg + insets.left,
-            paddingRight: theme.spacing.lg + insets.right,
-            paddingBottom: Math.max(theme.spacing.lg, insets.bottom),
+            padding: theme.spacing.lg,
         },
         balanceContainer: {
             flex: 1,

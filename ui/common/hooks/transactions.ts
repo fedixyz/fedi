@@ -23,7 +23,7 @@ import {
 import {
     fetchTransactions as reduxFetchTransactions,
     selectStabilityTransactionHistory,
-    selectTransactionHistory,
+    selectTransactions,
 } from '../redux/transactions'
 import { LoadedFederation, MSats, Sats, Transaction } from '../types'
 import { RpcFeeDetails } from '../types/bindings'
@@ -40,7 +40,7 @@ import { useCommonDispatch, useCommonSelector } from './redux'
 export function useTransactionHistory(fedimint: FedimintBridge) {
     const dispatch = useCommonDispatch()
     const activeFederationId = useCommonSelector(selectActiveFederationId)
-    const transactions = useCommonSelector(selectTransactionHistory)
+    const transactions = useCommonSelector(selectTransactions)
     const stabilityPoolTxns = useCommonSelector(
         selectStabilityTransactionHistory,
     )
@@ -53,7 +53,7 @@ export function useTransactionHistory(fedimint: FedimintBridge) {
             > & { federationId?: string },
         ) => {
             const federationId = args?.federationId ?? activeFederationId
-            if (!federationId) throw new Error('errors.unknown-error')
+            if (!federationId) return []
             return dispatch(
                 reduxFetchTransactions({
                     federationId,
@@ -285,7 +285,9 @@ export function useFeeDisplayUtils(t: TFunction) {
         selectStabilityPoolAverageFeeRate,
     )
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
-    const stabilityConfig = useCommonSelector(selectFederationStabilityPoolConfig)
+    const stabilityConfig = useCommonSelector(
+        selectFederationStabilityPoolConfig,
+    )
 
     const makeEcashFeeContent = (amount: MSats) => {
         let fediFee: MSats = 0 as MSats
@@ -323,8 +325,9 @@ export function useFeeDisplayUtils(t: TFunction) {
 
         return {
             feeItemsBreakdown: ecashFeeItems,
-            formattedTotalFee: `${totalFees > 0 ? '+' : ''
-                }${formattedTotalFee}`,
+            formattedTotalFee: `${
+                totalFees > 0 ? '+' : ''
+            }${formattedTotalFee}`,
         }
     }
 
@@ -368,8 +371,9 @@ export function useFeeDisplayUtils(t: TFunction) {
 
         return {
             feeItemsBreakdown: lightningFeeItems,
-            formattedTotalFee: `${lightningSendTotalFeeMsats > 0 ? '+' : ''
-                }${formattedTotalFee}`,
+            formattedTotalFee: `${
+                lightningSendTotalFeeMsats > 0 ? '+' : ''
+            }${formattedTotalFee}`,
         }
     }
 
@@ -405,8 +409,9 @@ export function useFeeDisplayUtils(t: TFunction) {
 
         return {
             feeItemsBreakdown: lightningFeeItems,
-            formattedTotalFee: `${onchainSendTotalFeeMsats > 0 ? '+' : ''
-                }${formattedTotalFee}`,
+            formattedTotalFee: `${
+                onchainSendTotalFeeMsats > 0 ? '+' : ''
+            }${formattedTotalFee}`,
         }
     }
 
@@ -444,7 +449,9 @@ export function useFeeDisplayUtils(t: TFunction) {
         const cyclesPerYear = secondsInYear / secondsPerCycle
         const compoundedAnnualRate =
             1 - Math.pow(1 - periodicRate, cyclesPerYear)
-        const formattedFeeAverage = Number((compoundedAnnualRate * 100).toFixed(2))
+        const formattedFeeAverage = Number(
+            (compoundedAnnualRate * 100).toFixed(2),
+        )
 
         const stabilityFeeItems: FeeItem[] = [
             {

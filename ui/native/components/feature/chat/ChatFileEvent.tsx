@@ -12,11 +12,11 @@ import { TemporaryDirectoryPath, exists } from 'react-native-fs'
 import Share from 'react-native-share'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { setSelectedChatMessage } from '@fedi/common/redux'
+import { MatrixEvent } from '@fedi/common/types'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { formatFileSize } from '@fedi/common/utils/media'
 
-import { setSelectedChatMessage } from '@fedi/common/redux'
-import { MatrixEvent } from '@fedi/common/types'
 import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import { pathJoin, prefixFileUri } from '../../../utils/media'

@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "1.20.8",
+    "version": "1.20.12",
     "private": true,
     "engines": {
         "node": ">=16"
@@ -24,6 +24,7 @@
         "lint:tsc": "tsc --noEmit",
         "lint:eslint": "eslint . --ext .js,.jsx,.ts,.tsx",
         "format": "prettier --write .",
+        "format:check": "prettier --check .",
         "devtools": "( npx react-devtools > /dev/null 2>&1 & )"
     },
     "dependencies": {

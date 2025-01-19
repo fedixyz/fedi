@@ -4,7 +4,7 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
@@ -28,7 +28,6 @@ export type Props = NativeStackScreenProps<
 
 const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
@@ -144,10 +143,12 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
             </>
         )
     }
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaView
+            style={style.container}
+            edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             {/*
               You already have the chance to select the payFromFederation in SendOnchainAmount.
               Since we no-op any feeDetails errors in useOmniPaymentState, this has the potential to crash the app with bridge errors.
@@ -192,20 +193,17 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                     }
                 />
             </View>
-        </View>
+        </SafeAreaView>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flexDirection: 'column',
             flex: 1,
             alignItems: 'center',
-            paddingTop: theme.spacing.lg,
-            paddingLeft: theme.spacing.lg + insets.left,
-            paddingRight: theme.spacing.lg + insets.right,
-            paddingBottom: Math.max(theme.spacing.lg, insets.bottom),
+            padding: theme.spacing.lg,
         },
         amountContainer: {
             marginTop: 'auto',

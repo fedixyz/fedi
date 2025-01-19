@@ -2,9 +2,9 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import HoloGradient from '../../ui/HoloGradient'
+import { SafeAreaContainer } from '../../ui/SafeArea'
 import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
 
 interface Props {
@@ -26,12 +26,11 @@ export const PermissionGate: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaContainer style={style.container} edges="notop">
             <View style={style.content}>
                 <HoloGradient level="400" gradientStyle={style.iconGradient}>
                     <SvgImage name={icon} size={SvgImageSize.md} />
@@ -68,18 +67,14 @@ export const PermissionGate: React.FC<Props> = ({
                     onPress={() => onContinue()}
                 />
             </View>
-        </View>
+        </SafeAreaContainer>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             width: '100%',
-            paddingLeft: insets.left + theme.spacing.lg,
-            paddingRight: insets.right + theme.spacing.lg,
-            paddingBottom: Math.max(theme.spacing.lg, insets.bottom),
         },
         content: {
             flex: 1,

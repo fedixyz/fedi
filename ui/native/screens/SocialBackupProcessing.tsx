@@ -5,11 +5,12 @@ import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { selectActiveFederationId, uploadBackupFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../bridge'
 import HoloProgressCircle from '../components/ui/HoloProgressCircle'
-import { useAppSelector, useBridge } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('SocialBackupProcessing')
@@ -26,7 +27,7 @@ const SocialBackupProcessing: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const activeFederationId = useAppSelector(selectActiveFederationId)
-    const { uploadBackupFile } = useBridge(activeFederationId)
+    const dispatch = useAppDispatch()
     const toast = useToast()
     const { videoFilePath } = route.params
     const [percentComplete, setPercentComplete] = useState<number>(0)
@@ -37,7 +38,15 @@ const SocialBackupProcessing: React.FC<Props> = ({
         const startBackupFileUpload = async () => {
             setUploadStarted(true)
             try {
-                await uploadBackupFile(videoFilePath)
+                if (!activeFederationId) throw new Error('No active federation')
+
+                await dispatch(
+                    uploadBackupFile({
+                        fedimint,
+                        federationId: activeFederationId,
+                        videoFilePath,
+                    }),
+                )
             } catch (error) {
                 log.error('startBackupFileUpload', error)
                 toast.error(t, error)
@@ -51,9 +60,10 @@ const SocialBackupProcessing: React.FC<Props> = ({
     }, [
         navigation,
         toast,
-        uploadBackupFile,
         videoFilePath,
         uploadStarted,
+        dispatch,
+        activeFederationId,
         setUploadStarted,
         t,
     ])

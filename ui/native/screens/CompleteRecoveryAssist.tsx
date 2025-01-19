@@ -6,13 +6,17 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import Video from 'react-native-video'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import {
+    approveSocialRecoveryRequest,
+    selectActiveFederationId,
+} from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../bridge'
 import CheckBox from '../components/ui/CheckBox'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
-import { useAppSelector, useBridge } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 import { prefixFileUri } from '../utils/media'
 
@@ -30,7 +34,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const federationId = useAppSelector(selectActiveFederationId)
-    const { approveSocialRecoveryRequest } = useBridge(federationId)
+    const dispatch = useAppDispatch()
     const toast = useToast()
     const { videoPath, recoveryId } = route.params
     const [isPaused, setIsPaused] = useState(true)
@@ -52,11 +56,15 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
         const handleGuardianApproval = async () => {
             try {
                 // FIXME: hard-coded to be peerId 0 each time.
-                if (authenticatedGuardian) {
-                    await approveSocialRecoveryRequest(
-                        recoveryId,
-                        authenticatedGuardian.peerId,
-                        authenticatedGuardian.password,
+                if (authenticatedGuardian && federationId) {
+                    await dispatch(
+                        approveSocialRecoveryRequest({
+                            fedimint,
+                            recoveryId,
+                            peerId: authenticatedGuardian.peerId,
+                            password: authenticatedGuardian.password,
+                            federationId,
+                        }),
                     )
                     navigation.replace('RecoveryAssistSuccess')
                 }
@@ -72,12 +80,13 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
         }
     }, [
         approvalInProgress,
-        approveSocialRecoveryRequest,
         authenticatedGuardian,
         navigation,
         recoveryId,
         toast,
         t,
+        dispatch,
+        federationId,
     ])
 
     return (

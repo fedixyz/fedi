@@ -7,13 +7,13 @@ import { RejectionError, RequestInvoiceArgs } from 'webln'
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { generateInvoice, selectActiveFederationId } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { lnurlWithdraw } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
-import { useAppSelector, useBridge } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { FediMod, ParsedLnurlWithdraw } from '../../../types'
 import AmountInput from '../../ui/AmountInput'
 import CustomOverlay from '../../ui/CustomOverlay'
@@ -39,7 +39,7 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({
     const { theme } = useTheme()
     const toast = useToast()
     const federationId = useAppSelector(selectActiveFederationId)
-    const { generateInvoice } = useBridge(federationId)
+    const dispatch = useAppDispatch()
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const [submitAttempts, setSubmitAttempts] = useState(0)
@@ -84,7 +84,14 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({
                       msats,
                       memo,
                   )
-                : await generateInvoice(msats, memo)
+                : await dispatch(
+                      generateInvoice({
+                          fedimint,
+                          federationId,
+                          amount: msats,
+                          description: memo,
+                      }),
+                  ).unwrap()
             onAcceptRef.current({ paymentRequest })
         } catch (error) {
             log.error('Failed to generate invoice', error, lnurlWithdrawal)

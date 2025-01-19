@@ -128,6 +128,7 @@ export enum SupportedMetaFields {
     max_invoice_msats = 'max_invoice_msats',
     nostr_enabled = 'nostr_enabled',
     popup_end_timestamp = 'popup_end_timestamp',
+    federation_expiry_timestamp = 'federation_expiry_timestamp',
     popup_countdown_message = 'popup_countdown_message',
     popup_ended_message = 'popup_ended_message',
     tos_url = 'tos_url',

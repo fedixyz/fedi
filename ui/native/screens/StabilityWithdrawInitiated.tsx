@@ -3,7 +3,7 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
 
@@ -20,15 +20,16 @@ export type Props = NativeStackScreenProps<
 const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const insets = useSafeAreaInsets()
     const { amount } = route.params
     const { convertSatsToFormattedFiat } = useBtcFiatPrice()
     const formattedFiat = convertSatsToFormattedFiat(amount)
 
-    const style = styles(theme, insets)
+    const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <SafeAreaView
+            style={style.container}
+            edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             <View style={style.conversionIndicator}>
                 <CurrencyAvatar />
                 <SvgImage name="ArrowRight" color={theme.colors.primaryLight} />
@@ -71,20 +72,17 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
                     </Text>
                 }
             />
-        </View>
+        </SafeAreaView>
     )
 }
 
-const styles = (theme: Theme, insets: EdgeInsets) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flexDirection: 'column',
             flex: 1,
             alignItems: 'center',
-            paddingTop: theme.spacing.lg,
-            paddingLeft: theme.spacing.lg + insets.left,
-            paddingRight: theme.spacing.lg + insets.right,
-            paddingBottom: Math.max(theme.spacing.lg, insets.bottom),
+            padding: theme.spacing.lg,
         },
         conversionIndicator: {
             flexDirection: 'row',

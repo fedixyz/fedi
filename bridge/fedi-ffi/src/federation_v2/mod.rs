@@ -18,6 +18,7 @@ use bitcoin::secp256k1::PublicKey;
 use bitcoin::{Address, Network};
 use client::ClientExt;
 use db::{FediRawClientConfigKey, InviteCodeKey, TransactionNotesKey};
+use fedi_bug_report::reused_ecash_proofs::{self, SerializedReusedEcashProofs};
 use fedi_social_client::common::VerificationDocument;
 use fedi_social_client::{
     FediSocialClientInit, RecoveryFile, RecoveryId, SocialBackup, SocialRecoveryClient,
@@ -58,7 +59,8 @@ use fedimint_ln_common::LightningGateway;
 use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use fedimint_mint_client::{
     spendable_notes_to_operation_id, MintClientInit, MintClientModule, MintOperationMeta,
-    MintOperationMetaVariant, OOBNotes, ReissueExternalNotesState, SelectNotesWithExactAmount,
+    MintOperationMetaVariant, OOBNotes, ReissueExternalNotesState, SelectNotesWithAtleastAmount,
+    SelectNotesWithExactAmount,
 };
 use fedimint_wallet_client::{
     DepositStateV2, PegOutFees, WalletClientInit, WalletOperationMeta, WalletOperationMetaVariant,
@@ -104,11 +106,11 @@ use crate::fedi_fee::{FediFeeHelper, FediFeeRemittanceService};
 use crate::storage::{AppState, FediFeeSchedule};
 use crate::types::{
     EcashReceiveMetadata, EcashSendMetadata, GuardianStatus, LightningSendMetadata,
-    OperationFediFeeStatus, RpcBitcoinDetails, RpcEcashInfo, RpcFederationId,
-    RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse,
-    RpcLightningDetails, RpcLnState, RpcOOBState, RpcOnchainState, RpcOperationFediFeeStatus,
-    RpcPayAddressResponse, RpcReturningMemberStatus, RpcStabilityPoolTransactionState,
-    RpcTransaction, RpcTransactionDirection, TransactionDateFiatInfo, WithdrawalDetails,
+    OperationFediFeeStatus, RpcBitcoinDetails, RpcFederationId, RpcFederationMaybeLoading,
+    RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse, RpcLightningDetails, RpcLnState,
+    RpcOOBState, RpcOnchainState, RpcOperationFediFeeStatus, RpcPayAddressResponse,
+    RpcReturningMemberStatus, RpcStabilityPoolTransactionState, RpcTransaction,
+    RpcTransactionDirection, TransactionDateFiatInfo, WithdrawalDetails,
 };
 use crate::utils::{display_currency, to_unix_time, unix_now};
 
@@ -169,6 +171,8 @@ pub struct FederationV2 {
     // balance would allow. We hold the mutex over a span that covers the time of check (recording
     // virtual balance) and the time of use (spending ecash and recording fee).
     pub spend_guard: Arc<Mutex<()>>,
+    // Mutex to prevent concurrent generate_ecash because logic is very fragile.
+    pub generate_ecash_lock: Arc<Mutex<()>>,
     pub feature_catalog: Arc<FeatureCatalog>,
     pub app_state: Arc<AppState>,
 }
@@ -213,6 +217,7 @@ impl FederationV2 {
             stability_pool_sweeper_service: OnceCell::new(),
             client,
             spend_guard: Default::default(),
+            generate_ecash_lock: Default::default(),
             feature_catalog,
             app_state,
         };
@@ -1630,16 +1635,6 @@ impl FederationV2 {
         Ok(amt)
     }
 
-    pub fn validate_ecash(ecash: String) -> Result<RpcEcashInfo> {
-        let oob = OOBNotes::from_str(&ecash)?;
-        Ok(RpcEcashInfo {
-            amount: RpcAmount(oob.total_amount()),
-            // FIXME: change this type? Make `federation_id` optional? Add optional
-            // `federation_id_prefix`? Or enum
-            federation_id: None,
-        })
-    }
-
     pub async fn subscribe_to_ecash_reissue(
         &self,
         operation_id: OperationId,
@@ -1715,7 +1710,12 @@ impl FederationV2 {
     }
 
     /// Generate ecash
-    pub async fn generate_ecash(&self, amount: Amount) -> Result<RpcGenerateEcashResponse> {
+    pub async fn generate_ecash(
+        &self,
+        amount: Amount,
+        include_invite: bool,
+    ) -> Result<RpcGenerateEcashResponse> {
+        let _guard = self.generate_ecash_lock.lock().await;
         let fedi_fee_ppm = self
             .fedi_fee_helper
             .get_fedi_fee_ppm(
@@ -1725,13 +1725,6 @@ impl FederationV2 {
             )
             .await?;
         let fedi_fee = Amount::from_msats((amount.msats * fedi_fee_ppm).div_ceil(MILLION));
-        let spend_guard = self.spend_guard.lock().await;
-        let virtual_balance = self.get_balance().await;
-        if amount + fedi_fee > virtual_balance {
-            bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
-            )));
-        }
 
         let mint = self.client.mint()?;
 
@@ -1741,57 +1734,52 @@ impl FederationV2 {
         // denominations. And then generate using AT LEAST strategy again, which
         // will now have a high chance to producing the exact amount.
         let cancel_time = fedimint_core::time::now() + ECASH_AUTO_CANCEL_DURATION;
-        let (spend_guard, operation_id, notes) = match mint
-            .spend_notes_with_selector(
-                &SelectNotesWithExactAmount,
-                amount,
-                ECASH_AUTO_CANCEL_DURATION,
-                false,
-                EcashSendMetadata { internal: false },
-            )
-            .await
-        {
-            Ok((operation_id, notes)) => (spend_guard, operation_id, notes),
-            Err(_) => {
-                let (_, notes) = mint
-                    .spend_notes(
-                        amount,
-                        ECASH_AUTO_CANCEL_DURATION,
-                        false,
-                        EcashSendMetadata { internal: true },
-                    )
-                    .await?;
-                drop(spend_guard);
-
-                // try to make change
-                timeout(REISSUE_ECASH_TIMEOUT, async {
-                    let notes_amount = notes.total_amount();
-                    let operation_id = mint
-                        .reissue_external_notes(notes, EcashReceiveMetadata { internal: true })
-                        .await?;
-                    self.subscribe_to_ecash_reissue(operation_id, notes_amount)
-                        .await
-                })
-                .await
-                .context("Failed to select notes with correct amount")??;
-
-                let spend_guard = self.spend_guard.lock().await;
-                let virtual_balance = self.get_balance().await;
-                if amount + fedi_fee > virtual_balance {
-                    bail!(ErrorCode::InsufficientBalance(RpcAmount(
-                        get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
-                    )));
-                }
-                let (operation_id, notes) = mint
-                    .spend_notes(
-                        amount,
-                        ECASH_AUTO_CANCEL_DURATION,
-                        false,
-                        EcashSendMetadata { internal: false },
-                    )
-                    .await?;
-                (spend_guard, operation_id, notes)
+        let (spend_guard, operation_id, notes) = loop {
+            let spend_guard = self.spend_guard.lock().await;
+            let virtual_balance = self.get_balance().await;
+            if amount + fedi_fee > virtual_balance {
+                bail!(ErrorCode::InsufficientBalance(RpcAmount(
+                    get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
+                )));
             }
+
+            if let Ok((operation_id, notes)) = mint
+                .spend_notes_with_selector(
+                    &SelectNotesWithExactAmount,
+                    amount,
+                    ECASH_AUTO_CANCEL_DURATION,
+                    include_invite,
+                    EcashSendMetadata { internal: false },
+                )
+                .await
+            {
+                assert_eq!(notes.total_amount(), amount);
+                break (spend_guard, operation_id, notes);
+            };
+
+            let (_, notes) = mint
+                .spend_notes_with_selector(
+                    &SelectNotesWithAtleastAmount,
+                    amount,
+                    ECASH_AUTO_CANCEL_DURATION,
+                    include_invite,
+                    EcashSendMetadata { internal: true },
+                )
+                .await?;
+            drop(spend_guard);
+
+            // try to make change
+            timeout(REISSUE_ECASH_TIMEOUT, async {
+                let notes_amount = notes.total_amount();
+                let operation_id = mint
+                    .reissue_external_notes(notes, EcashReceiveMetadata { internal: true })
+                    .await?;
+                self.subscribe_to_ecash_reissue(operation_id, notes_amount)
+                    .await
+            })
+            .await
+            .context("Failed to select notes with correct amount")??;
+            // and retry
         };
 
         self.write_pending_send_fedi_fee(operation_id, fedi_fee)
@@ -2698,6 +2686,12 @@ impl FederationV2 {
                     ))
             }
         }
+    }
+
+    pub async fn generate_reused_ecash_proofs(
+        &self,
+    ) -> anyhow::Result<SerializedReusedEcashProofs> {
+        reused_ecash_proofs::generate(&*self.client.mint()?).await
     }
 
     /// We record the fee within the pending counter. On success, we move the

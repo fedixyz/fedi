@@ -1,5 +1,4 @@
 import i18n from './localization/i18n'
-import { Group } from './types'
 
 export * from '@fedi/common/constants/bip39'
 export * from '@fedi/common/constants/fedimods'
@@ -33,10 +32,3 @@ export const BITFINEX_BTCUSD_WEBSOCKET_URL = 'wss://api-pub.bitfinex.com/ws/2'
     -----
 */
 export const DEFAULT_GROUP_NAME = i18n.t('feature.chat.new-group')
-export const FEDI_GENERAL_CHANNEL_GROUP = new Group({
-    id: 'fedi-community-group',
-    icon: 'FediLogoIcon',
-    name: i18n.t('feature.chat.fedi-community'),
-    pinned: true,
-    messagePreview: i18n.t('feature.chat.fedi-community-message-preview'),
-})
