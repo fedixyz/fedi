@@ -65,11 +65,14 @@ export class FediMod extends Shortcut {
     type = ShortcutType.fediMod
     url: string
     imageUrl?: string
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     constructor(data: any) {
-        super(data)
+        super(data) // Ensure parent properties are initialized correctly
+        this.id = data.id || '' // Assign id explicitly from data
+        this.url = data.url || '' // Ensure URL is preserved
+        this.imageUrl = data.imageUrl || '' // Preserve optional imageUrl
         this.icon = {
-            image: FediModImages[data.id] || FediModImages.default,
+            image: FediModImages[this.id] || FediModImages.default, // Use id for image mapping
         }
     }
 }

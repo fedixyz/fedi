@@ -1,10 +1,12 @@
 import NetInfo from '@react-native-community/netinfo'
-import { configureStore } from '@reduxjs/toolkit'
+import { configureStore, ThunkDispatch, UnknownAction } from '@reduxjs/toolkit'
+import debounce from 'lodash/debounce'
 import { AppState as RNAppState } from 'react-native'
 
 import {
     commonMiddleware,
     commonReducers,
+    CommonState,
     fetchCurrencyPrices,
     initializeCommonStore,
     setCurrencyLocale,
@@ -20,6 +22,7 @@ import { storage } from '../utils/storage'
 const log = makeLog('native/state/store')
 
 export const store = configureStore({
+    //@ts-ignore
     middleware: commonMiddleware,
     reducer: {
         ...commonReducers,
@@ -28,11 +31,13 @@ export const store = configureStore({
 
 export type AppStore = typeof store
 export type AppState = ReturnType<typeof store.getState>
-export type AppDispatch = typeof store.dispatch
+export type AppDispatch = typeof store.dispatch &
+    ThunkDispatch<CommonState, unknown, UnknownAction>
 
 export function initializeNativeStore() {
     // Common initialization behavior
     const unsubscribe = initializeCommonStore({
+        //@ts-ignore
         store,
         fedimint,
         storage,
@@ -46,15 +51,18 @@ export function initializeNativeStore() {
     const changeSubscription = RNAppState.addEventListener('change', state => {
         if (state === 'active') {
             log.debug('App returned to foreground, refreshing prices...')
+            //@ts-ignore
             store.dispatch(fetchCurrencyPrices())
         }
     })
 
     // Whenever the app changes its network state, update the store
-    const networkSubscription = NetInfo.addEventListener(state => {
-        log.debug('Network status changed', state)
-        store.dispatch(setNetworkInfo(state))
-    })
+    const networkSubscription = NetInfo.addEventListener(
+        debounce(state => {
+            log.debug('Network status changed (debounced)', state)
+            store.dispatch(setNetworkInfo(state))
+        }, 1350),
+    )
 
     return () => {
         unsubscribe()

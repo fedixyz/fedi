@@ -4,27 +4,34 @@
 <dict>
 	<key>API_KEY</key>
 	<string>AIzaSyCU6KjuRLR7WVVbnM7mr_XxlaMc2h3D7IM</string>
-	<key>GCM_SENDER_ID</key>
-	<string>1089468211130</string>
-	<key>PLIST_VERSION</key>
-	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>org.fedi.nightly</string>
+	<key>GCM_SENDER_ID</key>
+	<string>1089468211130</string>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:1089468211130:ios:67d5032bf8ed01858d8783</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
 	<key>PROJECT_ID</key>
 	<string>fedi-matrix-push-notifications</string>
 	<key>STORAGE_BUCKET</key>
 	<string>fedi-matrix-push-notifications.appspot.com</string>
-	<key>IS_ADS_ENABLED</key>
-	<false></false>
-	<key>IS_ANALYTICS_ENABLED</key>
-	<false></false>
-	<key>IS_APPINVITE_ENABLED</key>
-	<true></true>
-	<key>IS_GCM_ENABLED</key>
-	<true></true>
-	<key>IS_SIGNIN_ENABLED</key>
-	<true></true>
-	<key>GOOGLE_APP_ID</key>
-	<string>1:1089468211130:ios:67d5032bf8ed01858d8783</string>
 </dict>
 </plist>

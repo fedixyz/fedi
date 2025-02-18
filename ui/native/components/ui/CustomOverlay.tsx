@@ -6,12 +6,13 @@ import {
     Insets,
     LayoutChangeEvent,
     Platform,
+    ScrollView,
     StyleSheet,
+    useWindowDimensions,
     View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import KeyboardAwareWrapper from './KeyboardAwareWrapper'
 import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
 
 type CustomOverlayButton = {
@@ -50,6 +51,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
     const [overlayHeight, setOverlayHeight] = useState(0)
     const animatedOpacity = useRef(new Animated.Value(0)).current
     const animatedTranslateY = useRef(new Animated.Value(0)).current
+    const { height: viewportHeight } = useWindowDimensions()
 
     const {
         title,
@@ -127,53 +129,54 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
         <Overlay
             isVisible={show}
             onBackdropPress={onBackdropPress}
-            overlayStyle={style.overlayContainer}
-            animationType="fade">
+            overlayStyle={style.overlayContainer}>
             <Animated.View
                 onLayout={handleOverlayLayout}
                 style={{
                     ...style.overlayContents,
                     opacity: animatedOpacity,
                     transform: [{ translateY: animatedTranslateY }],
+                    // Ensure there is double the size of theme.spacing.xl to click on the backdrop to dismiss the overlay
+                    maxHeight:
+                        viewportHeight -
+                        insets.top -
+                        insets.bottom -
+                        theme.spacing.xl * 2,
                 }}>
-                <KeyboardAwareWrapper>
-                    {icon && (
-                        <SvgImage
-                            size={SvgImageSize.md}
-                            name={icon}
-                            containerStyle={style.overlayIcon}
-                        />
-                    )}
-                    {headerElement}
-                    {url && (
-                        <Text style={style.overlayUrl} numberOfLines={5}>
-                            {url}
-                        </Text>
-                    )}
-                    {title && typeof title === 'string' ? (
-                        <Text medium style={style.overlayTitle}>
-                            {title}
-                        </Text>
-                    ) : (
-                        <>{title}</>
-                    )}
-                    {message && (
-                        <Text h1 h1Style={style.overlayText}>
-                            {message}
-                        </Text>
-                    )}
-                    {description && (
-                        <Text style={style.overlayDescription}>
-                            {description}
-                        </Text>
-                    )}
-                    {body}
-                    {buttons?.length > 0 && (
-                        <View style={style.overlayButtonView}>
-                            {renderButtons()}
-                        </View>
-                    )}
-                </KeyboardAwareWrapper>
+                {icon && (
+                    <SvgImage
+                        size={SvgImageSize.md}
+                        name={icon}
+                        containerStyle={style.overlayIcon}
+                    />
+                )}
+                {headerElement}
+                {url && (
+                    <Text style={style.overlayUrl} numberOfLines={5}>
+                        {url}
+                    </Text>
+                )}
+                {title && typeof title === 'string' ? (
+                    <Text medium style={style.overlayTitle}>
+                        {title}
+                    </Text>
+                ) : (
+                    <>{title}</>
+                )}
+                {message && (
+                    <Text h1 h1Style={style.overlayText}>
+                        {message}
+                    </Text>
+                )}
+                {description && (
+                    <Text style={style.overlayDescription}>{description}</Text>
+                )}
+                <ScrollView style={style.bodyContainer}>{body}</ScrollView>
+                {buttons?.length > 0 && (
+                    <View style={style.overlayButtonView}>
+                        {renderButtons()}
+                    </View>
+                )}
             </Animated.View>
         </Overlay>
     )
@@ -192,7 +195,11 @@ const styles = (theme: Theme, insets: Insets) =>
             shadowColor: 'transparent',
         },
         overlayContents: {
-            position: 'relative',
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            alignItems: 'center',
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
             paddingTop: theme.spacing.xl,
@@ -209,6 +216,9 @@ const styles = (theme: Theme, insets: Insets) =>
                     shadowRadius: 4,
                 },
             }),
+        },
+        bodyContainer: {
+            width: '100%',
         },
         overlayTitle: {
             textAlign: 'center',

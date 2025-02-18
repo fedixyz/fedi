@@ -13,6 +13,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
+import { ToastHandler, useToast } from '@fedi/common/hooks/toast'
 import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
 
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
@@ -21,6 +22,16 @@ import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
 import { NavigationHook } from '../types/navigation'
+import {
+    useNpub,
+    useSupportPermission,
+    useZendeskInitialization,
+} from '../utils/hooks/support'
+import {
+    useDisplayName,
+    zendeskInitialize,
+    zendeskOpenMessagingView,
+} from '../utils/support'
 
 const Mods: React.FC = () => {
     const { theme } = useTheme()
@@ -36,17 +47,45 @@ const Mods: React.FC = () => {
 
     const [actionsMod, setActionsMod] = useState<FediMod>()
 
+    const { supportPermissionGranted } = useSupportPermission()
+    const displayName = useDisplayName()
+    const nostrPublic = useNpub()
+    const toast = useToast()
+    const nostrNpub = nostrPublic ?? null
+    const { zendeskInitialized, handleZendeskInitialization } =
+        useZendeskInitialization()
+
+    const handleSupportPress = () => {
+        if (!zendeskInitialized) {
+            zendeskInitialize(
+                nostrNpub,
+                displayName,
+                handleZendeskInitialization,
+                toast as unknown as ToastHandler,
+                t,
+            )
+        }
+        if (supportPermissionGranted && zendeskInitialized) {
+            zendeskOpenMessagingView()
+        } else {
+            navigation.navigate('HelpCentre')
+        }
+    }
+
     const onSelectFediMod = (shortcut: Shortcut) => {
         setActionsMod(undefined)
         const fediMod = shortcut as FediMod
         // Handle telegram and whatsapp links natively
+        // TODO: check URL HEAD status to see if it's a redirect and open with Linking if it's a 301 or 302
         if (
             fediMod.url.includes('https://t.me') ||
             fediMod.url.includes('https://wa.me')
         ) {
             Linking.openURL(fediMod.url)
+        } else if (fediMod.title.toLowerCase().includes('ask fedi')) {
+            handleSupportPress()
         } else {
-            navigation.navigate('FediModBrowser', { fediMod })
+            navigation.navigate('FediModBrowser', { url: fediMod.url })
         }
     }
 
@@ -62,7 +101,36 @@ const Mods: React.FC = () => {
     }
 
     const renderFediModShortcuts = () => {
-        const fediModShortcuts = mods.map(s => new FediMod(s))
+        const sortedMods = mods.sort((a, b) => {
+            if (a.title.toLowerCase() === 'ask fedi') return -1 // "Ask Fedi" comes first
+            if (b.title.toLowerCase() === 'ask fedi') return 1 // Move others down
+            return 0 // Maintain original order otherwise
+        })
+
+        const fediModShortcuts = sortedMods.map(s => {
+            const mod = new FediMod(s)
+            return mod
+        })
+        // Method to render the popover or return null
+        const renderPopover = (mod: FediMod) => {
+            const isNonHideable =
+                mod.title.toLowerCase() === 'support' ||
+                mod.title.toLowerCase() === 'ask fedi'
+
+            if (isNonHideable) {
+                return undefined // Don't render the popover for non-hideable mods
+            }
+
+            return (
+                <Pressable
+                    style={style.tooltipAction}
+                    onPress={() => toggleHideMod(mod.id)}>
+                    <Text style={style.tooltipText}>{t('words.hide')}</Text>
+                    <SvgImage name="Eye" />
+                </Pressable>
+            )
+        }
+
         return fediModShortcuts.map((s: FediMod, i) => {
             return (
                 <View key={`fediMod-s-${i}`} style={style.shortcut}>
@@ -70,16 +138,7 @@ const Mods: React.FC = () => {
                         visible={actionsMod?.id === s.id}
                         onClose={() => setActionsMod(undefined)}
                         withPointer
-                        popover={
-                            <Pressable
-                                style={style.tooltipAction}
-                                onPress={() => toggleHideMod(s.id)}>
-                                <Text style={style.tooltipText}>
-                                    {t('words.hide')}
-                                </Text>
-                                <SvgImage name="Eye" />
-                            </Pressable>
-                        }
+                        popover={renderPopover(s)}
                         closeOnlyOnBackdropPress
                         withOverlay
                         overlayColor={theme.colors.overlay}

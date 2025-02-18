@@ -9,7 +9,6 @@ import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
-import { FediMod } from '../types'
 import { RootStackParamList } from '../types/navigation'
 import { useShareLogs } from '../utils/hooks/export'
 
@@ -27,11 +26,7 @@ const ShareLogs: React.FC<Props> = ({ navigation }) => {
 
     const handleOpenSupport = useCallback(() => {
         navigation.navigate('FediModBrowser', {
-            fediMod: new FediMod({
-                id: 'support',
-                title: 'Support',
-                url: 'https://support.fedi.xyz',
-            }),
+            url: 'https://support.fedi.xyz',
         })
     }, [navigation])
 
@@ -40,10 +35,10 @@ const ShareLogs: React.FC<Props> = ({ navigation }) => {
         status === 'generating-data'
             ? t('feature.bug.submit-generating-data')
             : status === 'uploading-data'
-            ? t('feature.bug.submit-uploading-data')
-            : status === 'submitting-report'
-            ? t('feature.bug.submit-submitting-report')
-            : t('words.submit')
+              ? t('feature.bug.submit-uploading-data')
+              : status === 'submitting-report'
+                ? t('feature.bug.submit-submitting-report')
+                : t('words.submit')
     const submitTextColor = isSubmitDisabled
         ? theme.colors.primary
         : theme.colors.white
@@ -63,8 +58,8 @@ const ShareLogs: React.FC<Props> = ({ navigation }) => {
         ? !ticketNumber
             ? t('words.required')
             : !isValid
-            ? t('feature.support.invalid-ticket-number')
-            : undefined
+              ? t('feature.support.invalid-ticket-number')
+              : undefined
         : undefined
 
     const handleBugPress = () => {

@@ -9,6 +9,7 @@ const ChangePinLockScreenHeader: React.FC = () => {
 
     return (
         <Header
+            backButton
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
                     {t('feature.pin.enter-current-pin')}

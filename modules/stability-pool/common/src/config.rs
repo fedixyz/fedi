@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use fedimint_core::config::EmptyGenParams;
 use fedimint_core::core::ModuleKind;
@@ -76,6 +76,12 @@ pub struct StabilityPoolClientConfig {
     pub min_allowed_seek: Amount,
     pub max_allowed_provide_fee_rate_ppb: u64,
     pub min_allowed_cancellation_bps: u32,
+}
+
+impl StabilityPoolClientConfig {
+    pub fn next_cycle_start_time(&self, last_cycle_start_time: SystemTime) -> SystemTime {
+        last_cycle_start_time + self.cycle_duration
+    }
 }
 
 impl std::fmt::Display for StabilityPoolClientConfig {

@@ -35,8 +35,8 @@ export const ChatAvatar: React.FC<Props> = props => {
         icon = room.directUserId
             ? undefined
             : room.broadcastOnly
-            ? SpeakerphoneIcon
-            : SocialPeopleIcon
+              ? SpeakerphoneIcon
+              : SocialPeopleIcon
         src = room.avatarUrl
         avatarProps = rest
     } else {

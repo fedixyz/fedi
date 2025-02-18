@@ -31,8 +31,8 @@ async function workerInit() {
             type: isDev()
                 ? 'dev'
                 : origin.includes('app.fedi.xyz')
-                ? 'bravo'
-                : 'nightly',
+                  ? 'bravo'
+                  : 'nightly',
         },
     }
     const initOptsJson = JSON.stringify(options)

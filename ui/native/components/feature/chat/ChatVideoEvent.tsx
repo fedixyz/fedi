@@ -10,16 +10,21 @@ import {
     View,
 } from 'react-native'
 import { TemporaryDirectoryPath, exists } from 'react-native-fs'
-import Video from 'react-native-video'
+import Video, { VideoRef } from 'react-native-video'
 
-import { setSelectedChatMessage } from '@fedi/common/redux'
+import {
+    matchAndRemovePreviewMedia,
+    selectPreviewMediaMatchingEventContent,
+    setSelectedChatMessage,
+} from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
+import { JSONObject } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
-import { useAppDispatch } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { pathJoin, prefixFileUri } from '../../../utils/media'
 import SvgImage from '../../ui/SvgImage'
 
@@ -32,13 +37,19 @@ const log = makeLog('ChatVideoEvent')
 const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     event,
 }: ChatVideoEventProps) => {
+    // If the user sends a video, try to find the preview image matching the `event.content` to derive the existing URI
+    const matchingPreviewVideo = useAppSelector(s =>
+        selectPreviewMediaMatchingEventContent(s, event.content),
+    )
     const [isLoading, setIsLoading] = useState(true)
     const [isError, setIsError] = useState(false)
-    const [uri, setURI] = useState<string>('')
+    const [uri, setURI] = useState<string>(
+        matchingPreviewVideo?.media.uri ?? '',
+    )
     const [paused, setPaused] = useState(true)
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const videoRef = useRef<Video | null>(null)
+    const videoRef = useRef<VideoRef | null>(null)
     const dispatch = useAppDispatch()
     const navigation = useNavigation()
 
@@ -58,7 +69,7 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
 
                 const videoPath = await fedimint.matrixDownloadFile(
                     destinationPath,
-                    event.content,
+                    event.content as JSONObject,
                 )
 
                 const videoUri = prefixFileUri(videoPath)
@@ -90,7 +101,7 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
 
     const videoBaseStyle = [style.videoBase, dimensions]
 
-    return isLoading || !uri || isError ? (
+    return (isLoading && !uri) || isError ? (
         <View style={videoBaseStyle}>
             {isError ? (
                 <View style={style.videoStyle}>
@@ -119,6 +130,7 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
                 }}
                 onLoad={() => {
                     videoRef.current?.seek(0)
+                    dispatch(matchAndRemovePreviewMedia(event.content))
                 }}
             />
             <TouchableOpacity

@@ -90,13 +90,18 @@ bump-version-native-ui:
 generate-bridge-bindings:
   ./scripts/bridge/ts-bindgen.sh && pushd ./ui && yarn run lint --filter=common
 
-# start dev UI (native + pwa). Use `just run-dev-ui interactive` for build options
+# start dev UI (native + pwa). Use `just run-dev-ui interactive` for build options. Use `just run-dev-ui device` for building to an iOS device
 run-dev-ui mode="default":
   export MODE={{mode}} && ./scripts/ui/run-dev-ui.sh
 
 # installs the xcodes tool and installs a version of Xcode.app
 install-xcode:
   ./scripts/install-xcode.sh
+
+# installs Rosetta if necessary by calling the install-rosetta.sh script
+install-rosetta:
+  # Execute the script
+  ./scripts/ui/install-rosetta.sh
 
 pod-install:
   nix develop .#xcode --command ./scripts/ui/install-ios-deps.sh

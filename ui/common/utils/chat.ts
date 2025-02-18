@@ -1,116 +1,10 @@
-import type { JID } from '@xmpp/jid'
 import { TFunction } from 'i18next'
 import orderBy from 'lodash/orderBy'
 import { z } from 'zod'
 
-import {
-    Chat,
-    ChatMember,
-    ChatMessage,
-    ChatType,
-    MSats,
-} from '@fedi/common/types'
+import { Chat, ChatMessage, ChatType } from '@fedi/common/types'
 
 import { BANNED_DISPLAY_NAME_TERMS } from '../constants/matrix'
-import { FormattedAmounts } from '../hooks/amount'
-
-/** @deprecated XMPP legacy code */
-export const makePaymentText = (
-    t: TFunction,
-    message: ChatMessage,
-    authenticatedMember: ChatMember | null,
-    makeFormattedAmountsFromMSats: (amt: MSats) => FormattedAmounts,
-): string => {
-    const { sentBy, sentTo, payment } = message
-    const messageSentBy: string = sentBy.split('@')[0]
-    const messageSentTo: string = sentTo?.split('@')[0] || ''
-    const me: string = authenticatedMember?.username || ''
-    if (!payment) return ''
-
-    const paymentRecipient: string | undefined =
-        payment.recipient?.split('@')[0]
-    const paymentAmount: MSats = payment.amount
-    const paymentMemo: string | undefined = payment.memo
-
-    const { formattedPrimaryAmount, formattedSecondaryAmount } =
-        makeFormattedAmountsFromMSats(paymentAmount)
-    const previewStringParams = {
-        name: messageSentBy,
-        fiat: formattedPrimaryAmount,
-        amount: formattedSecondaryAmount,
-        memo: paymentMemo,
-    }
-
-    if (messageSentTo === me && paymentRecipient === me) {
-        return t('feature.chat.they-sent-payment', previewStringParams)
-    }
-    if (messageSentTo === me && paymentRecipient !== me) {
-        return t('feature.chat.they-requested-payment', previewStringParams)
-    }
-    if (messageSentTo !== me && paymentRecipient !== me) {
-        return t('feature.chat.you-sent-payment', previewStringParams)
-    }
-    if (messageSentTo !== me && paymentRecipient === me) {
-        return t('feature.chat.you-requested-payment', previewStringParams)
-    }
-
-    return ''
-}
-
-export const jidToId = (jid: JID | string) => {
-    // Remove resource, leave local + domain
-    const jidString = jid.toString()
-    return jidString.split('/')[0]
-}
-
-/**
- * @deprecated XMPP legacy code
- *
- * Given a list of messages, organize the messages in a nested list of "grouped"
- * messages. The groups are organized as follows:
- * - The outer-most list is split into groups of messages sent within a similar time-frame.
- * - The middle list is messages sent back-to-back by the same user in that time frame.
- * - The inner-most lists are the list of messages by that user.
- */
-export const makeMessageGroups = <T extends ChatMessage>(
-    messages: T[],
-    sortOrder: 'desc' | 'asc',
-): T[][][] => {
-    const messageGroups: T[][][] = []
-    let currentTimeGroup: T[][] = []
-    let lastMessage: T | null = null
-
-    const sortedMessages = orderBy(messages, 'sentAt', sortOrder)
-    for (const message of sortedMessages) {
-        if (
-            lastMessage &&
-            lastMessage.sentAt &&
-            message.sentAt &&
-            Math.abs(lastMessage.sentAt - message.sentAt) <= 600
-        ) {
-            let isSameSender = false
-            if (lastMessage.sentBy === message.sentBy) {
-                isSameSender = true
-            }
-
-            if (isSameSender) {
-                // Add the message to the current group of the last sender group
-                currentTimeGroup[currentTimeGroup.length - 1].push(message)
-            } else {
-                // Create a new sender group within the current time group
-                currentTimeGroup.push([message])
-            }
-        } else {
-            // Start a new time group with the current message
-            currentTimeGroup = [[message]]
-            messageGroups.push(currentTimeGroup)
-        }
-
-        lastMessage = message
-    }
-
-    return messageGroups
-}
 
 /**
  * Given a message, return its chat ID and the type of chat (direct or group).
@@ -179,13 +73,16 @@ export const getLatestMessageIdsForChats = (
     myId: string,
 ) => {
     const sortedMessages = orderBy(messages, 'sentAt', 'desc')
-    const lastReadMessageIds = sortedMessages.reduce((readMsgIds, msg) => {
-        const chatId = getChatInfoFromMessage(msg, myId).id
-        if (!readMsgIds[chatId]) {
-            readMsgIds[chatId] = msg.id
-        }
-        return readMsgIds
-    }, {} as Record<Chat['id'], string | undefined>)
+    const lastReadMessageIds = sortedMessages.reduce(
+        (readMsgIds, msg) => {
+            const chatId = getChatInfoFromMessage(msg, myId).id
+            if (!readMsgIds[chatId]) {
+                readMsgIds[chatId] = msg.id
+            }
+            return readMsgIds
+        },
+        {} as Record<Chat['id'], string | undefined>,
+    )
     return lastReadMessageIds
 }
 
@@ -215,19 +112,6 @@ export const getLatestPaymentUpdateIdsForChats = (
         {} as Record<Chat['id'], string | undefined>,
     )
     return lastReadPaymentUpdateIds
-}
-
-/**
- * Returns a timestamp for when an existing payment is updated at.
- * Ensures the timestamp is always greater, in case of clocks being out of sync.
- */
-export const makePaymentUpdatedAt = (
-    payment: { updatedAt?: number } | undefined,
-) => {
-    return Math.max(
-        Math.floor(Date.now() / 1000),
-        (payment?.updatedAt || 0) + 1,
-    )
 }
 
 /**

@@ -49,7 +49,6 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             alignItems: 'center',
             alignSelf: 'center',
-            justifySelf: 'center',
         },
         caption: {
             textAlign: 'center',

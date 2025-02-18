@@ -6,6 +6,7 @@ import { Dimensions, ImageBackground, StyleSheet, View } from 'react-native'
 
 import { Images } from '../assets/images'
 import SvgImage from '../components/ui/SvgImage'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -38,13 +39,13 @@ const SocialRecoveryFailure: React.FC<Props> = ({ navigation }: Props) => {
                     title={t('phrases.back-to-app')}
                     containerStyle={styles(theme).backToAppButton}
                     onPress={() => {
-                        navigation.navigate('TabsNavigator')
+                        navigation.dispatch(reset('TabsNavigator'))
                     }}
                 />
                 <Button
                     title={t('feature.recovery.try-social-recovery-again')}
                     onPress={() => {
-                        navigation.navigate('LocateSocialRecovery')
+                        navigation.dispatch(reset('LocateSocialRecovery'))
                     }}
                 />
             </View>

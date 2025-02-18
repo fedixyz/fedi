@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
     ImageBackground,
@@ -10,10 +10,15 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { makeLog } from '@fedi/common/utils/log'
+
 import { Images } from '../assets/images'
 import CustomOverlay from '../components/ui/CustomOverlay'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import { usePinContext } from '../state/contexts/PinContext'
 import { RootStackParamList } from '../types/navigation'
+
+const log = makeLog('Splash')
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>
 
@@ -22,6 +27,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { fontScale } = useWindowDimensions()
     const [showOverlay, setShowOverlay] = useState(false)
+    const pin = usePinContext()
 
     const handleContinue = async () => {
         setShowOverlay(true)
@@ -34,6 +40,15 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
         navigation.navigate('ChooseRecoveryMethod')
         setShowOverlay(false)
     }
+
+    // PINs are stored in the keychain and persist between app installs
+    // so if we are on the Splash screen and a PIN is set, we need to clear it
+    useEffect(() => {
+        if (pin.status === 'set') {
+            log.info('Persisted PIN found from past install, clearing it.')
+            pin.unset()
+        }
+    }, [pin])
 
     const style = styles(theme, fontScale)
     return (

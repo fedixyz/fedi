@@ -169,7 +169,7 @@ impl SocialBackup {
         Self::get_backup_secret_static(secret).to_chacha20_poly1305_key_raw()
     }
 
-    fn get_backup_signing_key_static(secret: &DerivableSecret) -> secp256k1::KeyPair {
+    fn get_backup_signing_key_static(secret: &DerivableSecret) -> secp256k1::Keypair {
         Self::get_backup_secret_static(secret)
             .to_secp_key(&Secp256k1::<secp256k1::SignOnly>::gen_new())
     }
@@ -185,7 +185,7 @@ impl SocialBackup {
         Self::get_backup_encryption_key_static(&self.module_secret)
     }
 
-    fn get_backup_signing_key(&self) -> secp256k1::KeyPair {
+    fn get_backup_signing_key(&self) -> secp256k1::Keypair {
         Self::get_backup_signing_key_static(&self.module_secret)
     }
 }

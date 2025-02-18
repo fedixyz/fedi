@@ -2,28 +2,28 @@
 
 buildscript {
     ext {
-        kotlinVersion = "1.7.21"
+        kotlinVersion = "1.9.24"
         buildToolsVersion = "34.0.0"
-        minSdkVersion = 23
+        minSdkVersion = 24
         compileSdkVersion = 34
         targetSdkVersion = 34
+        ndkVersion = "26.1.10909125"
+        zendeskSdkVersion = "2.13.0"
 
-        // for older npm packages that haven't updated
-        kotlin_version = "1.7.21"   
-
-
+        //todo: for VisionCameraCodeScanner configurations, if required - Can remove these now - Nadav!
         VisionCameraCodeScanner_minSdkVersion = 23
         VisionCameraCodeScanner_compileSdkVersion = 34
         VisionCameraCodeScanner_targetSdkVersion = 34
-
-        // We use NDK 23 which has both M1 support and is the side-by-side NDK version from AGP.
-        ndkVersion = "23.1.7779620"
     }
     repositories {
         google()
         mavenCentral()
         // Required for fedi-android
         mavenLocal()
+         // Required for zendesk messaging
+        maven {
+            url "https://zendesk.jfrog.io/artifactory/repo"
+        }
     }
     dependencies {
         classpath("com.android.tools.build:gradle")
@@ -34,14 +34,21 @@ buildscript {
     }
 }
 
+apply plugin: "com.facebook.react.rootproject"
+
+apply plugin: "com.facebook.react.rootproject"
+
 allprojects {
     repositories {
+        google()
+        mavenCentral()
+        // Required for Detox e2e testing framework
         maven {
-            // Required for Detox e2e testing framework
             url("$rootDir/../../node_modules/detox/Detox-android")
+            url "https://zendesk.jfrog.io/artifactory/repo"
         }
+        // Required for fedi-android, using ANDROID_BRIDGE_ARTIFACTS environment variable
         maven {
-            // Required for fedi-android
             def androidBridgeArtifacts = System.getenv('ANDROID_BRIDGE_ARTIFACTS')
             if (androidBridgeArtifacts == null) {
                 throw new GradleException("ANDROID_BRIDGE_ARTIFACTS environment variable must be set")

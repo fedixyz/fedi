@@ -1,13 +1,45 @@
 name: UI Checks
 on:
     workflow_dispatch:
-    pull_request:
-        paths:
-            - 'ui/**'
+    pull_request: {}
+
+# https://stackoverflow.com/questions/66335225/how-to-cancel-previous-runs-in-the-pr-when-you-push-new-commitsupdate-the-curre
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+    precheck:
+        name: 'Check for UI file changes'
+        runs-on: [self-hosted, linux]
+        outputs:
+            HAS_UI_CHANGES: ${{ steps.check-ui-changes.outputs.HAS_UI_CHANGES }}
+        steps:
+            - name: Check out code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 20
+            - name: Check for changes inside 'ui/**'
+              if: github.event_name == 'pull_request'
+              id: check-ui-changes
+              run: |
+                  set -x
+                  git fetch --depth=20 origin ${{ github.event.pull_request.base.sha }}
+                  LAST_COMMON_COMMIT_SHA="$(git merge-base HEAD ${{ github.event.pull_request.base.sha }})"
+                  FILES_CHANGED=$(git diff --name-only HEAD $LAST_COMMON_COMMIT_SHA)
+                  HAS_UI_CHANGES=0
+                  for file in $FILES_CHANGED; do
+                    if [[ $file == ui/* ]]; then
+                      HAS_UI_CHANGES=1
+                      break
+                    fi
+                  done
+                  echo "HAS_UI_CHANGES=$HAS_UI_CHANGES" >> $GITHUB_OUTPUT
+
     test-ui:
         name: Build UI workspace
+        needs: precheck
+        if: needs.precheck.outputs.HAS_UI_CHANGES == '1'
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
@@ -33,3 +65,18 @@ jobs:
 
             - name: Check code formatting
               run: nix develop -c ./scripts/ci/check-ui-code-formatting.sh
+
+    # Workaround to make this a required check only if Build UI workspace is actually triggered
+    ui-status:
+        name: UI Status
+        needs: [test-ui]
+        if: ${{ always() }}
+        runs-on: [self-hosted, linux]
+        steps:
+            - name: Check status of UI jobs
+              if: >-
+                ${{
+                  contains(needs.*.result, 'failure') ||
+                  contains(needs.*.result, 'cancelled')
+                }}
+              run: exit 1

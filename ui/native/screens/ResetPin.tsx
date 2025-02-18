@@ -20,6 +20,7 @@ import { fedimint } from '../bridge'
 import SeedWordInput from '../components/feature/recovery/SeedWordInput'
 import { BIP39_WORD_LIST } from '../constants'
 import { usePinContext } from '../state/contexts/PinContext'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 const isValidSeedWord = (word: string) => {
@@ -74,7 +75,7 @@ const ResetPin: React.FC<Props> = ({ navigation }: Props) => {
 
         await pin.unset()
 
-        navigation.navigate('SetPin')
+        navigation.dispatch(reset('SetPin'))
     }, [navigation, seedWords, pin, toast, t])
 
     const handleInputUpdate = (inputValue: string, index: number) => {

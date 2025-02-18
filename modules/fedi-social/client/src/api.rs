@@ -50,7 +50,7 @@ where
         }))
         .await
         {
-            let _ = res?;
+            let () = res?;
         }
         Ok(())
     }
@@ -71,7 +71,7 @@ where
         }))
         .await
         {
-            let _ = res?;
+            let () = res?;
         }
         Ok(())
     }

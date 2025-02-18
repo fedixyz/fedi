@@ -10,6 +10,7 @@ import { hexToRgba } from '@fedi/common/utils/color'
 
 import { fedimint } from '../bridge'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 import { getFormattedDeviceInfo } from '../utils/device-info'
 
@@ -31,9 +32,9 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
     const selectDevice = (device: RpcRegisteredDevice) => {
         handleTransfer(device, hasSetDisplayName => {
             if (hasSetDisplayName) {
-                navigation.navigate('TabsNavigator')
+                navigation.dispatch(reset('TabsNavigator'))
             } else {
-                navigation.navigate('EnterDisplayName')
+                navigation.dispatch(reset('EnterDisplayName'))
             }
         })
     }

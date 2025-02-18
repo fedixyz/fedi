@@ -16,6 +16,7 @@ import {
     selectMinimumWithdrawAmountMsats,
     selectPaymentFederationBalance,
     selectShowFiatTxnAmounts,
+    selectStabilityPoolAvailableLiquidity,
     selectStableBalanceSats,
     selectWithdrawableStableBalanceMsats,
     setAmountInputType,
@@ -75,13 +76,15 @@ export const numpadButtons = [
 
 export type NumpadButtonValue = (typeof numpadButtons)[number]
 
-export const useBtcFiatPrice = () => {
+export const useBtcFiatPrice = (currency?: SupportedCurrency) => {
     const selectedFiatCurrency = useCommonSelector(selectCurrency)
     const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const exchangeRate: number = useCommonSelector(selectBtcExchangeRate)
     const btcUsdExchangeRate: number = useCommonSelector(
         selectBtcUsdExchangeRate,
     )
+
+    const fiatCurrency = currency ?? selectedFiatCurrency
 
     return {
         convertCentsToFormattedFiat: useCallback(
@@ -91,17 +94,12 @@ export const useBtcFiatPrice = () => {
                     btcUsdExchangeRate,
                     exchangeRate,
                 )
-                return amountUtils.formatFiat(amount, selectedFiatCurrency, {
+                return amountUtils.formatFiat(amount, fiatCurrency, {
                     symbolPosition,
                     locale: currencyLocale,
                 })
             },
-            [
-                btcUsdExchangeRate,
-                currencyLocale,
-                exchangeRate,
-                selectedFiatCurrency,
-            ],
+            [btcUsdExchangeRate, currencyLocale, exchangeRate, fiatCurrency],
         ),
         convertSatsToFiat: useCallback(
             (sats: Sats) => {
@@ -112,12 +110,12 @@ export const useBtcFiatPrice = () => {
         convertSatsToFormattedFiat: useCallback(
             (sats: Sats, symbolPosition: AmountSymbolPosition = 'end') => {
                 const amount = amountUtils.satToFiat(sats, exchangeRate)
-                return amountUtils.formatFiat(amount, selectedFiatCurrency, {
+                return amountUtils.formatFiat(amount, fiatCurrency, {
                     symbolPosition,
                     locale: currencyLocale,
                 })
             },
-            [exchangeRate, selectedFiatCurrency, currencyLocale],
+            [exchangeRate, fiatCurrency, currencyLocale],
         ),
         convertSatsToFormattedUsd: useCallback(
             (sats: Sats, symbolPosition: AmountSymbolPosition = 'end') => {
@@ -131,9 +129,9 @@ export const useBtcFiatPrice = () => {
         ),
     }
 }
-export const useAmountFormatter = () => {
+export const useAmountFormatter = (currency?: SupportedCurrency) => {
     const { convertSatsToFormattedUsd, convertSatsToFormattedFiat } =
-        useBtcFiatPrice()
+        useBtcFiatPrice(currency)
     const showFiatTxnAmounts = useCommonSelector(selectShowFiatTxnAmounts)
 
     const makeFormattedAmountsFromSats = useCallback(
@@ -367,13 +365,29 @@ export function useAmountInput(
             if (button === null) return
             const value = isFiat ? fiatValue : satsValue
             const handleChange = isFiat ? handleChangeFiat : handleChangeSats
+            const maxSatLength = maximumAmount?.toString().length
+            const satsValueLength = satsValue
+                .split('')
+                .filter(c => /[0-9]/.test(c)).length
+
             if (button === 'backspace') {
                 handleChange(value.slice(0, -1))
-            } else {
+            } else if (
+                typeof maxSatLength === 'number'
+                    ? satsValueLength <= maxSatLength
+                    : true
+            ) {
                 handleChange(`${value}${button}`)
             }
         },
-        [isFiat, fiatValue, satsValue, handleChangeFiat, handleChangeSats],
+        [
+            isFiat,
+            fiatValue,
+            satsValue,
+            handleChangeFiat,
+            handleChangeSats,
+            maximumAmount,
+        ],
     )
 
     const currencySymbol = useMemo(
@@ -507,10 +521,13 @@ export function useMinMaxSendAmount(
     const { minSendable, maxSendable } = lnurlPayment || {}
 
     return useMemo(() => {
-        // If balance is less than 1000 msat (rounded down to 0 sats), don't allow send at all
         if (balance < 1000)
             return {
-                minimumAmount: 0 as Sats,
+                // If balance is less than 1000 msat, set the minimum to invoiceAmount, if not undefined
+                // Otherwise, set minimum to 1 sat
+                minimumAmount: invoiceAmount
+                    ? amountUtils.msatToSat(invoiceAmount)
+                    : (1 as Sats),
                 maximumAmount: 0 as Sats,
             }
 
@@ -559,14 +576,22 @@ export function useMinMaxDepositAmount() {
     const balanceSats = amountUtils.msatToSat(balanceMSats)
     const stableBalanceSats = useCommonSelector(selectStableBalanceSats)
     const maxStableBalanceSats = useCommonSelector(selectMaxStableBalanceSats)
+    const stabilityPoolAvailableLiquidity = useCommonSelector(
+        selectStabilityPoolAvailableLiquidity,
+    )
+    const availableLiquiditySats = stabilityPoolAvailableLiquidity
+        ? amountUtils.msatToSat(stabilityPoolAvailableLiquidity)
+        : 0
 
-    const maximumAmount =
-        maxStableBalanceSats === 0
-            ? balanceSats
-            : (Math.min(
-                  balanceSats,
-                  Math.max(0, maxStableBalanceSats - stableBalanceSats),
-              ) as Sats)
+    // ref: https://github.com/fedibtc/fedi/pull/5654/files#r1842633164
+    const maximumAmount = Math.min(
+        // User's current bitcoin wallet balance
+        balanceSats,
+        // Available liquidity in the stability pool
+        availableLiquiditySats,
+        // Maximum stable balance allowed minus the user's current stable balance
+        maxStableBalanceSats - stableBalanceSats,
+    ) as Sats
 
     return { minimumAmount, maximumAmount }
 }

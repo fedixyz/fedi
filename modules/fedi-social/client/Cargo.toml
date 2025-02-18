@@ -30,7 +30,6 @@ fedi-social-common = { path = "../common" }
 rand = { workspace = true }
 ring = { workspace = true }
 secp256k1 = { workspace = true }
-secp256k1-zkp = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 strum = { workspace = true }

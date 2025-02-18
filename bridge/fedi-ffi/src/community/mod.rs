@@ -5,14 +5,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
-use bitcoin::bech32::{self, FromBase32};
+use bech32;
 use fedimint_core::task::TaskGroup;
-use fedimint_core::util::backon::FibonacciBuilder as FibonacciBackoff;
+use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::update_merge::UpdateMerge;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 use tracing::info;
 
+use crate::bridge::BridgeRuntime;
 use crate::constants::COMMUNITY_INVITE_CODE_HRP;
 use crate::error::ErrorCode;
 use crate::event::{Event, EventSink, TypedEventExt};
@@ -34,14 +35,11 @@ pub struct Communities {
 }
 
 impl Communities {
-    pub async fn init(
-        app_state: Arc<AppState>,
-        event_sink: EventSink,
-        task_group: TaskGroup,
-    ) -> Self {
+    pub async fn init(runtime: Arc<BridgeRuntime>) -> Self {
         let http_client = reqwest::Client::new();
 
-        let joined_communities = app_state
+        let joined_communities = runtime
+            .app_state
             .with_read_lock(|state| state.joined_communities.clone())
             .await
             .into_iter()
@@ -51,8 +49,8 @@ impl Communities {
                     Community::from_local_meta(
                         invite,
                         info,
-                        app_state.clone(),
-                        event_sink.clone(),
+                        runtime.app_state.clone(),
+                        runtime.event_sink.clone(),
                         http_client.clone(),
                     ),
                 )
@@ -67,9 +65,9 @@ impl Communities {
 
         let this = Self {
             communities,
-            app_state,
-            event_sink,
-            task_group,
+            app_state: runtime.app_state.clone(),
+            event_sink: runtime.event_sink.clone(),
+            task_group: runtime.task_group.clone(),
             http_client: reqwest::Client::new(),
             bg_refresh_lock: Default::default(),
         };
@@ -189,13 +187,12 @@ impl FromStr for CommunityInvite {
         let invite_code = s.to_lowercase();
 
         // TODO shaurya ok to ignore bech32 variant here?
-        let (hrp, data, _) = bech32::decode(&invite_code)?;
+        let (hrp, data) = bech32::decode(&invite_code)?;
         if hrp != COMMUNITY_INVITE_CODE_HRP {
             bail!("Unexpected hrp: {hrp}");
         }
 
-        let decoded = Vec::from_base32(&data)?;
-        let decoded_str = String::from_utf8(decoded)?;
+        let decoded_str = String::from_utf8(data)?;
         Ok(serde_json::from_str(&decoded_str)?)
     }
 }
@@ -237,20 +234,12 @@ impl Community {
         // minute
         fedimint_core::task::timeout(
             Duration::from_secs(60),
-            fedimint_core::util::retry(
-                "fetch community meta",
-                FibonacciBackoff::default()
-                    .with_min_delay(Duration::from_millis(100))
-                    .with_max_delay(Duration::from_secs(3))
-                    .with_max_times(usize::MAX)
-                    .with_jitter(),
-                || {
-                    fetch_community_meta_json(
-                        http_client.clone(),
-                        community_invite.community_meta_url.clone(),
-                    )
-                },
-            ),
+            fedimint_core::util::retry("fetch community meta", aggressive_backoff(), || {
+                fetch_community_meta_json(
+                    http_client.clone(),
+                    community_invite.community_meta_url.clone(),
+                )
+            }),
         )
         .await?
     }
@@ -333,4 +322,19 @@ async fn fetch_community_meta_json(
     .json::<CommunityJson>()
     .await
     .map_err(|e| ErrorCode::InvalidJson(e.to_string()))?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_community_invite() -> anyhow::Result<()> {
+        let invite = "fedi:community10v3xxmmdd46ku6t5090k6et5v90h2unvygazy6r5w3c8xw309ankjum59enkjargw4382um9wf3k7mn5v4h8gtnrdakj7jtjdahxxmrpv3zx2a30x33nqvtpvejnzwry8pjrvcm9vvmnqvmyxqcxxvmx89jn2vrp89jz7unpwu386swyqqf";
+        assert_eq!(
+            CommunityInvite::from_str(invite)?.community_meta_url,
+            "https://gist.githubusercontent.com/IroncladDev/4c01afe18d8d6cec703d00c3f9e50a9d/raw"
+        );
+        Ok(())
+    }
 }

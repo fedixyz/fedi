@@ -3,7 +3,7 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
-import Video from 'react-native-video'
+import Video, { VideoRef } from 'react-native-video'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -41,7 +41,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
     const [approvalSelected, setApprovalSelected] = useState(false)
     const [denialSelected, setDenialSelected] = useState(false)
     const [approvalInProgress, setApprovalInProgress] = useState(false)
-    const videoRef = useRef<Video | null>(null)
+    const videoRef = useRef<VideoRef | null>(null)
 
     const authenticatedGuardian = useAppSelector(
         s => s.federation.authenticatedGuardian,

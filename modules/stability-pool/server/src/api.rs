@@ -1,54 +1,49 @@
-use std::time::UNIX_EPOCH;
+use std::time::SystemTime;
 
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::{api_endpoint, ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion};
 use fedimint_core::Amount;
 use futures::{stream, StreamExt};
-use secp256k1_zkp::PublicKey;
-use stability_pool_common::{AccountInfo, LiquidityStats};
+use stability_pool_common::{
+    AccountHistoryItem, AccountHistoryRequest, AccountId, AccountType, FeeRate, LiquidityStats,
+    SyncResponse, UnlockRequestStatus,
+};
 
 use crate::db::{
-    CurrentCycleKey, Cycle, IdleBalance, IdleBalanceKey, PastCycleKeyPrefix,
-    SeekMetadataAccountPrefix, StagedCancellationKey, StagedProvidesKey, StagedProvidesKeyPrefix,
-    StagedSeeksKey, StagedSeeksKeyPrefix,
+    account_history_count, get_account_history_items, CurrentCycleKey, IdleBalanceKey,
+    PastCycleKeyPrefix, StagedProvidesKey, StagedProvidesKeyPrefix, StagedSeeksKey,
+    StagedSeeksKeyPrefix, UnlockRequestKey,
 };
 use crate::StabilityPool;
 
 pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
     vec![
         api_endpoint! {
-            "account_info",
+            "account_history",
             ApiVersion::new(0, 0),
-            async |_module: &StabilityPool, context, request: PublicKey| -> AccountInfo {
-                Ok(account_info(&mut context.dbtx().into_nc(), request).await)
+            async |_module: &StabilityPool, context, request: AccountHistoryRequest| -> Vec<AccountHistoryItem> {
+                Ok(get_account_history_items(&mut context.dbtx().into_nc(), request.account_id, request.range.start..request.range.end).await)
             }
         },
         api_endpoint! {
-            "current_cycle_index",
+            "sync",
             ApiVersion::new(0, 0),
-            async |_module: &StabilityPool, context, _request: ()| -> u64 {
-                Ok(current_cycle_index(&mut context.dbtx().into_nc()).await?)
+            async |_module: &StabilityPool, context, request: AccountId| -> SyncResponse {
+                sync(&mut context.dbtx().into_nc(), request).await
             }
         },
         api_endpoint! {
             "next_cycle_start_time",
             ApiVersion::new(0, 0),
-            async |module: &StabilityPool, context, _request: ()| -> u64 {
+            async |module: &StabilityPool, context, _request: ()| -> SystemTime {
                 Ok(next_cycle_start_time(&mut context.dbtx().into_nc(), module).await?)
             }
         },
         api_endpoint! {
-            "cycle_start_price",
+            "unlock_request_status",
             ApiVersion::new(0, 0),
-            async |_module: &StabilityPool, context, _request: ()| -> u64 {
-                Ok(cycle_start_price(&mut context.dbtx().into_nc()).await?)
-            }
-        },
-        api_endpoint! {
-            "wait_cancellation_processed",
-            ApiVersion::new(0, 0),
-            async |_module: &StabilityPool, context, request: PublicKey| -> Amount {
-                Ok(wait_cancellation_processed(context, request).await?)
+            async |module: &StabilityPool, context, request: AccountId| -> UnlockRequestStatus {
+                Ok(unlock_request_status(context, request, module).await?)
             }
         },
         api_endpoint! {
@@ -61,81 +56,67 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
         api_endpoint! {
             "average_fee_rate",
             ApiVersion::new(0, 0),
-            async |_module: &StabilityPool, context, request: u64| -> u64 {
+            async |_module: &StabilityPool, context, request: u64| -> FeeRate {
                 Ok(average_fee_rate(&mut context.dbtx().into_nc(), request).await?)
             }
         },
     ]
 }
 
-pub async fn account_info(dbtx: &mut DatabaseTransaction<'_>, account: PublicKey) -> AccountInfo {
-    let (locked_seeks, locked_provides) = match dbtx.get_value(&CurrentCycleKey).await {
-        Some(Cycle {
-            locked_seeks: seeker_locks,
-            locked_provides: provider_locks,
-            ..
-        }) => (
-            seeker_locks
-                .get(&account)
-                .map(|v| v.to_vec())
-                .unwrap_or_default(),
-            provider_locks
-                .get(&account)
-                .map(|v| v.to_vec())
-                .unwrap_or_default(),
-        ),
-        None => (vec![], vec![]),
+/// See [`SyncResponse`]
+pub async fn sync(
+    dbtx: &mut DatabaseTransaction<'_>,
+    account: AccountId,
+) -> Result<SyncResponse, ApiError> {
+    let current_cycle = dbtx
+        .get_value(&CurrentCycleKey)
+        .await
+        .ok_or_else(|| ApiError::bad_request("disallowed before first cycle".to_owned()))?;
+    let locked_balance: Amount = match account.acc_type() {
+        AccountType::Seeker => current_cycle
+            .locked_seeks
+            .get(&account)
+            .map(|v| v.iter().map(|locked| locked.amount).sum())
+            .unwrap_or(Amount::ZERO),
+        AccountType::Provider => current_cycle
+            .locked_provides
+            .get(&account)
+            .map(|v| v.iter().map(|locked| locked.amount).sum())
+            .unwrap_or(Amount::ZERO),
     };
 
-    let seeks_metadata = dbtx
-        .find_by_prefix(&SeekMetadataAccountPrefix(account))
-        .await
-        .map(|(key, metadata)| (key.1, metadata))
-        .collect()
-        .await;
-
-    AccountInfo {
+    let staged_balance = match account.acc_type() {
+        AccountType::Seeker => dbtx
+            .get_value(&StagedSeeksKey(account))
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|staged| staged.amount)
+            .sum(),
+        AccountType::Provider => dbtx
+            .get_value(&StagedProvidesKey(account))
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|provide| provide.amount)
+            .sum(),
+    };
+    Ok(SyncResponse {
+        current_cycle: current_cycle.into(),
         idle_balance: dbtx
             .get_value(&IdleBalanceKey(account))
             .await
-            .unwrap_or(IdleBalance(Amount::ZERO))
-            .0,
-        staged_seeks: dbtx
-            .get_value(&StagedSeeksKey(account))
-            .await
-            .unwrap_or_default(),
-        staged_provides: dbtx
-            .get_value(&StagedProvidesKey(account))
-            .await
-            .unwrap_or_default(),
-        staged_cancellation: dbtx
-            .get_value(&StagedCancellationKey(account))
-            .await
-            .map(|(_, cancel)| cancel),
-        locked_seeks,
-        locked_provides,
-        seeks_metadata,
-    }
-}
-
-pub async fn current_cycle_index(
-    dbtx: &mut DatabaseTransaction<'_>,
-) -> anyhow::Result<u64, ApiError> {
-    let current_cycle_index = dbtx
-        .get_value(&CurrentCycleKey)
-        .await
-        .ok_or(ApiError::server_error(
-            "First cycle not yet started".to_owned(),
-        ))?
-        .index;
-
-    Ok(current_cycle_index)
+            .unwrap_or(Amount::ZERO),
+        staged_balance,
+        locked_balance,
+        account_history_count: account_history_count(dbtx, account).await,
+    })
 }
 
 pub async fn next_cycle_start_time(
     dbtx: &mut DatabaseTransaction<'_>,
     stability_pool: &StabilityPool,
-) -> anyhow::Result<u64, ApiError> {
+) -> anyhow::Result<SystemTime, ApiError> {
     let current_cycle_start_time = dbtx
         .get_value(&CurrentCycleKey)
         .await
@@ -146,64 +127,27 @@ pub async fn next_cycle_start_time(
 
     let cycle_duration = stability_pool.cfg.consensus.cycle_duration;
     let next_cycle_start_time = current_cycle_start_time + cycle_duration;
-    Ok(next_cycle_start_time
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| ApiError::server_error("Server system clock error".to_owned()))?
-        .as_secs())
+    Ok(next_cycle_start_time)
 }
 
-pub async fn cycle_start_price(
-    dbtx: &mut DatabaseTransaction<'_>,
-) -> anyhow::Result<u64, ApiError> {
-    let current_cycle_start_price = dbtx
-        .get_value(&CurrentCycleKey)
-        .await
-        .ok_or(ApiError::server_error(
-            "First cycle not yet started".to_owned(),
-        ))?
-        .start_price;
-
-    Ok(current_cycle_start_price)
-}
-
-/// Wait until the given account's staged cancellation is processed
-/// and return the amount of idle balance that can be withdrawn.
-pub async fn wait_cancellation_processed(
+/// See [`stability_pool_common::UnlockRequestStatus`]
+pub async fn unlock_request_status(
     context: &mut ApiEndpointContext<'_>,
-    account: PublicKey,
-) -> anyhow::Result<Amount, ApiError> {
+    account: AccountId,
+    stability_pool: &StabilityPool,
+) -> anyhow::Result<UnlockRequestStatus, ApiError> {
     let mut dbtx = context.dbtx().into_nc();
-    let starting_idle_balance = match dbtx.get_value(&IdleBalanceKey(account)).await {
-        Some(IdleBalance(amt)) => amt,
-        None => Amount::ZERO,
-    };
-
-    let staged_cancellation = dbtx.get_value(&StagedCancellationKey(account)).await;
-    drop(dbtx);
-
-    match staged_cancellation {
-        Some(_) => {
-            // Cancellation is successfully processed when a higher idle balance exists than
-            // the one we initially recorded.
-            let future = context
-                .wait_value_matches(IdleBalanceKey(account), |IdleBalance(new_idle_balance)| {
-                    *new_idle_balance > starting_idle_balance
-                });
-            Ok(future.await.0)
-        }
-        None => {
-            // If there's no staged cancellation but idle balance exists,
-            // it's possible that the staged cancellation was already processed.
-            // So we just return the amount of the idle balance.
-            if starting_idle_balance != Amount::ZERO {
-                Ok(starting_idle_balance)
-            } else {
-                Err(ApiError::bad_request(
-                    "No staged cancellation or idle balance for account".to_owned(),
-                ))
-            }
-        }
-    }
+    Ok(match dbtx.get_value(&UnlockRequestKey(account)).await {
+        Some(_) => UnlockRequestStatus::Pending {
+            next_cycle_start_time: next_cycle_start_time(&mut dbtx, stability_pool).await?,
+        },
+        None => UnlockRequestStatus::NoActiveRequest {
+            idle_balance: dbtx
+                .get_value(&IdleBalanceKey(account))
+                .await
+                .unwrap_or(Amount::ZERO),
+        },
+    })
 }
 
 /// Return a snapshot of the current aggregate liquidity stats including
@@ -239,7 +183,7 @@ pub async fn liquidity_stats(
         .collect::<Vec<_>>()
         .await
         .iter()
-        .map(|s| s.seek.0.msats)
+        .map(|s| s.amount.msats)
         .sum();
     let staged_provides_sum_msat: u64 = dbtx
         .find_by_prefix(&StagedProvidesKeyPrefix)
@@ -248,7 +192,7 @@ pub async fn liquidity_stats(
         .collect::<Vec<_>>()
         .await
         .iter()
-        .map(|p| p.provide.amount.msats)
+        .map(|p| p.amount.msats)
         .sum();
 
     Ok(LiquidityStats {
@@ -267,9 +211,15 @@ pub async fn liquidity_stats(
 pub async fn average_fee_rate(
     dbtx: &mut DatabaseTransaction<'_>,
     num_cycles: u64,
-) -> anyhow::Result<u64, ApiError> {
+) -> anyhow::Result<FeeRate, ApiError> {
     if num_cycles == 0 {
         return Err(ApiError::bad_request("num_cycles must be non-0".to_owned()));
+    }
+
+    if num_cycles > 2100 {
+        return Err(ApiError::bad_request(
+            "num_cycles cannot exceed 2100".to_owned(),
+        ));
     }
 
     let current_cycle = dbtx
@@ -293,12 +243,12 @@ pub async fn average_fee_rate(
         Ok(val) => val - 1,
         Err(e) => return Err(ApiError::bad_request(format!("invalid num_cycles: {e:?}"))),
     };
-    let fee_rate_sum = current_cycle.fee_rate
+    let fee_rate_sum = current_cycle.fee_rate.0
         + dbtx
             .find_by_prefix_sorted_descending(&PastCycleKeyPrefix)
             .await
             .take(num_prev_cycles)
-            .fold(0, |acc, (_, cycle)| async move { acc + cycle.fee_rate })
+            .fold(0, |acc, (_, cycle)| async move { acc + cycle.fee_rate.0 })
             .await;
-    Ok(fee_rate_sum / num_cycles)
+    Ok(FeeRate(fee_rate_sum / num_cycles))
 }

@@ -22,6 +22,7 @@ import SettingsItem, {
 } from '../components/feature/settings/SettingsItem'
 import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { resetToChatsScreen } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'RoomSettings'>
@@ -53,7 +54,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         // backgrounded screens may attempt to re-join the group right
         // after we leave it.
         try {
-            navigation.replace('TabsNavigator')
+            navigation.dispatch(resetToChatsScreen())
             await dispatch(leaveMatrixRoom({ roomId })).unwrap()
         } catch (err) {
             toast.error(t, err)

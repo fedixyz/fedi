@@ -3,7 +3,7 @@ use base64_serde::base64_serde_type;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::secp256k1::hashes::sha256;
 use fedimint_core::secp256k1::{schnorr, Message, PublicKey};
-use fedimint_core::Amount;
+use fedimint_core::{Amount, BitcoinHash};
 use fedimint_mint_client::output::NoteIssuanceRequest;
 use fedimint_mint_client::{BlindNonce, MintClientModule, Nonce};
 use serde::{Deserialize, Serialize};
@@ -66,9 +66,9 @@ impl ReusedEcashProof {
         blinding_key: BlindingKey,
         amount: Amount,
     ) -> Message {
-        ("Fedi Reused Ecash Proof", blind_nonce, blinding_key, amount)
-            .consensus_hash::<sha256::Hash>()
-            .into()
+        let hash: sha256::Hash =
+            ("Fedi Reused Ecash Proof", blind_nonce, blinding_key, amount).consensus_hash();
+        Message::from_digest(hash.to_byte_array())
     }
 
     pub fn new(amount: Amount, request: NoteIssuanceRequest, blind_nonce: BlindNonce) -> Self {

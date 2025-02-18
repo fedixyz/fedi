@@ -6,20 +6,18 @@ import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
+    addPreviewMedia,
     selectGroupPreview,
     selectMatrixRoom,
     sendMatrixMessage,
 } from '@fedi/common/redux'
-import { ChatType } from '@fedi/common/types'
+import { ChatType, InputAttachment, InputMedia } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import ChatConversation from '../components/feature/chat/ChatConversation'
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
-import MessageInput, {
-    InputAttachment,
-    InputMedia,
-} from '../components/feature/chat/MessageInput'
+import MessageInput from '../components/feature/chat/MessageInput'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -53,6 +51,9 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
 
             setIsSending(true)
             try {
+                dispatch(
+                    addPreviewMedia(attachments.filter(att => 'width' in att)),
+                )
                 if (body) {
                     await dispatch(
                         sendMatrixMessage({

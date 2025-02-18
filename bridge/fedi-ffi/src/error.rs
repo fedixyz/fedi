@@ -1,10 +1,10 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;
 
 use crate::types::RpcAmount;
-#[derive(Debug, Error, Clone, PartialEq, Eq, Serialize, TS)]
-#[ts(export, export_to = "target/bindings/")]
+#[derive(Debug, Error, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub enum ErrorCode {
     #[error("Intialization failed")]
@@ -31,6 +31,8 @@ pub enum ErrorCode {
     MatrixNotInitialized,
     #[error("Unknown Observable")]
     UnknownObservable,
+    #[error("Observable with ID {0} already exists")]
+    DuplicateObservableID(u64),
     #[error("Operation timed out")]
     Timeout,
     #[error("Not allowed while recovering")]
@@ -47,7 +49,26 @@ pub enum ErrorCode {
     ModuleNotFound(String),
 }
 
-pub fn get_error_code(err: &anyhow::Error) -> Option<ErrorCode> {
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcError {
+    pub error: String,
+    pub detail: String,
+    pub error_code: Option<ErrorCode>,
+}
+
+impl RpcError {
+    pub fn from_anyhow(err: &anyhow::Error) -> Self {
+        Self {
+            error: err.to_string(),
+            detail: format!("{err:?}"),
+            error_code: get_error_code(err),
+        }
+    }
+}
+
+fn get_error_code(err: &anyhow::Error) -> Option<ErrorCode> {
     err.downcast_ref().cloned()
 }
 

@@ -23,7 +23,7 @@ use crate::error::ErrorCode;
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
 #[serde(tag = "kind", content = "value")]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcTimelineItem {
     Event(RpcTimelineItemEvent),
     /// A divider between messages of two days.
@@ -40,7 +40,7 @@ pub enum RpcTimelineItem {
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
 #[serde(tag = "kind")]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcTimelineEventSendState {
     /// The local event has not been sent yet.
     NotSentYet,
@@ -60,7 +60,7 @@ pub enum RpcTimelineEventSendState {
 
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct RpcTimelineItemEvent {
     pub(crate) id: String,
     pub(crate) txn_id: Option<String>,
@@ -77,7 +77,7 @@ pub struct RpcTimelineItemEvent {
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
 #[serde(tag = "kind", content = "value")]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcTimelineItemContent {
     Message(#[ts(type = "JSONObject")] RoomMessageEventContent),
     Json(#[ts(type = "JSONValue")] serde_json::Value),
@@ -87,7 +87,7 @@ pub enum RpcTimelineItemContent {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcBackPaginationStatus {
     Idle,
     Paginating,
@@ -96,7 +96,7 @@ pub enum RpcBackPaginationStatus {
 
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct RpcMatrixUserDirectorySearchUser {
     pub user_id: RpcUserId,
     pub display_name: Option<String>,
@@ -115,7 +115,7 @@ impl RpcMatrixUserDirectorySearchUser {
 }
 
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct RpcMatrixUserDirectorySearchResponse {
     pub(crate) results: Vec<RpcMatrixUserDirectorySearchUser>,
     pub(crate) limited: bool,
@@ -230,7 +230,7 @@ impl RpcTimelineItem {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct RpcRoomId(String);
 
 impl RpcRoomId {
@@ -246,8 +246,8 @@ impl From<matrix_sdk::ruma::OwnedRoomId> for RpcRoomId {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
-#[ts(export, export_to = "target/bindings/")]
-pub struct RpcUserId(String);
+#[ts(export)]
+pub struct RpcUserId(pub String);
 
 impl RpcUserId {
     pub fn into_typed(&self) -> Result<matrix_sdk::ruma::OwnedUserId> {
@@ -264,7 +264,7 @@ impl From<matrix_sdk::ruma::OwnedUserId> for RpcUserId {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "kind", content = "value")]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcRoomListEntry {
     /// The list knows there is an entry but this entry has not been loaded yet,
     /// thus it's marked as empty.
@@ -290,7 +290,7 @@ impl From<RoomListEntry> for RpcRoomListEntry {
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct RpcMatrixAccountSession {
     #[ts(type = "string")]
     pub user_id: matrix_sdk::ruma::OwnedUserId,
@@ -302,14 +302,14 @@ pub struct RpcMatrixAccountSession {
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct RpcMatrixUploadResult {
     pub content_uri: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcMatrixMembership {
     /// The user is banned.
     Ban,
@@ -327,7 +327,7 @@ pub enum RpcMatrixMembership {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcSyncIndicator {
     Hide,
     Show,
@@ -335,11 +335,12 @@ pub enum RpcSyncIndicator {
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct RpcRoomMember {
     pub user_id: RpcUserId,
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
+    pub ignored: bool,
     #[ts(type = "number")]
     pub power_level: i64,
     pub membership: RpcMatrixMembership,
@@ -361,6 +362,7 @@ impl From<RoomMember> for RpcRoomMember {
             avatar_url: member.avatar_url().map(|uri| uri.to_string()),
             display_name: member.display_name().map(|s| s.to_string()),
             power_level: member.power_level(),
+            ignored: member.is_ignored(),
             membership,
         }
     }
@@ -378,7 +380,7 @@ impl From<SyncIndicator> for RpcSyncIndicator {
 /// Enum representing the push notification modes for a room.
 #[derive(Clone, ts_rs::TS, Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum RpcRoomNotificationMode {
     /// Receive notifications for all messages.
     AllMessages,

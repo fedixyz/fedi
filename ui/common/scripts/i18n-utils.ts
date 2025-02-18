@@ -1,4 +1,6 @@
+import fs from 'fs'
 import jsonStringify from 'json-stable-stringify'
+import path from 'path'
 
 /**
  * Given a language dictionary JSON, format it for writing to disk.
@@ -23,4 +25,27 @@ export function formatLanguageJson(json: object) {
             },
         }) + '\n'
     )
+}
+
+export type LanguageJson = { [key: string]: string | LanguageJson }
+
+export const localizationPath = path.join(__dirname, '..', 'localization')
+export const getLangJson = (l: string) =>
+    JSON.parse(
+        fs.readFileSync(
+            path.join(localizationPath, l + '/common.json'),
+            'utf8',
+        ),
+    )
+
+export function flattenObject(obj: LanguageJson, prefix = ''): LanguageJson {
+    return Object.entries(obj).reduce((acc, [key, value]) => {
+        const newKey = prefix ? `${prefix}.${key}` : key
+        if (typeof value === 'object' && value !== null) {
+            Object.assign(acc, flattenObject(value, newKey))
+        } else {
+            acc[newKey] = value
+        }
+        return acc
+    }, {} as LanguageJson)
 }

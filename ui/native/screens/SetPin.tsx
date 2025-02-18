@@ -13,6 +13,7 @@ import PinDot from '../components/feature/pin/PinDot'
 import { NumpadButton } from '../components/ui/NumpadButton'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'SetPin'>
@@ -116,7 +117,7 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
                     unlocked: true,
                 }),
             )
-            navigation.navigate('CreatedPin')
+            navigation.dispatch(reset('CreatedPin'))
         }
     }, [debouncedConfirmPin, dispatch, matchesInitialPin, navigation, pin])
 

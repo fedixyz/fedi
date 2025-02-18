@@ -1,3 +1,6 @@
+# Enable TurboModules
+# ENV['USE_FABRIC'] = "1"
+# ENV['RCT_NEW_ARCH_ENABLED'] = "1"
 # Resolve react_native_pods.rb with node to allow for hoisting
 def node_require(script)
   # Resolve script with node to allow for hoisting
@@ -14,7 +17,7 @@ node_require('react-native-permissions/scripts/setup.rb')
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
-# uncomment wanted permissions
+# Uncomment wanted permissions
 setup_permissions([
   # 'AppTrackingTransparency',
   # 'BluetoothPeripheral',
@@ -37,16 +40,6 @@ setup_permissions([
   # 'StoreKit',
 ])
 
-# If you are using a `react-native-flipper` your iOS build will fail when `NO_FLIPPER=1` is set.
-# because `react-native-flipper` depends on (FlipperKit,...) that will be excluded
-#
-# To fix this you can also exclude `react-native-flipper` using a `react-native.config.js`
-# ```js
-# module.exports = {
-#   dependencies: {
-#     ...(process.env.NO_FLIPPER ? { 'react-native-flipper': { platforms: { ios: null } } } : {}),
-# ```
-flipper_config = ENV['NO_FLIPPER'] == "1" ? FlipperConfiguration.disabled : FlipperConfiguration.enabled
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
@@ -55,32 +48,21 @@ end
 
 target 'FediReactNative' do
   config = use_native_modules!
-
-  # Flags change depending on the env values.
-  flags = get_default_flags()
-
   use_react_native!(
     :path => config[:reactNativePath],
-    # Hermes is now enabled by default. Disable by setting this flag to false.
-    :hermes_enabled => flags[:hermes_enabled],
-    :fabric_enabled => flags[:fabric_enabled],
-    # Enables Flipper.
-    #
-    # Note that if you have use_frameworks! enabled, Flipper will not work and
-    # you should disable the next line.
-    :flipper_configuration => flipper_config,
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
   
-  # for push notifications
+  # For push notifications
   pod 'FirebaseMessaging', :modular_headers => true
   pod 'FirebaseCore', :modular_headers => true
   pod 'GoogleUtilities', :modular_headers => true
+  pod 'react-native-worklets-core', :path => '../../node_modules/react-native-worklets-core', :modular_headers => true
   $RNFirebaseAsStaticFramework = true
+  $ZendeskSDKVersion = '2.13.0'
 
-  # for encrypted messaging
-  pod 'OpenSSL-Universal', :modular_headers => true, :configurations => ['Release']
+  # For encrypted messaging
+  pod 'OpenSSL-Universal', '1.1.2200', :modular_headers => true, :configurations => ['Release', 'Debug']
 
   target 'FediReactNativeTests' do
     inherit! :complete
@@ -92,32 +74,31 @@ target 'FediReactNative' do
   end
 
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
+    # This is where the bitcode stripping script goes - required in Xcode 16 / Sequoia - https://stackoverflow.com/questions/79018593/asset-validation-failed-invalid-executable-the-executable-myapp-app-frameworks/79030093#79030093
+    bitcode_strip_path = `xcrun --find bitcode_strip`.chop!
+
+    def strip_bitcode_from_framework(bitcode_strip_path, framework_relative_path)
+      framework_path = File.join(Dir.pwd, framework_relative_path)
+      command = "#{bitcode_strip_path} #{framework_path} -r -o #{framework_path}"
+      puts "Stripping bitcode: #{command}"
+      system(command)
+    end
+
+    # Add the full path for OpenSSL.xcframework
+    framework_paths = [
+      "Pods/OpenSSL-Universal/Frameworks/OpenSSL.xcframework/ios-arm64/OpenSSL.framework/OpenSSL"  # Adjusted path for OpenSSL
+    ]
+
+    framework_paths.each do |framework_relative_path|
+      strip_bitcode_from_framework(bitcode_strip_path, framework_relative_path)
+    end
+    # end bitcode stripping
+
     react_native_post_install(
       installer,
       config[:reactNativePath],
-      :mac_catalyst_enabled => false
+      :mac_catalyst_enabled => false,
     )
 
-    # This line was previously uncommented and required however this function
-    # in /node_modules/react-native/scripts/react_native_pods.rb currently
-    # targets 11.0 as a minimum but the build is failing for some pods so
-    # we need to bump the target here to 12.0 so the function is copied
-    # exactly as-is here with the deployment target version changed
-    # __apply_Xcode_12_5_M1_post_install_workaround(installer)
-    # -----------------------------------------
-    installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        # ensure IPHONEOS_DEPLOYMENT_TARGET is at least 12.0
-        deployment_target = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f
-        should_upgrade = deployment_target < 12.0 && deployment_target != 0.0
-        if should_upgrade
-          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
-        end
-      end
-    end
-    time_header = "#{Pod::Config.instance.installation_root.to_s}/Pods/RCT-Folly/folly/portability/Time.h"
-    `sed -i -e  $'s/ && (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_10_0)//' #{time_header}`
-    # -----------------------------------------
   end
 end

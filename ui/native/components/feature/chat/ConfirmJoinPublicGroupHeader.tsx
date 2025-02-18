@@ -11,6 +11,8 @@ const ConfirmJoinPublicGroupHeader: React.FC = () => {
             closeButton
             onClose={() => {
                 if (navigation.canGoBack()) navigation.goBack()
+                // If we can't go back, navigate home
+                else navigation.navigate('TabsNavigator')
             }}
         />
     )

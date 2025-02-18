@@ -1,24 +1,25 @@
 module.exports = function (api) {
-    const presets = ['module:metro-react-native-babel-preset']
+    const presets = ['module:@react-native/babel-preset']
     const plugins = [
+        // Load the react-native-dotenv plugin first
+        [
+            'module:react-native-dotenv',
+            {
+                moduleName: '@env',
+                path: '.env', // Path to the .env file
+                safe: false, // Optional: Ensures variables in .env.example exist in .env
+                allowUndefined: true, // Allows undefined variables in .env
+            },
+        ],
+        // React Native Reanimated plugin
         [
             'react-native-reanimated/plugin',
             {
                 globals: ['__scanCodes'],
             },
         ],
-    ]
-
-    // We also need to handle `export * from` from TypeScript since we're not using ts-jest
-    plugins.push('@babel/plugin-proposal-export-namespace-from')
-
-    if (process?.env?.JEST_WORKER_ID) {
-        // we are inside jest functional tests, don't use react-native-quick-crypto
-        // so we can fallback to NodeJS
-        api.cache.never()
-    } else {
-        // we are inside RN, so we need to provide react-native-quick-crypto aliases
-        plugins.unshift([
+        // Handle module resolution for specific libraries
+        [
             'module-resolver',
             {
                 alias: {
@@ -27,7 +28,17 @@ module.exports = function (api) {
                     buffer: '@craftzdog/react-native-buffer',
                 },
             },
-        ])
+        ],
+        // Support export namespace from (TypeScript compatibility)
+        '@babel/plugin-proposal-export-namespace-from',
+    ]
+
+    // Cache behavior depending on the environment
+    if (process?.env?.JEST_WORKER_ID) {
+        // Jest environment: Disable cache to allow functional testing without quick-crypto
+        api.cache.never()
+    } else {
+        // React Native environment: Enable cache
         api.cache.forever()
     }
 

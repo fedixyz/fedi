@@ -71,10 +71,13 @@ export type CSSProp = CSS<typeof config>
 function intMapToPx<T extends string>(
     map: Record<T, number>,
 ): Record<T, string> {
-    return Object.entries(map).reduce((prev, [key, value]) => {
-        prev[key as T] = `${value}px`
-        return prev
-    }, {} as Record<T, string>)
+    return Object.entries(map).reduce(
+        (prev, [key, value]) => {
+            prev[key as T] = `${value}px`
+            return prev
+        },
+        {} as Record<T, string>,
+    )
 }
 
 function alphaHex(hex: string, alpha: number) {

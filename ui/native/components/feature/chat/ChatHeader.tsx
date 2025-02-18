@@ -5,10 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
-import {
-    selectIsMatrixChatEmpty,
-    selectShouldShowUpgradeChat,
-} from '@fedi/common/redux'
+import { selectIsMatrixChatEmpty } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
@@ -21,14 +18,11 @@ const ChatHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
-    const shouldShowUpgradeChat = useAppSelector(selectShouldShowUpgradeChat)
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
     const [hasViewedMemberQr, completeViewedMemberQr] =
         useNuxStep('hasViewedMemberQr')
 
     const style = useMemo(() => styles(theme), [theme])
-
-    if (shouldShowUpgradeChat) return null
 
     return (
         <>

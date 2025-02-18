@@ -34,6 +34,7 @@ export type Props = {
     isSubmitting?: boolean
     verb?: string
     onChangeAmount?: (amount: Sats) => void
+    error?: string | null
 }
 
 const AmountInput: React.FC<Props> = ({
@@ -47,6 +48,7 @@ const AmountInput: React.FC<Props> = ({
     isSubmitting,
     verb,
     onChangeAmount,
+    error: customError,
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -179,7 +181,15 @@ const AmountInput: React.FC<Props> = ({
                         )}
                     </Pressable>
                 )}
-                {error}
+                <View style={style.errorContainer}>
+                    {customError ? (
+                        <Text style={style.error} caption>
+                            {customError}
+                        </Text>
+                    ) : (
+                        error
+                    )}
+                </View>
             </View>
             {hasNumpad && (
                 <View style={style.numpad}>
@@ -216,6 +226,12 @@ const styles = (theme: Theme, width: number) =>
             alignItems: 'center',
             justifyContent: 'center',
             gap: theme.spacing.md,
+        },
+        errorContainer: {
+            width,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: theme.spacing.lg,
         },
         primaryAmount: {
             flexDirection: 'row',

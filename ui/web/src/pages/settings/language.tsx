@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
+import { i18nLanguages } from '@fedi/common/localization'
 import { changeLanguage, selectLanguage } from '@fedi/common/redux'
 
 import { ContentBlock } from '../../components/ContentBlock'
@@ -13,61 +14,6 @@ function LanguageSettings() {
     const dispatch = useAppDispatch()
     const language = useAppSelector(selectLanguage)
 
-    const languageOptions = [
-        {
-            label: 'English',
-            value: 'en',
-        },
-        {
-            label: 'Español',
-            value: 'es',
-        },
-        {
-            label: 'Français',
-            value: 'fr',
-        },
-        {
-            label: 'Português',
-            value: 'pt',
-        },
-        {
-            label: 'ဘာသာမန်',
-            value: 'my',
-        },
-        {
-            label: 'Bahasa Indonesia',
-            value: 'id',
-        },
-        {
-            label: 'العربية',
-            value: 'ar',
-        },
-        {
-            label: 'Juba Arabic',
-            value: 'ara',
-        },
-        {
-            label: 'Ikirundi',
-            value: 'rn',
-        },
-        {
-            label: 'Ikinyarwanda',
-            value: 'rw',
-        },
-        {
-            label: 'Soomaaliga',
-            value: 'so',
-        },
-        {
-            label: 'Kiswahili',
-            value: 'sw',
-        },
-        {
-            label: 'አማርኛ',
-            value: 'am',
-        },
-    ]
-
     return (
         <ContentBlock>
             <Layout.Root>
@@ -76,7 +22,12 @@ function LanguageSettings() {
                 </Layout.Header>
                 <Layout.Content>
                     <RadioGroup
-                        options={languageOptions}
+                        options={Object.entries(i18nLanguages).map(
+                            ([key, value]) => ({
+                                label: value,
+                                value: key,
+                            }),
+                        )}
                         value={language || i18n.language}
                         onChange={value => {
                             dispatch(

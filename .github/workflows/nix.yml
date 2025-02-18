@@ -215,7 +215,7 @@ jobs:
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
             - name: Udeps
-              run: nix build -L .#test.workspaceCargoUdeps
+              run: nix build -L .#nightly.test.workspaceCargoUdeps
 
     build-android:
         name: 'Build - android'
@@ -262,7 +262,7 @@ jobs:
 
             - name: Build iOS bridge artifacts
               # note: can't use --ignore-environment as it uses globally installed xcode
-              run: nix develop .#xcode --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/build-bridge-ios.sh
+              run: nix develop -L .#xcode --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/build-bridge-ios.sh
 
     shell:
         strategy:

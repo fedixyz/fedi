@@ -11,6 +11,7 @@
         "outDir": "dist",
         "resolveJsonModule": true,
         "jsx": "preserve",
+        "types": ["node", "jest"],
         "typeRoots": [
             "typings/",
             "node_modules/@types/",

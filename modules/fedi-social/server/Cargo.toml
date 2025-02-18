@@ -26,7 +26,6 @@ fedi-social-common = { path = "../common" }
 rand = { workspace = true }
 subtle = { workspace = true }
 secp256k1 = { workspace = true }
-secp256k1-zkp = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }

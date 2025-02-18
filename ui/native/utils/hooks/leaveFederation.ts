@@ -1,4 +1,3 @@
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert } from 'react-native'
@@ -18,11 +17,8 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { fedimint } from '../../bridge'
 import { useAppDispatch, useAppSelector } from '../../state/hooks'
-import { RootStackParamList } from '../../types/navigation'
 
-export const useNativeLeaveFederation = (
-    navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>,
-) => {
+export const useNativeLeaveFederation = () => {
     const toast = useToast()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
@@ -56,8 +52,6 @@ export const useNativeLeaveFederation = (
                         federationId: federation.id,
                     }),
                 ).unwrap()
-
-                navigation.replace('Initializing')
             } catch (e) {
                 toast.show({
                     content: t('errors.failed-to-leave-federation'),
@@ -65,7 +59,7 @@ export const useNativeLeaveFederation = (
                 })
             }
         },
-        [dispatch, navigation, resetGuardiansState, toast, t],
+        [dispatch, resetGuardiansState, toast, t],
     )
 
     // TODO: Implement leaving no-wallet communities

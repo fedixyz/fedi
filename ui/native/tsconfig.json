@@ -1,25 +1,21 @@
-// prettier-ignore
 {
-  "extends": "@tsconfig/react-native/tsconfig.json",     /* Recommended React Native TSConfig base */
-  "compilerOptions": {
-    "strictPropertyInitialization": false
-  },
-  "references": [
-    {
-      "path": "../common"
+    "extends": "@tsconfig/react-native/tsconfig.json",
+    "compilerOptions": {
+        "strictPropertyInitialization": false
     },
-    {
-      "path": "../injections"
-    }
-  ],
-  "include": [
-    "./**/*.tsx",
-    "./**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "./node_modules",
-    "./node_modules/*",
-    "./node_modules/@types/node/index.d.ts",
-  ]
+    "references": [
+        {
+            "path": "../common"
+        },
+        {
+            "path": "../injections"
+        }
+    ],
+    "include": ["./**/*.tsx", "./**/*.ts", "@env.d.ts"],
+    "exclude": [
+        "node_modules",
+        "./node_modules",
+        "./node_modules/*",
+        "./node_modules/@types/node/index.d.ts"
+    ]
 }

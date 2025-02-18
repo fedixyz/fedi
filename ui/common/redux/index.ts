@@ -18,9 +18,9 @@ import {
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { hasStorageStateChanged } from '../utils/storage'
-import { chatSlice } from './chat'
+import { browserSlice } from './browser'
 import { currencySlice, fetchCurrencyPrices } from './currency'
-import { environmentSlice, selectLanguage } from './environment'
+import { environmentSlice } from './environment'
 import {
     federationSlice,
     joinFederation,
@@ -40,13 +40,13 @@ import { nuxSlice } from './nux'
 import { recoverySlice } from './recovery'
 import { securitySlice } from './security'
 import { loadFromStorage, saveToStorage, storageSlice } from './storage'
+import { supportSlice } from './support'
 import { toastSlice } from './toast'
 import { addTransaction, transactionsSlice } from './transactions'
 import { walletSlice } from './wallet'
 
 const log = makeLog('common/redux/index')
 
-export * from './chat'
 export * from './currency'
 export * from './environment'
 export * from './federation'
@@ -56,9 +56,9 @@ export * from './recovery'
 export * from './security'
 export * from './toast'
 export * from './wallet'
+export * from './browser'
 
 export const commonReducers = {
-    chat: chatSlice.reducer,
     currency: currencySlice.reducer,
     environment: environmentSlice.reducer,
     federation: federationSlice.reducer,
@@ -71,6 +71,8 @@ export const commonReducers = {
     transactions: transactionsSlice.reducer,
     wallet: walletSlice.reducer,
     security: securitySlice.reducer,
+    browser: browserSlice.reducer,
+    support: supportSlice.reducer,
 }
 
 type CommonReducers = typeof commonReducers
@@ -91,7 +93,7 @@ export const commonMiddleware = (
  * Sets up any initial redux behavior that is consistent across all platforms.
  */
 export function initializeCommonStore({
-    store: { dispatch, subscribe, getState },
+    store: { dispatch },
     fedimint,
     storage,
     i18n,
@@ -206,7 +208,14 @@ export function initializeCommonStore({
     // Load state from local storage, then start listener that syncs to storage
     // on changes to stored state after it's been loaded.
     let unsubscribeStorage: UnsubscribeListener = () => null
-    dispatch(loadFromStorage({ storage })).then(() => {
+    dispatch(
+        // Detects and sets the language (if applicable) or loads the selected one from stored state
+        loadFromStorage({
+            storage,
+            i18n,
+            detectLanguage,
+        }),
+    ).then(() => {
         unsubscribeStorage = listenerMiddleware.startListening({
             predicate: (_action, currentState, previousState) => {
                 return hasStorageStateChanged(currentState, previousState)
@@ -247,19 +256,6 @@ export function initializeCommonStore({
         },
     })
 
-    const unsubscribeInitialLang = subscribe(() => {
-        const language = selectLanguage(getState())
-
-        if (detectLanguage) {
-            detectLanguage().then(detectedLanguage => {
-                if (!language) i18n.changeLanguage(detectedLanguage)
-                else i18n.changeLanguage(language)
-            })
-        } else if (language) i18n.changeLanguage(language)
-
-        unsubscribeInitialLang()
-    })
-
     return () => {
         unsubscribeFederation()
         unsubscribeCommunities()
@@ -268,6 +264,5 @@ export function initializeCommonStore({
         unsubscribeRecovery()
         unsubscribeStorage()
         unsubscribeMatrixPayments()
-        unsubscribeInitialLang()
     }
 }

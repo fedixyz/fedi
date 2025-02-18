@@ -1,18 +1,16 @@
 use std::collections::BTreeMap;
-use std::ffi;
-use std::pin::Pin;
+use std::ops::Not;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::{ffi, iter};
 
 use anyhow::bail;
 use async_stream::stream;
+use clap::{Parser, ValueEnum};
 use common::config::StabilityPoolClientConfig;
 use common::{
-    amount_to_cents, AccountInfo, CancelRenewal, IntendedAction, LiquidityStats, Provide, Seek,
-    StabilityPoolCommonGen, StabilityPoolInput, StabilityPoolModuleTypes, StabilityPoolOutput,
-    BPS_UNIT,
+    LiquidityStats, ProvideRequest, SeekRequest, StabilityPoolCommonGen, StabilityPoolInput,
+    StabilityPoolModuleTypes, StabilityPoolOutput,
 };
-use db::AccountInfoKey;
 use fedimint_api_client::api::{DynModuleApi, FederationApiExt as _, FederationError};
 use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::recovery::NoModuleBackup;
@@ -22,33 +20,42 @@ use fedimint_client::sm::util::MapStateTransitions;
 use fedimint_client::sm::{
     ClientSMDatabaseTransaction, Context, DynState, ModuleNotifier, State, StateTransition,
 };
-use fedimint_client::transaction::{ClientInput, ClientOutput, TransactionBuilder};
-use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
-use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, OperationId};
-use fedimint_core::db::{
-    Database, DatabaseTransaction, DatabaseVersion, IDatabaseTransactionOpsCoreTyped,
+use fedimint_client::transaction::{
+    ClientInput, ClientInputBundle, ClientInputSM, ClientOutput, ClientOutputBundle,
+    ClientOutputSM, TransactionBuilder,
 };
+use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
+use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
+use fedimint_core::db::{Database, DatabaseTransaction};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
     ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
 };
-use fedimint_core::task::timeout;
+use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::{apply, async_trait_maybe_send, Amount, OutPoint, TransactionId};
 use futures::{Stream, StreamExt};
-use secp256k1_zkp::{KeyPair, Secp256k1};
+use secp256k1::{Keypair, Secp256k1};
 use serde::{Deserialize, Serialize};
 pub use stability_pool_common as common;
-use tokio::sync::Mutex;
-use tracing::{error, info};
+use stability_pool_common::{
+    Account, AccountId, AccountType, DepositToProvideOutput, DepositToSeekOutput, FeeRate,
+    FiatAmount, FiatOrAll, SignedTransferRequest, StabilityPoolInputV0, StabilityPoolOutputV0,
+    TransferOutput, UnlockForWithdrawalInput, UnlockRequestStatus, WithdrawalInput, KIND,
+};
+use tracing::info;
 
 mod db;
+mod history_service;
+mod sync_service;
+
+pub use history_service::StabilityPoolHistoryService;
+pub use sync_service::StabilityPoolSyncService;
 
 #[derive(Debug, Clone)]
 pub struct StabilityPoolClientInit;
 
 impl ModuleInit for StabilityPoolClientInit {
     type Common = StabilityPoolCommonGen;
-    const DATABASE_VERSION: DatabaseVersion = DatabaseVersion(0);
 
     // No client-side database for stability pool
     async fn dump_database(
@@ -75,7 +82,6 @@ impl ClientModuleInit for StabilityPoolClientInit {
             client_ctx: args.context(),
             notifier: args.notifier().clone(),
             db: args.db().clone(),
-            account_info_lock: Arc::new(Mutex::new(())),
         })
     }
 
@@ -88,13 +94,11 @@ impl ClientModuleInit for StabilityPoolClientInit {
 #[derive(Debug, Clone)]
 pub struct StabilityPoolClientModule {
     pub cfg: StabilityPoolClientConfig,
-    client_key_pair: KeyPair,
+    client_key_pair: Keypair,
     module_api: DynModuleApi,
     client_ctx: ClientContext<Self>,
-    notifier: ModuleNotifier<StabilityPoolStateMachines>,
+    notifier: ModuleNotifier<StabilityPoolStateMachine>,
     db: Database,
-    /// Mutex to synchronize concurrent calls to the account_info method
-    account_info_lock: Arc<Mutex<()>>,
 }
 
 #[derive(Debug, Clone)]
@@ -102,14 +106,16 @@ pub struct StabilityPoolClientContext {
     module: StabilityPoolClientModule,
 }
 
-impl Context for StabilityPoolClientContext {}
+impl Context for StabilityPoolClientContext {
+    const KIND: Option<ModuleKind> = Some(KIND);
+}
 
 #[apply(async_trait_maybe_send!)]
 impl ClientModule for StabilityPoolClientModule {
     type Init = StabilityPoolClientInit;
     type Common = StabilityPoolModuleTypes;
     type ModuleStateMachineContext = StabilityPoolClientContext;
-    type States = StabilityPoolStateMachines;
+    type States = StabilityPoolStateMachine;
     type Backup = NoModuleBackup;
 
     fn context(&self) -> StabilityPoolClientContext {
@@ -118,12 +124,20 @@ impl ClientModule for StabilityPoolClientModule {
         }
     }
 
-    fn input_fee(&self, _input: &StabilityPoolInput) -> Option<fedimint_core::Amount> {
+    fn input_fee(
+        &self,
+        _amount: Amount,
+        _input: &StabilityPoolInput,
+    ) -> Option<fedimint_core::Amount> {
         // TODO shaurya figure out fees
         Some(Amount::ZERO)
     }
 
-    fn output_fee(&self, _output: &StabilityPoolOutput) -> Option<fedimint_core::Amount> {
+    fn output_fee(
+        &self,
+        _amount: Amount,
+        _output: &StabilityPoolOutput,
+    ) -> Option<fedimint_core::Amount> {
         // TODO shaurya figure out fees
         Some(Amount::ZERO)
     }
@@ -132,26 +146,32 @@ impl ClientModule for StabilityPoolClientModule {
         &self,
         args: &[ffi::OsString],
     ) -> anyhow::Result<serde_json::Value> {
-        if args.is_empty() {
-            return Err(anyhow::format_err!(
-                "Expected to be called with at least 1 argument: <command> …"
-            ));
-        }
+        let command = CliCommand::parse_from(
+            iter::once(&ffi::OsString::from("stability-pool")).chain(args.iter()),
+        );
 
-        let command = args[0].to_string_lossy();
+        match command {
+            CliCommand::Pubkey => Ok(serde_json::to_value(self.client_key_pair.public_key())?),
 
-        match command.as_ref() {
-            "pubkey" => Ok(serde_json::to_value(self.client_key_pair.public_key())?),
-            "account-info" => Ok(serde_json::to_value(self.account_info(true).await?)?),
-            "deposit-to-seek" => {
-                if args.len() != 2 {
-                    return Err(anyhow::format_err!(
-                        "`deposit-to-seek` command expects 1 argument: <amount_msats>"
-                    ));
-                }
+            CliCommand::AccountInfo { account_type } => {
+                let sync_service = StabilityPoolSyncService::new(
+                    self.module_api.clone(),
+                    self.db.clone(),
+                    self.our_account(account_type.into()).id(),
+                )
+                .await?;
+                sync_service.update_once().await?;
+                let sync_response = sync_service
+                    .subscribe_to_updates()
+                    .next()
+                    .await
+                    .unwrap()
+                    .expect("must be present after calling update once");
+                Ok(serde_json::to_value(sync_response)?)
+            }
 
-                let seek_amount = args[1].to_string_lossy().parse::<Amount>()?;
-                let operation_id = self.deposit_to_seek(seek_amount).await?;
+            CliCommand::DepositToSeek { amount_msats } => {
+                let operation_id = self.deposit_to_seek(amount_msats).await?;
                 let mut updates = self
                     .subscribe_deposit_operation(operation_id)
                     .await?
@@ -160,10 +180,10 @@ impl ClientModule for StabilityPoolClientModule {
                 while let Some(update) = updates.next().await {
                     match update {
                         StabilityPoolDepositOperationState::TxRejected(e) => {
-                            return Err(anyhow::Error::msg(format!("TX rejected: {e}")))
+                            bail!("TX rejected: {e}")
                         }
                         StabilityPoolDepositOperationState::PrimaryOutputError(e) => {
-                            return Err(anyhow::Error::msg(format!("Change output error: {e}")))
+                            bail!("Change output error: {e}")
                         }
                         _ => info!("Update: {:?}", update),
                     }
@@ -173,18 +193,12 @@ impl ClientModule for StabilityPoolClientModule {
                     "deposit-to-seek success".to_string(),
                 ))
             }
-            "deposit-to-provide" => {
-                if args.len() != 3 {
-                    return Err(anyhow::format_err!(
-                        "`deposit-to-provide` command expects 2 arguments: <amount_msats> <fee_rate_ppb>"
-                    ));
-                }
 
-                let provide_amount = args[1].to_string_lossy().parse::<Amount>()?;
-                let provide_fee_rate = args[2].to_string_lossy().parse::<u64>()?;
-                let operation_id = self
-                    .deposit_to_provide(provide_amount, provide_fee_rate)
-                    .await?;
+            CliCommand::DepositToProvide {
+                amount_msats,
+                fee_rate,
+            } => {
+                let operation_id = self.deposit_to_provide(amount_msats, fee_rate).await?;
                 let mut updates = self
                     .subscribe_deposit_operation(operation_id)
                     .await?
@@ -193,10 +207,10 @@ impl ClientModule for StabilityPoolClientModule {
                 while let Some(update) = updates.next().await {
                     match update {
                         StabilityPoolDepositOperationState::TxRejected(e) => {
-                            return Err(anyhow::Error::msg(format!("TX rejected: {e}")))
+                            bail!("TX rejected: {e}")
                         }
                         StabilityPoolDepositOperationState::PrimaryOutputError(e) => {
-                            return Err(anyhow::Error::msg(format!("Change output error: {e}")))
+                            bail!("Change output error: {e}")
                         }
                         _ => info!("Update: {:?}", update),
                     }
@@ -206,40 +220,27 @@ impl ClientModule for StabilityPoolClientModule {
                     "deposit-to-provide success".to_string(),
                 ))
             }
-            "withdraw" => {
-                if args.len() != 3 {
-                    return Err(anyhow::format_err!(
-                        "`withdraw` command expects 2 arguments: <unlocked_msats> <locked_bps>"
-                    ));
-                }
 
-                let unlocked_amount = args[1].to_string_lossy().parse::<Amount>()?;
-                let cancellation_bps = args[2].to_string_lossy().parse::<u32>()?;
-                let (operation_id, _) = self.withdraw(unlocked_amount, cancellation_bps).await?;
+            CliCommand::Withdraw {
+                account_type,
+                amount,
+            } => {
+                let (operation_id, _) = self.withdraw(account_type.into(), amount).await?;
                 let mut updates = self.subscribe_withdraw(operation_id).await?.into_stream();
 
                 while let Some(update) = updates.next().await {
                     match update {
-                        StabilityPoolWithdrawalOperationState::TxRejected(e) => {
-                            return Err(anyhow::Error::msg(format!("TX rejected: {e}")))
+                        StabilityPoolWithdrawalOperationState::UnlockTxRejected(e) => {
+                            bail!("Unlock TX rejected: {e}")
+                        }
+                        StabilityPoolWithdrawalOperationState::UnlockProcessingError(e) => {
+                            bail!("Unlock processing error: {e}")
+                        }
+                        StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(e) => {
+                            bail!("Withdrawal TX rejected: {e}")
                         }
                         StabilityPoolWithdrawalOperationState::PrimaryOutputError(e) => {
-                            return Err(anyhow::Error::msg(format!("Primary output error: {e}")))
-                        }
-                        StabilityPoolWithdrawalOperationState::CancellationSubmissionFailure(e) => {
-                            return Err(anyhow::Error::msg(format!(
-                                "Cancellation submission failure: {e}"
-                            )))
-                        }
-                        StabilityPoolWithdrawalOperationState::AwaitCycleTurnoverError(e) => {
-                            return Err(anyhow::Error::msg(format!(
-                                "Await cycle turnover error: {e}"
-                            )))
-                        }
-                        StabilityPoolWithdrawalOperationState::WithdrawIdleSubmissionFailure(e) => {
-                            return Err(anyhow::Error::msg(format!(
-                                "Withdraw idle submission failure: {e}"
-                            )))
+                            bail!("Primary output error: {e}")
                         }
                         _ => info!("Update: {:?}", update),
                     }
@@ -247,55 +248,16 @@ impl ClientModule for StabilityPoolClientModule {
 
                 Ok(serde_json::Value::String("withdraw success".to_string()))
             }
-            command => Err(anyhow::format_err!(
-                "Unknown command: {command}, supported commands: {}",
-                [
-                    "account-info",
-                    "deposit-to-seek",
-                    "deposit-to-provide",
-                    "withdraw",
-                ]
-                .join(", ")
-            )),
         }
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Decodable, Encodable, Hash)]
-pub enum StabilityPoolStateMachines {
-    WithdrawUnlocked(StabilityPoolWithdrawUnlockedStateMachine),
-    CancelLocked(StabilityPoolCancelLockedStateMachine),
+pub enum StabilityPoolStateMachine {
+    Withdrawal(StabilityPoolWithdrawalStateMachine),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum StabilityPoolMeta {
-    // Deposit given amount for seeking or providing
-    Deposit {
-        txid: TransactionId,
-        change_outpoints: Vec<OutPoint>,
-        amount: Amount,
-    },
-    // Cancel auto-renew of given BPS of locked funds
-    CancelRenewal {
-        txid: TransactionId,
-        bps: u32,
-        #[serde(default)]
-        estimated_withdrawal_cents: u64,
-    },
-    // Withdraw given amount from unlocked balance (idle + staged)
-    // followed by auto-renewal cancellation of given BPS
-    // of locked funds (could be 0 BPS)
-    Withdrawal {
-        txid: TransactionId,
-        outpoints: Vec<OutPoint>,
-        unlocked_amount: Amount,
-        locked_bps: u32,
-        #[serde(default)]
-        estimated_withdrawal_cents: u64,
-    },
-}
-
-impl IntoDynInstance for StabilityPoolStateMachines {
+impl IntoDynInstance for StabilityPoolStateMachine {
     type DynType = DynState;
 
     fn into_dyn(self, instance_id: ModuleInstanceId) -> Self::DynType {
@@ -303,7 +265,7 @@ impl IntoDynInstance for StabilityPoolStateMachines {
     }
 }
 
-impl State for StabilityPoolStateMachines {
+impl State for StabilityPoolStateMachine {
     type ModuleContext = StabilityPoolClientContext;
 
     fn transitions(
@@ -312,105 +274,42 @@ impl State for StabilityPoolStateMachines {
         global_context: &DynGlobalClientContext,
     ) -> Vec<StateTransition<Self>> {
         match self {
-            StabilityPoolStateMachines::WithdrawUnlocked(sm) => sm_enum_variant_translation!(
+            StabilityPoolStateMachine::Withdrawal(sm) => sm_enum_variant_translation!(
                 sm.transitions(context, global_context),
-                StabilityPoolStateMachines::WithdrawUnlocked
-            ),
-            StabilityPoolStateMachines::CancelLocked(sm) => sm_enum_variant_translation!(
-                sm.transitions(context, global_context),
-                StabilityPoolStateMachines::CancelLocked
+                StabilityPoolStateMachine::Withdrawal
             ),
         }
     }
 
     fn operation_id(&self) -> OperationId {
         match self {
-            StabilityPoolStateMachines::WithdrawUnlocked(sm) => sm.operation_id(),
-            StabilityPoolStateMachines::CancelLocked(sm) => sm.operation_id(),
+            StabilityPoolStateMachine::Withdrawal(sm) => sm.operation_id(),
         }
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Decodable, Encodable, Hash)]
-pub struct StabilityPoolWithdrawUnlockedStateMachine {
+pub struct StabilityPoolWithdrawalStateMachine {
+    pub account: Account,
     pub operation_id: OperationId,
     pub transaction_id: TransactionId,
-    pub state: StabilityPoolWithdrawUnlockedState,
-    pub maybe_cancel_locked_bps: Option<u32>,
+    pub state: StabilityPoolWithdrawalState,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Decodable, Encodable, Hash)]
-pub enum StabilityPoolWithdrawUnlockedState {
-    Created,
-    Accepted {
-        maybe_cancellation_tx_id: Option<TransactionId>,
-    },
-    Rejected(String),
-}
-
-impl State for StabilityPoolWithdrawUnlockedStateMachine {
-    type ModuleContext = StabilityPoolClientContext;
-
-    fn transitions(
-        &self,
-        context: &Self::ModuleContext,
-        global_context: &DynGlobalClientContext,
-    ) -> Vec<StateTransition<Self>> {
-        let context = context.clone();
-        let global_context = global_context.clone();
-        match self.state {
-            StabilityPoolWithdrawUnlockedState::Created => vec![StateTransition::new(
-                await_tx_accepted(global_context.clone(), self.transaction_id),
-                move |dbtx, result, old_state: StabilityPoolWithdrawUnlockedStateMachine| {
-                    match result {
-                        Ok(_) => Box::pin(maybe_fund_cancellation_output(
-                            dbtx,
-                            global_context.clone(),
-                            context.clone(),
-                            old_state,
-                        )),
-                        Err(reason) => Box::pin(async move {
-                            StabilityPoolWithdrawUnlockedStateMachine {
-                                operation_id: old_state.operation_id,
-                                transaction_id: old_state.transaction_id,
-                                state: StabilityPoolWithdrawUnlockedState::Rejected(reason),
-                                maybe_cancel_locked_bps: old_state.maybe_cancel_locked_bps,
-                            }
-                        }),
-                    }
-                },
-            )],
-            StabilityPoolWithdrawUnlockedState::Accepted { .. } => vec![], // terminal state
-            StabilityPoolWithdrawUnlockedState::Rejected(_) => vec![],     // terminal state
-        }
-    }
-
-    fn operation_id(&self) -> OperationId {
-        self.operation_id
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Decodable, Encodable, Hash)]
-pub struct StabilityPoolCancelLockedStateMachine {
-    pub operation_id: OperationId,
-    pub transaction_id: TransactionId,
-    pub state: StabilityPoolCancelLockedState,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Decodable, Encodable, Hash)]
-pub enum StabilityPoolCancelLockedState {
+pub enum StabilityPoolWithdrawalState {
     Created,
     Accepted,
     Rejected(String),
     Processed {
-        withdraw_unlocked_amount: Amount,
-        withdraw_unlocked_tx_id: TransactionId,
-        withdraw_unlocked_outpoints: Vec<OutPoint>,
+        withdrawal_amount: Amount,
+        withdrawal_tx_id: TransactionId,
+        withdrawal_outpoints: Vec<OutPoint>,
     },
     ProcessingError(String),
 }
 
-impl State for StabilityPoolCancelLockedStateMachine {
+impl State for StabilityPoolWithdrawalStateMachine {
     type ModuleContext = StabilityPoolClientContext;
 
     fn transitions(
@@ -421,28 +320,30 @@ impl State for StabilityPoolCancelLockedStateMachine {
         let context = context.clone();
         let global_context = global_context.clone();
         match self.state {
-            StabilityPoolCancelLockedState::Created => vec![StateTransition::new(
+            StabilityPoolWithdrawalState::Created => vec![StateTransition::new(
                 await_tx_accepted(global_context.clone(), self.transaction_id),
-                move |_, result, old_state: StabilityPoolCancelLockedStateMachine| match result {
+                move |_, result, old_state: StabilityPoolWithdrawalStateMachine| match result {
                     Ok(_) => Box::pin(async move {
-                        StabilityPoolCancelLockedStateMachine {
+                        StabilityPoolWithdrawalStateMachine {
+                            account: old_state.account,
                             operation_id: old_state.operation_id,
                             transaction_id: old_state.transaction_id,
-                            state: StabilityPoolCancelLockedState::Accepted,
+                            state: StabilityPoolWithdrawalState::Accepted,
                         }
                     }),
                     Err(reason) => Box::pin(async move {
-                        StabilityPoolCancelLockedStateMachine {
+                        StabilityPoolWithdrawalStateMachine {
+                            account: old_state.account,
                             operation_id: old_state.operation_id,
                             transaction_id: old_state.transaction_id,
-                            state: StabilityPoolCancelLockedState::Rejected(reason),
+                            state: StabilityPoolWithdrawalState::Rejected(reason),
                         }
                     }),
                 },
             )],
-            StabilityPoolCancelLockedState::Accepted => vec![StateTransition::new(
-                await_cancellation_processed(context.clone()),
-                move |dbtx, result, old_state: StabilityPoolCancelLockedStateMachine| match result {
+            StabilityPoolWithdrawalState::Accepted => vec![StateTransition::new(
+                await_unlock_request_processed(context.clone(), self.account.clone()),
+                move |dbtx, result, old_state: StabilityPoolWithdrawalStateMachine| match result {
                     Ok(idle_balance) => Box::pin(claim_idle_balance_input(
                         dbtx,
                         global_context.clone(),
@@ -451,17 +352,18 @@ impl State for StabilityPoolCancelLockedStateMachine {
                         idle_balance,
                     )),
                     Err(reason) => Box::pin(async move {
-                        StabilityPoolCancelLockedStateMachine {
+                        StabilityPoolWithdrawalStateMachine {
+                            account: old_state.account,
                             operation_id: old_state.operation_id,
                             transaction_id: old_state.transaction_id,
-                            state: StabilityPoolCancelLockedState::ProcessingError(reason),
+                            state: StabilityPoolWithdrawalState::ProcessingError(reason),
                         }
                     }),
                 },
             )],
-            StabilityPoolCancelLockedState::Rejected(_) => vec![], // terminal state
-            StabilityPoolCancelLockedState::Processed { .. } => vec![], // terminal state
-            StabilityPoolCancelLockedState::ProcessingError(_) => vec![], // terminal state
+            StabilityPoolWithdrawalState::Rejected(_) => vec![], // terminal state
+            StabilityPoolWithdrawalState::Processed { .. } => vec![], // terminal state
+            StabilityPoolWithdrawalState::ProcessingError(_) => vec![], // terminal state
         }
     }
 
@@ -471,20 +373,38 @@ impl State for StabilityPoolCancelLockedStateMachine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StabilityPoolMeta {
+    /// Deposit given amount for seeking or providing
+    Deposit {
+        txid: TransactionId,
+        change_outpoints: Vec<OutPoint>,
+        amount: Amount,
+    },
+    /// Submit request to transfer given FiatAmount (or all) between two
+    /// accounts.
+    Transfer {
+        txid: TransactionId,
+        signed_request: SignedTransferRequest,
+    },
+    /// Submit a request to unlock the given FiatAmount (or all) followed by
+    /// another TX to withdraw the unlocked idle balance.
+    Withdrawal {
+        txid: TransactionId,
+        unlock_amount: FiatOrAll,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StabilityPoolWithdrawalOperationState {
-    InvalidOperationType,
-    WithdrawUnlockedInitiated(Amount),
-    TxRejected(String),
-    WithdrawUnlockedAccepted(Amount),
+    Initiated,
+    UnlockTxAccepted,
+    UnlockTxRejected(String),
+    UnlockProcessingError(String),
+    WithdrawalInitiated(Amount),
+    WithdrawalTxAccepted(Amount),
+    WithdrawalTxRejected(String),
     PrimaryOutputError(String),
     Success(Amount),
-    CancellationSubmissionFailure(String),
-    CancellationInitiated(Option<Amount>),
-    CancellationAccepted(Option<Amount>),
-    AwaitCycleTurnoverError(String),
-    WithdrawIdleSubmissionFailure(String),
-    WithdrawIdleInitiated(Amount),
-    WithdrawIdleAccepted(Amount),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -496,86 +416,16 @@ pub enum StabilityPoolDepositOperationState {
     Success,
 }
 
-/// Wrapper around AccountInfo for consumption on the client-side
-/// that encapsulates the freshness of the data (timestamp), as well
-/// as the origin of the data (local copy vs fetched from server).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ClientAccountInfo {
-    pub account_info: AccountInfo,
-    pub timestamp: SystemTime,
-    pub is_fetched_from_server: bool,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StabilityPoolTransferOperationState {
+    Initiated,
+    Success,
+    TxRejected(String),
 }
 
 impl StabilityPoolClientModule {
-    pub async fn account_info(&self, force_update: bool) -> anyhow::Result<ClientAccountInfo> {
-        let _lock = self.account_info_lock.lock().await;
-        let mut dbtx = self.db.begin_transaction_nc().await;
-        let db_account_info = dbtx.get_value(&AccountInfoKey).await;
-
-        if db_account_info.is_none() || force_update {
-            match self
-                .fetch_account_info_from_server(Duration::from_secs(30))
-                .await
-            {
-                Ok(account_info) => {
-                    let current_time = fedimint_core::time::now();
-                    let mut dbtx = self.db.begin_transaction().await;
-                    dbtx.insert_entry(&AccountInfoKey, &(current_time, account_info.clone()))
-                        .await;
-                    dbtx.commit_tx().await;
-                    return Ok(ClientAccountInfo {
-                        account_info,
-                        timestamp: current_time,
-                        is_fetched_from_server: true,
-                    });
-                }
-                Err(e) => {
-                    error!("Failed to fetch account info from server: {:?}", e);
-                }
-            }
-        }
-
-        if let Some((timestamp, account_info)) = db_account_info {
-            return Ok(ClientAccountInfo {
-                account_info,
-                timestamp,
-                is_fetched_from_server: false,
-            });
-        }
-
-        anyhow::bail!("No local data present")
-    }
-
-    async fn fetch_account_info_from_server(
-        &self,
-        timeout_duration: Duration,
-    ) -> anyhow::Result<AccountInfo> {
-        Ok(timeout(
-            timeout_duration,
-            self.module_api.request_current_consensus(
-                "account_info".to_string(),
-                ApiRequestErased::new(self.client_key_pair.public_key()),
-            ),
-        )
-        .await??)
-    }
-
-    pub async fn current_cycle_index(&self) -> anyhow::Result<u64, FederationError> {
-        self.module_api
-            .request_current_consensus(
-                "current_cycle_index".to_string(),
-                ApiRequestErased::default(),
-            )
-            .await
-    }
-
-    pub async fn next_cycle_start_time(&self) -> anyhow::Result<u64, FederationError> {
-        self.module_api
-            .request_current_consensus(
-                "next_cycle_start_time".to_string(),
-                ApiRequestErased::default(),
-            )
-            .await
+    fn our_account(&self, acc_type: AccountType) -> Account {
+        Account::single(self.client_key_pair.public_key(), acc_type)
     }
 
     /// Returns the average of the provider fee rate over the last #num_cycles
@@ -583,7 +433,10 @@ impl StabilityPoolClientModule {
     /// return the fee rate of the current ongoing cycle. If num_cycles is 2, we
     /// average the current cycle and previous cycle. If num_cyces is n, we
     /// average the current cycle and (n - 1) previous cycles.
-    pub async fn average_fee_rate(&self, num_cycles: u64) -> anyhow::Result<u64, FederationError> {
+    pub async fn average_fee_rate(
+        &self,
+        num_cycles: u64,
+    ) -> anyhow::Result<FeeRate, FederationError> {
         self.module_api
             .request_current_consensus(
                 "average_fee_rate".to_string(),
@@ -607,31 +460,43 @@ impl StabilityPoolClientModule {
             .await
     }
 
-    pub async fn wait_cancellation_processed(&self) -> anyhow::Result<Amount, FederationError> {
+    pub async fn unlock_request_status(
+        &self,
+        account_id: AccountId,
+    ) -> anyhow::Result<UnlockRequestStatus, FederationError> {
         self.module_api
             .request_current_consensus(
-                "wait_cancellation_processed".to_string(),
-                ApiRequestErased::new(self.client_key_pair.public_key()),
+                "unlock_request_status".to_string(),
+                ApiRequestErased::new(account_id),
             )
             .await
     }
 
     pub async fn deposit_to_seek(&self, amount: Amount) -> anyhow::Result<OperationId> {
-        let (operation_id, _) =
-            submit_tx_with_intended_action(self, IntendedAction::Seek(Seek(amount))).await?;
+        let (operation_id, _) = submit_tx_with_output(
+            self,
+            StabilityPoolOutputV0::DepositToSeek(DepositToSeekOutput {
+                account_id: self.our_account(AccountType::Seeker).id(),
+                seek_request: SeekRequest(amount),
+            }),
+        )
+        .await?;
         Ok(operation_id)
     }
 
     pub async fn deposit_to_provide(
         &self,
         amount: Amount,
-        fee_rate: u64,
+        min_fee_rate: FeeRate,
     ) -> anyhow::Result<OperationId> {
-        let (operation_id, _) = submit_tx_with_intended_action(
+        let (operation_id, _) = submit_tx_with_output(
             self,
-            IntendedAction::Provide(Provide {
-                amount,
-                min_fee_rate: fee_rate,
+            StabilityPoolOutputV0::DepositToProvide(DepositToProvideOutput {
+                account_id: self.our_account(AccountType::Provider).id(),
+                provide_request: ProvideRequest {
+                    amount,
+                    min_fee_rate,
+                },
             }),
         )
         .await?;
@@ -649,27 +514,27 @@ impl StabilityPoolClientModule {
                 change_outpoints,
                 ..
             } => (txid, change_outpoints),
-            _ => bail!("Operation is not of type deposit/cancel-auto-renewal/undo-cancellation"),
+            _ => bail!("Operation is not of type deposit"),
         };
 
         let client_ctx = self.client_ctx.clone();
         Ok(
-            operation.outcome_or_updates(&self.client_ctx.global_db(), operation_id, move || {
+            self.client_ctx.outcome_or_updates(&operation, operation_id, move || {
                 stream! {
                     yield StabilityPoolDepositOperationState::Initiated;
 
                     let tx_updates_stream = client_ctx.transaction_updates(operation_id);
                     match tx_updates_stream.await.await_tx_accepted(txid).await {
-                        Ok(_) => {
-                            yield StabilityPoolDepositOperationState::TxAccepted;
-                            if change_outpoints.is_empty() {
-                                yield StabilityPoolDepositOperationState::Success;
-                                return
-                            }
-                        }
-                        Err(e) => { yield StabilityPoolDepositOperationState::TxRejected(e);
-                            return
+                        Ok(_) => yield StabilityPoolDepositOperationState::TxAccepted,
+                        Err(e) => {
+                            yield StabilityPoolDepositOperationState::TxRejected(e);
+                            return;
                         },
+                    }
+
+                    if change_outpoints.is_empty() {
+                        yield StabilityPoolDepositOperationState::Success;
+                        return;
                     }
 
                     match client_ctx.await_primary_module_outputs(operation_id, change_outpoints).await {
@@ -681,66 +546,97 @@ impl StabilityPoolClientModule {
         )
     }
 
+    pub async fn transfer(
+        &self,
+        signed_request: SignedTransferRequest,
+    ) -> anyhow::Result<OperationId> {
+        let transfer_output = TransferOutput { signed_request };
+
+        let (operation_id, _) =
+            submit_tx_with_output(self, StabilityPoolOutputV0::Transfer(transfer_output)).await?;
+        Ok(operation_id)
+    }
+
+    pub async fn subscribe_transfer_operation(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<UpdateStreamOrOutcome<StabilityPoolTransferOperationState>> {
+        let operation = stability_pool_operation(&self.client_ctx, operation_id).await?;
+        let txid = match operation.meta::<StabilityPoolMeta>() {
+            StabilityPoolMeta::Transfer { txid, .. } => txid,
+            _ => bail!("Operation is not of type transfer"),
+        };
+
+        let client_ctx = self.client_ctx.clone();
+        Ok(self
+            .client_ctx
+            .outcome_or_updates(&operation, operation_id, move || {
+                stream! {
+                    yield StabilityPoolTransferOperationState::Initiated;
+
+                    let tx_updates_stream = client_ctx.transaction_updates(operation_id);
+                    match tx_updates_stream.await.await_tx_accepted(txid).await {
+                        Ok(_) => yield StabilityPoolTransferOperationState::Success,
+                        Err(e) => yield StabilityPoolTransferOperationState::TxRejected(e),
+                    }
+                }
+            }))
+    }
+
     pub async fn withdraw(
         &self,
-        unlocked_amount: Amount,
-        locked_bps: u32,
+        acc_type: AccountType,
+        unlock_amount: FiatOrAll,
     ) -> anyhow::Result<(OperationId, TransactionId)> {
-        if unlocked_amount == Amount::ZERO && locked_bps == 0 {
-            bail!("At least one of unlocked_amount and locked_bps must be non-zero");
+        if let FiatOrAll::Fiat(amount) = unlock_amount {
+            if amount.0 == 0 {
+                bail!("Withdrawal amount must be non-0");
+            }
         }
 
         let operation_id = OperationId::new_random();
 
-        if unlocked_amount != Amount::ZERO {
-            let input = ClientInput {
-                amount: unlocked_amount,
-                input: StabilityPoolInput::new_v0(
-                    self.client_key_pair.public_key(),
-                    unlocked_amount,
-                ),
-                keys: vec![self.client_key_pair],
-                state_machines: Arc::new(move |transaction_id, _| {
-                    vec![StabilityPoolStateMachines::WithdrawUnlocked(
-                        StabilityPoolWithdrawUnlockedStateMachine {
-                            operation_id,
-                            transaction_id,
-                            state: StabilityPoolWithdrawUnlockedState::Created,
-                            maybe_cancel_locked_bps: match locked_bps {
-                                0 => None,
-                                x => Some(x),
-                            },
-                        },
-                    )]
-                }),
-            };
-            let tx = TransactionBuilder::new().with_input(self.client_ctx.make_client_input(input));
-            let estimated_withdrawal_cents =
-                estimated_withdrawal_cents(self, unlocked_amount, locked_bps).await?;
-            let withdrawal_meta_gen = |txid, outpoints| StabilityPoolMeta::Withdrawal {
-                txid,
-                outpoints,
-                unlocked_amount,
-                locked_bps,
-                estimated_withdrawal_cents,
-            };
-            let (transaction_id, _) = self
-                .client_ctx
-                .finalize_and_submit_transaction(
-                    operation_id,
-                    StabilityPoolCommonGen::KIND.as_str(),
-                    withdrawal_meta_gen,
-                    tx,
-                )
-                .await?;
-            Ok((operation_id, transaction_id))
-        } else {
-            submit_tx_with_intended_action(
-                self,
-                IntendedAction::CancelRenewal(CancelRenewal { bps: locked_bps }),
+        let account = self.our_account(acc_type);
+        let input = ClientInput {
+            amount: Amount::ZERO,
+            input: StabilityPoolInput::V0(StabilityPoolInputV0::UnlockForWithdrawal(
+                UnlockForWithdrawalInput {
+                    account: account.clone(),
+                    amount: unlock_amount,
+                },
+            )),
+            keys: vec![self.client_key_pair],
+        };
+        let sm = ClientInputSM {
+            state_machines: Arc::new(move |out_point_range| {
+                vec![StabilityPoolStateMachine::Withdrawal(
+                    StabilityPoolWithdrawalStateMachine {
+                        account: account.clone(),
+                        operation_id,
+                        transaction_id: out_point_range.txid(),
+                        state: StabilityPoolWithdrawalState::Created,
+                    },
+                )]
+            }),
+        };
+        let tx = TransactionBuilder::new().with_inputs(
+            self.client_ctx
+                .make_client_inputs(ClientInputBundle::new(vec![input], vec![sm])),
+        );
+        let withdrawal_meta_gen = |txid, _| StabilityPoolMeta::Withdrawal {
+            txid,
+            unlock_amount,
+        };
+        let (transaction_id, _) = self
+            .client_ctx
+            .finalize_and_submit_transaction(
+                operation_id,
+                StabilityPoolCommonGen::KIND.as_str(),
+                withdrawal_meta_gen,
+                tx,
             )
-            .await
-        }
+            .await?;
+        Ok((operation_id, transaction_id))
     }
 
     pub async fn subscribe_withdraw(
@@ -748,182 +644,71 @@ impl StabilityPoolClientModule {
         operation_id: OperationId,
     ) -> anyhow::Result<UpdateStreamOrOutcome<StabilityPoolWithdrawalOperationState>> {
         let operation = stability_pool_operation(&self.client_ctx, operation_id).await?;
-        let operation_meta = operation.meta::<StabilityPoolMeta>();
-        let mut operation_stream = self.notifier.subscribe(operation_id).await.peekable();
-        let module = self.clone();
-
-        Ok(
-            operation.outcome_or_updates(&self.client_ctx.global_db(), operation_id, move || {
-                stream! {
-                    match operation_meta {
-                        StabilityPoolMeta::Deposit { .. } => {
-                            yield StabilityPoolWithdrawalOperationState::InvalidOperationType;
-                            return
-                        },
-                        StabilityPoolMeta::CancelRenewal { .. } => {
-                            // There was only locked balance to withdraw, so we start
-                            // with a cancellation TX followed by a TX to withdraw unlocked
-                            // amount.
-                            match next_cancel_locked_state(&mut operation_stream).await {
-                                StabilityPoolCancelLockedState::Created => {
-                                    yield StabilityPoolWithdrawalOperationState::CancellationInitiated(None);
-                                },
-                                s => panic!("Unexpected state {s:?}"),
-                            }
-
-                            match next_cancel_locked_state(&mut operation_stream).await {
-                                StabilityPoolCancelLockedState::Accepted => {
-                                    yield StabilityPoolWithdrawalOperationState::CancellationAccepted(None);
-                                },
-                                StabilityPoolCancelLockedState::Rejected(reason) => {
-                                    yield StabilityPoolWithdrawalOperationState::CancellationSubmissionFailure(reason);
-                                    return
-                                },
-                                s => panic!("Unexpected state {s:?}"),
-                            }
-
-                            match next_cancel_locked_state(&mut operation_stream).await {
-                                StabilityPoolCancelLockedState::Processed {
-                                    withdraw_unlocked_amount,
-                                    withdraw_unlocked_tx_id,
-                                    withdraw_unlocked_outpoints,
-                                } => {
-                                    yield StabilityPoolWithdrawalOperationState::WithdrawIdleInitiated(withdraw_unlocked_amount);
-
-                                    let tx_updates_stream = module.client_ctx.transaction_updates(operation_id);
-                                    match tx_updates_stream.await.await_tx_accepted(withdraw_unlocked_tx_id).await {
-                                        Ok(_) => yield StabilityPoolWithdrawalOperationState::WithdrawIdleAccepted(withdraw_unlocked_amount),
-                                        Err(e) => {
-                                            yield StabilityPoolWithdrawalOperationState::TxRejected(e);
-                                            return
-                                        },
-                                    }
-
-                                    match module.client_ctx.await_primary_module_outputs(
-                                        operation_id,
-                                        withdraw_unlocked_outpoints,
-                                    ).await {
-                                        Ok(amount) => yield StabilityPoolWithdrawalOperationState::Success(amount),
-                                        Err(e) => yield StabilityPoolWithdrawalOperationState::PrimaryOutputError(e.to_string()),
-                                    }
-                                },
-                                StabilityPoolCancelLockedState::ProcessingError(reason) => {
-                                    yield StabilityPoolWithdrawalOperationState::AwaitCycleTurnoverError(reason);
-                                },
-                                s => panic!("Unexpected state {s:?}"),
-                            }
-                        },
-                        StabilityPoolMeta::Withdrawal { outpoints, unlocked_amount, .. } => {
-                            // There was unlocked balance, and possibly locked balance, to withdraw.
-                            // So we start with a TX to withdraw unlocked balance. Then we may or may not
-                            // have a full cancellation processing flow (which ends with another TX to
-                            // withdraw unlocked balance).
-
-                            match next_withdraw_unlocked_state(&mut operation_stream).await {
-                                StabilityPoolWithdrawUnlockedState::Created => {
-                                    yield StabilityPoolWithdrawalOperationState::WithdrawUnlockedInitiated(unlocked_amount);
-                                },
-                                s => panic!("Unexpected state {s:?}"),
-                            }
-
-                            // When locked_bps != 0, StabilityPoolCancelLockedState::Created is emitted
-                            // within the state transition from StabilityPoolWithdrawUnlockedState::Created to
-                            // StabilityPoolWithdrawUnlockedState::Accepted/Rejected. So it's not deterministic whether
-                            // we see StabilityPoolCancelLockedState::Created or StabilityPoolWithdrawUnlockedState::Accepted/Rejected
-                            // first.
-                            let premature_cancel_locked_update = match Pin::new(&mut operation_stream).peek().await {
-                                Some(StabilityPoolStateMachines::WithdrawUnlocked(_)) => false,
-                                Some(StabilityPoolStateMachines::CancelLocked(_)) => {
-                                    yield StabilityPoolWithdrawalOperationState::CancellationInitiated(Some(unlocked_amount));
-                                    true
-                                },
-                                None => return,
-                            };
-
-                            match next_withdraw_unlocked_state(&mut operation_stream).await {
-                                StabilityPoolWithdrawUnlockedState::Accepted { maybe_cancellation_tx_id: Some(_) } => {
-                                    yield StabilityPoolWithdrawalOperationState::WithdrawUnlockedAccepted(unlocked_amount);
-
-                                    if let Err(e) = module.client_ctx.await_primary_module_outputs(
-                                        operation_id,
-                                        outpoints,
-                                    ).await {
-                                        yield StabilityPoolWithdrawalOperationState::PrimaryOutputError(e.to_string());
-                                        return
-                                    }
-
-                                    if !premature_cancel_locked_update {
-                                        match next_cancel_locked_state(&mut operation_stream).await {
-                                            StabilityPoolCancelLockedState::Created => {
-                                                yield StabilityPoolWithdrawalOperationState::CancellationInitiated(Some(unlocked_amount));
-                                            },
-                                            s => panic!("Unexpected state {s:?}"),
-                                        }
-                                    }
-
-                                    match next_cancel_locked_state(&mut operation_stream).await {
-                                        StabilityPoolCancelLockedState::Accepted => {
-                                            yield StabilityPoolWithdrawalOperationState::CancellationAccepted(Some(unlocked_amount));
-                                        },
-                                        StabilityPoolCancelLockedState::Rejected(reason) => {
-                                            yield StabilityPoolWithdrawalOperationState::CancellationSubmissionFailure(reason);
-                                            return
-                                        },
-                                        s => panic!("Unexpected state {s:?}"),
-                                    }
-
-                                    match next_cancel_locked_state(&mut operation_stream).await {
-                                        StabilityPoolCancelLockedState::Processed {
-                                            withdraw_unlocked_amount,
-                                            withdraw_unlocked_tx_id,
-                                            withdraw_unlocked_outpoints,
-                                        } => {
-                                            yield StabilityPoolWithdrawalOperationState::WithdrawIdleInitiated(unlocked_amount + withdraw_unlocked_amount);
-
-                                            let tx_updates_stream = module.client_ctx.transaction_updates(operation_id);
-                                            match tx_updates_stream.await.await_tx_accepted(withdraw_unlocked_tx_id).await {
-                                                Ok(_) => yield StabilityPoolWithdrawalOperationState::WithdrawIdleAccepted(unlocked_amount + withdraw_unlocked_amount),
-                                                Err(e) => {
-                                                    yield StabilityPoolWithdrawalOperationState::TxRejected(e);
-                                                    return
-                                                },
-                                            }
-
-                                            match module.client_ctx.await_primary_module_outputs(
-                                                operation_id,
-                                                withdraw_unlocked_outpoints,
-                                            ).await {
-                                                Ok(amount) => yield StabilityPoolWithdrawalOperationState::Success(unlocked_amount + amount),
-                                                Err(e) => yield StabilityPoolWithdrawalOperationState::PrimaryOutputError(e.to_string()),
-                                            }
-                                        },
-                                        StabilityPoolCancelLockedState::ProcessingError(reason) => {
-                                            yield StabilityPoolWithdrawalOperationState::AwaitCycleTurnoverError(reason);
-                                        },
-                                        s => panic!("Unexpected state {s:?}"),
-                                    }
-                                },
-                                StabilityPoolWithdrawUnlockedState::Accepted { maybe_cancellation_tx_id: None } => {
-                                    yield StabilityPoolWithdrawalOperationState::WithdrawUnlockedAccepted(unlocked_amount);
-
-                                    match module.client_ctx.await_primary_module_outputs(
-                                        operation_id,
-                                        outpoints,
-                                    ).await {
-                                        Ok(amount) => yield StabilityPoolWithdrawalOperationState::Success(amount),
-                                        Err(e) => yield StabilityPoolWithdrawalOperationState::PrimaryOutputError(e.to_string()),
-                                    }
-                                },
-                                StabilityPoolWithdrawUnlockedState::Rejected(reason) => {
-                                    yield StabilityPoolWithdrawalOperationState::TxRejected(reason)
-                                },
-                                s => panic!("Unexpected state {s:?}"),
-                            }
-                        },
-                    };
-                }
-            }),
+        if matches!(
+            operation.meta::<StabilityPoolMeta>(),
+            StabilityPoolMeta::Withdrawal { .. }
         )
+        .not()
+        {
+            bail!("Operation is not of type withdrawal");
+        }
+
+        let mut operation_stream = self.notifier.subscribe(operation_id).await.peekable();
+        let client_ctx = self.client_ctx.clone();
+
+        Ok(self
+            .client_ctx
+            .outcome_or_updates(&operation, operation_id, move || {
+                stream! {
+                    match next_withdrawal_state(&mut operation_stream).await {
+                        StabilityPoolWithdrawalState::Created => {
+                            yield StabilityPoolWithdrawalOperationState::Initiated;
+                        },
+                        s => panic!("Unexpected state {s:?}"),
+                    }
+
+                    match next_withdrawal_state(&mut operation_stream).await {
+                        StabilityPoolWithdrawalState::Accepted => {
+                            yield StabilityPoolWithdrawalOperationState::UnlockTxAccepted;
+                        },
+                        StabilityPoolWithdrawalState::Rejected(reason) => {
+                            yield StabilityPoolWithdrawalOperationState::UnlockTxRejected(reason);
+                            return;
+                        },
+                        s => panic!("Unexpected state {s:?}"),
+                    }
+
+                    match next_withdrawal_state(&mut operation_stream).await {
+                        StabilityPoolWithdrawalState::Processed {
+                            withdrawal_amount, withdrawal_tx_id, withdrawal_outpoints
+                        } => {
+                            yield StabilityPoolWithdrawalOperationState::WithdrawalInitiated(withdrawal_amount);
+
+                            let tx_updates_stream = client_ctx.transaction_updates(operation_id);
+                            match tx_updates_stream.await.await_tx_accepted(withdrawal_tx_id).await {
+                               Ok(_) => yield StabilityPoolWithdrawalOperationState::WithdrawalTxAccepted(withdrawal_amount),
+                               Err(e) => {
+                                   yield StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(e);
+                                   return;
+                               },
+                            }
+
+                            match client_ctx.await_primary_module_outputs(
+                               operation_id,
+                               withdrawal_outpoints,
+                            ).await {
+                               Ok(()) => yield StabilityPoolWithdrawalOperationState::Success(withdrawal_amount),
+                               Err(e) => yield StabilityPoolWithdrawalOperationState::PrimaryOutputError(e.to_string()),
+                            }
+                        },
+                        StabilityPoolWithdrawalState::ProcessingError(reason) => {
+                            yield StabilityPoolWithdrawalOperationState::UnlockProcessingError(reason);
+                            return;
+                        },
+                        s => panic!("Unexpected state {s:?}"),
+                    }
+                }
+            }))
     }
 }
 
@@ -940,107 +725,47 @@ async fn stability_pool_operation(
     Ok(operation)
 }
 
-async fn submit_tx_with_intended_action(
+async fn submit_tx_with_output(
     module: &StabilityPoolClientModule,
-    intended_action: IntendedAction,
+    output_v0: StabilityPoolOutputV0,
 ) -> anyhow::Result<(OperationId, TransactionId)> {
     let operation_id = OperationId::new_random();
     let client_ctx = &module.client_ctx;
-    let client_pub_key = module.client_key_pair.public_key();
-    let stability_pool_output =
-        StabilityPoolOutput::new_v0(client_pub_key, intended_action.clone());
-
-    let (transaction_id, _) = match intended_action {
-        IntendedAction::Seek(Seek(amount)) | IntendedAction::Provide(Provide { amount, .. }) => {
-            let output = ClientOutput {
-                amount,
-                output: stability_pool_output,
-                state_machines: Arc::new(move |_, _| Vec::<StabilityPoolStateMachines>::new()),
-            };
-            let tx = TransactionBuilder::new().with_output(client_ctx.make_client_output(output));
-            let deposit_meta_gen = |txid, change_outpoints| StabilityPoolMeta::Deposit {
-                txid,
-                change_outpoints,
-                amount,
-            };
-            client_ctx
-                .finalize_and_submit_transaction(
-                    operation_id,
-                    StabilityPoolCommonGen::KIND.as_str(),
-                    deposit_meta_gen,
-                    tx,
-                )
-                .await?
-        }
-        IntendedAction::CancelRenewal(CancelRenewal { bps }) => {
-            let output = ClientOutput {
-                amount: Amount::ZERO,
-                output: stability_pool_output,
-                state_machines: Arc::new(move |transaction_id, _| {
-                    vec![StabilityPoolStateMachines::CancelLocked(
-                        StabilityPoolCancelLockedStateMachine {
-                            operation_id,
-                            transaction_id,
-                            state: StabilityPoolCancelLockedState::Created,
-                        },
-                    )]
-                }),
-            };
-            let tx = TransactionBuilder::new().with_output(client_ctx.make_client_output(output));
-            let estimated_withdrawal_cents =
-                estimated_withdrawal_cents(module, Amount::ZERO, bps).await?;
-            let cancellation_meta_gen = |txid, _| StabilityPoolMeta::CancelRenewal {
-                txid,
-                bps,
-                estimated_withdrawal_cents,
-            };
-            client_ctx
-                .finalize_and_submit_transaction(
-                    operation_id,
-                    StabilityPoolCommonGen::KIND.as_str(),
-                    cancellation_meta_gen,
-                    tx,
-                )
-                .await?
-        }
-        IntendedAction::UndoCancelRenewal => bail!("Not yet supported"),
+    let amount = match output_v0 {
+        StabilityPoolOutputV0::DepositToSeek(ref output) => output.seek_request.0,
+        StabilityPoolOutputV0::DepositToProvide(ref output) => output.provide_request.amount,
+        StabilityPoolOutputV0::Transfer(_) => Amount::ZERO,
     };
+    let output = ClientOutputBundle::new(
+        vec![ClientOutput {
+            amount,
+            output: StabilityPoolOutput::V0(output_v0.clone()),
+        }],
+        vec![ClientOutputSM {
+            state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
+        }],
+    );
+    let tx = TransactionBuilder::new().with_outputs(client_ctx.make_client_outputs(output));
+    let meta_gen = |txid, change_outpoints| match output_v0.clone() {
+        StabilityPoolOutputV0::Transfer(output) => StabilityPoolMeta::Transfer {
+            txid,
+            signed_request: output.signed_request,
+        },
+        _ => StabilityPoolMeta::Deposit {
+            txid,
+            change_outpoints,
+            amount,
+        },
+    };
+    let (transaction_id, _) = client_ctx
+        .finalize_and_submit_transaction(
+            operation_id,
+            StabilityPoolCommonGen::KIND.as_str(),
+            meta_gen,
+            tx,
+        )
+        .await?;
     Ok((operation_id, transaction_id))
-}
-
-async fn estimated_withdrawal_cents(
-    module: &StabilityPoolClientModule,
-    unlocked_amount: Amount,
-    locked_bps: u32,
-) -> anyhow::Result<u64> {
-    let current_price = module.cycle_start_price().await?;
-    let unlocked_amount_cents = if unlocked_amount != Amount::ZERO {
-        amount_to_cents(unlocked_amount, current_price.into())
-    } else {
-        0
-    };
-
-    let locked_amount_cents = if locked_bps != 0 {
-        let account_info = module.account_info(true).await?.account_info;
-        let estimated_total_locked_cents: u64 = account_info
-            .locked_seeks
-            .iter()
-            .map(|l| {
-                if let Some(metadata) = account_info.seeks_metadata.get(&l.staged_txid) {
-                    metadata.initial_amount_cents
-                        - metadata.withdrawn_amount_cents
-                        - amount_to_cents(metadata.fees_paid_so_far, current_price.into())
-                } else {
-                    0
-                }
-            })
-            .sum();
-        estimated_total_locked_cents * (locked_bps as u64) / (BPS_UNIT as u64)
-    } else {
-        0
-    };
-
-    Ok(unlocked_amount_cents + locked_amount_cents)
 }
 
 async fn await_tx_accepted(
@@ -1050,15 +775,26 @@ async fn await_tx_accepted(
     global_context.await_tx_accepted(transaction_id).await
 }
 
-async fn await_cancellation_processed(
+async fn await_unlock_request_processed(
     context: StabilityPoolClientContext,
+    account: Account,
 ) -> Result<Amount, String> {
+    let cycle_duration = context.module.cfg.cycle_duration;
+    let mut backoff = background_backoff();
     loop {
-        match context.module.wait_cancellation_processed().await {
-            Ok(amount) => break Ok(amount),
+        match context.module.unlock_request_status(account.id()).await {
+            Ok(UnlockRequestStatus::NoActiveRequest { idle_balance }) => break Ok(idle_balance),
+            Ok(UnlockRequestStatus::Pending {
+                next_cycle_start_time,
+            }) => {
+                let sleep_duration = next_cycle_start_time
+                    .duration_since(fedimint_core::time::now())
+                    .unwrap_or_else(|_| backoff.next().unwrap_or(cycle_duration));
+                fedimint_core::task::sleep(sleep_duration).await
+            }
             Err(e) => {
                 e.report_if_important();
-                fedimint_core::task::sleep(Duration::from_secs(10)).await
+                fedimint_core::task::sleep(backoff.next().unwrap_or(cycle_duration)).await
             }
         }
     }
@@ -1068,99 +804,109 @@ async fn claim_idle_balance_input(
     dbtx: &mut ClientSMDatabaseTransaction<'_, '_>,
     global_context: DynGlobalClientContext,
     context: StabilityPoolClientContext,
-    old_state: StabilityPoolCancelLockedStateMachine,
+    old_state: StabilityPoolWithdrawalStateMachine,
     idle_balance: Amount,
-) -> StabilityPoolCancelLockedStateMachine {
+) -> StabilityPoolWithdrawalStateMachine {
     let input = ClientInput {
         amount: idle_balance,
-        input: StabilityPoolInput::new_v0(
-            context.module.client_key_pair.public_key(),
-            idle_balance,
-        ),
+        input: StabilityPoolInput::V0(StabilityPoolInputV0::Withdrawal(WithdrawalInput {
+            account: old_state.account.clone(),
+            amount: idle_balance,
+        })),
         keys: vec![context.module.client_key_pair],
-        state_machines: Arc::new(move |_, _| Vec::<StabilityPoolStateMachines>::new()),
+    };
+    let state_machines = ClientInputSM {
+        state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
     };
 
-    let (tx_id, outpoints) = global_context.claim_input(dbtx, input).await;
+    let (tx_id, outpoints) = global_context
+        .claim_inputs(
+            dbtx,
+            ClientInputBundle::new(vec![input], vec![state_machines]),
+        )
+        .await
+        .expect("Cannot claim input, additional funding needed");
 
-    StabilityPoolCancelLockedStateMachine {
+    StabilityPoolWithdrawalStateMachine {
+        account: old_state.account,
         operation_id: old_state.operation_id,
         transaction_id: old_state.transaction_id,
-        state: StabilityPoolCancelLockedState::Processed {
-            withdraw_unlocked_amount: idle_balance,
-            withdraw_unlocked_tx_id: tx_id,
-            withdraw_unlocked_outpoints: outpoints,
+        state: StabilityPoolWithdrawalState::Processed {
+            withdrawal_amount: idle_balance,
+            withdrawal_tx_id: tx_id,
+            withdrawal_outpoints: outpoints,
         },
     }
 }
 
-async fn maybe_fund_cancellation_output(
-    dbtx: &mut ClientSMDatabaseTransaction<'_, '_>,
-    global_context: DynGlobalClientContext,
-    context: StabilityPoolClientContext,
-    old_state: StabilityPoolWithdrawUnlockedStateMachine,
-) -> StabilityPoolWithdrawUnlockedStateMachine {
-    StabilityPoolWithdrawUnlockedStateMachine {
-        operation_id: old_state.operation_id,
-        transaction_id: old_state.transaction_id,
-        state: match old_state.maybe_cancel_locked_bps {
-            Some(bps) => {
-                let output = ClientOutput {
-                    amount: Amount::ZERO,
-                    output: StabilityPoolOutput::new_v0(
-                        context.module.client_key_pair.public_key(),
-                        IntendedAction::CancelRenewal(CancelRenewal { bps }),
-                    ),
-                    state_machines: Arc::new(move |transaction_id, _| {
-                        vec![StabilityPoolStateMachines::CancelLocked(
-                            StabilityPoolCancelLockedStateMachine {
-                                operation_id: old_state.operation_id,
-                                transaction_id,
-                                state: StabilityPoolCancelLockedState::Created,
-                            },
-                        )]
-                    }),
-                };
+async fn next_withdrawal_state<S>(stream: &mut S) -> StabilityPoolWithdrawalState
+where
+    S: Stream<Item = StabilityPoolStateMachine> + Unpin,
+{
+    let StabilityPoolStateMachine::Withdrawal(sm) =
+        stream.next().await.expect("Stream must have next");
+    sm.state
+}
 
-                match global_context.fund_output(dbtx, output).await {
-                    Ok((tx_id, _)) => StabilityPoolWithdrawUnlockedState::Accepted {
-                        maybe_cancellation_tx_id: Some(tx_id),
-                    },
-                    Err(e) => StabilityPoolWithdrawUnlockedState::Rejected(e.to_string()),
-                }
-            }
-            None => StabilityPoolWithdrawUnlockedState::Accepted {
-                maybe_cancellation_tx_id: None,
-            },
-        },
-        maybe_cancel_locked_bps: old_state.maybe_cancel_locked_bps,
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, ValueEnum)]
+pub enum AccountTypeArg {
+    Seeker,
+    Provider,
+}
+
+impl From<AccountTypeArg> for AccountType {
+    fn from(arg: AccountTypeArg) -> Self {
+        match arg {
+            AccountTypeArg::Seeker => AccountType::Seeker,
+            AccountTypeArg::Provider => AccountType::Provider,
+        }
     }
 }
 
-async fn next_withdraw_unlocked_state<S>(stream: &mut S) -> StabilityPoolWithdrawUnlockedState
-where
-    S: Stream<Item = StabilityPoolStateMachines> + Unpin,
-{
-    loop {
-        if let StabilityPoolStateMachines::WithdrawUnlocked(sm) =
-            stream.next().await.expect("Stream must have next")
-        {
-            return sm.state;
-        }
-        tokio::task::yield_now().await;
+fn parse_withdrawal_amount(s: &str) -> Result<FiatOrAll, String> {
+    match s.to_lowercase().as_str() {
+        "all" => Ok(FiatOrAll::All),
+        amount => amount
+            .parse::<u64>()
+            .map(|fiat| FiatOrAll::Fiat(FiatAmount(fiat)))
+            .map_err(|_| format!("Invalid withdrawal amount {amount}, must be \"all\" or a u64")),
     }
 }
 
-async fn next_cancel_locked_state<S>(stream: &mut S) -> StabilityPoolCancelLockedState
-where
-    S: Stream<Item = StabilityPoolStateMachines> + Unpin,
-{
-    loop {
-        if let StabilityPoolStateMachines::CancelLocked(sm) =
-            stream.next().await.expect("Stream must have next")
-        {
-            return sm.state;
-        }
-        tokio::task::yield_now().await;
-    }
+fn parse_fee_rate(s: &str) -> Result<FeeRate, String> {
+    Ok(FeeRate(
+        s.parse::<u64>()
+            .map_err(|e| format!("Invalid fee rate: {e}"))?,
+    ))
+}
+
+#[derive(Parser, Debug, Serialize)]
+pub enum CliCommand {
+    /// Get the public key of this client
+    Pubkey,
+    /// Get account info for seeker or provider account
+    AccountInfo {
+        #[arg(value_enum)]
+        account_type: AccountTypeArg,
+    },
+    /// Deposit amount to seek liquidity
+    DepositToSeek {
+        /// Amount in msats to deposit
+        amount_msats: Amount,
+    },
+    /// Deposit amount to provide liquidity
+    DepositToProvide {
+        /// Amount in msats to deposit
+        amount_msats: Amount,
+        /// Fee rate in parts per billion
+        #[arg(value_parser = parse_fee_rate)]
+        fee_rate: FeeRate,
+    },
+    /// Withdraw from seeker or provider account
+    Withdraw {
+        #[arg(value_enum)]
+        account_type: AccountTypeArg,
+        #[arg(value_parser = parse_withdrawal_amount)]
+        amount: FiatOrAll,
+    },
 }

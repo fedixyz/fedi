@@ -2,49 +2,48 @@ import { useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { View } from 'react-native'
-import { RejectionError, RequestInvoiceArgs } from 'webln'
+import { RejectionError } from 'webln'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
-import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { generateInvoice, selectActiveFederationId } from '@fedi/common/redux'
+import {
+    generateInvoice,
+    selectActiveFederationId,
+    selectLnurlWithdrawal,
+    selectRequestInvoiceArgs,
+    selectSiteInfo,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { formatErrorMessage } from '@fedi/common/utils/format'
 import { lnurlWithdraw } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { FediMod, ParsedLnurlWithdraw } from '../../../types'
 import AmountInput from '../../ui/AmountInput'
 import CustomOverlay from '../../ui/CustomOverlay'
 
 const log = makeLog('MakeInvoiceOverlay')
 
 interface Props {
-    fediMod: FediMod
-    requestInvoiceArgs?: RequestInvoiceArgs | null
-    lnurlWithdrawal?: ParsedLnurlWithdraw['data'] | null
     onReject: (err: Error) => void
     onAccept: (res: { paymentRequest: string }) => void
 }
 
-export const MakeInvoiceOverlay: React.FC<Props> = ({
-    fediMod,
-    requestInvoiceArgs,
-    lnurlWithdrawal,
-    onReject,
-    onAccept,
-}) => {
+export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const toast = useToast()
     const federationId = useAppSelector(selectActiveFederationId)
     const dispatch = useAppDispatch()
+    const lnurlWithdrawal = useAppSelector(selectLnurlWithdrawal)
+    const requestInvoiceArgs = useAppSelector(selectRequestInvoiceArgs)
+    const siteInfo = useAppSelector(selectSiteInfo)
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [amountInputKey, setAmountInputKey] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const {
         inputAmount,
         setInputAmount,
@@ -93,10 +92,10 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({
                       }),
                   ).unwrap()
             onAcceptRef.current({ paymentRequest })
-        } catch (error) {
-            log.error('Failed to generate invoice', error, lnurlWithdrawal)
-            toast.error(t, error)
-            onRejectRef.current(error as Error)
+        } catch (err) {
+            log.error('Failed to generate invoice', err, lnurlWithdrawal)
+
+            setError(formatErrorMessage(t, err, 'errors.unknown-error'))
         }
     }
 
@@ -116,10 +115,10 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({
             contents={{
                 title: exactAmount
                     ? t('feature.fedimods.wants-to-send-you', {
-                          fediMod: fediMod.title,
+                          fediMod: siteInfo?.title,
                       })
                     : t('feature.fedimods.enter-amount-to-withdraw', {
-                          fediMod: fediMod.title,
+                          fediMod: siteInfo?.title,
                       }),
                 description: requestInvoiceArgs?.defaultMemo || '',
                 body: (
@@ -137,6 +136,7 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({
                                 setSubmitAttempts(0)
                                 setInputAmount(amount)
                             }}
+                            error={error}
                         />
                     </View>
                 ),

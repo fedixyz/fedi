@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
@@ -39,11 +38,11 @@ mod __hidden {
     use super::*;
 
     #[derive(Debug, Clone, ts_rs::TS)]
-    #[ts(export, export_to = "target/bindings/")]
+    #[ts(export)]
     pub struct ObservableVec<T>(Observable<Vec<T>>);
 
     #[derive(Debug, Clone, ts_rs::TS)]
-    #[ts(export, export_to = "target/bindings/")]
+    #[ts(export)]
     pub struct ObservableVecUpdate<T: Clone>(ObservableUpdate<Vec<SerdeVectorDiff<T>>>);
 }
 
@@ -52,7 +51,7 @@ mod __hidden {
 /// The frontend must call `cancelObservable` to free up the resources
 /// utilized by the Observable.
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct Observable<T> {
     /// `id` is used to match `ObservableUpdate`.
     // 2^53 is pretty big for number of observable objects
@@ -72,7 +71,7 @@ impl<T> Observable<T> {
 ///
 /// `T` will only match the Observable<T> in simple observable.
 #[derive(Serialize, Clone, Debug, ts_rs::TS)]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub struct ObservableUpdate<T> {
     /// id matches the id in Observable.
     /// Frontend must store ObservableUpdate with unknown, because you may
@@ -125,10 +124,18 @@ impl ObservablePool {
         }
     }
 
-    /// make observable with `initial` value and run `func` in a task group.
-    /// `func` can send observable updates.
+    pub async fn reset(&self) {
+        let mut lock = self.observables.lock().await;
+        for (_, tg) in lock.drain() {
+            tg.shutdown();
+        }
+    }
+    /// make observable with provided `id` and `initial` value and run `func` in
+    /// a task group. `func` can send observable updates. Returns error if
+    /// Observable with `id` already exists.
     pub async fn make_observable<T, Fut>(
         &self,
+        id: u64,
         initial: T,
         func: impl FnOnce(Self, u64) -> Fut + MaybeSend + 'static,
     ) -> Result<Observable<T>>
@@ -136,12 +143,13 @@ impl ObservablePool {
         T: 'static,
         Fut: Future<Output = Result<()>> + MaybeSend + MaybeSync + 'static,
     {
-        static OBSERVABLE_ID: AtomicU64 = AtomicU64::new(0);
-        let id = OBSERVABLE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let observable = Observable::new(id, initial);
         let tg = self.task_group.make_subgroup();
         {
             let mut observables = self.observables.lock().await;
+            if observables.contains_key(&id) {
+                bail!(ErrorCode::DuplicateObservableID(id));
+            }
             observables.insert(id, tg.clone());
             // should be independent of number of rooms and number of messages
             const OBSERVABLE_WARN_LIMIT: usize = 20;
@@ -164,6 +172,7 @@ impl ObservablePool {
     /// item from the stream.
     pub async fn make_observable_from_stream<T, R>(
         &self,
+        id: u64,
         initial: Option<T>,
         stream: impl Stream<Item = T> + MaybeSync + MaybeSend + 'static,
     ) -> Result<Observable<R>>
@@ -180,7 +189,7 @@ impl ObservablePool {
                 .await
                 .context("first element not found in stream")?
         };
-        self.make_observable(R::from(initial), move |this, id| async move {
+        self.make_observable(id, R::from(initial), move |this, id| async move {
             let mut update_index = 0;
             while let Some(value) = stream.next().await {
                 this.send_observable_update(ObservableUpdate::new(
@@ -202,6 +211,7 @@ impl ObservablePool {
     /// get the first item from the stream.
     pub async fn make_observable_from_vec_diff_stream<T, R>(
         &self,
+        id: u64,
         initial: Vector<T>,
         stream: impl Stream<Item = Vec<VectorDiff<T>>> + MaybeSync + MaybeSend + 'static,
     ) -> Result<ObservableVec<R>>
@@ -210,6 +220,7 @@ impl ObservablePool {
         R: 'static + Clone + Serialize + std::fmt::Debug + MaybeSend + MaybeSync + From<T>,
     {
         self.make_observable(
+            id,
             initial.into_iter().map(|t| R::from(t)).collect(),
             move |this, id| async move {
                 let mut update_index = 0;
@@ -232,12 +243,13 @@ impl ObservablePool {
     /// Convert eyeball::Subscriber to rpc Observable type.
     pub async fn make_observable_from_subscriber<T>(
         &self,
+        id: u64,
         mut sub: Subscriber<T>,
     ) -> Result<Observable<T>>
     where
         T: std::fmt::Debug + Clone + Serialize + MaybeSend + MaybeSync + 'static,
     {
-        self.make_observable(sub.get(), move |this, id| async move {
+        self.make_observable(id, sub.get(), move |this, id| async move {
             let mut update_index = 0;
             while let Some(value) = sub.next().await {
                 this.send_observable_update(ObservableUpdate::new(id, update_index, value))

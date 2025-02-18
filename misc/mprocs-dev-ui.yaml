@@ -1,7 +1,7 @@
 server: 127.0.0.1:4051
 procs:
     dev:
-        shell: bash scripts/ui/dev-ui-utils.sh
+        shell: nix develop .#xcode --command bash scripts/ui/dev-ui-utils.sh
         stop: SIGKILL
     metro:
         shell: bash scripts/ui/start-metro.sh
@@ -16,7 +16,7 @@ procs:
         shell: bash scripts/ui/start-android.sh
         stop: SIGKILL
     ios:
-        shell: bash scripts/ui/start-ios.sh
+        shell: nix develop .#xcode --command bash scripts/ui/start-ios.sh
         stop: SIGKILL
     remote-bridge:
         shell: bash scripts/bridge/run-remote.sh

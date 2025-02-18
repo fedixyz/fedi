@@ -10,6 +10,9 @@ import type {
 import {
     ErrorCode,
     GuardianStatus,
+    Observable,
+    ObservableVec,
+    ObservableVecUpdate,
     RpcAmount,
     RpcFeeDetails,
     RpcMediaSource,
@@ -17,10 +20,14 @@ import {
     RpcRoomId,
     RpcStabilityPoolAccountInfo,
 } from '../types/bindings'
+import { isDev } from './environment'
 import { formatBridgeError } from './error'
 import { makeLog } from './log'
+import { applyObservableUpdates } from './observable'
 
 const log = makeLog('common/utils/fedimint')
+
+export type UnsubscribeFn = () => void
 
 export class FedimintBridge {
     constructor(
@@ -83,6 +90,13 @@ export class FedimintBridge {
         >('stabilityPoolAccountInfo', { federationId, forceUpdate })
     }
 
+    async stabilityPoolAvailableLiquidity(federationId: string) {
+        return this.rpcTyped<'stabilityPoolAvailableLiquidity', MSats>(
+            'stabilityPoolAvailableLiquidity',
+            { federationId },
+        )
+    }
+
     async stabilityPoolCycleStartPrice(federationId: string) {
         return this.rpcTyped('stabilityPoolCycleStartPrice', { federationId })
     }
@@ -108,9 +122,9 @@ export class FedimintBridge {
         )
     }
 
-    async guardianStatus(federationId: string) {
-        return this.rpcTyped<'guardianStatus', GuardianStatus[]>(
-            'guardianStatus',
+    async getGuardianStatus(federationId: string) {
+        return this.rpcTyped<'getGuardianStatus', GuardianStatus[]>(
+            'getGuardianStatus',
             { federationId },
         )
     }
@@ -205,13 +219,17 @@ export class FedimintBridge {
         })
     }
 
+    // Attempts to reissues ecash, can be started offline but requires
+    // a connection to guardians to actually redeem the ecash.
+    // Will retry in the background.
     async receiveEcash(ecash: string, federationId: string) {
-        return this.rpcTyped('receiveEcash', {
+        return await this.rpcTyped('receiveEcash', {
             federationId,
             ecash,
         })
     }
 
+    // Parses ecash, works offline
     async validateEcash(ecash: string) {
         return this.rpcTyped('validateEcash', {
             ecash,
@@ -447,8 +465,8 @@ export class FedimintBridge {
         return this.rpcTyped('matrixRoomPreviewContent', args)
     }
 
-    async matrixRoomList() {
-        return this.rpcTyped('matrixRoomList', {})
+    async matrixRoomList(args: bindings.RpcPayload<'matrixRoomList'>) {
+        return this.rpcTyped('matrixRoomList', args)
     }
 
     async matrixRoomListUpdateRanges(
@@ -478,7 +496,6 @@ export class FedimintBridge {
         )
     }
 
-    /** @deprecated */
     async matrixSendMessage(args: bindings.RpcPayload<'matrixSendMessage'>) {
         return this.rpcTyped('matrixSendMessage', args)
     }
@@ -597,8 +614,10 @@ export class FedimintBridge {
         return this.rpcTyped('matrixUploadMedia', args)
     }
 
-    async matrixObserveSyncIndicator() {
-        return this.rpcTyped('matrixObserveSyncIndicator', {})
+    async matrixObserveSyncIndicator(
+        args: bindings.RpcPayload<'matrixObserveSyncIndicator'>,
+    ) {
+        return this.rpcTyped('matrixObserveSyncIndicator', args)
     }
 
     async matrixRoomSendReceipt(
@@ -630,9 +649,9 @@ export class FedimintBridge {
     }
 
     async matrixObserverCancel(
-        args: bindings.RpcPayload<'matrixObserverCancel'>,
+        args: bindings.RpcPayload<'matrixObservableCancel'>,
     ) {
-        return this.rpcTyped('matrixObserverCancel', args)
+        return this.rpcTyped('matrixObservableCancel', args)
     }
 
     async dumpDb(args: bindings.RpcPayload<'dumpDb'>) {
@@ -669,13 +688,165 @@ export class FedimintBridge {
         return this.rpcTyped('listCommunities', args)
     }
 
+    /*** EVIL RPCs ***/
+
+    async evilSpamInvoices(args: bindings.RpcPayload<'evilSpamInvoices'>) {
+        return this.rpcTyped('evilSpamInvoices', args)
+    }
+
+    async evilSpamAddress(args: bindings.RpcPayload<'evilSpamAddress'>) {
+        return this.rpcTyped('evilSpamAddress', args)
+    }
     /*** BRIDGE EVENTS ***/
 
     private listeners = new Map<string, Array<(data: unknown) => void>>()
+    private observableHandlers = new Map<
+        number,
+        (update: bindings.ObservableUpdate<unknown>) => void
+    >()
 
     emit(eventType: string, data: unknown) {
+        if (eventType == 'observableUpdate') {
+            const observableData = data as bindings.ObservableUpdate<unknown>
+            const handler = this.observableHandlers.get(observableData.id)
+            if (handler) {
+                handler(observableData)
+                if (isDev())
+                    log.debug(
+                        'Received observable update',
+                        JSON.stringify(observableData),
+                    )
+            } else {
+                log.warn(
+                    'Received observable update without associated observer handler',
+                    JSON.stringify(observableData),
+                )
+            }
+        }
         const listeners = this.listeners.get(eventType) || []
         listeners.forEach(listener => listener(data))
+    }
+
+    private observableId = 0
+
+    // don't try to change this to async, you will introduce new bugs.
+    // sync code in javascript restricts anything else from happening concurrently.
+    subscribeObservable<T, U>(
+        init: (id: number) => Promise<Observable<T>>,
+        // TODO: consider returning a promise from callbacks
+        initCallback: (value: T) => void,
+        updateCallback: (value: U) => void,
+    ): UnsubscribeFn {
+        const id = this.observableId++
+        let initCompleted = false
+        // prevent calling the callback if unsubscribe was called
+        let cancelled = false
+        let pendingUpdates: U[] = []
+
+        const initPromise = init(id)
+            .then(value => {
+                if (cancelled) {
+                    return
+                }
+                if (id !== value.id) {
+                    log.warn('Observable ID mismatch', {
+                        id,
+                        valueId: value.id,
+                    })
+                    return
+                }
+                initCallback(value.initial)
+                for (const update of pendingUpdates) {
+                    updateCallback(update)
+                }
+                initCompleted = true
+                pendingUpdates = []
+            })
+            .catch(err => {
+                log.error('subscribeObservable init error', { id, err })
+            })
+
+        const unsubscribe = () => {
+            cancelled = true
+            const deleted = this.observableHandlers.delete(id)
+            if (!deleted) {
+                log.warn('Tried to delete a handler that does not exist')
+            }
+            initPromise.then(() => {
+                // no need to await, it will happen in background
+                this.matrixObserverCancel({ observableId: id })
+            })
+        }
+
+        let nextUpdateIndex = 0
+        this.observableHandlers.set(
+            id,
+            (update: bindings.ObservableUpdate<unknown>) => {
+                // this should never happen due to removing from observableHandlers
+                // but this statement doesn't hurt.
+                if (cancelled) {
+                    // TODO: log a big warning here
+                    log.warn('Observable update received after unsubscribe')
+                    return
+                }
+                if (update.update_index !== nextUpdateIndex) {
+                    log.warn('Observable update index mismatch', {
+                        id,
+                        update_index: update.update_index,
+                        nextUpdateIndex,
+                    })
+                    // TODO: consider if we should throw here or not
+                    // throw 'Got out of order observable update';
+                }
+                nextUpdateIndex++
+                // initialization is complete
+                if (initCompleted) {
+                    updateCallback(update.update as U)
+                } else {
+                    // queue the updates to after intialization is complete
+                    pendingUpdates.push(update.update as U)
+                }
+            },
+        )
+
+        return unsubscribe
+    }
+
+    subscribeObservableSimple<T>(
+        init: (id: number) => Promise<Observable<T>>,
+        callback: (value: T, isInitialUpdate: boolean) => void,
+    ): UnsubscribeFn {
+        return this.subscribeObservable(
+            init,
+            // initial callback
+            (value: T) => callback(value, true),
+            // update callback
+            (value: T) => callback(value, false),
+        )
+    }
+
+    subscribeObservableVec<T>(
+        init: (id: number) => Promise<ObservableVec<T>>,
+        callback: (value: T[], isInitialUpdate: boolean) => void,
+    ): UnsubscribeFn {
+        let value: T[] | undefined = undefined
+        return this.subscribeObservable(
+            init,
+            initValue => {
+                value = initValue
+                callback(value, true)
+            },
+            (update: ObservableVecUpdate<T>['update']) => {
+                if (value === undefined) {
+                    log.warn(
+                        'ObservableVec value is undefined. Likely due to a bug inside the implementation of subscribeObservable',
+                    )
+                    return
+                }
+                value = applyObservableUpdates(value, update)
+                callback(value, false)
+            },
+        )
     }
 
     /**

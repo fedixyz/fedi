@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
 import type { CameraDeviceFormat } from 'react-native-vision-camera'
-import { Camera, useCameraDevices } from 'react-native-vision-camera'
+import { Camera, useCameraDevice } from 'react-native-vision-camera'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
@@ -21,8 +21,7 @@ const RecordVideo = () => {
     const { theme } = useTheme()
     const [isRecording, setIsRecording] = useState(false)
     const camera = useRef<Camera>(null)
-    const devices = useCameraDevices()
-    const device = useMemo(() => devices.front, [devices])
+    const device = useCameraDevice('front')
     const toast = useToast()
 
     const { dispatch } = useBackupRecoveryContext()
@@ -32,10 +31,8 @@ const RecordVideo = () => {
     }
 
     function supports15Fpx(format: CameraDeviceFormat): boolean {
-        return format.frameRateRanges.reduce((prev, curr) => {
-            if (curr.maxFrameRate >= 15 && curr.minFrameRate <= 15) return true
-            else return prev
-        }, false)
+        if (format.maxFps >= 15 && format.maxFps <= 15) return true
+        return false
     }
 
     const format = useMemo<CameraDeviceFormat | undefined>(() => {
@@ -127,7 +124,7 @@ const RecordVideo = () => {
                             audio={true}
                             format={format}
                             fps={15}
-                            hdr={false}
+                            videoHdr={false}
                             onError={handleError}
                         />
                     </View>

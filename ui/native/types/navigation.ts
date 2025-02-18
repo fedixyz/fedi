@@ -15,11 +15,12 @@ import {
     ParsedCashuEcash,
     ParsedLnurlPay,
     ParsedLnurlWithdraw,
+    ReceiveSuccessStatus,
+    ReceiveSuccessData,
     Sats,
-    Transaction,
 } from '@fedi/common/types'
 
-import { FediMod, MSats } from '.'
+import { MSats } from '.'
 
 // This type declaration allows all instances of useNavigation
 // to be aware of type-safety from RootStackParamsList
@@ -67,6 +68,10 @@ export type RootStackParamList = {
     ChatWallet: { recipientId: string }
     ChooseBackupMethod: undefined
     ChooseRecoveryMethod: undefined
+    MigratedDevice: undefined
+    MigratedDeviceSuccess: undefined
+    FederationCurrency: { federationId: string }
+    GlobalCurrency: undefined
     CompleteRecoveryAssist: { videoPath: string; recoveryId: string }
     CompleteSocialBackup: undefined
     CompleteSocialRecovery: undefined
@@ -82,7 +87,6 @@ export type RootStackParamList = {
     ConfirmSendLightning: { parsedData: ParsedBolt11 | ParsedLnurlPay }
     ConfirmSendOnChain: { parsedData: ParsedBip21 }
     ConnectedFederationsDrawer: undefined
-    CurrencySettings: undefined
     CreateGroup: { defaultGroup?: boolean }
     EnterDisplayName: undefined
     DirectChat: { memberId: string }
@@ -95,10 +99,10 @@ export type RootStackParamList = {
     FederationGreeting: undefined
     FederationAcceptTerms: { federation: FederationPreview }
     FediModSettings: { type?: string; federationId?: string }
+    HelpCentre: undefined
     Initializing: undefined
     JoinFederation: { invite?: string }
     LanguageSettings: undefined
-    MemberQrCode: undefined
     NewMessage: undefined
     NostrSettings: undefined
     NotificationsPermission:
@@ -111,9 +115,16 @@ export type RootStackParamList = {
     LocateSocialRecovery: undefined
     Receive: undefined
     ReceiveLightning: { parsedData?: ParsedLnurlWithdraw } | undefined
-    ReceiveSuccess: { tx: Pick<Transaction, 'amount' | 'bitcoin'> }
+    ReceiveSuccess: {
+        tx: ReceiveSuccessData
+        status?: ReceiveSuccessStatus
+    }
     ReceiveOffline: undefined
-    RecoveryWords: undefined
+    RecoveryWords:
+        | {
+              nextScreenParams: NavigationArgs
+          }
+        | undefined
     RecoveryAssistSuccess: undefined
     RecoveryWalletOptions: undefined
     RecoveryWalletTransfer: undefined
@@ -136,7 +147,7 @@ export type RootStackParamList = {
     SendSuccess: { amount: MSats; unit: string }
     Settings: undefined
     ShareLogs: undefined
-    FediModBrowser: { fediMod: FediMod }
+    FediModBrowser: { url: string }
     Splash: undefined
     StabilityConfirmDeposit: { amount: Sats }
     StabilityConfirmWithdraw: { amount: Sats }

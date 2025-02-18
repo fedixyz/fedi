@@ -27,8 +27,8 @@ export const DialogStatus: React.FC<DialogStatusProps> = ({
         status === 'success'
             ? CheckIcon
             : status === 'error'
-            ? ErrorIcon
-            : undefined
+              ? ErrorIcon
+              : undefined
 
     // Rotate while in loading status
     useEffect(() => {

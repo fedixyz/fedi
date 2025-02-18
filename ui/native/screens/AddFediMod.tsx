@@ -40,9 +40,7 @@ const AddFediMod: React.FC = () => {
         try {
             const validUrl = new URL(
                 /^https?:\/\//.test(url) ? url : `https://${url}`,
-            )
-                .toString()
-                .toLowerCase()
+            ).toString()
 
             dispatch(
                 addCustomMod({
@@ -85,9 +83,7 @@ const AddFediMod: React.FC = () => {
                 try {
                     const validUrl = new URL(
                         /^https?:\/\//.test(url) ? url : `https://${url}`,
-                    )
-                        .toString()
-                        .toLowerCase()
+                    ).toString()
 
                     setIsValidUrl(true)
                     populateFieldsWithMetadata(validUrl)
@@ -100,7 +96,13 @@ const AddFediMod: React.FC = () => {
         500,
     )
 
-    const canSave = isValidUrl && !isFetching && title && url
+    const canSave =
+        isValidUrl &&
+        !isFetching &&
+        title &&
+        url &&
+        title.length >= 3 &&
+        title.length <= 24
 
     if (action === 'scan') {
         return (
@@ -129,15 +131,45 @@ const AddFediMod: React.FC = () => {
                     inputContainerStyle={style.innerInputContainer}
                     containerStyle={style.inputContainer}
                     keyboardType="url"
+                    autoCapitalize="none"
                 />
                 <Input
                     value={title}
                     onChangeText={setTitle}
                     placeholder={t('feature.fedimods.mod-title')}
-                    label={<Text small>{t('words.title')}</Text>}
-                    inputContainerStyle={style.innerInputContainer}
-                    containerStyle={style.inputContainer}
+                    label={
+                        <View style={style.titleLabel}>
+                            <Text small>{t('words.title')}</Text>
+                            {title.length > 0 && (
+                                <Text
+                                    small
+                                    style={{
+                                        color:
+                                            title.length < 3 ||
+                                            title.length > 24
+                                                ? theme.colors.red
+                                                : theme.colors.primary,
+                                    }}>
+                                    {title.length > 24
+                                        ? t('errors.title-too-long')
+                                        : title.length < 3 && title.length > 0
+                                          ? t('errors.title-too-short')
+                                          : ''}
+                                </Text>
+                            )}
+                        </View>
+                    }
+                    inputContainerStyle={[
+                        style.innerInputContainer,
+                        style.modTitle,
+                    ]}
+                    containerStyle={[
+                        style.inputContainer,
+                        style.modTitleContainer,
+                    ]}
+                    inputStyle={{ paddingTop: theme.spacing.sm }}
                     disabled={isFetching}
+                    multiline
                 />
                 <Input
                     value={imageUrl}
@@ -171,6 +203,17 @@ const AddFediMod: React.FC = () => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        titleLabel: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+        },
+        modTitle: {
+            alignItems: 'flex-start',
+        },
+        modTitleContainer: {
+            display: 'flex',
+        },
         omniContainer: {
             width: '100%',
             flex: 1,

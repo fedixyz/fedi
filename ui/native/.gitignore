@@ -15,7 +15,7 @@ DerivedData
 *.hmap
 *.ipa
 *.xcuserstate
-ios/.xcode.env.local
+**/.xcode.env.local
 *dSYM.zip
 
 # Android/IntelliJ
@@ -53,7 +53,7 @@ android/decoded-service-account-credentials.json
 *.jsbundle.map
 
 # Ruby / CocoaPods
-/ios/Pods/
+**/Pods/
 /vendor/bundle/
 
 # Environment variables
@@ -70,3 +70,11 @@ android/decoded-service-account-credentials.json
 .metro-health-check*
 # testing
 /coverage
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

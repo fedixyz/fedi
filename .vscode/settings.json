@@ -27,5 +27,7 @@
         "editor.defaultFormatter": "rust-lang.rust-analyzer"
     },
     "typescript.tsdk": "./ui/node_modules/typescript/lib",
-    "java.configuration.updateBuildConfiguration": "automatic"
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "prettier.insertFinalNewline": true,
+    "files.insertFinalNewline": true
 }

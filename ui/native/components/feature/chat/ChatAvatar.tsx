@@ -50,8 +50,8 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
         icon = room.directUserId
             ? undefined
             : room.broadcastOnly
-            ? 'SpeakerPhone'
-            : 'SocialPeople'
+              ? 'SpeakerPhone'
+              : 'SocialPeople'
         src = room.avatarUrl
         avatarProps = rest
     } else {

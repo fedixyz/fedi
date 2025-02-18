@@ -11,6 +11,7 @@ type HoloGuidanceProps = {
     message?: string | null
     body?: React.ReactNode | null
     size?: 'default' | 'small'
+    noFlexContainer?: boolean
 }
 
 const DEFAULT_TITLE_PROPS = {
@@ -25,6 +26,7 @@ const HoloGuidance: React.FC<HoloGuidanceProps> = ({
     message,
     body,
     size = 'default',
+    noFlexContainer = false,
 }: HoloGuidanceProps) => {
     const { theme } = useTheme()
 
@@ -46,7 +48,12 @@ const HoloGuidance: React.FC<HoloGuidanceProps> = ({
     }
 
     return (
-        <View style={styles(theme).container}>
+        <View
+            style={
+                noFlexContainer
+                    ? styles(theme).noFlexContainer
+                    : styles(theme).container
+            }>
             <ImageBackground
                 source={Images.HoloBackground}
                 style={[
@@ -78,6 +85,10 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        noFlexContainer: {
             alignItems: 'center',
             justifyContent: 'center',
         },

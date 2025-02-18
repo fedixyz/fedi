@@ -1,6 +1,11 @@
 module.exports = async ({ github, context, core }) => {
-    const { PUBLIC_APK_URL, PUBLIC_FEDI_ORG, PUBLIC_FEDI_REPO, NEW_VERSION, NEW_APK_FILENAME } =
-        process.env;
+    const {
+        PUBLIC_APK_URL,
+        PUBLIC_FEDI_ORG,
+        PUBLIC_FEDI_REPO,
+        NEW_VERSION,
+        NEW_APK_FILENAME,
+    } = process.env;
 
     const version = NEW_VERSION;
     const filename = NEW_APK_FILENAME;
@@ -30,7 +35,7 @@ module.exports = async ({ github, context, core }) => {
         });
         console.log('Existing release updated with new APK version.');
     } else {
-        console.log('No existing release found, creating a new one.');
+            console.log('No existing release found, creating a new one.');
         await github.rest.repos.createRelease({
             owner: PUBLIC_FEDI_ORG,
             repo: PUBLIC_FEDI_REPO,
@@ -40,4 +45,4 @@ module.exports = async ({ github, context, core }) => {
         });
         console.log('New release created with latest APK version.');
     }
-};
+}; 

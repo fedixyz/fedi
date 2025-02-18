@@ -57,6 +57,7 @@ import StabilityHomeHeader from '../components/feature/stabilitypool/StabilityHo
 import StabilityWithdrawHeader from '../components/feature/stabilitypool/StabilityWithdrawHeader'
 import StableBalanceIntroHeader from '../components/feature/stabilitypool/StableBalanceIntroHeader'
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
+import HelpCentreHeader from '../components/feature/support/HelpCentreHeader'
 import TransactionsHeader from '../components/feature/transaction-history/TransactionsHeader'
 import { CenteredHeader } from '../components/ui/CenteredHeader'
 import Header from '../components/ui/Header'
@@ -95,24 +96,27 @@ import ConfirmSendOnChain from './ConfirmSendOnChain'
 import CreateGroup from './CreateGroup'
 import CreatePinInstructions from './CreatePinInstructions'
 import CreatedPin from './CreatedPin'
-import CurrencySettings from './CurrencySettings'
 import DeveloperSettings from './DeveloperSettings'
 import EditGroup from './EditGroup'
 import EditProfileSettings from './EditProfileSettings'
 import EnterDisplayName from './EnterDisplayName'
 import Eula from './Eula'
+import FederationCurrency from './FederationCurrency'
 import FederationDetails from './FederationDetails'
 import FederationGreeting from './FederationGreeting'
 import FederationInvite from './FederationInvite'
 import FediModBrowser from './FediModBrowser'
 import FediModSettings from './FediModSettings'
+import GlobalCurrency from './GlobalCurrency'
+import HelpCentre from './HelpCentre'
 import Initializing from './Initializing'
 import JoinFederation from './JoinFederation'
 import LanguageSettings from './LanguageSettings'
-import LegacyChat from './LegacyChat'
 import LocateSocialRecovery from './LocateSocialRecovery'
 import LockScreen from './LockScreen'
 import LockedDevice from './LockedDevice'
+import MigratedDevice from './MigratedDevice'
+import MigratedDeviceSuccess from './MigratedDeviceSuccess'
 import NewMessage from './NewMessage'
 import NostrSettings from './NostrSettings'
 import PersonalRecovery from './PersonalRecovery'
@@ -255,6 +259,13 @@ export const MainNavigator = () => {
                         }}
                     />
                     <Stack.Screen
+                        name="HelpCentre"
+                        component={HelpCentre}
+                        options={{
+                            header: () => <HelpCentreHeader />,
+                        }}
+                    />
+                    <Stack.Screen
                         name="PersonalRecoverySuccess"
                         component={PersonalRecoverySuccess}
                         options={{ headerShown: false }}
@@ -289,6 +300,18 @@ export const MainNavigator = () => {
                         name="LockedDevice"
                         component={LockedDevice}
                         options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                        name="MigratedDevice"
+                        component={MigratedDevice}
+                        options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                        name="MigratedDeviceSuccess"
+                        component={MigratedDeviceSuccess}
+                        options={() => ({
+                            header: () => <Header backButton />,
+                        })}
                     />
                     <Stack.Screen
                         name="CompleteSocialRecovery"
@@ -459,19 +482,6 @@ export const MainNavigator = () => {
                                             <DefaultChatHeader
                                                 title={t(
                                                     'phrases.confirm-chat-send',
-                                                )}
-                                            />
-                                        ),
-                                    })}
-                                />
-                                <Stack.Screen
-                                    name="LegacyChat"
-                                    component={LegacyChat}
-                                    options={() => ({
-                                        header: () => (
-                                            <DefaultChatHeader
-                                                title={t(
-                                                    'feature.chat.archived-chats',
                                                 )}
                                             />
                                         ),
@@ -818,7 +828,7 @@ export const MainNavigator = () => {
                                         <CenteredHeader
                                             backButton
                                             title={t(
-                                                'feature.fedimods.fedi-mods',
+                                                'feature.fedimods.add-a-mod',
                                             )}
                                         />
                                     ),
@@ -849,14 +859,28 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
-                                name="CurrencySettings"
-                                component={CurrencySettings}
+                                name="FederationCurrency"
+                                component={FederationCurrency}
                                 options={() => ({
                                     header: () => (
                                         <CenteredHeader
                                             backButton
                                             title={t(
-                                                'phrases.display-currency',
+                                                'phrases.select-local-currency',
+                                            )}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="GlobalCurrency"
+                                component={GlobalCurrency}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'phrases.select-global-currency',
                                             )}
                                         />
                                     ),

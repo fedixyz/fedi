@@ -11,7 +11,7 @@ futures = { workspace = true }
 serde = { workspace = true }
 bitcoin = { workspace = true }
 tracing = { workspace = true }
-secp256k1-zkp = { workspace = true }
+secp256k1 = { workspace = true }
 reqwest = { workspace = true }
 ring = { workspace = true }
 serde_json = { workspace = true }

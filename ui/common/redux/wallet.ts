@@ -17,7 +17,7 @@ import {
     selectFederationStabilityPoolConfig,
     selectReusedEcashFederations,
 } from '.'
-import { Federation, MSats, Usd, UsdCents } from '../types'
+import { Federation, MSats, ReceiveEcashResult, Usd, UsdCents } from '../types'
 import {
     JSONObject,
     RpcAmount,
@@ -41,6 +41,7 @@ type FederationPayloadAction<T = object> = PayloadAction<
 
 const initialFederationWalletState = {
     stabilityPoolAccountInfo: null as RpcStabilityPoolAccountInfo | null,
+    stabilityPoolAvailableLiquidity: null as MSats | null,
     cycleStartPrice: null as number | null,
     averageFeeRate: null as number | null,
 }
@@ -77,6 +78,19 @@ export const walletSlice = createSlice({
                 stabilityPoolAccountInfo,
             }
         },
+        setStabilityPoolAvailableLiquidity(
+            state,
+            action: FederationPayloadAction<{
+                stabilityPoolAvailableLiquidity: MSats
+            }>,
+        ) {
+            const { federationId, stabilityPoolAvailableLiquidity } =
+                action.payload
+            state[federationId] = {
+                ...getFederationWalletState(state, federationId),
+                stabilityPoolAvailableLiquidity,
+            }
+        },
         resetFederationWalletState(state, action: FederationPayloadAction) {
             state[action.payload.federationId] = {
                 ...initialFederationWalletState,
@@ -95,6 +109,17 @@ export const walletSlice = createSlice({
                 state[federationId] = {
                     ...federation,
                     ...action.payload,
+                }
+            },
+        )
+        builder.addCase(
+            fetchStabilityPoolAvailableLiquidity.fulfilled,
+            (state, action) => {
+                const { federationId } = action.meta.arg
+                const federation = getFederationWalletState(state, federationId)
+                state[federationId] = {
+                    ...federation,
+                    stabilityPoolAvailableLiquidity: action.payload,
                 }
             },
         )
@@ -129,6 +154,7 @@ export const walletSlice = createSlice({
 
 export const {
     setStabilityPoolAccountInfo,
+    setStabilityPoolAvailableLiquidity,
     resetFederationWalletState,
     resetWalletState,
 } = walletSlice.actions
@@ -175,12 +201,47 @@ export const payInvoice = createAsyncThunk<
     return fedimint.payInvoice(invoice, federationId)
 })
 
+/**
+ * Tries to redeem ecash. Returns a Promise that resolves
+ * once the ecash is redeemed/fails or the operation times out.
+ */
 export const receiveEcash = createAsyncThunk<
-    MSats,
+    ReceiveEcashResult,
     { fedimint: FedimintBridge; federationId: string; ecash: string },
     { state: CommonState }
 >('wallet/receiveEcash', async ({ fedimint, federationId, ecash }) => {
-    return fedimint.receiveEcash(ecash, federationId)
+    const [amount, operationId] = await fedimint.receiveEcash(
+        ecash,
+        federationId,
+    )
+
+    return new Promise(resolve => {
+        const timeout = setTimeout(() => {
+            unsubscribe()
+            // Assuming timeout indicates user cannot connect to federation
+            // TODO: Validate this assumption
+            resolve({ amount, status: 'pending' })
+        }, 5000) // 5s timeout
+
+        const unsubscribe = fedimint.addListener('transaction', event => {
+            if (event.transaction.id !== operationId) return
+
+            if (event.transaction.oobState?.type === 'done') {
+                clearTimeout(timeout)
+                unsubscribe()
+                resolve({ amount, status: 'success' })
+            } else if (event.transaction.oobState?.type === 'failed') {
+                clearTimeout(timeout)
+                unsubscribe()
+                resolve({
+                    amount,
+                    status: 'failed',
+                    // Is the ONLY error case that it's 'already claimed?'
+                    error: event.transaction.oobState?.error,
+                })
+            }
+        })
+    })
 })
 
 export const validateEcash = createAsyncThunk<
@@ -228,9 +289,8 @@ export const fetchStabilityPoolAccountInfo = createAsyncThunk<
 >(
     'wallet/fetchStabilityPoolAccountInfo',
     async ({ fedimint, federationId }, { dispatch }) => {
-        const accountInfo = await fedimint.stabilityPoolAccountInfo(
-            federationId,
-        )
+        const accountInfo =
+            await fedimint.stabilityPoolAccountInfo(federationId)
         log.info('stabilityPoolAccountInfo', accountInfo)
         dispatch(
             setStabilityPoolAccountInfo({
@@ -242,15 +302,27 @@ export const fetchStabilityPoolAccountInfo = createAsyncThunk<
     },
 )
 
+export const fetchStabilityPoolAvailableLiquidity = createAsyncThunk<
+    MSats,
+    { fedimint: FedimintBridge; federationId: string }
+>(
+    'wallet/fetchStabilityPoolAvailableLiquidity',
+    async ({ fedimint, federationId }) => {
+        const liquidity =
+            await fedimint.stabilityPoolAvailableLiquidity(federationId)
+        log.info('stabilityPoolAvailableLiquidity', liquidity)
+        return liquidity
+    },
+)
+
 export const fetchStabilityPoolCycleStartPrice = createAsyncThunk<
     number,
     { fedimint: FedimintBridge; federationId: string }
 >(
     'wallet/fetchStabilityPoolCycleStartPrice',
     async ({ fedimint, federationId }) => {
-        const priceCents = await fedimint.stabilityPoolCycleStartPrice(
-            federationId,
-        )
+        const priceCents =
+            await fedimint.stabilityPoolCycleStartPrice(federationId)
         const price = Number(priceCents) / 100
         log.info('stabilityPoolCycleStartPrice', { price })
         return price
@@ -293,6 +365,13 @@ export const refreshActiveStabilityPool = createAsyncThunk<
                 fedimint,
                 federationId,
                 numCycles: 10,
+            }),
+        )
+
+        dispatch(
+            fetchStabilityPoolAvailableLiquidity({
+                fedimint,
+                federationId,
             }),
         )
 
@@ -838,4 +917,12 @@ export const selectStabilityPoolAverageFeeRate = (
     return federationId
         ? selectFederationWalletState(s, federationId).averageFeeRate
         : null
+}
+
+export const selectStabilityPoolAvailableLiquidity = (
+    s: CommonState,
+    federationId?: Federation['id'],
+) => {
+    return selectFederationWalletState(s, federationId)
+        .stabilityPoolAvailableLiquidity
 }

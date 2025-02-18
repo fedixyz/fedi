@@ -1,13 +1,15 @@
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::time::SystemTime;
 
-use fedimint_core::db::{IDatabaseTransactionOpsCoreTyped, MigrationContext};
+use anyhow::ensure;
+use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::{impl_db_lookup, impl_db_record, Amount, PeerId, TransactionId};
-use secp256k1_zkp::PublicKey;
+use fedimint_core::{impl_db_lookup, impl_db_record, Amount, PeerId};
+use futures::StreamExt;
 use stability_pool_common::{
-    CancelRenewal, LockedProvide, LockedSeek, SeekMetadata, StabilityPoolConsensusItem,
-    StagedProvide, StagedSeek,
+    AccountHistoryItem, AccountId, CycleInfo, FeeRate, FiatAmount, FiatOrAll, Provide, Seek,
+    StabilityPoolConsensusItem, TransferRequestId,
 };
 
 #[repr(u8)]
@@ -28,11 +30,14 @@ pub enum DbKeyPrefix {
     /// matched at the next cycle turnover.
     StagedProvides,
 
-    /// User account => staged cancellation in BPS.
-    /// If a staged cancellation exists for a user, the corresponding BPS of
-    /// their locked balance gets unlocked at the next cycle turnover. This
-    /// unlocked balance becomes idle balance.
-    StagedCancellation,
+    /// User account => unlock request amount
+    /// When a user wishes to withdraw their funds from the stability pool, the
+    /// first step is to submit a request to unlock msats corresponding to the
+    /// provided fiat amount (or ALL). This unlock request may be fully
+    /// completed immediately (in case there are enough funds in staged state),
+    /// or it may only be partially completed immediately and then need to
+    /// wait for the next cycle turnover.
+    UnlockRequests,
 
     /// The currently ongoing system cycle containing the cycle index, start
     /// time and price, as well as the list of locked seeks and provides.
@@ -43,92 +48,90 @@ pub enum DbKeyPrefix {
     /// turnover, the current (ending) cycle gets written here.
     PastCycle,
 
-    /// An incrementing, nonce-like identifier assigned to all incoming seek
-    /// requests. This sequence is used to prioritize seeks in a
+    /// An incrementing, nonce-like identifier assigned to all incoming
+    /// deposits. This sequence is used to prioritize deposits in
     /// first-come-first-server fashion.
-    StagedSeekSequence,
-
-    /// An incrementing, nonce-like identifier assigned to all incoming provide
-    /// requests. This sequence is used to prioritize provides in a
-    /// first-come-first-server fashion. Provides with lower fees will
-    /// always have higher priority when matching, but if two provides have
-    /// the same fees, lower sequence wins.
-    StagedProvideSequence,
+    ///
+    /// Provides with lower fees will always have higher priority when matching,
+    /// but if two provides have the same fees, lower sequence wins.
+    DepositSequence,
 
     /// (Cycle index, peer ID) => consensus item.
     /// A mapping where a peer's vote for the next cycle is recorded. When a
     /// threshold number of votes is received, cycle turnover happens.
     CycleChangeVote,
 
-    /// (User account, transaction ID) => seek metadata.
-    /// Relevant history pertaining to the seek for client tracking purposes.
-    /// Contains information such as initial value in sats and cents,
-    /// withdrawn amounts in sats and cents, as well as fees debited so far.
-    SeekMetadata,
+    /// (Account, serial) => AccountHistoryItemDb
+    ///
+    /// Account transaction history.
+    AccountHistory,
+
+    /// TransferRequestId => ()
+    /// Every [`TransferRequest`] coming to the client is hashed and stored in
+    /// the server DB to guard against replay attacks.
+    TransferRequests,
 }
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct IdleBalanceKey(pub PublicKey);
+pub struct IdleBalanceKey(pub AccountId);
 
 #[derive(Debug, Encodable, Decodable)]
 pub struct IdleBalanceKeyPrefix;
 
-#[derive(Debug, Encodable, Decodable)]
-pub struct IdleBalance(pub Amount);
-
 impl_db_record!(
     key = IdleBalanceKey,
-    value = IdleBalance,
+    value = Amount,
     db_prefix = DbKeyPrefix::IdleBalance,
     notify_on_modify = true,
 );
 impl_db_lookup!(key = IdleBalanceKey, query_prefix = IdleBalanceKeyPrefix);
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct StagedSeeksKey(pub PublicKey);
+pub struct StagedSeeksKey(pub AccountId);
 
 #[derive(Debug, Encodable, Decodable)]
 pub struct StagedSeeksKeyPrefix;
 
-impl_db_record!(key = StagedSeeksKey, value = Vec<StagedSeek>, db_prefix = DbKeyPrefix::StagedSeeks);
+impl_db_record!(key = StagedSeeksKey, value = Vec<Seek>, db_prefix = DbKeyPrefix::StagedSeeks);
 impl_db_lookup!(key = StagedSeeksKey, query_prefix = StagedSeeksKeyPrefix);
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct StagedProvidesKey(pub PublicKey);
+pub struct StagedProvidesKey(pub AccountId);
 
 #[derive(Debug, Encodable, Decodable)]
 pub struct StagedProvidesKeyPrefix;
 
-impl_db_record!(key = StagedProvidesKey, value = Vec<StagedProvide>, db_prefix = DbKeyPrefix::StagedProvides);
+impl_db_record!(key = StagedProvidesKey, value = Vec<Provide>, db_prefix = DbKeyPrefix::StagedProvides);
 impl_db_lookup!(
     key = StagedProvidesKey,
     query_prefix = StagedProvidesKeyPrefix
 );
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct StagedCancellationKey(pub PublicKey);
+pub struct UnlockRequestKey(pub AccountId);
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct StagedCancellationKeyPrefix;
+pub struct UnlockRequestsKeyPrefix;
 
 impl_db_record!(
-    key = StagedCancellationKey,
-    value = (TransactionId, CancelRenewal),
-    db_prefix = DbKeyPrefix::StagedCancellation
+    key = UnlockRequestKey,
+    value = FiatOrAll,
+    db_prefix = DbKeyPrefix::UnlockRequests,
 );
+
 impl_db_lookup!(
-    key = StagedCancellationKey,
-    query_prefix = StagedCancellationKeyPrefix
+    key = UnlockRequestKey,
+    query_prefix = UnlockRequestsKeyPrefix,
 );
 
 #[derive(Debug, Encodable, Decodable)]
 pub struct Cycle {
     pub index: u64,
     pub start_time: SystemTime,
-    pub start_price: u64,
-    pub fee_rate: u64,
-    pub locked_seeks: BTreeMap<PublicKey, Vec<LockedSeek>>,
-    pub locked_provides: BTreeMap<PublicKey, Vec<LockedProvide>>,
+    pub start_price: FiatAmount,
+    pub fee_rate: FeeRate,
+    pub locked_seeks: BTreeMap<AccountId, Vec<Seek>>,
+    pub locked_provides: BTreeMap<AccountId, Vec<Provide>>,
 }
 
 #[derive(Debug, Encodable, Decodable)]
@@ -158,37 +161,20 @@ impl_db_record!(
 impl_db_lookup!(key = PastCycleKey, query_prefix = PastCycleKeyPrefix);
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct StagedSeekSequenceKey;
+pub struct DepositSequenceKey;
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct StagedSeekSequenceKeyPrefix;
+pub struct DepositSequenceKeyPrefix;
 
 impl_db_record!(
-    key = StagedSeekSequenceKey,
+    key = DepositSequenceKey,
     value = u64,
-    db_prefix = DbKeyPrefix::StagedSeekSequence
+    db_prefix = DbKeyPrefix::DepositSequence,
 );
 
 impl_db_lookup!(
-    key = StagedSeekSequenceKey,
-    query_prefix = StagedSeekSequenceKeyPrefix,
-);
-
-#[derive(Debug, Encodable, Decodable)]
-pub struct StagedProvideSequenceKey;
-
-#[derive(Debug, Encodable, Decodable)]
-pub struct StagedProvideSequenceKeyPrefix;
-
-impl_db_record!(
-    key = StagedProvideSequenceKey,
-    value = u64,
-    db_prefix = DbKeyPrefix::StagedProvideSequence
-);
-
-impl_db_lookup!(
-    key = StagedProvideSequenceKey,
-    query_prefix = StagedProvideSequenceKeyPrefix,
+    key = DepositSequenceKey,
+    query_prefix = DepositSequenceKeyPrefix,
 );
 
 #[derive(Debug, Encodable, Decodable)]
@@ -212,38 +198,117 @@ impl_db_lookup!(
     query_prefix = CycleChangeVoteKeyPrefix,
 );
 
+/// AccountId and serial counter.
 #[derive(Debug, Encodable, Decodable)]
-pub struct SeekMetadataKey(pub PublicKey, pub TransactionId);
+pub struct AccountHistoryItemKey(pub AccountId, pub u64);
 
 #[derive(Debug, Encodable, Decodable)]
-pub struct SeekMetadataAccountPrefix(pub PublicKey);
-
-#[derive(Debug, Encodable, Decodable)]
-pub struct SeekMetadataKeyPrefix;
+pub struct AccountHistoryItemPrefixAccount(pub AccountId);
 
 impl_db_record!(
-    key = SeekMetadataKey,
-    value = SeekMetadata,
-    db_prefix = DbKeyPrefix::SeekMetadata
-);
-impl_db_lookup!(
-    key = SeekMetadataKey,
-    query_prefix = SeekMetadataAccountPrefix,
-    query_prefix = SeekMetadataKeyPrefix
+    key = AccountHistoryItemKey,
+    value = AccountHistoryItem,
+    db_prefix = DbKeyPrefix::AccountHistory
 );
 
-/// Migrate DB from version 1 to version 2 by wiping everything
-pub async fn migrate_to_v2(mut ctx: MigrationContext<'_>) -> Result<(), anyhow::Error> {
-    let mut dbtx = ctx.dbtx();
-    dbtx.remove_by_prefix(&IdleBalanceKeyPrefix).await;
-    dbtx.remove_by_prefix(&StagedSeeksKeyPrefix).await;
-    dbtx.remove_by_prefix(&StagedProvidesKeyPrefix).await;
-    dbtx.remove_by_prefix(&StagedCancellationKeyPrefix).await;
-    dbtx.remove_by_prefix(&CurrentCycleKeyPrefix).await;
-    dbtx.remove_by_prefix(&PastCycleKeyPrefix).await;
-    dbtx.remove_by_prefix(&StagedSeekSequenceKeyPrefix).await;
-    dbtx.remove_by_prefix(&StagedProvideSequenceKeyPrefix).await;
-    dbtx.remove_by_prefix(&CycleChangeVoteKeyPrefix).await;
-    dbtx.remove_by_prefix(&SeekMetadataKeyPrefix).await;
+impl_db_lookup!(
+    key = AccountHistoryItemKey,
+    query_prefix = AccountHistoryItemPrefixAccount,
+);
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct TransferRequestsKey(pub TransferRequestId);
+
+impl_db_record!(
+    key = TransferRequestsKey,
+    value = (),
+    db_prefix = DbKeyPrefix::TransferRequests
+);
+
+/// Insert new account history items for an account.
+pub async fn add_account_history_items<'a, 'b>(
+    dbtx: &mut DatabaseTransaction<'a>,
+    account_id: AccountId,
+    items: impl IntoIterator<Item = AccountHistoryItem> + 'b,
+) {
+    let mut next_idx = account_history_count(dbtx, account_id).await;
+    for item in items {
+        dbtx.insert_entry(&AccountHistoryItemKey(account_id, next_idx), &item)
+            .await;
+        next_idx += 1;
+    }
+}
+
+/// Find total number of account history items for an account.
+pub async fn account_history_count(
+    dbtx: &mut DatabaseTransaction<'_>,
+    account_id: AccountId,
+) -> u64 {
+    dbtx.find_by_prefix_sorted_descending(&AccountHistoryItemPrefixAccount(account_id))
+        .await
+        .next()
+        .await
+        .map_or(0, |(AccountHistoryItemKey(_, idx), _)| idx + 1)
+}
+
+impl From<Cycle> for CycleInfo {
+    fn from(value: Cycle) -> Self {
+        CycleInfo::from(&value)
+    }
+}
+
+impl From<&Cycle> for CycleInfo {
+    fn from(value: &Cycle) -> Self {
+        CycleInfo {
+            idx: value.index,
+            start_price: value.start_price,
+            start_time: value.start_time,
+        }
+    }
+}
+
+pub async fn get_account_history_items(
+    dbtx: &mut DatabaseTransaction<'_>,
+    account_id: AccountId,
+    items_range: Range<u64>,
+) -> Vec<AccountHistoryItem> {
+    dbtx.find_by_range(
+        AccountHistoryItemKey(account_id, items_range.start)
+            ..AccountHistoryItemKey(account_id, items_range.end),
+    )
+    .await
+    .map(|(_, val)| val)
+    .collect()
+    .await
+}
+
+/// Given a dbtx, ensures that `id` hasn't been registered before as a
+/// TransferRequestId. After successful verification, registers `id` in
+/// the DB before returning Ok.
+pub async fn ensure_unique_transfer_request_and_log(
+    id: &TransferRequestId,
+    dbtx: &mut DatabaseTransaction<'_>,
+) -> anyhow::Result<()> {
+    let db_key = TransferRequestsKey(id.clone());
+    ensure!(
+        dbtx.get_value(&db_key).await.is_none(),
+        "Transfer request re-used!"
+    );
+
+    dbtx.insert_entry(&db_key, &()).await;
     Ok(())
+}
+
+/// Given a dbtx, return the next deposit sequence (nonce) to be assigned to an
+/// incoming deposit.
+pub async fn next_deposit_sequence(dbtx: &mut DatabaseTransaction<'_>) -> u64 {
+    let sequence = dbtx
+        .get_value(&DepositSequenceKey)
+        .await
+        .unwrap_or_default();
+
+    dbtx.insert_entry(&DepositSequenceKey, &(sequence + 1))
+        .await;
+
+    sequence
 }

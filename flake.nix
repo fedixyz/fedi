@@ -1,12 +1,12 @@
 {
   inputs = {
     nixpkgs = {
-      url = "github:NixOS/nixpkgs/nixos-24.05";
+      url = "github:NixOS/nixpkgs/nixos-24.11";
     };
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.4.3-rc.2-fed4";
+      url = "github:fedibtc/fedimint?ref=v0.5.0-rc.4-fed0";
     };
 
     fenix = {
@@ -14,13 +14,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flakebox = {
-      url = "github:fedibtc/flakebox?rev=675075a4049253289e7cce634b1b6443b046ed1b";
+      url = "github:fedibtc/flakebox?rev=56ee87b7dd205c7af169ff72e818e3a92560b424";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
 
     fs-dir-cache = {
-      url = "github:fedibtc/fs-dir-cache?rev=a6371f48f84512ea06a8ac671f9cdc141a732673";
+      url = "github:fedibtc/fs-dir-cache?rev=e9752d00ee16778c9d3d0b93a09c49c44013ac17";
     };
 
     cargo-deluxe = {
@@ -29,16 +29,34 @@
     };
 
     android-nixpkgs = {
-      url = "github:tadfisher/android-nixpkgs?rev=6370a3aafe37ed453bfdc4af578eb26339f8fee0"; # stable
+      url = "github:fedibtc/android-nixpkgs?rev=f89ea2d6f9dbc4014c6a0d189ffe94d445bfbd25"; # stable
       # inputs.nixpkgs.follows = "fedimint-pkgs/nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, fedimint-pkgs, fs-dir-cache, cargo-deluxe, android-nixpkgs, flakebox, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      nixpkgs-unstable,
+      flake-utils,
+      fedimint-pkgs,
+      fs-dir-cache,
+      cargo-deluxe,
+      android-nixpkgs,
+      flakebox,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
-        pkgs-unstable = import nixpkgs-unstable {
+        pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
+
+        pkgs-fedimint = import fedimint-pkgs.inputs.nixpkgs {
           inherit system;
+          overlays = [
+            fedimint-pkgs.overlays.all
+          ];
         };
 
         pkgs = import nixpkgs {
@@ -48,18 +66,26 @@
 
             (final: prev: {
               fs-dir-cache = fs-dir-cache.packages.${system}.default;
-              fastlane = pkgs-unstable.fastlane;
-              convco = pkgs-unstable.convco;
               cargo-deluxe = cargo-deluxe.packages.${system}.default;
-              snappy = prev.snappy.overrideAttrs (f: p: rec {
-                version = "1.2.1";
+              esplora-electrs = pkgs-fedimint.esplora-electrs;
+              # remove after upgrading pkgs-fedimint
+              bitcoind = pkgs-fedimint.bitcoind;
+
+              # https://github.com/rustwasm/wasm-bindgen/pull/4380
+              wasm-bindgen-cli = final.callPackage ./nix/pkgs/wasm-bindgen-cli { };
+
+              binaryen = pkgs-unstable.binaryen;
+              snappy = prev.snappy.overrideAttrs (
+                f: p: rec {
+                  version = "1.2.1";
                   src = prev.fetchFromGitHub {
-                  owner = "google";
-                  repo = "snappy";
-                  rev = version;
-                  hash = "sha256-IzKzrMDjh+Weor+OrKdX62cAKYTdDXgldxCgNE2/8vk=";
-                };
-              });
+                    owner = "google";
+                    repo = "snappy";
+                    rev = version;
+                    hash = "sha256-IzKzrMDjh+Weor+OrKdX62cAKYTdDXgldxCgNE2/8vk=";
+                  };
+                }
+              );
             })
           ];
         };
@@ -81,10 +107,17 @@
             # so to denote `-dirty` we replace the middle with zeros
             dirtyHash = "${dirtyHashPrefix}00000000${dirtyHashSuffix}";
           in
-          { name
-          , package
-          , placeholder ? "01234569abcdef7afa1d2683a099c7af48a523c1"
-          , gitHash ? if (self ? rev) then self.rev else if (self ? dirtyRev) then dirtyHash else placeholder
+          {
+            name,
+            package,
+            placeholder ? "01234569abcdef7afa1d2683a099c7af48a523c1",
+            gitHash ?
+              if (self ? rev) then
+                self.rev
+              else if (self ? dirtyRev) then
+                dirtyHash
+              else
+                placeholder,
           }:
           stdenv.mkDerivation {
             inherit system;
@@ -115,9 +148,8 @@
         # gitHash ? if (self ? rev) then self.rev else dirty-hash
         # };
 
-
-        androidSdk =
-          android-nixpkgs.sdk."${system}" (sdkPkgs: with sdkPkgs; [
+        androidSdk = android-nixpkgs.sdk."${system}" (
+          sdkPkgs: with sdkPkgs; [
             cmdline-tools-latest
             build-tools-30-0-3
             build-tools-32-0-0
@@ -128,18 +160,16 @@
             platforms-android-33
             platforms-android-34
             emulator
-            ndk-bundle
-            ndk-23-1-7779620
+            ndk-26-1-10909125
             cmake-3-22-1
-            patcher-v4
             tools
-          ]);
-
+          ]
+        );
 
         flakeboxLib = flakebox.lib.${system} {
           # customizations will go here in the future
           config = {
-            toolchain.channel = "latest";
+            toolchain.channel = "stable";
 
             # we have our own weird CI workflows
             github.ci.enable = false;
@@ -148,7 +178,6 @@
             ];
             typos.pre-commit.enable = false;
             git.pre-commit.trailing_newline = false;
-
             # we must not use --workspace anywhere
             just.rules.clippy.content = lib.mkForce ''
               # run `cargo clippy` on everything
@@ -173,112 +202,130 @@
           };
         };
 
-        toolchainArgs = let llvmPackages = pkgs.llvmPackages_11; in {
-          extraRustFlags = "--cfg tokio_unstable -Z threads=5 --cfg=curve25519_dalek_backend=\"serial\" -Csymbol-mangling-version=v0";
+        toolchainArgs =
+          let
+            llvmPackages = pkgs.llvmPackages_11;
+          in
+          {
+            extraRustFlags = "--cfg tokio_unstable --cfg=curve25519_dalek_backend=\"serial\" -Csymbol-mangling-version=v0";
 
-          components = [
-            "rustc"
-            "cargo"
-            "clippy"
-            "rust-analyzer"
-            "rust-src"
-          ];
-
-          args = {
-            nativeBuildInputs = [ pkgs.wasm-bindgen-cli pkgs.geckodriver pkgs.wasm-pack ]
-              ++ lib.optionals (!pkgs.stdenv.isDarwin) [
-              pkgs.firefox
+            components = [
+              "rustc"
+              "cargo"
+              "clippy"
+              "rust-analyzer"
+              "rust-src"
             ];
+
+            args = {
+              nativeBuildInputs =
+                [
+                  pkgs.wasm-bindgen-cli
+                  pkgs.geckodriver
+                  pkgs.wasm-pack
+                ]
+                ++ lib.optionals (!pkgs.stdenv.isDarwin) [
+                  pkgs.firefox
+                ];
+            };
+          }
+          // lib.optionalAttrs stdenv.isDarwin {
+            # TODO: we seem to be hitting some miscompilation(?) with
+            # the new (as of nixos-24.11 default: clang 18), which causes
+            # fedimint-cli segfault randomly, but only in Nix sandbox.
+            # Supper weird.
+            stdenv = pkgs.clang16Stdenv;
+            clang = pkgs.llvmPackages_16.clang;
+            libclang = pkgs.llvmPackages_16.libclang.lib;
+            clang-unwrapped = pkgs.llvmPackages_16.clang-unwrapped;
           };
-        };
 
         stdTargets = flakeboxLib.mkStdTargets {
           inherit androidSdk;
         };
         stdToolchains = flakeboxLib.mkStdToolchains toolchainArgs;
 
-        toolchainDefault = flakeboxLib.mkFenixToolchain (toolchainArgs
+        toolchainDefault = flakeboxLib.mkFenixToolchain (
+          toolchainArgs
           // {
-          targets = (pkgs.lib.getAttrs
-            ([
-              "default"
-              "wasm32-unknown"
-            ])
-            stdTargets
-          );
-        });
+            targets = (
+              pkgs.lib.getAttrs ([
+                "default"
+                "wasm32-unknown"
+              ]) stdTargets
+            );
+          }
+        );
 
-
-        toolchainWasm = flakeboxLib.mkFenixToolchain (toolchainArgs
+        toolchainWasm = flakeboxLib.mkFenixToolchain (
+          toolchainArgs
           // {
-          defaultBuildTarget = "wasm32-unknown-unknown";
-          targets = (pkgs.lib.getAttrs
-            ([
-              "default"
-              "wasm32-unknown"
-            ])
-            stdTargets
-          );
-        });
+            defaultBuildTarget = "wasm32-unknown-unknown";
+            targets = (
+              pkgs.lib.getAttrs ([
+                "default"
+                "wasm32-unknown"
+              ]) stdTargets
+            );
+          }
+        );
 
-        toolchainAll = flakeboxLib.mkFenixToolchain (toolchainArgs
+        toolchainAll = flakeboxLib.mkFenixToolchain (
+          toolchainArgs
           // {
-          targets = (pkgs.lib.getAttrs
-            ([
-              "default"
-              "aarch64-android"
-              "x86_64-android"
-              "arm-android"
-              "armv7-android"
-              "wasm32-unknown"
-            ] ++ lib.optionals pkgs.stdenv.isDarwin [
-              "aarch64-ios"
-              "aarch64-ios-sim"
-              "x86_64-ios"
-            ])
+            targets = (
+              pkgs.lib.getAttrs
+                (
+                  [
+                    "default"
+                    "aarch64-android"
+                    "x86_64-android"
+                    "arm-android"
+                    "armv7-android"
+                    "wasm32-unknown"
+                  ]
+                  ++ lib.optionals pkgs.stdenv.isDarwin [
+                    "aarch64-ios"
+                    "aarch64-ios-sim"
+                    "x86_64-ios"
+                  ]
+                )
 
-            stdTargets
-          );
-        });
+                stdTargets
+            );
+          }
+        );
 
         craneMultiBuild = import nix/flakebox.nix {
-          inherit pkgs flakeboxLib fedimint-pkgs replaceGitHash craneMultiBuild;
+          inherit
+            pkgs
+            flakeboxLib
+            fedimint-pkgs
+            replaceGitHash
+            craneMultiBuild
+            ;
           toolchains = stdToolchains // {
             "default" = toolchainDefault;
             "wasm32-unknown-unkown" = toolchainWasm;
           };
-          profiles = [ "dev" "ci" "test" "release" ];
+          profiles = [
+            "dev"
+            "ci"
+            "test"
+            "release"
+          ];
         };
 
         lib = pkgs.lib;
         stdenv = pkgs.stdenv;
 
-        # this symlinks binaries needed to run xcode-specific commands assuming
-        # xcode is already installed on the machine (can't be nixified normally)
-        xcode-wrapper = stdenv.mkDerivation {
-          name = "xcode-wrapper-15.0.1";
-          buildCommand = ''
-            mkdir -p $out/bin
-
-            ln -s /usr/bin/ld $out/bin/ld
-            ln -s /usr/bin/clang $out/bin/clang
-            ln -s /usr/bin/xcodebuild $out/bin/xcodebuild
-            ln -s /usr/bin/xcrun $out/bin/xcrun
-
-            # Check if we have the xcodebuild version that we want
-            if [ -z "$($out/bin/xcodebuild -version | grep 15.0.1)" ]
-            then
-                echo "xcodebuild version: 15.0.1 is required"
-                echo "run: \`just install-xcode\` to install Xcode.app from the CLI"
-                exit 1
-            fi
-          '';
-        };
-
-        crossDevShell = flakeboxLib.mkDevShell (craneMultiBuild.commonEnvsShell // craneMultiBuild.commonEnvsShellRocksdbLink // craneMultiBuild.commonArgs // {
-          toolchain = toolchainAll;
-          nativeBuildInputs = craneMultiBuild.commonArgs.nativeBuildInputs ++
-            [
+        crossDevShell = flakeboxLib.mkDevShell (
+          craneMultiBuild.commonEnvsShell
+          // craneMultiBuild.commonEnvsShellRocksdbLink
+          // craneMultiBuild.commonArgs
+          // {
+            toolchain = toolchainAll;
+            nativeBuildInputs = craneMultiBuild.commonArgs.nativeBuildInputs ++ [
               fedimint-pkgs.packages.${system}.gateway-pkgs
               pkgs.fs-dir-cache
               pkgs.cargo-nextest
@@ -306,30 +353,62 @@
               pkgs.clightning
               pkgs.lnd
               pkgs.sccache
+              pkgs.ripgrep
 
               androidSdk
             ];
 
-          buildInputs = craneMultiBuild.commonArgs.buildInputs ++ [ pkgs.openssl ];
+            buildInputs = craneMultiBuild.commonArgs.buildInputs ++ [ pkgs.openssl ];
 
-          # Use old ESLINT config format
-          ESLINT_USE_FLAT_CONFIG = false;
-          FEDI_CROSS_DEV_SHELL = "1";
-          shellHook = ''
-            export PATH=$PATH:''${ANDROID_SDK_ROOT}/../../bin
-            alias create-avd="avdmanager create avd --force --name phone --package 'system-images;android-32;google_apis;arm64-v8a' --path $PWD/avd";
-            alias emulator="emulator -avd phone"
+            FEDI_CROSS_DEV_SHELL = "1";
+            shellHook = ''
+              export PATH=$PATH:''${ANDROID_SDK_ROOT}/../../bin
+              alias create-avd="avdmanager create avd --force --name phone --package 'system-images;android-32;google_apis;arm64-v8a' --path $PWD/avd";
+              alias emulator="emulator -avd phone"
 
-            export REPO_ROOT="$(git rev-parse --show-toplevel)"
-            export RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
-            export CARGO_BUILD_TARGET_DIR="''${CARGO_BUILD_TARGET_DIR:-''${REPO_ROOT}/target-nix}"
-            export UPSTREAM_FEDIMINTD_NIX_PKG=${fedimint-pkgs.packages.${system}.fedimintd}
+              # Use old ESLINT config format until we upgrade to v9+
+              export ESLINT_USE_FLAT_CONFIG=false
 
-            # this is where we publish the android bridge package so the react native app
-            # can find it as a local maven dependency
-            export ANDROID_BRIDGE_ARTIFACTS="''${REPO_ROOT}/bridge/fedi-android/artifacts"
+              export REPO_ROOT="$(git rev-parse --show-toplevel)"
+              if [ -z "$FEDI_DISABLE_SCCACHE" ]; then
+                export RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
+              fi
+              export CARGO_BUILD_TARGET_DIR="''${CARGO_BUILD_TARGET_DIR:-''${REPO_ROOT}/target-nix}"
+              export UPSTREAM_FEDIMINTD_NIX_PKG=${fedimint-pkgs.packages.${system}.fedimintd}
+              export FEDIMINT_LOAD_TEST_TOOL_NIX_PKG=${fedimint-pkgs.packages.${system}.fedimint-load-test-tool}
+
+              # this is where we publish the android bridge package so the react native app
+              # can find it as a local maven dependency
+              export ANDROID_BRIDGE_ARTIFACTS="''${REPO_ROOT}/bridge/fedi-android/artifacts"
+            '';
+          }
+        );
+
+        # this symlinks binaries needed to run xcode-specific commands assuming
+        # xcode is already installed on the machine (can't be nixified normally)
+        xcode-wrapper = stdenv.mkDerivation {
+          name = "xcode-wrapper-impure";
+          # Fails in sandbox. Use `--option sandbox relaxed` or `--option sandbox false`.
+          __noChroot = true;
+          buildCommand = ''
+            mkdir -p $out/bin
+            ln -s /usr/bin/ld $out/bin/ld
+            ln -s /usr/bin/clang $out/bin/clang
+            ln -s /usr/bin/clang++ $out/bin/clang++
+            # ln -s /usr/bin/xcodebuild $out/bin/xcodebuild
+            ln -s /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild $out/bin/xcodebuild
+            ln -s /usr/bin/xcrun $out/bin/xcrun
+            ls -alh $out/bin
+            $out/bin/xcodebuild -version
+            # Check if we have the xcodebuild version that we want
+            if [ -z "$($out/bin/xcodebuild -version | grep '15.0.1')" ] && [ -z "$($out/bin/xcodebuild -version | grep '16.')" ]
+            then
+                echo "xcodebuild version: either v15.0.1 or v16.0+ is required"
+                echo "run: \`just install-xcode\` to install Xcode.app from the CLI"
+                exit 1
+            fi
           '';
-        });
+        };
       in
       {
         packages = {
@@ -337,7 +416,10 @@
           gateway-pkgs = fedimint-pkgs.packages.${system}.gateway-pkgs;
           gatewayd = fedimint-pkgs.packages.${system}.gatewayd;
           gateway-cli = fedimint-pkgs.packages.${system}.gateway-cli;
-          fedimint-dbtool = flakeboxLib.pickBinary { bin = "fedimint-dbtool"; pkg = fedimint-pkgs.packages.${system}.fedimint-pkgs; };
+          fedimint-dbtool = flakeboxLib.pickBinary {
+            bin = "fedimint-dbtool";
+            pkg = fedimint-pkgs.packages.${system}.fedimint-pkgs;
+          };
 
           fedi-fedimint-pkgs = craneMultiBuild.fedi-fedimint-pkgs;
           fedi-fedimintd = craneMultiBuild.fedi-fedimintd;
@@ -354,41 +436,70 @@
           # TODO: this is overriden just to fix semgrep on MacOS,
           # which will be fixed upstream as well. Then this whole section
           # can be removed
-          lint = flakeboxLib.mkDevShell
-            { };
+          lint = flakeboxLib.mkDevShell { };
 
           # nix develop .#xcode is used for running commands that depend on an
           # existing underlying Xcode installation that cannot be nixified
           xcode = crossDevShell.overrideAttrs (prev: {
-            nativeBuildInputs = lib.optionals stdenv.isDarwin [
-              pkgs.bundler
-              pkgs.cocoapods
-              xcode-wrapper
-              pkgs.fs-dir-cache
-            ] ++ prev.nativeBuildInputs;
-            shellHook = prev.shellHook
+            buildInputs = [
+              # https://github.com/NixOS/nixpkgs/blob/b69aa4d1669d38591e2386c097fa6b449bcb46db/doc/stdenv/platform-notes.chapter.md?plain=1#L33
+              # pkgs.apple-sdk_15
+            ] ++ prev.buildInputs;
+            nativeBuildInputs =
+              lib.optionals stdenv.isDarwin [
+                pkgs.bundler
+                pkgs.cocoapods
+                (pkgs.hiPrio xcode-wrapper)
+                pkgs.fs-dir-cache
+              ]
+              ++ prev.nativeBuildInputs;
+            shellHook =
+              prev.shellHook
               + ''
-              # CocoaPods requires the terminal to be using UTF-8 encoding.
-              export LC_ALL=en_US.UTF-8
-              export LANG=en_US.UTF-8
+                # CocoaPods requires the terminal to be using UTF-8 encoding.
+                export LC_ALL=en_US.UTF-8
+                export LANG=en_US.UTF-8
 
-              # LD envs are needed because xcodebuild is confused and tries
-              # to use ld instead of clang for linking the bridge binary
-              export LD=/usr/bin/clang
-              export LD_FOR_TARGET=/usr/bin/clang
-              export MACOSX_DEPLOYMENT_TARGET=""
-            '';
+                # https://github.com/NixOS/nixpkgs/blob/f426a494337f326b99f14dcc20ea1b2dc4b3904f/pkgs/development/mobile/xcodeenv/build-app.nix#L122
+                export LD=/usr/bin/clang
+                export LD_FOR_TARGET=/usr/bin/clang
+                export MACOSX_DEPLOYMENT_TARGET="17.0"
+                export IPHONEOS_DEPLOYMENT_TARGET="17.0"
+
+                # overwrite what stdenv from nixpkgs 24.11 seems to set
+                export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer/
+                export SDKROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+
+                # TODO: should we just switch the approach we use in flakebox for Darwin?
+                unset CC_aarch64_apple_ios
+                unset CC_aarch64_apple_darwin
+                unset CC_aarch64_apple_ios_sim
+                unset CC_x86_64_apple_ios
+                unset CC_x86_64_apple_ios_sim
+                unset CC_x86_64_apple_darwin
+                unset CXX_aarch64_apple_ios
+                unset CXX_aarch64_apple_darwin
+                unset CXX_aarch64_apple_ios_sim
+                unset CXX_x86_64_apple_ios
+                unset CXX_x86_64_apple_ios_sim
+                unset CXX_x86_64_apple_darwin
+                unset LD_aarch64_apple_ios
+                unset LD_aarch64_apple_darwin
+                unset LD_aarch64_apple_ios_sim
+                unset LD_x86_64_apple_ios
+                unset LD_x86_64_apple_ios_sim
+                unset LD_x86_64_apple_darwin
+              '';
           });
           # tool for managing pwa deployment
           vercel = crossDevShell.overrideAttrs (prev: {
-            nativeBuildInputs = prev.nativeBuildInputs
-              ++ [
+            nativeBuildInputs = prev.nativeBuildInputs ++ [
               pkgs.nodePackages_latest.vercel
             ];
           });
         };
-      });
-
+      }
+    );
 
   nixConfig = {
     extra-substituters = [ "https://fedibtc.cachix.org" ];

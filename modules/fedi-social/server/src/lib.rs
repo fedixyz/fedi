@@ -21,7 +21,7 @@ use fedimint_core::config::{
     TypedServerModuleConfig, TypedServerModuleConsensusConfig,
 };
 use fedimint_core::core::ModuleInstanceId;
-use fedimint_core::db::{DatabaseTransaction, DatabaseVersion, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
     api_endpoint, ApiEndpoint, ApiError, ApiVersion, CoreConsensusVersion, InputMeta, ModuleCommon,
@@ -48,7 +48,6 @@ pub struct FediSocialInit;
 
 impl ModuleInit for FediSocialInit {
     type Common = FediSocialCommonGen;
-    const DATABASE_VERSION: DatabaseVersion = DatabaseVersion(0);
 
     async fn dump_database(
         &self,

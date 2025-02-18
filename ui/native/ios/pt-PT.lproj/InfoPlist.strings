@@ -1,0 +1,12 @@
+/*
+  InfoPlist.strings
+  FediReactNative
+
+  Created by Gordon El on 29/01/2025.
+
+*/
+"NSCameraUsageDescription" = "A Fedi precisa de acesso à câmara para digitalizar códigos QR";
+"NSLocationWhenInUseUsageDescription" = "A Fedi não usa a sua localização";
+"NSMicrophoneUsageDescription" = "A Fedi precisa de acesso ao seu microfone para gravar um vídeo de cópia de segurança social";
+"NSPhotoLibraryAddUsageDescription" = "A Fedi precisa de acesso para guardar fotos na sua fototeca";
+"NSPhotoLibraryUsageDescription" = "A Fedi precisa de acesso à sua fototeca para selecionar mídia para o seu avatar e anexos de chat";

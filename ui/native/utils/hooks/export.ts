@@ -9,7 +9,7 @@ import {
     useExportTransactions,
     useTransactionHistory,
 } from '@fedi/common/hooks/transactions'
-import { generateReusedEcashProofs } from '@fedi/common/redux'
+import { generateReusedEcashProofs, selectNostrNpub } from '@fedi/common/redux'
 import { selectActiveFederation } from '@fedi/common/redux/federation'
 import { LoadedFederation } from '@fedi/common/types'
 import {
@@ -24,11 +24,11 @@ import { dumpDB } from '../device-info'
 import { generateLogsExportGzip } from '../log'
 
 export const useNativeExport = () => {
-    const exportTransactions = useExportTransactions(fedimint)
-    const [exportingFederationId, setExportingFederationId] =
-        useState<string>('')
     const toast = useToast()
     const { t } = useTranslation()
+    const exportTransactions = useExportTransactions(fedimint, t)
+    const [exportingFederationId, setExportingFederationId] =
+        useState<string>('')
 
     const log = makeLog('Settings/export')
 
@@ -81,6 +81,7 @@ export const useShareLogs = () => {
     const toast = useToast()
     const { t } = useTranslation()
     const activeFederation = useAppSelector(selectActiveFederation)
+    const npub = useAppSelector(selectNostrNpub)
     const [status, setStatus] = useState<Status>('idle')
 
     const { fetchTransactions } = useTransactionHistory(fedimint)
@@ -120,6 +121,13 @@ export const useShareLogs = () => {
                     content: JSON.stringify(transactions.slice(0, 10), null, 2),
                 })
 
+                if (npub) {
+                    attachmentFiles.push({
+                        name: 'nostr-npub.txt',
+                        content: npub.npub,
+                    })
+                }
+
                 const gzip = await generateLogsExportGzip(attachmentFiles)
                 // Upload the logs export gzip to storage
                 setStatus('uploading-data')
@@ -144,7 +152,7 @@ export const useShareLogs = () => {
                 return false // failed
             }
         },
-        [dispatch, activeFederation, fetchTransactions, t, toast, log],
+        [dispatch, activeFederation, fetchTransactions, t, toast, log, npub],
     )
 
     return { collectAttachmentsAndSubmit, status, setStatus }

@@ -1,6 +1,10 @@
 const fs = require('fs');
 module.exports = async ({ github, context, core }) => {
-    const { RELEASE_ID, SOURCE_FEDI_ORG, SOURCE_FEDI_REPO } = process.env;
+    const {
+        RELEASE_ID,
+        SOURCE_FEDI_ORG,
+        SOURCE_FEDI_REPO,
+    } = process.env;
 
     console.log('Starting APK preparation process.');
 
@@ -27,7 +31,9 @@ module.exports = async ({ github, context, core }) => {
     }
 
     const [, version, commitHash] = match;
-    console.log(`Extracted version: ${version} and commit hash: ${commitHash} from APK filename`);
+    console.log(
+        `Extracted version: ${version} and commit hash: ${commitHash} from APK filename`
+    );
     const truncatedCommitHash = commitHash.substring(0, 6);
     const newFileName = `app-production-release-${version}-${truncatedCommitHash}.apk`;
 
@@ -38,7 +44,7 @@ module.exports = async ({ github, context, core }) => {
         repo: SOURCE_FEDI_REPO,
         asset_id: apkAsset.id,
         headers: {
-            Accept: 'application/octet-stream',
+            Accept: 'application/octet-stream'
         },
     });
 
@@ -49,14 +55,17 @@ module.exports = async ({ github, context, core }) => {
     fs.writeFileSync(`ui/apk/${newFileName}`, buffer);
 
     console.log('Reading and updating APK index.html...');
-    const apkIndexHtml = fs.readFileSync('ui/apk/index.html').toString();
-    const replacedHtml = apkIndexHtml.replace('{{path_to_apk}}', `./${newFileName}`);
+    const apkIndexHtml = fs.readFileSync("ui/apk/index.html").toString();
+    const replacedHtml = apkIndexHtml.replace(
+        "{{path_to_apk}}",
+        `./${newFileName}`
+    );
 
     console.log('Writing updated index.html...');
-    fs.writeFileSync('ui/apk/index.html', replacedHtml);
+    fs.writeFileSync("ui/apk/index.html", replacedHtml);
     console.log('index.html updated with APK download link:', newFileName);
 
     // Set output for next steps
     core.exportVariable('NEW_VERSION', version);
     core.exportVariable('NEW_APK_FILENAME', newFileName);
-};
+}; 

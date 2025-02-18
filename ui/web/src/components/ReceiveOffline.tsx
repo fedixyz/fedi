@@ -47,7 +47,11 @@ export const ReceiveOffline: React.FC<Props> = ({ onReceive }) => {
                     const meltResult = await executeMelts(meltSummary)
                     msats = meltResult.mSats
                 } else {
-                    msats = await fedimint.receiveEcash(ecash, federationId)
+                    const result = await fedimint.receiveEcash(
+                        ecash,
+                        federationId,
+                    )
+                    msats = result[0]
                 }
                 setRedeemAmount(msats)
                 // Delay reporting until the message has shown for a bit

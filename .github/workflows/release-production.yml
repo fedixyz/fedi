@@ -5,6 +5,7 @@ on:
 jobs:
     release-production-apk:
         name: Build Android APK and upload to GitHub draft release
+        timeout-minutes: 90
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
@@ -20,6 +21,13 @@ jobs:
               with:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+            - name: Inject secrets into .env file
+              run: |
+                  echo "CHANNEL_KEY_ANDROID=${{ secrets.CHANNEL_KEY_ANDROID }}" >> ui/native/.env
+                  echo "CHANNEL_KEY_IOS=${{ secrets.CHANNEL_KEY_IOS }}" >> ui/native/.env
+                  echo "ZENDESK_KID=${{ secrets.ZENDESK_KID }}" >> ui/native/.env
+                  echo "ZENDESK_SECRET_KEY=${{ secrets.ZENDESK_SECRET_KEY }}" >> ui/native/.env
 
             - name: Generate release credentials
               env:
@@ -41,7 +49,6 @@ jobs:
             - name: Build APK
               env:
                   APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
-                  # Consider: should we even have separate steps above for this?
                   BUILD_BRIDGE: 0
                   BUILD_UI_DEPS: 0
               run: nix develop -c ./scripts/ui/build-production-apk.sh
@@ -57,8 +64,8 @@ jobs:
             - name: Create draft GitHub release with APK
               uses: softprops/action-gh-release@v2
               with:
-                  tag_name: v${{ steps.prep-apk.outputs.APK_VERSION }}
-                  name: 'Fedi v${{ steps.prep-apk.outputs.APK_VERSION }}'
+                  tag_name: ${{ steps.prep-apk.outputs.APK_VERSION }}
+                  name: 'Fedi ${{ steps.prep-apk.outputs.APK_VERSION }}'
                   body: 'Built from commit: ${{ github.sha }}'
                   draft: true
                   append_body: true

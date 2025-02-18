@@ -1,9 +1,11 @@
 import { useTheme } from '@rneui/themed'
 import React from 'react'
 
-import { Transaction, TransactionDirection } from '../../../types'
+import { makeTxnStatusBadge } from '@fedi/common/utils/wallet'
+
+import { Transaction } from '../../../types'
 import SvgImage from '../../ui/SvgImage'
-import { HistoryIcon, HistoryIconProps } from './HistoryIcon'
+import { HistoryIcon } from './HistoryIcon'
 
 interface Props {
     txn: Transaction
@@ -12,23 +14,7 @@ interface Props {
 export const TransactionIcon: React.FC<Props> = ({ txn }) => {
     const { theme } = useTheme()
 
-    let badge: HistoryIconProps['badge']
-    if (txn.direction === TransactionDirection.send) {
-        badge = 'outgoing'
-    } else if (
-        txn.lnState?.type === 'waitingForPayment' ||
-        (txn.bitcoin && txn.onchainState?.type !== 'claimed') ||
-        (txn.lightning && !txn.lnState) ||
-        txn.stabilityPoolState?.type === 'pendingWithdrawal' ||
-        txn.oobState?.type === 'created' ||
-        txn.oobState?.type === 'issuing'
-    ) {
-        badge = 'pending'
-    } else if (txn.lnState?.type === 'canceled') {
-        badge = 'expired'
-    } else {
-        badge = 'incoming'
-    }
+    const badge = makeTxnStatusBadge(txn)
 
     return (
         <HistoryIcon badge={badge}>

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { makeReceiveSuccessMessage } from '@fedi/common/utils/wallet'
 
 import Success from '../components/ui/Success'
 import type { RootStackParamList } from '../types/navigation'
@@ -14,21 +15,19 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'ReceiveSuccess'>
 const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { tx } = route.params
+    const { tx, status = 'success' } = route.params
 
     const style = styles(theme)
+    const { message, subtext } = makeReceiveSuccessMessage(t, tx, status)
 
     return (
         <Success
             message={
                 <View style={style.textContainer}>
                     <Text h2Style={style.successMessage} h2>
-                        {t(
-                            tx.bitcoin
-                                ? 'feature.receive.pending-transaction'
-                                : 'feature.receive.you-received',
-                        )}
+                        {message}
                     </Text>
+                    {subtext && <Text caption>{subtext}</Text>}
                     <Text h2Style={style.successMessage} h2>
                         {`${amountUtils.formatNumber(
                             amountUtils.msatToSat(tx.amount),
@@ -47,6 +46,7 @@ const styles = (theme: Theme) =>
             marginVertical: theme.spacing.md,
             width: '80%',
             alignItems: 'center',
+            gap: theme.spacing.sm,
         },
         successMessage: {
             textAlign: 'center',

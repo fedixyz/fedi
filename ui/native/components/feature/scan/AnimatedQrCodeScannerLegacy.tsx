@@ -1,4 +1,12 @@
 import {
+    BARCODE_FORMATS,
+    Barcode,
+    BarcodeType,
+    isAndroidBarcode,
+    isIOSBarcode,
+    useBarcodeScanner,
+} from '@mgcrea/vision-camera-barcode-scanner'
+import {
     State as FrameState,
     areFramesComplete,
     framesToData,
@@ -8,29 +16,12 @@ import {
 import { useEffect, useState } from 'react'
 import { StyleSheet } from 'react-native'
 import { Camera, CameraDevice } from 'react-native-vision-camera'
-import { BarcodeFormat, useScanBarcodes } from 'vision-camera-code-scanner'
 
 import { makeLog } from '@fedi/common/utils/log'
 
 const log = makeLog('AnimatedQrCodeScannerLegacy')
 
-/*
-    This is the QR scanner that was used when react-native-vision-camera v2
-    was compatible with the latest React Native. After upgrading to RN v0.72,
-    this library broke with errors at both compile and runtime when using frame
-    processors like useScanBarcodes
-
-    Its dependency on react-native-reanimated made it difficult to refactor
-    to work with RN 72 so we had to switch to use react-native-camera-kit
-    for scanning QRs
-
-    Leaving this code here so we can switch back to it after theu upgrade to v3
-    is complete since it is more robust than react-native-camera-kit but still 
-    works well wherever frame processors are not needed so for now we are
-    keeping the dependency on v2
-*/
-
-type QrCodeScanner = {
+type QrCodeScannerProps = {
     device: CameraDevice
     onQrCodeDetected: (data: string) => void
     onProgress: (progress: number) => void
@@ -40,60 +31,67 @@ const QrCodeScanner = ({
     device,
     onQrCodeDetected,
     onProgress,
-}: QrCodeScanner) => {
-    const [sendingResult, setSendingResult] = useState<boolean>(false)
-    const [frameProcessor, barcodes] = useScanBarcodes(
-        [BarcodeFormat.QR_CODE],
-        {
-            checkInverted: true,
-        },
-    )
+}: QrCodeScannerProps) => {
+    const [sendingResult, setSendingResult] = useState(false)
     const [frames, setFrames] = useState<FrameState | null>(null)
 
-    useEffect(() => {
-        barcodes.map(b => {
-            const updatedFrames = parseFramesReducer(
-                frames,
-                b.content?.data as string,
-            )
+    const { props: frameProcessorProps } = useBarcodeScanner({
+        barcodeTypes: [BARCODE_FORMATS.QR_CODE as unknown as BarcodeType],
+        onBarcodeScanned: barcodes => {
+            barcodes.forEach((barcode: Barcode) => {
+                let data: string | undefined
 
-            // Report progress
-            const updatedProgress = progressOfFrames(updatedFrames)
-            onProgress(updatedProgress)
-
-            // To prevent infinite loops ...
-            if (progressOfFrames(frames) !== updatedProgress) {
-                setFrames(updatedFrames)
-                if (areFramesComplete(updatedFrames) && !sendingResult) {
-                    setSendingResult(true)
-                    setTimeout(() => {
-                        onQrCodeDetected(framesToData(updatedFrames).toString())
-
-                        // reset frames once we've found a hit ...
-                        setFrames(null)
-                        setSendingResult(false)
-                    }, 50)
-                } else {
-                    log.info('Progress:', progressOfFrames(updatedFrames))
+                if (isAndroidBarcode(barcode.native)) {
+                    // Extract data only if it's a string
+                    const contentData = barcode.native.content?.data
+                    if (typeof contentData === 'string') {
+                        data = contentData
+                    }
+                } else if (isIOSBarcode(barcode.native)) {
+                    // Access iOS-specific barcode payload
+                    data = barcode.native.payload
                 }
-            }
-        })
-    }, [
-        barcodes,
-        frames,
-        onProgress,
-        onQrCodeDetected,
-        sendingResult,
-        setFrames,
-    ])
+
+                if (!data) return
+
+                const updatedFrames = parseFramesReducer(frames, data)
+
+                // Report progress
+                const updatedProgress = progressOfFrames(updatedFrames)
+                onProgress(updatedProgress)
+
+                if (progressOfFrames(frames) !== updatedProgress) {
+                    setFrames(updatedFrames)
+                    if (areFramesComplete(updatedFrames) && !sendingResult) {
+                        setSendingResult(true)
+                        setTimeout(() => {
+                            onQrCodeDetected(
+                                framesToData(updatedFrames).toString(),
+                            )
+
+                            // Reset frames once a QR code is detected
+                            setFrames(null)
+                            setSendingResult(false)
+                        }, 50)
+                    } else {
+                        log.info('Progress:', updatedProgress)
+                    }
+                }
+            })
+        },
+        scanMode: 'once',
+    })
+
+    useEffect(() => {
+        setFrames(frames)
+    }, [frames, onProgress, onQrCodeDetected, sendingResult])
 
     return (
         <Camera
             style={styles.camera}
             device={device}
             isActive={true}
-            frameProcessor={frameProcessor}
-            frameProcessorFps={'auto'}
+            {...frameProcessorProps}
         />
     )
 }

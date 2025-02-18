@@ -68,8 +68,8 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
                     {member.powerLevel >= MatrixPowerLevel.Admin
                         ? t('words.admin')
                         : member.powerLevel >= MatrixPowerLevel.Moderator
-                        ? t('words.moderator')
-                        : t('words.member')}
+                          ? t('words.moderator')
+                          : t('words.member')}
                 </MemberRoleText>
             </>
         )

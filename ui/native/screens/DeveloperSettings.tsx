@@ -1,9 +1,18 @@
+import Clipboard from '@react-native-clipboard/clipboard'
 import messaging from '@react-native-firebase/messaging'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native'
+import {
+    ActivityIndicator,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    View,
+    Linking,
+    Modal,
+} from 'react-native'
 
 import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -38,6 +47,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import CheckBox from '../components/ui/CheckBox'
+import SvgImage from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
@@ -55,6 +65,8 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const toast = useToast()
+    const [fcmToken, setFcmToken] = useState<string | null>(null)
+    const [isModalVisible, setIsModalVisible] = useState(false)
     const [isLoadingGateways, setIsLoadingGateways] = useState<boolean>(false)
     const [gateways, setGateways] = useState<LightningGateway[]>([])
     const [isSharingLogs, setIsSharingLogs] = useState(false)
@@ -233,9 +245,123 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         setIsSharingState(false)
     }
 
+    const fetchAndShowFCMToken = async () => {
+        try {
+            const hasPermission = await checkNotificationPermissions()
+            if (!hasPermission) {
+                // Return early if permissions are not granted
+                return
+            }
+
+            const token = await messaging().getToken()
+            if (token) {
+                setFcmToken(token)
+                setIsModalVisible(true)
+            } else {
+                log.warn("FCM Token - Couldn't fetch token.")
+                toast.show({
+                    content: 'Unable to fetch FCM token.',
+                    status: 'error',
+                })
+            }
+        } catch (error) {
+            log.error(`Error fetching FCM token: ${JSON.stringify(error)}`)
+            toast.show({
+                content: 'Error fetching FCM token.',
+                status: 'error',
+            })
+        }
+    }
+
+    const copyToClipboard = () => {
+        if (fcmToken) {
+            Clipboard.setString(fcmToken)
+            toast.show({
+                content: 'Token copied to clipboard!',
+                status: 'success',
+            })
+        }
+    }
+
+    const checkNotificationPermissions = async (): Promise<boolean> => {
+        const authStatus = await messaging().requestPermission()
+        const enabled =
+            authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+            authStatus === messaging.AuthorizationStatus.PROVISIONAL
+
+        if (!enabled) {
+            log.warn('Notifications are not enabled.')
+            toast.show({
+                content: 'Notifications permissions are required.',
+                status: 'error',
+            })
+            return false // Return `false` if permissions are not granted
+        }
+
+        return true // Return `true` if permissions are granted
+    }
+
     const logFCMToken = async () => {
-        const fcmToken = await messaging().getToken()
-        log.info(`FCM Notification Token - ${fcmToken}`)
+        try {
+            // Request notification permissions
+            const hasPermission = await checkNotificationPermissions()
+            if (!hasPermission) {
+                // Return early if permissions are not granted
+                return
+            }
+
+            // Wait for APNs token to be available
+            if (Platform.OS === 'ios') {
+                const apnsToken = await messaging().getAPNSToken()
+                if (apnsToken) {
+                    log.info(`APNs Token: ${apnsToken}`)
+                } else {
+                    log.warn('APNs Token not available.')
+                }
+            }
+
+            // Fetch FCM token
+            const fbToken = await messaging().getToken()
+            if (fbToken) {
+                log.info(`FCM Notification Token: ${fbToken}`)
+            } else {
+                log.warn("FCM Token - Couldn't fetch token.")
+            }
+        } catch (error) {
+            log.error(`Error fetching tokens: ${JSON.stringify(error)}`)
+        }
+    }
+
+    const sendTokenViaEmail = () => {
+        if (!fcmToken) {
+            toast.show({
+                content: 'FCM token is not available!',
+                status: 'error',
+            })
+            return
+        }
+
+        const subject = 'Your FCM Token'
+        const body = `Here is your FCM token:\n\n${fcmToken}`
+        const emailUrl = `mailto:?subject=${encodeURIComponent(
+            subject,
+        )}&body=${encodeURIComponent(body)}`
+
+        // Try opening the email client directly
+        Linking.openURL(emailUrl)
+            .then(() => {
+                log.info('Email client opened successfully')
+            })
+            .catch(err => {
+                log.error(`Error opening email client: ${err}`)
+
+                // Provide a fallback message if the email client fails to open
+                toast.show({
+                    content:
+                        'Unable to open the email client. Please ensure an email app is installed and configured.',
+                    status: 'error',
+                })
+            })
     }
 
     return (
@@ -259,6 +385,11 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     title={t('feature.developer.log-fcm-token')}
                     containerStyle={styles(theme).buttonContainer}
                     onPress={logFCMToken}
+                />
+                <Button
+                    title={t('feature.developer.show-fcm-token')}
+                    containerStyle={styles(theme).buttonContainer}
+                    onPress={fetchAndShowFCMToken}
                 />
                 <View style={styles(theme).switchWrapper}>
                     <View style={styles(theme).switchLabelContainer}>
@@ -382,6 +513,8 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     <View key={gw.nodePubKey}>
                         <CheckBox
                             key={index}
+                            checkedIcon={<SvgImage name="RadioSelected" />}
+                            uncheckedIcon={<SvgImage name="RadioUnselected" />}
                             title={
                                 <Text
                                     style={styles(theme).checkboxText}
@@ -449,6 +582,8 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             </SettingsSection>
             <SettingsSection title="Select a node to simulate Guardian Mode">
                 <CheckBox
+                    checkedIcon={<SvgImage name="RadioSelected" />}
+                    uncheckedIcon={<SvgImage name="RadioUnselected" />}
                     title={
                         <Text
                             caption
@@ -481,6 +616,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         return (
                             <CheckBox
                                 key={id}
+                                checkedIcon={<SvgImage name="RadioSelected" />}
+                                uncheckedIcon={
+                                    <SvgImage name="RadioUnselected" />
+                                }
                                 title={<Text caption>{guardian.name}</Text>}
                                 checked={
                                     authenticatedGuardian?.name ===
@@ -566,7 +705,56 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         toast.show('NUX reset!')
                     }}
                 />
+                <Button
+                    title="Evil Spam Invoices"
+                    containerStyle={styles(theme).buttonContainer}
+                    onPress={async () => {
+                        if (!activeFederation?.id) return
+                        await fedimint.evilSpamInvoices({
+                            federationId: activeFederation.id,
+                        })
+                    }}
+                />
+                <Button
+                    title="Evil Spam Address"
+                    containerStyle={styles(theme).buttonContainer}
+                    onPress={async () => {
+                        if (!activeFederation?.id) return
+                        await fedimint.evilSpamAddress({
+                            federationId: activeFederation.id,
+                        })
+                    }}
+                />
             </SettingsSection>
+            <Modal
+                visible={isModalVisible}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setIsModalVisible(false)}>
+                <View style={styles(theme).modalContainer}>
+                    <View style={styles(theme).modalContent}>
+                        <Text style={styles(theme).modalTitle}>FCM Token</Text>
+                        <Text selectable style={styles(theme).tokenText}>
+                            {fcmToken}
+                        </Text>
+                        <Button
+                            title="Copy to Clipboard"
+                            onPress={copyToClipboard}
+                            containerStyle={styles(theme).buttonContainer}
+                        />
+                        <Button
+                            title="Send via Email"
+                            onPress={sendTokenViaEmail}
+                            containerStyle={styles(theme).buttonContainer}
+                        />
+                        <Button
+                            title="Close"
+                            onPress={() => setIsModalVisible(false)}
+                            containerStyle={styles(theme).buttonContainer}
+                        />
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     )
 }
@@ -588,6 +776,29 @@ const SettingsSection: React.FC<{
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        modalContent: {
+            backgroundColor: 'white',
+            borderRadius: 10,
+            padding: 20,
+            width: '80%',
+            alignItems: 'center',
+        },
+        modalTitle: {
+            fontSize: 18,
+            fontWeight: 'bold',
+            marginBottom: 10,
+        },
+        tokenText: {
+            marginVertical: 20,
+            fontSize: 16,
+            textAlign: 'center',
+        },
+        modalContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        },
         container: {
             padding: theme.spacing.xl,
         },

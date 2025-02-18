@@ -9,6 +9,7 @@ import { StyleSheet, View } from 'react-native'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 
 import QRScreen from '../components/ui/QRScreen'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'SendOfflineQr'>
@@ -52,10 +53,12 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                         fullWidth
                         title={t('feature.send.i-have-sent-payment')}
                         onLongPress={() => {
-                            navigation.navigate('SendSuccess', {
-                                amount,
-                                unit,
-                            })
+                            navigation.dispatch(
+                                reset('SendSuccess', {
+                                    amount,
+                                    unit,
+                                }),
+                            )
                         }}
                         delayLongPress={500}
                         containerStyle={style.buttonContainer}

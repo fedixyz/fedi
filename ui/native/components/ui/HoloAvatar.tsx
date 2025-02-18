@@ -35,8 +35,8 @@ const HoloAvatar: React.FC<HoloAvatarProps> = ({
         size === AvatarSize.sm
             ? theme.sizes.smallAvatar
             : size === AvatarSize.md
-            ? theme.sizes.mediumAvatar
-            : theme.sizes.largeAvatar
+              ? theme.sizes.mediumAvatar
+              : theme.sizes.largeAvatar
     const height = customSize
     const width = customSize
     const mergedContainerStyle = [

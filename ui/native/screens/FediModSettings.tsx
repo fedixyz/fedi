@@ -35,6 +35,12 @@ export type Props = NativeStackScreenProps<
     'FediModSettings' | 'FederationModSettings'
 >
 
+// Helper function to calculate reusable style variables
+const getDynamicSizes = (theme: Theme, fontScale: number) => {
+    const iconSize = theme.sizes.sm * getIconSizeMultiplier(fontScale)
+    return { iconSize }
+}
+
 const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
@@ -57,13 +63,15 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
     const [deletingMod, setDeletingMod] = useState<FediMod>()
     const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
+    const { iconSize } = getDynamicSizes(theme, fontScale)
+
     useEffect(() => {
         if (!deletingMod) {
             setIsDeleting(false)
         }
     }, [deletingMod])
 
-    const style = styles(theme, fontScale)
+    const style = styles(theme, fontScale, iconSize)
 
     const handleDeletePress = (mod: FediMod) => {
         setDeletingMod(mod)
@@ -175,7 +183,7 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
                             onBackdropPress={() => setDeletingMod(undefined)}
                         />
                     </>
-                ) : (
+                ) : type === 'fedi' ? ( // Show add mod UI only for 'fedi' type
                     <View style={style.empty}>
                         <Pressable
                             onPress={() => navigation.navigate('AddFediMod')}>
@@ -183,11 +191,32 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
                         </Pressable>
                         <Text>{t('feature.fedimods.add-mods-homescreen')}</Text>
                     </View>
+                ) : (
+                    <View style={style.centeredContainer}>
+                        <View style={style.centeredEmpty}>
+                            <View
+                                style={{
+                                    marginBottom: theme.spacing.md,
+                                }}>
+                                <SvgImage
+                                    color="grey"
+                                    name="Error"
+                                    size={iconSize}
+                                />
+                            </View>
+                            <Text style={style.centeredText}>
+                                {t('feature.fedimods.no-mods-available')}
+                            </Text>
+                        </View>
+                    </View>
                 )}
             </ScrollView>
-            <Button onPress={() => navigation.navigate('AddFediMod')}>
-                {t('feature.fedimods.add-a-mod')}
-            </Button>
+            {type === 'fedi' &&
+                mods.length > 0 && ( // Only show the button for 'fedi' type and when mods are present
+                    <Button onPress={() => navigation.navigate('AddFediMod')}>
+                        {t('feature.fedimods.add-a-mod')}
+                    </Button>
+                )}
         </SafeAreaContainer>
     )
 }
@@ -215,8 +244,8 @@ const ModRow: React.FC<ModRowProps> = ({
         FediModImages[mod.id] ||
             (mod.imageUrl ? { uri: mod.imageUrl } : FediModImages.default),
     )
-
-    const style = styles(theme, fontScale)
+    const { iconSize } = getDynamicSizes(theme, fontScale)
+    const style = styles(theme, fontScale, iconSize)
 
     return (
         <View key={mod.id} style={style.fediMod}>
@@ -243,8 +272,8 @@ const ModRow: React.FC<ModRowProps> = ({
     )
 }
 
-const styles = (theme: Theme, fontScale: number) => {
-    const iconSize = theme.sizes.lg * getIconSizeMultiplier(fontScale)
+const styles = (theme: Theme, fontScale: number, iconSize: number) => {
+    const textSize = theme.sizes.xs * fontScale
 
     return StyleSheet.create({
         scrollContainer: {
@@ -297,6 +326,30 @@ const styles = (theme: Theme, fontScale: number) => {
             overflow: 'hidden',
             borderRadius: theme.borders.fediModTileRadius,
             marginBottom: theme.spacing.lg,
+        },
+        centeredEmpty: {
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: theme.spacing.xl,
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            borderColor: theme.colors.grey,
+            borderRadius: 8,
+            paddingVertical: theme.spacing.xl,
+        },
+        centeredText: {
+            textAlign: 'center',
+            color: theme.colors.grey,
+            fontSize: textSize,
+        },
+        iconStyle: {
+            marginBottom: theme.spacing.sm,
+        },
+        centeredContainer: {
+            flex: 1,
+            alignContent: 'center',
+            alignItems: 'center',
+            justifyContent: 'center',
         },
     })
 }

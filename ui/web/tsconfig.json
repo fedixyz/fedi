@@ -14,6 +14,7 @@
         "jsx": "preserve",
         "incremental": true,
         "allowJs": true,
+        "types": ["node"],
         "typeRoots": [
             "src/typings/",
             "node_modules/@types/",

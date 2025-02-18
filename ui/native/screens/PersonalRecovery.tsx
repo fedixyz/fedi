@@ -13,6 +13,8 @@ import {
 } from 'react-native'
 
 import { usePersonalRecovery } from '@fedi/common/hooks/recovery'
+import { useToast } from '@fedi/common/hooks/toast'
+import { selectNetworkInfo } from '@fedi/common/redux'
 import type { SeedWords } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
@@ -20,6 +22,7 @@ import { fedimint } from '../bridge'
 import SeedWordInput from '../components/feature/recovery/SeedWordInput'
 import { BIP39_WORD_LIST } from '../constants'
 import { usePinContext } from '../state/contexts/PinContext'
+import { useAppSelector } from '../state/hooks'
 import { resetAfterPersonalRecovery } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -36,10 +39,12 @@ const PersonalRecovery: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const pin = usePinContext()
+    const toast = useToast()
     const { recoveryInProgress, attemptRecovery } = usePersonalRecovery(
         t,
         fedimint,
     )
+    const networkInfo = useAppSelector(selectNetworkInfo)
     const [seedWords, setSeedWords] = useState<SeedWords>(
         new Array(12).fill(''),
     )
@@ -67,11 +72,16 @@ const PersonalRecovery: React.FC<Props> = ({ navigation }: Props) => {
     }, [])
 
     const handleRecovery = useCallback(() => {
+        if (!networkInfo || !networkInfo.isInternetReachable) {
+            toast.error(t, t('errors.recovery-failed-connection'))
+            return
+        }
+
         attemptRecovery(seedWords, () => {
             if (pin.status === 'set') pin.unset()
             navigation.dispatch(resetAfterPersonalRecovery())
         })
-    }, [attemptRecovery, navigation, seedWords, pin])
+    }, [attemptRecovery, navigation, seedWords, pin, networkInfo, t, toast])
 
     const handleInputUpdate = (inputValue: string, index: number) => {
         const validatedInput = stringUtils.keepOnlyLowercaseLetters(inputValue)

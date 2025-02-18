@@ -62,7 +62,7 @@ function AdminPage() {
     )
 
     const isInviteSupported = useIsInviteSupported()
-    const exportTransactions = useExportTransactions(fedimint)
+    const exportTransactions = useExportTransactions(fedimint, t)
 
     const toast = useToast()
 

@@ -19,12 +19,18 @@
         "dev:deps": "turbo run dev --filter=common --filter=injections",
         "dev:web": "turbo run dev --parallel --filter=web...",
         "dev:native": "turbo run dev --parallel --filter=native...",
+        "knip": "knip",
         "lint": "turbo run lint",
         "format": "turbo run format",
         "format:check": "turbo run format:check --parallel",
-        "test": "turbo run test"
+        "test": "turbo run test",
+        "postinstall": "patch-package"
     },
     "devDependencies": {
+        "@types/node": "^22.9.0",
+        "knip": "^5.36.5",
+        "patch-package": "^8.0.0",
+        "prettier": "^3.3.3",
         "syncpack": "^9.8.4",
         "turbo": "^1.10.7"
     }

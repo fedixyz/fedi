@@ -14,11 +14,10 @@ import {
     setActiveFederationId,
     setPublicFederations,
 } from '../redux'
-import { ClientConfigMetadata, Federation, JoinPreview } from '../types'
+import { FederationMetadata, JoinPreview } from '../types'
 import dateUtils from '../utils/DateUtils'
 import {
     fetchPublicFederations,
-    getFederationChatServerDomain,
     getFederationPopupInfo,
     previewInvite,
     shouldEnableOnchainDeposits,
@@ -32,13 +31,6 @@ import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
 
 const log = makeLog('common/hooks/federation')
-
-export function useIsChatSupported(federation?: Pick<Federation, 'meta'>) {
-    const activeFederation = useCommonSelector(selectActiveFederation)
-    const meta = federation ? federation.meta : activeFederation?.meta
-    if (!meta) return false
-    return !!getFederationChatServerDomain(meta)
-}
 
 export function useIsInviteSupported() {
     const activeFederation = useCommonSelector(selectActiveFederation)
@@ -116,7 +108,7 @@ export function useIsOnchainDepositSupported() {
     )
 }
 
-export function usePopupFederationInfo(metadata?: ClientConfigMetadata) {
+export function usePopupFederationInfo(metadata?: FederationMetadata) {
     const activeFederationMetadata = useCommonSelector(selectFederationMetadata)
     const meta = metadata || activeFederationMetadata
 

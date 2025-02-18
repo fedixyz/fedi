@@ -1,6 +1,6 @@
 import notifee from '@notifee/react-native'
 import { useFocusEffect } from '@react-navigation/native'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
 
 import { makeLog } from '@fedi/common/utils/log'
@@ -47,8 +47,9 @@ export const useAppIsInForeground = () => {
  *  Dismisses IOS notifications on focus
  */
 export const useDismissIosNotifications = () => {
-    useFocusEffect(() => {
+    const dismiss = useCallback(() => {
         notifee.setBadgeCount(0)
         log.info('Reset IOS Badge count to 0')
-    })
+    }, [])
+    useFocusEffect(dismiss)
 }

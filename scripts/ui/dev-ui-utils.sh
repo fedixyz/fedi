@@ -97,7 +97,7 @@ while true; do
             ;;
         p)
             echo "Reinstalling pods"
-            nix develop .#xcode -c $REPO_ROOT/scripts/ui/install-ios-deps.sh
+            $REPO_ROOT/scripts/ui/install-ios-deps.sh
             ;;
         q)
             echo "Exiting."

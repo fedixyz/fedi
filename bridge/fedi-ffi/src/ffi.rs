@@ -19,7 +19,7 @@ use crate::api::LiveFediApi;
 use crate::error::ErrorCode;
 use crate::features::{FeatureCatalog, RuntimeEnvironment};
 use crate::remote::{fedimint_remote_initialize, fedimint_remote_rpc};
-use crate::rpc::{self, rpc_error};
+use crate::rpc::{self, rpc_error_json};
 use crate::types::{RpcAppFlavor, RpcInitOpts};
 
 lazy_static! {
@@ -40,16 +40,16 @@ pub async fn fedimint_initialize(event_sink: Box<dyn EventSink>, init_opts_json:
         Ok(Ok(())) => String::from("{}"),
         Ok(Err(e)) => {
             error!(?e);
-            rpc_error(&e)
+            rpc_error_json(&e)
         }
         Err(join_error) => {
             if join_error.is_panic() {
-                rpc_error(&anyhow::format_err!(ErrorCode::Panic))
+                rpc_error_json(&anyhow::format_err!(ErrorCode::Panic))
             } else {
                 // it should unreachable in theory, but didn't want to brick
                 // bridge in that case. currently there are 2 errors - panic or
                 // cancelled and we cancel never this task
-                rpc_error(&anyhow::format_err!("unknown join error"))
+                rpc_error_json(&anyhow::format_err!("unknown join error"))
             }
         }
     }
@@ -86,9 +86,23 @@ pub async fn fedimint_initialize_inner(
     if option_env!("FEDI_BRIDGE_REMOTE").is_some() {
         return fedimint_remote_initialize(event_sink).await;
     }
-    // return if bridge already is initialized
-    if BRIDGE.lock().await.is_some() {
-        warn!("bridge is already initialized");
+    if let Some(bridge) = BRIDGE.lock().await.clone() {
+        match init_opts.app_flavor {
+            RpcAppFlavor::Dev => {
+                // reset observables
+                if let Ok(full) = bridge.full() {
+                    if let Some(matrix) = full.matrix.get() {
+                        matrix.observable_pool.reset().await;
+                    }
+                }
+            }
+            RpcAppFlavor::Nightly => {
+                panic!("reinitializing bridge is only allowed during development");
+            }
+            RpcAppFlavor::Bravo => {
+                warn!("reinitializing bridge is only allowed during development, ignoring request");
+            }
+        }
         return Ok(());
     }
     let event_sink: Arc<dyn EventSink> = event_sink.into();
@@ -148,7 +162,7 @@ pub async fn fedimint_rpc(method: String, payload: String) -> String {
                     .expect("rpc failed");
             }
             let Some(bridge) = BRIDGE.lock().await.as_ref().cloned() else {
-                return rpc_error(&anyhow::format_err!(ErrorCode::NotInialized));
+                return rpc_error_json(&anyhow::format_err!(ErrorCode::NotInialized));
             };
             fedimint_rpc_async(bridge, method, payload).await
         })
@@ -157,12 +171,12 @@ pub async fn fedimint_rpc(method: String, payload: String) -> String {
         Ok(value) => value,
         Err(join_error) => {
             if join_error.is_panic() {
-                rpc_error(&anyhow::format_err!(ErrorCode::Panic))
+                rpc_error_json(&anyhow::format_err!(ErrorCode::Panic))
             } else {
                 // it should unreachable in theory, but didn't want to brick
                 // bridge in that case. currently there are 2 errors - panic or
                 // cancelled and we cancel never this task
-                rpc_error(&anyhow::format_err!("unknown join error"))
+                rpc_error_json(&anyhow::format_err!("unknown join error"))
             }
         }
     }
@@ -229,11 +243,7 @@ impl IStorage for PathBasedStorage {
     }
 
     async fn write_file(&self, path: &Path, data: Vec<u8>) -> anyhow::Result<()> {
-        let path = if path.is_absolute() {
-            path.to_owned()
-        } else {
-            self.data_dir.join(path)
-        };
+        let path = self.platform_path(path);
         // tokio::fs::write is bad, creates a second copy of data
         Ok(tokio::task::spawn_blocking(move || {
             let tmp_path = path.with_extension("tmp");
@@ -249,6 +259,21 @@ impl IStorage for PathBasedStorage {
             std::fs::rename(tmp_path, path)
         })
         .await??)
+    }
+
+    fn write_file_sync(&self, path: &Path, data: Vec<u8>) -> anyhow::Result<()> {
+        let path = self.platform_path(path);
+        let tmp_path = path.with_extension("tmp");
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&tmp_path)?;
+        file.write_all(&data)?;
+        file.flush()?;
+        file.sync_data()?;
+        drop(file);
+        Ok(std::fs::rename(tmp_path, path)?)
     }
 
     fn platform_path(&self, path: &Path) -> PathBuf {

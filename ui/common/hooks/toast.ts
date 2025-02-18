@@ -10,6 +10,12 @@ import { formatErrorMessage } from '@fedi/common/utils/format'
 
 import { useCommonDispatch } from './redux'
 
+export type ToastHandler = {
+    show: (toast: string | ToastArgs) => void
+    error: (t: TFunction, err: unknown, defaultMsg?: string) => void
+    close: (key?: string) => void
+}
+
 export function useToast() {
     const dispatch = useCommonDispatch()
 

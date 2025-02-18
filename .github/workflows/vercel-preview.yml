@@ -10,6 +10,9 @@ on:
         paths:
             - .github/workflows/vercel-preview.yml
             - scripts/ci/vercel-preview.sh
+            - scripts/build-wasm.sh
+            - scripts/ui/install-wasm.sh
+            - bridge/fedi-wasm/**
             - ui/web/**
             - ui/common/**
 jobs:

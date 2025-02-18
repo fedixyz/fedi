@@ -114,6 +114,7 @@ pub enum FediSocialInputError {}
 pub enum FediSocialOutputError {}
 
 plugin_types_trait_impl_common!(
+    KIND,
     FediSocialModuleTypes,
     FediSocialClientConfig,
     FediSocialInput,

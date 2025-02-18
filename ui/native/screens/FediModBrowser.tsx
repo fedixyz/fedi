@@ -30,19 +30,20 @@ import {
     selectMatrixAuth,
     selectNostrNpub,
     selectPaymentFederation,
+    selectWalletFederations,
+    resetBrowserOverlayState,
+    setEcashRequest,
+    setInvoiceToPay,
+    setLnurlAuthRequest,
+    setLnurlPayment,
+    setLnurlWithdrawal,
+    setNostrUnsignedEvent,
+    setRequestInvoiceArgs,
+    refetchSiteInfo,
+    selectSiteInfo,
 } from '@fedi/common/redux'
-import {
-    AnyParsedData,
-    EcashRequest,
-    Invoice,
-    MSats,
-    ParsedLnurlAuth,
-    ParsedLnurlPay,
-    ParsedLnurlWithdraw,
-    ParserDataType,
-} from '@fedi/common/types'
+import { AnyParsedData, Invoice, ParserDataType } from '@fedi/common/types'
 import { RpcLightningGateway } from '@fedi/common/types/bindings'
-import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 import { parseUserInput } from '@fedi/common/utils/parser'
 import {
@@ -50,12 +51,10 @@ import {
     generateInjectionJs,
     makeWebViewMessageHandler,
 } from '@fedi/injections'
-import {
-    SignedNostrEvent,
-    UnsignedNostrEvent,
-} from '@fedi/injections/src/injectables/nostr/types'
+import { SignedNostrEvent } from '@fedi/injections/src/injectables/nostr/types'
 
 import { fedimint } from '../bridge'
+import AddressBarOverlay from '../components/feature/fedimods/AddressBarOverlay'
 import { AuthOverlay } from '../components/feature/fedimods/AuthOverlay'
 import ExitFedimodOverlay from '../components/feature/fedimods/ExitFedimodOverlay'
 import FediModBrowserHeader from '../components/feature/fedimods/FediModBrowserHeader'
@@ -102,7 +101,7 @@ type FediModResponse =
 type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 
 const FediModBrowser: React.FC<Props> = ({ route }) => {
-    const { fediMod } = route.params
+    const { url } = route.params
     const { t } = useTranslation()
     const activeFederation = useAppSelector(selectActiveFederation)
     const dispatch = useAppDispatch()
@@ -119,29 +118,19 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const recoveryInProgress = useAppSelector(
         selectIsActiveFederationRecovering,
     )
+    const siteInfo = useAppSelector(selectSiteInfo)
+    const walletFederations = useAppSelector(selectWalletFederations)
     const webview = useRef<WebView>() as MutableRefObject<WebView>
     const overlayResolveRef = useRef<
         FediModResolver<FediModResponse> | undefined
     >() as MutableRefObject<FediModResolver<FediModResponse> | undefined>
     const overlayRejectRef = useRef<(reason: Error) => void>()
 
-    const [requestInvoiceArgs, setRequestInvoiceArgs] =
-        useState<RequestInvoiceArgs | null>(null)
-    const [lnurlWithdrawal, setLnurlWithdrawal] = useState<
-        ParsedLnurlWithdraw['data'] | null
-    >(null)
-    const [invoiceToPay, setInvoiceToPay] = useState<Invoice | null>(null)
-    const [lnurlPayment, setLnurlPayment] = useState<
-        ParsedLnurlPay['data'] | null
-    >(null)
-    const [lnurlAuthRequest, setLnurlAuthRequest] = useState<
-        ParsedLnurlAuth['data'] | null
-    >(null)
-    const [nostrUnsignedEvent, setNostrUnsignedEvent] =
-        useState<UnsignedNostrEvent | null>(null)
     const [isParsingLink, setIsParsingLink] = useState(false)
-    const [ecashRequest, setEcashRequest] = useState<EcashRequest | null>(null)
     const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false)
+    const [browserUrl, setBrowserUrl] = useState<string>(url)
+    const [isBrowserLoading, setIsBrowserLoading] = useState(true)
+    const [browserLoadProgress, setBrowserLoadProgress] = useState(0)
 
     const getActiveGatewayPromiseRef =
         useRef<Promise<RpcLightningGateway> | null>(null)
@@ -155,20 +144,20 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             case ParserDataType.LnurlWithdraw:
                 recoveryInProgress
                     ? setShowRecoveryInProgress(true)
-                    : setLnurlWithdrawal(parsedLink.data)
+                    : dispatch(setLnurlWithdrawal(parsedLink.data))
                 return true
             case ParserDataType.Bolt11:
                 recoveryInProgress
                     ? setShowRecoveryInProgress(true)
-                    : setInvoiceToPay(parsedLink.data)
+                    : dispatch(setInvoiceToPay(parsedLink.data))
                 return true
             case ParserDataType.LnurlPay:
                 recoveryInProgress
                     ? setShowRecoveryInProgress(true)
-                    : setLnurlPayment(parsedLink.data)
+                    : dispatch(setLnurlPayment(parsedLink.data))
                 return true
             case ParserDataType.LnurlAuth:
-                setLnurlAuthRequest(parsedLink.data)
+                dispatch(setLnurlAuthRequest(parsedLink.data))
                 return true
         }
         return false
@@ -243,10 +232,10 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 // is not strictly WebLN-compliant but inferring an amount might
                 // be convenient
                 if (typeof data === 'string' || typeof data === 'number') {
-                    setRequestInvoiceArgs({ amount: data })
+                    dispatch(setRequestInvoiceArgs({ amount: data }))
                 } else {
                     // Handle WebLN-compliant payload
-                    setRequestInvoiceArgs(data as RequestInvoiceArgs)
+                    dispatch(setRequestInvoiceArgs(data as RequestInvoiceArgs))
                 }
             })
         },
@@ -256,18 +245,21 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 setShowRecoveryInProgress(true)
                 throw Error(t('errors.unknown-error'))
             }
-            if (paymentFederation?.id === undefined) {
-                log.error('fedi.decodeInvoice', 'No active federation')
-                throw new Error('No active federation')
+
+            if (walletFederations.length === 0) {
+                toast.show({
+                    content: t('errors.please-join-wallet-community'),
+                    status: 'error',
+                })
+                // Don't duplicate errors we display via toasts
+                throw new Error(t('errors.failed-to-send-payment'))
             }
-            // Check for an active gateway or throw error
-            await getActiveGatewayOrThrow()
 
             let invoice: Invoice
             try {
                 invoice = await fedimint.decodeInvoice(
                     data,
-                    paymentFederation.id,
+                    paymentFederation?.id ?? null,
                 )
             } catch (error) {
                 log.error('sendPayment', 'error', error)
@@ -275,29 +267,15 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                     content: t('phrases.failed-to-decode-invoice'),
                     status: 'error',
                 })
-                throw Error(t('phrases.failed-to-decode-invoice'))
+                // Don't duplicate errors we display via toasts
+                throw Error(t('errors.failed-to-send-payment'))
             }
             // Wait for user to interact with alert
             return new Promise((resolve, reject) => {
-                // TODO: Hoist this to respect balance changes
-                if (
-                    !paymentFederation.balance ||
-                    paymentFederation.balance < invoice.amount
-                ) {
-                    const message = t('errors.insufficient-balance', {
-                        balance: `${amountUtils.msatToSat(
-                            paymentFederation?.balance as MSats,
-                        )} SATS`,
-                    })
-                    toast.show({ content: message, status: 'error' })
-                    reject(new Error(message))
-                } else {
-                    // Save these refs to we can resolve / reject elsewhere
-                    overlayRejectRef.current = reject
-                    overlayResolveRef.current =
-                        resolve as FediModResolver<FediModResponse>
-                    setInvoiceToPay(invoice)
-                }
+                overlayRejectRef.current = reject
+                overlayResolveRef.current =
+                    resolve as FediModResolver<FediModResponse>
+                dispatch(setInvoiceToPay(invoice))
             })
         },
         [InjectionMessageType.webln_signMessage]: async () => {
@@ -340,7 +318,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 overlayRejectRef.current = reject
                 overlayResolveRef.current =
                     resolve as FediModResolver<FediModResponse>
-                setNostrUnsignedEvent(evt)
+                dispatch(setNostrUnsignedEvent(evt))
             })
         },
         [InjectionMessageType.fedi_generateEcash]: async ecashRequestArgs => {
@@ -353,7 +331,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 overlayResolveRef.current =
                     resolve as unknown as FediModResolver<FediModResponse>
 
-                setEcashRequest(ecashRequestArgs)
+                dispatch(setEcashRequest(ecashRequestArgs))
             })
         },
         [InjectionMessageType.fedi_receiveEcash]: async ecash => {
@@ -443,18 +421,11 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     }
 
     const resetOverlay = () => {
-        setRequestInvoiceArgs(null)
-        setLnurlWithdrawal(null)
-        setInvoiceToPay(null)
-        setLnurlPayment(null)
-        setLnurlAuthRequest(null)
-        setNostrUnsignedEvent(null)
+        dispatch(resetBrowserOverlayState())
         setShowRecoveryInProgress(false)
-        setEcashRequest(null)
     }
 
     const overlayProps = {
-        fediMod,
         onReject: (err: Error) => {
             if (err && overlayRejectRef.current) {
                 overlayRejectRef.current(err)
@@ -469,7 +440,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         },
     }
 
-    let uri = fediMod.url
+    let uri = browserUrl
     // TODO: Remove me after alpha, just to get webln working on faucet.
     if (uri.includes('https://faucet.mutinynet.dev.fedibtc.com')) {
         uri = `${uri}${uri.includes('?') ? '&' : '?'}webln=1`
@@ -491,9 +462,12 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         return () => backHandler.remove()
     }, [navigation, t])
 
+    useEffect(() => {
+        setBrowserUrl(url)
+    }, [url])
+
     return (
-        <SafeAreaContainer edges="bottom">
-            <FediModBrowserHeader webViewRef={webview} fediMod={fediMod} />
+        <SafeAreaContainer edges="vertical">
             <WebView
                 ref={webview}
                 webviewDebuggingEnabled={fediModDebugMode} // required for IOS debugging
@@ -506,33 +480,53 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 })}
                 allowsInlineMediaPlayback
                 onMessage={onMessage}
+                onLoadStart={() => {
+                    setIsBrowserLoading(true)
+                }}
+                onLoadProgress={e => {
+                    setBrowserLoadProgress(e.nativeEvent.progress)
+                }}
+                onLoadEnd={() => {
+                    const resolvedUrl = /https?:\/\//.test(uri)
+                        ? uri
+                        : `https://${uri}`
+
+                    try {
+                        const validUrl = new URL(resolvedUrl)
+                        const siteUrl = siteInfo ? new URL(siteInfo.url) : null
+
+                        if (validUrl.hostname !== siteUrl?.hostname) {
+                            dispatch(refetchSiteInfo({ url: resolvedUrl }))
+                        }
+                    } catch {
+                        /* no-op */
+                    } finally {
+                        setIsBrowserLoading(false)
+                    }
+                }}
+                onNavigationStateChange={e => {
+                    setBrowserUrl(e.url)
+                }}
                 onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
                 style={{ width: '100%', height: '100%', flex: 1 }}
                 originWhitelist={ORIGIN_WHITELIST}
+                pullToRefreshEnabled
+            />
+            <FediModBrowserHeader
+                webViewRef={webview}
+                isBrowserLoading={isBrowserLoading}
+                browserLoadProgress={browserLoadProgress}
+                currentUrl={uri}
             />
             {isParsingLink && (
                 <View style={style.loadingOverlay}>
                     <ActivityIndicator color="#FFF" />
                 </View>
             )}
-            <MakeInvoiceOverlay
-                {...overlayProps}
-                requestInvoiceArgs={requestInvoiceArgs}
-                lnurlWithdrawal={lnurlWithdrawal}
-            />
-            <SendPaymentOverlay
-                {...overlayProps}
-                invoice={invoiceToPay}
-                lnurlPayment={lnurlPayment}
-            />
-            <AuthOverlay
-                {...overlayProps}
-                lnurlAuthRequest={lnurlAuthRequest}
-            />
-            <NostrSignOverlay
-                {...overlayProps}
-                nostrEvent={nostrUnsignedEvent}
-            />
+            <MakeInvoiceOverlay {...overlayProps} />
+            <SendPaymentOverlay {...overlayProps} />
+            <AuthOverlay {...overlayProps} />
+            <NostrSignOverlay {...overlayProps} />
             <RecoveryInProgressOverlay
                 show={showRecoveryInProgress}
                 onDismiss={overlayProps.onAccept}
@@ -541,12 +535,12 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             <GenerateEcashOverlay
                 onReject={overlayProps.onReject}
                 onAccept={overlayProps.onAccept}
-                ecashRequest={ecashRequest}
             />
             <ExitFedimodOverlay
                 open={confirmLeaveOpen}
                 onOpenChange={setConfirmLeaveOpen}
             />
+            <AddressBarOverlay setBrowserUrl={setBrowserUrl} />
         </SafeAreaContainer>
     )
 }

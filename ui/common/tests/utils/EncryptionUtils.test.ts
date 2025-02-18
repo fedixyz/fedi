@@ -5,12 +5,10 @@ describe('EncryptionUtils', () => {
         it('should always produce the same keypair given the same seed', async () => {
             const seed =
                 'c35bcaf57e51dac29817792cc086f32d09651ed5328dde48c8b4959c871330c1'
-            const keypair1 = await encryptionUtils.generateDeterministicKeyPair(
-                seed,
-            )
-            const keypair2 = await encryptionUtils.generateDeterministicKeyPair(
-                seed,
-            )
+            const keypair1 =
+                await encryptionUtils.generateDeterministicKeyPair(seed)
+            const keypair2 =
+                await encryptionUtils.generateDeterministicKeyPair(seed)
 
             expect(keypair1.publicKey).toEqual(keypair2.publicKey)
             expect(keypair1.privateKey).toEqual(keypair2.privateKey)
@@ -21,12 +19,10 @@ describe('EncryptionUtils', () => {
             const uniqueSeed2 =
                 '235bcaf57e51dac29817792cc086f32d09651ed5328dde48c8b4959c871330c2'
 
-            const keypair1 = await encryptionUtils.generateDeterministicKeyPair(
-                uniqueSeed1,
-            )
-            const keypair2 = await encryptionUtils.generateDeterministicKeyPair(
-                uniqueSeed2,
-            )
+            const keypair1 =
+                await encryptionUtils.generateDeterministicKeyPair(uniqueSeed1)
+            const keypair2 =
+                await encryptionUtils.generateDeterministicKeyPair(uniqueSeed2)
 
             expect(keypair1.publicKey).not.toContain(keypair2.publicKey)
             expect(keypair2.publicKey).not.toContain(keypair1.publicKey)

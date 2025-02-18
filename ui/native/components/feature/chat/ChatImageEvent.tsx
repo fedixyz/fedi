@@ -11,14 +11,19 @@ import {
 } from 'react-native'
 import { TemporaryDirectoryPath, exists } from 'react-native-fs'
 
-import { setSelectedChatMessage } from '@fedi/common/redux'
+import {
+    matchAndRemovePreviewMedia,
+    selectPreviewMediaMatchingEventContent,
+    setSelectedChatMessage,
+} from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
+import { JSONObject } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
-import { useAppDispatch } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { pathJoin, prefixFileUri } from '../../../utils/media'
 import SvgImage from '../../ui/SvgImage'
 
@@ -31,9 +36,15 @@ const log = makeLog('ChatImageEvent')
 const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     event,
 }: ChatImageEventProps) => {
+    // If the user sends an image, try to find the preview image matching the `event.content` to derive the existing URI
+    const matchingPreviewImage = useAppSelector(s =>
+        selectPreviewMediaMatchingEventContent(s, event.content),
+    )
     const [isLoading, setIsLoading] = useState(true)
     const [isError, setIsError] = useState(false)
-    const [uri, setURI] = useState<string>('')
+    const [uri, setURI] = useState<string>(
+        matchingPreviewImage?.media.uri ?? '',
+    )
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
@@ -55,7 +66,7 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
 
                 const imagePath = await fedimint.matrixDownloadFile(
                     path,
-                    event.content,
+                    event.content as JSONObject,
                 )
 
                 const imageUri = prefixFileUri(imagePath)
@@ -87,7 +98,7 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
 
     const imageBaseStyle = [style.imageBase, dimensions]
 
-    return isLoading || !uri || isError ? (
+    return (isLoading && !uri) || isError ? (
         <View style={imageBaseStyle}>
             {isError ? (
                 <View style={style.imageError}>
@@ -110,6 +121,9 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
                 source={{ uri: resolvedUri }}
                 style={imageBaseStyle}
                 onError={() => setIsError(true)}
+                onLoad={() => {
+                    dispatch(matchAndRemovePreviewMedia(event.content))
+                }}
             />
         </Pressable>
     )

@@ -54,7 +54,7 @@ const RequestCameraAccess: React.FC<RequestCameraAccessProps> = ({
     const requestCameraPermission = async () => {
         const requestResult = await Camera.requestCameraPermission()
         log.info('cameraRequestResult: ', requestResult)
-        if (requestResult === 'authorized') {
+        if (requestResult === 'granted') {
             setCameraPermissionGranted(true)
         }
 
@@ -69,7 +69,7 @@ const RequestCameraAccess: React.FC<RequestCameraAccessProps> = ({
     const requestMicrophonePermission = async () => {
         const requestResult = await Camera.requestMicrophonePermission()
         log.info('microphoneRequestResult: ', requestResult)
-        if (requestResult === 'authorized') {
+        if (requestResult === 'granted') {
             setMicrophonePermissionGranted(true)
         }
 

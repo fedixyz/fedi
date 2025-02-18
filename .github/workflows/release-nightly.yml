@@ -7,6 +7,7 @@ on:
 jobs:
     release-nightly-apk:
         name: Build Android APK and upload to GitHub draft release
+        timeout-minutes: 90
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
@@ -23,6 +24,20 @@ jobs:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
+            - name: Inject secrets into .env file
+              run: |
+                  echo "CHANNEL_KEY_ANDROID=${{ secrets.CHANNEL_KEY_ANDROID }}" >> ui/native/.env
+                  echo "CHANNEL_KEY_IOS=${{ secrets.CHANNEL_KEY_IOS }}" >> ui/native/.env
+                  echo "ZENDESK_KID=${{ secrets.ZENDESK_KID }}" >> ui/native/.env
+                  echo "ZENDESK_SECRET_KEY=${{ secrets.ZENDESK_SECRET_KEY }}" >> ui/native/.env
+
+            - name: Generate release credentials
+              env:
+                  ANDROID_KEYSTORE_FILE_ENCODED: ${{ secrets.ANDROID_KEYSTORE_FILE_ENCODED }}
+                  ANDROID_KEYSTORE_PROPERTIES_ENCODED: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES_ENCODED }}
+                  PLAY_STORE_JSON_CREDENTIALS_ENCODED: ${{ secrets.PLAY_STORE_JSON_CREDENTIALS_ENCODED }}
+              run: nix develop -c ./scripts/ci/make-android-release-creds.sh
+
             - name: Build bridge
               run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
 
@@ -38,7 +53,6 @@ jobs:
             - name: Build APK
               env:
                   APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
-                  # Consider: should we even have separate steps above for this?
                   BUILD_BRIDGE: 0
                   BUILD_UI_DEPS: 0
               run: nix develop -c ./scripts/ui/build-nightly-apk.sh

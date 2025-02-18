@@ -54,7 +54,6 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
             setPreviewGroup(defaultGroup)
             return
         }
-
         dispatch(getMatrixRoomPreview(groupId))
             .unwrap()
             .then(preview => {

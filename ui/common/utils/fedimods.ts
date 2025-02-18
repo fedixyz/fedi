@@ -137,9 +137,8 @@ export async function fetchMetadataFromUrl(
             // from Web App Manifest first if <link> is found in DOM
             const manifestUrl = parseHtmlForWebAppManifest(html, urlOrigin)
             if (manifestUrl) {
-                const manifestData = await fetchTitleAndIconFromManifest(
-                    manifestUrl,
-                )
+                const manifestData =
+                    await fetchTitleAndIconFromManifest(manifestUrl)
                 fetchedTitle = manifestData.title
                 fetchedIcon = manifestData.icon
                     ? new URL(manifestData.icon, urlOrigin).href

@@ -1,6 +1,6 @@
 use fedi_social_client::FediSocialClientInit;
 use fedimint_cli::FedimintCli;
-use stability_pool_client::StabilityPoolClientInit;
+use stability_pool_client_old::StabilityPoolClientInit;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -16,9 +16,9 @@ import {
 } from '.'
 import { FEDI_GLOBAL_COMMUNITY } from '../constants/community'
 import {
-    ClientConfigMetadata,
     Federation,
     FederationListItem,
+    FederationMetadata,
     FediMod,
     Guardian,
     LoadedFederation,
@@ -62,7 +62,7 @@ const initialState = {
     authenticatedGuardian: null as Guardian | null,
     externalMeta: {} as Record<
         Federation['id'],
-        ClientConfigMetadata | undefined
+        FederationMetadata | undefined
     >,
     customFediMods: {} as Record<Federation['id'], FediMod[] | undefined>,
     defaultCommunityChats: {} as Record<Federation['id'], MatrixRoom[]>,
@@ -199,7 +199,7 @@ export const federationSlice = createSlice({
             state,
             action: PayloadAction<{
                 federationId: Federation['id']
-                meta: ClientConfigMetadata | undefined
+                meta: FederationMetadata | undefined
             }>,
         ) {
             state.externalMeta = upsertRecordEntityId(
@@ -582,7 +582,7 @@ export const selectActiveFederation = createSelector(
 )
 
 export const selectShouldShowDegradedStatus = createSelector(
-    selectIsInternetUnreachable,
+    (s: CommonState) => selectIsInternetUnreachable(s),
     (_s: CommonState, federation: FederationListItem | undefined) => federation,
     (isInternetUnreachable, federation) => {
         // dont show if there is a local internet problem

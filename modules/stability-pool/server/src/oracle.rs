@@ -6,22 +6,23 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use itertools::Itertools;
 use reqwest::{Client, Url};
+use stability_pool_common::FiatAmount;
 use tracing::{info, warn};
 
 #[async_trait]
 pub trait Oracle: Sync + Send + Debug {
-    // Returns current price in cents
-    async fn get_price(&self) -> anyhow::Result<u64>;
+    // Returns current price in FiatAmount
+    async fn get_price(&self) -> anyhow::Result<FiatAmount>;
 }
 
 #[derive(Debug)]
 pub struct MockOracle {
-    price_inner: Option<u64>,
+    price_inner: Option<FiatAmount>,
 }
 
 #[async_trait]
 impl Oracle for MockOracle {
-    async fn get_price(&self) -> anyhow::Result<u64> {
+    async fn get_price(&self) -> anyhow::Result<FiatAmount> {
         self.price_inner
             .ok_or(anyhow!("Price currently unavailable"))
     }
@@ -30,7 +31,7 @@ impl Oracle for MockOracle {
 impl Default for MockOracle {
     fn default() -> Self {
         MockOracle {
-            price_inner: Some(10_000 * 100), // 10k dollars in cents
+            price_inner: Some(FiatAmount(10_000 * 100)), // 10k dollars in cents
         }
     }
 }
@@ -45,9 +46,8 @@ impl MockOracle {
     }
 
     /// Sets a new price that's returned from future
-    /// calls to `get_price()`. Supplied price must be
-    /// denominated in cents.
-    pub fn set_new_price(&mut self, new_price: u64) {
+    /// calls to `get_price()`.
+    pub fn set_new_price(&mut self, new_price: FiatAmount) {
         self.price_inner = Some(new_price)
     }
 }
@@ -55,7 +55,10 @@ impl MockOracle {
 pub trait RemotePriceSource: Debug + Send + Sync {
     fn get_url(&self) -> Url;
 
-    fn extract_price_from_json_value(&self, json_value: serde_json::Value) -> anyhow::Result<u64>;
+    fn extract_price_from_json_value(
+        &self,
+        json_value: serde_json::Value,
+    ) -> anyhow::Result<FiatAmount>;
 }
 
 #[derive(Debug)]
@@ -68,7 +71,10 @@ impl RemotePriceSource for CexIoAPI {
             .expect("cex.io API url must be valid")
     }
 
-    fn extract_price_from_json_value(&self, json_value: serde_json::Value) -> anyhow::Result<u64> {
+    fn extract_price_from_json_value(
+        &self,
+        json_value: serde_json::Value,
+    ) -> anyhow::Result<FiatAmount> {
         let float_price = json_value
             .as_object()
             .ok_or(anyhow!("Couldn't transform json value into object"))?
@@ -79,7 +85,7 @@ impl RemotePriceSource for CexIoAPI {
             .parse::<f64>()?;
 
         // Convert to whole number of cents
-        Ok((float_price * 100.0) as u64)
+        Ok(FiatAmount((float_price * 100.0) as u64))
     }
 }
 
@@ -93,7 +99,10 @@ impl RemotePriceSource for YadioIoAPI {
             .expect("yadio.io API url must be valid")
     }
 
-    fn extract_price_from_json_value(&self, json_value: serde_json::Value) -> anyhow::Result<u64> {
+    fn extract_price_from_json_value(
+        &self,
+        json_value: serde_json::Value,
+    ) -> anyhow::Result<FiatAmount> {
         let float_price = json_value
             .as_object()
             .ok_or(anyhow!("Couldn't transform json value into object"))?
@@ -103,7 +112,7 @@ impl RemotePriceSource for YadioIoAPI {
             .ok_or(anyhow!("Couldn't read value for key: rate as f64"))?;
 
         // Convert to whole number of cents
-        Ok((float_price * 100.0) as u64)
+        Ok(FiatAmount((float_price * 100.0) as u64))
     }
 }
 
@@ -117,7 +126,10 @@ impl RemotePriceSource for BitstampNetAPI {
             .expect("bitstamp.net API url must be valid")
     }
 
-    fn extract_price_from_json_value(&self, json_value: serde_json::Value) -> anyhow::Result<u64> {
+    fn extract_price_from_json_value(
+        &self,
+        json_value: serde_json::Value,
+    ) -> anyhow::Result<FiatAmount> {
         let float_price = json_value
             .as_object()
             .ok_or(anyhow!("Couldn't transform json value into object"))?
@@ -128,7 +140,7 @@ impl RemotePriceSource for BitstampNetAPI {
             .parse::<f64>()?;
 
         // Convert to whole number of cents
-        Ok((float_price * 100.0) as u64)
+        Ok(FiatAmount((float_price * 100.0) as u64))
     }
 }
 
@@ -154,7 +166,7 @@ impl AggregateOracle {
 
 #[async_trait]
 impl Oracle for AggregateOracle {
-    async fn get_price(&self) -> anyhow::Result<u64> {
+    async fn get_price(&self) -> anyhow::Result<FiatAmount> {
         info!("began fetching prices from oracle sources");
         let source_prices = join_all(self.sources.iter().map(|source| async {
             Ok::<_, anyhow::Error>(

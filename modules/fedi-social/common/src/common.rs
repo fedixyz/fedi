@@ -7,8 +7,7 @@ use fedimint_core::encoding::{Decodable, DecodeError, Encodable};
 use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::PeerId;
 use impl_tools::autoimpl;
-use secp256k1::{Secp256k1, Signing, Verification};
-use secp256k1_zkp::Message;
+use secp256k1::{Message, Secp256k1, Signing, Verification};
 use serde::{Deserialize, Serialize};
 
 // HACK: this was removed upstream
@@ -25,7 +24,7 @@ impl<'a, W> CountWrite<'a, W> {
     }
 }
 
-impl<'a, W> io::Write for CountWrite<'a, W>
+impl<W> io::Write for CountWrite<'_, W>
 where
     W: io::Write,
 {
@@ -234,8 +233,9 @@ impl BackupRequest {
         sha256::Hash::from_engine(sha)
     }
 
-    pub fn sign(self, keypair: &secp256k1::KeyPair) -> anyhow::Result<SignedBackupRequest> {
-        let signature = secp256k1::SECP256K1.sign_schnorr(&Message::from(self.hash()), keypair);
+    pub fn sign(self, keypair: &secp256k1::Keypair) -> anyhow::Result<SignedBackupRequest> {
+        let signature = secp256k1::SECP256K1
+            .sign_schnorr(&Message::from_digest_slice(self.hash().as_ref())?, keypair);
 
         Ok(SignedBackupRequest {
             request: self,
@@ -267,7 +267,7 @@ impl SignedBackupRequest {
     {
         ctx.verify_schnorr(
             &self.signature,
-            &Message::from_slice(self.request.hash().as_ref()).expect("Can't fail"),
+            &Message::from_digest_slice(self.request.hash().as_ref()).expect("Can't fail"),
             &self.request.id.0.x_only_public_key().0,
         )?;
 
@@ -295,8 +295,9 @@ impl RecoveryRequest {
         sha256::Hash::from_engine(sha)
     }
 
-    pub fn sign(self, keypair: &secp256k1::KeyPair) -> anyhow::Result<SignedRecoveryRequest> {
-        let signature = secp256k1::SECP256K1.sign_schnorr(&Message::from(self.hash()), keypair);
+    pub fn sign(self, keypair: &secp256k1::Keypair) -> anyhow::Result<SignedRecoveryRequest> {
+        let signature = secp256k1::SECP256K1
+            .sign_schnorr(&Message::from_digest_slice(self.hash().as_ref())?, keypair);
 
         Ok(SignedRecoveryRequest {
             request: self,
@@ -324,7 +325,7 @@ impl SignedRecoveryRequest {
     {
         ctx.verify_schnorr(
             &self.signature,
-            &Message::from_slice(self.request.hash().as_byte_array()).expect("Can't fail"),
+            &Message::from_digest_slice(self.request.hash().as_byte_array()).expect("Can't fail"),
             &self.request.id.0.x_only_public_key().0,
         )?;
 

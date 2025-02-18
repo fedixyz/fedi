@@ -12,6 +12,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../../../assets/images'
 import { fedimint } from '../../../bridge'
+import { reset } from '../../../state/navigation'
 import { BitcoinOrLightning, BtcLnUri, TransactionEvent } from '../../../types'
 import OnchainDepositInfo from './OnchainDepositInfo'
 
@@ -63,9 +64,11 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({ uri, type }: ReceiveQrProps) => {
                 event.transaction.lightning?.invoice === uri.body ||
                 event.transaction.bitcoin?.address === uri.body
             )
-                navigation.navigate('ReceiveSuccess', {
-                    tx: event.transaction,
-                })
+                navigation.dispatch(
+                    reset('ReceiveSuccess', {
+                        tx: event.transaction,
+                    }),
+                )
         },
         [navigation, uri.body],
     )

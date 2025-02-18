@@ -217,8 +217,8 @@ export const JoinFederation: React.FC = () => {
             memberStatus === 'newMember'
                 ? t('feature.onboarding.welcome-instructions-new')
                 : memberStatus === 'returningMember'
-                ? t('feature.onboarding.welcome-instructions-returning')
-                : t('feature.onboarding.welcome-instructions-unknown')
+                  ? t('feature.onboarding.welcome-instructions-returning')
+                  : t('feature.onboarding.welcome-instructions-unknown')
         content = (
             <FederationPreviewOuter>
                 <FederationPreviewInner>

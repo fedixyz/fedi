@@ -23,8 +23,8 @@ tokio = { workspace = true, features = ["time", "macros"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
 tracing-wasm = "0.2.1"
-wasm-bindgen = "=0.2.92"
+wasm-bindgen = "=0.2.99"
 wasm-bindgen-futures = "0.4.34"
-wasm-bindgen-test = "0.3.34"
+wasm-bindgen-test = "0.3.49"
 
 fedimint-core = { workspace = true }

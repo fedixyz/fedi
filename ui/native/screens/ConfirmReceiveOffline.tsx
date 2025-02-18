@@ -1,14 +1,15 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { receiveEcash, validateEcash } from '@fedi/common/redux'
-import type { MSats, Transaction } from '@fedi/common/types'
+import type { MSats } from '@fedi/common/types'
 import { RpcEcashInfo } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import FiatAmount from '../components/feature/wallet/FiatAmount'
@@ -20,6 +21,8 @@ export type Props = NativeStackScreenProps<
     RootStackParamList,
     'ConfirmReceiveOffline'
 >
+
+const log = makeLog('ConfirmReceiveOffline')
 
 const ConfirmReceiveOffline: React.FC<Props> = ({
     route,
@@ -33,7 +36,6 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
     const [validatedEcash, setValidatedEcash] = useState<RpcEcashInfo | null>(
         null,
     )
-    const [error, setError] = useState<Error>()
     const [note, setNote] = useState('')
     const [receiving, setReceiving] = useState(false)
 
@@ -46,52 +48,49 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
         )
             .unwrap()
             .then(setValidatedEcash)
-            .catch(() => {
-                setError(new Error('errors.invalid-ecash-token'))
-            })
-    }, [ecash, dispatch])
-
-    useEffect(() => {
-        if (error) {
-            toast.error(t, error, 'errors.invalid-ecash-token')
-        }
-    }, [error, t, toast])
+            .catch(() => toast.error(t, 'errors.invalid-ecash-token'))
+    }, [ecash, dispatch, toast, t])
 
     const amount = validatedEcash?.amount ?? (0 as MSats)
 
-    const onReceive = async () => {
+    const onReceive = useCallback(async () => {
         if (!validatedEcash) return
 
         // Don't call multiple times
-        if (!receiving) {
-            setReceiving(true)
-            try {
-                // Check to see if the user has joined a federation with a matching `validatedEcash.federationId`
-                if (validatedEcash.federation_type !== 'joined') {
-                    throw new Error('errors.unknown-ecash-issuer')
-                }
+        if (receiving) return
+        setReceiving(true)
 
-                await dispatch(
-                    receiveEcash({
-                        fedimint,
-                        // If so, join from that federation
-                        federationId: validatedEcash.federation_id,
-                        ecash,
-                    }),
-                ).unwrap()
-                setReceiving(false)
+        try {
+            // Check to see if the user has joined a federation with a matching `validatedEcash.federationId`
+            if (validatedEcash.federation_type !== 'joined') {
+                throw new Error('errors.unknown-ecash-issuer')
+            }
+
+            const result = await dispatch(
+                receiveEcash({
+                    fedimint,
+                    // If so, join from that federation
+                    federationId: validatedEcash.federation_id,
+                    ecash,
+                }),
+            ).unwrap()
+
+            setReceiving(false)
+            if (result.status === 'success' || result.status === 'pending') {
                 navigation.navigate('ReceiveSuccess', {
                     // TODO: Fill out other fields? Missing some required Transaction fields.
-                    tx: {
-                        amount,
-                    } as Transaction,
+                    tx: { amount: result.amount },
+                    status: result.status,
                 })
-            } catch (e) {
-                toast.error(t, e)
-                setReceiving(false)
+            } else if (result.status === 'failed') {
+                log.warn('receiveEcash failed with error', result.error)
+                throw new Error('errors.receive-ecash-failed-claimed')
             }
+        } catch (e) {
+            toast.error(t, e)
+            setReceiving(false)
         }
-    }
+    }, [ecash, dispatch, navigation, receiving, toast, t, validatedEcash])
 
     const amountSats = amountUtils.msatToSat(amount)
 

@@ -62,8 +62,8 @@ export const ToastManager: React.FC = () => {
                                 {cachedToast?.status === 'success'
                                     ? '👍'
                                     : cachedToast?.status === 'info'
-                                    ? '👀'
-                                    : '⚠️'}
+                                      ? '👀'
+                                      : '⚠️'}
                             </ToastIcon>
                             <Description>
                                 <Text variant="caption">

@@ -184,3 +184,14 @@ export type MatrixCreateRoomOptions = {
     }
     initial_state?: StateEvent[]
 }
+
+export type InputAttachment = {
+    fileName: string
+    uri: string
+    mimeType: string
+}
+
+export type InputMedia = InputAttachment & {
+    width: number
+    height: number
+}

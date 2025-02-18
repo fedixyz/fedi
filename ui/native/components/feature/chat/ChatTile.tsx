@@ -99,8 +99,10 @@ const ChatTile = ({ room, onSelect, onLongPress }: ChatTileProps) => {
                             {previewMessageIsDeleted
                                 ? t('feature.chat.message-deleted')
                                 : room.isPublic && room.broadcastOnly
-                                ? t('feature.chat.click-here-for-announcements')
-                                : t('feature.chat.no-messages')}
+                                  ? t(
+                                        'feature.chat.click-here-for-announcements',
+                                    )
+                                  : t('feature.chat.no-messages')}
                         </Text>
                     )}
                 </View>

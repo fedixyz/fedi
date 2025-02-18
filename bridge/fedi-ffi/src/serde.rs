@@ -51,7 +51,7 @@ where
 #[serde(remote = "VectorDiff")]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "kind")]
-#[ts(export, export_to = "target/bindings/")]
+#[ts(export)]
 pub enum SerdeVectorDiff<T: Clone> {
     /// Multiple elements were appended.
     Append {
