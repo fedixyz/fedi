@@ -8,10 +8,7 @@ import QRIcon from '@fedi/common/assets/svgs/qr.svg'
 import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import {
-    selectActiveFederationId,
-    selectChatConnectionOptions,
-} from '@fedi/common/redux'
+import { selectActiveFederationId } from '@fedi/common/redux'
 import {
     AnyParsedData,
     ParsedUnknownData,
@@ -61,7 +58,6 @@ export function OmniInput<
     const { t } = useTranslation()
     const toast = useToast()
     const federationId = useAppSelector(selectActiveFederationId)
-    const connectionOptions = useAppSelector(selectChatConnectionOptions)
     const [isScanning, setIsScanning] = useState(props.defaultToScan || false)
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
@@ -97,13 +93,12 @@ export function OmniInput<
             if (expectedTypes.includes(parsedData.type)) {
                 propsRef.current.onExpectedInput(parsedData as ExpectedData)
             } else if (parsedData.type === ParserDataType.Unknown) {
-                if (!federationId || !connectionOptions?.domain)
-                    return setInvalidData(parsedData)
+                if (!federationId) return setInvalidData(parsedData)
             } else {
                 setUnexpectedData(parsedData)
             }
         },
-        [propsRef, isLoadingRef, t, federationId, connectionOptions],
+        [propsRef, isLoadingRef, t, federationId],
     )
 
     const handlePaste = useCallback(async () => {

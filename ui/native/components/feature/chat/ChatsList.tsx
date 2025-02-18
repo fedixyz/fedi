@@ -1,7 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
-import { Button, Text, Theme, useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import {
     Dimensions,
     FlatList,
@@ -14,7 +13,6 @@ import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import {
     previewAllDefaultChats,
     refetchMatrixRoomList,
-    selectIsChatEmpty,
     selectMatrixChatsList,
     selectMatrixStatus,
 } from '@fedi/common/redux'
@@ -29,12 +27,9 @@ import ChatTile from './ChatTile'
 const WINDOW_WIDTH = Dimensions.get('window').width
 
 const ChatsList: React.FC = () => {
-    const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const dispatch = useAppDispatch()
-    const isLegacyChatEmpty = useAppSelector(selectIsChatEmpty)
-    const hasLegacyChatData = !isLegacyChatEmpty
 
     const rooms = useAppSelector(selectMatrixChatsList)
     const syncStatus = useAppSelector(selectMatrixStatus)
@@ -96,22 +91,6 @@ const ChatsList: React.FC = () => {
                 refreshing={isRefetching}
                 keyExtractor={item => `${item.id}`}
                 progressViewOffset={-10}
-                ListFooterComponent={
-                    <>
-                        {hasLegacyChatData && (
-                            <Button
-                                fullWidth
-                                type="clear"
-                                title={
-                                    <Text caption medium>
-                                        {t('feature.chat.view-archived-chats')}
-                                    </Text>
-                                }
-                                onPress={() => navigation.push('LegacyChat')}
-                            />
-                        )}
-                    </>
-                }
                 // optimization that allows skipping the measurement of dynamic content
                 // for fixed-size list items
                 getItemLayout={(data, index) => ({

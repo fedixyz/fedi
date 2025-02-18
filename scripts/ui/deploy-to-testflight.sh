@@ -38,6 +38,8 @@ else
   $REPO_ROOT/scripts/ui/build-deps.sh
 fi
 
+
+
 if [[ "$REINSTALL_PODS" == "0" ]]; then
   echo "Skipping pod install..."
 else
@@ -46,6 +48,40 @@ else
 fi
 
 pushd $REPO_ROOT/ui/native/ios
+
+# Added to fix CI errors
+# Codegen, although generating files in the correct directory, does not have them present for the build to complete
+# We generate them manually and copy them over outselves to allow the build to complete
+# This error was present after we upgraded to Xccode 16.0 and macos 15. It's only present on the CI runner.
+# Similar errors: https://forums.developer.apple.com/forums/thread/716483
+# Additional: https://stackoverflow.com/questions/75193781/xcode-14-did-you-forget-to-declare-this-file-as-an-output-of-a-script-phase-or-c
+# Generate codegen files and prepare the directories
+echo "Running codegen..."
+nix develop -c npx react-native codegen
+
+if [ $? -ne 0 ]; then
+  echo "Error: Codegen process failed. Please check your environment setup and dependencies."
+  exit 1
+fi
+
+echo "Creating necessary directories for generated files..."
+mkdir -p $REPO_ROOT/ui/native/ios/build/generated/ios/
+
+echo "Copying generated files..."
+if cp -r $REPO_ROOT/ui/native/build/generated/ios/* $REPO_ROOT/ui/native/ios/build/generated/ios/; then
+  echo "Files copied successfully."
+else
+  echo "Error: Failed to copy generated files. Ensure the source directory exists and contains the expected files."
+  exit 1
+fi
+
+echo "Verifying copied files..."
+if ls $REPO_ROOT/ui/native/ios/build/generated; then
+  echo "Verification successful."
+else
+  echo "Error: Verification failed. No files found in the target directory."
+  exit 1
+fi
 
 # Build numbers are timestamp based to ensure they are always
 # increasing. Must be lower than 2,100,000,000 so the scheme is:

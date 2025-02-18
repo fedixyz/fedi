@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import {
     selectMatrixStatus,
     selectNeedsMatrixRegistration,
-    selectShouldShowUpgradeChat,
 } from '@fedi/common/redux'
 import { MatrixSyncStatus } from '@fedi/common/types'
 
@@ -17,7 +16,6 @@ import { ChatUserConversation } from '../../components/ChatUserConversation'
 import { CircularLoader } from '../../components/CircularLoader'
 import { ContentBlock } from '../../components/ContentBlock'
 import { Redirect } from '../../components/Redirect'
-import { UpgradeChat } from '../../components/UpgradeChat'
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 
@@ -26,7 +24,6 @@ function ChatPage() {
     const { query, isReady } = useRouter()
     const syncStatus = useAppSelector(selectMatrixStatus)
     const needsChatRegistration = useAppSelector(selectNeedsMatrixRegistration)
-    const shouldShowUpgradeChat = useAppSelector(selectShouldShowUpgradeChat)
 
     const [chatType, chatId] = Array.isArray(query.path)
         ? [query.path[0], query.path[1]]
@@ -49,13 +46,7 @@ function ChatPage() {
     }
     // Regardless of which page they're on, if they need to register a username
     // or upgrade to matrix chat then intercept here
-    else if (shouldShowUpgradeChat) {
-        return (
-            <ContentBlock>
-                <UpgradeChat />
-            </ContentBlock>
-        )
-    } else if (needsChatRegistration) {
+    else if (needsChatRegistration) {
         return (
             <ContentBlock>
                 <ChatNeedRegistration />

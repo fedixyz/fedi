@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import type { i18n as I18n } from 'i18next'
 
 import { CommonState } from '.'
 import type { LatestStoredState, StorageApi } from '../types'
@@ -41,9 +42,24 @@ export const storageSlice = createSlice({
 
 export const loadFromStorage = createAsyncThunk<
     LatestStoredState | null,
-    { storage: StorageApi }
->('storage/loadFromStorage', async ({ storage }) => {
-    return getStoredState(storage)
+    {
+        storage: StorageApi
+        i18n: I18n
+        detectLanguage?: () => Promise<string>
+    }
+>('storage/loadFromStorage', async ({ storage, i18n, detectLanguage }) => {
+    const storedState = await getStoredState(storage)
+
+    // Load and initialize the language from stored state
+    const language = storedState?.language
+    if (detectLanguage) {
+        detectLanguage().then(detectedLanguage => {
+            if (!language) i18n.changeLanguage(detectedLanguage)
+            else i18n.changeLanguage(language)
+        })
+    } else if (language) i18n.changeLanguage(language)
+
+    return storedState
 })
 
 export const saveToStorage = createAsyncThunk<

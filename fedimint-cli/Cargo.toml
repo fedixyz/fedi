@@ -14,7 +14,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 fedimint-cli = { workspace = true }
 tokio = { workspace = true, features = ["full", "tracing"] }
-stability-pool-client = { path = "../modules/stability-pool/client" }
+stability-pool-client-old = { path = "../modules/stability-pool-old/client" }
 fedi-social-client = { path = "../modules/fedi-social/client" }
 
 [build-dependencies]

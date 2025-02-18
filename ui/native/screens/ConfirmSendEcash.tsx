@@ -22,6 +22,7 @@ import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('ConfirmSendEcash')
@@ -62,7 +63,9 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
                     amount: millis,
                 }),
             ).unwrap()
-            navigation.navigate('SendOfflineQr', { ecash, amount: millis })
+            navigation.dispatch(
+                reset('SendOfflineQr', { ecash, amount: millis }),
+            )
         } catch (error) {
             log.error('onGenerateEcash', error)
         }

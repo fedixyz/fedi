@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { changeSelectedFiatCurrency, selectCurrency } from '@fedi/common/redux'
+import { changeOverrideCurrency, selectCurrency } from '@fedi/common/redux'
 import { SupportedCurrency } from '@fedi/common/types'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 
@@ -37,7 +37,7 @@ function AppSettings() {
                         options={currencyOptions}
                         value={currency}
                         onChange={value =>
-                            dispatch(changeSelectedFiatCurrency(value))
+                            dispatch(changeOverrideCurrency(value))
                         }
                     />
                 </Layout.Content>

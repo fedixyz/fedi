@@ -1,48 +1,59 @@
-import { useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { View } from 'react-native'
+import { Theme, useTheme } from '@rneui/themed'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+import { StyleSheet, View } from 'react-native'
 import { RejectionError } from 'webln'
 
 import { useSendForm } from '@fedi/common/hooks/amount'
-import { useToast } from '@fedi/common/hooks/toast'
+import { useOmniPaymentState } from '@fedi/common/hooks/pay'
+import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { payInvoice, selectPaymentFederation } from '@fedi/common/redux'
+import {
+    payInvoice,
+    selectInvoiceToPay,
+    selectLnurlPayment,
+    selectPaymentFederation,
+    selectSiteInfo,
+    selectWalletFederations,
+    setPayFromFederationId,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { formatErrorMessage } from '@fedi/common/utils/format'
 import { lnurlPay } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { FediMod, Invoice, ParsedLnurlPay } from '../../../types'
+import { MSats, ParserDataType } from '../../../types'
 import AmountInput from '../../ui/AmountInput'
 import CustomOverlay from '../../ui/CustomOverlay'
+import LineBreak from '../../ui/LineBreak'
+import SvgImage from '../../ui/SvgImage'
 import FederationWalletSelector from '../send/FederationWalletSelector'
+import FeeOverlay from '../send/FeeOverlay'
+import SendPreviewDetails from '../send/SendPreviewDetails'
 
 const log = makeLog('SendPaymentOverlay')
 
 interface Props {
-    fediMod: FediMod
-    invoice?: Invoice | null
-    lnurlPayment?: ParsedLnurlPay['data'] | null
     onReject: (err: Error) => void
     onAccept: (res: { preimage: string }) => void
 }
 
-export const SendPaymentOverlay: React.FC<Props> = ({
-    fediMod,
-    invoice,
-    lnurlPayment,
-    onReject,
-    onAccept,
-}) => {
+export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const toast = useToast()
+    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
     const paymentFederation = useAppSelector(selectPaymentFederation)
+    const walletFederations = useAppSelector(selectWalletFederations)
+    const lnurlPayment = useAppSelector(selectLnurlPayment)
+    const invoice = useAppSelector(selectInvoiceToPay)
+    const siteInfo = useAppSelector(selectSiteInfo)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [amountInputKey, setAmountInputKey] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const dispatch = useAppDispatch()
@@ -53,16 +64,68 @@ export const SendPaymentOverlay: React.FC<Props> = ({
         minimumAmount,
         maximumAmount,
         reset,
-    } = useSendForm({ invoice, lnurlPayment, t })
+    } = useSendForm({
+        invoice,
+        lnurlPayment,
+        t,
+        selectedPaymentFederation: true,
+    })
+    const { feeDetails, handleOmniInput } = useOmniPaymentState(
+        fedimint,
+        paymentFederation?.id,
+        true,
+        t,
+    )
+    const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
+        return feeDetails
+            ? makeLightningFeeContent(feeDetails)
+            : { feeItemsBreakdown: [], formattedTotalFee: '' }
+    }, [feeDetails, makeLightningFeeContent])
 
     // Reset form when it appears, requires a key bump to flush state.
     const isShowing = Boolean(invoice || lnurlPayment)
+
     useEffect(() => {
         if (isShowing) {
+            // If no payment federation is set (e.g. your active federation is a non-wallet community), find and select the best possible wallet federation
+            if (!paymentFederation) {
+                const firstWalletFederation = walletFederations
+                    // Sort by balance
+                    .sort((a, b) => b.balance - a.balance)
+                    // Prioritize mainnet federations
+                    .sort(
+                        (a, b) =>
+                            // Resolves to either 0 or 1 for true/false
+                            // Sorts in descending order by network === bitcoin - network !== bitcoin
+                            Number(b.network === 'bitcoin') -
+                            Number(a.network === 'bitcoin'),
+                    )[0]
+
+                dispatch(
+                    setPayFromFederationId(firstWalletFederation?.id ?? null),
+                )
+            }
+
             reset()
             setAmountInputKey(key => key + 1)
+            setError(null)
         }
-    }, [isShowing, reset])
+    }, [isShowing, reset, paymentFederation, walletFederations, dispatch])
+
+    useEffect(() => {
+        if (!invoice) return
+
+        handleOmniInput({
+            type: ParserDataType.Bolt11,
+            data: invoice,
+        })
+    }, [handleOmniInput, invoice])
+
+    useEffect(() => {
+        if (maximumAmount === 0) {
+            setError(t('errors.please-select-balance-federation'))
+        }
+    }, [maximumAmount, t])
 
     const handleAccept = async () => {
         setSubmitAttempts(attempts => attempts + 1)
@@ -74,6 +137,16 @@ export const SendPaymentOverlay: React.FC<Props> = ({
         try {
             if (!paymentFederation) throw new Error()
             if (invoice) {
+                if (paymentFederation.balance < invoice.amount) {
+                    throw new Error(
+                        t('errors.insufficient-balance', {
+                            balance: `${amountUtils.msatToSat(
+                                paymentFederation.balance as MSats,
+                            )} SATS`,
+                        }),
+                    )
+                }
+
                 const res = await dispatch(
                     payInvoice({
                         fedimint,
@@ -91,10 +164,10 @@ export const SendPaymentOverlay: React.FC<Props> = ({
                 )
                 onAcceptRef.current(res)
             }
-        } catch (error) {
-            log.error('Failed to pay invoice', invoice, error)
-            toast.error(t, error)
-            onRejectRef.current(error as Error)
+        } catch (err) {
+            log.error('Failed to pay invoice', invoice, err)
+
+            setError(formatErrorMessage(t, err, 'errors.unknown-error'))
         }
         setIsLoading(false)
     }
@@ -105,6 +178,8 @@ export const SendPaymentOverlay: React.FC<Props> = ({
         )
     }
 
+    const style = styles(theme)
+
     return (
         <CustomOverlay
             show={isShowing}
@@ -114,16 +189,10 @@ export const SendPaymentOverlay: React.FC<Props> = ({
             }
             contents={{
                 title: t('feature.fedimods.payment-request', {
-                    fediMod: fediMod.title,
+                    fediMod: siteInfo?.title,
                 }),
                 body: (
-                    <View
-                        style={{
-                            flex: 1,
-                            paddingTop: theme.spacing.xl,
-                            alignItems: 'center',
-                            gap: theme.spacing.lg,
-                        }}>
+                    <View style={style.container}>
                         <FederationWalletSelector />
                         <AmountInput
                             key={amountInputKey}
@@ -138,6 +207,39 @@ export const SendPaymentOverlay: React.FC<Props> = ({
                                 setSubmitAttempts(0)
                                 setInputAmount(amount)
                             }}
+                            error={error}
+                        />
+                        <View style={style.previewDetails}>
+                            <SendPreviewDetails
+                                onPressFees={() => setShowFeeBreakdown(true)}
+                                formattedTotalFee={formattedTotalFee}
+                                senderText={t(
+                                    'feature.stabilitypool.bitcoin-balance',
+                                )}
+                                isLoading={isLoading}
+                            />
+                        </View>
+                        <FeeOverlay
+                            show={showFeeBreakdown}
+                            onDismiss={() => setShowFeeBreakdown(false)}
+                            title={feeBreakdownTitle}
+                            feeItems={feeItemsBreakdown}
+                            description={
+                                <Trans
+                                    t={t}
+                                    i18nKey="feature.fees.guidance-lightning"
+                                    components={{
+                                        br: <LineBreak />,
+                                    }}
+                                />
+                            }
+                            icon={
+                                <SvgImage
+                                    name="Info"
+                                    size={32}
+                                    color={theme.colors.orange}
+                                />
+                            }
                         />
                     </View>
                 ),
@@ -149,6 +251,10 @@ export const SendPaymentOverlay: React.FC<Props> = ({
                     {
                         primary: true,
                         text: t('words.accept'),
+                        disabled:
+                            !!error ||
+                            inputAmount < minimumAmount ||
+                            inputAmount > maximumAmount,
                         onPress: handleAccept,
                     },
                 ],
@@ -156,3 +262,19 @@ export const SendPaymentOverlay: React.FC<Props> = ({
         />
     )
 }
+
+const styles = (theme: Theme) =>
+    StyleSheet.create({
+        container: {
+            flex: 1,
+            flexDirection: 'column',
+            paddingTop: theme.spacing.xl,
+            alignItems: 'center',
+            gap: theme.spacing.lg,
+            width: '100%',
+            paddingHorizontal: theme.spacing.md,
+        },
+        previewDetails: {
+            width: '100%',
+        },
+    })

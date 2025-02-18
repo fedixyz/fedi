@@ -8,7 +8,6 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { selectActiveFederation } from '@fedi/common/redux/federation'
 
 import { useAppSelector } from '../../../state/hooks'
-import { Network } from '../../../types'
 import { NavigationHook } from '../../../types/navigation'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import Balance from './Balance'
@@ -40,7 +39,7 @@ const WalletHeader: React.FC = () => {
                             {t('words.bitcoin')}
                         </Text>
                     </View>
-                    {network && network !== Network.bitcoin && (
+                    {network && network !== 'bitcoin' && (
                         <Text small medium style={style.title}>
                             {capitalize(network)}
                         </Text>

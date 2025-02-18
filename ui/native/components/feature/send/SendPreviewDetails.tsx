@@ -7,7 +7,7 @@ import SvgImage from '../../ui/SvgImage'
 
 export type Props = {
     onPressFees: () => void
-    onSend: () => void
+    onSend?: () => void
     formattedTotalFee: string
     senderText: string | React.ReactNode
     sendButtonText?: string
@@ -91,18 +91,20 @@ const SendPreviewDetails: React.FC<Props> = ({
                     </Text>
                 }
             />
-            <Button
-                fullWidth
-                containerStyle={[style.button]}
-                onPress={onSend}
-                disabled={isLoading}
-                loading={isLoading}
-                title={
-                    <Text medium caption style={style.buttonText}>
-                        {sendButtonText ?? t('words.send')}
-                    </Text>
-                }
-            />
+            {typeof onSend === 'function' && (
+                <Button
+                    fullWidth
+                    containerStyle={[style.button]}
+                    onPress={onSend}
+                    disabled={isLoading}
+                    loading={isLoading}
+                    title={
+                        <Text medium caption style={style.buttonText}>
+                            {sendButtonText ?? t('words.send')}
+                        </Text>
+                    }
+                />
+            )}
         </View>
     )
 }
@@ -147,6 +149,7 @@ const styles = (theme: Theme) =>
         },
         detailsButton: {
             backgroundColor: theme.colors.offWhite,
+            width: '100%',
         },
     })
 

@@ -95,6 +95,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                 <Input
                     onChangeText={setGroupName}
                     value={groupName}
+                    maxLength={30}
                     placeholder={`${t('feature.chat.group-name')}`}
                     returnKeyType="done"
                     containerStyle={style.textInputOuter}
@@ -103,6 +104,13 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                     autoCorrect={false}
                     selectTextOnFocus
                 />
+                {groupName.length === 30 && (
+                    <Text
+                        caption
+                        style={[style.errorLabel, style.maxLengthError]}>
+                        {t('errors.group-name-too-long')}
+                    </Text>
+                )}
             </View>
             <View style={style.switchWrapper}>
                 <Text style={style.inputLabel}>
@@ -189,6 +197,9 @@ const styles = (theme: Theme) =>
         },
         textInputOuter: {
             width: '100%',
+        },
+        maxLengthError: {
+            paddingHorizontal: theme.spacing.lg,
         },
     })
 

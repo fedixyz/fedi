@@ -99,7 +99,6 @@ const EditProfileSettings: React.FC = () => {
                 }
 
                 await RNFS.copyFile(file.uri, fileDestination)
-
                 await dispatch(
                     uploadAndSetMatrixAvatarUrl({
                         fedimint,

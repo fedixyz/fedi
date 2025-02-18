@@ -6,22 +6,78 @@ import notifee, {
     NotificationAndroid,
     NotificationIOS,
 } from '@notifee/react-native'
-import { FirebaseMessagingTypes } from '@react-native-firebase/messaging'
+import messaging, {
+    FirebaseMessagingTypes,
+} from '@react-native-firebase/messaging'
 import { TFunction } from 'i18next'
 import { Linking } from 'react-native'
+import DeviceInfo from 'react-native-device-info'
+import * as Zendesk from 'react-native-zendesk-messaging'
 
-import { selectFederations } from '@fedi/common/redux'
+import {
+    selectFederations,
+    configureMatrixPushNotifications,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 
-import { store } from '../state/store'
+import { store, AppDispatch } from '../state/store'
 import { TransactionDirection, TransactionEvent } from '../types'
 
 const log = makeLog('Notifications')
 
 export const NOTIFICATION_TYPES = ['chat', 'payment'] as const
 export type NOTIFICATION_TYPE = (typeof NOTIFICATION_TYPES)[number]
+
+export const manuallyPublishNotificationToken = async () => {
+    log.info('Manually publishing push notification token...')
+
+    try {
+        const dispatch: AppDispatch = store.dispatch // Explicit dispatch type
+
+        // Check and request permissions
+        const permissionStatus = await messaging().hasPermission()
+        if (permissionStatus !== messaging.AuthorizationStatus.AUTHORIZED) {
+            log.warn(
+                'Notification permission not granted. Requesting permission...',
+            )
+            await messaging().requestPermission()
+        }
+
+        // Fetch the FCM token
+        const fcmToken = await messaging().getToken()
+        if (!fcmToken) throw new Error("FCM Token couldn't be fetched.")
+        log.info(`Fetched FCM Token: ${fcmToken}`)
+
+        // 1. **Publish to Sygnal (Matrix push notification server)**
+        try {
+            await dispatch(
+                configureMatrixPushNotifications({
+                    token: fcmToken,
+                    appId: DeviceInfo.getBundleId(),
+                    appName: DeviceInfo.getApplicationName(),
+                }),
+            ).unwrap() // Unwrap the Promise to catch Redux rejections
+
+            log.info(
+                'Successfully published Matrix (Sygnal) push notification token.',
+            )
+        } catch (err) {
+            log.error('Failed to publish Matrix push notification token:', err)
+        }
+
+        // 2. **Publish to Zendesk**
+        try {
+            await Zendesk.updatePushNotificationToken(fcmToken)
+            log.info('Successfully published Zendesk push notification token.')
+        } catch (err) {
+            log.error('Failed to publish Zendesk push notification token:', err)
+        }
+    } catch (error) {
+        log.error('Failed to manually publish notification token:', error)
+    }
+}
 
 /** Handles Firebase Messages when app is in foreground */
 export const handleForegroundFCMReceived = async (

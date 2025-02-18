@@ -128,13 +128,13 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         federation.returningMemberStatus.type === 'newMember'
             ? t('feature.onboarding.welcome-instructions-new')
             : isReturningMember
-            ? t('feature.onboarding.welcome-instructions-returning')
-            : t('feature.onboarding.welcome-instructions-unknown')
+              ? t('feature.onboarding.welcome-instructions-returning')
+              : t('feature.onboarding.welcome-instructions-unknown')
 
     return (
         <View style={style.container}>
             <Card containerStyle={style.roundedCardContainer}>
-                <ScrollView contentContainerStyle={style.innerCardContainer}>
+                <View style={style.cardContent}>
                     <FederationLogo federation={federation} size={96} />
                     <Text h2 medium style={style.welcome}>
                         {welcomeTitle}
@@ -144,27 +144,29 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                             level="100"
                             style={style.customWelcomeContainer}
                             gradientStyle={style.customWelcomeInner}>
-                            <Text caption style={style.welcomeText}>
-                                <Trans
-                                    components={{
-                                        bold: (
-                                            <Text
-                                                caption
-                                                bold
-                                                style={style.welcomeText}
-                                            />
-                                        ),
-                                    }}>
-                                    {welcomeMessage}
-                                </Trans>
-                            </Text>
+                            <ScrollView style={style.scrollTos}>
+                                <Text caption style={style.welcomeText}>
+                                    <Trans
+                                        components={{
+                                            bold: (
+                                                <Text
+                                                    caption
+                                                    bold
+                                                    style={style.welcomeText}
+                                                />
+                                            ),
+                                        }}>
+                                        {welcomeMessage}
+                                    </Trans>
+                                </Text>
+                            </ScrollView>
                         </HoloGradient>
                     ) : (
                         <Text caption style={style.welcomeText}>
                             {welcomeInstructions}
                         </Text>
                     )}
-                </ScrollView>
+                </View>
             </Card>
             <View style={style.buttonsContainer}>
                 {showJoinFederation ? (
@@ -237,10 +239,11 @@ const styles = (theme: Theme) =>
             borderRadius: theme.borders.defaultRadius,
             marginHorizontal: 0,
             padding: theme.spacing.xl,
-            maxHeight: '60%',
         },
-        innerCardContainer: {
+        cardContent: {
+            flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'center',
         },
         welcome: {
             marginTop: theme.spacing.md,
@@ -257,6 +260,10 @@ const styles = (theme: Theme) =>
         },
         customWelcomeInner: {
             padding: theme.spacing.md,
+        },
+        scrollTos: {
+            flexGrow: 0,
+            maxHeight: 100,
         },
         unsupportedContainer: {
             maxWidth: 280,

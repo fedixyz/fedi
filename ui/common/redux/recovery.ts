@@ -21,6 +21,7 @@ const initialState = {
     registeredDevices: [] as RpcRegisteredDevice[],
     deviceIndexRequired: false,
     shouldLockDevice: false, // TODO: persist this to localStorage?
+    shouldMigrateSeed: false, // TODO: persist this to localStorage?
 }
 
 export type RecoveryState = typeof initialState
@@ -42,6 +43,9 @@ export const recoverySlice = createSlice({
         },
         setShouldLockDevice(state, action: PayloadAction<boolean>) {
             state.shouldLockDevice = action.payload
+        },
+        setShouldMigrateSeed(state, action: PayloadAction<boolean>) {
+            state.shouldMigrateSeed = action.payload
         },
     },
     extraReducers: builder => {
@@ -99,6 +103,7 @@ export const {
     setSocialRecoveryState,
     setDeviceIndexRequired,
     setShouldLockDevice,
+    setShouldMigrateSeed,
 } = recoverySlice.actions
 
 /*** Async thunk actions ***/

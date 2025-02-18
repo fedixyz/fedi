@@ -2,6 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
@@ -109,9 +110,12 @@ const FederationWalletSelector: React.FC<{ readonly?: boolean }> = ({
                 contents={{
                     title: t('phrases.select-federation'),
                     body: (
-                        <View style={style.federationsList}>
+                        <ScrollView
+                            style={style.federationsListContainer}
+                            contentContainerStyle={style.federationsList}
+                            alwaysBounceVertical={false}>
                             {federations.map(renderFederation)}
-                        </View>
+                        </ScrollView>
                     ),
                 }}
             />
@@ -134,6 +138,10 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.lg,
             paddingVertical: theme.spacing.sm,
             gap: 10,
+        },
+        federationsListContainer: {
+            maxHeight: 400,
+            marginTop: theme.spacing.md,
         },
         federationsList: {
             paddingTop: theme.spacing.md,

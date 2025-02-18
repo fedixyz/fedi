@@ -1,64 +1,56 @@
-import { Text, useTheme } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+import { StyleSheet, View } from 'react-native'
 import { RejectionError } from 'webln'
 
-import { useToast } from '@fedi/common/hooks/toast'
+import { selectNostrUnsignedEvent, selectSiteInfo } from '@fedi/common/redux'
+import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 import { getNostrEventDisplay } from '@fedi/common/utils/nostr'
-import {
-    SignedNostrEvent,
-    UnsignedNostrEvent,
-} from '@fedi/injections/src/injectables/nostr/types'
+import { SignedNostrEvent } from '@fedi/injections/src/injectables/nostr/types'
 import { eventHashFromEvent } from '@fedi/injections/src/injectables/nostr/utils'
 
 import { fedimint } from '../../../bridge'
-import { FediMod } from '../../../types'
+import { useAppSelector } from '../../../state/hooks'
 import CustomOverlay from '../../ui/CustomOverlay'
 
 const log = makeLog('AuthOverlay')
 
 interface Props {
-    fediMod: FediMod
-    nostrEvent?: UnsignedNostrEvent | null
     onReject: (err: Error) => void
     onAccept: (signedEvent: SignedNostrEvent) => void
 }
 
-export const NostrSignOverlay: React.FC<Props> = ({
-    fediMod,
-    nostrEvent,
-    onReject,
-    onAccept,
-}) => {
+export const NostrSignOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
-    const toast = useToast()
+    const unsignedNostrEvent = useAppSelector(selectNostrUnsignedEvent)
+    const siteInfo = useAppSelector(selectSiteInfo)
     const { theme } = useTheme()
     const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     const handleAccept = async () => {
         log.info('Signature approved')
         setIsLoading(true)
         try {
-            if (!nostrEvent) throw new Error()
+            if (!unsignedNostrEvent) throw new Error()
             const { hex } = await fedimint.getNostrPubkey()
-            const id = eventHashFromEvent(hex, nostrEvent)
+            const id = eventHashFromEvent(hex, unsignedNostrEvent)
             const result = await fedimint.signNostrEvent(id)
             onAccept({
                 id,
                 pubkey: hex,
-                created_at: nostrEvent.created_at,
-                kind: nostrEvent.kind,
-                content: nostrEvent.content,
-                tags: nostrEvent.tags,
+                created_at: unsignedNostrEvent.created_at,
+                kind: unsignedNostrEvent.kind,
+                content: unsignedNostrEvent.content,
+                tags: unsignedNostrEvent.tags,
                 sig: result,
             })
         } catch (e) {
             log.error('Failed to sign Nostr event', e)
-            toast.show({
-                content: t('feature.fedimods.login-failed'),
-                status: 'error',
-            })
+
+            setError(formatErrorMessage(t, e, 'errors.unknown-error'))
         }
         setIsLoading(false)
     }
@@ -67,14 +59,18 @@ export const NostrSignOverlay: React.FC<Props> = ({
         onReject(new RejectionError('words.rejected'))
     }
 
-    const display = nostrEvent ? getNostrEventDisplay(nostrEvent, t) : undefined
+    const display = unsignedNostrEvent
+        ? getNostrEventDisplay(unsignedNostrEvent, t)
+        : undefined
 
     // 22242 specifies that the nostr event is an authentication challenge
-    const isAuthEvent = nostrEvent?.kind === 22242
+    const isAuthEvent = unsignedNostrEvent?.kind === 22242
+
+    const style = styles(theme)
 
     return (
         <CustomOverlay
-            show={Boolean(nostrEvent)}
+            show={Boolean(unsignedNostrEvent)}
             loading={isLoading}
             onBackdropPress={() =>
                 onReject(new RejectionError(t('errors.webln-canceled')))
@@ -84,35 +80,44 @@ export const NostrSignOverlay: React.FC<Props> = ({
                 title: isAuthEvent
                     ? undefined
                     : t('feature.nostr.wants-you-to-sign', {
-                          fediMod: fediMod.title,
+                          fediMod: siteInfo?.title,
                       }),
                 message: display?.kind && !isAuthEvent ? display.kind : '',
-                body: isAuthEvent ? (
-                    <Text>
-                        <Trans
-                            t={t}
-                            i18nKey="feature.nostr.log-in-to-mod"
-                            values={{
-                                fediMod: fediMod.title,
-                                method: t('words.nostr'),
-                            }}
-                            components={{ bold: <Text caption bold /> }}
-                        />
-                    </Text>
-                ) : display?.content ? (
-                    <Text
-                        caption
-                        style={{
-                            paddingTop: theme.spacing.lg,
-                            paddingBottom: theme.spacing.sm,
-                            paddingHorizontal: theme.spacing.sm,
-                            color: theme.colors.grey,
-                            textAlign: 'center',
-                        }}
-                        numberOfLines={3}>
-                        "{display.content}"
-                    </Text>
-                ) : undefined,
+                body: (
+                    <View style={style.body}>
+                        {isAuthEvent ? (
+                            <Text>
+                                <Trans
+                                    t={t}
+                                    i18nKey="feature.nostr.log-in-to-mod"
+                                    values={{
+                                        fediMod: siteInfo?.title,
+                                        method: t('words.nostr'),
+                                    }}
+                                    components={{ bold: <Text caption bold /> }}
+                                />
+                            </Text>
+                        ) : display?.content ? (
+                            <Text
+                                caption
+                                style={{
+                                    paddingTop: theme.spacing.lg,
+                                    paddingBottom: theme.spacing.sm,
+                                    paddingHorizontal: theme.spacing.sm,
+                                    color: theme.colors.grey,
+                                    textAlign: 'center',
+                                }}
+                                numberOfLines={3}>
+                                "{display.content}"
+                            </Text>
+                        ) : undefined}
+                        {error && (
+                            <Text caption style={style.error}>
+                                {error}
+                            </Text>
+                        )}
+                    </View>
+                ),
                 buttons: [
                     {
                         text: t(isAuthEvent ? 'phrases.go-back' : 'words.no'),
@@ -128,3 +133,14 @@ export const NostrSignOverlay: React.FC<Props> = ({
         />
     )
 }
+
+const styles = (theme: Theme) =>
+    StyleSheet.create({
+        body: {
+            gap: theme.spacing.lg,
+        },
+        error: {
+            color: theme.colors.red,
+            textAlign: 'center',
+        },
+    })

@@ -57,8 +57,8 @@ const Avatar: React.FC<AvatarProps> = ({
         size === AvatarSize.sm
             ? theme.sizes.smallAvatar
             : size === AvatarSize.md
-            ? theme.sizes.mediumAvatar
-            : theme.sizes.largeAvatar
+              ? theme.sizes.mediumAvatar
+              : theme.sizes.largeAvatar
 
     const multiplier = getIconSizeMultiplier(
         Math.min(fontScale, maxFontSizeMultiplier || Infinity),

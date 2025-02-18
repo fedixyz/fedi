@@ -1,12 +1,7 @@
-import { Overlay, Theme, useTheme } from '@rneui/themed'
-import React, { useRef } from 'react'
-import {
-    Animated,
-    LayoutChangeEvent,
-    StyleProp,
-    StyleSheet,
-    ViewStyle,
-} from 'react-native'
+import { Theme, useTheme } from '@rneui/themed'
+import React, { useMemo } from 'react'
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
+import Modal from 'react-native-modal'
 
 type CenterOverlayProps = {
     onBackdropPress?: () => void
@@ -22,46 +17,45 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
     children,
 }) => {
     const { theme } = useTheme()
-    const animatedOpacity = useRef(new Animated.Value(0)).current
-    const animatedTranslateY = useRef(new Animated.Value(0)).current
-
     const style = styles(theme)
 
-    const handleOverlayLayout = (_: LayoutChangeEvent) => {
-        // On initial height report, begin to fade in
-        Animated.timing(animatedOpacity, {
-            toValue: 1,
-            duration: 100,
-            useNativeDriver: true,
-        }).start()
-    }
+    // to prevent unnecessary updates
+    const memoizedChildren = useMemo(() => children, [children])
+
+    // to prevent re-renders
+    const memoizedOverlayStyle = useMemo(
+        () => [style.overlayContainer, overlayStyle],
+        [style.overlayContainer, overlayStyle],
+    )
 
     return (
-        <Overlay
+        <Modal
             isVisible={show}
             onBackdropPress={onBackdropPress}
-            overlayStyle={[style.overlayContainer, overlayStyle]}
-            animationType="fade">
-            <Animated.View
-                onLayout={handleOverlayLayout}
-                style={{
-                    opacity: animatedOpacity,
-                    transform: [{ translateY: animatedTranslateY }],
-                }}>
-                {children}
-            </Animated.View>
-        </Overlay>
+            backdropOpacity={0.5}
+            animationIn="fadeIn"
+            animationOut="fadeOut"
+            useNativeDriver
+            style={style.modalContainer}>
+            <View style={memoizedOverlayStyle}>{memoizedChildren}</View>
+        </Modal>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        modalContainer: {
+            justifyContent: 'center',
+            alignItems: 'center',
+            margin: 0,
+        },
         overlayContainer: {
             width: '90%',
             maxWidth: 312,
             padding: theme.spacing.xl,
             borderRadius: theme.borders.defaultRadius,
             alignItems: 'center',
+            backgroundColor: theme.colors.background,
         },
     })
 

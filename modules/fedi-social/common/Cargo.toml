@@ -23,7 +23,6 @@ itertools = { workspace = true }
 fedimint-core = { workspace = true }
 rand = { workspace = true }
 secp256k1 = { workspace = true }
-secp256k1-zkp = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }

@@ -49,8 +49,8 @@ const ChatEventTimeFrame = memo(
         const displayName = isBanned
             ? t('feature.chat.removed-member')
             : hasLeft
-            ? t('feature.chat.former-member')
-            : roomMember?.displayName || '...'
+              ? t('feature.chat.former-member')
+              : roomMember?.displayName || '...'
 
         return (
             <View style={style.senderGroup}>

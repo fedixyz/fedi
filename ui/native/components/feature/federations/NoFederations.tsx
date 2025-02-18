@@ -6,7 +6,6 @@ import { Image, ScrollView, StyleSheet, View } from 'react-native'
 
 import { useLatestPublicFederations } from '@fedi/common/hooks/federation'
 import { Images } from '@fedi/native/assets/images'
-import { FediMod } from '@fedi/native/types'
 
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from './FederationLogo'
@@ -23,11 +22,7 @@ const NoFederations: React.FC = () => {
 
     const onOpenAwesomeFedimint = () => {
         navigation.navigate('FediModBrowser', {
-            fediMod: new FediMod({
-                id: 'awesomefedimint',
-                title: 'Awesome Fedimint',
-                url: AWESOME_FEDIMINT_LINK,
-            }),
+            url: AWESOME_FEDIMINT_LINK,
         })
     }
 

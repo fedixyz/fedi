@@ -15,12 +15,13 @@ use tokio::sync::{Mutex, OwnedMutexGuard};
 use tracing::{error, info, instrument, warn};
 
 use crate::api::IFediApi;
+use crate::bridge::BridgeRuntime;
 use crate::constants::MILLION;
-use crate::federation_v2::client::ClientExt;
-use crate::federation_v2::db::{
+use crate::federation::federation_v2::client::ClientExt;
+use crate::federation::federation_v2::db::{
     OutstandingFediFeesPerTXTypeKey, OutstandingFediFeesPerTXTypeKeyPrefix,
 };
-use crate::federation_v2::{zero_gateway_fees, FederationV2};
+use crate::federation::federation_v2::{zero_gateway_fees, FederationV2};
 use crate::storage::{AppState, FediFeeSchedule, ModuleFediFeeSchedule};
 use crate::types::{LightningSendMetadata, RpcTransactionDirection};
 
@@ -42,15 +43,11 @@ pub enum FediFeeHelperError {
 }
 
 impl FediFeeHelper {
-    pub fn new(
-        fedi_api: Arc<dyn IFediApi>,
-        app_state: Arc<AppState>,
-        task_group: TaskGroup,
-    ) -> Self {
+    pub fn new(runtime: Arc<BridgeRuntime>) -> Self {
         Self {
-            fedi_api,
-            app_state,
-            task_group,
+            fedi_api: runtime.fedi_api.clone(),
+            app_state: runtime.app_state.clone(),
+            task_group: runtime.task_group.clone(),
         }
     }
 
@@ -218,25 +215,23 @@ impl FediFeeRemittanceService {
             locks_map: Default::default(),
         };
 
-        let fed2 = fed.clone();
         let service2 = service.clone();
-        fed.task_group
-            .spawn_cancellable("init_fee_remittance_service", async move {
-                let tx_types = fed2
-                    .dbtx()
-                    .await
-                    .find_by_prefix(&OutstandingFediFeesPerTXTypeKeyPrefix)
-                    .await
-                    .map(|(key, _)| (key.0, key.1))
-                    .collect::<Vec<_>>()
-                    .await;
+        fed.spawn_cancellable("init_fee_remittance_service", move |fed| async move {
+            let tx_types = fed
+                .dbtx()
+                .await
+                .find_by_prefix(&OutstandingFediFeesPerTXTypeKeyPrefix)
+                .await
+                .map(|(key, _)| (key.0, key.1))
+                .collect::<Vec<_>>()
+                .await;
 
-                for (module, tx_direction) in tx_types {
-                    service2
-                        .remit_fedi_fee_if_threshold_met(&fed2, module, tx_direction)
-                        .await;
-                }
-            });
+            for (module, tx_direction) in tx_types {
+                service2
+                    .remit_fedi_fee_if_threshold_met(&fed, module, tx_direction)
+                    .await;
+            }
+        });
 
         service
     }
@@ -279,12 +274,10 @@ impl FediFeeRemittanceService {
             info!("Fedi fee remittance not initiated, accrued fee doesn't exceed threshold");
             return;
         }
-        let fed2 = fed.clone();
-        fed.task_group
-            .spawn_cancellable("remit_fedi_fee", async move {
-                let _ = Self::remit_fedi_fee(guard, &fed2, outstanding_fees, module, tx_direction)
-                    .await;
-            });
+        fed.spawn_cancellable("remit_fedi_fee", move |fed2| async move {
+            let _ =
+                Self::remit_fedi_fee(guard, &fed2, outstanding_fees, module, tx_direction).await;
+        });
     }
 
     #[instrument(skip(guard, fed), fields(federation_id = %fed.federation_id()) , err, ret)]

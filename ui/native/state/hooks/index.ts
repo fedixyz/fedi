@@ -1,19 +1,13 @@
 import messaging from '@react-native-firebase/messaging'
 import { useNavigation } from '@react-navigation/native'
-import {
-    MutableRefObject,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-} from 'react'
-import { AppStateStatus, AppState as RNAppState } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { Platform } from 'react-native'
 import DeviceInfo from 'react-native-device-info'
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux'
 
 import { usePublishNotificationToken } from '@fedi/common/hooks/chat'
+import { usePushNotificationToken } from '@fedi/common/hooks/matrix'
 import {
-    ensureHealthyMatrixStream,
     refreshActiveStabilityPool,
     selectCurrency,
     selectCurrencyLocale,
@@ -21,10 +15,12 @@ import {
     selectStableBalancePending,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../bridge'
 import { NavigationHook } from '../../types/navigation'
 import { useNotificationsPermission } from '../../utils/hooks'
+import { updateZendeskPushNotificationToken } from '../../utils/support'
 import type { AppDispatch, AppState } from '../store'
 
 /**
@@ -45,48 +41,73 @@ export const usePrevious = <T = unknown>(value: T): T | undefined => {
     return ref.current
 }
 
-export const useMatrixHealthCheck = () => {
-    const appStateRef = useRef<AppStateStatus>(
-        RNAppState.currentState,
-    ) as MutableRefObject<AppStateStatus>
-    const dispatch = useAppDispatch()
-
-    useEffect(() => {
-        // Subscribe to changes in AppState to detect when app goes from
-        // background to foreground
-        const subscription = RNAppState.addEventListener(
-            'change',
-            nextAppState => {
-                if (
-                    appStateRef.current.match(/inactive|background/) &&
-                    nextAppState === 'active'
-                ) {
-                    dispatch(ensureHealthyMatrixStream())
-                }
-                appStateRef.current = nextAppState
-            },
-        )
-        return () => subscription.remove()
-    }, [dispatch])
-}
-
 // This hook gets the device's FCM token and publishes it
 // to the Matrix Sygnal server
-export const useMatrixPushNotifications = async () => {
-    const { notificationsPermission } = useNotificationsPermission()
-    const getDeviceToken = useMemo(() => {
+export const useMatrixPushNotifications = () => {
+    const { notificationsPermission: permissionGranted } =
+        useNotificationsPermission()
+    const log = makeLog('useMatrixPushNotifications')
+    const pushNotificationToken = usePushNotificationToken()
+
+    const getDeviceToken = useMemo<() => Promise<string>>(() => {
         return async () => {
-            if (!messaging().isDeviceRegisteredForRemoteMessages) {
-                await messaging().registerDeviceForRemoteMessages()
+            try {
+                if (permissionGranted !== 'granted') {
+                    const authStatus = await messaging().requestPermission()
+                    if (
+                        authStatus !==
+                            messaging.AuthorizationStatus.AUTHORIZED &&
+                        authStatus !== messaging.AuthorizationStatus.PROVISIONAL
+                    ) {
+                        const errorMsgNotGranted =
+                            'Notification permission were not granted.'
+                        log.warn(errorMsgNotGranted)
+                        throw new Error(errorMsgNotGranted)
+                    }
+                } else {
+                    log.info('Notification permissions already granted')
+                }
+
+                if (!messaging().isDeviceRegisteredForRemoteMessages) {
+                    await messaging().registerDeviceForRemoteMessages()
+                }
+
+                // Fetch the APNs token (iOS only)
+                if (Platform.OS === 'ios') {
+                    const apnsToken = await messaging().getAPNSToken()
+                    if (apnsToken) {
+                        log.debug(`APNs Token: ${apnsToken}`)
+                    } else {
+                        log.warn('APNs Token not available.')
+                    }
+                }
+
+                // Fetch the FCM token
+                const fcmToken = await messaging().getToken()
+                if (!fcmToken) {
+                    const errorMsgTokenNotFetched =
+                        "FCM Token couldn't be fetched."
+                    log.warn(errorMsgTokenNotFetched)
+                    throw new Error(errorMsgTokenNotFetched)
+                }
+
+                return fcmToken
+            } catch (error) {
+                log.error(
+                    `Error fetching device tokens: ${JSON.stringify(error)}`,
+                )
+                throw error
             }
-            return messaging().getToken()
         }
-    }, [])
+    }, [permissionGranted, log])
+
     usePublishNotificationToken(
         getDeviceToken,
-        notificationsPermission !== 'granted',
         DeviceInfo.getBundleId(),
         DeviceInfo.getApplicationName(),
+        permissionGranted === 'granted',
+        updateZendeskPushNotificationToken,
+        pushNotificationToken,
     )
 }
 

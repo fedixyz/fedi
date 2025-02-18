@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
-use fedimint_core::task::TaskGroup;
 use fedimint_derive_secret::DerivableSecret;
 use futures::StreamExt;
 use matrix_sdk::attachment::{
@@ -46,8 +45,8 @@ use matrix_sdk_ui::{room_list_service, RoomListService};
 use mime::Mime;
 use tracing::{error, info, warn};
 
+use crate::bridge::BridgeRuntime;
 use crate::error::ErrorCode;
-use crate::event::EventSink;
 use crate::observable::{Observable, ObservablePool, ObservableVec};
 use crate::storage::AppState;
 use crate::types::RpcMediaUploadParams;
@@ -63,9 +62,9 @@ pub struct Matrix {
     sync_service: Arc<SyncService>,
     /// manages list of room visible to user.
     room_list_service: Arc<RoomListService>,
-    task_group: TaskGroup,
+    pub runtime: Arc<BridgeRuntime>,
     notification_settings: NotificationSettings,
-    observable_pool: ObservablePool,
+    pub observable_pool: ObservablePool,
 }
 
 impl Matrix {
@@ -109,16 +108,17 @@ impl Matrix {
     /// Start the matrix service.
     #[allow(clippy::too_many_arguments)]
     pub async fn init(
-        event_sink: EventSink,
-        task_group: TaskGroup,
+        runtime: Arc<BridgeRuntime>,
         base_dir: &Path,
         matrix_secret: &DerivableSecret,
         user_name: &str,
         home_server: String,
         sliding_sync_proxy: String,
-        app_state: Arc<AppState>,
     ) -> Result<Self> {
-        let matrix_session = app_state.with_read_lock(|r| r.matrix_session.clone()).await;
+        let matrix_session = runtime
+            .app_state
+            .with_read_lock(|r| r.matrix_session.clone())
+            .await;
         let user_password = &Self::home_server_password(matrix_secret, &home_server);
         let encryption_passphrase = Self::encryption_passphrase(matrix_secret);
         let client = Self::build_client(base_dir, home_server, &encryption_passphrase).await?;
@@ -126,9 +126,20 @@ impl Matrix {
         if let Some(session) = matrix_session {
             client.restore_session(session).await?;
         } else {
-            Self::login_or_register(&client, user_name, user_password, matrix_secret, &app_state)
-                .await?;
+            Self::login_or_register(
+                &client,
+                user_name,
+                user_password,
+                matrix_secret,
+                &runtime.app_state,
+            )
+            .await?;
         };
+        assert_eq!(
+            client.user_id().unwrap().localpart(),
+            user_name,
+            "username must stay same"
+        );
 
         client.set_sliding_sync_proxy(Some(url::Url::parse(&sliding_sync_proxy)?));
         let sync_service = SyncService::builder(client.clone()).build().await?;
@@ -137,23 +148,21 @@ impl Matrix {
             client,
             room_list_service: sync_service.room_list_service(),
             sync_service: Arc::new(sync_service),
-            observable_pool: ObservablePool::new(event_sink, task_group.clone()),
-            task_group,
+            observable_pool: ObservablePool::new(
+                runtime.event_sink.clone(),
+                runtime.task_group.clone(),
+            ),
+            runtime,
         };
         let encryption_passphrase = Self::encryption_passphrase(matrix_secret);
-        matrix
-            .start_background(encryption_passphrase, app_state)
-            .await?;
+        matrix.start_background(encryption_passphrase).await?;
         Ok(matrix)
     }
 
-    pub async fn start_background(
-        &self,
-        encryption_passphrase: String,
-        app_state: Arc<AppState>,
-    ) -> Result<()> {
+    pub async fn start_background(&self, encryption_passphrase: String) -> Result<()> {
         let this = self.clone();
-        self.task_group
+        self.runtime
+            .task_group
             .spawn_cancellable("matrix::start_sync", async move {
                 this.sync_service.start().await;
                 let mut state_subscriber = this.sync_service.state();
@@ -169,7 +178,8 @@ impl Matrix {
             });
 
         let this = self.clone();
-        self.task_group
+        self.runtime
+            .task_group
             .spawn_cancellable("matrix::Recovery::enable", {
                 async move {
                     // if there are no backups on server, enable backups
@@ -197,7 +207,8 @@ impl Matrix {
             });
         let this = self.clone();
         // use session token changed stream to update the token in app state
-        self.task_group
+        self.runtime
+            .task_group
             .spawn_cancellable("matrix::session_token_changed", async move {
                 let Some(mut session_token_changed) =
                     this.client.matrix_auth().session_tokens_stream()
@@ -205,7 +216,9 @@ impl Matrix {
                     return;
                 };
                 while let Some(token) = session_token_changed.next().await {
-                    if let Err(err) = app_state
+                    if let Err(err) = this
+                        .runtime
+                        .app_state
                         .with_write_lock(|w| {
                             if let Some(session) = w.matrix_session.as_mut() {
                                 session.tokens = token;
@@ -252,8 +265,7 @@ impl Matrix {
                 request.username = Some(user_name.to_owned());
                 request.password = Some(user_password.to_owned());
                 request.auth = Some(uiaa::AuthData::Dummy(uiaa::Dummy::new()));
-                request.initial_device_display_name =
-                    app_state.device_identifier().await.map(|id| id.to_string());
+                request.initial_device_display_name = Some("Fedi".to_string());
                 let register_result = matrix_auth.register(request).await;
                 match register_result {
                     Ok(_) => (),
@@ -331,18 +343,19 @@ impl Matrix {
     }
 
     /// All chats in matrix are rooms, whether DM or group chats.
-    pub async fn room_list(&self) -> Result<ObservableVec<RpcRoomListEntry>> {
-        self.room_list_to_observable(self.room_list_service.all_rooms().await?)
+    pub async fn room_list(&self, observable_id: u64) -> Result<ObservableVec<RpcRoomListEntry>> {
+        self.room_list_to_observable(observable_id, self.room_list_service.all_rooms().await?)
             .await
     }
 
     async fn room_list_to_observable(
         &self,
+        observable_id: u64,
         list: room_list_service::RoomList,
     ) -> Result<Observable<imbl::Vector<RpcRoomListEntry>>> {
         let (initial, stream) = list.entries();
         self.observable_pool
-            .make_observable_from_vec_diff_stream(initial, stream)
+            .make_observable_from_vec_diff_stream(observable_id, initial, stream)
             .await
     }
 
@@ -357,9 +370,13 @@ impl Matrix {
     /// frontend.
     ///
     /// We delay the events by 2 seconds to avoid flickering.
-    pub async fn observe_sync_status(&self) -> Result<Observable<RpcSyncIndicator>> {
+    pub async fn observe_sync_status(
+        &self,
+        observable_id: u64,
+    ) -> Result<Observable<RpcSyncIndicator>> {
         self.observable_pool
             .make_observable_from_stream(
+                observable_id,
                 None,
                 self.room_list_service
                     .sync_indicator(Duration::from_secs(2), Duration::from_secs(2)),
@@ -387,7 +404,7 @@ impl Matrix {
                     .event_filter(|event, version| match event {
                         AnySyncTimelineEvent::MessageLike(
                             matrix_sdk::ruma::events::AnySyncMessageLikeEvent::RoomMessage(msg),
-                        ) if msg.as_original().map_or(false, |o| {
+                        ) if msg.as_original().is_some_and(|o| {
                             o.content.msgtype.msgtype().starts_with("xyz.fedi")
                         }) =>
                         {
@@ -403,12 +420,13 @@ impl Matrix {
 
     pub async fn room_timeline_items(
         &self,
+        observable_id: u64,
         room_id: &RoomId,
     ) -> Result<ObservableVec<RpcTimelineItem>> {
         let timeline = self.timeline(room_id).await?;
         let (initial, stream) = timeline.subscribe_batched().await;
         self.observable_pool
-            .make_observable_from_vec_diff_stream(initial, stream)
+            .make_observable_from_vec_diff_stream(observable_id, initial, stream)
             .await
     }
 
@@ -424,6 +442,7 @@ impl Matrix {
 
     pub async fn room_observe_timeline_items_paginate_backwards_status(
         &self,
+        observable_id: u64,
         room_id: &RoomId,
     ) -> Result<Observable<RpcBackPaginationStatus>> {
         let timeline = self.timeline(room_id).await?;
@@ -432,7 +451,7 @@ impl Matrix {
             .await
             .context("we only have live rooms")?;
         self.observable_pool
-            .make_observable_from_stream(Some(current), stream)
+            .make_observable_from_stream(observable_id, Some(current), stream)
             .await
     }
 
@@ -526,10 +545,14 @@ impl Matrix {
         Ok(())
     }
 
-    pub async fn room_observe_info(&self, room_id: &RoomId) -> Result<Observable<RoomInfo>> {
+    pub async fn room_observe_info(
+        &self,
+        observable_id: u64,
+        room_id: &RoomId,
+    ) -> Result<Observable<RoomInfo>> {
         let sub = self.room(room_id).await?.inner_room().subscribe_info();
         self.observable_pool
-            .make_observable_from_subscriber(sub)
+            .make_observable_from_subscriber(observable_id, sub)
             .await
     }
 
@@ -602,6 +625,15 @@ impl Matrix {
         Ok(self.client.account().unignore_user(user_id).await?)
     }
 
+    pub async fn list_ignored_users(&self) -> Result<Vec<RpcUserId>> {
+        Ok(self
+            .client
+            .subscribe_to_ignore_user_list_changes()
+            .get()
+            .into_iter()
+            .map(RpcUserId)
+            .collect())
+    }
     pub async fn room_kick_user(
         &self,
         room_id: &RoomId,
@@ -691,12 +723,13 @@ impl Matrix {
         ))
     }
 
-    pub async fn set_display_name(&self, display_name: String, app_state: &AppState) -> Result<()> {
+    pub async fn set_display_name(&self, display_name: String) -> Result<()> {
         self.client
             .account()
             .set_display_name(Some(&display_name))
             .await?;
-        app_state
+        self.runtime
+            .app_state
             .with_write_lock(|r| r.matrix_display_name = Some(display_name.clone()))
             .await?;
         Ok(())
@@ -929,6 +962,9 @@ impl Matrix {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
     use fedimint_bip39::Bip39RootSecretStrategy;
     use fedimint_client::secret::RootSecretStrategy as _;
     use fedimint_derive_secret::ChildId;
@@ -941,7 +977,9 @@ mod tests {
     use super::*;
     use crate::constants::MATRIX_CHILD_ID;
     use crate::event::IEventSink;
+    use crate::features::{FeatureCatalog, RuntimeEnvironment};
     use crate::ffi::PathBasedStorage;
+    use crate::rpc::tests::MockFediApi;
 
     const TEST_HOME_SERVER: &str = "staging.m1.8fa.in";
     const TEST_SLIDING_SYNC: &str = "https://staging.sliding.m1.8fa.in";
@@ -959,18 +997,23 @@ mod tests {
 
         let (event_tx, event_rx) = mpsc::channel(1000);
         let event_sink = Arc::new(TestEventSink(event_tx));
-        let tg = TaskGroup::new();
         let tmp_dir = TempDir::new()?;
         let storage = PathBasedStorage::new(tmp_dir.as_ref().to_path_buf()).await?;
-        let matrix = Matrix::init(
+        let runtime = BridgeRuntime::new(
+            Arc::new(storage),
             event_sink,
-            tg,
+            Arc::new(MockFediApi::default()),
+            FromStr::from_str("bridge:test:70c2ad23-bfac-4aa2-81c3-d6f5e79ae724")?,
+            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+        )
+        .await?;
+        let matrix = Matrix::init(
+            Arc::new(runtime),
             tmp_dir.as_ref(),
             secret,
             user_name,
             format!("https://{TEST_HOME_SERVER}"),
             TEST_SLIDING_SYNC.to_string(),
-            Arc::new(AppState::load(Arc::new(storage)).await?),
         )
         .await?;
         Ok((matrix, event_rx, tmp_dir))
@@ -1008,8 +1051,13 @@ mod tests {
         let user2 = matrix2.client.user_id().unwrap();
         let room_id = matrix1.create_or_get_dm(user2).await?;
         matrix2.room_join(&room_id).await?;
-        let items1 = matrix1.room_timeline_items(&room_id).await?;
-        let items2 = matrix2.room_timeline_items(&room_id).await?;
+        let id_gen = AtomicU64::new(0);
+        let items1 = matrix1
+            .room_timeline_items(id_gen.fetch_add(1, Ordering::Relaxed), &room_id)
+            .await?;
+        let items2 = matrix2
+            .room_timeline_items(id_gen.fetch_add(1, Ordering::Relaxed), &room_id)
+            .await?;
         info!(?items1, ?items2, "### initial items");
         matrix1
             .send_message_text(&room_id, "hello from bridge".into())
@@ -1070,7 +1118,10 @@ mod tests {
             mk_matrix_login(&username, &secret).await?;
 
         matrix1_new.wait_for_room_id(&room_id).await?;
-        let initial_item = matrix1_new.room_timeline_items(&room_id).await?;
+        let id_gen = AtomicU64::new(0);
+        let initial_item = matrix1_new
+            .room_timeline_items(id_gen.fetch_add(1, Ordering::Relaxed), &room_id)
+            .await?;
         info!("### waiting for user 2 message");
         if !serde_json::to_string(&initial_item)?.contains("hello from user2") {
             while let Some((ev, body)) = event_rx1_new.recv().await {

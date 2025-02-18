@@ -1,6 +1,6 @@
 # Scripts
 
-## `yarn run i18n:autotranslate`
+# `yarn run i18n:autotranslate`
 
 Automatically sorts and translates keys in languages based on the `localization/en/common.json` file.
 
@@ -26,3 +26,17 @@ Exports a CSV meant to be handed off to translators. The CSV is generated from o
 Imports a CSV that matches the format from `yarn run i18n:export-csv`. The first argument is a two character language code, such as `en` or `fr`. The second argument is the path to the language CSV file.
 
 Translations are additive, and empty translation columns will be skipped, so it's perfectly safe to import a language CSV that only contains a partial set of translations.
+
+# `yarn run i18n:unused`
+
+Collects all localization keys and greps the codebase for them to seee if they're being used.
+
+If no matches of a key are found, it is automatically removed from the localization files unless prefixed with an item in `protectedPrefixes`.
+
+You can do a dry run by passing `-n` as the first argument.
+
+```bash
+yarn run i18n:unused -n
+```
+
+Doing a dry run will print out the number of unused keys found without modifying any files.

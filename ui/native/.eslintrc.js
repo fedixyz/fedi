@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 const baseConfig = require('../.eslintrc.js')
 
 module.exports = {
     root: true,
     extends: ['@react-native', '../.eslintrc.js'],
     parser: '@typescript-eslint/parser',
+    plugins: ['@typescript-eslint'],
     rules: {
         // The react-navigation library used in native takes nested components
         // defined as props but none of those instances use the props as
@@ -24,5 +24,14 @@ module.exports = {
                 ],
             },
         ],
+        '@typescript-eslint/ban-ts-comment': 'warn',
     },
+    overrides: [
+        {
+            files: ['*.js'],
+            rules: {
+                '@typescript-eslint/no-var-requires': 'off',
+            },
+        },
+    ],
 }

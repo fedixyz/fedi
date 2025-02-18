@@ -1,5 +1,6 @@
 name: Deploy Public APK
 on:
+    workflow_dispatch:
     release:
         # will not fire for draft releases
         types: [published, edited]

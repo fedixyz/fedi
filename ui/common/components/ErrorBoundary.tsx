@@ -27,7 +27,7 @@ interface ErrorBoundaryProps {
      */
     fallback: React.ReactNode | ((props: ErrorFallbackProps) => React.ReactNode)
     /** Optional callback when an error is encountered, no handling required */
-    onError?: (error: Error, info: { componentStack: string }) => void
+    onError?: (error: Error, info: React.ErrorInfo) => void
     /**
      * Optional callback that's triggered if the `fallback` component implements
      * and triggers `resetErrorBoundary`. This trigger could do something like

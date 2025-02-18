@@ -40,7 +40,7 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
     const { width } = useWindowDimensions()
     const { theme } = useTheme()
 
-    const timerRef = useRef<NodeJS.Timer | null>(null)
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const debouncedPin = useDebounce(pinDigits, 500)
     const dispatch = useAppDispatch()
     const pin = usePinContext()

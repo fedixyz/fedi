@@ -20,13 +20,13 @@ import {
     StabilityPoolDepositEvent,
     StabilityPoolWithdrawalEvent,
 } from './bindings'
-import { Usd, UsdCents } from './units'
+import { MSats, Usd, UsdCents } from './units'
 
 export type {
-    SocialRecoveryEvent,
     SocialRecoveryApproval as GuardianApproval,
     RpcInvoice as Invoice,
     RpcLightningGateway as LightningGateway,
+    SocialRecoveryEvent,
 }
 export type SocialRecoveryQrCode = RpcResponse<'recoveryQr'>
 
@@ -140,14 +140,7 @@ export enum SupportedMetaFields {
     default_group_chats = 'default_group_chats',
 }
 
-export type ClientConfigMetadata = Record<string, string | undefined>
-
-export enum Network {
-    bitcoin = 'bitcoin',
-    testnet = 'testnet',
-    signet = 'signet',
-    regtest = 'regtest',
-}
+export type FederationMetadata = RpcFederation['meta']
 
 /**
  * Connection Status of a federation's guardians
@@ -159,23 +152,18 @@ export enum Network {
  */
 export type FederationStatus = 'online' | 'unstable' | 'offline'
 
-export interface LoadingFederation {
-    id: string
+export type LoadingFederation = RpcFederationMaybeLoading & {
     meta?: never
     readonly init_state: 'loading'
     readonly hasWallet: true
 }
-export interface FederationInitFailure {
-    id: string
-    error: string
+export type FederationInitFailure = RpcFederationMaybeLoading & {
     meta?: never
     readonly init_state: 'failed'
     readonly hasWallet: true
 }
 
-export type LoadedFederation = Omit<RpcFederation, 'network' | 'meta'> & {
-    meta: ClientConfigMetadata
-    network: Network | undefined
+export type LoadedFederation = RpcFederation & {
     status: FederationStatus
     readonly init_state: 'ready'
     readonly hasWallet: true
@@ -186,10 +174,9 @@ export type Federation =
     | FederationInitFailure
     | LoadedFederation
 
-export type Community = Omit<RpcCommunity, 'meta'> & {
+export type Community = RpcCommunity & {
     id: Federation['id']
-    meta: ClientConfigMetadata
-    status: FederationStatus
+    status: 'online'
     // Added for compatibility with Mods
     readonly network: undefined
     readonly hasWallet: false
@@ -225,9 +212,8 @@ export interface FederationApiVersion {
     minor: number
 }
 
-export type FederationPreview = Omit<RpcFederationPreview, 'meta'> & {
-    readonly hasWallet: true
-    meta: ClientConfigMetadata
+export type FederationPreview = RpcFederationPreview & {
+    hasWallet: true
 }
 
 /*
@@ -271,3 +257,28 @@ export type StabilityPoolTxn = {
     direction: 'deposit' | 'withdraw'
     status: 'pending' | 'complete'
 }
+
+export type ReceiveSuccessStatus = 'success' | 'pending'
+
+export type ReceiveSuccessData = {
+    amount: Transaction['amount']
+    bitcoin?: Transaction['bitcoin']
+}
+
+export type ReceiveEcashResult =
+    | {
+          amount: MSats
+          status: ReceiveSuccessStatus
+      }
+    | {
+          amount: MSats
+          status: 'failed'
+          error: string
+      }
+
+export type TransactionStatusBadge =
+    | 'incoming'
+    | 'outgoing'
+    | 'pending'
+    | 'expired'
+    | 'failed'

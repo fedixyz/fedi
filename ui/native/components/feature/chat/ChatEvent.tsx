@@ -10,6 +10,7 @@ import {
     isFileEvent,
     isImageEvent,
     isPaymentEvent,
+    isPreviewMediaEvent,
     isTextEvent,
     isVideoEvent,
 } from '@fedi/common/utils/matrix'
@@ -19,6 +20,7 @@ import ChatDeletedEvent from './ChatDeletedEvent'
 import ChatFileEvent from './ChatFileEvent'
 import ChatImageEvent from './ChatImageEvent'
 import ChatPaymentEvent from './ChatPaymentEvent'
+import ChatPreviewMediaEvent from './ChatPreviewMediaEvent'
 import ChatTextEvent from './ChatTextEvent'
 import ChatVideoEvent from './ChatVideoEvent'
 import { MessageItemError } from './MessageItemError'
@@ -96,6 +98,8 @@ const ChatEvent: React.FC<Props> = ({
                                 <ChatVideoEvent event={event} />
                             ) : isDeletedEvent(event) ? (
                                 <ChatDeletedEvent event={event} />
+                            ) : isPreviewMediaEvent(event) ? (
+                                <ChatPreviewMediaEvent event={event} />
                             ) : null}
                         </View>
                     </View>

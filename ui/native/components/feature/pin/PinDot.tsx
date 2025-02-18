@@ -9,42 +9,45 @@ export default function PinDot({
     isLast?: boolean
 }) {
     const { theme } = useTheme()
+    const themedStyles = createStyles(theme) // Generate styles dynamically
 
     return (
         <View
             style={[
-                styles(theme).dot,
-                styles(theme)[status],
-                isLast ? styles(theme).lastDot : null,
+                themedStyles.dot,
+                themedStyles[status],
+                isLast ? themedStyles.lastDot : null,
             ]}
         />
     )
 }
 
-const styles = StyleSheet.create((theme: Theme) => ({
-    dot: {
-        borderRadius: 16,
-        width: 16,
-        height: 16,
-        borderWidth: 2,
-        marginRight: 16,
-    },
-    empty: {
-        borderColor: theme.colors.grey,
-    },
-    active: {
-        borderColor: theme.colors.primary,
-        backgroundColor: theme.colors.primary,
-    },
-    correct: {
-        borderColor: theme.colors.green,
-        backgroundColor: theme.colors.green,
-    },
-    incorrect: {
-        borderColor: theme.colors.red,
-        backgroundColor: theme.colors.red,
-    },
-    lastDot: {
-        marginRight: 0,
-    },
-}))
+// Create a function to dynamically generate styles based on the theme
+const createStyles = (theme: Theme) =>
+    StyleSheet.create({
+        dot: {
+            borderRadius: 16,
+            width: 16,
+            height: 16,
+            borderWidth: 2,
+            marginRight: 16,
+        },
+        empty: {
+            borderColor: theme.colors.grey,
+        },
+        active: {
+            borderColor: theme.colors.primary,
+            backgroundColor: theme.colors.primary,
+        },
+        correct: {
+            borderColor: theme.colors.green,
+            backgroundColor: theme.colors.green,
+        },
+        incorrect: {
+            borderColor: theme.colors.red,
+            backgroundColor: theme.colors.red,
+        },
+        lastDot: {
+            marginRight: 0,
+        },
+    })

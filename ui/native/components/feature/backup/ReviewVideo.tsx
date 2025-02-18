@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
 import RNFS from 'react-native-fs'
-import Video from 'react-native-video'
+import Video, { VideoRef } from 'react-native-video'
 
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -25,7 +25,7 @@ const ReviewVideo = () => {
     const [confirmingVideo, setConfirmingVideo] = useState(false)
     const { state, dispatch } = useBackupRecoveryContext()
     const videoFile = state.videoFile
-    const videoRef = useRef<Video | null>(null)
+    const videoRef = useRef<VideoRef | null>(null)
 
     useEffect(() => {
         const copyVideoAndProceed = async () => {

@@ -66,8 +66,8 @@ const Header: React.FC<HeaderProps> = memo(
                     typeof onBackButtonPress === 'function'
                         ? onBackButtonPress()
                         : navigation.canGoBack()
-                        ? navigation.goBack()
-                        : navigation.navigate('TabsNavigator')
+                          ? navigation.goBack()
+                          : navigation.navigate('TabsNavigator')
                 }
                 hitSlop={10}
                 svgName="ChevronLeft"
@@ -107,8 +107,8 @@ const Header: React.FC<HeaderProps> = memo(
             borderBottomColor: inline
                 ? 'transparent'
                 : dark
-                ? theme.colors.primary
-                : defaultContainerStyle.borderBottomColor,
+                  ? theme.colors.primary
+                  : defaultContainerStyle.borderBottomColor,
             shadowColor: inline
                 ? 'transparent'
                 : defaultContainerStyle.shadowColor,

@@ -44,7 +44,7 @@ impl IStorage for WasmStorage {
 
     async fn delete_federation_db(&self, db_name: &str) -> anyhow::Result<()> {
         let mut fed = self.federation.lock().unwrap();
-        let db = fed.remove(db_name).unwrap();
+        let _db = fed.remove(db_name).unwrap();
         drop(fed);
         // FIXME: this blocks forever due to being in used in client.
         // db.delete().await?;

@@ -1,5 +1,8 @@
+import { TFunction } from 'i18next'
+
 import { AmountSymbolPosition, FormattedAmounts } from '../hooks/amount'
 import { MSats, Transaction } from '../types'
+import { makeTxnDetailStatusText } from './wallet'
 
 type CSVColumns<T> = { name: string; getValue: (item: T) => string | number }[]
 
@@ -17,46 +20,9 @@ export function makeTransactionHistoryCSV(
         amount: MSats,
         symbolPosition: AmountSymbolPosition,
     ) => FormattedAmounts,
+    t: TFunction,
 ) {
-    const sortedTxs = txs
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .filter(txn => {
-            if (txn.lnState) {
-                const { type } = txn.lnState
-
-                return (
-                    type === 'success' ||
-                    type === 'claimed' ||
-                    type === 'funded'
-                )
-            } else if (txn.stabilityPoolState) {
-                const { type } = txn.stabilityPoolState
-
-                return (
-                    type === 'completeDeposit' ||
-                    type === 'completeWithdrawal' ||
-                    type === 'pendingDeposit'
-                )
-            } else if (txn.onchainState) {
-                const { type } = txn.onchainState
-
-                return (
-                    type === 'succeeded' ||
-                    type === 'claimed' ||
-                    type === 'confirmed'
-                )
-            } else if (txn.oobState) {
-                const { type } = txn.oobState
-                return (
-                    type === 'success' ||
-                    type === 'userCanceledFailure' ||
-                    type === 'done' ||
-                    type === 'created'
-                )
-            }
-
-            return false
-        })
+    const sortedTxs = txs.sort((a, b) => a.createdAt - b.createdAt)
 
     return makeCSV(sortedTxs, [
         {
@@ -87,6 +53,10 @@ export function makeTransactionHistoryCSV(
         {
             name: 'Notes',
             getValue: tx => tx.notes,
+        },
+        {
+            name: 'Status',
+            getValue: tx => makeTxnDetailStatusText(t, tx),
         },
     ])
 }

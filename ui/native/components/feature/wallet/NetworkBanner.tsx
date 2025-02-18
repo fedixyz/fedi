@@ -7,7 +7,6 @@ import { StyleSheet, View } from 'react-native'
 import { selectActiveFederation } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import { Network } from '../../../types'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 export const NetworkBanner: React.FC = () => {
@@ -18,7 +17,7 @@ export const NetworkBanner: React.FC = () => {
     if (
         !activeFederation ||
         !activeFederation.hasWallet ||
-        activeFederation.network === Network.bitcoin
+        activeFederation.network === 'bitcoin'
     )
         return null
 
@@ -38,7 +37,7 @@ export const NetworkBanner: React.FC = () => {
                 adjustsFontSizeToFit
                 numberOfLines={1}>
                 {t('feature.wallet.network-notice', {
-                    network: capitalize(activeFederation.network),
+                    network: capitalize(activeFederation.network ?? 'unknown'),
                 })}
             </Text>
         </View>

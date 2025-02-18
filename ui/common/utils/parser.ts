@@ -30,7 +30,10 @@ import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
 import { decodeFediMatrixRoomUri, decodeFediMatrixUserUri } from './matrix'
 import { isValidInternetIdentifier } from './validation'
-import { decodeDirectChatLink, decodeGroupInvitationLink } from './xmpp'
+import {
+    decodeLegacyDirectChatLink,
+    decodeLegacyGroupInvitationLink,
+} from './xmpp'
 
 const log = makeLog('common/utils/parser')
 
@@ -139,13 +142,14 @@ async function parseLnurl(
     const lnRaw = stripProtocol(raw, 'lightning').toLowerCase()
     let lnurlParamPromise: ReturnType<typeof getLnurlParams> | undefined
     const isWebsiteUrl = validateWebsiteUrl(raw)
+    const isValidIdentifier = isValidInternetIdentifier(lnRaw)
 
     // LNURLs, HTTP URLs and lightning addresses all use `getLnurlParams` and
     // are handled the same way, so get the promise separately but handle it
     // in one place.
     if (lnRaw.startsWith('lnurl') || lnRaw.startsWith('keyauth')) {
         lnurlParamPromise = getLnurlParams(lnRaw)
-    } else if (isValidInternetIdentifier(lnRaw)) {
+    } else if (isValidIdentifier) {
         const [username, domain] = lnRaw.split('@')
         if (username && domain) {
             const url = `https://${domain}/.well-known/lnurlp/${username}`
@@ -177,7 +181,9 @@ async function parseLnurl(
                     params.reason.includes('Invalid URL') ||
                     params.reason.includes('invalid lnurl') ||
                     params.reason.includes('invalid JSON') ||
-                    params.reason.includes('Network request failed')
+                    params.reason.includes('Network request failed') ||
+                    // Some websites return the HTML for the 404 page
+                    params.reason.includes('<!DOCTYPE html>')
                 ) {
                     // If this was a website URL that just didn't return LNURL
                     // data, return it as a parsed website.
@@ -185,6 +191,11 @@ async function parseLnurl(
                         return {
                             type: ParserDataType.Website,
                             data: { url: raw },
+                        }
+                    } else if (isValidIdentifier) {
+                        return {
+                            type: ParserDataType.Unknown,
+                            data: { message: t('errors.no-address-lnurlp') },
                         }
                     }
                     // Otherwise ignore and allow other parsers to try.
@@ -454,7 +465,7 @@ async function parseFediUri(
 
     // Legacy Chat member
     try {
-        const id = decodeDirectChatLink(raw)
+        const id = decodeLegacyDirectChatLink(raw)
         return {
             type: ParserDataType.LegacyFediChatMember,
             data: { id },
@@ -465,7 +476,7 @@ async function parseFediUri(
 
     // Legacy Chat group
     try {
-        const id = decodeGroupInvitationLink(raw)
+        const id = decodeLegacyGroupInvitationLink(raw)
         return {
             type: ParserDataType.LegacyFediChatGroup,
             data: { id },

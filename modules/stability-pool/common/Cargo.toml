@@ -12,5 +12,5 @@ serde = { workspace = true, features = ["derive"] }
 bitcoin = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-secp256k1-zkp = { workspace = true }
+secp256k1 = { workspace = true }
 serde_json = { workspace = true }

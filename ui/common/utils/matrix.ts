@@ -7,6 +7,7 @@ import EncryptionUtils from '@fedi/common/utils/EncryptionUtils'
 import { GLOBAL_MATRIX_SERVER } from '../constants/matrix'
 import { FormattedAmounts } from '../hooks/amount'
 import {
+    InputMedia,
     LoadedFederation,
     MSats,
     MatrixEvent,
@@ -157,6 +158,17 @@ const contentSchemas = {
         body: z.string(),
         redacts: z.string(),
         reason: z.string().optional(),
+    }),
+    // Artificial preview media event. Is manually generated and will not appear on chat servers.
+    'xyz.fedi.preview-media': z.object({
+        msgtype: z.literal('xyz.fedi.preview-media'),
+        body: z.string(),
+        info: z.object({
+            mimetype: z.string(),
+            w: z.number(),
+            h: z.number(),
+            uri: z.string(),
+        }),
     }),
 }
 
@@ -432,6 +444,9 @@ export function encodeFediMatrixRoomUri(id: MatrixRoom['id'], deep = false) {
 }
 
 export function decodeFediMatrixRoomUri(uri: string) {
+    // Some mobile apps treat the matrix homeserver as a URL and prefix it with https://, breaking the parser
+    const cleaned = uri.replace(/https?:\/\//g, '')
+
     // Decode both fedi:room:{id} and fedi://room:{id}
     // Regex breakdown:
     // ^fedi           - Ensures the string starts with "fedi".
@@ -440,7 +455,7 @@ export function decodeFediMatrixRoomUri(uri: string) {
     // (.+?)           - Non-greedy capture of the room ID (which contains a single colon)
     // (?:::|$)        - Ensures the room ID is followed either by ":::” or the end of the string
     // /i              - Case-insensitive matching.
-    const match = uri.match(/^fedi(?::|:\/\/)room:(.+?)(?:::|$)/i)
+    const match = cleaned.match(/^fedi(?::|:\/\/)room:(.+?)(?:::|$)/i)
     if (!match) throw new Error('feature.chat.invalid-room')
 
     const decodedId = match[1]
@@ -451,9 +466,12 @@ export function decodeFediMatrixRoomUri(uri: string) {
 }
 
 export function decodeFediMatrixUserUri(uri: string) {
+    // See decodeFediMatrixRoomUri
+    const cleaned = uri.replace(/https?:\/\//g, '')
+
     // Decode both fedi:user:{id} and fedi://user:{id}
     // const match = uri.match(FEDI_USER)
-    const match = uri.match(/^fedi(?::|:\/\/)user:(.+)$/i)
+    const match = cleaned.match(/^fedi(?::|:\/\/)user:(.+)$/i)
     if (!match) throw new Error('feature.chat.invalid-member')
 
     // Validate that it's a valid matrix user id
@@ -521,6 +539,12 @@ export function isImageEvent(
     return event.content.msgtype === 'm.image'
 }
 
+export function isPreviewMediaEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<MatrixEventContentType<'xyz.fedi.preview-media'>> {
+    return event.content.msgtype === 'xyz.fedi.preview-media'
+}
+
 export function isFileEvent(
     event: MatrixEvent,
 ): event is MatrixEvent<MatrixEventContentType<'m.file'>> {
@@ -532,3 +556,15 @@ export function isVideoEvent(
 ): event is MatrixEvent<MatrixEventContentType<'m.video'>> {
     return event.content.msgtype === 'm.video'
 }
+
+/**
+ * Checks to see if a chat video/image event's content matches the `media` argument
+ */
+export const doesEventContentMatchPreviewMedia = (
+    media: InputMedia,
+    content: MatrixEventContentType<'m.video' | 'm.image'>,
+) =>
+    content.info.mimetype === media.mimeType &&
+    content.info.w === media.width &&
+    content.info.h === media.height &&
+    content.body === media.fileName

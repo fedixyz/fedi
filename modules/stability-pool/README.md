@@ -12,8 +12,6 @@ Under normal working conditions, seekers can expect to maintain the US dollar va
   - [Example scenario](#example-scenario)
   - [Market dynamics](#market-dynamics)
 - [Technical overview](#technical-overview)
-  - [Module output item](#module-output-item)
-  - [Module input item](#module-input-item)
   - [Module consensus item](#module-consensus-item)
   - [Oracle solution](#oracle-solution)
   - [Withdrawal flow](#withdrawal-flow)
@@ -68,65 +66,6 @@ The failure point depends on the collateralization ratio of the stability provid
 
 ## Technical overview
 
-### Module output item
-
-Depositing funds into the stability pool is technically just a fedimint transaction where the input comes from the e-cash module and the outputs come from the stability pool module and the e-cash module (in case of any change). We define the `StabilityPoolOutput` struct as follows:
-
-```rust
-#[derive(Clone, Debug, Hash, PartialEq, Encodable, Decodable)]
-pub struct StabilityPoolOutput {
-    pub account: XOnlyPublicKey, // used to identify
-    pub intended_action: IntendedAction,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Encodable, Decodable)]
-pub enum IntendedAction {
-    Seek(Seek),
-    Provide(Provide),
-    CancelRenewal(CancelRenewal),
-    UndoCancelRenewal,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Encodable, Decodable, Serialize, Deserialize)]
-pub struct Seek(pub Amount);
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Encodable, Decodable, Serialize, Deserialize)]
-pub struct Provide {
-    pub amount: Amount,
-    pub min_fee_rate: u64,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Encodable, Decodable, Serialize, Deserialize)]
-pub struct CancelRenewal {
-    pub bps: u32,
-}
-```
-
-The user's intention behind the deposit must be specified using the `IntendedAction` enum out of the following 4 options:
-1. `Seek`: means deposit the specified msat amount for staging a seek. A seek is accepted iff the user does NOT already have staged provides, locked provides, or staged cancellation. Seeks are assigned auto-incrementing sequences by the guardians.
-2. `Provide`: means deposit the specified msat amount for staging a provide with the specified min fee rate (in PPB). A provide is accepted iff the user does NOT already have staged seeks, locked seeks, or staged cancellation. Provides are assigned auto-incrementing sequences by the guardians.
-3. `CancelRenewal`: means stage a cancellation for the specified % (expressed in basis points) of the user's locked funds. This means that when the current cycle ends, the specified portion of the user's position is not auto-renewed, and is instead moved to their "idle balance" within the stability pool, waiting to be claimed by them later in a transaction. A % unit is used as it works for both seeks and provides (since provider doesn't know either the msats or the $ value that they will receive when the current cycle ends). A cancellation is accepted iff the user does NOT have any staged seeks or provides or staged cancellation AND has at least one locked seek or provide (but not both).
-4. `UndoCancelRenewal`: means cancel any staged cancellation because the user changed their mind. Naturally the user must have a staged cancellation.
-
-### Module input item
-
-Withdrawing unlocked funds from the stability pool is technically just a fedimint transaction where the input comes from the stability pool module and the output comes from the e-cash module. We define the `StabilityPoolInput` struct as follows:
-
-```rust
-#[derive(Clone, Debug, Hash, PartialEq, Encodable, Decodable)]
-pub struct StabilityPoolInput {
-    pub account: XOnlyPublicKey,
-    pub amount: Amount,
-}
-```
-
-A user's holdings inside the stability pool are distributed into 3 categories:
-1. Idle balance: these are funds that were recovered by canceling auto renewal. They can be freely withdrawn.
-2. Staged balance: the sum of any staged seeks or provides that have not been locked yet. They can be freely withdrawn.
-3. Locked balance: the sum of any locked seeks or provides. This is not a realized amount, meaning it can fluctuate until the end of the cycle, when the locks are settled and paid out. This amount cannot be withdrawn, and the user must stage a cancellation so that when the cycle ends, a % (could be 100%) of the final payout is moved to idle balance instead of being re-staged and then re-locked.
-
-The `amount` specified in the `StabilityPoolInput` must be less than or equal to the user's total unlocked balance, which is defined as the sum of idle balance and staged balance.
-
 ### Module consensus item
 
 The stability pool's contribution to consensus is minimal and contains only the data needed to progress from one cycle to the next. The philosophy here is to only include the bare minimum needed so that everything else can be deterministically calculated by each guardian. With that in mind, the `StabilityPoolConsensusItem` struct is defined as follows:
@@ -155,35 +94,11 @@ The median value across all returned values is chosen. The oracle is considered 
 
 ### Withdrawal flow
 
-To make integration with front-ends easier, we use a single `withdraw(unlocked_msats, locked_bps)` function that can extract both unlocked and locked balances, and implicitly wait for cycle turnover for the locked balances to be freed up.
+To make integration with front-ends easier, we use a single `withdraw(ALL_or_fiat_amount)` function that can extract both unlocked and locked balances, and implicitly wait for cycle turnover for the locked balances to be freed up. There are always 2 steps (transactions) in the withdrawal flow.
+1. The first TX is the "unlocking" transaction. This TX ensures that the amount desired by the client (either `ALL` or some `FiatAmount`) is unlocked as soon as possible. Some or all of it may be satisfied using any staged deposits, and the rest, if any, will need to await the cycle turnover.
+2. The second TX is the "withdrawal" transaction. This TX is only issued once the unlocking request from the previous step has been fully satisfied. This TX actually brings back msats as ecash from the server.
 
-`unlocked_msats` are extracted from staged seeks (pending deposits). `locked_bps` is extracted from locked seeks (completed deposits). The overall operation only completes when both parts have completed. **Note that we can't delay withdrawing staged balance under the hood as it may otherwise become locked. Instead we focus on the overall operation lifecycle as far as UX is concerned.**
-
-#### Case 1: only pending deposits
-- Front-end calls `withdraw(unlocked_msats, 0)` with the exact amount of msats that the user wishes to withdraw. User input can be local currency but front-end can translate to msats
-- Operation completes as soon as transaction is processed by federation
-
-#### Case 2: only completed deposits
-- Front-end calls `withdraw(0, locked_bps)` with a BPS equivalent of what the user wishes to unlock and withdraw. User input can be local currency but front-end can translate to BPS
-- Operation lifecycle:
-  - cancellation staged (first TX processed by federation)
-  - current cycle ends and cancellation applied
-  - idle balance swept (second TX processed by federation
-
-#### Case 3: pending deposits + completed deposits
-- Front-end calls `withdraw(unlocked_msats, locked_bps)` as per follows:
-  - User enters total they would like to withdraw in local currency, say `total_withdrawal_fiat`
-  - Front-end converts total pending deposit msat amount into local currency, say `total_staged_fiat`
-  - Front-end calculates `min(total_staged_fiat, total_withdrawal_fiat)`, and converts this to msats. This becomes `unlocked_msats`.
-  - If `total_withdrawal_fiat` > `total_staged_fiat`, front-end calculates the difference, `total_withdrawal_fiat - total_staged_fiat`, say `rem_withdrawal_fiat`.
-  - Front-end uses current fiat value of locked seeks, say `total_locked_fiat`, and determines `rem_withdrawal_fiat * 10_000 / total_locked_fiat`. This is `locked_bps`.
-- Operation lifecycle:
-  - staged balance withdrawn (first TX processed by federation)
-  - cancellation staged (second TX process by federation)
-  - current cycle ends and cancellation applied
-  - idle balance swept (third TX processed by federation)
-
-The diagram below captures the state machine used for the withdrawal operation. The assumption here is that at least one of `unlocked_msats` and `locked_bps` must be non-zero.
+The diagram below captures the state machine used for the withdrawal operation.
 
 ![Withdrawal operation state machine](./withdrawal_state_machine.png)
 
@@ -203,9 +118,9 @@ We take the locked seeks and provides (if any) that were produced at the start o
 
 For settling the seeks, the quantity we have to preserve is the product of (total msats across all the locked seeks) and (the start price of bitcoin), that is `total_seek_msats * start_price`. Doing ceiling division by `end_price` gives us the new msat amount (`msat_needed_for_seeks`) to keep the product constant. We take the min of `msat_needed_for_seeks` and `total_msats_available` (sum of all the msats across all the locked seeks and provides) to ensure we don't overshoot what we have. This is what's distributed across the seeks to settle them, and whatever is left goes to the provides (could be 0).
 
-#### Step 3: Apply staged cancellations (cancel auto-renewals)
+#### Step 3: Process unlock requests
 
-Staged cancellations from providers and seekers, if any, would have been received earlier, awaiting the cycle turnover to free up funds. We iterate through all the staged cancellations, and delete settled locks (partially or wholly depending on the basis points specified as part of the staged cancellation). Note that the scope of a cancellation is an account—not a specific seek or provide. So if an account has 3 locked seeks and they wish to cancel 50% (5_000 BPS) of their locked seeks, we cancel 50% of the total msats across all 3 seeks from being locked again in the next cycle. When cancelling we go in reverse order of sequence to preserve more of the older seeks/provides (which would have higher priority in the matching algorithm).
+Unlock requests from providers and seekers, if any, would have been received earlier, awaiting the cycle turnover to free up funds. We iterate through all the unlock requests, and delete settled locks (partially or wholly depending on the fiat_amount specified as part of the unlock request). Note that the scope of an unlock request is an account—not a specific seek or provide. So if an account has 3 locked seeks and they wish to cancel half of their locked seeks, we cancel 50% of the total msats across all 3 seeks from being locked again in the next cycle. When unlocking we go in reverse order of sequence to preserve more of the older seeks/provides (which would have higher priority in the matching algorithm).
 
 #### Step 4: Restage remaining locks
 

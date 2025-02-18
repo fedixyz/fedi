@@ -5,14 +5,9 @@ import { z } from 'zod'
 import ChevronRight from '@fedi/common/assets/svgs/chevron-right.svg'
 import OfflineIcon from '@fedi/common/assets/svgs/offline.svg'
 import { useBalanceDisplay } from '@fedi/common/hooks/amount'
-import { useChatMemberSearch } from '@fedi/common/hooks/chat'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
-import {
-    selectActiveFederation,
-    selectChatConnectionOptions,
-    selectChatMembersWithHistory,
-} from '@fedi/common/redux'
+import { selectActiveFederation } from '@fedi/common/redux'
 import { ParserDataType, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { formatErrorMessage } from '@fedi/common/utils/format'
@@ -46,13 +41,11 @@ interface Props {
 export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const { t } = useTranslation()
     const activeFederation = useAppSelector(selectActiveFederation)
-    const membersWithHistory = useAppSelector(selectChatMembersWithHistory)
     const balance = activeFederation?.hasWallet
         ? activeFederation.balance
         : undefined
     const activeFederationId = activeFederation?.id
     const sendRouteState = useRouteState('/send')
-    const connectionOptions = useAppSelector(selectChatConnectionOptions)
     const {
         isReadyToPay,
         exactAmount,
@@ -65,8 +58,6 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         handleOmniSend,
         resetOmniPaymentState,
     } = useOmniPaymentState(fedimint, activeFederationId, false, t)
-    const { setQuery, searchedMembers } =
-        useChatMemberSearch(membersWithHistory)
 
     const [isSendingOffline, setIsSendingOffline] = useState(false)
     const [isCloseDisabled, setIsCloseDisabled] = useState(false)
@@ -107,7 +98,6 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             setIsSending(false)
             setHasSent(false)
             setSendError(undefined)
-            setQuery('')
             setValue('')
             setSubmitAttempts(0)
             resetOmniPaymentState()
@@ -116,26 +106,13 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                 containerRef.current?.querySelector('input')?.focus(),
             )
         }
-    }, [open, resetOmniPaymentState, setQuery])
+    }, [open, resetOmniPaymentState])
 
     // If we were sent here with route state, feed it to the omni input
     useEffect(() => {
         if (!open || !sendRouteState) return
         handleOmniInput(sendRouteState)
     }, [open, sendRouteState, handleOmniInput])
-
-    useEffect(() => {
-        if (
-            value &&
-            value.length > 0 &&
-            !enteringLnAddress &&
-            !enteringLnInvoice
-        ) {
-            setQuery(value)
-        } else {
-            setQuery('')
-        }
-    }, [value, setQuery, enteringLnInvoice, enteringLnAddress])
 
     const handleChangeAmount = useCallback(
         (amount: Sats) => {
@@ -272,37 +249,8 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                                         </MemberName>
                                         <Icon size="sm" icon={ChevronRight} />
                                     </MemberItem>
-                                ) : searchedMembers.length === 0 ? (
-                                    <MemberItem onClick={() => onSubmit(value)}>
-                                        <Avatar
-                                            id={`${value}@${connectionOptions?.domain}`}
-                                            name={value}
-                                        />
-                                        <MemberName weight="bold">
-                                            {value}
-                                        </MemberName>
-                                        <Icon size="sm" icon={ChevronRight} />
-                                    </MemberItem>
                                 ) : (
-                                    searchedMembers.map(member => (
-                                        <MemberItem
-                                            key={member.id}
-                                            onClick={() =>
-                                                onSubmit(member.username)
-                                            }>
-                                            <Avatar
-                                                id={member.id}
-                                                name={member.username}
-                                            />
-                                            <MemberName weight="bold">
-                                                {member.username}
-                                            </MemberName>
-                                            <Icon
-                                                size="sm"
-                                                icon={ChevronRight}
-                                            />
-                                        </MemberItem>
-                                    ))
+                                    <></>
                                 )}
                             </MemberContainer>
                         )

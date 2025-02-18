@@ -4,10 +4,14 @@
  *
  * Supports Web & Native
  */
+const isReactNativeDevMode = () => {
+    return eval('__DEV__') || false
+}
+
 export const isDev = () => {
     try {
         return (
-            (typeof __DEV__ === 'boolean' && __DEV__) ||
+            isReactNativeDevMode() ||
             (!!process && process.env.NODE_ENV === 'development')
         )
     } catch (_) {

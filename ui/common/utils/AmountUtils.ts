@@ -186,15 +186,19 @@ class AmountUtils {
     /**
      * Given a currency, return the number of decimals (significant digits)
      * that is standard for that currency.
+     * If undefined, return 0.
      */
     getCurrencyDecimals = (
         currency: SupportedCurrency,
         options: { locale?: string | string[] } = {},
-    ) => {
+    ): number => {
         const fmtOptions = new Intl.NumberFormat(options.locale, {
             style: 'currency',
             currency,
         }).resolvedOptions()
+        if (fmtOptions.maximumFractionDigits === undefined) {
+            return 0
+        }
         return fmtOptions.maximumFractionDigits
     }
     /**
@@ -203,7 +207,7 @@ class AmountUtils {
     getThousandsSeparator = (options: { locale?: string | string[] } = {}) => {
         return Intl.NumberFormat(options.locale)
             .format(11111)
-            .replace(/\p{Number}/gu, '')
+            .replace(/[0-9]/g, '')
     }
     /**
      * Returns the decimal separator character for the user's default locale.
@@ -211,7 +215,7 @@ class AmountUtils {
     getDecimalSeparator = (options: { locale?: string | string[] } = {}) => {
         return Intl.NumberFormat(options.locale)
             .format(1.1)
-            .replace(/\p{Number}/gu, '')
+            .replace(/[0-9]/g, '')
     }
     /**
      * Given a string amount that is formatted in the user's default locale,

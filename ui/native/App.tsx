@@ -12,6 +12,7 @@ import FediBridgeInitializer from './components/FediBridgeInitializer'
 import ToastManager from './components/ui/ToastManager'
 import { ErrorScreen } from './screens/ErrorScreen'
 import { BackupRecoveryProvider } from './state/contexts/BackupRecoveryContext'
+import { NotificationContextProvider } from './state/contexts/NotificationContext'
 import { OmniLinkContextProvider } from './state/contexts/OmniLinkContext'
 import { PinContextProvider } from './state/contexts/PinContext'
 import ProviderComposer from './state/contexts/ProviderComposer'
@@ -54,6 +55,7 @@ const App = () => {
                                     BackupRecoveryProvider,
                                     OmniLinkContextProvider,
                                     PinContextProvider,
+                                    NotificationContextProvider,
                                 ]}>
                                 {<Router />}
                                 <ToastManager />

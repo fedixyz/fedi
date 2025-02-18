@@ -9,10 +9,10 @@ class InvoiceUtils {
             prefix === 'm'
                 ? 0.001
                 : prefix === 'u'
-                ? 0.000001
-                : prefix === 'n'
-                ? 0.000000001
-                : 0.000000000001
+                  ? 0.000001
+                  : prefix === 'n'
+                    ? 0.000000001
+                    : 0.000000000001
         return Number(Number(amount) * multiplier * 100000000).toFixed(0)
     }
 

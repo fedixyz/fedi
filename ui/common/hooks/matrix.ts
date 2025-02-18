@@ -6,19 +6,23 @@ import {
     cancelMatrixPayment,
     joinMatrixRoom,
     observeMatrixRoom,
+    observeMatrixSyncStatus,
     rejectMatrixPaymentRequest,
     searchMatrixUsers,
     selectCanClaimPayment,
     selectCanPayFromOtherFeds,
     selectCanSendPayment,
+    selectIsInternetUnreachable,
     selectIsMatrixReady,
     selectLatestMatrixRoomEventId,
     selectMatrixAuth,
+    selectMatrixPushNotificationToken,
     selectMatrixRoom,
     selectMatrixRoomMember,
     selectMatrixUser,
     sendMatrixReadReceipt,
     unobserveMatrixRoom,
+    unsubscribeMatrixSyncStatus,
 } from '../redux'
 import {
     MatrixPaymentEvent,
@@ -39,13 +43,26 @@ import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
 import { useUpdatingRef } from './util'
 
+/**
+ * Hook to retrieve the push notification token from the Redux store.
+ * @returns The latest push notification token, or null if not set.
+ */
+export function usePushNotificationToken() {
+    const pushNotificationToken = useCommonSelector(
+        selectMatrixPushNotificationToken,
+    )
+    return pushNotificationToken
+}
+
 export function useMatrixUserSearch() {
     const dispatch = useCommonDispatch()
-    const [query, setQuery] = useState('')
+    const [searchQuery, setSearchQuery] = useState('')
     const [searchedUsers, setSearchedUsers] = useState<MatrixUser[]>([])
     const [isSearching, setIsSearching] = useState(false)
     const [searchError, setSearchError] = useState<unknown>()
     const timeoutRef = useRef<ReturnType<typeof setTimeout>>()
+
+    const query = searchQuery.trim()
 
     // If the user types in a valid matrix user ID, or a valid fedi matrix user URI,
     // then use that as the exact match user.
@@ -100,8 +117,8 @@ export function useMatrixUserSearch() {
     }, [dispatch, query])
 
     return {
-        query,
-        setQuery,
+        query: searchQuery,
+        setQuery: setSearchQuery,
         isSearching: exactMatchUsers ? false : isSearching,
         searchedUsers: exactMatchUsers || searchedUsers,
         searchError,
@@ -165,6 +182,7 @@ export function useMatrixPaymentEvent({
     onPayWithForeignEcash?: () => void
 }) {
     const dispatch = useCommonDispatch()
+    const isOffline = useCommonSelector(selectIsInternetUnreachable)
     const canClaimPayment = useCommonSelector(s =>
         selectCanClaimPayment(s, event),
     )
@@ -320,6 +338,7 @@ export function useMatrixPaymentEvent({
                 {
                     label: t('words.cancel'),
                     handler: handleCancel,
+                    disabled: isOffline,
                     loading: isCanceling,
                 },
             ]
@@ -338,6 +357,7 @@ export function useMatrixPaymentEvent({
                     label: t('words.cancel'),
                     handler: handleCancel,
                     loading: isCanceling,
+                    disabled: isOffline,
                 },
             ]
         } else {
@@ -402,4 +422,16 @@ export function useMatrixChatInvites(t: TFunction) {
     return {
         joinPublicGroup,
     }
+}
+
+export function useObserveMatrixSyncStatus(isMatrixStarted: boolean) {
+    const dispatch = useCommonDispatch()
+    useEffect(() => {
+        if (!isMatrixStarted) return
+        dispatch(observeMatrixSyncStatus())
+
+        return () => {
+            dispatch(unsubscribeMatrixSyncStatus())
+        }
+    }, [isMatrixStarted, dispatch])
 }

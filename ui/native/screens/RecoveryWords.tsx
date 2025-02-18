@@ -37,7 +37,8 @@ const SeedWord = ({ number, word }: SeedWordProps) => {
     )
 }
 
-const RecoveryWords: React.FC<Props> = ({ navigation }: Props) => {
+const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
+    const { nextScreenParams } = route.params || {}
     const { t } = useTranslation()
     const { theme } = useTheme()
     const [seedWords, setSeedWords] = useState<SeedWords>([])
@@ -74,6 +75,10 @@ const RecoveryWords: React.FC<Props> = ({ navigation }: Props) => {
     }
 
     const handleContinueOrDone = () => {
+        if (nextScreenParams) {
+            return navigation.navigate(...nextScreenParams)
+        }
+
         if (hasPerformedPersonalBackup) {
             return navigation.navigate('Settings')
         }

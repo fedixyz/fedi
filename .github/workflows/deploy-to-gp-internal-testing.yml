@@ -6,7 +6,7 @@ on:
 jobs:
     release-android:
         name: Build Android AAB & Upload to Google Play Dev Console
-        timeout-minutes: 80
+        timeout-minutes: 90
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
@@ -21,6 +21,13 @@ jobs:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
+            - name: Inject secrets into .env file
+              run: |
+                  echo "CHANNEL_KEY_ANDROID=${{ secrets.CHANNEL_KEY_ANDROID }}" >> ui/native/.env
+                  echo "CHANNEL_KEY_IOS=${{ secrets.CHANNEL_KEY_IOS }}" >> ui/native/.env
+                  echo "ZENDESK_KID=${{ secrets.ZENDESK_KID }}" >> ui/native/.env
+                  echo "ZENDESK_SECRET_KEY=${{ secrets.ZENDESK_SECRET_KEY }}" >> ui/native/.env
+
             - name: Generate release credentials
               env:
                   ANDROID_KEYSTORE_FILE_ENCODED: ${{ secrets.ANDROID_KEYSTORE_FILE_ENCODED }}
@@ -29,11 +36,10 @@ jobs:
               run: nix develop -c ./scripts/ci/make-android-release-creds.sh
 
             - name: Execute Fastlane command
-              timeout-minutes: 60
               env:
                   BUILD_BRIDGE: 1
                   BUILD_UI_DEPS: 1
               run: |
-                nix develop -c \
-                  env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android \
-                  ./scripts/ui/deploy-to-google-play.sh
+                  nix develop -c \
+                    env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android \
+                    ./scripts/ui/deploy-to-google-play.sh

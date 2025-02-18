@@ -6,6 +6,7 @@
             "outputs": ["dist/**"]
         },
         "@fedi/injections#build": {
+            "dependsOn": ["@fedi/common#build"],
             "outputs": ["dist/**"]
         },
         "@fedi/web#build": {
@@ -14,6 +15,9 @@
         },
         "test": {},
         "lint": {},
+        "@fedi/injections#lint": {
+            "dependsOn": ["@fedi/common#build"]
+        },
         "@fedi/native#lint": {
             "dependsOn": ["@fedi/common#build", "@fedi/injections#build"]
         },

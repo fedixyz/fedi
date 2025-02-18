@@ -15,7 +15,6 @@ const RecoveryWordsHeader: React.FC = () => {
                     {t('feature.backup.personal-backup')}
                 </Text>
             }
-            closeButton
         />
     )
 }

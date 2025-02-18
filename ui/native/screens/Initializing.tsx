@@ -4,10 +4,7 @@ import { Theme, useTheme } from '@rneui/themed'
 import React, { useEffect } from 'react'
 import { StyleSheet, View } from 'react-native'
 
-import {
-    selectAuthenticatedMember,
-    selectHasSetMatrixDisplayName,
-} from '@fedi/common/redux'
+import { selectHasSetMatrixDisplayName } from '@fedi/common/redux'
 import { selectHasLoadedFromStorage } from '@fedi/common/redux/storage'
 
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -25,13 +22,11 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'Initializing'>
 const Initializing: React.FC<Props> = () => {
     const navigation = useNavigation<NavigationHook>()
     const { theme } = useTheme()
-    const authenticatedMember = useAppSelector(selectAuthenticatedMember)
     const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
-    const hasStorageLoaded = useAppSelector(selectHasLoadedFromStorage)
+    const hasStorageLoaded = useAppSelector(selectHasLoadedFromStorage || false)
     const isAppUnlocked = useIsFeatureUnlocked('app')
-
+    const shouldMigrateSeed = useAppSelector(s => s.recovery.shouldMigrateSeed)
     const hasLoaded = hasStorageLoaded
-    const hasLegacyChatData = !!authenticatedMember
 
     // once everything has loaded, determine where to navigate
     useEffect(() => {
@@ -39,10 +34,20 @@ const Initializing: React.FC<Props> = () => {
 
         let destination: NavigationArgs = ['TabsNavigator']
 
-        // make sure there is a display name before navigating to Home
-        if (!hasSetDisplayName && !hasLegacyChatData) {
-            // Otherwise, go Home
+        // if FediBridgeInitializer detects a device id mismatch,
+        // we need to force the user to the migrated device screen
+        if (shouldMigrateSeed) {
+            destination = ['MigratedDevice']
+            return navigation.replace(...destination)
+        }
+
+        // make sure we have a display name before proceeding.
+        // return early here to avoid navigating anywhere else
+        // if the Splash screen is where we need to be, especially
+        // because the PIN reset logic happens on the Splash screen
+        if (!hasSetDisplayName) {
             destination = ['Splash']
+            return navigation.replace(...destination)
         }
 
         // If PIN-protected, navigate to the Lock Screen
@@ -54,11 +59,11 @@ const Initializing: React.FC<Props> = () => {
 
         navigation.replace(...destination)
     }, [
-        hasLegacyChatData,
         hasLoaded,
         hasSetDisplayName,
         navigation,
         isAppUnlocked,
+        shouldMigrateSeed,
     ])
 
     return (

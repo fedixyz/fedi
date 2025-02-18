@@ -18,7 +18,7 @@ if [[ "$BUILD_BRIDGE" == "1" ]]; then
         $REPO_ROOT/scripts/bridge/build-bridge-android.sh
     fi
     if [[ "$BUILD_IOS" == "1" ]]; then
-        $REPO_ROOT/scripts/bridge/build-bridge-ios.sh
+        nix develop .#xcode -c $REPO_ROOT/scripts/bridge/build-bridge-ios.sh
     fi
 fi
 

@@ -215,7 +215,7 @@ export function useTxnDisplayUtils(t: TFunction) {
     }
 }
 
-export function useExportTransactions(fedimint: FedimintBridge) {
+export function useExportTransactions(fedimint: FedimintBridge, t: TFunction) {
     const { fetchTransactions } = useTransactionHistory(fedimint)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
@@ -244,6 +244,7 @@ export function useExportTransactions(fedimint: FedimintBridge) {
                     makeTransactionHistoryCSV(
                         transactions,
                         makeFormattedAmountsFromMSats,
+                        t,
                     ),
                 )
 
@@ -259,7 +260,7 @@ export function useExportTransactions(fedimint: FedimintBridge) {
                 }
             }
         },
-        [fetchTransactions, makeFormattedAmountsFromMSats],
+        [fetchTransactions, makeFormattedAmountsFromMSats, t],
     )
 
     return exportTransactions

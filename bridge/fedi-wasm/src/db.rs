@@ -1,5 +1,6 @@
 //! Uses immutable data structures and backups to indexeddb on save
 use std::fmt::Debug;
+use std::ops::Range;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
@@ -12,7 +13,6 @@ use futures::lock::Mutex;
 use futures::stream;
 use imbl::OrdMap;
 use rexie::{Rexie, TransactionMode};
-use tracing::error;
 use wasm_bindgen::JsCast;
 
 pub fn rexie_to_anyhow(e: rexie::Error) -> anyhow::Error {
@@ -154,6 +154,19 @@ impl<'a> IDatabaseTransactionOpsCore for MemTransaction<'a> {
             }));
         self.num_pending_operations += 1;
         Ok(old_value)
+    }
+
+    async fn raw_find_by_range(&mut self, range: Range<&[u8]>) -> Result<PrefixStream<'_>> {
+        let data = self
+            .tx_data
+            .range::<_, Vec<u8>>(Range {
+                start: range.start.to_vec(),
+                end: range.end.to_vec(),
+            })
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect::<Vec<_>>();
+
+        Ok(Box::pin(stream::iter(data)))
     }
 
     async fn raw_find_by_prefix(&mut self, key_prefix: &[u8]) -> Result<PrefixStream<'_>> {

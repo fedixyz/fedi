@@ -23,7 +23,6 @@ import {
 } from '../types'
 import {
     JSONObject,
-    ObservableUpdate,
     ObservableVecUpdate,
     RpcBackPaginationStatus,
     RpcMatrixAccountSession,
@@ -31,10 +30,11 @@ import {
     RpcRoomListEntry,
     RpcRoomMember,
     RpcRoomNotificationMode,
+    RpcSyncIndicator,
+    RpcTimelineItem,
 } from '../types/bindings'
 import { DisplayNameValidatorType, getDisplayNameValidator } from './chat'
-import { isDev } from './environment'
-import { FedimintBridge } from './fedimint'
+import { FedimintBridge, UnsubscribeFn } from './fedimint'
 import { makeLog } from './log'
 import {
     MatrixEventContent,
@@ -81,10 +81,6 @@ interface MatrixChatClientEventMap {
     error: MatrixError
     auth: MatrixAuth
 }
-type ClientObserverKind = keyof Pick<
-    MatrixChatClientEventMap,
-    'status' | 'roomListUpdate'
->
 
 export class MatrixChatClient {
     hasStarted = false
@@ -92,13 +88,16 @@ export class MatrixChatClient {
     private emitter = new EventEmitter()
     private fedimint!: FedimintBridge
     private startPromise: Promise<MatrixAuth> | undefined
-    private observers: Record<number, (update: ObservableUpdate<any>) => void> =
-        {}
-    private roomObserverMap: Record<
+    private roomInfoUnsubscribeMap: Record<
         MatrixRoom['id'],
-        { info?: number; timeline?: number } | undefined
+        UnsubscribeFn | undefined
     > = {}
-    private clientObserverMap: Partial<Record<ClientObserverKind, number>> = {}
+    private roomTimelineUnsubscribeMap: Record<
+        MatrixRoom['id'],
+        UnsubscribeFn | undefined
+    > = {}
+    private roomListUnsubscribe: UnsubscribeFn | undefined = undefined
+    private syncStatusUnsubscribe: UnsubscribeFn | undefined = undefined
     private displayNameValidator: DisplayNameValidatorType | undefined
 
     /*** Public methods ***/
@@ -113,13 +112,6 @@ export class MatrixChatClient {
             this.displayNameValidator = getDisplayNameValidator()
         }
 
-        fedimint.addListener('observableUpdate', ev => {
-            // This is noisy, but can be helpful for debugging
-            if (isDev())
-                log.debug('Received observable update', JSON.stringify(ev))
-            this.handleObservableUpdate(ev)
-        })
-
         this.startPromise = new Promise((resolve, reject) => {
             fedimint
                 .matrixInit()
@@ -133,13 +125,7 @@ export class MatrixChatClient {
                     // asynchronously get the user's avatarUrl
                     this.refetchAuth()
 
-                    this.observeRoomList()
-                        .then(() => {
-                            // Wait until after the roomlist is observed
-                            // to prevent flickering on startup
-                            this.observeSyncStatus()
-                        })
-                        .catch(reject)
+                    this.observeRoomList().catch(reject)
                 })
                 .catch(err => {
                     log.error('matrixInit', err)
@@ -232,15 +218,10 @@ export class MatrixChatClient {
     }
 
     unobserveRoom(roomId: string) {
-        const observers = this.roomObserverMap[roomId]
-        if (
-            observers &&
-            observers.timeline !== undefined &&
-            observers.timeline !== Number.MAX_SAFE_INTEGER
-        ) {
-            const { timeline, ...rest } = observers
-            this.unobserve(timeline)
-            this.roomObserverMap[roomId] = rest
+        const roomUnsubscribe = this.roomTimelineUnsubscribeMap[roomId]
+        if (roomUnsubscribe !== undefined) {
+            roomUnsubscribe()
+            delete this.roomTimelineUnsubscribeMap[roomId]
         }
     }
 
@@ -370,36 +351,60 @@ export class MatrixChatClient {
         // returns immediately, and it's not until the observable returns
         // to `idle` that we're done.
         // We also check the initial response, since if we're already at the
-        // beginning, we don't need to paginate at all.
-        const { id, initial } =
-            await this.fedimint.matrixRoomObserveTimelineItemsPaginateBackwards(
-                { roomId },
-            )
-        if (initial === 'timelineStartReached') {
-            this.fedimint.matrixObserverCancel({ id: id as unknown as bigint })
-            return { end: true }
-        }
+        // beginning, we don't need to paginate at all so we return early
+        // and cancel the observer
 
-        return new Promise<{ end: boolean }>((resolve, reject) => {
-            this.observe(
-                id,
-                (update: ObservableUpdate<RpcBackPaginationStatus>) => {
-                    if (update.update === 'idle') {
-                        resolve({ end: false })
-                        this.unobserve(id)
-                    } else if (update.update === 'timelineStartReached') {
-                        resolve({ end: true })
-                        this.unobserve(id)
-                    }
-                },
-            )
-            this.fedimint
-                .matrixRoomTimelineItemsPaginateBackwards({
-                    roomId,
-                    eventNum,
-                })
-                .catch(reject)
-        })
+        const paginationPromise = new Promise<{ end: boolean }>(
+            (resolve, reject) => {
+                const unsubscribe =
+                    this.fedimint.subscribeObservableSimple<RpcBackPaginationStatus>(
+                        async id => {
+                            // First check if we've already reached the timeline start
+                            const observable =
+                                await this.fedimint.matrixRoomObserveTimelineItemsPaginateBackwards(
+                                    {
+                                        roomId,
+                                        observableId: id,
+                                    },
+                                )
+                            // Early return if we've already reached the start so we don't paginate
+                            if (observable.initial === 'timelineStartReached') {
+                                resolve({ end: true })
+                                unsubscribe()
+                                return observable
+                            }
+
+                            // Triggers the pagination for this room
+                            this.fedimint
+                                .matrixRoomTimelineItemsPaginateBackwards({
+                                    roomId,
+                                    eventNum,
+                                })
+                                .catch(error => {
+                                    unsubscribe()
+                                    reject(error)
+                                })
+
+                            return observable
+                        },
+                        (paginationStatus, isInitialUpdate) => {
+                            if (!isInitialUpdate) {
+                                if (paginationStatus === 'idle') {
+                                    resolve({ end: false })
+                                    unsubscribe()
+                                } else if (
+                                    paginationStatus === 'timelineStartReached'
+                                ) {
+                                    resolve({ end: true })
+                                    unsubscribe()
+                                }
+                            }
+                        },
+                    )
+            },
+        )
+
+        return paginationPromise
     }
 
     async sendReadReceipt(roomId: string, eventId: string) {
@@ -416,28 +421,18 @@ export class MatrixChatClient {
 
     async refetchRoomList() {
         // Clear existing observer
-        const oldId = this.clientObserverMap['roomListUpdate']
+        const oldRoomListUnsubscribe = this.roomListUnsubscribe
 
-        if (typeof oldId === 'number' && oldId !== Number.MAX_SAFE_INTEGER) {
-            await this.unobserve(oldId)
-            delete this.clientObserverMap['roomListUpdate']
+        if (oldRoomListUnsubscribe !== undefined) {
+            await oldRoomListUnsubscribe()
+            this.roomListUnsubscribe = undefined
         }
-        // Recreate observer with fresh "initial list"
+        // Recreate observer with fresh room list
         await this.observeRoomList()
     }
 
-    async refreshSyncStatus() {
-        // Clear existing observer
-        const oldId = this.clientObserverMap['status']
-        log.debug('refreshSyncStatus oldId', oldId)
-
-        if (typeof oldId === 'number' && oldId !== Number.MAX_SAFE_INTEGER) {
-            log.debug('clearing observer:', oldId)
-            await this.unobserve(oldId)
-            delete this.clientObserverMap['status']
-        }
-        // Recreate observer with fresh "initial list"
-        await this.observeSyncStatus()
+    async unsubscribeSyncStatus() {
+        await this.syncStatusUnsubscribe?.()
     }
 
     async configureNotificationsPusher(
@@ -528,242 +523,185 @@ export class MatrixChatClient {
         this.emitter.removeAllListeners(event)
     }
 
-    /*** Private methods ***/
-
-    private observe<T>(
-        id: number,
-        handleUpdate: (update: ObservableUpdate<T>) => void,
-    ) {
-        this.observers[id] = handleUpdate
-    }
-
-    private unobserve(id: number) {
-        return this.fedimint
-            .matrixObserverCancel({ id: id as unknown as bigint })
-            .then(() => {
-                if (this.observers[id]) delete this.observers[id]
-            })
-            .catch(err => {
-                log.warn('Failed to cancel observer', { id, err })
-            })
-    }
-
-    private handleObservableUpdate(update: ObservableUpdate<unknown>) {
-        const observer = this.observers[update.id]
-        if (!observer) {
-            log.info(
-                'Received observable update without associated observer handler',
-                JSON.stringify(update),
-            )
-            return this.unobserve(update.id)
-        }
-        observer(update)
-    }
-
-    private async observeSyncStatus() {
-        log.debug(
-            'observeSyncStatus this.clientObserverMap[status]',
-            this.clientObserverMap['status'],
-        )
+    observeSyncStatus() {
         // Only observe the sync status once, subsequent calls are no-ops.
-        if (this.clientObserverMap['status'] !== undefined) return
+        if (this.syncStatusUnsubscribe !== undefined) return
 
-        // Immediately add to the map with a fake id to prevent additional calls.
-        this.clientObserverMap['status'] = Number.MAX_SAFE_INTEGER
-
-        const { id, initial } = await this.fedimint.matrixObserveSyncIndicator()
-
-        // Update the map with the real id
-        this.clientObserverMap['status'] = id
-
-        const handleEmit = (status: typeof initial) => {
-            this.emit(
-                'status',
-                status === 'show'
-                    ? MatrixSyncStatus.syncing
-                    : MatrixSyncStatus.synced,
+        // Listen and emit on observable updates
+        const unsubscribe =
+            this.fedimint.subscribeObservableSimple<RpcSyncIndicator>(
+                id => {
+                    return this.fedimint.matrixObserveSyncIndicator({
+                        observableId: id,
+                    })
+                },
+                status => {
+                    this.emit(
+                        'status',
+                        status === 'show'
+                            ? MatrixSyncStatus.syncing
+                            : MatrixSyncStatus.synced,
+                    )
+                },
             )
-        }
-        handleEmit(initial)
-
-        this.observe(id, (update: ObservableUpdate<typeof initial>) => {
-            log.debug(
-                'Recieved syncStatus observable update',
-                JSON.stringify(update),
-            )
-            handleEmit(update.update)
-        })
+        // store unsubscribe functions to cancel later if needed
+        this.syncStatusUnsubscribe = unsubscribe
     }
+
+    /*** Private methods ***/
 
     private async observeRoomList() {
         // Only observe the roomList once, subsequent calls are no-ops.
-        if (this.clientObserverMap['roomListUpdate'] !== undefined) return
-
-        // Immediately add to the map with a fake id to prevent additional calls.
-        this.clientObserverMap['roomListUpdate'] = Number.MAX_SAFE_INTEGER
-
-        const { id, initial } = await this.fedimint.matrixRoomList()
-
-        // Update the map with the real id
-        this.clientObserverMap['roomListUpdate'] = id
-
-        // Emit a fake "update" using the initial values
-        this.emit(
-            'roomListUpdate',
-            makeInitialResetUpdate(initial.map(this.serializeRoomListItem)),
-        )
-
-        // Join rooms we're invited to
-
+        if (this.roomListUnsubscribe !== undefined) return
         // Listen and emit on observable updates
-        this.observe(id, (update: ObservableVecUpdate<RpcRoomListEntry>) => {
-            this.emit(
-                'roomListUpdate',
-                mapObservableUpdates(update.update, this.serializeRoomListItem),
-            )
-            getNewObservableIds(update.update, room =>
-                room.kind !== 'empty' && room.kind !== 'invalidated'
-                    ? room.value
-                    : false,
-            ).forEach(roomId => {
-                this.observeRoomInfo(roomId).catch(err =>
-                    log.warn('Failed to observe room info', {
-                        roomId,
-                        err,
-                    }),
+        const unsubscribe = this.fedimint.subscribeObservable<
+            RpcRoomListEntry[],
+            ObservableVecUpdate<RpcRoomListEntry>['update']
+        >(
+            id => {
+                return this.fedimint.matrixRoomList({ observableId: id })
+            },
+            rooms => {
+                // Emit a fake "update" using the initial values
+                this.emit(
+                    'roomListUpdate',
+                    makeInitialResetUpdate(
+                        rooms.map(this.serializeRoomListItem),
+                    ),
                 )
-                this.observeRoomPowerLevels(roomId).catch(err =>
-                    log.warn('Failed to observe room power levels', {
-                        roomId,
-                        err,
-                    }),
-                )
-                this.observeRoomNotificationMode(roomId).catch(err =>
-                    log.warn('Failed to observe room notification mode', {
-                        roomId,
-                        err,
-                    }),
-                )
-            })
-        })
 
-        // Observe all of the rooms
-        await Promise.all(
-            initial.map(async room => {
-                if ('value' in room) {
-                    await this.observeRoomInfo(room.value)
-                    await this.observeRoomPowerLevels(room.value)
-                    await this.observeRoomNotificationMode(room.value)
-                }
-            }),
+                // Observe all of the rooms
+                rooms.map(async room => {
+                    if ('value' in room) {
+                        await this.observeRoomInfo(room.value)
+                        await this.observeRoomPowerLevels(room.value)
+                        await this.observeRoomNotificationMode(room.value)
+                    }
+                })
+            },
+            update => {
+                this.emit(
+                    'roomListUpdate',
+                    mapObservableUpdates(update, this.serializeRoomListItem),
+                )
+                getNewObservableIds(update, room => {
+                    return room.kind !== 'empty' && room.kind !== 'invalidated'
+                        ? room.value
+                        : false
+                }).forEach(roomId => {
+                    this.observeRoomInfo(roomId).catch(err =>
+                        log.warn('Failed to observe room info', {
+                            roomId,
+                            err,
+                        }),
+                    )
+                    this.observeRoomPowerLevels(roomId).catch(err =>
+                        log.warn('Failed to observe room power levels', {
+                            roomId,
+                            err,
+                        }),
+                    )
+                    this.observeRoomNotificationMode(roomId).catch(err =>
+                        log.warn('Failed to observe room notification mode', {
+                            roomId,
+                            err,
+                        }),
+                    )
+                })
+            },
         )
+        // store unsubscribe functions to cancel later if needed
+        this.roomListUnsubscribe = unsubscribe
     }
-    // private async
 
     private async observeRoomInfo(roomId: string) {
         // Only observe a room once, subsequent calls are no-ops.
-        if (this.roomObserverMap[roomId]?.info !== undefined) return
-
-        // Immediately add to the map with a fake id to prevent additional calls.
-        this.roomObserverMap[roomId] = {
-            ...this.roomObserverMap[roomId],
-            info: Number.MAX_SAFE_INTEGER,
-        }
-
-        const { id, initial } = await this.fedimint.matrixRoomObserveInfo({
-            roomId,
-        })
-
-        // Update the map with the real id
-        this.roomObserverMap[roomId] = {
-            ...this.roomObserverMap[roomId],
-            info: id,
-        }
-
-        // Emit the initial info
-        const room = this.serializeRoomInfo(initial)
-
-        // Previously, room invite and room list were separate
-        // but now they are combined.
-        // All updates are merged too
-
-        this.emit('roomInfo', room)
-
-        // If it's a DM, fetch the member since it's small and we use recent DM users.
-        if (room.directUserId) {
-            this.observeRoomMembers(roomId).catch(err => {
-                log.warn(
-                    'Failed to observe room members from initial room info',
-                    { roomId, err },
-                )
-            })
-
-            // HACK: Observe all DMs to claim ecash in the background.
-            // TODO: Move this to the bridge... intercept messages that contain
-            // ecash and claim before passing to the frontend.
-            this.observeRoomTimeline(roomId).catch(err => {
-                log.warn('Failed to observe room timeline', { roomId, err })
-            })
-        }
+        if (this.roomInfoUnsubscribeMap[roomId] !== undefined) return
 
         // Listen and emit on observable updates
-        this.observe(id, (update: ObservableUpdate<unknown>) => {
-            this.emit('roomInfo', this.serializeRoomInfo(update.update))
-        })
+        const unsubscribe = this.fedimint.subscribeObservableSimple(
+            id => {
+                return this.fedimint.matrixRoomObserveInfo({
+                    roomId,
+                    observableId: id,
+                })
+            },
+            (update, isInitialUpdate) => {
+                // Emit the initial info
+                const room = this.serializeRoomInfo(update)
+                this.emit('roomInfo', room)
 
-        return initial
+                // If it's the initial update of a DM:
+                // - fetch the member since it's small and we use recent DM users.
+                // - HACK: observe all DMs to claim ecash in the background.
+                if (isInitialUpdate && room.directUserId) {
+                    // TODO: remove this when members list is observable
+                    this.observeRoomMembers(roomId).catch(err => {
+                        log.warn(
+                            'Failed to observe room members from initial room info',
+                            { roomId, err },
+                        )
+                    })
+
+                    // TODO: Move this to the bridge... intercept messages that contain
+                    // ecash and claim before passing to the frontend.
+                    this.observeRoomTimeline(roomId).catch(err => {
+                        log.warn('Failed to observe room timeline', {
+                            roomId,
+                            err,
+                        })
+                    })
+                }
+            },
+        )
+        // store unsubscribe functions to cancel later if needed
+        this.roomInfoUnsubscribeMap[roomId] = unsubscribe
     }
 
     private async observeRoomTimeline(roomId: string) {
         // Only observe a room once, subsequent calls are no-ops.
-        if (this.roomObserverMap[roomId]?.timeline !== undefined) return
-
-        // Immediately add to the map with a fake id to prevent additional calls.
-        this.roomObserverMap[roomId] = {
-            ...this.roomObserverMap[roomId],
-            timeline: Number.MAX_SAFE_INTEGER,
-        }
-
-        const { id, initial } = await this.fedimint.matrixRoomTimelineItems({
-            roomId,
-        })
-
-        // Update the map with the real id
-        this.roomObserverMap[roomId] = {
-            ...this.roomObserverMap[roomId],
-            timeline: id,
-        }
-
-        // Emit a fake "update" using the initial values
-        this.emit('roomTimelineUpdate', {
-            roomId,
-            updates: makeInitialResetUpdate(
-                initial.map(ev => this.serializeTimelineItem(ev, roomId)),
-            ),
-        })
+        if (this.roomTimelineUnsubscribeMap[roomId] !== undefined) return
 
         // Listen and emit on observable updates
-        this.observe(id, (update: ObservableVecUpdate<RpcRoomListEntry>) => {
-            this.emit('roomTimelineUpdate', {
-                roomId,
-                updates: mapObservableUpdates(update.update, ev =>
-                    this.serializeTimelineItem(ev, roomId),
-                ),
-            })
-        })
+        const unsubscribe = this.fedimint.subscribeObservable<
+            RpcTimelineItem[],
+            ObservableVecUpdate<RpcTimelineItem>['update']
+        >(
+            id => {
+                return this.fedimint.matrixRoomTimelineItems({
+                    roomId,
+                    observableId: id,
+                })
+            },
+            initial => {
+                // // Emit a fake "update" using the initial values
+                this.emit('roomTimelineUpdate', {
+                    roomId,
+                    updates: makeInitialResetUpdate(
+                        initial.map(ev =>
+                            this.serializeTimelineItem(ev, roomId),
+                        ),
+                    ),
+                })
+            },
+            update => {
+                this.emit('roomTimelineUpdate', {
+                    roomId,
+                    updates: mapObservableUpdates(update, ev =>
+                        this.serializeTimelineItem(ev, roomId),
+                    ),
+                })
+            },
+        )
+        // store unsubscribe functions to cancel later if needed
+        this.roomTimelineUnsubscribeMap[roomId] = unsubscribe
     }
 
     // Fake observe - just fetches
     private async observeRoomMembers(roomId: string) {
         // TODO: Listen for new room member events, re-fetch.
         // // Only observe room members once, subsequent calls are no-ops.
-        // if (this.roomObserverMap[roomId]?.members !== undefined) return
-
-        // // Immediately add to the map with a fake id to prevent additional calls.
-        // this.roomObserverMap[roomId] = {
-        //     ...this.roomObserverMap[roomId],
-        //     members: Number.MAX_SAFE_INTEGER,
-        // }
+        // if (this.roomMembersUnsubscribeMap[roomId] !== undefined) return
 
         const members = await this.fedimint.matrixRoomGetMembers({ roomId })
         const serializedMembers = members.map(member =>
@@ -941,7 +879,10 @@ export class MatrixChatClient {
         if (item.kind !== 'event') return null
         if (
             item.value.content.kind === 'json' &&
-            item.value.content.value.type !== 'm.room.message'
+            item.value.content.value.type !== 'm.room.message' &&
+            // deleted messages are not decrypted so they have this type
+            // we keep them so we can display the 'message deleted' placeholder
+            item.value.content.value.type !== 'm.room.encrypted'
         )
             return null
 
@@ -956,10 +897,10 @@ export class MatrixChatClient {
                 kind === 'sent'
                     ? MatrixEventStatus.sent
                     : kind === 'cancelled'
-                    ? MatrixEventStatus.cancelled
-                    : kind === 'sendingFailed'
-                    ? MatrixEventStatus.failed
-                    : MatrixEventStatus.pending
+                      ? MatrixEventStatus.cancelled
+                      : kind === 'sendingFailed'
+                        ? MatrixEventStatus.failed
+                        : MatrixEventStatus.pending
             if (status === MatrixEventStatus.failed) {
                 error = new Error(
                     item.value.sendState?.error || 'Unknown error',

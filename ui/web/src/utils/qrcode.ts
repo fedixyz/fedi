@@ -82,8 +82,8 @@ export function renderStyledQrSvg(
                 options.logoOverrideUrl && !options.hideLogo
                     ? `<clipPath id="rounded-avatar">
                         <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${
-                          avatarPictureDimension / 2
-                      }" ry="${avatarPictureDimension / 2}" />
+                            avatarPictureDimension / 2
+                        }" ry="${avatarPictureDimension / 2}" />
                     </clipPath>
 
                     <image href="${
@@ -91,10 +91,10 @@ export function renderStyledQrSvg(
                     }" x="${avatarPicturePosition}" y=${avatarPicturePosition} width="${avatarPictureDimension}", height="${avatarPictureDimension}" clip-path="url(#rounded-avatar)" />
 
                     <rect x="${avatarPicturePosition}" y="${avatarPicturePosition}" width="${avatarPictureDimension}" height="${avatarPictureDimension}" rx="${
-                          avatarPictureDimension / 2
-                      }" ry="${
-                          avatarPictureDimension / 2
-                      }" fill="none" stroke="black" stroke-width="32" />`
+                        avatarPictureDimension / 2
+                    }" ry="${
+                        avatarPictureDimension / 2
+                    }" fill="none" stroke="black" stroke-width="32" />`
                     : ''
             }
         </svg>

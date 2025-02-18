@@ -1,12 +1,14 @@
 import { useNavigation } from '@react-navigation/native'
-import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { ListItem, Text, Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Linking, StyleSheet, View } from 'react-native'
 
 import { useDebouncePress } from '@fedi/common/hooks/util'
-import { setActiveFederationId } from '@fedi/common/redux/federation'
+import {
+    setActiveFederationId,
+    selectFederationFediModsById,
+} from '@fedi/common/redux/federation'
 import { LoadedFederation } from '@fedi/common/types'
 import {
     getFederationTosUrl,
@@ -14,8 +16,7 @@ import {
     supportsSingleSeed,
 } from '@fedi/common/utils/FederationUtils'
 
-import { useAppDispatch } from '../../../state/hooks'
-import { RootStackParamList } from '../../../types/navigation'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useNativeExport } from '../../../utils/hooks/export'
 import { useNativeLeaveFederation } from '../../../utils/hooks/leaveFederation'
 import SvgImage from '../../ui/SvgImage'
@@ -32,13 +33,10 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
     const { t } = useTranslation()
     const style = styles(theme)
     const dispatch = useAppDispatch()
-    const navigation =
-        useNavigation<
-            NativeStackNavigationProp<RootStackParamList, 'Settings'>
-        >()
+    const navigation = useNavigation()
 
     const { exportTransactionsAsCsv, exportingFederationId } = useNativeExport()
-    const { confirmLeaveFederation } = useNativeLeaveFederation(navigation)
+    const { confirmLeaveFederation } = useNativeLeaveFederation()
 
     const [isExpanded, setIsExpanded] = useState(false)
 
@@ -50,6 +48,13 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
 
     // Don't allow double-taps
     const handlePress = useDebouncePress(() => setIsExpanded(!isExpanded), 300)
+
+    // Get the mods for the federation
+    const federationMods = useAppSelector(state =>
+        community.id ? selectFederationFediModsById(state, community.id) : [],
+    )
+
+    const hasMods = federationMods.length > 0
 
     return (
         <View style={style.sectionContainer}>
@@ -88,12 +93,23 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
                             })
                         }}
                     />
+                    {hasMods && ( // Conditionally render this item
+                        <SettingsItem
+                            icon="Apps"
+                            label={t('feature.federations.federation-mods')}
+                            onPress={() => {
+                                navigation.navigate('FederationModSettings', {
+                                    type: 'community',
+                                    federationId: community.id,
+                                })
+                            }}
+                        />
+                    )}
                     <SettingsItem
-                        icon="Apps"
-                        label={t('feature.federations.federation-mods')}
+                        icon="Usd"
+                        label={t('words.currency')}
                         onPress={() => {
-                            navigation.navigate('FederationModSettings', {
-                                type: 'community',
+                            navigation.navigate('FederationCurrency', {
                                 federationId: community.id,
                             })
                         }}

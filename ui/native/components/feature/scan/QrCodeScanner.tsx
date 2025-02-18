@@ -1,162 +1,120 @@
-import { URDecoder } from '@ngraveio/bc-ur'
-import { useFocusEffect, useIsFocused } from '@react-navigation/native'
+import { useIsFocused } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import {
-    State as FrameState,
     areFramesComplete,
+    State as FrameState,
     framesToData,
     parseFramesReducer,
     progressOfFrames,
 } from 'qrloop'
-import React, { useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { StyleSheet, Vibration, View } from 'react-native'
-import { Camera, CameraType } from 'react-native-camera-kit'
+import {
+    Camera,
+    useCameraDevice,
+    useCodeScanner,
+} from 'react-native-vision-camera'
 
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { getBufferEncoding } from '@fedi/common/utils/istextorbinary'
 
-type Props = {
+import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+
+type QrCodeScanner = {
+    onQrCodeDetected: (data: string) => void
     processing?: boolean
-    onQrCodeDetected(data: string): void
 }
 
-/**
- * `react-native-camera-kit` declares this type locally and does not export it
- * See https://github.com/teslamotors/react-native-camera-kit/blob/master/src/Camera.d.ts
- */
-type OnReadCodeData = {
-    nativeEvent: {
-        codeStringValue: string
-    }
-}
-
-const QrCodeScanner: React.FC<Props> = ({ processing, onQrCodeDetected }) => {
+const QrCodeScanner = ({ processing, onQrCodeDetected }: QrCodeScanner) => {
+    const { t } = useTranslation()
     const { theme } = useTheme()
-    const [frames, setFrames] = useState<FrameState | null>(null)
-    const [urFrames, setUrFrames] = useState<string[] | null>(null)
-    const [progress, setProgress] = useState(0)
-    const isFocused = useIsFocused()
-    const cameraRef = useRef<Camera>(null)
     const previousDataRef = useRef<string | null>(null)
     const previousDataTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+    const [progress, setProgress] = useState(0)
+    const [frames, setFrames] = useState<FrameState | null>(null)
+    const isFocused = useIsFocused()
     const framesRef = useUpdatingRef(frames)
-    const urFramesRef = useUpdatingRef(urFrames)
-    const decoder = useRef<URDecoder>()
-
-    useFocusEffect(() => {
-        if (previousDataRef.current) previousDataRef.current = null
-        if (decoder.current) return
-        decoder.current = new URDecoder()
+    const device = useCameraDevice('back')
+    const cameraRef = useRef<Camera>(null)
+    const codeScanner = useCodeScanner({
+        codeTypes: ['qr'],
+        onCodeScanned: (codes, _) => {
+            codes.map(c => handleScan(c.value as string))
+        },
     })
+    const handleDetected = useCallback(
+        (data: string) => {
+            // Only call the detection function if QR data is different
+            // but reset after a few seconds... in case some error occurs
+            // and we should retry the same input
+            if (data === previousDataRef.current) return
 
-    const handleDetected = (data: string) => {
-        // Only call the detection function if QR data is different
-        // but reset after a few seconds... in case some error occurs
-        // and we should retry the same input
-        if (data === previousDataRef.current) return
+            onQrCodeDetected(data)
+            Vibration.vibrate(100)
 
-        onQrCodeDetected(data)
-        Vibration.vibrate(100)
+            previousDataRef.current = data
+            clearTimeout(previousDataTimeoutRef.current)
+            previousDataTimeoutRef.current = setTimeout(() => {
+                previousDataRef.current = null
+            }, 5000)
+        },
+        [onQrCodeDetected],
+    )
 
-        previousDataRef.current = data
-        clearTimeout(previousDataTimeoutRef.current)
-        previousDataTimeoutRef.current = setTimeout(() => {
-            previousDataRef.current = null
-        }, 5000)
-    }
+    const handleScan = useCallback(
+        (data: string) => {
+            // Ignore scans while processing
+            if (processing) return
 
-    // Fedi loop'd qr codes
-    const handleScanLegacy = (data: string) => {
-        if (data.startsWith('ur')) return
-        const newFrames = parseFramesReducer(framesRef.current, data)
-        setFrames(newFrames)
-        setProgress(progressOfFrames(newFrames))
-        if (areFramesComplete(newFrames)) {
-            // Convert the data to a string. If it's binary encoded, convert as base64.
-            const frameData = framesToData(newFrames)
-            const strData = frameData.toString(
-                getBufferEncoding(frameData) === 'binary' ? 'base64' : 'utf8',
-            )
-            handleDetected(strData)
-            // Reset frames & progress after short delay
-            setTimeout(() => {
+            // Attempt to parse qrloop'd QR codes first
+            try {
+                const newFrames = parseFramesReducer(framesRef.current, data)
+                setFrames(newFrames)
+                setProgress(progressOfFrames(newFrames))
+                if (areFramesComplete(newFrames)) {
+                    // Convert the data to a string. If it's binary encoded, convert as base64.
+                    const frameData = framesToData(newFrames)
+                    const strData = frameData.toString(
+                        getBufferEncoding(frameData) === 'binary'
+                            ? 'base64'
+                            : 'utf8',
+                    )
+                    handleDetected(strData)
+                    // Reset frames & progress after short delay
+                    setTimeout(() => {
+                        setFrames(null)
+                        setProgress(0)
+                    }, 300)
+                }
+            } catch (err) {
+                // Fall back to regular ol' QR code
+                handleDetected(data)
                 setFrames(null)
                 setProgress(0)
-            }, 300)
-        }
-    }
-
-    // ref: https://github.com/ngraveio/bc-ur
-    // For cashu (TODO: encode fedimint notes with UR like cashu)
-    const handleScanBcUr = (data: string) => {
-        if (!data.startsWith('ur')) return
-        // Create the decoder object
-        if (!decoder.current) {
-            return
-        }
-        // Don't try to receive the same part twice
-        if (urFramesRef.current?.includes(data)) return
-        setUrFrames([...(urFramesRef.current ?? []), data])
-        decoder.current.receivePart(data)
-        const newProgress = decoder.current.estimatedPercentComplete()
-        setProgress(newProgress)
-        if (decoder.current.isComplete() && decoder.current.isSuccess()) {
-            // Get the UR representation of the message
-            const ur = decoder.current.resultUR()
-            // Decode the CBOR message to a Buffer
-            const decoded = ur.decodeCBOR()
-            // get the original message, assuming it was a JSON object
-            const originalMessage = decoded.toString()
-            handleDetected(originalMessage)
-            setTimeout(() => {
-                setProgress(0)
-                setUrFrames(null)
-                decoder.current = new URDecoder()
-            }, 300)
-        } else if (decoder.current.isComplete()) {
-            setProgress(0)
-            setUrFrames(null)
-            decoder.current = new URDecoder()
-            // If the decoder is complete, but not successful, log the error
-            throw new Error('Decoder error')
-        }
-    }
-
-    const handleScan = (data: string) => {
-        // Ignore scans while processing
-        if (processing) return
-
-        try {
-            handleScanBcUr(data)
-        } catch (err) {
-            setProgress(0)
-            setUrFrames(null)
-        }
-
-        // Attempt to parse qrloop'd QR codes first
-        try {
-            handleScanLegacy(data)
-        } catch (err) {
-            // Fall back to regular ol' QR code
-            handleDetected(data)
-            setFrames(null)
-            setProgress(0)
-        }
-    }
+            }
+        },
+        [framesRef, handleDetected, processing],
+    )
 
     const style = styles(theme)
+    if (!device)
+        return (
+            <View style={style.center}>
+                <SvgImage name="ScanSad" size={SvgImageSize.xl} />
+                <Text medium>{t('errors.camera-unavailable')}</Text>
+            </View>
+        )
+
     return (
         <View style={style.container}>
             {isFocused && (
                 <Camera
                     style={style.camera}
                     ref={cameraRef}
-                    cameraType={CameraType.Back}
-                    flashMode="auto"
-                    scanBarcode={true}
-                    onReadCode={(event: OnReadCodeData) =>
-                        handleScan(event.nativeEvent.codeStringValue)
-                    }
+                    device={device}
+                    isActive={true}
+                    codeScanner={codeScanner}
                 />
             )}
             {processing && <View style={style.processingCover} />}
@@ -176,7 +134,6 @@ const QrCodeScanner: React.FC<Props> = ({ processing, onQrCodeDetected }) => {
         </View>
     )
 }
-
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
@@ -223,6 +180,12 @@ const styles = (theme: Theme) =>
             width: '100%',
             textAlign: 'center',
             color: theme.colors.secondary,
+        },
+        center: {
+            width: '100%',
+            height: '100%',
+            justifyContent: 'center',
+            alignItems: 'center',
         },
     })
 

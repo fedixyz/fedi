@@ -123,9 +123,9 @@ export default function ToastManager() {
                                                 'success'
                                                     ? '👍'
                                                     : cachedToast?.status ===
-                                                      'info'
-                                                    ? '👀'
-                                                    : '⚠️'}
+                                                        'info'
+                                                      ? '👀'
+                                                      : '⚠️'}
                                             </Text>
                                         </View>
                                         <View style={style.toastContent}>

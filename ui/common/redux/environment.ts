@@ -130,15 +130,26 @@ export const changeLanguage = createAsyncThunk<
     i18n.changeLanguage(language)
 })
 
-export const initializeDeviceId = createAsyncThunk<
-    void,
-    { getDeviceId: () => string },
+/**
+ * Used only by the PWA.
+ * Initializes the device ID with a value generated once on first app
+ * load and persisted to storage as a cached value between sessions.
+ *
+ * The native app should not use this function and instead should generate
+ * a unique device ID using RNDI and should never persist it to storage
+ */
+export const initializeDeviceIdWeb = createAsyncThunk<
+    string,
+    { deviceId: string },
     { state: CommonState }
 >(
-    'environment/initializeDeviceId',
-    ({ getDeviceId }, { getState, dispatch }) => {
-        if (getState().environment.deviceId) return
-        dispatch(setDeviceId(getDeviceId()))
+    'environment/initializeDeviceIdWeb',
+    async ({ deviceId }, { getState, dispatch }) => {
+        const cachedDeviceId = getState().environment.deviceId
+        if (!cachedDeviceId) {
+            dispatch(setDeviceId(deviceId))
+        }
+        return cachedDeviceId || deviceId
     },
 )
 

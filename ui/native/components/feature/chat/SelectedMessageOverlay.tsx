@@ -208,80 +208,85 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
             onBackdropPress={closeOverlay}
             show={!!selectedMessage}
             contents={{
-                body: deleteMessage ? (
-                    <View style={style.confirmDeleteContainer}>
-                        <View style={style.previewMessageContainer}>
-                            <ChatEvent
-                                event={
-                                    selectedMessage as MatrixEvent<
-                                        MatrixEventContentType<
-                                            | 'm.text'
-                                            | 'm.image'
-                                            | 'm.video'
-                                            | 'm.file'
+                body:
+                    deleteMessage && selectedMessage ? (
+                        <View style={style.confirmDeleteContainer}>
+                            <View style={style.previewMessageContainer}>
+                                <ChatEvent
+                                    event={
+                                        selectedMessage as MatrixEvent<
+                                            MatrixEventContentType<
+                                                | 'm.text'
+                                                | 'm.image'
+                                                | 'm.video'
+                                                | 'm.file'
+                                            >
                                         >
-                                    >
-                                }
-                                last
-                                fullWidth={false}
-                                isPublic={isPublic}
-                            />
-                            {/* prevent user from interacting with the chat event */}
-                            <View style={style.previewMessageOverlay} />
-                        </View>
-                        <Text medium>
-                            {t('feature.chat.confirm-delete-message')}
-                        </Text>
-                    </View>
-                ) : (
-                    <View style={style.optionsContainer}>
-                        {selectedMessage?.content.msgtype === 'm.text' && (
-                            <>
-                                <Pressable
-                                    onPress={handleCopy}
-                                    containerStyle={style.action}>
-                                    <SvgImage name="Copy" />
-                                    <Text bold>{t('phrases.copy-text')}</Text>
-                                </Pressable>
-                                {isMe && (
-                                    <Pressable
-                                        onPress={handleEdit}
-                                        containerStyle={style.action}>
-                                        <SvgImage name="Edit" />
-                                        <Text bold>{t('words.edit')}</Text>
-                                    </Pressable>
-                                )}
-                            </>
-                        )}
-                        {(selectedMessage?.content.msgtype === 'm.image' ||
-                            selectedMessage?.content.msgtype === 'm.video' ||
-                            selectedMessage?.content.msgtype === 'm.file') && (
-                            <Pressable
-                                onPress={handleDownload}
-                                containerStyle={style.action}>
-                                {isDownloading ? (
-                                    <ActivityIndicator />
-                                ) : (
-                                    <SvgImage name="Download" />
-                                )}
-                                <Text bold>{t('words.download')}</Text>
-                            </Pressable>
-                        )}
-                        {isMe && (
-                            <Pressable
-                                onPress={() => setDeleteMessage(true)}
-                                containerStyle={style.action}>
-                                <SvgImage
-                                    color={theme.colors.red}
-                                    name="Trash"
+                                    }
+                                    last
+                                    fullWidth={false}
+                                    isPublic={isPublic}
                                 />
-                                <Text bold style={style.danger}>
-                                    {t('words.delete')}
-                                </Text>
-                            </Pressable>
-                        )}
-                    </View>
-                ),
+                                {/* prevent user from interacting with the chat event */}
+                                <View style={style.previewMessageOverlay} />
+                            </View>
+                            <Text medium>
+                                {t('feature.chat.confirm-delete-message')}
+                            </Text>
+                        </View>
+                    ) : (
+                        <View style={style.optionsContainer}>
+                            {selectedMessage?.content.msgtype === 'm.text' && (
+                                <>
+                                    <Pressable
+                                        onPress={handleCopy}
+                                        containerStyle={style.action}>
+                                        <SvgImage name="Copy" />
+                                        <Text bold>
+                                            {t('phrases.copy-text')}
+                                        </Text>
+                                    </Pressable>
+                                    {isMe && (
+                                        <Pressable
+                                            onPress={handleEdit}
+                                            containerStyle={style.action}>
+                                            <SvgImage name="Edit" />
+                                            <Text bold>{t('words.edit')}</Text>
+                                        </Pressable>
+                                    )}
+                                </>
+                            )}
+                            {(selectedMessage?.content.msgtype === 'm.image' ||
+                                selectedMessage?.content.msgtype ===
+                                    'm.video' ||
+                                selectedMessage?.content.msgtype ===
+                                    'm.file') && (
+                                <Pressable
+                                    onPress={handleDownload}
+                                    containerStyle={style.action}>
+                                    {isDownloading ? (
+                                        <ActivityIndicator />
+                                    ) : (
+                                        <SvgImage name="Download" />
+                                    )}
+                                    <Text bold>{t('words.download')}</Text>
+                                </Pressable>
+                            )}
+                            {isMe && (
+                                <Pressable
+                                    onPress={() => setDeleteMessage(true)}
+                                    containerStyle={style.action}>
+                                    <SvgImage
+                                        color={theme.colors.red}
+                                        name="Trash"
+                                    />
+                                    <Text bold style={style.danger}>
+                                        {t('words.delete')}
+                                    </Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    ),
                 buttons: deleteMessage
                     ? [
                           {

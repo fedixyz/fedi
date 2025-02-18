@@ -11,7 +11,6 @@ import { v4 as uuidv4 } from 'uuid'
 
 import {
     CommonState,
-    selectAuthenticatedMember,
     selectGlobalCommunityMeta,
     selectLoadedFederation,
     selectLoadedFederations,
@@ -19,6 +18,7 @@ import {
 } from '.'
 import {
     FederationListItem,
+    InputMedia,
     MSats,
     MatrixAuth,
     MatrixCreateRoomOptions,
@@ -49,6 +49,7 @@ import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
     MatrixEventContentType,
+    doesEventContentMatchPreviewMedia,
     getReceivablePaymentEvents,
     getRoomEventPowerLevel,
     getUserSuffix,
@@ -76,6 +77,7 @@ const getMatrixClient = () => {
 /*** Initial State ***/
 
 const initialState = {
+    started: false,
     auth: null as null | MatrixAuth,
     status: MatrixSyncStatus.uninitialized,
     roomList: [] as MatrixRoomListItem[],
@@ -102,6 +104,11 @@ const initialState = {
         MatrixEventContentType<'m.text' | 'm.image' | 'm.video' | 'm.file'>
     > | null,
     messageToEdit: null as MatrixEvent<MatrixEventContentType<'m.text'>> | null,
+    previewMedia: [] as Array<{
+        // whether to show a placeholder ChatEvent for the sent `media`
+        visible: boolean
+        media: InputMedia
+    }>,
 }
 
 export type MatrixState = typeof initialState
@@ -227,6 +234,49 @@ export const matrixSlice = createSlice({
         ) {
             state.messageToEdit = action.payload
         },
+        addPreviewMedia(state, action: PayloadAction<Array<InputMedia>>) {
+            state.previewMedia = [
+                ...state.previewMedia,
+                ...action.payload.map(media => ({ media, visible: true })),
+            ]
+        },
+        matchAndRemovePreviewMedia(
+            state,
+            action: PayloadAction<
+                MatrixEventContentType<'m.image' | 'm.video'>
+            >,
+        ) {
+            state.previewMedia = state.previewMedia.filter(
+                cached =>
+                    !doesEventContentMatchPreviewMedia(
+                        cached.media,
+                        action.payload,
+                    ),
+            )
+        },
+        matchAndHidePreviewMedia(
+            state,
+            action: PayloadAction<
+                Array<
+                    MatrixEvent<MatrixEventContentType<'m.image' | 'm.video'>>
+                >
+            >,
+        ) {
+            state.previewMedia = state.previewMedia.map(cached => {
+                if (
+                    action.payload.some(event =>
+                        doesEventContentMatchPreviewMedia(
+                            cached.media,
+                            event.content,
+                        ),
+                    )
+                ) {
+                    return { ...cached, visible: false }
+                }
+
+                return cached
+            })
+        },
     },
     extraReducers: builder => {
         builder.addCase(startMatrixClient.pending, state => {
@@ -235,10 +285,12 @@ export const matrixSlice = createSlice({
         })
         builder.addCase(startMatrixClient.fulfilled, (state, action) => {
             state.auth = action.payload
+            state.started = true
         })
         builder.addCase(startMatrixClient.rejected, state => {
             log.debug('startMatrixClient.rejected')
             state.status = MatrixSyncStatus.stopped
+            state.started = false
         })
 
         builder.addCase(setMatrixDisplayName.fulfilled, (state, action) => {
@@ -385,6 +437,9 @@ export const {
     setChatDraft,
     setSelectedChatMessage,
     setMessageToEdit,
+    addPreviewMedia,
+    matchAndHidePreviewMedia,
+    matchAndRemovePreviewMedia,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -435,7 +490,7 @@ export const startMatrixClient = createAsyncThunk<
     })
 
     // Start the client
-    return client.start(fedimint)
+    return await client.start(fedimint)
 })
 
 export const setMatrixDisplayName = createAsyncThunk<
@@ -910,12 +965,13 @@ export const sendMatrixReadReceipt = createAsyncThunk<
 
 export const configureMatrixPushNotifications = createAsyncThunk<
     string,
-    { getToken: () => Promise<string>; appId: string; appName: string }
+    { token: string; appId: string; appName: string }
 >(
     'matrix/configureMatrixPushNotifications',
-    async ({ getToken, appId, appName }) => {
+    async ({ token, appId, appName }) => {
         const client = getMatrixClient()
-        const token = await getToken()
+        if (!client.hasStarted) return token
+
         await client.configureNotificationsPusher(token, appId, appName)
         return token
     },
@@ -988,6 +1044,8 @@ export const previewGlobalDefaultChats = createAsyncThunk<
     { state: CommonState }
 >('matrix/previewGlobalDefaultChats', async (_, { getState }) => {
     const client = getMatrixClient()
+    // can't fetch preview until after matrix init + registration
+    if (!selectMatrixAuth(getState())) return []
     // Check the Fedi Global community for default groups
     const globalCommunityMeta = selectGlobalCommunityMeta(getState())
 
@@ -1012,7 +1070,7 @@ export const previewCommunityDefaultChats = createAsyncThunk<
     { state: CommonState }
 >('matrix/previewCommunityDefaultChats', async (federationId, { getState }) => {
     const client = getMatrixClient()
-    // can't fetch previews if matrix init hasn't completed yet
+    // can't fetch preview until after matrix init + registration
     if (!selectMatrixAuth(getState())) return []
     const federation = selectLoadedFederation(getState(), federationId)
     // can't fetch preview if the federation is not loaded yet
@@ -1064,11 +1122,19 @@ export const previewAllDefaultChats = createAsyncThunk<
     return [...federationChats]
 })
 
-export const ensureHealthyMatrixStream = createAsyncThunk<void, void>(
-    'chat/ensureHealthyMatrixStream',
-    () => {
+export const observeMatrixSyncStatus = createAsyncThunk<void>(
+    'matrix/observeMatrixSyncStatus',
+    async () => {
         const client = getMatrixClient()
-        client.refreshSyncStatus()
+        client.observeSyncStatus()
+    },
+)
+
+export const unsubscribeMatrixSyncStatus = createAsyncThunk<void>(
+    'matrix/unsubscribeMatrixSyncStatus',
+    async () => {
+        const client = getMatrixClient()
+        client.unsubscribeSyncStatus()
     },
 )
 
@@ -1081,8 +1147,9 @@ export const selectIsMatrixReady = createSelector(
     status => status === MatrixSyncStatus.synced,
 )
 
-export const selectMatrixPushNotificationToken = (s: CommonState) =>
-    s.matrix.pushNotificationToken
+export const selectMatrixPushNotificationToken = (
+    s: CommonState,
+): string | null => s.matrix.pushNotificationToken
 
 /**
  * Returns a list of matrix rooms, excluding any that are loading or missing room information.
@@ -1152,15 +1219,6 @@ export const selectNeedsMatrixRegistration = createSelector(
         if (!auth) return true
         if (!hasSetMatrixDisplayName) return true
         return false
-    },
-)
-
-// TODO: Consider deprecating this after a long enough time has passed and no users exist with old legacy XMPP state
-export const selectShouldShowUpgradeChat = createSelector(
-    selectNeedsMatrixRegistration,
-    (s: CommonState) => selectAuthenticatedMember(s),
-    (needsChatRegistration, xmppAuth) => {
-        return needsChatRegistration && xmppAuth !== null
     },
 )
 
@@ -1269,10 +1327,13 @@ export const selectMatrixRoomMembersCount = (
 export const selectMatrixRoomMemberMap = createSelector(
     selectMatrixRoomMembers,
     members =>
-        members.reduce((acc, member) => {
-            acc[member.id] = member
-            return acc
-        }, {} as Record<MatrixRoomMember['id'], MatrixRoomMember | undefined>),
+        members.reduce(
+            (acc, member) => {
+                acc[member.id] = member
+                return acc
+            },
+            {} as Record<MatrixRoomMember['id'], MatrixRoomMember | undefined>,
+        ),
 )
 
 export const selectMatrixRoomMember = createSelector(
@@ -1506,3 +1567,14 @@ export const selectChatDrafts = (s: CommonState) => s.matrix.drafts
 export const selectSelectedChatMessage = (s: CommonState) =>
     s.matrix.selectedChatMessage
 export const selectMessageToEdit = (s: CommonState) => s.matrix.messageToEdit
+export const selectMatrixStarted = (s: CommonState) => s.matrix.started
+export const selectPreviewMedia = (s: CommonState) => s.matrix.previewMedia
+
+// Find a preview media item matching a specific ChatVideoEvent or ChatImageEvent
+export const selectPreviewMediaMatchingEventContent = (
+    s: CommonState,
+    content: MatrixEventContentType<'m.video' | 'm.image'>,
+) =>
+    s.matrix.previewMedia.find(({ media }) =>
+        doesEventContentMatchPreviewMedia(media, content),
+    )

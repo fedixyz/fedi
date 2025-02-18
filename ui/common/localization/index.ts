@@ -57,3 +57,20 @@ export const resources = {
         translation: commonMY,
     },
 }
+
+export const i18nLanguages: Record<keyof typeof resources, string> = {
+    en: 'English',
+    es: 'Español',
+    fr: 'Français',
+    id: 'Bahasa Indonesia',
+    tl: 'Tagalog',
+    my: 'ဘာသာမန်',
+    pt: 'Português',
+    ar: 'العربية',
+    ara: 'Juba Arabic',
+    rn: 'Ikirundi',
+    rw: 'Ikinyarwanda',
+    so: 'Soomaaliga',
+    sw: 'Kiswahili',
+    am: 'አማርኛ',
+} as const

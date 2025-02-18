@@ -3,21 +3,18 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, FAB, Image, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
-    selectIsChatEmpty,
     selectIsMatrixChatEmpty,
     selectMatrixStatus,
     selectNeedsMatrixRegistration,
-    selectShouldShowUpgradeChat,
 } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
 import ChatsList from '../components/feature/chat/ChatsList'
-import UpgradeChat from '../components/feature/chat/UpgradeChat'
 import SvgImage from '../components/ui/SvgImage'
 import { Tooltip } from '../components/ui/Tooltip'
 import { useAppSelector } from '../state/hooks'
@@ -39,10 +36,9 @@ const ChatScreen: React.FC<Props> = () => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const syncStatus = useAppSelector(selectMatrixStatus)
-    const needsChatRegistration = useAppSelector(selectNeedsMatrixRegistration)
-    const shouldShowUpgradeChat = useAppSelector(selectShouldShowUpgradeChat)
-    const isLegacyChatEmpty = useAppSelector(selectIsChatEmpty)
-    const hasLegacyChatData = !isLegacyChatEmpty
+    const needsChatRegistration = useAppSelector(
+        selectNeedsMatrixRegistration || false,
+    )
 
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
     const [hasOpenedNewChat, completeOpenedNewChat] =
@@ -75,15 +71,7 @@ const ChatScreen: React.FC<Props> = () => {
 
     return (
         <View style={style.container}>
-            {shouldShowUpgradeChat ? (
-                <ScrollView
-                    style={{
-                        width: '100%',
-                        paddingHorizontal: theme.spacing.lg,
-                    }}>
-                    <UpgradeChat />
-                </ScrollView>
-            ) : needsChatRegistration ? (
+            {needsChatRegistration ? (
                 <>
                     <View style={style.registration}>
                         <Image
@@ -130,19 +118,6 @@ const ChatScreen: React.FC<Props> = () => {
                         horizontalOffset={44}
                         verticalOffset={78}
                     />
-
-                    {hasLegacyChatData && (
-                        <Button
-                            fullWidth
-                            type="clear"
-                            title={
-                                <Text caption medium adjustsFontSizeToFit>
-                                    {t('feature.chat.view-archived-chats')}
-                                </Text>
-                            }
-                            onPress={() => navigation.push('LegacyChat')}
-                        />
-                    )}
                 </>
             ) : (
                 <ErrorBoundary

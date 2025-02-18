@@ -7,13 +7,13 @@ pub use fedi_social_common::*;
 use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::recovery::NoModuleBackup;
 use fedimint_client::module::ClientModule;
-use fedimint_client::sm::{DynState, State, StateTransition};
+use fedimint_client::sm::{Context, DynState, State, StateTransition};
 use fedimint_client::DynGlobalClientContext;
-use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, OperationId};
-use fedimint_core::db::{DatabaseTransaction, DatabaseVersion};
+use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
+use fedimint_core::db::DatabaseTransaction;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{ApiVersion, ModuleInit, MultiApiVersion};
-use fedimint_core::{apply, async_trait_maybe_send};
+use fedimint_core::{apply, async_trait_maybe_send, Amount};
 
 #[derive(Debug, Clone)]
 pub struct FediSocialClientInit;
@@ -29,8 +29,6 @@ impl ModuleInit for FediSocialClientInit {
     ) -> Box<dyn Iterator<Item = (String, Box<dyn erased_serde::Serialize + Send>)> + '_> {
         Box::new(BTreeMap::new().into_iter())
     }
-
-    const DATABASE_VERSION: DatabaseVersion = DatabaseVersion(0);
 }
 
 #[apply(async_trait_maybe_send!)]
@@ -52,15 +50,18 @@ pub struct FediSocialClientModule {}
 
 impl ClientModule for FediSocialClientModule {
     type Common = FediSocialModuleTypes;
-    type ModuleStateMachineContext = ();
+    type ModuleStateMachineContext = FediSocialClientContext;
     type States = FediSocialClientStates;
     type Init = FediSocialClientInit;
     type Backup = NoModuleBackup;
 
-    fn context(&self) -> Self::ModuleStateMachineContext {}
+    fn context(&self) -> Self::ModuleStateMachineContext {
+        FediSocialClientContext
+    }
 
     fn input_fee(
         &self,
+        _amount: Amount,
         _input: &<Self::Common as fedimint_core::module::ModuleCommon>::Input,
     ) -> Option<fedimint_core::Amount> {
         unreachable!("FediSocial does not have any inputs")
@@ -68,6 +69,7 @@ impl ClientModule for FediSocialClientModule {
 
     fn output_fee(
         &self,
+        _amount: Amount,
         _output: &<Self::Common as fedimint_core::module::ModuleCommon>::Output,
     ) -> Option<fedimint_core::Amount> {
         unreachable!("FediSocial does not have any outputs")
@@ -85,8 +87,14 @@ impl IntoDynInstance for FediSocialClientStates {
     }
 }
 
+#[derive(Debug)]
+pub struct FediSocialClientContext;
+
+impl Context for FediSocialClientContext {
+    const KIND: Option<ModuleKind> = Some(KIND);
+}
 impl State for FediSocialClientStates {
-    type ModuleContext = ();
+    type ModuleContext = FediSocialClientContext;
 
     fn transitions(
         &self,

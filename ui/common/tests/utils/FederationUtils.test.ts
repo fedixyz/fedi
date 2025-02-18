@@ -3,14 +3,11 @@ import {
     FediMod,
     LoadedFederation,
     MSats,
-    Network,
     SupportedCurrency,
 } from '../../types'
 import {
-    getFederationChatServerDomain,
     getFederationDefaultCurrency,
     getFederationFediMods,
-    makeChatServerOptions,
     shouldShowInviteCode,
 } from '../../utils/FederationUtils'
 
@@ -23,7 +20,7 @@ const baseFed: LoadedFederation = {
     nodes: { '0': { name: 'alpha', url: 'alphaurl' } },
     balance: 0 as MSats,
     recovering: false,
-    network: Network.regtest,
+    network: 'regtest',
     version: 0,
     clientConfig: null,
     meta: {},
@@ -152,26 +149,6 @@ describe('FederationUtils', () => {
             expect(showInviteCode).toEqual(true)
         })
     })
-    describe('getFederationChatServerDomain', () => {
-        test.each([
-            fedWithDeprecatedFields,
-            fedWithFediPrefixedFields,
-            fedWithBothFields,
-        ])('returns chat server domain from metadata', federation => {
-            const chatServerDomain = getFederationChatServerDomain(
-                federation.meta,
-            )
-
-            expect(chatServerDomain).toEqual(chatServerDomain)
-        })
-        it('returns null if not supported', () => {
-            const chatServerDomain = getFederationChatServerDomain(
-                fedWithNoMetadata.meta,
-            )
-
-            expect(chatServerDomain).toBeNull()
-        })
-    })
     describe('getFederationFediMods', () => {
         it('returns fedimods from metadata', () => {
             const fediMods = getFederationFediMods(fedWithMods.meta)
@@ -198,25 +175,6 @@ describe('FederationUtils', () => {
 
             expect(fediMods[0]).toHaveProperty('imageUrl')
             expect(fediMods[1]).not.toHaveProperty('imageUrl')
-        })
-    })
-    describe('makeChatServerOptions', () => {
-        it('returns connection options from server domain', () => {
-            const connectionOptions = makeChatServerOptions(
-                SAMPLE_CHAT_SERVER_DOMAIN,
-            )
-
-            expect(connectionOptions).toHaveProperty('domain')
-            expect(connectionOptions).toHaveProperty('mucDomain')
-            expect(connectionOptions).toHaveProperty('resource')
-            expect(connectionOptions).toHaveProperty('service')
-            expect(connectionOptions.domain).toEqual(SAMPLE_CHAT_SERVER_DOMAIN)
-            expect(connectionOptions.mucDomain).toContain(
-                SAMPLE_CHAT_SERVER_DOMAIN,
-            )
-            expect(connectionOptions.service).toContain(
-                SAMPLE_CHAT_SERVER_DOMAIN,
-            )
         })
     })
 })

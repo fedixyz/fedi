@@ -187,7 +187,7 @@ export function useStoragePermission() {
 
             case 'android':
                 if (Platform.Version >= 33) {
-                    return [PERMISSIONS.ANDROID.READ_MEDIA_IMAGES]
+                    return [] // No permissions needed on Android 11+
                 }
                 return [PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE]
 
@@ -237,21 +237,28 @@ export function useStoragePermission() {
             return requestMultiple(permissions)
                 .then(statuses => {
                     let allGranted = true
+                    let hasLimitedAccess = false
 
                     for (const permission of permissions) {
-                        if (statuses[permission] !== RESULTS.GRANTED) {
+                        if (statuses[permission] === RESULTS.LIMITED) {
+                            hasLimitedAccess = true
+                        } else if (statuses[permission] !== RESULTS.GRANTED) {
                             allGranted = false
-                            break
                         }
                     }
 
-                    const result = allGranted ? RESULTS.GRANTED : RESULTS.DENIED
+                    // Determine final result
+                    const result = allGranted
+                        ? RESULTS.GRANTED
+                        : hasLimitedAccess
+                          ? RESULTS.LIMITED
+                          : RESULTS.DENIED
 
                     setStoragePermission(result)
                     return result
                 })
                 .catch(err => {
-                    log.error('useStoragePermission check', err)
+                    log.error('requestStoragePermission check', err)
                     setStoragePermission('unavailable')
                     return RESULTS.UNAVAILABLE
                 })

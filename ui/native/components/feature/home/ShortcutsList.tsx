@@ -49,7 +49,7 @@ const ShortcutsList: React.FC = () => {
         ) {
             Linking.openURL(fediMod.url)
         } else {
-            navigation.navigate('FediModBrowser', { fediMod })
+            navigation.navigate('FediModBrowser', { url: fediMod.url })
         }
     }
 
@@ -70,6 +70,13 @@ const ShortcutsList: React.FC = () => {
     }
     const renderFediModShortcuts = () => {
         const fediModShortcuts = fediMods.map(s => new FediMod(s))
+        //remove 'ask fedi' title mod
+        fediMods.map((s, index) => {
+            if (s.title === 'Ask Fedi') {
+                fediModShortcuts.splice(index, 1)
+            }
+        })
+
         return fediModShortcuts.map((s: FediMod) => {
             return (
                 <View key={`fediMod-s-${s.id}`} style={style.shortcut}>

@@ -62,7 +62,6 @@ const UploadAvatarImage: React.FC<Props> = ({ navigation }: Props) => {
             setIsUploading(true)
 
             await RNFS.copyFile(file.uri, fileDestination)
-
             await dispatch(
                 uploadAndSetMatrixAvatarUrl({
                     fedimint,
@@ -126,14 +125,7 @@ const UploadAvatarImage: React.FC<Props> = ({ navigation }: Props) => {
         : `${t('words.hello')}, ${displayName}`
 
     return (
-        <StoragePermissionGate
-            alternativeActionButton={
-                <Button
-                    title={t('words.skip')}
-                    onPress={finishStep}
-                    type="clear"
-                />
-            }>
+        <StoragePermissionGate>
             <SafeAreaContainer style={style.container} edges="notop">
                 <View style={style.avatarContainer}>
                     <Avatar

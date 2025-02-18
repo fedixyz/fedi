@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
@@ -25,6 +25,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
     transactions,
     loading,
 }) => {
+    const [isUpdating, setIsUpdating] = useState(false)
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const toast = useToast()
@@ -44,8 +45,8 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                     txn.lnState?.type === 'canceled'
                         ? undefined
                         : txn.direction === 'receive'
-                        ? 'incoming'
-                        : 'outgoing',
+                          ? 'incoming'
+                          : 'outgoing',
                 timestamp: txn.createdAt,
                 notes: txn.notes,
             })}
@@ -55,9 +56,14 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                 amount: makeTxnDetailAmountText(txn),
                 notes: txn.notes,
                 onSaveNotes: async (notes: string) => {
+                    if (isUpdating) return // Prevent multiple updates
+
                     try {
+                        setIsUpdating(true)
+
                         if (!activeFederationId)
                             throw new Error('errors.unknown-error')
+
                         await dispatch(
                             updateTransactionNotes({
                                 fedimint,
@@ -68,6 +74,8 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                         ).unwrap()
                     } catch (err) {
                         toast.error(t, err, 'errors.unknown-error')
+                    } finally {
+                        setIsUpdating(false)
                     }
                 },
             })}

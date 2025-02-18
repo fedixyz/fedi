@@ -2,9 +2,8 @@ import { z } from 'zod'
 
 import { DEFAULT_FEDIMODS } from '@fedi/common/constants/fedimods'
 
-import { XMPP_RESOURCE } from '../constants/xmpp'
 import {
-    ClientConfigMetadata,
+    FederationMetadata,
     Community,
     Federation,
     FederationListItem,
@@ -14,11 +13,9 @@ import {
     LightningGateway,
     LoadedFederation,
     MSats,
-    Network,
     PublicFederation,
     SupportedCurrency,
     SupportedMetaFields,
-    XmppConnectionOptions,
 } from '../types'
 import { GuardianStatus, RpcCommunity, RpcFederation } from '../types/bindings'
 import { FedimintBridge } from './fedimint'
@@ -38,7 +35,7 @@ const log = makeLog('common/utils/FederationUtils')
  * meta_override_url but until all known federations stop using meta_external_url
  * we support both via this function
  */
-export const getMetaUrl = (meta: ClientConfigMetadata): string | undefined => {
+export const getMetaUrl = (meta: FederationMetadata): string | undefined => {
     const url = meta.meta_override_url || meta.meta_external_url || undefined
     if (!url) return undefined
     // Attempt to parse as JSON in case the URL is encoded as a JSON string
@@ -232,7 +229,7 @@ export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
 
 const getMetaField = (
     field: SupportedMetaFields | 'sites' | 'fedimods' | 'default_group_chats',
-    metadata: ClientConfigMetadata,
+    metadata: FederationMetadata,
 ): string | null => {
     if (field === 'sites' || field === 'fedimods') {
         return (
@@ -265,9 +262,7 @@ const getMetaField = (
     return null
 }
 
-export const getFederationDefaultCurrency = (
-    metadata: ClientConfigMetadata,
-) => {
+export const getFederationDefaultCurrency = (metadata: FederationMetadata) => {
     return getMetaField(
         SupportedMetaFields.default_currency,
         metadata,
@@ -275,7 +270,7 @@ export const getFederationDefaultCurrency = (
 }
 
 export const getFederationFixedExchangeRate = (
-    metadata: ClientConfigMetadata,
+    metadata: FederationMetadata,
 ) => {
     const exchangeRate = getMetaField(
         SupportedMetaFields.fixed_exchange_rate,
@@ -287,27 +282,7 @@ export const getFederationFixedExchangeRate = (
     return Number(exchangeRate)
 }
 
-/** @deprecated xmpp */
-export const getFederationChatServerDomain = (
-    metadata: ClientConfigMetadata,
-) => {
-    return getMetaField(SupportedMetaFields.chat_server_domain, metadata)
-}
-
-export const makeChatServerOptions = (
-    domain: string,
-): XmppConnectionOptions => {
-    return {
-        domain,
-        mucDomain: `muc.${domain}`,
-        resource: XMPP_RESOURCE,
-        service: `wss://${domain}/xmpp-websocket`,
-    }
-}
-
-export const getFederationMaxBalanceMsats = (
-    metadata: ClientConfigMetadata,
-) => {
+export const getFederationMaxBalanceMsats = (metadata: FederationMetadata) => {
     const maxBalanceSats = getMetaField(
         SupportedMetaFields.max_balance_msats,
         metadata,
@@ -320,9 +295,7 @@ export const getFederationMaxBalanceMsats = (
         : (Number(maxBalanceSats) as MSats)
 }
 
-export const getFederationMaxInvoiceMsats = (
-    metadata: ClientConfigMetadata,
-) => {
+export const getFederationMaxInvoiceMsats = (metadata: FederationMetadata) => {
     const maxInvoiceMsats = getMetaField(
         SupportedMetaFields.max_invoice_msats,
         metadata,
@@ -335,7 +308,7 @@ export const getFederationMaxInvoiceMsats = (
 }
 
 export const getFederationMaxStableBalanceMsats = (
-    metadata: ClientConfigMetadata,
+    metadata: FederationMetadata,
 ) => {
     const maxStableBalanceMsats = getMetaField(
         SupportedMetaFields.max_stable_balance_msats,
@@ -349,7 +322,7 @@ export const getFederationMaxStableBalanceMsats = (
 
 // The utils below all involve the same inverse default logic where they
 // should return true unless explicitly disabled via feature flag
-export const shouldShowInviteCode = (metadata: ClientConfigMetadata) => {
+export const shouldShowInviteCode = (metadata: FederationMetadata) => {
     // This is a boolean true/false but client config meta only
     // supports strings currently so will need to refactor
     return (
@@ -358,7 +331,7 @@ export const shouldShowInviteCode = (metadata: ClientConfigMetadata) => {
     )
 }
 
-export const shouldShowJoinFederation = (metadata: ClientConfigMetadata) => {
+export const shouldShowJoinFederation = (metadata: FederationMetadata) => {
     return (
         getMetaField(SupportedMetaFields.new_members_disabled, metadata) !==
         'false'
@@ -380,7 +353,7 @@ export const shouldShowSocialRecovery = (federation: LoadedFederation) => {
 }
 
 export const shouldShowOfflineWallet = (
-    metadata: ClientConfigMetadata,
+    metadata: FederationMetadata,
 ): boolean => {
     return (
         getMetaField(SupportedMetaFields.offline_wallet_disabled, metadata) !==
@@ -388,7 +361,7 @@ export const shouldShowOfflineWallet = (
     )
 }
 
-export const shouldEnableOnchainDeposits = (metadata: ClientConfigMetadata) => {
+export const shouldEnableOnchainDeposits = (metadata: FederationMetadata) => {
     const onchainDepositsDisabled = getMetaField(
         SupportedMetaFields.onchain_deposits_disabled,
         metadata,
@@ -399,7 +372,7 @@ export const shouldEnableOnchainDeposits = (metadata: ClientConfigMetadata) => {
         : onchainDepositsDisabled !== 'true'
 }
 
-export const shouldEnableStabilityPool = (metadata: ClientConfigMetadata) => {
+export const shouldEnableStabilityPool = (metadata: FederationMetadata) => {
     const stabilityPoolDisabled = getMetaField(
         SupportedMetaFields.stability_pool_disabled,
         metadata,
@@ -416,7 +389,7 @@ export function supportsSingleSeed(federation: LoadedFederation) {
 }
 
 export const getFederationGroupChats = (
-    metadata: ClientConfigMetadata,
+    metadata: FederationMetadata,
 ): string[] => {
     const defaultGroupChats =
         getMetaField(SupportedMetaFields.default_matrix_rooms, metadata) ??
@@ -433,7 +406,7 @@ export const getFederationGroupChats = (
 }
 
 export const getFederationFediMods = (
-    metadata: ClientConfigMetadata,
+    metadata: FederationMetadata,
 ): FediMod[] => {
     const sites = getMetaField('sites', metadata)
     const fediModSchema: z.ZodSchema<FediMod> = z.object({
@@ -495,7 +468,7 @@ type PopupInfo = {
 }
 
 export const getFederationPopupInfo = (
-    metadata: ClientConfigMetadata,
+    metadata: FederationMetadata,
 ): PopupInfo | null => {
     const endTimestamp = getMetaField(
         SupportedMetaFields.popup_end_timestamp,
@@ -518,7 +491,7 @@ export const getFederationPopupInfo = (
     }
 }
 
-export const getFederationTosUrl = (metadata: ClientConfigMetadata) => {
+export const getFederationTosUrl = (metadata: FederationMetadata) => {
     return getMetaField(SupportedMetaFields.tos_url, metadata)
 }
 
@@ -545,15 +518,15 @@ export const getFederationName = (
     return name
 }
 
-export const getFederationWelcomeMessage = (metadata: ClientConfigMetadata) => {
+export const getFederationWelcomeMessage = (metadata: FederationMetadata) => {
     return getMetaField(SupportedMetaFields.welcome_message, metadata)
 }
 
-export const getFederationPinnedMessage = (metadata: ClientConfigMetadata) => {
+export const getFederationPinnedMessage = (metadata: FederationMetadata) => {
     return getMetaField(SupportedMetaFields.pinned_message, metadata)
 }
 
-export const getFederationIconUrl = (metadata: ClientConfigMetadata) => {
+export const getFederationIconUrl = (metadata: FederationMetadata) => {
     return getMetaField(SupportedMetaFields.federation_icon_url, metadata)
 }
 
@@ -575,7 +548,7 @@ async function getFederationPreview(
     inviteCode: string,
     fedimint: FedimintBridge,
 ): Promise<JoinPreview> {
-    let externalMeta: ClientConfigMetadata = {}
+    let externalMeta: FederationMetadata = {}
     // The federation preview may have an external URL where the meta
     // fields need to be fetched from... otherwise we won't know about chat
     // servers after joining which will break onboarding
@@ -628,7 +601,6 @@ export const coerceLoadedFederation = (
     return {
         ...federation,
         status: 'online',
-        network: federation.network as Network,
         hasWallet: true,
     }
 }
@@ -637,7 +609,7 @@ export const coerceFederationListItem = (
     community: RpcCommunity,
 ): FederationListItem => {
     return {
-        hasWallet: false as const,
+        hasWallet: false,
         network: undefined,
         status: 'online',
         init_state: 'ready',
@@ -658,7 +630,7 @@ export const coerceJoinPreview = (preview: RpcCommunity): JoinPreview => {
     const { inviteCode, ...rest } = preview
 
     return {
-        hasWallet: false as const,
+        hasWallet: false,
         id: inviteCode,
         inviteCode,
         status: 'online',
@@ -695,7 +667,7 @@ export const joinFromInvite = async (
     const codeType = detectInviteCodeType(code)
     if (codeType === 'federation') {
         log.info(`joinFromInvite: joining federation with code '${code}'`)
-        const { network, ...federation } = await fedimint.joinFederation(
+        const { ...federation } = await fedimint.joinFederation(
             code,
             recoverFromScratch,
         )
@@ -704,7 +676,6 @@ export const joinFromInvite = async (
         return {
             ...federation,
             hasWallet: true,
-            network: network as Network,
             status,
             init_state: 'ready',
         }
@@ -736,7 +707,7 @@ export const getGuardianStatuses = async (
     fedimint: FedimintBridge,
     federationId: string,
 ): Promise<GuardianStatus[]> => {
-    return fedimint.guardianStatus(federationId)
+    return fedimint.getGuardianStatus(federationId)
 }
 
 export const switchGateway = async (
@@ -751,7 +722,7 @@ export const getFederationStatus = async (
     fedimint: FedimintBridge,
     federationId: FederationListItem['id'],
 ): Promise<FederationStatus> => {
-    const guardianStatuses = await fedimint.guardianStatus(federationId)
+    const guardianStatuses = await fedimint.getGuardianStatus(federationId)
     const offlineGuardians = guardianStatuses.filter(status => {
         // Guardian is online
         if ('online' in status) return false

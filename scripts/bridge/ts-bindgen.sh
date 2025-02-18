@@ -11,8 +11,8 @@ $REPO_ROOT/scripts/enforce-nix.sh
 BRIDGE_ROOT=$REPO_ROOT/bridge
 cd $BRIDGE_ROOT
 
-rm -f $BRIDGE_ROOT/fedi-ffi/target/bindings/*.ts
+rm -f $BRIDGE_ROOT/fedi-ffi/bindings/*.ts
 cargo test -- export_bindings
 # concat all .ts files, remove imports, remove comments, add bindings.ts.inc at top
-cat $BRIDGE_ROOT/fedi-ffi/target/bindings/*.ts | sed '/^import /d; s://.*$::' | cat $EXPORT_FILE.inc - > $EXPORT_FILE
+cat $BRIDGE_ROOT/fedi-ffi/bindings/*.ts | sed '/^import /d; s://.*$::' | cat $EXPORT_FILE.inc - > $EXPORT_FILE
 prettier --no-config --write $EXPORT_FILE

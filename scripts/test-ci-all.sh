@@ -44,6 +44,17 @@ function rust_unit_tests() {
 }
 export -f rust_unit_tests
 
+function test_fm_cli_tests() {
+  fm-run-test "${FUNCNAME[0]}" ./scripts/test-fm-upstream-tests.sh cli-tests
+}
+export -f test_fm_cli_tests
+
+function test_fm_load_tests() {
+  export PATH="${FEDIMINT_LOAD_TEST_TOOL_NIX_PKG}/bin:$PATH"
+  fm-run-test "${FUNCNAME[0]}" ./scripts/test-fm-upstream-tests.sh load-test-tool-test
+}
+export -f test_fm_load_tests
+
 function test_stability_pool() {
   fm-run-test "${FUNCNAME[0]}" ./scripts/test-stability-pool.sh
 }
@@ -64,6 +75,8 @@ for _ in $(seq "${FM_TEST_CI_ALL_TIMES:-1}"); do
 # NOTE: try to keep the slowest tests first, except 'always_success_test',
 # as it's used for failure test
 tests_to_run_in_parallel+=(
+  test_fm_cli_tests
+  test_fm_load_tests
   test_stability_pool
   test_bridge_current
   test_bridge_current_use_upstream_fedimintd

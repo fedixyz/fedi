@@ -16,16 +16,20 @@ import {
 
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import {
+    matchAndHidePreviewMedia,
     paginateMatrixRoomTimeline,
+    selectPreviewMedia,
     selectMatrixAuth,
     selectMatrixRoom,
     selectMatrixRoomEvents,
     selectMatrixRoomEventsHaveLoaded,
     selectMatrixRoomMembersCount,
 } from '@fedi/common/redux'
-import { ChatType, MatrixEvent } from '@fedi/common/types'
+import { ChatType, MatrixEvent, MatrixEventStatus } from '@fedi/common/types'
 import {
     MatrixEventContent,
+    isImageEvent,
+    isVideoEvent,
     makeMatrixEventGroups,
 } from '@fedi/common/utils/matrix'
 
@@ -58,6 +62,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         ?.broadcastOnly
     const [hasNewMessage, setHasNewMessages] = useState(false)
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
+    const previewMedia = useAppSelector(selectPreviewMedia)
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
     const dispatch = useAppDispatch()
 
@@ -74,9 +79,46 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const listRef = useRef<FlatList>(null)
     const lastScrolledMessageIdRef = useRef(events?.[0]?.id)
     const isScrolledToBottomRef = useRef(true)
+
+    // Intercept `events` to add preview media events
+    const chatEvents = useMemo(() => {
+        const visiblePreviewMedia = previewMedia.filter(m => m.visible)
+
+        if (visiblePreviewMedia.length === 0 || !myId) {
+            return events
+        }
+
+        const evts = [...events]
+        const timestamp = Date.now()
+
+        visiblePreviewMedia.reverse().forEach(({ media }, index) => {
+            evts.push({
+                id: `cached-media-${media.fileName}-${index}`,
+                content: {
+                    msgtype: 'xyz.fedi.preview-media' as const,
+                    body: media.fileName,
+                    info: {
+                        mimetype: media.mimeType,
+                        w: media.width,
+                        h: media.height,
+                        uri: media.uri,
+                    },
+                },
+                status: MatrixEventStatus.sent,
+                roomId: id,
+                timestamp,
+                senderId: myId,
+                eventId: `cached-media-${media.fileName}-${index}`,
+                error: null,
+            })
+        })
+
+        return evts
+    }, [previewMedia, events, id, myId])
+
     const eventGroups = useMemo(
-        () => makeMatrixEventGroups(events, 'desc'),
-        [events],
+        () => makeMatrixEventGroups(chatEvents, 'desc'),
+        [chatEvents],
     )
 
     // Any time we get a change in the number of events, we reset hasPaginated
@@ -163,6 +205,15 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         },
         [id, type, isPublic],
     )
+
+    // Hide the preview cached media events when the ACTUAL chat image/video events come
+    useEffect(() => {
+        dispatch(
+            matchAndHidePreviewMedia(
+                events.filter(e => isImageEvent(e) || isVideoEvent(e)),
+            ),
+        )
+    }, [events, dispatch])
 
     return (
         <>

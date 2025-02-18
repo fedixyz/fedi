@@ -9,6 +9,7 @@ import { selectMatrixAuth } from '@fedi/common/redux'
 import { NotificationsPermissionGate } from '../components/feature/permissions/NotificationsPermissionGate'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
+import { useNotificationContext } from '../state/contexts/NotificationContext'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -21,8 +22,16 @@ const FederationGreeting: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
+    const { triggerPushNotificationSetup } = useNotificationContext()
 
     const style = styles(theme)
+
+    const handleContinue = () => {
+        triggerPushNotificationSetup() // Trigger FCM token push manually
+        navigation.replace('TabsNavigator', {
+            initialRouteName: 'Chat',
+        })
+    }
 
     return (
         <NotificationsPermissionGate>
@@ -48,11 +57,7 @@ const FederationGreeting: React.FC<Props> = ({ navigation }: Props) => {
                 <Button
                     fullWidth
                     title={t('feature.onboarding.continue-to-fedi')}
-                    onPress={() => {
-                        navigation.replace('TabsNavigator', {
-                            initialRouteName: 'Chat',
-                        })
-                    }}
+                    onPress={handleContinue}
                     containerStyle={style.button}
                 />
             </SafeAreaContainer>

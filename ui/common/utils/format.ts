@@ -1,4 +1,4 @@
-import { TFunction } from 'i18next'
+import { ResourceKey, TFunction } from 'i18next'
 
 import { SupportedCurrency } from '../types'
 import { BridgeError } from './fedimint'
@@ -13,11 +13,11 @@ export function formatErrorMessage<T extends TFunction>(
     err: unknown,
     defaultMessage = 'errors.unknown-error',
 ) {
-    if (!err) return t(defaultMessage as Parameters<T>[0], defaultMessage)
+    if (!err) return t(defaultMessage as ResourceKey)
     if (err instanceof BridgeError) return err.format(t)
 
     if (typeof err === 'string') {
-        return t(err as Parameters<T>[0], err)
+        return t(err as ResourceKey)
     }
     if (
         err &&
@@ -25,10 +25,7 @@ export function formatErrorMessage<T extends TFunction>(
         'message' in err &&
         typeof (err as Error).message === 'string'
     ) {
-        return t(
-            (err as Error).message as Parameters<T>[0],
-            (err as Error).message,
-        )
+        return t((err as Error).message as ResourceKey)
     }
     return defaultMessage
 }
@@ -39,5 +36,5 @@ export function formatCurrencyText<T extends TFunction>(
 ) {
     const i18nKey = `feature.settings.currency-names.${currency.toLowerCase()}`
 
-    return `${currency} - ${t(i18nKey as Parameters<T>[0])}`
+    return `${currency} - ${t(i18nKey as ResourceKey)}`
 }

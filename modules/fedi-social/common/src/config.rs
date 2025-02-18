@@ -1,7 +1,7 @@
 use fedimint_core::config::EmptyGenParams;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::module::__reexports::serde_json;
+use fedimint_core::module::serde_json;
 use fedimint_core::plugin_types_trait_impl_config;
 use serde::{Deserialize, Serialize};
 

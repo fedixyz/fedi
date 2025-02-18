@@ -9,6 +9,7 @@ import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 import { fedimint } from '../bridge'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -26,9 +27,9 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
     const handleContinue = () => {
         handleNewWallet(hasSetDisplayName => {
             if (hasSetDisplayName) {
-                navigation.navigate('TabsNavigator')
+                navigation.dispatch(reset('TabsNavigator'))
             } else {
-                navigation.navigate('EnterDisplayName')
+                navigation.dispatch(reset('EnterDisplayName'))
             }
         })
     }

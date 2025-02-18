@@ -26,9 +26,6 @@ const Eula: React.FC<Props> = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        // This is needed to shift the webview upwards to hide the back
-        // button at the top of fedi.xyz
-        marginTop: -50,
     },
 })
 

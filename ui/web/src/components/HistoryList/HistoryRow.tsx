@@ -36,8 +36,8 @@ export const HistoryRow: React.FC<HistoryRowProps> = ({
         ? direction === undefined
             ? ''
             : direction === 'outgoing'
-            ? `-`
-            : `+`
+              ? `-`
+              : `+`
         : ''
     if (typeof amount === 'number') {
         const { formattedPrimaryAmount } = makeFormattedAmountsFromMSats(

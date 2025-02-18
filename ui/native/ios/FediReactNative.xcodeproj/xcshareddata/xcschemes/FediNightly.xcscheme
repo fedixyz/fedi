@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "51E931F42AD5D6D400EE790F"
+               BlueprintIdentifier = "51BDE8962AD5FFDF006CF72B"
                BuildableName = "FediNightly.app"
                BlueprintName = "FediNightly"
                ReferencedContainer = "container:FediReactNative.xcodeproj">
@@ -44,7 +44,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "51E931F42AD5D6D400EE790F"
+            BlueprintIdentifier = "51BDE8962AD5FFDF006CF72B"
             BuildableName = "FediNightly.app"
             BlueprintName = "FediNightly"
             ReferencedContainer = "container:FediReactNative.xcodeproj">
@@ -60,7 +60,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "51E931F42AD5D6D400EE790F"
+            BlueprintIdentifier = "51BDE8962AD5FFDF006CF72B"
             BuildableName = "FediNightly.app"
             BlueprintName = "FediNightly"
             ReferencedContainer = "container:FediReactNative.xcodeproj">

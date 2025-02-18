@@ -1,7 +1,7 @@
 apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "kotlin-android"
-apply plugin: "kotlin-android-extensions"
 // needed for push notifications
 apply plugin: "com.google.gms.google-services"
 
@@ -51,6 +51,8 @@ apply plugin: "com.google.gms.google-services"
     //
     //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
     // hermesFlags = ["-O", "-output-source-map"]
+    /* Autolinking */
+    autolinkLibrariesWithApp()
 }
 
 project.ext.vectoricons = [
@@ -106,7 +108,12 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     ndkVersion rootProject.ext.ndkVersion
+    lintOptions {
+        // To ignore specific warnings/errors
+        disable 'UnspecifiedRegisterReceiverFlag' // Disables the specific lint check
+    }
 
+    buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdkVersion rootProject.ext.compileSdkVersion
 
     namespace "com.fedi"
@@ -115,7 +122,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 240051929
-        versionName "1.20.12"
+        versionName "25.2.3"
     }
 
     packagingOptions {
@@ -203,6 +210,20 @@ android {
     }
 }
 
+afterEvaluate {
+    if (tasks.findByName('generateDebugLintReportModel')) {
+        tasks.named('generateDebugLintReportModel').configure {
+            dependsOn tasks.named('copyReactNativeVectorIconFonts')
+        }
+    }
+
+    if (tasks.findByName('lintAnalyzeDebug')) {
+        tasks.named('lintAnalyzeDebug').configure {
+            dependsOn tasks.named('copyReactNativeVectorIconFonts')
+        }
+    }
+}
+
 dependencies {
     // Configuration for Detox e2e testing framework
     androidTestImplementation('com.wix:detox:+')
@@ -213,19 +234,19 @@ dependencies {
     implementation "org.fedi:fedi-android:0.1.2"
 
     // For animated GIF support
-    implementation 'com.facebook.fresco:animated-gif:2.5.0'
+    implementation 'com.facebook.fresco:animated-gif:3.2.0'
 
     // For WebP support, including animated WebP
-    implementation 'com.facebook.fresco:animated-webp:2.5.0'
-    implementation 'com.facebook.fresco:webpsupport:2.5.0'
+    implementation 'com.facebook.fresco:animated-webp:3.2.0'
+    implementation 'com.facebook.fresco:webpsupport:3.2.0'
 
     // coroutines for async rpc
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.4.1")
 
     // for push notifications from Firebase
-    // implementation platform('com.google.firebase:firebase-bom:32.0.0')
-    // implementation 'com.google.firebase:firebase-messaging'
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-messaging'
 
     // Make sure to use the latest camera libraries for video recording
     // react-native-vision-camera uses 1.1.0 so we need to override here
@@ -241,11 +262,8 @@ dependencies {
 
     implementation project(':react-native-splash-screen')
 
-    debugImplementation("com.facebook.flipper:flipper:${FLIPPER_VERSION}")
-    debugImplementation("com.facebook.flipper:flipper-network-plugin:${FLIPPER_VERSION}") {
-        exclude group:'com.squareup.okhttp3', module:'okhttp'
-    }
-    debugImplementation("com.facebook.flipper:flipper-fresco-plugin:${FLIPPER_VERSION}")
+    implementation "zendesk.messaging:messaging-android:$zendeskSdkVersion"
+
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
@@ -254,4 +272,13 @@ dependencies {
     }
 }
 
-apply from: file("../../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
+tasks.configureEach {
+     if (name == 'generateReleaseLintVitalReportModel' ||
+            name == 'generateDebugLintReportModel' ||
+            name == 'generateNightlyReleaseLintReportModel' ||
+            name == 'generateNightlyDebugLintReportModel' ||
+            name == 'lintAnalyzeDebug' ||
+            name == 'lintAnalyzeNightlyDebug') {
+            dependsOn('copyReactNativeVectorIconFonts')
+        }
+}

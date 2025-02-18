@@ -9,6 +9,7 @@ import {
 } from 'react-native'
 
 import { selectIsActiveFederationRecovering } from '@fedi/common/redux'
+import { fetchMetadataFromUrl } from '@fedi/common/utils/fedimods'
 
 import { FediModImages } from '../../../assets/images'
 import { useAppSelector } from '../../../state/hooks'
@@ -47,8 +48,14 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
                 // then try image url
                 setImageSrc({ uri: shortcut.imageUrl })
             } else {
-                // fallback to default
+                // fallback to default, but try fetching an icon from the URL in the background
                 setImageSrc(FediModImages.default)
+
+                fetchMetadataFromUrl(shortcut.url).then(({ fetchedIcon }) => {
+                    if (fetchedIcon) {
+                        setImageSrc({ uri: fetchedIcon })
+                    }
+                })
             }
         }
     }, [shortcut])

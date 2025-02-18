@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import { useNavigation } from '@react-navigation/native'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RESULTS } from 'react-native-permissions'
 
@@ -7,14 +8,11 @@ import { PermissionGate } from './PermissionGate'
 
 interface Props {
     children: React.ReactNode
-    alternativeActionButton?: React.ReactNode
 }
 
-export const StoragePermissionGate: React.FC<Props> = ({
-    children,
-    alternativeActionButton,
-}) => {
+export const StoragePermissionGate: React.FC<Props> = ({ children }) => {
     const { t } = useTranslation()
+    const navigation = useNavigation()
     const { storagePermission, requestStoragePermission } =
         useStoragePermission()
 
@@ -24,6 +22,16 @@ export const StoragePermissionGate: React.FC<Props> = ({
         await requestStoragePermission()
         setDidTry(true)
     }
+
+    useEffect(() => {
+        // Skip the Add Avatar Screen if permission denied
+        if (storagePermission === RESULTS.DENIED && didTry) {
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'FederationGreeting' }],
+            })
+        }
+    }, [storagePermission, didTry, navigation])
 
     // we only have one chance to request permissions
     if (storagePermission === RESULTS.DENIED && !didTry) {
@@ -36,7 +44,6 @@ export const StoragePermissionGate: React.FC<Props> = ({
                     'feature.permissions.allow-storage-description',
                 )}
                 onContinue={handleContinueClick}
-                alternativeActionButton={alternativeActionButton}
             />
         )
     }

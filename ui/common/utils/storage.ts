@@ -1,6 +1,5 @@
 import get from 'lodash/get'
 import omit from 'lodash/omit'
-import uniq from 'lodash/uniq'
 
 import { CommonState } from '../redux'
 import { ModVisibility } from '../redux/mod'
@@ -23,13 +22,12 @@ import {
 } from './chat'
 
 export const STATE_STORAGE_KEY = 'fedi:state'
-
 /**
  * Given the current Redux state, transform it into the latest storage state.
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
-    return {
-        version: 20,
+    const transformedState: LatestStoredState = {
+        version: 23,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -37,40 +35,27 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         amountInputType: state.environment.amountInputType,
         showFiatTxnAmounts: state.environment.showFiatTxnAmounts,
         deviceId: state.environment.deviceId,
-        currency: state.currency.selectedFiatCurrency,
+        currency: state.currency.overrideCurrency,
         btcUsdRate: state.currency.btcUsdRate,
         fiatUsdRates: state.currency.fiatUsdRates,
+        customFederationCurrencies: state.currency.customFederationCurrencies,
         activeFederationId: state.federation.activeFederationId,
         authenticatedGuardian: state.federation.authenticatedGuardian,
         externalMeta: state.federation.externalMeta,
         customFediMods: state.federation.customFediMods,
         nuxSteps: state.nux.steps,
-        chat: Object.entries(state.chat).reduce<LatestStoredState['chat']>(
-            (stored, [federationId, chatState]) => {
-                if (chatState) {
-                    stored[federationId] = {
-                        authenticatedMember: chatState.authenticatedMember,
-                        messages: chatState.messages,
-                        groups: chatState.groups,
-                        groupRoles: chatState.groupRoles,
-                        groupAffiliations: chatState.groupAffiliations,
-                        members: chatState.membersSeen,
-                        lastFetchedMessageId: chatState.lastFetchedMessageId,
-                        lastReadMessageTimestamps:
-                            chatState.lastReadMessageTimestamps,
-                        lastSeenMessageTimestamp:
-                            chatState.lastSeenMessageTimestamp,
-                    }
-                }
-                return stored
-            },
-            {},
-        ),
         matrixAuth: state.matrix.auth,
         protectedFeatures: state.security.protectedFeatures,
         customGlobalMods: state.mod.customGlobalMods,
         modVisibility: state.mod.modVisibility,
+        support: {
+            supportPermissionGranted: state.support.supportPermissionGranted,
+            zendeskPushNotificationToken:
+                state.support.zendeskPushNotificationToken,
+        },
     }
+
+    return transformedState
 }
 
 /**
@@ -118,23 +103,9 @@ export function hasStorageStateChanged(
         ['security', 'protectedFeatures'],
         ['mod', 'customGlobalMods'],
         ['mod', 'modVisibility'],
+        ['support', 'supportPermissionGranted'],
+        ['support', 'zendeskPushNotificationToken'],
     ]
-
-    // Check all federation's chat states, including old and new.
-    const chatStateFedIds = uniq([
-        ...Object.keys(oldState.chat),
-        ...Object.keys(newState.chat),
-    ])
-    chatStateFedIds.forEach(federationId => {
-        keysetsToCheck.push(['chat', federationId, 'authenticatedMember'])
-        keysetsToCheck.push(['chat', federationId, 'messages'])
-        keysetsToCheck.push(['chat', federationId, 'groups'])
-        keysetsToCheck.push(['chat', federationId, 'groupRoles'])
-        keysetsToCheck.push(['chat', federationId, 'membersSeen'])
-        keysetsToCheck.push(['chat', federationId, 'lastFetchedMessageId'])
-        keysetsToCheck.push(['chat', federationId, 'lastReadMessageTimestamps'])
-        keysetsToCheck.push(['chat', federationId, 'lastSeenMessageTimestamp'])
-    })
 
     for (const keysToCheck of keysetsToCheck) {
         if (get(oldState, keysToCheck) !== get(newState, keysToCheck)) {
@@ -153,7 +124,6 @@ async function migrateStoredState(
     storage: StorageApi,
 ): Promise<LatestStoredState> {
     let migrationState = { ...state }
-
     // Version 0 -> 1
     if (migrationState.version === 0) {
         migrationState = {
@@ -234,12 +204,15 @@ async function migrateStoredState(
                 if (!chatState.groupRoles) return prevChat
                 const groupAffiliations = Object.entries(
                     chatState.groupRoles,
-                ).reduce((prevGroup, [groupId, role]) => {
-                    if (!role) return prevGroup
-                    return {
-                        [groupId]: role === 'moderator' ? 'owner' : 'none',
-                    }
-                }, {} as Record<Chat['id'], string | undefined>)
+                ).reduce(
+                    (prevGroup, [groupId, role]) => {
+                        if (!role) return prevGroup
+                        return {
+                            [groupId]: role === 'moderator' ? 'owner' : 'none',
+                        }
+                    },
+                    {} as Record<Chat['id'], string | undefined>,
+                )
                 return {
                     ...prevChat,
                     [federationId]: {
@@ -414,30 +387,33 @@ async function migrateStoredState(
                 // Find the last read message and extract its timestamp
                 const lastReadMessageTimestamps = Object.keys(
                     lastReadMessageIds,
-                ).reduce((result, chatId) => {
-                    const msgId = lastReadMessageIds[chatId]
-                    const paymentUpdateId = lastReadPaymentUpdateIds[chatId]
-                    const lastReadMessage = chatState.messages.find(
-                        m => m.id === msgId,
-                    )
-                    // If the last read payment update has a later timestamp, use that instead
-                    const lastReadPaymentUpdate = chatState.messages.find(
-                        m => m.id === paymentUpdateId,
-                    )
-                    if (lastReadMessage) {
-                        result[chatId] = lastReadMessage.sentAt
-                        if (
-                            lastReadPaymentUpdate &&
-                            lastReadPaymentUpdate.payment?.updatedAt &&
-                            lastReadPaymentUpdate.payment?.updatedAt >
-                                lastReadMessage.sentAt
-                        ) {
-                            result[chatId] =
-                                lastReadPaymentUpdate.payment?.updatedAt
+                ).reduce(
+                    (result, chatId) => {
+                        const msgId = lastReadMessageIds[chatId]
+                        const paymentUpdateId = lastReadPaymentUpdateIds[chatId]
+                        const lastReadMessage = chatState.messages.find(
+                            m => m.id === msgId,
+                        )
+                        // If the last read payment update has a later timestamp, use that instead
+                        const lastReadPaymentUpdate = chatState.messages.find(
+                            m => m.id === paymentUpdateId,
+                        )
+                        if (lastReadMessage) {
+                            result[chatId] = lastReadMessage.sentAt
+                            if (
+                                lastReadPaymentUpdate &&
+                                lastReadPaymentUpdate.payment?.updatedAt &&
+                                lastReadPaymentUpdate.payment?.updatedAt >
+                                    lastReadMessage.sentAt
+                            ) {
+                                result[chatId] =
+                                    lastReadPaymentUpdate.payment?.updatedAt
+                            }
                         }
-                    }
-                    return result
-                }, {} as Record<Chat['id'], number>)
+                        return result
+                    },
+                    {} as Record<Chat['id'], number>,
+                )
 
                 // Find the last seen message and extract its timestamp
                 let lastSeenMessageTimestamp = null
@@ -590,6 +566,34 @@ async function migrateStoredState(
                 ...migrationState.protectedFeatures,
                 nostrSettings: true,
             },
+        }
+    }
+
+    if (migrationState.version === 20) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { chat, ...rest } = migrationState
+        migrationState = {
+            ...rest,
+            version: 21,
+        }
+    }
+
+    if (migrationState.version === 21) {
+        migrationState = {
+            ...migrationState,
+            version: 22,
+            support: {
+                supportPermissionGranted: false,
+                zendeskPushNotificationToken: null,
+            },
+        }
+    }
+
+    if (migrationState.version === 22) {
+        migrationState = {
+            ...migrationState,
+            version: 23,
+            customFederationCurrencies: {},
         }
     }
 

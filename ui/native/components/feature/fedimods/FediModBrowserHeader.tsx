@@ -1,99 +1,126 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { MutableRefObject } from 'react'
-import { StyleSheet } from 'react-native'
+import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
+import { Animated, StyleSheet, View } from 'react-native'
+import { Pressable } from 'react-native-gesture-handler'
 import WebView from 'react-native-webview'
 
-import { FediMod } from '@fedi/common/types'
+import { setAddressOverlayOpen } from '@fedi/common/redux'
 
-import Header from '../../ui/Header'
+import { useAppDispatch } from '../../../state/hooks'
 import { PressableIcon } from '../../ui/PressableIcon'
 
 type FediModBrowserHeaderProps = {
     webViewRef: MutableRefObject<WebView>
-    fediMod: FediMod
+    isBrowserLoading: boolean
+    browserLoadProgress: number
+    currentUrl: string
 }
 
 const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
     webViewRef,
-    fediMod,
+    isBrowserLoading,
+    currentUrl,
+    browserLoadProgress,
 }) => {
     const { theme } = useTheme()
-    const style = styles(theme)
     const navigation = useNavigation()
+    const dispatch = useAppDispatch()
+    const animatedProgress = useRef(new Animated.Value(0)).current
+    const animatedOpacity = useRef(new Animated.Value(1)).current
+    const [addressWidth, setAddressWidth] = useState(0)
+
+    const style = styles(theme)
+
+    useEffect(() => {
+        Animated.timing(animatedProgress, {
+            toValue: browserLoadProgress * addressWidth,
+            duration: 200,
+            useNativeDriver: false,
+        }).start()
+    }, [browserLoadProgress, animatedProgress, addressWidth])
+
+    useEffect(() => {
+        Animated.timing(animatedOpacity, {
+            toValue: isBrowserLoading ? 1 : 0,
+            duration: 200,
+            delay: 400,
+            useNativeDriver: false,
+        }).start()
+    }, [isBrowserLoading, animatedOpacity])
 
     return (
-        <>
-            <Header
-                containerStyle={style.container}
-                headerLeft={
-                    <>
-                        <PressableIcon
-                            svgName="ChevronLeft"
-                            containerStyle={style.arrow}
-                            hitSlop={10}
-                            onPress={() => webViewRef.current.goBack()}
-                        />
-                        <PressableIcon
-                            svgName="ChevronRight"
-                            containerStyle={style.arrow}
-                            hitSlop={10}
-                            onPress={() => webViewRef.current.goForward()}
-                        />
-                    </>
-                }
-                headerCenter={
-                    <Text
-                        caption
-                        medium
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                        adjustsFontSizeToFit
-                        style={style.titleText}>
-                        {fediMod.title}
-                    </Text>
-                }
-                centerContainerStyle={style.titleContainer}
-                leftContainerStyle={style.leftContainer}
-                rightContainerStyle={style.rightContainer}
-                closeButton
-                onClose={() => navigation.goBack()}
-            />
-        </>
+        <View style={style.container}>
+            <View style={style.iconContainer}>
+                <PressableIcon
+                    svgName="ChevronLeft"
+                    hitSlop={10}
+                    onPress={() => webViewRef.current.goBack()}
+                />
+                <PressableIcon
+                    svgName="ChevronRight"
+                    hitSlop={10}
+                    onPress={() => webViewRef.current.goForward()}
+                />
+            </View>
+            <Pressable
+                style={[style.addressInput]}
+                disabled={isBrowserLoading && browserLoadProgress < 1}
+                onPress={() => dispatch(setAddressOverlayOpen(true))}
+                onLayout={e => setAddressWidth(e.nativeEvent.layout.width)}>
+                <Text>{new URL(currentUrl).hostname}</Text>
+                <Animated.View
+                    style={{
+                        ...style.progressBar,
+                        opacity: animatedOpacity,
+                        width: animatedProgress,
+                    }}
+                />
+            </Pressable>
+            <View style={style.iconContainer}>
+                <PressableIcon
+                    svgName="Close"
+                    hitSlop={10}
+                    onPress={() => navigation.goBack()}
+                />
+            </View>
+        </View>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            borderBottomColor: theme.colors.lightGrey,
-            paddingHorizontal: theme.spacing.xs,
-        },
-        leftContainer: {
-            gap: theme.spacing.md,
-            paddingVertical: theme.spacing.lg,
-            flex: 0,
-            flexShrink: 0,
-        },
-        rightContainer: {
-            flex: 0,
-            flexShrink: 0,
-        },
-        titleContainer: {
-            display: 'flex',
-            flexGrow: 1,
-            flexShrink: 1,
             flexDirection: 'row',
+            flex: 0,
+            gap: theme.spacing.sm,
+            alignContent: 'center',
+            paddingVertical: theme.spacing.md,
+            paddingHorizontal: theme.spacing.sm,
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.lightGrey,
+        },
+        addressInput: {
+            backgroundColor: theme.colors.extraLightGrey,
+            flex: 1,
+            borderRadius: 8,
+            paddingHorizontal: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
             alignItems: 'center',
+            position: 'relative',
             overflow: 'hidden',
         },
-        arrow: {
-            paddingHorizontal: 0,
-            paddingVertical: 0,
+        iconContainer: {
+            flexDirection: 'row',
+            gap: theme.spacing.xs,
         },
-        titleText: {
-            textAlign: 'center',
-            lineHeight: 24,
+        progressBar: {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            backgroundColor: theme.colors.blue,
         },
     })
 

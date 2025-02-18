@@ -1,34 +1,32 @@
-import { Text } from '@rneui/themed'
+import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+import { StyleSheet, View } from 'react-native'
 import { RejectionError } from 'webln'
 
-import { useToast } from '@fedi/common/hooks/toast'
+import { selectLnurlAuthRequest, selectSiteInfo } from '@fedi/common/redux'
+import { formatErrorMessage } from '@fedi/common/utils/format'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
-import { FediMod, ParsedLnurlAuth } from '../../../types'
+import { useAppSelector } from '../../../state/hooks'
 import CustomOverlay from '../../ui/CustomOverlay'
 
 const log = makeLog('AuthOverlay')
 
 interface Props {
-    fediMod: FediMod
-    lnurlAuthRequest?: ParsedLnurlAuth['data'] | null
     onReject: (err: Error) => void
     onAccept: () => void
 }
 
-export const AuthOverlay: React.FC<Props> = ({
-    fediMod,
-    lnurlAuthRequest,
-    onReject,
-    onAccept,
-}) => {
+export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
-    const toast = useToast()
+    const { theme } = useTheme()
+    const lnurlAuthRequest = useAppSelector(selectLnurlAuthRequest)
+    const siteInfo = useAppSelector(selectSiteInfo)
     const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     // Overlay components for LNURL-Auth UX
     const handleAccept = async () => {
@@ -39,10 +37,8 @@ export const AuthOverlay: React.FC<Props> = ({
             onAccept()
         } catch (e) {
             log.error('Failed to LNURL auth', e)
-            toast.show({
-                content: t('feature.fedimods.login-failed'),
-                status: 'error',
-            })
+
+            setError(formatErrorMessage(t, e, 'errors.unknown-error'))
         }
         setIsLoading(false)
     }
@@ -50,6 +46,8 @@ export const AuthOverlay: React.FC<Props> = ({
     const handleReject = () => {
         onReject(new RejectionError('words.rejected'))
     }
+
+    const style = styles(theme)
 
     return (
         <CustomOverlay
@@ -61,17 +59,24 @@ export const AuthOverlay: React.FC<Props> = ({
             contents={{
                 icon: 'LockSquareRounded',
                 body: (
-                    <Text>
-                        <Trans
-                            t={t}
-                            i18nKey="feature.nostr.log-in-to-mod"
-                            values={{
-                                fediMod: fediMod.title,
-                                method: t('words.lightning'),
-                            }}
-                            components={{ bold: <Text caption bold /> }}
-                        />
-                    </Text>
+                    <View style={style.body}>
+                        <Text>
+                            <Trans
+                                t={t}
+                                i18nKey="feature.nostr.log-in-to-mod"
+                                values={{
+                                    fediMod: siteInfo?.title,
+                                    method: t('words.lightning'),
+                                }}
+                                components={{ bold: <Text caption bold /> }}
+                            />
+                        </Text>
+                        {error && (
+                            <Text caption style={style.error}>
+                                {error}
+                            </Text>
+                        )}
+                    </View>
                 ),
                 buttons: [
                     {
@@ -88,3 +93,13 @@ export const AuthOverlay: React.FC<Props> = ({
         />
     )
 }
+
+const styles = (theme: Theme) =>
+    StyleSheet.create({
+        body: {
+            gap: theme.spacing.lg,
+        },
+        error: {
+            color: theme.colors.red,
+        },
+    })

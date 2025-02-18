@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Metro configuration
  * https://facebook.github.io/metro/docs/configuration
@@ -14,7 +13,7 @@ const path = require('path')
 
 module.exports = mergeConfig(getDefaultConfig(__dirname), {
     transformer: {
-        babelTransformerPath: require.resolve('react-native-svg-transformer'),
+        babelTransformerPath: require.resolve('./custom-metro-transformer.js'),
         getTransformOptions: async () => ({
             transform: {
                 experimentalImportSupport: false,

@@ -2,7 +2,10 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import { Pressable as NativePressable, StyleSheet, View } from 'react-native'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import { selectShouldShowDegradedStatus } from '@fedi/common/redux'
+import {
+    selectFederationCurrency,
+    selectShouldShowDegradedStatus,
+} from '@fedi/common/redux'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 
 import { useAppSelector } from '../../../state/hooks'
@@ -29,7 +32,12 @@ const CommunityTile = ({
     isActiveCommunity = false,
 }: CommunityTileProps) => {
     const { theme } = useTheme()
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const federationCurrency = useAppSelector(s =>
+        selectFederationCurrency(s, community.id),
+    )
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter(
+        community.hasWallet ? federationCurrency : undefined,
+    )
     const shouldShowDegradedStatus = useAppSelector(s =>
         selectShouldShowDegradedStatus(s, community),
     )

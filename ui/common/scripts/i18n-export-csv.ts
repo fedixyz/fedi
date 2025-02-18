@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 
-type LanguageJson = { [key: string]: string | LanguageJson }
+import { flattenObject, getLangJson, localizationPath } from './i18n-utils'
 
 const languages = {
     en: 'English',
@@ -13,18 +13,6 @@ const languages = {
 }
 
 const modes = ['default', 'translate', 'correct']
-
-function flattenObject(obj: LanguageJson, prefix = ''): LanguageJson {
-    return Object.entries(obj).reduce((acc, [key, value]) => {
-        const newKey = prefix ? `${prefix}.${key}` : key
-        if (typeof value === 'object' && value !== null) {
-            Object.assign(acc, flattenObject(value, newKey))
-        } else {
-            acc[newKey] = value
-        }
-        return acc
-    }, {} as LanguageJson)
-}
 
 async function run() {
     const lang = process.argv[2] ?? 'en'
@@ -45,15 +33,7 @@ async function run() {
     }
 
     // Read in english JSON
-    const localizationPath = path.join(__dirname, '..', 'localization')
-    const getLangJson = (l: keyof typeof languages) =>
-        JSON.parse(
-            fs.readFileSync(
-                path.join(localizationPath, l + '/common.json'),
-                'utf8',
-            ),
-        )
-    const langJson = getLangJson(lang as keyof typeof languages)
+    const langJson = getLangJson(lang)
     const enJson = getLangJson('en')
 
     const originalLang = `Translation (${
