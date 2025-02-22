@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "25.2.3",
+    "version": "25.2.5",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -31,7 +31,7 @@
         "@likashefqet/react-native-image-zoom": "^4.2.0",
         "@mgcrea/vision-camera-barcode-scanner": "^0.11.2",
         "@ngraveio/bc-ur": "^1.1.13",
-        "@notifee/react-native": "^9.1.2",
+        "@notifee/react-native": "^9.1.8",
         "@react-native-async-storage/async-storage": "^2.0.0",
         "@react-native-camera-roll/camera-roll": "^7.8.3",
         "@react-native-clipboard/clipboard": "^1.15.0",
@@ -83,7 +83,7 @@
         "react-native-vision-camera": "4.6.3",
         "react-native-webview": "https://github.com/tian000/react-native-webview.git#e9391b8487b808b539bfb2fa121850950a2f53ee",
         "react-native-worklets-core": "1.5.0",
-        "react-native-zendesk-messaging": "^0.2.1",
+        "react-native-zendesk-messaging": "^0.3.1",
         "react-redux": "^9.1.2",
         "rn-fetch-blob": "^0.12.0",
         "webln": "^0.3.2"

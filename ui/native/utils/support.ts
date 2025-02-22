@@ -1,16 +1,18 @@
 import { createHmac } from 'crypto'
-import { TFunction } from 'i18next'
 import { Platform } from 'react-native'
 import * as Zendesk from 'react-native-zendesk-messaging'
 
 import { INVALID_NAME_PLACEHOLDER } from '@fedi/common/constants/matrix'
 import { useCommonSelector } from '@fedi/common/hooks/redux'
-import { ToastHandler } from '@fedi/common/hooks/toast'
 import { CommonDispatch, selectMatrixAuth } from '@fedi/common/redux'
-import { setZendeskPushNotificationToken } from '@fedi/common/redux/support'
+import {
+    setZendeskPushNotificationToken,
+    setZendeskInitialized as setZendeskInitializedAction,
+} from '@fedi/common/redux/support'
 import { RpcNostrPubkey } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
+// Import Redux store directly
 import {
     CHANNEL_KEY_ANDROID,
     CHANNEL_KEY_IOS,
@@ -18,6 +20,7 @@ import {
     ZENDESK_KID,
     ZENDESK_USER_SCOPE,
 } from '../constants'
+import { store } from '../state/store'
 
 const log = makeLog('native/utils/support')
 
@@ -83,8 +86,18 @@ export async function zendeskLogout(): Promise<void> {
     return await Zendesk.logout()
 }
 
-export async function zendeskOpenMessagingView(): Promise<void> {
-    return await Zendesk.openMessagingView()
+export async function zendeskOpenMessagingView({
+    onError,
+}: {
+    onError?: (error: Error) => void
+} = {}): Promise<void> {
+    try {
+        await Zendesk.openMessagingView()
+        log.debug('Zendesk messaging shown successfully')
+    } catch (error) {
+        log.error('Failed to open Zendesk messaging view:', error)
+        onError?.(error as Error)
+    }
 }
 
 // Zendesk initialization logic
@@ -92,8 +105,7 @@ export async function zendeskInitialize(
     userID: RpcNostrPubkey | null,
     displayName: string,
     setZendeskInitialized: (state: boolean) => void,
-    toast: ToastHandler,
-    t: TFunction,
+    onError?: (error: Error) => void,
 ): Promise<void> {
     try {
         log.info('Initializing Zendesk with values:', userID, displayName)
@@ -124,12 +136,9 @@ export async function zendeskInitialize(
             log.info('Zendesk login successful')
         }
     } catch (error) {
-        log.error('Zendesk initialization failed', error)
         setZendeskInitialized(false)
-        toast.show({
-            content: t('feature.support.zendesk-initialization-failed'),
-            status: 'error',
-        })
+        log.error('Zendesk initialization failed', error)
+        onError?.(error as Error)
     }
 }
 
@@ -153,6 +162,34 @@ export async function updateZendeskPushNotificationToken(
         log.error('Failed to update Zendesk push notification token:', error)
         throw error
     }
+}
+
+// **Launch Zendesk Without Hooks**
+export async function launchZendeskSupport(
+    onError?: (error: Error) => void,
+): Promise<void> {
+    const storeState = store.getState()
+    const zendeskInitialized = storeState.support.zendeskInitialized
+    const supportPermissionGranted = storeState.support.supportPermissionGranted
+    const nostrNpub = storeState.environment.nostrNpub
+    const displayName = storeState.matrix.auth?.displayName || 'Fedi User'
+
+    if (!supportPermissionGranted) {
+        log.info('Zendesk support not granted. Redirecting to Help Centre.')
+        return
+    }
+
+    if (!zendeskInitialized) {
+        await zendeskInitialize(
+            nostrNpub ?? null,
+            displayName,
+            (state: boolean) =>
+                store.dispatch(setZendeskInitializedAction(state)),
+            onError,
+        )
+    }
+
+    await zendeskOpenMessagingView()
 }
 
 export function useDisplayName(): string {

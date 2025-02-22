@@ -13,25 +13,16 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
-import { ToastHandler, useToast } from '@fedi/common/hooks/toast'
 import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
 
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
 import ShortcutTile from '../components/feature/home/ShortcutTile'
+import ZendeskBadge from '../components/feature/support/ZendeskBadge'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
 import { NavigationHook } from '../types/navigation'
-import {
-    useNpub,
-    useSupportPermission,
-    useZendeskInitialization,
-} from '../utils/hooks/support'
-import {
-    useDisplayName,
-    zendeskInitialize,
-    zendeskOpenMessagingView,
-} from '../utils/support'
+import { useLaunchZendesk } from '../utils/hooks/support'
 
 const Mods: React.FC = () => {
     const { theme } = useTheme()
@@ -47,30 +38,7 @@ const Mods: React.FC = () => {
 
     const [actionsMod, setActionsMod] = useState<FediMod>()
 
-    const { supportPermissionGranted } = useSupportPermission()
-    const displayName = useDisplayName()
-    const nostrPublic = useNpub()
-    const toast = useToast()
-    const nostrNpub = nostrPublic ?? null
-    const { zendeskInitialized, handleZendeskInitialization } =
-        useZendeskInitialization()
-
-    const handleSupportPress = () => {
-        if (!zendeskInitialized) {
-            zendeskInitialize(
-                nostrNpub,
-                displayName,
-                handleZendeskInitialization,
-                toast as unknown as ToastHandler,
-                t,
-            )
-        }
-        if (supportPermissionGranted && zendeskInitialized) {
-            zendeskOpenMessagingView()
-        } else {
-            navigation.navigate('HelpCentre')
-        }
-    }
+    const { launchZendesk } = useLaunchZendesk()
 
     const onSelectFediMod = (shortcut: Shortcut) => {
         setActionsMod(undefined)
@@ -83,7 +51,7 @@ const Mods: React.FC = () => {
         ) {
             Linking.openURL(fediMod.url)
         } else if (fediMod.title.toLowerCase().includes('ask fedi')) {
-            handleSupportPress()
+            launchZendesk()
         } else {
             navigation.navigate('FediModBrowser', { url: fediMod.url })
         }
@@ -113,14 +81,6 @@ const Mods: React.FC = () => {
         })
         // Method to render the popover or return null
         const renderPopover = (mod: FediMod) => {
-            const isNonHideable =
-                mod.title.toLowerCase() === 'support' ||
-                mod.title.toLowerCase() === 'ask fedi'
-
-            if (isNonHideable) {
-                return undefined // Don't render the popover for non-hideable mods
-            }
-
             return (
                 <Pressable
                     style={style.tooltipAction}
@@ -149,6 +109,7 @@ const Mods: React.FC = () => {
                             onSelect={onSelectFediMod}
                             onHold={handleModHold}
                         />
+                        <ZendeskBadge title={s.title} />
                     </Tooltip>
                 </View>
             )
@@ -215,6 +176,7 @@ const styles = (theme: Theme, columns: number) =>
         },
         listContainer: {
             flexDirection: 'row',
+            marginTop: 4,
             flexWrap: 'wrap',
             justifyContent: 'space-between',
             paddingHorizontal: theme.spacing.sm,

@@ -45,7 +45,21 @@ export const CHANNEL_KEY_IOS = ENV_CHANNEL_KEY_IOS
 export const ZENDESK_SECRET_KEY = ENV_ZENDESK_SECRET_KEY
 export const ZENDESK_KID = ENV_ZENDESK_KID
 
+/*
+    -----
+    Support
+    -----
+*/
+
 export const emptyToken = ''
 export const HELP_URL = 'https://support.fedi.xyz'
 export const PRIVACY_POLICY_URL = 'https://www.fedi.xyz/privacy-policy'
 export const ZENDESK_USER_SCOPE = 'user'
+
+/*
+    -----
+    Push Notifications
+    -----
+*/
+
+export const ZENDESK_PUSH_NOTIFICATION_CHANNEL = 'zendesk-channel'

@@ -14,6 +14,7 @@ import {
     selectStableBalance,
     selectStableBalancePending,
 } from '@fedi/common/redux'
+import { selectSupportPermissionGranted } from '@fedi/common/redux/support'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -48,6 +49,7 @@ export const useMatrixPushNotifications = () => {
         useNotificationsPermission()
     const log = makeLog('useMatrixPushNotifications')
     const pushNotificationToken = usePushNotificationToken()
+    const supportPermissionGranted = useSelector(selectSupportPermissionGranted)
 
     const getDeviceToken = useMemo<() => Promise<string>>(() => {
         return async () => {
@@ -107,6 +109,7 @@ export const useMatrixPushNotifications = () => {
         DeviceInfo.getApplicationName(),
         permissionGranted === 'granted',
         updateZendeskPushNotificationToken,
+        supportPermissionGranted,
         pushNotificationToken,
     )
 }

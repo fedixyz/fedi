@@ -37,6 +37,7 @@ export function usePublishNotificationToken(
     appName: string,
     permissionGranted: boolean,
     secondaryPublish: (token: string, dispatch: CommonDispatch) => void,
+    secondaryPermissionGranted: boolean,
     currentToken: string | null,
 ) {
     const dispatch = useCommonDispatch()
@@ -97,10 +98,12 @@ export function usePublishNotificationToken(
                 })
 
             // Zendesk
-            secondaryPublish(newToken, dispatch)
-            log.debug(
-                'Successfully updated secondary publish push notification token',
-            )
+            if (secondaryPermissionGranted) {
+                secondaryPublish(newToken, dispatch)
+                log.debug(
+                    'Successfully updated secondary publish push notification token',
+                )
+            }
         }
 
         publishToken()
@@ -112,6 +115,7 @@ export function usePublishNotificationToken(
         permissionGranted,
         currentToken,
         secondaryPublish,
+        secondaryPermissionGranted,
     ])
 
     return null

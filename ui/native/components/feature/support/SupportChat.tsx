@@ -1,127 +1,36 @@
-import { useFocusEffect } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import { Button, useTheme, Theme, Text } from '@rneui/themed'
-import React, { useCallback, useEffect } from 'react'
+import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View, Linking } from 'react-native'
-import * as Zendesk from 'react-native-zendesk-messaging'
 
-import { usePushNotificationToken } from '@fedi/common/hooks/matrix'
-import { ToastHandler, useToast } from '@fedi/common/hooks/toast'
-import { makeLog } from '@fedi/common/utils/log'
+import { grantSupportPermission } from '@fedi/common/redux/support'
 import SvgImage from '@fedi/native/components/ui/SvgImage'
 
 import { HELP_URL, PRIVACY_POLICY_URL } from '../../../constants'
-import { useSupportPermission, useNpub } from '../../../utils/hooks/support'
-import { zendeskInitialize, useDisplayName } from '../../../utils/support'
+import { useAppDispatch } from '../../../state/hooks'
+import { useLaunchZendesk } from '../../../utils/hooks/support'
 import HoloGuidance from '../../ui/HoloGuidance'
 
-const log = makeLog('SupportChat')
-
-type SupportChatProps = {
-    zendeskInitialized: boolean
-    setZendeskInitialized: (value: boolean) => void
-}
-
-const SupportChat: React.FC<SupportChatProps> = ({
-    zendeskInitialized,
-    setZendeskInitialized,
-}) => {
+const SupportChat: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const toast = useToast()
-
+    const navigation = useNavigation()
     const style = styles(theme)
+    const dispatch = useAppDispatch()
 
-    const {
-        supportPermissionGranted,
-        grantPermission,
-        zendeskPushNotificationToken,
-        savePushNotificationToken,
-    } = useSupportPermission()
-    const pushNotificationToken = usePushNotificationToken()
-    const nostrPublic = useNpub()
-    const nostrNpub = nostrPublic ?? null
-    const displayName = useDisplayName()
-
-    useEffect(() => {
-        if (nostrNpub && displayName && !zendeskInitialized) {
-            zendeskInitialize(
-                nostrNpub,
-                displayName,
-                setZendeskInitialized,
-                toast as unknown as ToastHandler,
-                t,
-            )
-        }
-    }, [
-        nostrNpub,
-        displayName,
-        setZendeskInitialized,
-        zendeskInitialized,
-        toast,
-        t,
-    ])
-
-    useFocusEffect(
-        useCallback(() => {
-            if (zendeskInitialized && supportPermissionGranted) {
-                Zendesk.openMessagingView()
-                    .then(() =>
-                        log.debug('Zendesk messaging shown successfully'),
-                    )
-                    .catch(error => {
-                        log.error('Zendesk messaging failed to show', error)
-                        toast.error(
-                            t,
-                            error,
-                            'feature.support.zendesk-initialization-failed',
-                        )
-                    })
-            }
-        }, [zendeskInitialized, supportPermissionGranted, toast, t]),
-    )
-
-    useEffect(() => {
-        if (
-            supportPermissionGranted &&
-            pushNotificationToken &&
-            pushNotificationToken !== zendeskPushNotificationToken
-        ) {
-            Zendesk.updatePushNotificationToken(pushNotificationToken)
-            savePushNotificationToken(pushNotificationToken)
-            log.debug(
-                'Zendesk push notification token updated: ' +
-                    pushNotificationToken,
-            )
-        }
-    }, [
-        supportPermissionGranted,
-        pushNotificationToken,
-        zendeskPushNotificationToken,
-        savePushNotificationToken,
-    ])
+    const { launchZendesk } = useLaunchZendesk()
 
     const handlePrivacyPolicyPress = () => {
         Linking.openURL(PRIVACY_POLICY_URL)
     }
 
-    const grantSupportPermission = () => {
-        if (!supportPermissionGranted) {
-            grantPermission()
-        }
-    }
-
-    const handleZendeskPress = () => {
-        if (!supportPermissionGranted) {
-            grantPermission()
-        } else {
-            Zendesk.openMessagingView()
-                .then(() => log.debug('Zendesk messaging shown successfully'))
-                .catch(error =>
-                    log.error('Zendesk messaging failed to show', error),
-                )
-        }
-    }
+    const grantPermission = useCallback(() => {
+        dispatch(grantSupportPermission())
+        launchZendesk(true)
+        // Close the Permission screen while the modal opens
+        navigation.goBack()
+    }, [dispatch, launchZendesk, navigation])
 
     const handleHelpCenterPress = () => {
         Linking.openURL(HELP_URL)
@@ -164,16 +73,8 @@ const SupportChat: React.FC<SupportChatProps> = ({
             <View style={style.overlayButtonsContainer}>
                 <Button
                     fullWidth
-                    onPress={
-                        supportPermissionGranted
-                            ? handleZendeskPress
-                            : grantSupportPermission
-                    }
-                    title={
-                        supportPermissionGranted
-                            ? t('feature.support.open-chat')
-                            : t('phrases.i-understand')
-                    }
+                    onPress={grantPermission}
+                    title={t('phrases.i-understand')}
                 />
             </View>
         </View>

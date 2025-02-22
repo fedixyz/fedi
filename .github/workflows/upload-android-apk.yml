@@ -63,8 +63,8 @@ jobs:
             - name: Create draft GitHub release with APK
               uses: softprops/action-gh-release@v2
               with:
-                  tag_name: v${{ steps.prep-apk.outputs.APK_VERSION }}
-                  name: 'v${{ steps.prep-apk.outputs.APK_VERSION }}'
+                  tag_name: ${{ steps.prep-apk.outputs.APK_VERSION }}
+                  name: '${{ steps.prep-apk.outputs.APK_VERSION }}'
                   body: 'Built from commit: ${{ github.sha }}'
                   draft: true
                   append_body: true
