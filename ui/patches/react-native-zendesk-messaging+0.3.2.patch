@@ -1,0 +1,33 @@
+diff --git a/node_modules/react-native-zendesk-messaging/.DS_Store b/node_modules/react-native-zendesk-messaging/.DS_Store
+new file mode 100644
+index 0000000..6f92cf1
+Binary files /dev/null and b/node_modules/react-native-zendesk-messaging/.DS_Store differ
+diff --git a/node_modules/react-native-zendesk-messaging/android/src/main/java/dev/geundung/zendesk/messaging/ZendeskNativeModule.kt b/node_modules/react-native-zendesk-messaging/android/src/main/java/dev/geundung/zendesk/messaging/ZendeskNativeModule.kt
+index a3d1773..6da7c8a 100644
+--- a/node_modules/react-native-zendesk-messaging/android/src/main/java/dev/geundung/zendesk/messaging/ZendeskNativeModule.kt
++++ b/node_modules/react-native-zendesk-messaging/android/src/main/java/dev/geundung/zendesk/messaging/ZendeskNativeModule.kt
+@@ -90,7 +90,6 @@ class ZendeskNativeModule private constructor() {
+     var handled = true
+     when (PushNotifications.shouldBeDisplayed(messageData)) {
+       PushResponsibility.MESSAGING_SHOULD_DISPLAY -> {
+-        PushNotifications.displayNotification(context, messageData)
+         callback?.invoke("MESSAGING_SHOULD_DISPLAY")
+       }
+       PushResponsibility.MESSAGING_SHOULD_NOT_DISPLAY -> {
+diff --git a/node_modules/react-native-zendesk-messaging/ios/.DS_Store b/node_modules/react-native-zendesk-messaging/ios/.DS_Store
+new file mode 100644
+index 0000000..29f0f43
+Binary files /dev/null and b/node_modules/react-native-zendesk-messaging/ios/.DS_Store differ
+diff --git a/node_modules/react-native-zendesk-messaging/ios/ZendeskNativeModule.h b/node_modules/react-native-zendesk-messaging/ios/ZendeskNativeModule.h
+index cb83915..83f2646 100644
+--- a/node_modules/react-native-zendesk-messaging/ios/ZendeskNativeModule.h
++++ b/node_modules/react-native-zendesk-messaging/ios/ZendeskNativeModule.h
+@@ -7,5 +7,8 @@
+ + (void)updatePushNotificationToken:(NSData * _Nonnull)token;
+ + (BOOL)showNotification:(id _Nonnull)userInfo completionHandler:(void (^_Nonnull)(UNNotificationPresentationOptions))completionHandler;
+ + (BOOL)handleNotification:(id _Nonnull)userInfo completionHandler:(void (^)(void))completionHandler;
++// ✅ Expose the method so it can be called from Objective-C
+++ (void)openMessageViewByPushNotification:(NSDictionary * _Nullable)userInfo completionHandler:(void (^_Nullable)(BOOL openBeforeInitialize))completionHandler;
++
+ 
+ @end

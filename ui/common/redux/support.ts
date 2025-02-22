@@ -9,6 +9,7 @@ const initialState = {
     supportPermissionGranted: false,
     zendeskPushNotificationToken: null as string | null,
     zendeskInitialized: false,
+    zendeskUnreadMessageCount: 0,
 }
 
 export type SupportState = typeof initialState
@@ -27,6 +28,9 @@ export const supportSlice = createSlice({
         },
         setZendeskInitialized(state, action: PayloadAction<boolean>) {
             state.zendeskInitialized = action.payload
+        },
+        setZendeskUnreadMessageCount(state, action: PayloadAction<number>) {
+            state.zendeskUnreadMessageCount = action.payload
         },
     },
     extraReducers: builder => {
@@ -50,6 +54,7 @@ export const {
     setSupportPermission,
     setZendeskPushNotificationToken,
     setZendeskInitialized,
+    setZendeskUnreadMessageCount,
 } = supportSlice.actions
 
 /*** Selectors ***/
@@ -63,6 +68,9 @@ export const selectZendeskPushNotificationToken = (s: CommonState) =>
 export const selectZendeskInitialized = (s: CommonState) =>
     s.support.zendeskInitialized
 
+export const selectZendeskUnreadMessageCount = (s: CommonState) =>
+    s.support.zendeskUnreadMessageCount
+
 /*** Synchronous wrapper actions ***/
 
 export const grantSupportPermission = () => (dispatch: Dispatch) => {
@@ -72,4 +80,9 @@ export const grantSupportPermission = () => (dispatch: Dispatch) => {
 export const saveZendeskPushNotificationToken =
     (token: string) => (dispatch: Dispatch) => {
         dispatch(setZendeskPushNotificationToken(token))
+    }
+
+export const updateZendeskUnreadMessageCount =
+    (count: number) => (dispatch: Dispatch) => {
+        dispatch(setZendeskUnreadMessageCount(count))
     }
