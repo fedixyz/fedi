@@ -13,3 +13,9 @@ export const BANNED_DISPLAY_NAME_TERMS = [
 ]
 
 export const INVALID_NAME_PLACEHOLDER = 'Invalid Name'
+
+export const ONE_KB = 1024
+// A megabyte is 1024 kilobytes, not 1000 kilobytes
+export const ONE_MB = 1024 * ONE_KB
+export const MAX_IMAGE_SIZE = 100 * ONE_MB // 100MB for images
+export const MAX_FILE_SIZE = 500 * ONE_MB // 500MB for other files

@@ -1,0 +1,12 @@
+/*
+  InfoPlist.strings
+  FediReactNative
+
+  Created by Someone on 03/04/2025.
+
+*/
+"NSCameraUsageDescription" = "Fedi inahitaji ufikiaji wa kamera ili kuchanganua misimbo ya QR";
+"NSLocationWhenInUseUsageDescription" = "Fedi haitumii eneo lako";
+"NSMicrophoneUsageDescription" = "Fedi inahitaji ufikiaji wa kipaza sauti chako ili kurekodi video ya Social Backup";
+"NSPhotoLibraryAddUsageDescription" = "Fedi inahitaji ufikiaji wa maktaba yako ya picha ili kuhifadhi picha humo";
+"NSPhotoLibraryUsageDescription" = "Fedi inahitaji ruhusa kufikia hifadhi yako ya picha ili kuchagua picha ya profaili yako na viambatFedi inahitaji ufikiaji wa maktaba yako ya picha ili kuchagua picha au video kwa ajili ya avatar yako na viambatisho vya gumzoanisho vya gumzo";

@@ -16,9 +16,9 @@ const errorMap: Partial<Record<ErrorCodeStrings, ResourceKey>> = {
 
 export const formatBridgeError = (error: BridgeError, t: TFunction) => {
     // If there is no code, return the error as is
-    if (!error.code) return error.error
+    if (!error.errorCode) return error.error
 
-    const code = error.code
+    const code = error.errorCode
 
     // If the code is a string and in the errorMap, return the mapped error
     if (typeof code === 'string' && code in errorMap) {
@@ -27,7 +27,7 @@ export const formatBridgeError = (error: BridgeError, t: TFunction) => {
         return t(key)
 
         // If the code is an object, check for special error kinds
-    } else if (typeof error.code === 'object') {
+    } else if (typeof error.errorCode === 'object') {
         return handleSpecialErrors(error, t)
 
         // Default to the error message
@@ -38,13 +38,14 @@ export const formatBridgeError = (error: BridgeError, t: TFunction) => {
 
 // Handles non-string bridge error codes
 const handleSpecialErrors = (error: BridgeError, t: TFunction) => {
-    if (!error.code || typeof error.code !== 'object') return error.error
+    if (!error.errorCode || typeof error.errorCode !== 'object')
+        return error.error
     if (
-        'insufficientBalance' in error.code &&
-        typeof error.code.insufficientBalance === 'number'
+        'insufficientBalance' in error.errorCode &&
+        typeof error.errorCode.insufficientBalance === 'number'
     ) {
         return t('errors.insufficient-balance-send', {
-            sats: amountUtils.msatToSat(error.code.insufficientBalance),
+            sats: amountUtils.msatToSat(error.errorCode.insufficientBalance),
         })
     }
 

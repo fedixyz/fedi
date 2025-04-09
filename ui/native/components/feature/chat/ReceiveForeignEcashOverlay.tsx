@@ -6,8 +6,11 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 import { useFederationPreview } from '@fedi/common/hooks/federation'
 import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
+import { validateEcash } from '@fedi/common/redux'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
+import { useAppDispatch } from '../../../state/hooks'
 import { MatrixPaymentEvent } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
@@ -21,6 +24,8 @@ interface Props {
     onRejected: () => void
 }
 
+const log = makeLog('ReceiveForeignEcashOverlay')
+
 const ReceiveForeignEcashOverlay: React.FC<Props> = ({
     paymentEvent,
     show,
@@ -33,7 +38,9 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
     const [showFederationPreview, setShowFederationPreview] =
         useState<boolean>(false)
     const [hideOtherMethods, setHideOtherMethods] = useState<boolean>(true)
+    const [inviteCode, setInviteCode] = useState<string | null>(null)
     const style = styles(theme)
+    const dispatch = useAppDispatch()
 
     const {
         federationInviteCode,
@@ -48,11 +55,33 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
         useFederationPreview(t, fedimint, federationInviteCode || '')
 
     useEffect(() => {
-        if (!federationInviteCode) return
+        if (!paymentEvent.content.ecash) return
+
+        dispatch(
+            validateEcash({
+                fedimint,
+                ecash: paymentEvent.content.ecash,
+            }),
+        )
+            .unwrap()
+            .then(validated => {
+                if (validated.federation_type === 'joined') {
+                    log.error('federation should not be joined')
+                    return
+                }
+
+                setInviteCode(
+                    validated.federation_invite || federationInviteCode || '',
+                )
+            })
+    }, [paymentEvent.content.ecash, federationInviteCode, dispatch])
+
+    useEffect(() => {
+        if (!inviteCode) return
         // skip handling the code if we already have a preview
         if (federationPreview) return
-        handleCode(federationInviteCode)
-    }, [federationPreview, federationInviteCode, handleCode])
+        handleCode(inviteCode)
+    }, [federationPreview, inviteCode, handleCode])
 
     const renderOverlayContents = () => {
         if (isFetchingPreview) return <ActivityIndicator />

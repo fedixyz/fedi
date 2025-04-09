@@ -16,6 +16,7 @@ let
     "Cargo.lock"
     ".cargo"
     ".config"
+    ".clippy.toml"
     "bridge"
     "fedimintd"
     "fedimint-cli"

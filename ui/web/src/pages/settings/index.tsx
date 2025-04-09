@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BugIcon from '@fedi/common/assets/svgs/bug.svg'
 import InviteMembersIcon from '@fedi/common/assets/svgs/invite-members.svg'
 import LanguageIcon from '@fedi/common/assets/svgs/language.svg'
 import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
+import NostrIcon from '@fedi/common/assets/svgs/nostr.svg'
 import NoteIcon from '@fedi/common/assets/svgs/note.svg'
 import ScrollIcon from '@fedi/common/assets/svgs/scroll.svg'
 import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
@@ -40,16 +40,16 @@ import {
     SettingsMenu,
     SettingsMenuProps,
 } from '../../components/SettingsMenu'
+import { VersionContainer } from '../../components/VersionContainer'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 
-const canLeaveFederation = (federation: FederationListItem | undefined) => {
+const canLeaveFederation = (federation: FederationListItem): boolean => {
     return (
         federation?.hasWallet &&
         'balance' in federation &&
-        federation?.balance &&
-        federation.balance < 100_000
+        federation?.balance < 100_000
     )
 }
 
@@ -85,7 +85,7 @@ function AdminPage() {
                         fedimint,
                         federationId: leavingFederation.id,
                     }),
-                )
+                ).unwrap()
             } catch (err) {
                 toast.error(t, err, 'errors.unknown-error')
             }
@@ -188,9 +188,9 @@ function AdminPage() {
                     href: `/settings/backup/personal`,
                 },
                 {
-                    label: t('feature.bug.report-a-bug'),
-                    icon: BugIcon,
-                    href: `/bug-report`,
+                    label: t('feature.nostr.nostr-settings'),
+                    icon: NostrIcon,
+                    href: `/settings/nostr`,
                 },
             ],
         },
@@ -237,6 +237,7 @@ function AdminPage() {
                             </Content>
                         )}
                         <SettingsMenu menu={menu} />
+                        <VersionContainer />
                     </div>
                 </Layout.Content>
             </Layout.Root>
@@ -247,19 +248,21 @@ function AdminPage() {
                 onClose={() => setInvitingFederationId('')}
             />
 
-            <ConfirmDialog
-                open={!!leavingFederationId}
-                title={`${t('feature.federations.leave-federation')} - ${
-                    leavingFederation?.name
-                }`}
-                description={t(
-                    canLeaveFederation(leavingFederation)
-                        ? 'feature.federations.leave-federation-confirmation'
-                        : 'feature.federations.leave-federation-withdraw-first',
-                )}
-                onClose={() => setLeavingFederationId('')}
-                onConfirm={handleConfirmLeaveFederation}
-            />
+            {leavingFederation && (
+                <ConfirmDialog
+                    open={!!leavingFederationId}
+                    title={`${t('feature.federations.leave-federation')} - ${
+                        leavingFederation?.name
+                    }`}
+                    description={t(
+                        canLeaveFederation(leavingFederation)
+                            ? 'feature.federations.leave-federation-confirmation'
+                            : 'feature.federations.leave-federation-withdraw-first',
+                    )}
+                    onClose={() => setLeavingFederationId('')}
+                    onConfirm={handleConfirmLeaveFederation}
+                />
+            )}
         </ContentBlock>
     )
 }

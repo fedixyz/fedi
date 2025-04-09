@@ -53,6 +53,9 @@ pub enum BridgeDbPrefix {
     #[deprecated]
     TransactionDateFiatInfoOld = 0xbf,
 
+    // Same as [`LastStabilityPoolDepositCycle`] but for the v2 stability pool module.
+    LastStabilityPoolV2DepositCycle = 0xc1,
+
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
     #[allow(dead_code)]
@@ -138,6 +141,15 @@ impl_db_record!(
     key = LastStabilityPoolDepositCycleKey,
     value = u64,
     db_prefix = BridgeDbPrefix::LastStabilityPoolDepositCycle,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LastStabilityPoolV2DepositCycleKey;
+
+impl_db_record!(
+    key = LastStabilityPoolV2DepositCycleKey,
+    value = u64,
+    db_prefix = BridgeDbPrefix::LastStabilityPoolV2DepositCycle,
 );
 
 #[derive(Debug, Decodable, Encodable)]

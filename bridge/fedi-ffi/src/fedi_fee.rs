@@ -345,6 +345,7 @@ impl FediFeeRemittanceService {
         // sometimes is a much better outcome than double-charging fees.
         let extra_meta = LightningSendMetadata {
             is_fedi_fee_remittance: true,
+            frontend_metadata: None,
         };
         let ln = fed.client.ln()?;
         let OutgoingLightningPayment { payment_type, .. } = ln

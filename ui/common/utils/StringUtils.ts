@@ -10,6 +10,13 @@ class StringUtils {
         }
         return initials.toUpperCase()
     }
+    truncateString = (longString: string, numberOfCharacters: number) => {
+        if (longString.length <= numberOfCharacters) {
+            return longString
+        }
+
+        return `${longString.substring(0, numberOfCharacters)}...`
+    }
     truncateMiddleOfString = (
         longString: string,
         numberOfCharacters: number,

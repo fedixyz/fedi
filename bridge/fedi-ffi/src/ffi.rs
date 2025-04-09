@@ -90,11 +90,7 @@ pub async fn fedimint_initialize_inner(
         match init_opts.app_flavor {
             RpcAppFlavor::Dev => {
                 // reset observables
-                if let Ok(full) = bridge.full() {
-                    if let Some(matrix) = full.matrix.get() {
-                        matrix.observable_pool.reset().await;
-                    }
-                }
+                bridge.runtime().observable_pool.reset().await;
             }
             RpcAppFlavor::Nightly => {
                 panic!("reinitializing bridge is only allowed during development");
@@ -190,6 +186,9 @@ pub fn fedimint_get_supported_events() -> Vec<String> {
         String::from("transaction"),
         String::from("log"),
         String::from("panic"),
+        String::from("spv2Deposit"),
+        String::from("spv2Withdrawal"),
+        String::from("spv2Transfer"),
         String::from("stabilityPoolDeposit"),
         String::from("stabilityPoolWithdrawal"),
         String::from("recoveryComplete"),

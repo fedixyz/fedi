@@ -77,18 +77,21 @@ const Menu = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 16,
-    padding: 8,
 })
 
-const MenuGroup = styled('div', {})
+const MenuGroup = styled('div', {
+    marginBottom: 20,
+})
 
 const MenuGroupName = styled('div', {
-    color: theme.colors.grey,
+    color: theme.colors.black,
     padding: '8px 0',
 })
 
 const MenuGroupItems = styled('div', {
-    margin: '0 -8px -8px',
+    backgroundColor: theme.colors.offWhite100,
+    borderRadius: 16,
+    padding: 8,
 })
 
 const MenuItem = styled('button', {

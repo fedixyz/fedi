@@ -13,3 +13,22 @@ export function useMediaQuery(query: string): boolean {
 
     return matches
 }
+
+export function useCopy() {
+    const [copied, setCopied] = useState<boolean>(false)
+
+    const copy = async (value: string) => {
+        try {
+            await navigator.clipboard.writeText(value)
+            setCopied(true)
+
+            setTimeout(() => {
+                setCopied(false)
+            }, 2000) // 2 second delay
+        } catch {
+            setCopied(false)
+        }
+    }
+
+    return { copy, copied }
+}

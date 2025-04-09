@@ -60,6 +60,11 @@ function test_stability_pool() {
 }
 export -f test_stability_pool
 
+function test_stability_pool_v2() {
+  fm-run-test "${FUNCNAME[0]}" ./scripts/test-stability-pool-v2.sh
+}
+export -f test_stability_pool_v2
+
 function test_bridge_current() {
   fm-run-test "${FUNCNAME[0]}" ./scripts/test-bridge-current.sh
 }
@@ -77,6 +82,7 @@ for _ in $(seq "${FM_TEST_CI_ALL_TIMES:-1}"); do
 tests_to_run_in_parallel+=(
   test_fm_cli_tests
   test_fm_load_tests
+  test_stability_pool_v2
   test_stability_pool
   test_bridge_current
   test_bridge_current_use_upstream_fedimintd

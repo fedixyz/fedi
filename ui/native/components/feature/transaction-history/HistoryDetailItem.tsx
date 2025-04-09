@@ -41,7 +41,7 @@ export const HistoryDetailItem: React.FC<HistoryDetailItemProps> = props => {
     let valueEl: React.ReactNode
     if (isStringProps(props)) {
         valueEl = (
-            <Text caption>
+            <Text caption style={style.darkGrey}>
                 {props.truncated
                     ? stringUtils.truncateMiddleOfString(props.value, 5)
                     : props.value}
@@ -62,7 +62,12 @@ export const HistoryDetailItem: React.FC<HistoryDetailItemProps> = props => {
                         })
                     }}>
                     {valueEl}
-                    <SvgImage name="Copy" size={SvgImageSize.xs} />
+                    <SvgImage
+                        name="Copy"
+                        size={SvgImageSize.xs}
+                        containerStyle={style.copyButton}
+                        color={theme.colors.darkGrey}
+                    />
                 </Pressable>
             )
         }
@@ -86,7 +91,7 @@ export const HistoryDetailItem: React.FC<HistoryDetailItemProps> = props => {
     } else {
         return (
             <View style={containerStyle}>
-                <Text caption medium>
+                <Text caption medium style={style.darkGrey}>
                     {props.label}
                 </Text>
                 {valueEl}
@@ -114,4 +119,6 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             justifyContent: 'space-between',
         },
+        darkGrey: { color: theme.colors.darkGrey },
+        copyButton: { marginLeft: theme.spacing.xs },
     })

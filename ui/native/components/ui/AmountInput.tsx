@@ -18,6 +18,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import InvisibleInput from './InvisibleInput'
+import NotesInput from './NotesInput'
 import { NumpadButton } from './NumpadButton'
 import SvgImage from './SvgImage'
 
@@ -35,6 +36,8 @@ export type Props = {
     verb?: string
     onChangeAmount?: (amount: Sats) => void
     error?: string | null
+    notes?: string
+    setNotes?: (notes: string) => void
 }
 
 const AmountInput: React.FC<Props> = ({
@@ -49,6 +52,8 @@ const AmountInput: React.FC<Props> = ({
     verb,
     onChangeAmount,
     error: customError,
+    notes = '',
+    setNotes,
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -169,6 +174,7 @@ const AmountInput: React.FC<Props> = ({
                         <Text
                             style={style.secondaryAmountText}
                             medium
+                            caption
                             numberOfLines={1}>
                             {secondaryAmountText}
                         </Text>
@@ -190,6 +196,11 @@ const AmountInput: React.FC<Props> = ({
                         error
                     )}
                 </View>
+                {setNotes && (
+                    <View style={style.notesContainer}>
+                        <NotesInput notes={notes} setNotes={setNotes} />
+                    </View>
+                )}
             </View>
             {hasNumpad && (
                 <View style={style.numpad}>
@@ -219,16 +230,17 @@ const styles = (theme: Theme, width: number) =>
             flex: 1,
             width: '100%',
             alignItems: 'center',
-            gap: theme.spacing.lg,
         },
         amounts: {
             flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            gap: theme.spacing.md,
+            gap: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.lg,
         },
         errorContainer: {
-            width,
+            width: '100%',
+            maxHeight: 20,
             alignItems: 'center',
             justifyContent: 'center',
             paddingHorizontal: theme.spacing.lg,
@@ -238,11 +250,6 @@ const styles = (theme: Theme, width: number) =>
             alignItems: 'flex-end',
             marginHorizontal: theme.spacing.lg,
             width: '100%',
-        },
-        primaryLabelText: {
-            marginLeft: theme.spacing.sm,
-            marginBottom: 3,
-            fontSize: 20,
         },
         secondaryAmountText: {
             color: theme.colors.darkGrey,
@@ -255,7 +262,6 @@ const styles = (theme: Theme, width: number) =>
         },
         error: {
             width: '100%',
-            paddingTop: theme.spacing.md,
             color: theme.colors.red,
             textAlign: 'center',
         },
@@ -271,6 +277,9 @@ const styles = (theme: Theme, width: number) =>
             paddingHorizontal: theme.spacing.lg,
             flexDirection: 'row',
             flexWrap: 'wrap',
+        },
+        notesContainer: {
+            width: '100%',
         },
     })
 

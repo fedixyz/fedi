@@ -1,26 +1,40 @@
 /* eslint-disable no-console */
 import fs from 'fs'
 import set from 'lodash/set'
+import Papa from 'papaparse'
 import path from 'path'
 
-import { formatLanguageJson } from './i18n-utils'
+import { i18nLanguages } from '../localization'
+import { formatLanguageJson, getLangJson } from './i18n-utils'
 
 async function run() {
     // Get args
-    const languageCode = process.argv[2]
+    const lang = process.argv[2]
     const csvPath = path.resolve(__dirname, process.argv[3])
+    const mode = process.argv[4] ?? 'additive'
+    const targetIndex = process.argv[5] ?? '-1'
 
-    if (!languageCode || !csvPath) {
-        console.error('Usage: i18n:import-csv <languageCode> <csvPath>')
-        process.exit(1)
+    if (!Object.keys(i18nLanguages).includes(lang)) {
+        console.error(
+            `Error: Language must be one of (${Object.keys(i18nLanguages).join(
+                '/',
+            )})`,
+        )
+        return
     }
 
-    const languageCodeRegex = /^[a-z][a-z]$/
-    if (!languageCodeRegex.test(languageCode)) {
+    if (mode !== 'additive' && mode !== 'overwrite') {
         console.error(
-            `Invalid language code: must be 2 lower case characters (e.g. 'en', 'fr')`,
+            `Error: Mode must be one of (additive/overwrite), got ${mode}`,
         )
-        process.exit(1)
+        return
+    }
+
+    if (isNaN(Number(targetIndex))) {
+        console.error(
+            `Error: When provided, targetIndex must be a number, got ${targetIndex}`,
+        )
+        return
     }
 
     // Read in language JSON and CSV
@@ -29,19 +43,23 @@ async function run() {
         __dirname,
         '..',
         'localization',
-        languageCode,
+        lang,
         'common.json',
     )
-    const langJson = JSON.parse(
-        fs.readFileSync(path.join(langJsonPath), 'utf8'),
-    )
+    const langJson =
+        // If mode is overwrite, start from the ground
+        // Otherwise, modify the existing language JSON
+        mode === 'overwrite' ? {} : getLangJson(lang)
 
     // Apply CSV to JSON
-    const parsedCsv = parseCsv(csvText)
+    const parsedCsv = Papa.parse<Array<string>>(csvText).data
+
     console.info(`Reading in ${parsedCsv.length} rows from CSV`)
+
     for (const row of parsedCsv) {
-        const key = row[0].trim()
-        const translatedText = row.at(-1)?.trim().replace(/""/g, '"')
+        const key = row[0]
+        const translatedText = row.at(Number(targetIndex))?.replace(/""/g, '"')
+
         if (!key.includes('.')) {
             console.debug(`Skipping "${row}", looks like the header of the CSV`)
             continue
@@ -55,48 +73,6 @@ async function run() {
 
     // Write the new JSON to the language JSON file
     fs.writeFileSync(langJsonPath, formatLanguageJson(langJson), 'utf8')
-}
-
-/**
- * Given some CSV text, parse into an array of rows, each of which is an array
- * of columns. Handles escape characters with commas.
- */
-function parseCsv(csvText: string): string[][] {
-    const rows = csvText.split('\n')
-    const result: string[][] = []
-
-    for (const row of rows) {
-        const columns: string[] = []
-        let currentColumn = ''
-        let insideQuotes = false
-
-        for (let i = 0; i < row.length; i++) {
-            const char = row[i]
-
-            if (char === ',' && !insideQuotes) {
-                columns.push(currentColumn)
-                currentColumn = ''
-            } else if (char === '"' && !insideQuotes) {
-                insideQuotes = true
-            } else if (char === '"' && insideQuotes) {
-                if (i === row.length - 2 || row[i + 1] === ',') {
-                    columns.push(currentColumn)
-                    currentColumn = ''
-                    insideQuotes = false
-                    i++ // Skip the comma
-                } else {
-                    currentColumn += '"'
-                }
-            } else {
-                currentColumn += char
-            }
-        }
-
-        columns.push(currentColumn)
-        result.push(columns)
-    }
-
-    return result
 }
 
 run()

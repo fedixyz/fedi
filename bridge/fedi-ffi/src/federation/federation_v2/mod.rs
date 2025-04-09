@@ -4,7 +4,7 @@ mod dev;
 mod meta;
 
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::pin;
@@ -13,12 +13,15 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use ::serde::{Deserialize, Serialize};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use bitcoin::address::NetworkUnchecked;
+use bitcoin::hex::DisplayHex;
 use bitcoin::secp256k1::PublicKey;
 use bitcoin::{Address, Network};
 use client::ClientExt;
-use db::{FediRawClientConfigKey, InviteCodeKey, TransactionNotesKey};
+use db::{
+    FediRawClientConfigKey, InviteCodeKey, LastStabilityPoolV2DepositCycleKey, TransactionNotesKey,
+};
 use fedi_bug_report::reused_ecash_proofs::{self, SerializedReusedEcashProofs};
 use fedi_social_client::common::VerificationDocument;
 use fedi_social_client::{
@@ -30,7 +33,7 @@ use fedimint_api_client::api::{
     DynGlobalApi, DynModuleApi, FederationApiExt as _, StatusResponse, WsFederationApi,
 };
 use fedimint_bip39::Bip39RootSecretStrategy;
-use fedimint_client::db::ChronologicalOperationLogKey;
+use fedimint_client::db::{CachedApiVersionSetKey, ChronologicalOperationLogKey};
 use fedimint_client::meta::{FetchKind, MetaService, MetaSource};
 use fedimint_client::module::recovery::RecoveryProgress;
 use fedimint_client::module::ClientModule;
@@ -44,12 +47,14 @@ use fedimint_core::db::{
 };
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::module::registry::ModuleDecoderRegistry;
-use fedimint_core::module::ApiRequestErased;
+use fedimint_core::module::{ApiRequestErased, ApiVersion};
 use fedimint_core::task::{timeout, MaybeSend, MaybeSync, TaskGroup};
 use fedimint_core::timing::TimeReporter;
-use fedimint_core::util::backoff_util::aggressive_backoff;
-use fedimint_core::{maybe_add_send_sync, Amount, PeerId};
+use fedimint_core::util::backoff_util::{aggressive_backoff, background_backoff};
+use fedimint_core::util::retry;
+use fedimint_core::{maybe_add_send_sync, Amount, PeerId, TransactionId};
 use fedimint_derive_secret::{ChildId, DerivableSecret};
+use fedimint_ln_client::pay::GatewayPayError;
 use fedimint_ln_client::{
     InternalPayState, LightningClientInit, LightningOperationMeta, LightningOperationMetaPay,
     LightningOperationMetaVariant, LnPayState, LnReceiveState, OutgoingLightningPayment,
@@ -58,10 +63,12 @@ use fedimint_ln_client::{
 use fedimint_ln_common::config::FeeToAmount;
 use fedimint_ln_common::LightningGateway;
 use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
+use fedimint_mint_client::api::MintFederationApi;
+use fedimint_mint_client::config::MintClientConfig;
 use fedimint_mint_client::{
     spendable_notes_to_operation_id, MintClientInit, MintClientModule, MintOperationMeta,
     MintOperationMetaVariant, OOBNotes, ReissueExternalNotesState, SelectNotesWithAtleastAmount,
-    SelectNotesWithExactAmount,
+    SelectNotesWithExactAmount, SpendOOBState,
 };
 use fedimint_wallet_client::{
     DepositStateV2, PegOutFees, WalletClientInit, WalletOperationMeta, WalletOperationMetaVariant,
@@ -70,11 +77,21 @@ use fedimint_wallet_client::{
 use futures::{FutureExt, StreamExt};
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
 use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries, MetaServiceExt};
+use rand::Rng;
 use serde::de::DeserializeOwned;
-use stability_pool_client_old::{
-    ClientAccountInfo, StabilityPoolClientInit, StabilityPoolDepositOperationState,
-    StabilityPoolMeta, StabilityPoolWithdrawalOperationState,
+use stability_pool_client::common::{
+    Account, AccountId, AccountType, FiatAmount, FiatOrAll, SignedTransferRequest, TransferRequest,
 };
+use stability_pool_client::db::{
+    CachedSyncResponseKey, CachedSyncResponseValue, SeekLifetimeFeeKey, UserOperationHistoryItem,
+    UserOperationHistoryItemKey, UserOperationHistoryItemKind,
+};
+use stability_pool_client::{
+    StabilityPoolClientInit, StabilityPoolDepositOperationState, StabilityPoolHistoryService,
+    StabilityPoolMeta, StabilityPoolSyncService, StabilityPoolTransferOperationState,
+    StabilityPoolWithdrawalOperationState,
+};
+use stability_pool_client_old::ClientAccountInfo;
 use tokio::sync::{Mutex, OnceCell};
 use tracing::{error, info, instrument, warn, Level};
 
@@ -94,23 +111,25 @@ use super::federations_locker::FederationLockGuard;
 use crate::constants::{
     ECASH_AUTO_CANCEL_DURATION, LIGHTNING_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE,
     PAY_INVOICE_TIMEOUT, REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE,
-    WALLET_OPERATION_TYPE,
+    STABILITY_POOL_V2_OPERATION_TYPE, WALLET_OPERATION_TYPE,
 };
+use crate::db::FederationPendingRejoinFromScratchKey;
 use crate::error::ErrorCode;
 use crate::event::{Event, EventSink, RecoveryProgressEvent, TypedEventExt};
-use crate::features::FeatureCatalog;
+use crate::features::{FeatureCatalog, StabilityPoolV2FeatureConfig};
 use crate::fedi_fee::{FediFeeHelper, FediFeeRemittanceService};
 use crate::storage::{AppState, FediFeeSchedule};
 use crate::types::{
-    federation_v2_to_rpc_federation, EcashReceiveMetadata, EcashSendMetadata, GuardianStatus,
-    LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcBitcoinDetails, RpcFederationId,
-    RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse,
-    RpcInvoice, RpcLightningDetails, RpcLightningGateway, RpcLnState, RpcOOBState, RpcOnchainState,
-    RpcOperationFediFeeStatus, RpcPayAddressResponse, RpcPayInvoiceResponse, RpcPublicKey,
-    RpcReturningMemberStatus, RpcStabilityPoolTransactionState, RpcTransaction,
-    RpcTransactionDirection, WithdrawalDetails,
+    federation_v2_to_rpc_federation, BaseMetadata, EcashReceiveMetadata, EcashSendMetadata,
+    FrontendMetadata, GuardianStatus, LightningSendMetadata, OperationFediFeeStatus, RpcAmount,
+    RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
+    RpcGenerateEcashResponse, RpcInvoice, RpcLightningGateway, RpcOperationFediFeeStatus,
+    RpcPayAddressResponse, RpcPayInvoiceResponse, RpcPublicKey, RpcReturningMemberStatus,
+    RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState,
+    RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcTransaction, RpcTransactionDirection,
+    RpcTransactionKind, RpcTransactionListEntry,
 };
-use crate::utils::{display_currency, to_unix_time, unix_now};
+use crate::utils::{display_currency, to_unix_time};
 
 mod backup_service;
 mod ln_gateway_service;
@@ -174,6 +193,9 @@ pub struct FederationV2 {
     pub app_state: Arc<AppState>,
     pub this_weak: Weak<Self>,
     pub guard: FederationLockGuard,
+    // Stability pool v2 services for syncing accout history between client and server
+    pub spv2_sync_service: OnceCell<StabilityPoolSyncService>,
+    pub spv2_history_service: OnceCell<StabilityPoolHistoryService>,
 }
 
 impl FederationV2 {
@@ -188,6 +210,7 @@ impl FederationV2 {
         client_builder.with_module(WalletClientInit(None));
         client_builder.with_module(FediSocialClientInit);
         client_builder.with_module(StabilityPoolClientInit);
+        client_builder.with_module(stability_pool_client_old::StabilityPoolClientInit);
         client_builder.with_primary_module_kind(fedimint_mint_client::KIND);
         Ok(client_builder)
     }
@@ -222,6 +245,8 @@ impl FederationV2 {
             app_state,
             this_weak: weak.clone(),
             guard,
+            spv2_sync_service: Default::default(),
+            spv2_history_service: Default::default(),
         });
         if !recovering {
             federation.start_background_tasks().await;
@@ -284,17 +309,54 @@ impl FederationV2 {
             }
         });
 
-        // We disable the StabilityPoolSweeperService in tests to ensure that staged
-        // seeks don't accidentally disappear if a test takes longer than expected and a
-        // stability pool cycle elapses during the course of the test.
-        #[cfg(not(test))]
-        if self.client.sp().is_ok()
-            && self
-                .stability_pool_sweeper_service
-                .set(StabilityPoolSweeperService::new(self))
+        // If SPv2 is enabled and the module is available, we initialize the sync
+        // service and the history service.
+        if self.spv2_feature_state().is_some() {
+            let spv2 = self.client.spv2().expect("checked above");
+            let account = spv2.our_account(AccountType::Seeker);
+            if self
+                .spv2_sync_service
+                .set(
+                    StabilityPoolSyncService::new(spv2.api.clone(), spv2.db.clone(), account.id())
+                        .await,
+                )
                 .is_err()
-        {
-            error!("stability pool sweeper service already initialized");
+            {
+                error!("spv2 sync service already initialized");
+            }
+
+            if self
+                .spv2_history_service
+                .set(StabilityPoolHistoryService::new(
+                    spv2.api.clone(),
+                    spv2.db.clone(),
+                    account.id(),
+                ))
+                .is_err()
+            {
+                error!("spv2 history service already initialized");
+            }
+
+            self.spawn_cancellable("spv2_sync", |fed| async move {
+                let sync_service = fed.spv2_sync_service.get().expect("init above");
+                let config = &fed.client.spv2().expect("checked above").cfg;
+                sync_service.update_continuously(config).await
+            });
+            self.spawn_cancellable("spv2_history", |fed| async move {
+                let sync_service = fed.spv2_sync_service.get().expect("init above");
+                let history_service = fed.spv2_history_service.get().expect("init above");
+                history_service.update_continuously(sync_service).await
+            });
+        } else {
+            #[cfg(not(test))]
+            if self.client.sp().is_ok()
+                && self
+                    .stability_pool_sweeper_service
+                    .set(StabilityPoolSweeperService::new(self))
+                    .is_err()
+            {
+                error!("stability pool sweeper service already initialized");
+            }
         }
     }
 
@@ -426,7 +488,8 @@ impl FederationV2 {
         guard: FederationLockGuard,
         event_sink: EventSink,
         task_group: TaskGroup,
-        db: Database,
+        bridge_db: Database,
+        federation_db: Database,
         root_mnemonic: &bip39::Mnemonic,
         device_index: u8,
         recover_from_scratch: bool,
@@ -445,7 +508,7 @@ impl FederationV2 {
         }
 
         // fedimint-client will add decoders
-        let mut dbtx = db.begin_transaction().await;
+        let mut dbtx = federation_db.begin_transaction().await;
         let fedi_config = FediConfig {
             client_config: client_config.clone(),
         };
@@ -457,7 +520,7 @@ impl FederationV2 {
         dbtx.insert_entry(&InviteCodeKey, &invite_code_string).await;
         dbtx.commit_tx().await;
 
-        let client_builder = Self::build_client_builder(db).await?;
+        let client_builder = Self::build_client_builder(federation_db.clone()).await?;
         let federation_id = client_config.calculate_federation_id();
         let client_secret = Self::client_root_secret_from_root_mnemonic(
             root_mnemonic,
@@ -477,6 +540,21 @@ impl FederationV2 {
                 .recover(client_secret, client_config, None, None)
                 .await?
         } else if let Some(client_backup) = client_backup {
+            // Ensure that rejoin attempt after nonce reuse check failure can never enter
+            // this branch
+            if bridge_db
+                .begin_transaction_nc()
+                .await
+                .get_value(&FederationPendingRejoinFromScratchKey {
+                    invite_code_str: invite_code_string.clone(),
+                })
+                .await
+                .is_some()
+            {
+                return Err(
+                    ErrorCode::FederationPendingRejoinFromScratch(invite_code_string).into(),
+                );
+            }
             info!("backup found {:?}", client_backup);
             client_builder
                 .recover(client_secret, client_config, None, Some(client_backup))
@@ -648,8 +726,8 @@ impl FederationV2 {
                         info!("Raw status response: {:?}", status_response);
                         GuardianStatus::Online {
                             guardian: guardian.to_string(),
-                            latency_ms: start
-                                .elapsed()
+                            latency_ms: fedimint_core::time::now()
+                                .duration_since(start)
                                 .unwrap_or_default()
                                 .as_millis()
                                 .try_into()
@@ -723,7 +801,7 @@ impl FederationV2 {
     }
 
     /// Generate bitcoin address
-    pub async fn generate_address(&self) -> Result<String> {
+    pub async fn generate_address(&self, frontend_meta: FrontendMetadata) -> Result<String> {
         // FIXME: add fedi fees once fedimint await primary module outputs
         let fedi_fee_ppm = self
             .fedi_fee_helper
@@ -736,13 +814,12 @@ impl FederationV2 {
         let (operation_id, address, _) = self
             .client
             .wallet()?
-            .allocate_deposit_address_expert_only(())
+            .allocate_deposit_address_expert_only(BaseMetadata::from(frontend_meta))
             .await?;
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
             .await?;
 
-        self.subscribe_deposit(operation_id, address.to_string())
-            .await?;
+        self.subscribe_deposit(operation_id).await?;
 
         Ok(address.to_string())
     }
@@ -753,6 +830,7 @@ impl FederationV2 {
         amount: RpcAmount,
         description: String,
         expiry_time: Option<u64>,
+        frontend_meta: FrontendMetadata,
     ) -> Result<RpcInvoice> {
         let fedi_fee_ppm = self
             .fedi_fee_helper
@@ -772,7 +850,7 @@ impl FederationV2 {
                     &lightning_invoice::Description::new(description)?,
                 ),
                 expiry_time,
-                (),
+                BaseMetadata::from(frontend_meta),
                 gateway,
             )
             .await?;
@@ -796,7 +874,7 @@ impl FederationV2 {
         })
     }
 
-    async fn subscribe_deposit(&self, operation_id: OperationId, address: String) -> Result<()> {
+    async fn subscribe_deposit(&self, operation_id: OperationId) -> Result<()> {
         self.spawn_cancellable("subscribe deposit", move |fed| async move {
             let Ok(wallet) = fed.client.wallet() else {
                 error!("Wallet module not present!");
@@ -812,18 +890,10 @@ impl FederationV2 {
             else {
                 return;
             };
-            let pending_fedi_fee_status = fed
-                .client
-                .db()
-                .begin_transaction_nc()
-                .await
-                .get_value(&OperationFediFeeStatusKey(operation_id))
-                .await;
             while let Some(update) = updates.next().await {
                 info!("Update: {:?}", update);
                 fed.update_operation_state(operation_id, update.clone())
                     .await;
-                let deposit_outcome = update.clone();
                 match update {
                     DepositStateV2::WaitingForConfirmation { btc_deposited, .. }
                     | DepositStateV2::Confirmed { btc_deposited, .. }
@@ -831,34 +901,14 @@ impl FederationV2 {
                         let federation_fees = wallet.get_fee_consensus().peg_in_abs;
                         let amount = Amount::from_sats(btc_deposited.to_sat()) - federation_fees;
                         // FIXME: add fedi fees once fedimint await primary module outputs
-                        let fedi_fee_status = if let DepositStateV2::Claimed { .. } = &update {
+                        if let DepositStateV2::Claimed { .. } = &update {
                             fed.write_success_receive_fedi_fee(operation_id, amount)
                                 .await
                                 .map(|(_, status)| status)
-                                .ok()
-                        } else {
-                            pending_fedi_fee_status.clone()
-                        };
+                                .ok();
+                        }
                         let _ = fed.record_tx_date_fiat_info(operation_id, amount).await;
-                        let tx_date_fiat_info = fed
-                            .dbtx()
-                            .await
-                            .get_value(&TransactionDateFiatInfoKey(operation_id))
-                            .await;
-                        let transaction = RpcTransaction::new(
-                            operation_id.fmt_full().to_string(),
-                            unix_now().expect("unix time should exist"),
-                            RpcAmount(amount),
-                            RpcTransactionDirection::Receive,
-                            fedi_fee_status.map(Into::into),
-                            tx_date_fiat_info,
-                        )
-                        .with_onchain_state(RpcOnchainState::from_deposit_state(deposit_outcome))
-                        .with_bitcoin(RpcBitcoinDetails {
-                            address: address.clone(),
-                        });
-                        info!("send_transaction_event: {:?}", transaction);
-                        fed.send_transaction_event(transaction);
+                        fed.send_transaction_event(operation_id).await;
                     }
                     DepositStateV2::Failed(reason) => {
                         let _ = fed.write_failed_receive_fedi_fee(operation_id).await;
@@ -896,36 +946,18 @@ impl FederationV2 {
             let mut updates = updates.into_stream();
             while let Some(update) = updates.next().await {
                 info!("Update: {:?}", update);
+                fed.update_operation_state(operation_id, update.clone())
+                    .await;
                 match update {
                     LnReceiveState::Claimed => {
                         let amount = Amount {
                             msats: invoice.amount_milli_satoshis().unwrap(),
                         };
-                        let fedi_fee_status = fed
-                            .write_success_receive_fedi_fee(operation_id, amount)
+                        fed.write_success_receive_fedi_fee(operation_id, amount)
                             .await
                             .map(|(_, status)| status)
-                            .ok()
-                            .map(Into::into);
-                        let tx_date_fiat_info = fed
-                            .dbtx()
-                            .await
-                            .get_value(&TransactionDateFiatInfoKey(operation_id))
-                            .await;
-                        let transaction = RpcTransaction::new(
-                            operation_id.fmt_full().to_string(),
-                            unix_now().expect("unix time should exist"),
-                            RpcAmount(amount),
-                            RpcTransactionDirection::Receive,
-                            fedi_fee_status,
-                            tx_date_fiat_info,
-                        )
-                        .with_ln_state(RpcLnState::from_ln_recv_state(update))
-                        .with_lightning(RpcLightningDetails {
-                            invoice: invoice.to_string(),
-                            fee: None,
-                        });
-                        fed.send_transaction_event(transaction);
+                            .ok();
+                        fed.send_transaction_event(operation_id).await;
                     }
                     LnReceiveState::Canceled { reason } => {
                         let _ = fed.write_failed_receive_fedi_fee(operation_id).await;
@@ -998,7 +1030,11 @@ impl FederationV2 {
     }
 
     /// Pay lightning invoice
-    pub async fn pay_invoice(&self, invoice: &Bolt11Invoice) -> Result<RpcPayInvoiceResponse> {
+    pub async fn pay_invoice(
+        &self,
+        invoice: &Bolt11Invoice,
+        frontend_meta: FrontendMetadata,
+    ) -> Result<RpcPayInvoiceResponse> {
         // Has an amount
         let amount_msat = invoice
             .amount_milli_satoshis()
@@ -1047,6 +1083,7 @@ impl FederationV2 {
         let _federation_id = self.federation_id();
         let extra_meta = LightningSendMetadata {
             is_fedi_fee_remittance: false,
+            frontend_metadata: Some(frontend_meta),
         };
         let ln = self.client.ln()?;
         let OutgoingLightningPayment { payment_type, .. } = match ln
@@ -1141,6 +1178,7 @@ impl FederationV2 {
         &self,
         address: Address<NetworkUnchecked>,
         amount: bitcoin::Amount,
+        frontend_meta: FrontendMetadata,
     ) -> Result<RpcPayAddressResponse> {
         let wallet = self.client.wallet()?;
         let fedi_fee_ppm = self
@@ -1166,7 +1204,14 @@ impl FederationV2 {
             )));
         }
 
-        let operation_id = wallet.withdraw(address, amount, network_fees, ()).await?;
+        let operation_id = wallet
+            .withdraw(
+                address,
+                amount,
+                network_fees,
+                BaseMetadata::from(frontend_meta),
+            )
+            .await?;
         self.write_pending_send_fedi_fee(operation_id, Amount::from_msats(fedi_fee))
             .await?;
         drop(spend_guard);
@@ -1272,6 +1317,7 @@ impl FederationV2 {
                     let extra_meta = serde_json::from_value::<LightningSendMetadata>(extra_meta)
                         .unwrap_or(LightningSendMetadata {
                             is_fedi_fee_remittance: false,
+                            frontend_metadata: None,
                         });
                     // HACK: our code accidentally subscribed using wrong function in past.
                     if pay_meta.is_internal_payment
@@ -1340,11 +1386,10 @@ impl FederationV2 {
                 let meta = operation.meta::<WalletOperationMeta>();
                 match meta {
                     WalletOperationMeta {
-                        variant: WalletOperationMetaVariant::Deposit { address, .. },
+                        variant: WalletOperationMetaVariant::Deposit { .. },
                         ..
                     } => {
-                        self.subscribe_deposit(operation_id, address.assume_checked().to_string())
-                            .await?;
+                        self.subscribe_deposit(operation_id).await?;
                     }
                     _ => {
                         tracing::debug!(
@@ -1354,24 +1399,49 @@ impl FederationV2 {
                     }
                 }
             }
-            STABILITY_POOL_OPERATION_TYPE => match operation.meta::<StabilityPoolMeta>() {
+            STABILITY_POOL_OPERATION_TYPE => {
+                match operation.meta::<stability_pool_client_old::StabilityPoolMeta>() {
+                    stability_pool_client_old::StabilityPoolMeta::Deposit { .. } => {
+                        self.spawn_cancellable(
+                            "subscribe_stability_pool_deposit",
+                            move |fed| async move {
+                                fed.subscribe_stability_pool_deposit_to_seek(operation_id)
+                                    .await
+                            },
+                        );
+                    }
+                    stability_pool_client_old::StabilityPoolMeta::CancelRenewal { .. }
+                    | stability_pool_client_old::StabilityPoolMeta::Withdrawal { .. } => {
+                        self.spawn_cancellable(
+                            "subscribe_stability_pool_withdraw",
+                            move |fed| async move {
+                                fed.subscribe_stability_pool_withdraw(operation_id).await
+                            },
+                        );
+                    }
+                }
+            }
+            STABILITY_POOL_V2_OPERATION_TYPE => match operation.meta::<StabilityPoolMeta>() {
                 StabilityPoolMeta::Deposit { .. } => {
-                    self.spawn_cancellable(
-                        "subscribe_stability_pool_deposit",
-                        move |fed| async move {
-                            fed.subscribe_stability_pool_deposit_to_seek(operation_id)
-                                .await
-                        },
-                    );
+                    self.spawn_cancellable("subscribe_spv2_deposit", move |fed| async move {
+                        fed.subscribe_spv2_deposit_to_seek(operation_id).await
+                    });
                 }
-                StabilityPoolMeta::CancelRenewal { .. } | StabilityPoolMeta::Withdrawal { .. } => {
-                    self.spawn_cancellable(
-                        "subscribe_stability_pool_withdraw",
-                        move |fed| async move {
-                            fed.subscribe_stability_pool_withdraw(operation_id).await
-                        },
-                    );
+                StabilityPoolMeta::Withdrawal { .. } => {
+                    self.spawn_cancellable("subscribe_spv2_withdraw", move |fed| async move {
+                        fed.subscribe_spv2_withdraw(operation_id).await
+                    });
                 }
+                StabilityPoolMeta::Transfer { .. } => {
+                    self.spawn_cancellable("subscribe_spv2_transfer", move |fed| async move {
+                        fed.subscribe_spv2_transfer(operation_id).await
+                    });
+                }
+                StabilityPoolMeta::WithdrawIdleBalance {
+                    txid: _,
+                    amount: _,
+                    outpoints: _,
+                } => todo!("Implement with sweeper service for spv2, no FE events required"),
             },
             // FIXME: should I return an error or just log something?
             _ => {
@@ -1508,6 +1578,74 @@ impl FederationV2 {
         self.recovering
     }
 
+    // Ensure that after recovering from backup, the e-cash nonces will not be
+    // reused, which could lead to loss of funds. Note that we do this on a
+    // best-effort basis. The user would have just joined the federation, and
+    // recovery would have just completed, so very likely the user is online. But if
+    // we timeout after a reasonably long duration, we just skip this check.
+    pub async fn perform_nonce_reuse_check(&self) -> bool {
+        assert!(!self.recovering());
+
+        let client_config = self.client.config().await;
+        let (mint_instance, cfg) = client_config
+            .get_first_module_by_kind::<MintClientConfig>(fedimint_mint_client::KIND)
+            .expect("mint module must be present in config");
+
+        let mut dbtx = self.client.db().begin_transaction().await;
+        let Some(version_set) = dbtx.get_value(&CachedApiVersionSetKey).await else {
+            info!("Skipping nonce check due to absent cache api versions");
+            // no caching here so we will retry on next startup
+            return true;
+        };
+
+        const VERSION_THAT_INTRODUCED_BLIND_NONCE_USED: ApiVersion = ApiVersion::new(0, 1);
+
+        let api_version = version_set
+            .0
+            .modules
+            .get(&mint_instance)
+            .copied()
+            .unwrap_or(ApiVersion::new(0, 0));
+
+        if api_version < VERSION_THAT_INTRODUCED_BLIND_NONCE_USED {
+            info!("Skipping nonce check due to low api version");
+            return true;
+        }
+
+        let mint = self
+            .client
+            .mint()
+            .expect("recovery has completed so mint module must be present");
+        let blind_nonces = {
+            let mut dbtx = mint.db.begin_transaction_nc().await;
+            let mut blind_nonces = vec![];
+            for amt in cfg.tbs_pks.tiers().copied() {
+                let blind_nonce = mint.new_ecash_note(amt, &mut dbtx).await.1;
+                blind_nonces.push(blind_nonce);
+            }
+            blind_nonces
+        };
+
+        // what is a good timeout here?
+        let Ok(all_results) = fedimint_core::task::timeout(
+            Duration::from_secs(120),
+            futures::future::join_all(blind_nonces.iter().map(|blind_nonce| async {
+                retry("check blind nonce", background_backoff(), || async {
+                    let nonce_used = mint.api.check_blind_nonce_used(*blind_nonce).await?;
+                    Ok(!nonce_used)
+                })
+                .await
+                .expect("infinite retry")
+            })),
+        )
+        .await
+        else {
+            info!("Skipping nonce check due to timeout");
+            return true;
+        };
+        all_results.into_iter().all(|nonce_ok| nonce_ok)
+    }
+
     pub async fn wait_for_recovery(&self) -> Result<()> {
         info!("waiting for recovering");
         let mut recovery_complete = pin!(self.client.wait_for_all_recoveries().fuse());
@@ -1536,9 +1674,16 @@ impl FederationV2 {
         }
     }
 
-    fn send_transaction_event(&self, transaction: RpcTransaction) {
-        let event = Event::transaction(self.federation_id().to_string(), transaction);
-        self.event_sink.typed_event(&event);
+    async fn send_transaction_event(&self, operation_id: OperationId) {
+        match self.get_transaction(operation_id).await {
+            Ok(transaction) => {
+                let event = Event::transaction(self.federation_id().to_string(), transaction);
+                self.event_sink.typed_event(&event);
+            }
+            Err(e) => {
+                tracing::error!("Failed to get transaction details: {}", e);
+            }
+        }
     }
 
     fn send_recovery_progress(&self, progress: RecoveryProgress) {
@@ -1596,7 +1741,11 @@ impl FederationV2 {
 
     /// Receive ecash
     /// TODO: user a better type than String
-    pub async fn receive_ecash(&self, ecash: String) -> Result<(Amount, OperationId)> {
+    pub async fn receive_ecash(
+        &self,
+        ecash: String,
+        frontend_meta: FrontendMetadata,
+    ) -> Result<(Amount, OperationId)> {
         let ecash = OOBNotes::from_str(&ecash)?;
         let fedi_fee_ppm = self
             .fedi_fee_helper
@@ -1610,7 +1759,13 @@ impl FederationV2 {
         let operation_id = self
             .client
             .mint()?
-            .reissue_external_notes(ecash, EcashReceiveMetadata { internal: false })
+            .reissue_external_notes(
+                ecash,
+                EcashReceiveMetadata {
+                    internal: false,
+                    frontend_metadata: Some(frontend_meta),
+                },
+            )
             .await?;
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
             .await?;
@@ -1661,29 +1816,7 @@ impl FederationV2 {
                 _ => (),
             }
             if !is_overissue_correction {
-                let fedi_fee_status = self
-                    .client
-                    .db()
-                    .begin_transaction_nc()
-                    .await
-                    .get_value(&OperationFediFeeStatusKey(operation_id))
-                    .await
-                    .map(Into::into);
-                let tx_date_fiat_info = self
-                    .dbtx()
-                    .await
-                    .get_value(&TransactionDateFiatInfoKey(operation_id))
-                    .await;
-                let transaction = RpcTransaction::new(
-                    operation_id.fmt_full().to_string(),
-                    unix_now().expect("unix time should exist"),
-                    RpcAmount(meta.amount),
-                    RpcTransactionDirection::Receive,
-                    fedi_fee_status,
-                    tx_date_fiat_info,
-                )
-                .with_oob_state(RpcOOBState::from_reissue_v2(update.clone()));
-                self.send_transaction_event(transaction);
+                self.send_transaction_event(operation_id).await;
             }
             if let ReissueExternalNotesState::Failed(e) = update {
                 updates.next().await;
@@ -1698,6 +1831,7 @@ impl FederationV2 {
         &self,
         amount: Amount,
         include_invite: bool,
+        frontend_meta: FrontendMetadata,
     ) -> Result<RpcGenerateEcashResponse> {
         let _guard = self.generate_ecash_lock.lock().await;
         let fedi_fee_ppm = self
@@ -1733,7 +1867,10 @@ impl FederationV2 {
                     amount,
                     ECASH_AUTO_CANCEL_DURATION,
                     include_invite,
-                    EcashSendMetadata { internal: false },
+                    EcashSendMetadata {
+                        internal: false,
+                        frontend_metadata: Some(frontend_meta.clone()),
+                    },
                 )
                 .await
             {
@@ -1747,7 +1884,10 @@ impl FederationV2 {
                     amount,
                     ECASH_AUTO_CANCEL_DURATION,
                     include_invite,
-                    EcashSendMetadata { internal: true },
+                    EcashSendMetadata {
+                        internal: true,
+                        frontend_metadata: None,
+                    },
                 )
                 .await?;
             drop(spend_guard);
@@ -1756,7 +1896,13 @@ impl FederationV2 {
             timeout(REISSUE_ECASH_TIMEOUT, async {
                 let notes_amount = notes.total_amount();
                 let operation_id = mint
-                    .reissue_external_notes(notes, EcashReceiveMetadata { internal: true })
+                    .reissue_external_notes(
+                        notes,
+                        EcashReceiveMetadata {
+                            internal: true,
+                            frontend_metadata: None,
+                        },
+                    )
                     .await?;
                 self.subscribe_to_ecash_reissue(operation_id, notes_amount)
                     .await
@@ -2027,28 +2173,6 @@ impl FederationV2 {
         Ok(())
     }
 
-    pub async fn get_ln_pay_outcome(
-        &self,
-        operation_id: OperationId,
-        log_entry: OperationLogEntry,
-    ) -> Option<LnPayState> {
-        let outcome = log_entry.outcome::<PayState>();
-
-        // Return client's cached outcome if we find it
-        if let Some(PayState::Pay(outcome)) = outcome {
-            return Some(outcome);
-        } else if matches!(outcome, Some(PayState::Internal(_))) {
-            return None;
-        }
-
-        // Return our cached outcome if we find it
-        if let Some(outcome) = self.get_operation_state(&operation_id).await {
-            return Some(outcome);
-        }
-
-        None
-    }
-
     pub async fn get_deposit_outcome(&self, operation_id: OperationId) -> Option<DepositStateV2> {
         // Return our cached outcome if we find it
         if let Some(outcome) = self
@@ -2070,11 +2194,17 @@ impl FederationV2 {
         }
     }
 
-    pub async fn get_client_operation_outcome<O: Clone + DeserializeOwned + 'static>(
+    pub async fn get_client_operation_outcome<O, F, Fut>(
         &self,
         operation_id: OperationId,
         log_entry: OperationLogEntry,
-    ) -> Option<O> {
+        subscribe_fn: F,
+    ) -> Option<O>
+    where
+        O: Clone + DeserializeOwned + 'static,
+        F: Fn(OperationId) -> Fut,
+        Fut: Future<Output = anyhow::Result<UpdateStreamOrOutcome<O>>>,
+    {
         let outcome = log_entry.outcome::<O>();
 
         // Return client's cached outcome if we find it
@@ -2086,7 +2216,11 @@ impl FederationV2 {
             return Some(outcome);
         }
 
-        None
+        match subscribe_fn(operation_id).await {
+            Ok(UpdateStreamOrOutcome::Outcome(outcome)) => Some(outcome),
+            Ok(UpdateStreamOrOutcome::UpdateStream(mut stream)) => stream.next().await,
+            Err(_) => None,
+        }
     }
 
     /// Return all transactions via operation log
@@ -2094,314 +2228,511 @@ impl FederationV2 {
         &self,
         limit: usize,
         start_after: Option<ChronologicalOperationLogKey>,
-    ) -> Vec<RpcTransaction> {
+    ) -> Vec<RpcTransactionListEntry> {
         let futures = self
             .client
             .operation_log()
             .list_operations(limit, start_after)
             .await
             .into_iter()
-            .map(
-                |op: (ChronologicalOperationLogKey, OperationLogEntry)| async move {
-                    let notes = self
-                        .dbtx()
-                        .await
-                        .get_value(&TransactionNotesKey(op.0.operation_id))
-                        .await
-                        .unwrap_or_default();
-                    let tx_date_fiat_info = self.dbtx().await.get_value(&TransactionDateFiatInfoKey(op.0.operation_id)).await;
-                    let fedi_fee_status = self
-                        .client
-                        .db()
-                        .begin_transaction_nc()
-                        .await
-                        .get_value(&OperationFediFeeStatusKey(op.0.operation_id))
-                        .await
-                        .map(Into::into);
-                    let fedi_fee_msats = match fedi_fee_status {
-                        Some(RpcOperationFediFeeStatus::PendingSend { fedi_fee } | RpcOperationFediFeeStatus::Success { fedi_fee }) => fedi_fee.0.msats,
-                        _ => 0,
-                    };
-                    let outcome_time = op.1.outcome_time();
-
-                    let mut transaction = match op.1.operation_module_kind() {
-                        LIGHTNING_OPERATION_TYPE => {
-                            let lightning_meta: LightningOperationMeta = op.1.meta();
-                            match lightning_meta.variant {
-                                LightningOperationMetaVariant::Pay(LightningOperationMetaPay{ invoice, fee, .. }) => {
-                                    let extra_meta = serde_json::from_value::<LightningSendMetadata>(lightning_meta.extra_meta)
-                                        .unwrap_or(LightningSendMetadata {
-                                            is_fedi_fee_remittance: false,
-                                        });
-                                    // Exclude fee remittance transactions from TX list
-                                    if extra_meta.is_fedi_fee_remittance {
-                                        None
-                                    } else {
-                                        let mut transaction = RpcTransaction::new(
-                                            op.0.operation_id.fmt_full().to_string(),
-                                            to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                            RpcAmount(Amount {
-                                                msats: invoice.amount_milli_satoshis().unwrap() + fedi_fee_msats + fee.msats,
-                                            }),
-                                            RpcTransactionDirection::Send,
-                                            fedi_fee_status,
-                                            tx_date_fiat_info
-                                        )
-                                        .with_notes(notes)
-                                        .with_lightning(RpcLightningDetails {
-                                            invoice: invoice.to_string(),
-                                            fee: Some(RpcAmount(fee)),
-                                        });
-
-                                        if let Some(state) = self.get_ln_pay_outcome(op.0.operation_id, op.1).await {
-                                            transaction = transaction.with_ln_state(RpcLnState::from_ln_pay_state(state));
-                                        }
-                                        Some(transaction)
-                                    }
-                                }
-                                LightningOperationMetaVariant::Receive{ invoice, .. } => {
-                                    let mut transaction = RpcTransaction::new(
-                                        op.0.operation_id.fmt_full().to_string(),
-                                        to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                        RpcAmount(Amount {
-                                            msats: invoice.amount_milli_satoshis().unwrap(),
-                                        }),
-                                        RpcTransactionDirection::Receive,
-                                        fedi_fee_status,
-                                        tx_date_fiat_info
-                                    )
-                                    .with_notes(notes)
-                                    .with_lightning(RpcLightningDetails {
-                                        invoice: invoice.to_string(),
-                                        fee: None,
-                                    });
-
-                                    if let Some(state) = op.1.outcome::<LnReceiveState>() {
-                                        transaction = transaction.with_ln_state(RpcLnState::from_ln_recv_state(state));
-                                    }
-                                    Some(transaction)
-                                }
-                                LightningOperationMetaVariant::Claim { .. } => unreachable!("claims are not supported"),
-                            }
-                        },
-                        STABILITY_POOL_OPERATION_TYPE => match op.1.meta() {
-                            StabilityPoolMeta::Deposit { txid, amount, .. } => {
-                                let mut transaction = RpcTransaction::new(
-                                    op.0.operation_id.fmt_full().to_string(),
-                                    to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                    RpcAmount(amount + Amount::from_msats(fedi_fee_msats)),
-                                    RpcTransactionDirection::Send,
-                                    fedi_fee_status,
-                                    tx_date_fiat_info
-                                )
-                                .with_notes(notes);
-
-                                if let Ok(ClientAccountInfo { account_info, .. }) = self.stability_pool_account_info(false).await {
-                                    let state = if let Some(metadata) = account_info.seeks_metadata.get(&txid) {
-                                        RpcStabilityPoolTransactionState::CompleteDeposit {
-                                            initial_amount_cents: metadata.initial_amount_cents,
-                                            fees_paid_so_far: RpcAmount(metadata.fees_paid_so_far)
-                                        }
-                                    } else {
-                                        RpcStabilityPoolTransactionState::PendingDeposit
-                                    };
-                                    transaction = transaction.with_stability_pool_state(state);
-                                }
-                                Some(transaction)
-                            },
-                            StabilityPoolMeta::Withdrawal { estimated_withdrawal_cents, .. } | StabilityPoolMeta::CancelRenewal { estimated_withdrawal_cents, .. } => {
-                                let outcome = self
-                                    .get_client_operation_outcome(op.0.operation_id, op.1)
-                                    .await;
-                                let amount = match outcome {
-                                    Some(StabilityPoolWithdrawalOperationState::WithdrawUnlockedInitiated(amount) |
-                                        StabilityPoolWithdrawalOperationState::WithdrawUnlockedAccepted(amount) |
-                                        StabilityPoolWithdrawalOperationState::Success(amount) |
-                                        StabilityPoolWithdrawalOperationState::CancellationInitiated(Some(amount)) |
-                                        StabilityPoolWithdrawalOperationState::CancellationAccepted(Some(amount)) |
-                                        StabilityPoolWithdrawalOperationState::WithdrawIdleInitiated(amount) |
-                                        StabilityPoolWithdrawalOperationState::WithdrawIdleAccepted(amount)) => RpcAmount(amount),
-                                    _ => RpcAmount(Amount::ZERO),
-                                };
-                                let mut transaction = RpcTransaction::new(
-                                    op.0.operation_id.fmt_full().to_string(),
-                                    to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                    amount,
-                                    RpcTransactionDirection::Receive,
-                                    fedi_fee_status,
-                                    tx_date_fiat_info
-                                )
-                                .with_notes(notes);
-
-                                if let Some(outcome) = outcome {
-                                    let state = match outcome {
-                                        StabilityPoolWithdrawalOperationState::Success(_) => RpcStabilityPoolTransactionState::CompleteWithdrawal { estimated_withdrawal_cents },
-                                        _ => RpcStabilityPoolTransactionState::PendingWithdrawal { estimated_withdrawal_cents },
-                                    };
-                                    transaction = transaction.with_stability_pool_state(state);
-                                }
-                                Some(transaction)
-                            }
-                        },
-                        MINT_OPERATION_TYPE => {
-                            let mint_meta: MintOperationMeta = op.1.meta();
-                            match mint_meta.variant {
-                                MintOperationMetaVariant::Reissuance { .. } => {
-                                    let internal = serde_json::from_value::<EcashReceiveMetadata>(
-                                        mint_meta.extra_meta,
-                                    ).is_ok_and(|x| x.internal);
-                                    if !internal {
-                                        let mut transaction = RpcTransaction::new(
-                                            op.0.operation_id.fmt_full().to_string(),
-                                            to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                            RpcAmount(mint_meta.amount),
-                                            RpcTransactionDirection::Receive,
-                                            fedi_fee_status,
-                                            tx_date_fiat_info
-                                        )
-                                        .with_notes(notes);
-
-                                        if let Some(outcome) = self.get_client_operation_outcome(op.0.operation_id, op.1).await {
-                                            let state = RpcOOBState::from_reissue_v2(outcome);
-                                            transaction = transaction.with_oob_state(state);
-                                        }
-                                        Some(transaction)
-                                    } else {
-                                        None
-                                    }
-                                }
-                                MintOperationMetaVariant::SpendOOB {
-                                    requested_amount, ..
-                                } => {
-                                    let internal = serde_json::from_value::<EcashSendMetadata>(
-                                        mint_meta.extra_meta,
-                                    ).is_ok_and(|x| x.internal);
-
-                                    if !internal {
-                                        let mut transaction = RpcTransaction::new(
-                                            op.0.operation_id.fmt_full().to_string(),
-                                            to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                            RpcAmount(requested_amount + Amount::from_msats(fedi_fee_msats)),
-                                            RpcTransactionDirection::Send,
-                                            fedi_fee_status,
-                                            tx_date_fiat_info
-                                        )
-                                        .with_notes(notes);
-
-                                        if let Some(outcome) = self.get_client_operation_outcome(op.0.operation_id, op.1).await {
-                                            let state = RpcOOBState::from_spend_v2(outcome);
-                                            transaction = transaction.with_oob_state(state);
-                                        }
-                                        Some(transaction)
-                                    } else {
-                                        None
-                                    }
-                                },
-                            }
-                        }
-                        WALLET_OPERATION_TYPE => {
-                            let wallet_meta: WalletOperationMeta = op.1.meta();
-                            match wallet_meta.variant {
-                                WalletOperationMetaVariant::Deposit {
-                                    address,
-                                    ..
-                                } => {
-                                    let outcome = self.get_deposit_outcome(op.0.operation_id).await;
-                                    let amount = match outcome {
-                                        Some(
-                                            DepositStateV2::WaitingForConfirmation { btc_deposited, ..}
-                                            | DepositStateV2::Claimed { btc_deposited, ..},
-                                        ) => {
-                                            let wallet = self.client.wallet();
-                                            let fees = wallet.map(|w| w.get_fee_consensus().peg_in_abs).unwrap_or(Amount::ZERO);
-                                            RpcAmount(Amount::from_sats(btc_deposited.to_sat()) - fees)
-                                        },
-                                        _ => RpcAmount(Amount::ZERO),
-                                    };
-                                    let mut transaction = RpcTransaction::new(
-                                        op.0.operation_id.fmt_full().to_string(),
-                                        to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                        amount,
-                                        RpcTransactionDirection::Receive,
-                                        fedi_fee_status,
-                                        tx_date_fiat_info
-                                    )
-                                    .with_notes(notes)
-                                    .with_bitcoin(RpcBitcoinDetails {
-                                        address: address.assume_checked().to_string(),
-                                    });
-
-                                    if let Some(outcome) = outcome {
-                                        let state = RpcOnchainState::from_deposit_state(outcome.clone());
-                                        transaction = transaction.with_onchain_state(state);
-                                    }
-                                    Some(transaction)
-                                }
-                                WalletOperationMetaVariant::Withdraw {
-                                    address,
-                                    amount,
-                                    fee,
-                                    change: _,
-                                } => {
-                                    let core_amount = fedimint_core::Amount {
-                                        msats: amount.to_sat() * 1000,
-                                    };
-                                    let rpc_amount = RpcAmount(core_amount);
-
-                                    // Todo: Figure out a where to pass back txid to client
-                                    let (outcome, txid) = self
-                                        .get_withdrawal_outcome(op.0.operation_id)
-                                        .await
-                                        .expect("Expected a withdrawal outcome but got None");
-
-                                    let txid_str = match txid {
-                                        Some(n) => n.to_string(),
-                                        None => "".to_string(),
-                                    };
-
-                                    let transaction = RpcTransaction::new(
-                                        op.0.operation_id.fmt_full().to_string(),
-                                        to_unix_time(op.0.creation_time).expect("unix time should exist"),
-                                        rpc_amount,
-                                        RpcTransactionDirection::Send,
-                                        fedi_fee_status,
-                                        tx_date_fiat_info
-                                    )
-                                    .with_notes(notes)
-                                    .with_onchain_state(RpcOnchainState::from_withdraw_state(outcome))
-                                    .with_onchain_withdrawal_details(WithdrawalDetails {
-                                        address: address.assume_checked().to_string(),
-                                        txid: txid_str,
-                                        fee: RpcAmount(Amount::from_sats(fee.amount().to_sat())),
-                                        fee_rate: fee.fee_rate.sats_per_kvb,
-                                    });
-                                    Some(transaction)
-                                }
-                                WalletOperationMetaVariant::RbfWithdraw { rbf: _, change: _ } => None,
-                            }
-                        },
-                        _ => {
-                            panic!(
-                                "Found unimplemented for module with operation type = {}",
-                                op.1.operation_module_kind()
-                            );
-                        }
-                    };
-                    if let Some(transaction) = &mut transaction {
-                        if let Some(outcome_time) = outcome_time {
-                            if let Ok(unix_time) = to_unix_time(outcome_time) {
-                                transaction.outcome_time = Some(unix_time);
-                            }
-                        }
-                    }
-                    transaction
-                },
-            );
+            .map(|(op_key, entry)| async move {
+                Some(RpcTransactionListEntry {
+                    created_at: to_unix_time(op_key.creation_time).expect("unix time should exist"),
+                    transaction: self
+                        .get_transaction_inner(op_key.operation_id, entry)
+                        .await?,
+                })
+            });
         futures::future::join_all(futures)
             .await
             .into_iter()
             .flatten()
             .collect()
+    }
+
+    pub async fn get_transaction(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<RpcTransaction> {
+        let entry = self
+            .client
+            .operation_log()
+            .get_operation(operation_id)
+            .await
+            .context("transaction not found")?;
+        self.get_transaction_inner(operation_id, entry)
+            .await
+            .context("internal transaction")
+    }
+
+    async fn get_transaction_inner(
+        &self,
+        operation_id: OperationId,
+        entry: OperationLogEntry,
+    ) -> Option<RpcTransaction> {
+        let notes = self
+            .dbtx()
+            .await
+            .get_value(&TransactionNotesKey(operation_id))
+            .await
+            .unwrap_or_default();
+        let tx_date_fiat_info = self
+            .dbtx()
+            .await
+            .get_value(&TransactionDateFiatInfoKey(operation_id))
+            .await;
+        let fedi_fee_status = self
+            .client
+            .db()
+            .begin_transaction_nc()
+            .await
+            .get_value(&OperationFediFeeStatusKey(operation_id))
+            .await
+            .map(Into::into);
+        let fedi_fee_msats = match fedi_fee_status {
+            Some(
+                RpcOperationFediFeeStatus::PendingSend { fedi_fee }
+                | RpcOperationFediFeeStatus::Success { fedi_fee },
+            ) => fedi_fee.0.msats,
+            _ => 0,
+        };
+        let outcome_time = entry.outcome_time();
+        let (transaction_amount, transaction_kind, frontend_metadata);
+        match entry.operation_module_kind() {
+            LIGHTNING_OPERATION_TYPE => {
+                let lightning_meta: LightningOperationMeta = entry.meta();
+                match lightning_meta.variant {
+                    LightningOperationMetaVariant::Pay(LightningOperationMetaPay {
+                        invoice,
+                        fee,
+                        is_internal_payment,
+                        ..
+                    }) => {
+                        let extra_meta = serde_json::from_value::<LightningSendMetadata>(
+                            lightning_meta.extra_meta,
+                        )
+                        .unwrap_or(LightningSendMetadata {
+                            is_fedi_fee_remittance: false,
+                            frontend_metadata: None,
+                        });
+
+                        // Exclude fee remittance transactions from TX list
+                        if extra_meta.is_fedi_fee_remittance {
+                            return None;
+                        }
+
+                        transaction_amount = RpcAmount(Amount {
+                            msats: invoice.amount_milli_satoshis().unwrap()
+                                + fedi_fee_msats
+                                + fee.msats,
+                        });
+                        frontend_metadata = extra_meta.frontend_metadata;
+                        let state = if is_internal_payment {
+                            self.get_client_operation_outcome(
+                                operation_id,
+                                entry,
+                                |op_id| async move {
+                                    self.client.ln()?.subscribe_internal_pay(op_id).await
+                                },
+                            )
+                            .await
+                            .map(|internal_pay_state| {
+                                match internal_pay_state {
+                                    InternalPayState::Funding => LnPayState::Created,
+                                    InternalPayState::Preimage(preimage) => LnPayState::Success {
+                                        preimage: preimage.0.to_lower_hex_string(),
+                                    },
+                                    InternalPayState::RefundSuccess { error, .. } => {
+                                        LnPayState::Refunded {
+                                            gateway_error: GatewayPayError::GatewayInternalError {
+                                                error_code: None,
+                                                error_message: error.to_string(),
+                                            },
+                                        }
+                                    }
+                                    InternalPayState::RefundError { error_message, .. } => {
+                                        LnPayState::UnexpectedError { error_message }
+                                    }
+                                    InternalPayState::FundingFailed { .. } => LnPayState::Canceled,
+                                    InternalPayState::UnexpectedError(error_message) => {
+                                        LnPayState::UnexpectedError { error_message }
+                                    }
+                                }
+                            })
+                        } else {
+                            self.get_client_operation_outcome(
+                                operation_id,
+                                entry,
+                                |op_id| async move { self.client.ln()?.subscribe_ln_pay(op_id).await }
+                            ).await
+                        };
+                        transaction_kind = RpcTransactionKind::LnPay {
+                            ln_invoice: invoice.to_string(),
+                            lightning_fees: RpcAmount(fee),
+                            state: state.map(Into::into),
+                        };
+                    }
+                    LightningOperationMetaVariant::Receive { invoice, .. } => {
+                        transaction_amount = RpcAmount(Amount {
+                            msats: invoice.amount_milli_satoshis().unwrap(),
+                        });
+                        frontend_metadata =
+                            serde_json::from_value::<BaseMetadata>(lightning_meta.extra_meta)
+                                .unwrap_or_default()
+                                .into();
+                        transaction_kind = RpcTransactionKind::LnReceive {
+                            ln_invoice: invoice.to_string(),
+                            state: self
+                                .get_client_operation_outcome(
+                                    operation_id,
+                                    entry,
+                                    |op_id| async move {
+                                        self.client.ln()?.subscribe_ln_receive(op_id).await
+                                    },
+                                )
+                                .await
+                                .map(Into::into),
+                        };
+                    }
+                    LightningOperationMetaVariant::Claim { .. } => {
+                        unreachable!("claims are not supported")
+                    }
+                }
+            }
+            STABILITY_POOL_OPERATION_TYPE => match entry.meta() {
+                stability_pool_client_old::StabilityPoolMeta::Deposit { txid, amount, .. } => {
+                    transaction_amount = RpcAmount(amount + Amount::from_msats(fedi_fee_msats));
+                    frontend_metadata = None;
+                    transaction_kind = RpcTransactionKind::SpDeposit {
+                        state: if let Ok(ClientAccountInfo { account_info, .. }) =
+                            // FIXME: remove network request from here
+                            self.stability_pool_account_info(false).await
+                        {
+                            if let Some(metadata) = account_info.seeks_metadata.get(&txid) {
+                                RpcSPDepositState::CompleteDeposit {
+                                    initial_amount_cents: metadata.initial_amount_cents,
+                                    fees_paid_so_far: RpcAmount(metadata.fees_paid_so_far),
+                                }
+                            } else {
+                                RpcSPDepositState::PendingDeposit
+                            }
+                        } else {
+                            RpcSPDepositState::DataNotInCache
+                        },
+                    }
+                }
+                stability_pool_client_old::StabilityPoolMeta::Withdrawal {
+                    estimated_withdrawal_cents,
+                    ..
+                }
+                | stability_pool_client_old::StabilityPoolMeta::CancelRenewal {
+                    estimated_withdrawal_cents,
+                    ..
+                } => {
+                    let outcome = self
+                        .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                            self.client.sp()?.subscribe_withdraw(op_id).await
+                        })
+                        .await;
+
+                    frontend_metadata = None;
+                    transaction_amount = match outcome {
+                        Some(
+                            stability_pool_client_old::StabilityPoolWithdrawalOperationState::WithdrawUnlockedInitiated(
+                                amount,
+                            )
+                            | stability_pool_client_old::StabilityPoolWithdrawalOperationState::WithdrawUnlockedAccepted(amount)
+                            | stability_pool_client_old::StabilityPoolWithdrawalOperationState::Success(amount)
+                            | stability_pool_client_old::StabilityPoolWithdrawalOperationState::CancellationInitiated(Some(
+                                amount,
+                            ))
+                            | stability_pool_client_old::StabilityPoolWithdrawalOperationState::CancellationAccepted(Some(
+                                amount,
+                            ))
+                            | stability_pool_client_old::StabilityPoolWithdrawalOperationState::WithdrawIdleInitiated(amount)
+                            | stability_pool_client_old::StabilityPoolWithdrawalOperationState::WithdrawIdleAccepted(amount),
+                        ) => RpcAmount(amount),
+                        _ => RpcAmount(Amount::ZERO),
+                    };
+
+                    transaction_kind = RpcTransactionKind::SpWithdraw {
+                        state: match outcome {
+                            Some(stability_pool_client_old::StabilityPoolWithdrawalOperationState::Success(_)) => {
+                                Some(RpcSPWithdrawState::CompleteWithdrawal {
+                                    estimated_withdrawal_cents,
+                                })
+                            }
+                            Some(_) => Some(RpcSPWithdrawState::PendingWithdrawal {
+                                estimated_withdrawal_cents,
+                            }),
+                            None => None,
+                        },
+                    };
+                }
+            },
+            STABILITY_POOL_V2_OPERATION_TYPE => match entry.meta() {
+                StabilityPoolMeta::Deposit { txid, amount, .. } => {
+                    transaction_amount = RpcAmount(amount + Amount::from_msats(fedi_fee_msats));
+                    frontend_metadata = None;
+                    transaction_kind = RpcTransactionKind::SPV2Deposit {
+                        state: if let Some(item) = self.spv2_user_op_history_item(txid).await {
+                            match item.kind {
+                                UserOperationHistoryItemKind::PendingDeposit => {
+                                    RpcSPV2DepositState::PendingDeposit {
+                                        amount: RpcAmount(item.amount),
+                                        fiat_amount: item.fiat_amount.0,
+                                    }
+                                }
+                                UserOperationHistoryItemKind::CompletedDeposit => {
+                                    let fees_paid_so_far = RpcAmount(
+                                        self.spv2_seek_lifetime_fee(txid)
+                                            .await
+                                            .unwrap_or(Amount::ZERO),
+                                    );
+                                    RpcSPV2DepositState::CompletedDeposit {
+                                        amount: RpcAmount(item.amount),
+                                        fiat_amount: item.fiat_amount.0,
+                                        fees_paid_so_far,
+                                    }
+                                }
+                                _ => panic!(
+                                    "SPV2 meta does not match user operation kind for {txid}"
+                                ),
+                            }
+                        } else {
+                            RpcSPV2DepositState::DataNotInCache
+                        },
+                    }
+                }
+                StabilityPoolMeta::Withdrawal { txid, .. } => {
+                    frontend_metadata = None;
+                    transaction_kind = RpcTransactionKind::SPV2Withdrawal {
+                        state: if let Some(item) = self.spv2_user_op_history_item(txid).await {
+                            transaction_amount = RpcAmount(item.amount);
+                            match item.kind {
+                                UserOperationHistoryItemKind::PendingWithdrawal => {
+                                    RpcSPV2WithdrawalState::PendingWithdrawal {
+                                        amount: RpcAmount(item.amount),
+                                        fiat_amount: item.fiat_amount.0,
+                                    }
+                                }
+                                UserOperationHistoryItemKind::CompletedWithdrawal => {
+                                    RpcSPV2WithdrawalState::CompletedWithdrawal {
+                                        amount: RpcAmount(item.amount),
+                                        fiat_amount: item.fiat_amount.0,
+                                    }
+                                }
+                                _ => panic!(
+                                    "SPV2 meta does not match user operation kind for {txid}"
+                                ),
+                            }
+                        } else {
+                            transaction_amount = RpcAmount(Amount::ZERO);
+                            RpcSPV2WithdrawalState::DataNotInCache
+                        },
+                    }
+                }
+                StabilityPoolMeta::Transfer {
+                    txid,
+                    signed_request,
+                } => {
+                    frontend_metadata = None;
+                    // We must either be the sender or the recipient of the
+                    // transfer, otherwise we can ignore it for our own personal
+                    // operation history
+                    if let Some(account) = self.spv2_our_seeker_account() {
+                        if account.id() == signed_request.details().from().id() {
+                            // Case 1: we were the sender
+                            transaction_kind = RpcTransactionKind::SPV2TransferOut {
+                                state: if let Some(item) =
+                                    self.spv2_user_op_history_item(txid).await
+                                {
+                                    transaction_amount = RpcAmount(item.amount);
+                                    RpcSPV2TransferOutState::CompletedTransfer {
+                                        to_account_id: signed_request.details().to().to_string(),
+                                        amount: RpcAmount(item.amount),
+                                        fiat_amount: item.fiat_amount.0,
+                                    }
+                                } else {
+                                    transaction_amount = RpcAmount(Amount::ZERO);
+                                    RpcSPV2TransferOutState::DataNotInCache
+                                },
+                            }
+                        } else if account.id() == *signed_request.details().to() {
+                            // Case 2: we were the recipient
+                            transaction_kind = RpcTransactionKind::SPV2TransferIn {
+                                state: if let Some(item) =
+                                    self.spv2_user_op_history_item(txid).await
+                                {
+                                    transaction_amount = RpcAmount(item.amount);
+                                    RpcSPV2TransferInState::CompletedTransfer {
+                                        from_account_id: signed_request
+                                            .details()
+                                            .from()
+                                            .id()
+                                            .to_string(),
+                                        amount: RpcAmount(item.amount),
+                                        fiat_amount: item.fiat_amount.0,
+                                    }
+                                } else {
+                                    transaction_amount = RpcAmount(Amount::ZERO);
+                                    RpcSPV2TransferInState::DataNotInCache
+                                },
+                            }
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                }
+                StabilityPoolMeta::WithdrawIdleBalance { .. } => {
+                    // TXs to sweep idle balance shouldn't log in history
+                    return None;
+                }
+            },
+            MINT_OPERATION_TYPE => {
+                let mint_meta: MintOperationMeta = entry.meta();
+                match mint_meta.variant {
+                    MintOperationMetaVariant::Reissuance { .. } => {
+                        let extra_meta =
+                            serde_json::from_value::<EcashReceiveMetadata>(mint_meta.extra_meta)
+                                .unwrap_or(EcashReceiveMetadata {
+                                    internal: false,
+                                    frontend_metadata: None,
+                                });
+                        if extra_meta.internal {
+                            return None;
+                        }
+                        transaction_amount = RpcAmount(mint_meta.amount);
+                        frontend_metadata = extra_meta.frontend_metadata;
+                        transaction_kind = RpcTransactionKind::OobReceive {
+                            state: self
+                                .get_client_operation_outcome(
+                                    operation_id,
+                                    entry,
+                                    |op_id| async move {
+                                        self.client
+                                            .mint()?
+                                            .subscribe_reissue_external_notes(op_id)
+                                            .await
+                                    },
+                                )
+                                .await
+                                .map(ReissueExternalNotesState::into),
+                        };
+                    }
+                    MintOperationMetaVariant::SpendOOB {
+                        requested_amount, ..
+                    } => {
+                        let extra_meta =
+                            serde_json::from_value::<EcashSendMetadata>(mint_meta.extra_meta)
+                                .unwrap_or(EcashSendMetadata {
+                                    internal: false,
+                                    frontend_metadata: None,
+                                });
+                        if extra_meta.internal {
+                            return None;
+                        }
+                        transaction_amount =
+                            RpcAmount(requested_amount + Amount::from_msats(fedi_fee_msats));
+                        frontend_metadata = extra_meta.frontend_metadata;
+                        transaction_kind = RpcTransactionKind::OobSend {
+                            state: self
+                                .get_client_operation_outcome(
+                                    operation_id,
+                                    entry,
+                                    |op_id| async move {
+                                        self.client.mint()?.subscribe_spend_notes(op_id).await
+                                    },
+                                )
+                                .await
+                                .map(SpendOOBState::into),
+                        };
+                    }
+                }
+            }
+            WALLET_OPERATION_TYPE => {
+                let wallet_meta: WalletOperationMeta = entry.meta();
+                frontend_metadata = serde_json::from_value::<BaseMetadata>(wallet_meta.extra_meta)
+                    .unwrap()
+                    .into();
+                match wallet_meta.variant {
+                    WalletOperationMetaVariant::Deposit { address, .. } => {
+                        let outcome = self.get_deposit_outcome(operation_id).await;
+                        transaction_amount = match outcome {
+                            Some(
+                                DepositStateV2::WaitingForConfirmation { btc_deposited, .. }
+                                | DepositStateV2::Claimed { btc_deposited, .. },
+                            ) => {
+                                let wallet = self.client.wallet();
+                                let fees = wallet
+                                    .map(|w| w.get_fee_consensus().peg_in_abs)
+                                    .unwrap_or(Amount::ZERO);
+                                RpcAmount(Amount::from_sats(btc_deposited.to_sat()) - fees)
+                            }
+                            _ => RpcAmount(Amount::ZERO),
+                        };
+
+                        transaction_kind = RpcTransactionKind::OnchainDeposit {
+                            onchain_address: address.assume_checked().to_string(),
+                            state: outcome.map(Into::into),
+                        };
+                    }
+                    WalletOperationMetaVariant::Withdraw {
+                        address,
+                        amount,
+                        fee,
+                        change: _,
+                    } => {
+                        let core_amount = fedimint_core::Amount {
+                            msats: amount.to_sat() * 1000,
+                        };
+                        transaction_amount = RpcAmount(core_amount);
+
+                        let (outcome, txid) = self
+                            .get_withdrawal_outcome(operation_id)
+                            .await
+                            .expect("Expected a withdrawal outcome but got None");
+
+                        let txid_str = match txid {
+                            Some(n) => n.to_string(),
+                            None => "".to_string(),
+                        };
+
+                        transaction_kind = RpcTransactionKind::OnchainWithdraw {
+                            onchain_address: address.assume_checked().to_string(),
+                            onchain_txid: txid_str,
+                            onchain_fees: RpcAmount(Amount::from_sats(fee.amount().to_sat())),
+                            onchain_fee_rate: fee.fee_rate.sats_per_kvb,
+                            state: Some(outcome.into()),
+                        };
+                    }
+                    WalletOperationMetaVariant::RbfWithdraw { .. } => return None,
+                }
+            }
+            _ => {
+                panic!(
+                    "Found unimplemented for module with operation type = {}",
+                    entry.operation_module_kind()
+                );
+            }
+        }
+        let mut transaction = RpcTransaction::new(
+            operation_id.fmt_full().to_string(),
+            transaction_amount,
+            fedi_fee_status,
+            tx_date_fiat_info,
+            notes,
+            frontend_metadata.unwrap_or_default(),
+            transaction_kind,
+        );
+        if let Some(outcome_time) = outcome_time {
+            if let Ok(unix_time) = to_unix_time(outcome_time) {
+                transaction.outcome_time = Some(unix_time);
+            }
+        }
+        Some(transaction)
     }
 
     pub async fn update_transaction_notes(
@@ -2447,6 +2778,388 @@ impl FederationV2 {
                 .expect("incorrect type to get_operation_state")
                 .clone(),
         )
+    }
+
+    /// Reads the SPv2 feature flag and applies the SPv2 module availability on
+    /// top of it. Ideally this function should be used for checking the state
+    /// of the SPv2 feature (instead of reading the feature catalog directly)
+    /// for any federation specific operations. However, for global checks (such
+    /// as showing UX entry points that are not tied to any federation), the
+    /// feature flag should be read directly.
+    pub fn spv2_feature_state(&self) -> Option<StabilityPoolV2FeatureConfig> {
+        // If the module is not available, the feature flag value doesn't matter. It's
+        // always treated as None.
+        match (&self.feature_catalog.stability_pool_v2, self.client.spv2()) {
+            (state, Ok(_)) => state.clone(),
+            _ => None,
+        }
+    }
+
+    /// Returns the latest cached sync response representing the seeker's last
+    /// know SPv2 state. Getting the cached response should be sufficient
+    /// because the value only updates once per cycle, and we already have a
+    /// background service that automatically fetches and caches the state every
+    /// cycle.
+    pub async fn spv2_account_info(&self) -> Result<CachedSyncResponseValue> {
+        ensure!(
+            self.spv2_feature_state().is_some(),
+            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
+        );
+        let spv2 = self.client.spv2()?;
+        let account_id = spv2.our_account(AccountType::Seeker).id();
+
+        spv2.db
+            .clone()
+            .begin_transaction_nc()
+            .await
+            .get_value(&CachedSyncResponseKey { account_id })
+            .await
+            .ok_or(ErrorCode::BadRequest.into())
+    }
+
+    /// Returns the start time of the next cycle by adding cycle duration to the
+    /// start time of the last known cycle as recorded in the cached sync
+    /// response.
+    pub async fn spv2_next_cycle_start_time(&self) -> Result<u64> {
+        let sync_response = self.spv2_account_info().await?;
+        let config = &self.client.spv2()?.cfg;
+
+        let next_time = sync_response
+            .value
+            .current_cycle
+            .start_time
+            .checked_add(config.cycle_duration)
+            .ok_or(anyhow!(ErrorCode::BadRequest))?;
+        to_unix_time(next_time)
+    }
+
+    /// Returns the average fee rate over the last x cycles. Server enforces a
+    /// cap on x, but perhaps going back 10-50 cycles is good enough.
+    pub async fn spv2_average_fee_rate(&self, num_cycles: u64) -> Result<u64> {
+        ensure!(
+            self.spv2_feature_state().is_some(),
+            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
+        );
+        let spv2 = self.client.spv2()?;
+        spv2.average_fee_rate(num_cycles)
+            .await
+            .map(|rate| rate.0)
+            .context("Error when fetching average fee rate")
+    }
+
+    /// Returns the staged provider liquidity currently available to satisfy new
+    /// seeks. Allows blocking seeks that we know up-front will not be satisfied
+    /// at this time.
+    pub async fn spv2_available_liquidity(&self) -> Result<RpcAmount> {
+        ensure!(
+            self.spv2_feature_state().is_some(),
+            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
+        );
+        let spv2 = self.client.spv2()?;
+        let stats = spv2
+            .liquidity_stats()
+            .await
+            .context("Error when fetching liquidity stats")?;
+        Ok(RpcAmount(Amount::from_msats(
+            stats.staged_provides_sum_msat,
+        )))
+    }
+
+    /// Deposit the given amount of msats into the stability pool
+    /// with the intention of seeking. Once the fedimint transaction
+    /// is accepted, the deposit is staged (pending). When the next
+    /// cycle turnover occurs, staged seeks are processed in order
+    /// to produce locks.
+    pub async fn spv2_deposit_to_seek(&self, amount: Amount) -> Result<OperationId> {
+        ensure!(
+            self.spv2_feature_state().is_some(),
+            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
+        );
+        let spv2 = self.client.spv2()?;
+        let fedi_fee_ppm = self
+            .fedi_fee_helper
+            .get_fedi_fee_ppm(
+                self.federation_id().to_string(),
+                stability_pool_client::common::KIND,
+                RpcTransactionDirection::Send,
+            )
+            .await?;
+        let fedi_fee = Amount::from_msats((amount.msats * fedi_fee_ppm).div_ceil(MILLION));
+        let spend_guard = self.spend_guard.lock().await;
+        let virtual_balance = self.get_balance().await;
+        if amount + fedi_fee > virtual_balance {
+            bail!(ErrorCode::InsufficientBalance(RpcAmount(
+                get_max_spendable_amount(virtual_balance, fedi_fee_ppm, None, None)
+            )));
+        }
+
+        let operation_id = spv2.deposit_to_seek(amount).await?;
+        self.write_pending_send_fedi_fee(operation_id, fedi_fee)
+            .await?;
+        let _ = self
+            .record_tx_date_fiat_info(operation_id, amount + fedi_fee)
+            .await;
+        drop(spend_guard);
+
+        if let Ok(index) = self
+            .spv2_account_info()
+            .await
+            .map(|info| info.value.current_cycle.idx)
+        {
+            // This is not critical so we ignore the result
+            let autocommit_res = self
+                .client
+                .db()
+                .autocommit(
+                    |dbtx, _| {
+                        Box::pin(async move {
+                            dbtx.insert_entry(&LastStabilityPoolV2DepositCycleKey, &index)
+                                .await;
+                            Ok::<(), anyhow::Error>(())
+                        })
+                    },
+                    Some(100),
+                )
+                .await;
+
+            if let Err(e) = autocommit_res {
+                error!(?e, "Error while writing last SP deposit cycle");
+            }
+        }
+
+        self.spawn_cancellable("subscribe_spv2_deposit", move |fed| async move {
+            fed.subscribe_spv2_deposit_to_seek(operation_id).await
+        });
+        Ok(operation_id)
+    }
+
+    async fn subscribe_spv2_deposit_to_seek(&self, operation_id: OperationId) {
+        let Ok(spv2) = self.client.spv2() else {
+            return;
+        };
+
+        let update_stream = spv2.subscribe_deposit_operation(operation_id).await;
+        if let Ok(update_stream) = update_stream {
+            let mut updates = update_stream.into_stream();
+            while let Some(state) = updates.next().await {
+                self.update_operation_state(operation_id, state.clone())
+                    .await;
+                match state {
+                    StabilityPoolDepositOperationState::TxRejected(_)
+                    | StabilityPoolDepositOperationState::PrimaryOutputError(_) => {
+                        let _ = self.write_failed_send_fedi_fee(operation_id).await;
+                    }
+                    StabilityPoolDepositOperationState::Success => {
+                        // Force sync spv2 once deposit op is complete
+                        self.spv2_force_sync();
+                        let _ = self.write_success_send_fedi_fee(operation_id).await;
+                    }
+                    _ => (),
+                }
+                self.event_sink.typed_event(&Event::spv2_deposit(
+                    self.federation_id().to_string(),
+                    operation_id,
+                    state,
+                ));
+            }
+        } else {
+            // TODO shaurya ok to ignore result? Or should bridge panic if error?
+            let _ = self.write_failed_send_fedi_fee(operation_id).await;
+        }
+    }
+
+    /// Starting with staged seeks, withdraw from both staged and locked seeks,
+    /// by implicitly waiting for cycle turnover for the locked seeks to be
+    /// freed up. The overall operation only completes when both parts have
+    /// completed.
+    pub async fn spv2_withdraw(&self, amount: FiatOrAll) -> Result<OperationId> {
+        ensure!(
+            self.spv2_feature_state().is_some(),
+            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
+        );
+        let spv2 = self.client.spv2()?;
+        let fedi_fee_ppm = self
+            .fedi_fee_helper
+            .get_fedi_fee_ppm(
+                self.federation_id().to_string(),
+                stability_pool_client::common::KIND,
+                RpcTransactionDirection::Receive,
+            )
+            .await?;
+        let (operation_id, _) = spv2.withdraw(AccountType::Seeker, amount).await?;
+        self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
+            .await?;
+        self.spawn_cancellable("subscribe_spv2_withdraw", move |fed| async move {
+            fed.subscribe_spv2_withdraw(operation_id).await
+        });
+        Ok(operation_id)
+    }
+
+    async fn subscribe_spv2_withdraw(&self, operation_id: OperationId) {
+        let Ok(spv2) = self.client.spv2() else {
+            return;
+        };
+
+        let update_stream = spv2.subscribe_withdraw(operation_id).await;
+        if let Ok(update_stream) = update_stream {
+            let mut updates = update_stream.into_stream();
+            while let Some(state) = updates.next().await {
+                self.update_operation_state(operation_id, state.clone())
+                    .await;
+                match state {
+                    StabilityPoolWithdrawalOperationState::Success(amount) => {
+                        // Force sync spv2 once withdrawal op is complete
+                        self.spv2_force_sync();
+
+                        let _ = self
+                            .write_success_receive_fedi_fee(operation_id, amount)
+                            .await;
+                        let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
+                    }
+                    StabilityPoolWithdrawalOperationState::UnlockTxRejected(_)
+                    | StabilityPoolWithdrawalOperationState::UnlockProcessingError(_)
+                    | StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(_)
+                    | StabilityPoolWithdrawalOperationState::PrimaryOutputError(_) => {
+                        let _ = self.write_failed_receive_fedi_fee(operation_id).await;
+                    }
+                    StabilityPoolWithdrawalOperationState::UnlockTxAccepted => {
+                        // Force sync spv2 once unlock TX is accepted
+                        self.spv2_force_sync();
+                    }
+                    _ => (),
+                }
+                self.event_sink.typed_event(&Event::spv2_withdrawal(
+                    self.federation_id().to_string(),
+                    operation_id,
+                    state,
+                ))
+            }
+        }
+    }
+
+    /// See [`Self::spv2_transfer`]
+    pub async fn spv2_simple_transfer(
+        &self,
+        to_account: AccountId,
+        amount: FiatAmount,
+    ) -> Result<OperationId> {
+        ensure!(
+            self.spv2_feature_state().is_some(),
+            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
+        );
+        let spv2 = self.client.spv2()?;
+
+        let request = TransferRequest::new(
+            rand::thread_rng().gen(),
+            spv2.our_account(AccountType::Seeker),
+            amount,
+            to_account,
+            vec![],
+            u64::MAX,
+            None,
+        )?;
+        let signature = spv2.sign_transfer_request(&request);
+        let mut signatures = BTreeMap::new();
+        signatures.insert(0, signature);
+        self.spv2_transfer(SignedTransferRequest::new(request, signatures)?)
+            .await
+    }
+
+    /// Submit the given [`SignedTransferRequest`] for processing. Like
+    /// withdrawals, transfer first use staged deposits, and then locked
+    /// deposits (if needed). However, unlike withdrawals, transfers are
+    /// "instant" in that they do not need to await any cycle turnover.
+    /// Transfers are considered completed as soon as the initial transaction is
+    /// accepted and processed by the server. For the basic use case of
+    /// transferring to another account ID from this client's seeker
+    /// account, use the helper method [`Self::spv2_simple_transfer`].
+    pub async fn spv2_transfer(
+        &self,
+        signed_request: SignedTransferRequest,
+    ) -> Result<OperationId> {
+        ensure!(
+            self.spv2_feature_state().is_some(),
+            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
+        );
+        let spv2 = self.client.spv2()?;
+
+        // TODO shaurya skipping fee for now as it's unclear how to charge fee for
+        // transfers. We cannot simply a charge a portion of the amount being
+        // transferred since:
+        // 1. We don't always know the amount (it could be ALL)
+        // 2. The submitter of the TX might not be the sender or the recipient
+
+        let operation_id = spv2.transfer(signed_request).await?;
+        self.spawn_cancellable("subscribe_spv2_transfer", move |fed| async move {
+            fed.subscribe_spv2_transfer(operation_id).await
+        });
+        Ok(operation_id)
+    }
+
+    async fn subscribe_spv2_transfer(&self, operation_id: OperationId) {
+        let Ok(spv2) = self.client.spv2() else {
+            return;
+        };
+
+        let update_stream = spv2.subscribe_transfer_operation(operation_id).await;
+        if let Ok(update_stream) = update_stream {
+            let mut updates = update_stream.into_stream();
+            while let Some(state) = updates.next().await {
+                // Force sync spv2 once TX is accepted
+                if matches!(state, StabilityPoolTransferOperationState::Success) {
+                    self.spv2_force_sync();
+                }
+                self.update_operation_state(operation_id, state.clone())
+                    .await;
+                self.event_sink.typed_event(&Event::spv2_transfer(
+                    self.federation_id().to_string(),
+                    operation_id,
+                    state,
+                ));
+            }
+        }
+    }
+
+    async fn spv2_user_op_history_item(
+        &self,
+        txid: TransactionId,
+    ) -> Option<UserOperationHistoryItem> {
+        let spv2 = self.client.spv2().ok()?;
+        let account_id = spv2.our_account(AccountType::Seeker).id();
+
+        spv2.db
+            .clone()
+            .begin_transaction_nc()
+            .await
+            .get_value(&UserOperationHistoryItemKey { account_id, txid })
+            .await
+    }
+
+    async fn spv2_seek_lifetime_fee(&self, txid: TransactionId) -> Option<Amount> {
+        let spv2 = self.client.spv2().ok()?;
+
+        spv2.db
+            .clone()
+            .begin_transaction_nc()
+            .await
+            .get_value(&SeekLifetimeFeeKey(txid))
+            .await
+    }
+
+    fn spv2_our_seeker_account(&self) -> Option<Account> {
+        let spv2 = self.client.spv2().ok()?;
+        Some(spv2.our_account(AccountType::Seeker))
+    }
+
+    fn spv2_force_sync(&self) {
+        self.spawn_cancellable("spv2_force_sync", |fed| async move {
+            if let Some(sync_service) = fed.spv2_sync_service.get() {
+                let res = sync_service.update_once().await;
+                if let Err(e) = res {
+                    error!(%e, "Error syncing spv2 state");
+                }
+            }
+        });
     }
 
     /// Stability Pool
@@ -2608,11 +3321,11 @@ impl FederationV2 {
                 self.update_operation_state(operation_id, state.clone())
                     .await;
                 match state {
-                    StabilityPoolDepositOperationState::TxRejected(_)
-                    | StabilityPoolDepositOperationState::PrimaryOutputError(_) => {
+                    stability_pool_client_old::StabilityPoolDepositOperationState::TxRejected(_)
+                    | stability_pool_client_old::StabilityPoolDepositOperationState::PrimaryOutputError(_) => {
                         let _ = self.write_failed_send_fedi_fee(operation_id).await;
                     }
-                    StabilityPoolDepositOperationState::Success => {
+                    stability_pool_client_old::StabilityPoolDepositOperationState::Success => {
                         let _ = self.write_success_send_fedi_fee(operation_id).await;
                     }
                     _ => (),
@@ -2641,18 +3354,18 @@ impl FederationV2 {
                 self.update_operation_state(operation_id, state.clone())
                     .await;
                 match state {
-                    StabilityPoolWithdrawalOperationState::Success(amount) => {
+                    stability_pool_client_old::StabilityPoolWithdrawalOperationState::Success(amount) => {
                         let _ = self
                             .write_success_receive_fedi_fee(operation_id, amount)
                             .await;
                         let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
                     }
-                    StabilityPoolWithdrawalOperationState::InvalidOperationType
-                    | StabilityPoolWithdrawalOperationState::TxRejected(_)
-                    | StabilityPoolWithdrawalOperationState::PrimaryOutputError(_)
-                    | StabilityPoolWithdrawalOperationState::CancellationSubmissionFailure(_)
-                    | StabilityPoolWithdrawalOperationState::AwaitCycleTurnoverError(_)
-                    | StabilityPoolWithdrawalOperationState::WithdrawIdleSubmissionFailure(_) => {
+                    stability_pool_client_old::StabilityPoolWithdrawalOperationState::InvalidOperationType
+                    | stability_pool_client_old::StabilityPoolWithdrawalOperationState::TxRejected(_)
+                    | stability_pool_client_old::StabilityPoolWithdrawalOperationState::PrimaryOutputError(_)
+                    | stability_pool_client_old::StabilityPoolWithdrawalOperationState::CancellationSubmissionFailure(_)
+                    | stability_pool_client_old::StabilityPoolWithdrawalOperationState::AwaitCycleTurnoverError(_)
+                    | stability_pool_client_old::StabilityPoolWithdrawalOperationState::WithdrawIdleSubmissionFailure(_) => {
                         let _ = self.write_failed_receive_fedi_fee(operation_id).await;
                     }
                     _ => (),
@@ -3234,7 +3947,7 @@ fn get_max_spendable_amount(
     // start, we can just deduct the on-chain fee from the virtual balance and
     // reassign the difference to virtual balance.
     let virtual_balance =
-        virtual_balance - on_chain_fee.map_or(Amount::ZERO, |f| f.amount().into());
+        virtual_balance.saturating_sub(on_chain_fee.map_or(Amount::ZERO, |f| f.amount().into()));
 
     let gateway_base = gateway_fee.map_or(0, |f| f.base_msat as u64);
     let gateway_ppm = gateway_fee.map_or(0, |f| f.proportional_millionths as u64);
@@ -3251,7 +3964,7 @@ fn get_max_spendable_amount(
     //
     // Finally:
     // x = [(V - base) * M]/(M + ppm_F + ppm_G)
-    let numerator_msats = (virtual_balance.msats - gateway_base) * MILLION;
+    let numerator_msats = (virtual_balance.msats.saturating_sub(gateway_base)) * MILLION;
     let denominator_msats = MILLION + fedi_fee_ppm + gateway_ppm;
     Amount::from_msats(numerator_msats / denominator_msats)
 }

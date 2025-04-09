@@ -3,6 +3,7 @@ import { Button, Image, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
+import { SvgUri } from 'react-native-svg'
 import { useDispatch } from 'react-redux'
 
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
@@ -179,14 +180,29 @@ const AddFediMod: React.FC = () => {
                     containerStyle={style.inputContainer}
                     keyboardType="url"
                     rightIcon={
-                        <Image
-                            source={
-                                imageUrl
-                                    ? { uri: imageUrl }
-                                    : FediModImages.default
-                            }
-                            style={style.previewIcon}
-                        />
+                        imageUrl?.endsWith('svg') ? (
+                            <SvgUri
+                                uri={imageUrl}
+                                width={32}
+                                height={32}
+                                fallback={
+                                    <Image
+                                        source={FediModImages.default}
+                                        style={style.previewIcon}
+                                    />
+                                }
+                                style={style.previewIcon}
+                            />
+                        ) : (
+                            <Image
+                                source={
+                                    imageUrl
+                                        ? { uri: imageUrl }
+                                        : FediModImages.default
+                                }
+                                style={style.previewIcon}
+                            />
+                        )
                     }
                     disabled={isFetching}
                 />

@@ -3,12 +3,15 @@
  * instead. This is left for posterity for the moment, but if we stick with the
  * decision not to use the OmniInput for receive, this screen can be removed.
  */
-import { useNavigation } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React from 'react'
+import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
+
+import { fedimint } from '../bridge'
 import { OmniInput } from '../components/feature/omni/OmniInput'
 import { ParserDataType } from '../types'
 import { NavigationHook, RootStackParamList } from '../types/navigation'
@@ -18,7 +21,13 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'Receive'>
 const Receive: React.FC<Props> = () => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
 
+    useFocusEffect(
+        useCallback(() => {
+            syncCurrencyRatesAndCache()
+        }, [syncCurrencyRatesAndCache]),
+    )
     return (
         <View style={styles().container}>
             <OmniInput

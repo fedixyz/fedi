@@ -12,9 +12,10 @@ import MessageContents from './MessageContents'
 
 type Props = {
     event: MatrixEvent<MatrixEventContentType<'m.text'>>
+    isWide?: boolean
 }
 
-const ChatTextEvent: React.FC<Props> = ({ event }) => {
+const ChatTextEvent: React.FC<Props> = ({ event, isWide }) => {
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const { theme } = useTheme()
     const style = styles(theme)
@@ -33,6 +34,7 @@ const ChatTextEvent: React.FC<Props> = ({ event }) => {
                 style={[
                     style.bubbleInner,
                     isMe ? style.blueBubble : style.greyBubble,
+                    isWide && { width: theme.sizes.maxMessageWidth },
                 ]}>
                 <MessageContents
                     content={event.content.body}

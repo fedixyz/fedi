@@ -1,5 +1,5 @@
 import { styled } from '@stitches/react'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ClipboardIcon from '@fedi/common/assets/svgs/clipboard.svg'
@@ -8,9 +8,13 @@ import QRIcon from '@fedi/common/assets/svgs/qr.svg'
 import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import {
+    selectActiveFederationId,
+    selectIsInternetUnreachable,
+} from '@fedi/common/redux'
 import {
     AnyParsedData,
+    ParsedOfflineError,
     ParsedUnknownData,
     ParserDataType,
 } from '@fedi/common/types'
@@ -61,7 +65,12 @@ export function OmniInput<
     const [isScanning, setIsScanning] = useState(props.defaultToScan || false)
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
-    const [invalidData, setInvalidData] = useState<ParsedUnknownData>()
+    const emptyString = ''
+    const [omniError, setOmniError] = useState(emptyString)
+
+    const [invalidData, setInvalidData] = useState<
+        ParsedUnknownData | ParsedOfflineError
+    >()
     const [value, setValue] = useState(props.value || '')
     const fileInputRef = useRef<HTMLInputElement>(null)
     const isLoading = props.loading || isParsing
@@ -70,6 +79,23 @@ export function OmniInput<
     const { customActions, inputPlaceholder, onUnexpectedSuccess } = props
     const inputLabel = props.inputLabel || 'Input data'
     const pasteLabel = props.pasteLabel || t('feature.omni.action-paste')
+
+    const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
+
+    useEffect(() => {
+        if (omniError !== emptyString) {
+            const errorData: ParsedOfflineError = {
+                type: ParserDataType.OfflineError,
+                data: {
+                    title: t('feature.omni.error-network-title'),
+                    message: t('feature.omni.error-network-message'),
+                    goBackText: 'Retry',
+                },
+            }
+            setInvalidData(errorData)
+            setOmniError(emptyString)
+        }
+    }, [omniError, invalidData, unexpectedData, t])
 
     const parseInput = useCallback(
         async (input: string) => {
@@ -80,25 +106,34 @@ export function OmniInput<
                     data: { message: t('feature.omni.unsupported-unknown') },
                 })
             setIsParsing(true)
-            const parsedData = await parseUserInput(
-                input,
-                fedimint,
-                t,
-                federationId,
-            )
-            setIsParsing(false)
+            try {
+                const parsedData = await parseUserInput(
+                    input,
+                    fedimint,
+                    t,
+                    federationId,
+                    isInternetUnreachable,
+                )
 
-            const expectedTypes = propsRef.current
-                .expectedInputTypes as readonly string[]
-            if (expectedTypes.includes(parsedData.type)) {
-                propsRef.current.onExpectedInput(parsedData as ExpectedData)
-            } else if (parsedData.type === ParserDataType.Unknown) {
-                if (!federationId) return setInvalidData(parsedData)
-            } else {
-                setUnexpectedData(parsedData)
+                const expectedTypes = propsRef.current
+                    .expectedInputTypes as readonly string[]
+
+                if (expectedTypes.includes(parsedData.type)) {
+                    propsRef.current.onExpectedInput(parsedData as ExpectedData)
+                } else if (parsedData.type === ParserDataType.Unknown) {
+                    setInvalidData(parsedData)
+                } else if (parsedData.type === ParserDataType.OfflineError) {
+                    setOmniError(parsedData.data.message)
+                } else {
+                    setUnexpectedData(parsedData)
+                }
+            } catch (err) {
+                setOmniError(t('feature.omni.error-network-message'))
+            } finally {
+                setIsParsing(false)
             }
         },
-        [propsRef, isLoadingRef, t, federationId],
+        [propsRef, isLoadingRef, t, federationId, isInternetUnreachable],
     )
 
     const handlePaste = useCallback(async () => {

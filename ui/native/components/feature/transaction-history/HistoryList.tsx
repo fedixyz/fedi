@@ -1,5 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -52,18 +52,21 @@ export function HistoryList<T extends { id: string }>({
         [selectedItem, makeFeeItems],
     )
 
-    const renderRow: ListRenderItem<T> = ({ item }) => {
-        const rowProps = makeRowProps(item)
-        return (
-            <ErrorBoundary fallback={() => <HistoryRowError />}>
-                <HistoryRow
-                    {...rowProps}
-                    icon={makeIcon(item)}
-                    onSelect={() => setSelectedItemId(item.id)}
-                />
-            </ErrorBoundary>
-        )
-    }
+    const renderRow = useCallback<ListRenderItem<T>>(
+        ({ item }) => {
+            const rowProps = makeRowProps(item)
+            return (
+                <ErrorBoundary fallback={() => <HistoryRowError />}>
+                    <HistoryRow
+                        {...rowProps}
+                        icon={makeIcon(item)}
+                        onSelect={() => setSelectedItemId(item.id)}
+                    />
+                </ErrorBoundary>
+            )
+        },
+        [makeRowProps, makeIcon],
+    )
 
     const style = styles(theme)
 

@@ -12,7 +12,9 @@ import RecoveryWordsHeader from '../components/feature/backup/RecoveryWordsHeade
 import SocialBackupHeader from '../components/feature/backup/SocialBackupHeader'
 import ChatConversationHeader from '../components/feature/chat/ChatConversationHeader'
 import ConfirmJoinPublicGroupHeader from '../components/feature/chat/ConfirmJoinPublicGroupHeader'
+import CreatePollHeader from '../components/feature/chat/CreatePollHeader'
 import DefaultChatHeader from '../components/feature/chat/DefaultChatHeader'
+import EditPollHeader from '../components/feature/chat/EditPollHeader'
 import FederationDetailsHeader from '../components/feature/federations/FederationDetailsHeader'
 import FederationInviteHeader from '../components/feature/federations/FederationInviteHeader'
 import JoinFederationHeader from '../components/feature/federations/JoinFederationHeader'
@@ -95,9 +97,12 @@ import ConfirmSendLightning from './ConfirmSendLightning'
 import ConfirmSendOnChain from './ConfirmSendOnChain'
 import CreateGroup from './CreateGroup'
 import CreatePinInstructions from './CreatePinInstructions'
+import CreatePoll from './CreatePoll'
 import CreatedPin from './CreatedPin'
 import DeveloperSettings from './DeveloperSettings'
+import EcashSendCancelled from './EcashSendCancelled'
 import EditGroup from './EditGroup'
+import EditPoll from './EditPoll'
 import EditProfileSettings from './EditProfileSettings'
 import EnterDisplayName from './EnterDisplayName'
 import Eula from './Eula'
@@ -128,6 +133,7 @@ import Receive from './Receive'
 import ReceiveLightning from './ReceiveLightning'
 import ReceiveSuccess from './ReceiveSuccess'
 import RecordBackupVideo from './RecordBackupVideo'
+import RecoverFromNonceReuse from './RecoverFromNonceReuse'
 import RecoveryAssistSuccess from './RecoveryAssistSuccess'
 import RecoveryDeviceSelection from './RecoveryDeviceSelection'
 import RecoveryNewWallet from './RecoveryNewWallet'
@@ -242,6 +248,13 @@ export const MainNavigator = () => {
                         component={JoinFederation}
                         options={() => ({
                             header: () => <JoinFederationHeader />,
+                        })}
+                    />
+                    <Stack.Screen
+                        name="RecoverFromNonceReuse"
+                        component={RecoverFromNonceReuse}
+                        options={() => ({
+                            header: () => <Header backButton />,
                         })}
                     />
                     <Stack.Screen
@@ -497,6 +510,20 @@ export const MainNavigator = () => {
                                     component={ChatVideoViewer}
                                     options={() => ({ headerShown: false })}
                                 />
+                                <Stack.Screen
+                                    name="CreatePoll"
+                                    component={CreatePoll}
+                                    options={() => ({
+                                        header: () => <CreatePollHeader />,
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="EditPoll"
+                                    component={EditPoll}
+                                    options={() => ({
+                                        header: () => <EditPollHeader />,
+                                    })}
+                                />
                             </Stack.Group>
 
                             {/* Wallet (Send) */}
@@ -535,6 +562,11 @@ export const MainNavigator = () => {
                                     amount: 0 as MSats,
                                     unit: 'sats',
                                 }}
+                                options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                                name="EcashSendCancelled"
+                                component={EcashSendCancelled}
                                 options={{ headerShown: false }}
                             />
                             {/* Wallet (Send Offline) */}

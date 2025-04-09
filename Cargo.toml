@@ -69,9 +69,9 @@ bitcoin = { version = "0.32.4", features = ["rand", "serde"] }
 bech32 = "0.11.0"
 fedi-social-client = { path = "./modules/fedi-social/client" }
 serde = { version = "1.0.215", features = ["derive"] }
-serde_json = "1.0.134"
+serde_json = "1.0.139"
 subtle = "2.5.0"
-ring = "0.17.5"
+ring = "0.17.14"
 fedi-core = { path = "./fedi-core" }
 fedi-api-types = { path = "./fedi-api-types" }
 

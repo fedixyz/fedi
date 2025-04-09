@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::time::SystemTime;
 
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
@@ -5,14 +6,14 @@ use fedimint_core::module::{api_endpoint, ApiEndpoint, ApiEndpointContext, ApiEr
 use fedimint_core::Amount;
 use futures::{stream, StreamExt};
 use stability_pool_common::{
-    AccountHistoryItem, AccountHistoryRequest, AccountId, AccountType, FeeRate, LiquidityStats,
-    SyncResponse, UnlockRequestStatus,
+    AccountHistoryItem, AccountHistoryRequest, AccountId, AccountType, ActiveDeposits, FeeRate,
+    LiquidityStats, SyncResponse, UnlockRequestStatus,
 };
 
 use crate::db::{
     account_history_count, get_account_history_items, CurrentCycleKey, IdleBalanceKey,
-    PastCycleKeyPrefix, StagedProvidesKey, StagedProvidesKeyPrefix, StagedSeeksKey,
-    StagedSeeksKeyPrefix, UnlockRequestKey,
+    PastCycleKeyPrefix, SeekLifetimeFeeKey, StagedProvidesKey, StagedProvidesKeyPrefix,
+    StagedSeeksKey, StagedSeeksKeyPrefix, UnlockRequestKey,
 };
 use crate::StabilityPool;
 
@@ -33,10 +34,10 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
             }
         },
         api_endpoint! {
-            "next_cycle_start_time",
+            "active_deposits",
             ApiVersion::new(0, 0),
-            async |module: &StabilityPool, context, _request: ()| -> SystemTime {
-                Ok(next_cycle_start_time(&mut context.dbtx().into_nc(), module).await?)
+            async |_module: &StabilityPool, context, request: AccountId| -> ActiveDeposits {
+                active_deposits(&mut context.dbtx().into_nc(), request).await
             }
         },
         api_endpoint! {
@@ -72,35 +73,64 @@ pub async fn sync(
         .get_value(&CurrentCycleKey)
         .await
         .ok_or_else(|| ApiError::bad_request("disallowed before first cycle".to_owned()))?;
-    let locked_balance: Amount = match account.acc_type() {
-        AccountType::Seeker => current_cycle
-            .locked_seeks
-            .get(&account)
-            .map(|v| v.iter().map(|locked| locked.amount).sum())
-            .unwrap_or(Amount::ZERO),
-        AccountType::Provider => current_cycle
-            .locked_provides
-            .get(&account)
-            .map(|v| v.iter().map(|locked| locked.amount).sum())
-            .unwrap_or(Amount::ZERO),
-    };
 
-    let staged_balance = match account.acc_type() {
-        AccountType::Seeker => dbtx
-            .get_value(&StagedSeeksKey(account))
-            .await
-            .unwrap_or_default()
-            .iter()
-            .map(|staged| staged.amount)
-            .sum(),
-        AccountType::Provider => dbtx
-            .get_value(&StagedProvidesKey(account))
-            .await
-            .unwrap_or_default()
-            .iter()
-            .map(|provide| provide.amount)
-            .sum(),
-    };
+    let locked_balance;
+    let staged_balance;
+    let locked_seeks_lifetime_fee;
+    match account.acc_type() {
+        AccountType::Seeker => {
+            let locked_seeks = current_cycle.locked_seeks.get(&account);
+            let staged_seeks = dbtx
+                .get_value(&StagedSeeksKey(account))
+                .await
+                .unwrap_or_default();
+
+            locked_balance = if let Some(locked_seeks) = locked_seeks {
+                locked_seeks.iter().map(|locked| locked.amount).sum()
+            } else {
+                Amount::ZERO
+            };
+            staged_balance = staged_seeks.iter().map(|staged| staged.amount).sum();
+            locked_seeks_lifetime_fee = Some({
+                let mut fee_map = BTreeMap::new();
+                for seek in locked_seeks.unwrap_or(&vec![]) {
+                    fee_map.insert(
+                        seek.txid,
+                        dbtx.get_value(&SeekLifetimeFeeKey(seek.txid))
+                            .await
+                            .unwrap_or(Amount::ZERO),
+                    );
+                }
+                fee_map
+            });
+        }
+        AccountType::Provider => {
+            let locked_provides = current_cycle.locked_provides.get(&account);
+            let staged_provides = dbtx
+                .get_value(&StagedProvidesKey(account))
+                .await
+                .unwrap_or_default();
+
+            locked_balance = if let Some(locked_provides) = locked_provides {
+                locked_provides.iter().map(|locked| locked.amount).sum()
+            } else {
+                Amount::ZERO
+            };
+            staged_balance = staged_provides.iter().map(|staged| staged.amount).sum();
+            locked_seeks_lifetime_fee = None;
+        }
+        AccountType::BtcDepositor => {
+            let staged_seeks = dbtx
+                .get_value(&StagedSeeksKey(account))
+                .await
+                .unwrap_or_default();
+
+            locked_balance = Amount::ZERO;
+            staged_balance = staged_seeks.iter().map(|staged| staged.amount).sum();
+            locked_seeks_lifetime_fee = None;
+        }
+    }
+
     Ok(SyncResponse {
         current_cycle: current_cycle.into(),
         idle_balance: dbtx
@@ -109,11 +139,48 @@ pub async fn sync(
             .unwrap_or(Amount::ZERO),
         staged_balance,
         locked_balance,
+        unlock_request: dbtx.get_value(&UnlockRequestKey(account)).await,
         account_history_count: account_history_count(dbtx, account).await,
+        locked_seeks_lifetime_fee,
     })
 }
 
-pub async fn next_cycle_start_time(
+/// See [`ActiveDeposits`]
+pub async fn active_deposits(
+    dbtx: &mut DatabaseTransaction<'_>,
+    account: AccountId,
+) -> Result<ActiveDeposits, ApiError> {
+    let current_cycle = dbtx
+        .get_value(&CurrentCycleKey)
+        .await
+        .ok_or_else(|| ApiError::bad_request("disallowed before first cycle".to_owned()))?;
+    Ok(match account.acc_type() {
+        AccountType::Seeker | AccountType::BtcDepositor => ActiveDeposits::Seeker {
+            staged: dbtx
+                .get_value(&StagedSeeksKey(account))
+                .await
+                .unwrap_or_default(),
+            locked: current_cycle
+                .locked_seeks
+                .get(&account)
+                .cloned()
+                .unwrap_or_default(),
+        },
+        AccountType::Provider => ActiveDeposits::Provider {
+            staged: dbtx
+                .get_value(&StagedProvidesKey(account))
+                .await
+                .unwrap_or_default(),
+            locked: current_cycle
+                .locked_provides
+                .get(&account)
+                .cloned()
+                .unwrap_or_default(),
+        },
+    })
+}
+
+async fn next_cycle_start_time(
     dbtx: &mut DatabaseTransaction<'_>,
     stability_pool: &StabilityPool,
 ) -> anyhow::Result<SystemTime, ApiError> {
@@ -138,7 +205,8 @@ pub async fn unlock_request_status(
 ) -> anyhow::Result<UnlockRequestStatus, ApiError> {
     let mut dbtx = context.dbtx().into_nc();
     Ok(match dbtx.get_value(&UnlockRequestKey(account)).await {
-        Some(_) => UnlockRequestStatus::Pending {
+        Some(request) => UnlockRequestStatus::Pending {
+            request,
             next_cycle_start_time: next_cycle_start_time(&mut dbtx, stability_pool).await?,
         },
         None => UnlockRequestStatus::NoActiveRequest {

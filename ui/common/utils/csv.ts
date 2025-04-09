@@ -1,27 +1,27 @@
+// csv.ts
 import { TFunction } from 'i18next'
 
 import { AmountSymbolPosition, FormattedAmounts } from '../hooks/amount'
-import { MSats, Transaction } from '../types'
-import { makeTxnDetailStatusText } from './wallet'
+import { MSats, TransactionListEntry } from '../types'
+import amountUtils, { FIAT_MAX_DECIMAL_PLACES } from './AmountUtils'
+import { getTxnDirection, makeTxnStatusText, makeTxnTypeText } from './wallet'
 
 type CSVColumns<T> = { name: string; getValue: (item: T) => string | number }[]
 
-const getTxType = (tx: Transaction) => {
-    if (tx.bitcoin) return 'on-chain'
-    if (tx.lightning) return 'lightning'
-    if (tx.stabilityPoolState) return 'stability-pool'
-    if (tx.oobState) return 'ecash'
-    return 'unknown'
-}
-
+/**
+ * Generate a CSV string from a list of TransactionListEntry items.
+ * If a transaction has txDateFiatInfo, we use the historical rate.
+ * Otherwise, we fall back to the current logic in makeFormattedAmountsFromMSats.
+ */
 export function makeTransactionHistoryCSV(
-    txs: Transaction[],
+    txs: TransactionListEntry[],
     makeFormattedAmountsFromMSats: (
         amount: MSats,
         symbolPosition: AmountSymbolPosition,
     ) => FormattedAmounts,
     t: TFunction,
-) {
+): string {
+    // Sort transactions by createdAt ascending
     const sortedTxs = txs.sort((a, b) => a.createdAt - b.createdAt)
 
     return makeCSV(sortedTxs, [
@@ -35,16 +35,31 @@ export function makeTransactionHistoryCSV(
         },
         {
             name: 'Direction',
-            getValue: tx => tx.direction,
+            getValue: tx => getTxnDirection(tx),
         },
         {
             name: 'Type',
-            getValue: tx => getTxType(tx),
+            getValue: tx => makeTxnTypeText(tx, t),
         },
         {
             name: 'Amount (fiat)',
-            getValue: tx =>
-                makeFormattedAmountsFromMSats(tx.amount, 'end').formattedFiat,
+            getValue: tx => {
+                if (tx.txDateFiatInfo) {
+                    const historicalRate = amountUtils.getRateFromFiatFxInfo(
+                        tx.txDateFiatInfo,
+                    )
+                    const btc = amountUtils.msatToBtc(tx.amount)
+                    return (
+                        amountUtils
+                            .btcToFiat(btc, historicalRate)
+                            .toFixed(FIAT_MAX_DECIMAL_PLACES) +
+                        ` ${tx.txDateFiatInfo.fiatCode}`
+                    )
+                } else {
+                    return makeFormattedAmountsFromMSats(tx.amount, 'end')
+                        .formattedFiat
+                }
+            },
         },
         {
             name: 'Amount (sats)',
@@ -52,11 +67,11 @@ export function makeTransactionHistoryCSV(
         },
         {
             name: 'Notes',
-            getValue: tx => tx.notes,
+            getValue: tx => tx.txnNotes,
         },
         {
             name: 'Status',
-            getValue: tx => makeTxnDetailStatusText(t, tx),
+            getValue: tx => makeTxnStatusText(t, tx),
         },
     ])
 }
@@ -65,7 +80,10 @@ export function makeTransactionHistoryCSV(
  * Given a list of items and column definitions, make a multi-line CSV string.
  */
 function makeCSV<T>(items: T[], columns: CSVColumns<T>): string {
+    // Make header row
     let csv = columns.map(column => column.name).join(',')
+
+    // Make data rows
     items.forEach(item => {
         csv += `\r\n`
         columns.forEach((column, idx) => {
@@ -75,6 +93,7 @@ function makeCSV<T>(items: T[], columns: CSVColumns<T>): string {
             csv += `"${String(column.getValue(item)).replace(/"/g, '""')}"`
         })
     })
+
     return csv
 }
 
@@ -88,7 +107,7 @@ export function makeBase64CSVUri(csv: string) {
 /**
  * Given a string, convert it to something that can be used as a filename.
  * E.g. "My federation name" -> "my-federation-name.csv"
- */
+ **/
 export function makeCSVFilename(name: string) {
     return `${name
         .toLowerCase()

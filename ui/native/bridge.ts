@@ -17,6 +17,8 @@ async function fedimintRpc<Type = void>(
     method: string,
     payload: object,
 ): Promise<Type> {
+    log.info(`fedimintRpc ${method}`)
+    const startTime = global.performance.now()
     const jsonPayload = JSON.stringify(payload)
     const json: string = await new Promise(resolve => {
         setTimeout(() => resolve(FedimintFfi.rpc(method, jsonPayload)))
@@ -25,6 +27,9 @@ async function fedimintRpc<Type = void>(
     if (parsed.error) {
         throw new BridgeError(parsed)
     } else {
+        log.info(
+            `fedimintRpc ${method} resolved in ${Number(global.performance.now() - startTime).toFixed(0)}ms`,
+        )
         return parsed.result
     }
 }

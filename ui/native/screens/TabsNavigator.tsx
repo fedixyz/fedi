@@ -23,6 +23,7 @@ import {
     refreshFederations,
     selectMatrixHasNotifications,
 } from '@fedi/common/redux'
+import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 
 import { fedimint } from '../bridge'
 import ChatHeader from '../components/feature/chat/ChatHeader'
@@ -58,6 +59,7 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
     // TODO: Reimplement unseen logic with matrix
     // const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
     const hasUnreadMessages = useAppSelector(selectMatrixHasNotifications)
+    const zendeskMsgCount = useAppSelector(selectZendeskUnreadMessageCount)
     const isStabilityPoolSupported = useIsStabilityPoolSupported()
     const popupInfo = usePopupFederationInfo()
     const dispatch = useAppDispatch()
@@ -209,6 +211,7 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
                     options={() => ({
                         title: t('words.mods'),
                         headerShown: false, // this allows us to draw over the header with tooltips
+                        tabBarBadge: zendeskMsgCount > 0 ? '' : undefined,
                     })}
                 />
                 <Tab.Screen

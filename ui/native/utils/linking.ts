@@ -2,48 +2,51 @@ import notifee, { EventType } from '@notifee/react-native'
 import { Linking } from 'react-native'
 
 import { makeLog } from '@fedi/common/utils/log'
-import {
-    isValidMatrixRoomId,
-    isValidMatrixUserId,
-} from '@fedi/common/utils/matrix'
 
 import { NavigationLinkingConfig } from '../types/navigation'
 import { isZendeskNotification } from './notifications'
-import { launchZendeskSupport } from './support'
+import { launchZendeskSupport, zendeskCloseMessagingView } from './support'
 
 const log = makeLog('utils/linking')
 
-const parseDeepLink = (uri: string): string | null => {
-    // Chat room
-    if (!uri.startsWith('fedi://') && !uri.startsWith('fedi://')) return null
+// decodes `fedi://room/%21SMVoiKbTXICVNDTJKK%3Am1.8fa.in`
+// to `fedi://room/!SMVoiKbTXICVNDTJKK:m1.8fa.in`
+const decodeDeepLink = (uri: string) => {
+    const url = new URL(uri)
+    const scheme = url.protocol
+    const host = url.host
 
-    // get the index of the first `:` after `fedi://`
-    const deliminator = uri.indexOf(':', 6)
-    const prefix = uri.slice(0, deliminator)
-    const suffix = uri.slice(deliminator + 1)
-    if (!isValidMatrixRoomId(suffix) && !isValidMatrixUserId(suffix))
-        return null
+    // For each path param, decode it
+    const paths = url.pathname
+        .split('/')
+        .filter(Boolean)
+        .map(decodeURIComponent)
 
-    // return `${prefix}/${suffix}`
-    // ex. room/!gdSfNfeIf...fedibtc.com
-    return `${prefix}/${suffix}`
+    return `${scheme}//${host}/${paths.join('/')}`
 }
 
 /**
- * If navigation is warranted, it return a properly-formed deep link.
+ * If navigation is warranted, it returns a properly-formed deep link.
+ * Handles URL-safe decoding of the input URI.
  *
  * Otherwise, it returns "" and calls fallback
+ *
+ * TODO: ensure all deep links are encoded with `encodeURIComponent`
  */
 const parseLink = (uri: string, fallback: (uri: string) => void): string => {
-    log.info(`Parsing link - ${uri}`)
-    // First, try to handle as deep link
-    const deepLink = parseDeepLink(uri)
-    if (deepLink) return deepLink
+    try {
+        if (uri.startsWith('fedi://')) return decodeDeepLink(uri)
 
-    // If it's not a deep link, don't navigate the user
-    // and parse with the fallbackHandler (ie. the Omni Parser)
-    fallback(uri)
-    return ''
+        // If it's not a deep link (e.g. fedi:...), don't navigate the user
+        // and parse with the fallbackHandler (ie. the Omni Parser)
+        fallback(uri)
+        return ''
+    } catch (error) {
+        // TODO: handle malformed URI errors
+        log.warn('Failed to parse link:', error)
+        fallback(uri)
+        return ''
+    }
 }
 
 /**
@@ -72,6 +75,7 @@ const deepLinksConfig: NavigationLinkingConfig['config'] = {
                     path: 'room/:roomId',
                 },
                 ChatUserConversation: 'user/:userId',
+                ShareLogs: 'share-logs/:ticketNumber',
             },
         },
     },
@@ -132,6 +136,9 @@ export const getLinkingConfig = (
                 'url',
                 async ({ url }) => {
                     log.info('URL received', url)
+
+                    // Attempt to close Zendesk Messaging View if it's open
+                    await zendeskCloseMessagingView()
 
                     // If navigation is warranted, it return a link.
                     // Otherwise, it returns "" and calls fallback

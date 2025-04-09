@@ -34,17 +34,19 @@ use fedimint_core::module::{
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::{apply, async_trait_maybe_send, Amount, OutPoint, TransactionId};
 use futures::{Stream, StreamExt};
-use secp256k1::{Keypair, Secp256k1};
+use rand::Rng;
+use secp256k1::{schnorr, Keypair, Secp256k1};
 use serde::{Deserialize, Serialize};
 pub use stability_pool_common as common;
 use stability_pool_common::{
-    Account, AccountId, AccountType, DepositToProvideOutput, DepositToSeekOutput, FeeRate,
-    FiatAmount, FiatOrAll, SignedTransferRequest, StabilityPoolInputV0, StabilityPoolOutputV0,
-    TransferOutput, UnlockForWithdrawalInput, UnlockRequestStatus, WithdrawalInput, KIND,
+    Account, AccountId, AccountType, ActiveDeposits, DepositToProvideOutput, DepositToSeekOutput,
+    FeeRate, FiatAmount, FiatOrAll, SignedTransferRequest, StabilityPoolInputV0,
+    StabilityPoolOutputV0, TransferOutput, TransferRequest, TransferRequestId,
+    UnlockForWithdrawalInput, UnlockRequestStatus, WithdrawalInput, KIND,
 };
 use tracing::info;
 
-mod db;
+pub mod db;
 mod history_service;
 mod sync_service;
 
@@ -159,15 +161,21 @@ impl ClientModule for StabilityPoolClientModule {
                     self.db.clone(),
                     self.our_account(account_type.into()).id(),
                 )
-                .await?;
+                .await;
+                let mut update_stream = sync_service.subscribe_to_updates();
                 sync_service.update_once().await?;
-                let sync_response = sync_service
-                    .subscribe_to_updates()
+                let sync_response = update_stream
                     .next()
                     .await
                     .unwrap()
                     .expect("must be present after calling update once");
                 Ok(serde_json::to_value(sync_response)?)
+            }
+
+            CliCommand::ActiveDeposits { account_type } => {
+                let account_id = self.our_account(account_type.into()).id();
+                let active_deposits = self.active_deposits(account_id).await?;
+                Ok(serde_json::to_value(active_deposits)?)
             }
 
             CliCommand::DepositToSeek { amount_msats } => {
@@ -247,6 +255,78 @@ impl ClientModule for StabilityPoolClientModule {
                 }
 
                 Ok(serde_json::Value::String("withdraw success".to_string()))
+            }
+
+            CliCommand::SignTransfer { request } => {
+                Ok(serde_json::to_value(self.sign_transfer_request(&request))?)
+            }
+
+            CliCommand::SimpleTransfer { to_account, amount } => {
+                let request = TransferRequest::new(
+                    rand::thread_rng().gen(),
+                    self.our_account(AccountType::Seeker),
+                    amount,
+                    to_account,
+                    vec![],
+                    u64::MAX,
+                    None,
+                )?;
+
+                let signature = self.sign_transfer_request(&request);
+                let mut signatures = BTreeMap::new();
+                signatures.insert(0, signature);
+
+                Ok(serde_json::to_value(SignedTransferRequest::new(
+                    request, signatures,
+                )?)?)
+            }
+
+            CliCommand::Transfer { request } => {
+                let operation_id = self.transfer(request).await?;
+                let mut updates = self
+                    .subscribe_transfer_operation(operation_id)
+                    .await?
+                    .into_stream();
+
+                while let Some(update) = updates.next().await {
+                    match update {
+                        StabilityPoolTransferOperationState::TxRejected(e) => {
+                            bail!("TX rejected: {e}")
+                        }
+                        _ => info!("Update: {:?}", update),
+                    }
+                }
+
+                Ok(serde_json::Value::String("transfer success".to_string()))
+            }
+
+            CliCommand::WithdrawIdleBalance {
+                account_type,
+                amount_msats,
+            } => {
+                let (operation_id, _) = self
+                    .withdraw_idle_balance(account_type.into(), amount_msats)
+                    .await?;
+                let mut updates = self
+                    .subscribe_withdraw_idle_balance(operation_id)
+                    .await?
+                    .into_stream();
+
+                while let Some(update) = updates.next().await {
+                    match update {
+                        StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(e) => {
+                            bail!("Withdrawal TX rejected: {e}")
+                        }
+                        StabilityPoolWithdrawalOperationState::PrimaryOutputError(e) => {
+                            bail!("Primary output error: {e}")
+                        }
+                        _ => info!("Update: {:?}", update),
+                    }
+                }
+
+                Ok(serde_json::Value::String(
+                    "withdraw idle balance success".to_string(),
+                ))
             }
         }
     }
@@ -392,6 +472,12 @@ pub enum StabilityPoolMeta {
         txid: TransactionId,
         unlock_amount: FiatOrAll,
     },
+    /// Withdraw accumulated idle balance.
+    WithdrawIdleBalance {
+        txid: TransactionId,
+        amount: Amount,
+        outpoints: Vec<OutPoint>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -424,7 +510,7 @@ pub enum StabilityPoolTransferOperationState {
 }
 
 impl StabilityPoolClientModule {
-    fn our_account(&self, acc_type: AccountType) -> Account {
+    pub fn our_account(&self, acc_type: AccountType) -> Account {
         Account::single(self.client_key_pair.public_key(), acc_type)
     }
 
@@ -445,10 +531,15 @@ impl StabilityPoolClientModule {
             .await
     }
 
-    /// Returns the start price of current cycle in cents.
-    pub async fn cycle_start_price(&self) -> anyhow::Result<u64, FederationError> {
+    pub async fn active_deposits(
+        &self,
+        account_id: AccountId,
+    ) -> anyhow::Result<ActiveDeposits, FederationError> {
         self.module_api
-            .request_current_consensus("cycle_start_price".to_string(), ApiRequestErased::default())
+            .request_current_consensus(
+                "active_deposits".to_string(),
+                ApiRequestErased::new(account_id),
+            )
             .await
     }
 
@@ -544,6 +635,11 @@ impl StabilityPoolClientModule {
                 }
             }),
         )
+    }
+
+    pub fn sign_transfer_request(&self, request: &TransferRequest) -> schnorr::Signature {
+        let message = secp256k1::Message::from(&TransferRequestId::from(request));
+        self.client_key_pair.sign_schnorr(message)
     }
 
     pub async fn transfer(
@@ -710,6 +806,88 @@ impl StabilityPoolClientModule {
                 }
             }))
     }
+
+    pub async fn withdraw_idle_balance(
+        &self,
+        acc_type: AccountType,
+        amount: Amount,
+    ) -> anyhow::Result<(OperationId, TransactionId)> {
+        if amount == Amount::ZERO {
+            bail!("Withdrawal amount must be non-0");
+        }
+
+        let operation_id = OperationId::new_random();
+
+        let account = self.our_account(acc_type);
+        let input = ClientInput {
+            amount,
+            input: StabilityPoolInput::V0(StabilityPoolInputV0::Withdrawal(WithdrawalInput {
+                account: account.clone(),
+                amount,
+            })),
+            keys: vec![self.client_key_pair],
+        };
+        let sm = ClientInputSM {
+            state_machines: Arc::new(move |_| Vec::<StabilityPoolStateMachine>::new()),
+        };
+        let tx = TransactionBuilder::new().with_inputs(
+            self.client_ctx
+                .make_client_inputs(ClientInputBundle::new(vec![input], vec![sm])),
+        );
+        let withdrawal_meta_gen = |txid, outpoints| StabilityPoolMeta::WithdrawIdleBalance {
+            txid,
+            amount,
+            outpoints,
+        };
+        let (transaction_id, _) = self
+            .client_ctx
+            .finalize_and_submit_transaction(
+                operation_id,
+                StabilityPoolCommonGen::KIND.as_str(),
+                withdrawal_meta_gen,
+                tx,
+            )
+            .await?;
+        Ok((operation_id, transaction_id))
+    }
+
+    pub async fn subscribe_withdraw_idle_balance(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<UpdateStreamOrOutcome<StabilityPoolWithdrawalOperationState>> {
+        let operation = stability_pool_operation(&self.client_ctx, operation_id).await?;
+        let (txid, amount, outpoints) = match operation.meta::<StabilityPoolMeta>() {
+            StabilityPoolMeta::WithdrawIdleBalance {
+                txid,
+                amount,
+                outpoints,
+            } => (txid, amount, outpoints),
+            _ => bail!("Operation is not of type withdraw idle balance"),
+        };
+
+        let client_ctx = self.client_ctx.clone();
+        Ok(
+            self.client_ctx.outcome_or_updates(&operation, operation_id, move || {
+                stream! {
+                    yield StabilityPoolWithdrawalOperationState::WithdrawalInitiated(amount);
+
+                    let tx_updates_stream = client_ctx.transaction_updates(operation_id);
+                    match tx_updates_stream.await.await_tx_accepted(txid).await {
+                        Ok(_) => yield StabilityPoolWithdrawalOperationState::WithdrawalTxAccepted(amount),
+                        Err(e) => {
+                            yield StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(e);
+                            return;
+                        },
+                    }
+
+                    match client_ctx.await_primary_module_outputs(operation_id, outpoints).await {
+                        Ok(_) => yield StabilityPoolWithdrawalOperationState::Success(amount),
+                        Err(e) => yield StabilityPoolWithdrawalOperationState::PrimaryOutputError(e.to_string()),
+                    }
+                }
+            }),
+        )
+    }
 }
 
 async fn stability_pool_operation(
@@ -786,6 +964,7 @@ async fn await_unlock_request_processed(
             Ok(UnlockRequestStatus::NoActiveRequest { idle_balance }) => break Ok(idle_balance),
             Ok(UnlockRequestStatus::Pending {
                 next_cycle_start_time,
+                ..
             }) => {
                 let sleep_duration = next_cycle_start_time
                     .duration_since(fedimint_core::time::now())
@@ -852,6 +1031,7 @@ where
 pub enum AccountTypeArg {
     Seeker,
     Provider,
+    BtcDepositor,
 }
 
 impl From<AccountTypeArg> for AccountType {
@@ -859,6 +1039,7 @@ impl From<AccountTypeArg> for AccountType {
         match arg {
             AccountTypeArg::Seeker => AccountType::Seeker,
             AccountTypeArg::Provider => AccountType::Provider,
+            AccountTypeArg::BtcDepositor => AccountType::BtcDepositor,
         }
     }
 }
@@ -873,11 +1054,26 @@ fn parse_withdrawal_amount(s: &str) -> Result<FiatOrAll, String> {
     }
 }
 
+fn parse_transfer_amount(s: &str) -> Result<FiatAmount, String> {
+    Ok(FiatAmount(
+        s.parse::<u64>()
+            .map_err(|e| format!("Invalid fiat amount: {e}"))?,
+    ))
+}
+
 fn parse_fee_rate(s: &str) -> Result<FeeRate, String> {
     Ok(FeeRate(
         s.parse::<u64>()
             .map_err(|e| format!("Invalid fee rate: {e}"))?,
     ))
+}
+
+fn parse_transfer_request(s: &str) -> Result<TransferRequest, String> {
+    serde_json::from_str(s).map_err(|e| e.to_string())
+}
+
+fn parse_signed_transfer_request(s: &str) -> Result<SignedTransferRequest, String> {
+    serde_json::from_str(s).map_err(|e| e.to_string())
 }
 
 #[derive(Parser, Debug, Serialize)]
@@ -886,6 +1082,11 @@ pub enum CliCommand {
     Pubkey,
     /// Get account info for seeker or provider account
     AccountInfo {
+        #[arg(value_enum)]
+        account_type: AccountTypeArg,
+    },
+    /// Get active deposits (staged and locked) for seeker or provider account
+    ActiveDeposits {
         #[arg(value_enum)]
         account_type: AccountTypeArg,
     },
@@ -908,5 +1109,30 @@ pub enum CliCommand {
         account_type: AccountTypeArg,
         #[arg(value_parser = parse_withdrawal_amount)]
         amount: FiatOrAll,
+    },
+    /// Sign a transfer request
+    SignTransfer {
+        #[arg(value_parser = parse_transfer_request)]
+        request: TransferRequest,
+    },
+    /// Convenience CLI command to get a signed transfer request for sending
+    /// amount to given account
+    SimpleTransfer {
+        to_account: AccountId,
+        #[arg(value_parser = parse_transfer_amount)]
+        amount: FiatAmount,
+    },
+    /// Submit a signed transfer request
+    Transfer {
+        #[arg(value_parser = parse_signed_transfer_request)]
+        request: SignedTransferRequest,
+    },
+    /// Withdraw idle balance only. This is meant for a provider to sweep their
+    /// earned fees, but may also be used by seeker in case of any errors with
+    /// full withdrawal flow.
+    WithdrawIdleBalance {
+        #[arg(value_enum)]
+        account_type: AccountTypeArg,
+        amount_msats: Amount,
     },
 }

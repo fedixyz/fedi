@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Platform } from 'react-native'
+import DeviceInfo from 'react-native-device-info'
 import Share from 'react-native-share'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -9,7 +10,11 @@ import {
     useExportTransactions,
     useTransactionHistory,
 } from '@fedi/common/hooks/transactions'
-import { generateReusedEcashProofs, selectNostrNpub } from '@fedi/common/redux'
+import {
+    generateReusedEcashProofs,
+    selectFedimintVersion,
+    selectNostrNpub,
+} from '@fedi/common/redux'
 import { selectActiveFederation } from '@fedi/common/redux/federation'
 import { LoadedFederation } from '@fedi/common/types'
 import {
@@ -84,6 +89,8 @@ export const useShareLogs = () => {
     const npub = useAppSelector(selectNostrNpub)
     const [status, setStatus] = useState<Status>('idle')
 
+    const fedimintVersion = useAppSelector(selectFedimintVersion)
+
     const { fetchTransactions } = useTransactionHistory(fedimint)
 
     const log = makeLog('ShareLogs')
@@ -142,6 +149,9 @@ export const useShareLogs = () => {
                 await submitBugReport({
                     id,
                     ticketNumber: ticket,
+                    platform: `${DeviceInfo.getApplicationName()} (${Platform.OS})`,
+                    appVersion: DeviceInfo.getVersion(),
+                    fedimintVersion,
                 })
 
                 return true // success
@@ -152,7 +162,16 @@ export const useShareLogs = () => {
                 return false // failed
             }
         },
-        [dispatch, activeFederation, fetchTransactions, t, toast, log, npub],
+        [
+            dispatch,
+            activeFederation,
+            fetchTransactions,
+            t,
+            toast,
+            log,
+            npub,
+            fedimintVersion,
+        ],
     )
 
     return { collectAttachmentsAndSubmit, status, setStatus }

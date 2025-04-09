@@ -25,3 +25,8 @@ fi
 # CARGO_PROFILE_DIR
 export CARGO_BUILD_TARGET_DIR="${CARGO_BUILD_TARGET_DIR:-${REPO_ROOT}/target}"
 export CARGO_BIN_DIR="${CARGO_BUILD_TARGET_DIR}/${CARGO_PROFILE_DIR}"
+
+function build_workspace() {
+  echo "## Ensuring everything built"
+  cargo build --profile "${CARGO_PROFILE}" --all-targets
+}

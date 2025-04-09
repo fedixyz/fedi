@@ -132,6 +132,18 @@ format-ui-code:
 clean-ui:
   @./scripts/ui/clean-ui.sh
 
+# export translations for all supported languages to CSV
+export-all-translations:
+  pushd ./ui/common/localization && yarn run i18n:export-csv && popd
+
+# export translations to CSV for a specific language (export spanish by default)
+export-translations-for language="es":
+  pushd ./ui/common/localization && yarn run i18n:export-csv {{language}} && popd
+
+# export only the missing translations to CSV for a specific language (export spanish by default)
+export-missing-translations-for language="es":
+  pushd ./ui/common/localization && yarn run i18n:export-csv {{language}} missing && popd
+
 fedimint-cli REF REV *ARGS:
   @nix run "git+https://github.com/fedimint/fedimint.git?ref={{REF}}&rev={{REV}}#ci.fedimint-cli" -- {{ARGS}}
 

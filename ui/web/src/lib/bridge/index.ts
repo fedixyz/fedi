@@ -34,6 +34,7 @@ async function fedimintRpc<Type = void>(
         throw new Error('Fedimint bridge is not ready!')
     }
 
+    const startTime = performance.now()
     // Post a message to the worker
     const jsonPayload = JSON.stringify(payload)
     const json = await workerRequest<string>(method, jsonPayload)
@@ -42,6 +43,9 @@ async function fedimintRpc<Type = void>(
         log.error(method, parsed)
         throw new BridgeError(parsed)
     } else {
+        log.info(
+            `fedimintRpc ${method} resolved in ${Number(global.performance.now() - startTime).toFixed(0)}ms`,
+        )
         return parsed.result
     }
 }

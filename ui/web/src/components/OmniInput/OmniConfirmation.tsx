@@ -117,6 +117,11 @@ export const OmniConfirmation: React.FC<Props> = ({
         }
 
         switch (parsedData.type) {
+            case ParserDataType.OfflineError:
+                return {
+                    icon: ScanSadIcon,
+                    text: parsedData.data.title,
+                }
             case ParserDataType.Bolt11:
             case ParserDataType.LnurlPay:
                 return {

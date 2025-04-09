@@ -9,7 +9,7 @@ import { RadioGroup } from '../../components/RadioGroup'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import i18n from '../../localization/i18n'
 
-function LanguageSettings() {
+function SettingsLanguagePage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const language = useAppSelector(selectLanguage)
@@ -44,4 +44,4 @@ function LanguageSettings() {
     )
 }
 
-export default LanguageSettings
+export default SettingsLanguagePage

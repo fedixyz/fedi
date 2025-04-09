@@ -14,7 +14,8 @@
         "i18n:autotranslate": "ts-node ./scripts/autotranslate.ts",
         "i18n:export-csv": "ts-node ./scripts/i18n-export-csv.ts",
         "i18n:import-csv": "ts-node ./scripts/i18n-import-csv.ts",
-        "i18n:unused": "ts-node ./scripts/i18n-unused.ts"
+        "i18n:unused": "ts-node ./scripts/i18n-unused.ts",
+        "i18n:sync-plist": "ts-node ./scripts/i18n-sync-plist.ts"
     },
     "dependencies": {
         "@reduxjs/toolkit": "^1.9.3",
@@ -47,6 +48,7 @@
         "@types/json-stable-stringify": "^1.0.34",
         "@types/node": "^20.4.9",
         "@types/pako": "^2.0.2",
+        "@types/papaparse": "^5.3.15",
         "@types/tar-stream": "^3.1.2",
         "@types/uuid": "^9.0.1",
         "@typescript-eslint/eslint-plugin": "^5.56.0",
@@ -59,6 +61,7 @@
         "jest-fetch-mock": "^3.0.3",
         "json-stable-stringify": "^1.0.2",
         "msw": "^1.2.2",
+        "papaparse": "^5.5.2",
         "ts-jest": "^29.0.5",
         "ts-node": "^10.9.1",
         "typescript": "^5.0.2"

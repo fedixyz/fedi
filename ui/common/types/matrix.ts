@@ -108,7 +108,7 @@ export interface MatrixEvent<
     eventId?: string
     timestamp: number
     senderId: MatrixUser['id'] | null
-    error: Error | null
+    error: string | null
 }
 
 export type MatrixTimelineItem = MatrixEvent | null

@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "tokio::sync::watch::Sender::send", reason = "use send_replace instead" }
+]

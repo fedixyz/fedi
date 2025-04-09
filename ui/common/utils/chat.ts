@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { Chat, ChatMessage, ChatType } from '@fedi/common/types'
 
+import { BIP39_WORD_LIST } from '../constants/bip39'
 import { BANNED_DISPLAY_NAME_TERMS } from '../constants/matrix'
 
 /**
@@ -174,4 +175,28 @@ export const parseData = <T extends z.ZodTypeAny>(
             errorMessage: t('errors.invalid-username-banned'),
         }
     return { success: false, errorMessage: t('errors.invalid-username') }
+}
+
+export const deriveUrlsFromText = (text: string) => {
+    // The "\b" before "https" prevents the regex from matching uwanted content at the beginning (e.g. "asdfhttps://link")
+    return (
+        text.match(/\bhttps?:\/\/[^\s]+/gi)?.filter(url => {
+            try {
+                // There is an eslint rule preventing you from calling `new Class()` without using it
+                return Boolean(new URL(url))
+            } catch {
+                return false
+            }
+        }) ?? []
+    )
+}
+
+export const generateRandomDisplayName = (length: number) => {
+    const words = []
+    for (let i = 0; i < length; i++) {
+        const randomIndex = Math.floor(Math.random() * BIP39_WORD_LIST.length)
+        words.push(BIP39_WORD_LIST[randomIndex])
+    }
+
+    return words.join(' ')
 }

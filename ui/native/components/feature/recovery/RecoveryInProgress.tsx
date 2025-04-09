@@ -11,19 +11,27 @@ import HoloLoader from '../../ui/HoloLoader'
 
 export type Props = {
     label?: string
+    federationId?: string
+    size?: number
 }
 
 const log = makeLog('recovery')
 
-const RecoveryInProgress: React.FC<Props> = ({ label }: Props) => {
+const RecoveryInProgress: React.FC<Props> = ({
+    label,
+    federationId,
+    size = 100,
+}: Props) => {
     const { theme } = useTheme()
-    const activeFederation = useAppSelector(selectActiveFederationId)
+    const activeFederationId = useAppSelector(selectActiveFederationId)
     const [progress, setProgress] = useState<number | undefined>(undefined)
+
+    const federationIdToUse = federationId || activeFederationId
 
     useEffect(() => {
         return fedimint.addListener('recoveryProgress', event => {
             log.info('recovery progress', event)
-            if (event.federationId === activeFederation) {
+            if (event.federationId === federationIdToUse) {
                 if (event.total === 0) {
                     setProgress(undefined)
                 } else {
@@ -31,13 +39,13 @@ const RecoveryInProgress: React.FC<Props> = ({ label }: Props) => {
                 }
             }
         })
-    }, [activeFederation])
+    }, [federationIdToUse])
 
     const style = styles(theme)
     return (
         <View style={style.container}>
             <HoloLoader
-                size={100}
+                size={size}
                 label={
                     progress !== undefined
                         ? `${Math.floor(progress * 100)}%`

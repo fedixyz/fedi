@@ -171,16 +171,23 @@ export function formatBridgeFfiLog(event: LogEvent): string {
         stringToLog += `[OS: ${Platform.OS}]\n------ |  `
         const parsed = JSON.parse(event.log)
         if (parsed?.message === 'rpc call') {
-            stringToLog += `> rpc call received by bridge\n`
+            return '' // This is noisy and not helpful. We already log rpc calls in `native/bridge.ts`
+            // stringToLog += `> rpc call: received by bridge\n`
         } else if (parsed?.message === 'rpc_error' && parsed?.error) {
             stringToLog += `> rpc error: ${parsed.error}\n`
         } else if (parsed?.name && parsed?.duration_ms) {
-            stringToLog += `> operation ${parsed?.name} completed in ${parsed?.duration_ms}ms\n`
+            // this makes logs slightly more readable to distinguish operations from rpc calls
+            const operation = parsed.name.includes('fedimint_rpc ')
+                ? `rpc call: ${parsed.name.split('fedimint_rpc ')[1]}`
+                : `operation ${parsed.name}`
+            stringToLog += `> ${operation} completed in ${parsed?.duration_ms}ms\n`
         } else if (parsed?.metadata?.is_event && parsed?.message) {
             stringToLog += `> event received from bridge <message>: ${parsed?.message}\n`
         } else {
             // we don't log every event since it just adds a lot of clutter during UI dev
             stringToLog += `> received unspecified log event. uncomment ui/native/utils/log:formatBridgeFfiLog to view the full log\n`
+            // Uncomment this to see the full log of this unspecified event
+            // stringToLog += `------ |  > full log: ${stripped}\n`
         }
         // Uncomment this to view full unformatted bridge logs
         // stringToLog += `------ |  > full log: ${stripped}\n`

@@ -1,4 +1,6 @@
+import { useNavigation } from '@react-navigation/native'
 import { Input, Theme, useTheme } from '@rneui/themed'
+import { ResourceKey } from 'i18next'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -31,6 +33,7 @@ import {
 } from 'react-native-image-picker'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { MAX_FILE_SIZE, MAX_IMAGE_SIZE } from '@fedi/common/constants/matrix'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
@@ -44,6 +47,8 @@ import {
 } from '@fedi/common/redux'
 import { InputAttachment, InputMedia } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
+import { getEventId } from '@fedi/common/utils/matrix'
+import { formatFileSize } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -87,6 +92,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
     const existingRoom = useAppSelector(s => selectMatrixRoom(s, id))
+    const navigation = useNavigation()
     const dispatch = useAppDispatch()
 
     const toast = useToast()
@@ -117,21 +123,65 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const [attachments, setAttachments] = useState<DocumentPickerResponse[]>([])
     const [images, setImages] = useState<Asset[]>([])
 
+    const anyAssetExceedsSize = useCallback(
+        (assets: Asset[] | DocumentPickerResponse[], size: number) => {
+            const formattedSize = formatFileSize(size)
+            let exceeds = false
+            let message: ResourceKey = t('errors.files-may-not-exceed-size', {
+                size: formattedSize,
+            })
+
+            for (const asset of assets) {
+                if ('size' in asset && asset.size && asset.size > size) {
+                    exceeds = true
+                }
+                if (
+                    'fileSize' in asset &&
+                    asset.fileSize &&
+                    asset.fileSize > size
+                ) {
+                    if (asset.type?.includes('image'))
+                        message = t('errors.images-may-not-exceed-size', {
+                            size: formattedSize,
+                        })
+                    else if (asset.type?.includes('video'))
+                        message = t('errors.videos-may-not-exceed-size', {
+                            size: formattedSize,
+                        })
+
+                    exceeds = true
+                }
+            }
+
+            if (exceeds) {
+                toast.show({
+                    content: message,
+                    status: 'error',
+                })
+            }
+
+            return exceeds
+        },
+        [t, toast],
+    )
+
     const handleUploadImage = useCallback(async () => {
         try {
             const res = await launchImageLibrary(imageOptions)
 
             if (res.assets) {
+                const assetImages = res.assets.filter(asset =>
+                    asset.type?.includes('image'),
+                )
+                const assetVideos = res.assets.filter(asset =>
+                    asset.type?.includes('video'),
+                )
+
                 if (
-                    // Not 20M because images/videos are often in binary format
-                    res.assets.some(asset => (asset.fileSize ?? 0) > 20971520)
-                ) {
-                    toast.show({
-                        content: t('errors.files-may-not-exceed-20mb'),
-                        status: 'error',
-                    })
+                    anyAssetExceedsSize(assetImages, MAX_IMAGE_SIZE) ||
+                    anyAssetExceedsSize(assetVideos, MAX_FILE_SIZE)
+                )
                     return
-                }
 
                 const assets: Array<Asset> = []
 
@@ -199,7 +249,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         } catch (err) {
             toast.error(t, err)
         }
-    }, [t, toast, images])
+    }, [t, toast, images, anyAssetExceedsSize])
 
     const handleUploadAttachment = useCallback(async () => {
         try {
@@ -221,16 +271,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             })
 
             if (response) {
-                if (
-                    // Not 20M because images/videos are often in binary format
-                    response.some(asset => (asset.size ?? 0) > 20971520)
-                ) {
-                    toast.show({
-                        content: t('errors.files-may-not-exceed-20mb'),
-                        status: 'error',
-                    })
-                    return
-                }
+                if (anyAssetExceedsSize(response, MAX_FILE_SIZE)) return
 
                 // Exclude duplicates
                 setAttachments(
@@ -246,15 +287,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
             // Hiding this because it shows the toast when user closes the dialogue ...
             // toast?.show(typedError?.message, 3000)
         }
-    }, [attachments, t, toast])
+    }, [attachments, anyAssetExceedsSize])
 
     const handleEdit = useCallback(async () => {
         if (!isEditingMessage || !messageText || !editingMessage.eventId) return
 
         try {
+            const event = getEventId(editingMessage)
             await fedimint.matrixEditMessage(
                 editingMessage.roomId,
-                editingMessage.eventId,
+                event,
                 messageText,
             )
             setMessageText('')
@@ -398,12 +440,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
         [inputHeight, theme],
     )
 
-    const formatSize = (bytes: number) => {
-        if (bytes < 1024) return `${bytes} bytes`
-        else if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kb`
-        else return `${(bytes / 1024 / 1024).toFixed(1)} mb`
-    }
-
     return (
         <View
             style={[
@@ -423,7 +459,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             <View style={style.attachmentContent}>
                                 <Text>{att.name}</Text>
                                 <Text style={style.attachmentSize}>
-                                    {formatSize(att.size ?? 0)}
+                                    {formatFileSize(att.size ?? 0)}
                                 </Text>
                             </View>
                             <Pressable
@@ -496,9 +532,25 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         {directUserId && (
                             <ChatWalletButton recipientId={directUserId} />
                         )}
-                        {/* uploading media only available in DMs and private groups to prevent unencrypted media uploads, also hide if we can't send messages (readonly) */}
+                        {/**
+                         * - Polls and media are only available in non-public chats
+                         * - Polls are not available in user-to-user direct chats
+                         * - To prevent users from uploading unencrypted media, media uploads are not available in public chats
+                         * */}
                         {!isPublic && !isReadOnly && (
                             <>
+                                {/* polls are not available for direct chats */}
+                                {!directUserId && (
+                                    <Pressable
+                                        onPress={() => {
+                                            navigation.navigate('CreatePoll', {
+                                                roomId: id,
+                                            })
+                                        }}
+                                        hitSlop={10}>
+                                        <SvgImage name="Poll" />
+                                    </Pressable>
+                                )}
                                 <Pressable
                                     onPress={handleUploadImage}
                                     hitSlop={10}>

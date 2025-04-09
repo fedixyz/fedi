@@ -4,13 +4,20 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::anyhow;
+use anyhow::bail;
 use devimint::external::Bitcoind;
 use devimint::federation::Federation;
 use devimint::util::{Command, ProcessManager};
 use devimint::{cmd, dev_fed, vars, DevFed};
+use fedimint_core::module::serde_json;
+use fedimint_core::secp256k1::schnorr;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::util::write_overwrite_async;
+use fedimint_core::Amount;
+use stability_pool_common::{
+    Account, AccountId, AccountType, ActiveDeposits, FeeRate, FiatAmount, FiatOrAll, Provide, Seek,
+    SignedTransferRequest, SyncResponse, TransferRequest,
+};
 use tokio::fs;
 use tracing::{debug, info};
 
@@ -43,7 +50,7 @@ async fn starter_test() -> anyhow::Result<()> {
     let invite_code = fed.invite_code()?;
     tokio::try_join!(
         seeker.join_federation(invite_code.clone()),
-        provider.join_federation(invite_code)
+        provider.join_federation(invite_code.clone())
     )?;
 
     // Peg in for seeker and provider and verify balances
@@ -65,7 +72,356 @@ async fn starter_test() -> anyhow::Result<()> {
     let (seeker, provider) = (Arc::new(seeker), Arc::new(provider));
     seeker_tests_isolated(Arc::clone(&seeker)).await?;
     provider_tests_isolated(Arc::clone(&provider)).await?;
+    seeker_and_provider_tests(Arc::clone(&seeker), Arc::clone(&provider)).await?;
 
+    // Create another seeker for transfer tests
+    let seeker2 = Arc::new(ForkedClient::new("seeker2").await?);
+    seeker2.join_federation(invite_code).await?;
+    transfer_tests(seeker, seeker2, provider).await?;
+
+    Ok(())
+}
+
+async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> {
+    // Record initial ecash balance and unlocked SP balance
+    let initial_ecash_balance = seeker.balance().await?;
+    let initial_unlocked_sp_balance = seeker
+        .get_sp_account_info(AccountType::Seeker)
+        .await?
+        .sync_response
+        .staged_balance;
+
+    // Try to withdraw 10 cents, expect error
+    assert!(seeker
+        .withdraw(AccountType::Seeker, FiatOrAll::Fiat(FiatAmount(10)))
+        .await
+        .is_err());
+
+    // Deposit-to-seek
+    let first_deposit_amount = Amount::from_msats(150_000);
+    seeker.deposit_to_seek(first_deposit_amount.msats).await?;
+
+    // Verify new ecash balance and new unlocked SP balance
+    // Verify staged seek
+    let new_ecash_balance = seeker.balance().await?;
+    let new_sp_account_info = seeker.get_sp_account_info(AccountType::Seeker).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount
+    );
+    let ActiveDeposits::Seeker { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Seek {
+            sequence: 0,
+            amount,
+            ..
+        }] if *amount == first_deposit_amount
+    ));
+
+    // Deposit-to-seek again
+    let second_deposit_amount = Amount::from_msats(250_000);
+    seeker.deposit_to_seek(second_deposit_amount.msats).await?;
+
+    // Verify new ecash balance and new unlocked SP balance
+    // Verify staged seeks
+    let new_ecash_balance = seeker.balance().await?;
+    let new_sp_account_info = seeker.get_sp_account_info(AccountType::Seeker).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats - second_deposit_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
+    );
+    let ActiveDeposits::Seeker { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Seek {
+            sequence: 0,
+            amount: amount1, ..
+        }, Seek  {
+            sequence: 1,
+            amount: amount2, ..
+        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount
+    ));
+
+    // Try to withdraw more than unlocked balance, expect error
+    // Currently with Mock oracle, price of 1 BTC is 1,000,000 cents
+    // So with 400,000 msats, our balance is 4 cents
+    assert!(seeker
+        .withdraw(AccountType::Seeker, FiatOrAll::Fiat(FiatAmount(5)))
+        .await
+        .is_err());
+
+    // Withdraw less than 2nd staged seek, verify 2nd staged seek modified
+    // Verify ecash balance
+    let first_withdraw_amount_cents = 1;
+    let first_withdraw_amount = Amount::from_msats(100_000);
+    seeker
+        .withdraw(
+            AccountType::Seeker,
+            FiatOrAll::Fiat(FiatAmount(first_withdraw_amount_cents)),
+        )
+        .await?;
+    let new_ecash_balance = seeker.balance().await?;
+    let new_sp_account_info = seeker.get_sp_account_info(AccountType::Seeker).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats - second_deposit_amount.msats
+            + first_withdraw_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
+            - first_withdraw_amount
+    );
+    let ActiveDeposits::Seeker { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Seek {
+            sequence: 0,
+            amount: amount1, ..
+        }, Seek  {
+            sequence: 1,
+            amount: amount2, ..
+        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount - first_withdraw_amount
+    ));
+
+    // Withdraw more than 2nd staged seek, verify 2nd staged seek removed
+    // Verify ecash balance
+    let second_withdraw_amount_cents = 2;
+    let second_withdraw_amount = Amount::from_msats(200_000);
+    seeker
+        .withdraw(
+            AccountType::Seeker,
+            FiatOrAll::Fiat(FiatAmount(second_withdraw_amount_cents)),
+        )
+        .await?;
+
+    let total_withdrawn = first_withdraw_amount + second_withdraw_amount;
+    let remaining_first_deposit = first_deposit_amount - (total_withdrawn - second_deposit_amount);
+    let new_ecash_balance = seeker.balance().await?;
+    let new_sp_account_info = seeker.get_sp_account_info(AccountType::Seeker).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats - second_deposit_amount.msats
+            + first_withdraw_amount.msats
+            + second_withdraw_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
+            - first_withdraw_amount
+            - second_withdraw_amount
+    );
+    let ActiveDeposits::Seeker { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Seek {
+            sequence: 0,
+            amount: amount1, ..
+        }] if *amount1 == remaining_first_deposit
+    ));
+
+    // Withdraw any remaining unlocked balance
+    seeker.withdraw(AccountType::Seeker, FiatOrAll::All).await?;
+    Ok(())
+}
+
+async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<()> {
+    // Record initial ecash balance and unlocked SP balance
+    let initial_ecash_balance = provider.balance().await?;
+    let initial_unlocked_sp_balance = provider
+        .get_sp_account_info(AccountType::Provider)
+        .await?
+        .sync_response
+        .staged_balance;
+
+    // Try to withdraw 10 cents, expect error
+    assert!(provider
+        .withdraw(AccountType::Provider, FiatOrAll::Fiat(FiatAmount(10)))
+        .await
+        .is_err());
+
+    // Deposit-to-provide
+    let first_deposit_amount = Amount::from_msats(150_000);
+    provider
+        .deposit_to_provide(first_deposit_amount.msats, 10)
+        .await?;
+
+    // Verify new ecash balance and new unlocked SP balance
+    // Verify staged provide
+    let new_ecash_balance = provider.balance().await?;
+    let new_sp_account_info = provider.get_sp_account_info(AccountType::Provider).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount
+    );
+    let ActiveDeposits::Provider { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for provider");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Provide {
+            sequence: 2, // provider/seeker sequence is shared now
+            amount,
+            meta: FeeRate(10), ..
+        }] if *amount == first_deposit_amount
+    ));
+
+    // Deposit-to-provide again
+    let second_deposit_amount = Amount::from_msats(250_000);
+    provider
+        .deposit_to_provide(second_deposit_amount.msats, 20)
+        .await?;
+
+    // Verify new ecash balance and new unlocked SP balance
+    // Verify staged provides
+    let new_ecash_balance = provider.balance().await?;
+    let new_sp_account_info = provider.get_sp_account_info(AccountType::Provider).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats - second_deposit_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
+    );
+    let ActiveDeposits::Provider { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for provider");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Provide {
+            sequence: 2,
+            amount: amount1,
+            meta: FeeRate(10), ..
+        }, Provide  {
+            sequence: 3,
+            amount: amount2,
+            meta: FeeRate(20), ..
+        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount));
+
+    // Try to withdraw more than unlocked balance, expect error
+    // Currently with Mock oracle, price of 1 BTC is 1,000,000 cents
+    // So with 400,000 msats, our balance is 4 cents
+    assert!(provider
+        .withdraw(AccountType::Provider, FiatOrAll::Fiat(FiatAmount(5)))
+        .await
+        .is_err());
+
+    // Withdraw less than 2nd staged provide, verify 2nd staged provide modified
+    // Verify ecash balance
+    let first_withdraw_amount_cents = 1;
+    let first_withdraw_amount = Amount::from_msats(100_000);
+    provider
+        .withdraw(
+            AccountType::Provider,
+            FiatOrAll::Fiat(FiatAmount(first_withdraw_amount_cents)),
+        )
+        .await?;
+    let new_ecash_balance = provider.balance().await?;
+    let new_sp_account_info = provider.get_sp_account_info(AccountType::Provider).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats - second_deposit_amount.msats
+            + first_withdraw_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
+            - first_withdraw_amount
+    );
+    let ActiveDeposits::Provider { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for provider");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Provide {
+            sequence: 2,
+            amount: amount1,
+            meta: FeeRate(10), ..
+        }, Provide {
+            sequence: 3,
+            amount: amount2,
+            meta: FeeRate(20), ..
+        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount - first_withdraw_amount));
+
+    // Withdraw more than 2nd staged provide, verify 2nd staged provide removed
+    // Verify ecash balance
+    let second_withdraw_amount_cents = 2;
+    let second_withdraw_amount = Amount::from_msats(200_000);
+    provider
+        .withdraw(
+            AccountType::Provider,
+            FiatOrAll::Fiat(FiatAmount(second_withdraw_amount_cents)),
+        )
+        .await?;
+
+    let total_withdrawn = first_withdraw_amount + second_withdraw_amount;
+    let remaining_first_deposit = first_deposit_amount - (total_withdrawn - second_deposit_amount);
+    let new_ecash_balance = provider.balance().await?;
+    let new_sp_account_info = provider.get_sp_account_info(AccountType::Provider).await?;
+    assert_eq!(
+        new_ecash_balance,
+        initial_ecash_balance - first_deposit_amount.msats - second_deposit_amount.msats
+            + first_withdraw_amount.msats
+            + second_withdraw_amount.msats
+    );
+    assert_eq!(
+        new_sp_account_info.sync_response.staged_balance,
+        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
+            - first_withdraw_amount
+            - second_withdraw_amount
+    );
+    let ActiveDeposits::Provider { staged, .. } = new_sp_account_info.active_deposits else {
+        bail!("Invalid active deposits variant for provider");
+    };
+
+    assert!(matches!(
+        staged.as_slice(),
+        [Provide {
+            sequence: 2,
+            amount: amount1, ..
+        }] if *amount1 == remaining_first_deposit
+    ));
+
+    // Withdraw any remaining unlocked balance
+    provider
+        .withdraw(AccountType::Provider, FiatOrAll::All)
+        .await?;
+    Ok(())
+}
+
+async fn seeker_and_provider_tests(
+    seeker: Arc<ForkedClient>,
+    provider: Arc<ForkedClient>,
+) -> anyhow::Result<()> {
     // 1 seek and 1 provide, excess provide liquidity
     let seek1_msats = 200_000;
     let provide1_msats = 500_000;
@@ -85,42 +441,32 @@ async fn starter_test() -> anyhow::Result<()> {
     let locked_seek_1 = seek1_msats - fees_paid;
     let locked_provide_1 = locked_seek_1 + 1; // overcollateralization due to ceiling division
     let staged_provide_1 = provide1_msats - locked_provide_1;
-    assert_eq!(
-        seeker_info,
-        AccountInfo {
-            idle_balance: 0,
-            staged_seeks: vec![],
-            staged_provides: vec![],
-            locked_seeks: vec![LockedSeek {
-                staged_sequence: seeker_info.locked_seeks[0].staged_sequence,
-                amount: locked_seek_1
-            }],
-            locked_provides: vec![]
-        }
-    );
-    assert_eq!(
-        provider_info,
-        AccountInfo {
-            idle_balance: fees_paid,
-            staged_seeks: vec![],
-            staged_provides: vec![StagedProvide {
-                sequence: provider_info.staged_provides[0].sequence,
-                amount: staged_provide_1,
-                min_fee_rate: provide1_min_fee_rate
-            }],
-            locked_seeks: vec![],
-            locked_provides: vec![LockedProvide {
-                staged_sequence: provider_info.locked_provides[0].staged_sequence,
-                staged_min_fee_rate: provide1_min_fee_rate,
-                amount: locked_provide_1,
-            }]
-        }
-    );
-    assert!(provider_info.locked_provides_total() >= seeker_info.locked_seeks_total());
-    assert_eq!(
-        seek1_msats + provide1_msats,
-        seeker_info.total_balance() + provider_info.total_balance()
-    );
+    let ActiveDeposits::Seeker { locked, .. } = seeker_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+    assert!(matches!(
+        locked.as_slice(),
+        [Seek {
+            amount,
+            ..
+        }] if amount.msats == locked_seek_1
+    ));
+    let ActiveDeposits::Provider { staged, locked } = provider_info.active_deposits else {
+        bail!("Invalid active deposits variant for provider");
+    };
+    assert!(matches!(
+        staged.as_slice(),
+        [Provide {
+            amount, meta, ..
+        }] if amount.msats == staged_provide_1 && *meta == FeeRate(provide1_min_fee_rate)
+    ));
+    assert!(matches!(
+        locked.as_slice(),
+        [Provide {
+            amount, meta, ..
+        }] if amount.msats == locked_provide_1 && *meta == FeeRate(provide1_min_fee_rate)
+    ));
+    assert_eq!(provider_info.sync_response.idle_balance.msats, fees_paid);
 
     // 1 more seek and 1 more provide, but insufficient provider liquidity
     let seek2_msats = 500_000;
@@ -143,460 +489,203 @@ async fn starter_test() -> anyhow::Result<()> {
     let staged_seek_2 = seek2_msats - locked_seek_2 - 1;
     let locked_provide_1 = provide1_msats;
     let locked_provide_2 = provide2_msats;
-    assert_eq!(
-        seeker_info,
-        AccountInfo {
-            idle_balance: 0,
-            staged_seeks: vec![StagedSeek {
-                sequence: seeker_info.staged_seeks[0].sequence,
-                amount: staged_seek_2
-            }],
-            staged_provides: vec![],
-            locked_seeks: vec![
-                LockedSeek {
-                    staged_sequence: seeker_info.locked_seeks[0].staged_sequence,
-                    amount: locked_seek_1
-                },
-                LockedSeek {
-                    staged_sequence: seeker_info.locked_seeks[1].staged_sequence,
-                    amount: locked_seek_2
-                }
-            ],
-            locked_provides: vec![]
-        }
-    );
-    assert_eq!(
-        provider_info,
-        AccountInfo {
-            idle_balance: fees_paid,
-            staged_seeks: vec![],
-            staged_provides: vec![],
-            locked_seeks: vec![],
-            locked_provides: vec![
-                LockedProvide {
-                    staged_sequence: provider_info.locked_provides[0].staged_sequence,
-                    staged_min_fee_rate: provide1_min_fee_rate,
-                    amount: locked_provide_1,
-                },
-                LockedProvide {
-                    staged_sequence: provider_info.locked_provides[1].staged_sequence,
-                    staged_min_fee_rate: provide2_min_fee_rate,
-                    amount: locked_provide_2,
-                }
-            ]
-        }
-    );
-    assert!(provider_info.locked_provides_total() >= seeker_info.locked_seeks_total());
-    assert_eq!(
-        seek1_msats + provide1_msats + seek2_msats + provide2_msats,
-        seeker_info.total_balance() + provider_info.total_balance()
-    );
+    let ActiveDeposits::Seeker { staged, locked } = seeker_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+    assert!(matches!(
+        staged.as_slice(),
+        [Seek {
+            amount,
+            ..
+        }] if amount.msats == staged_seek_2
+    ));
+    assert!(matches!(
+        locked.as_slice(),
+        [Seek {
+            amount: amount1,
+            ..
+        }, Seek {
+            amount: amount2,
+            ..
+        }] if amount1.msats == locked_seek_1 && amount2.msats == locked_seek_2
+    ));
+    let ActiveDeposits::Provider { staged, locked } = provider_info.active_deposits else {
+        bail!("Invalid active deposits variant for provider");
+    };
+    assert!(staged.is_empty());
+    assert!(matches!(
+        locked.as_slice(),
+        [Provide {
+            amount: amount1, meta: meta1, ..
+        }, Provide {
+            amount: amount2, meta: meta2, ..
+        }] if amount1.msats == locked_provide_1 && *meta1 == FeeRate(provide1_min_fee_rate)
+            && amount2.msats == locked_provide_2 && *meta2 == FeeRate(provide2_min_fee_rate)
+    ));
+    assert_eq!(provider_info.sync_response.idle_balance.msats, fees_paid);
 
-    // Make seeker withdraw 50% of locked balance
-    // Should fail because there exists a staged seek that must first be
-    // withdrawn
-    assert!(seeker.withdraw(0, 5_000).await.is_err());
+    // Make seeker withdraw 4 cents, which would equal 400k msats
+    seeker
+        .withdraw(AccountType::Seeker, FiatOrAll::Fiat(FiatAmount(4)))
+        .await?;
 
-    // Make seeker withdraw unlocked balance first, and then cancel auto renewal
-    let seeker_withdrawn = seeker_info.total_unlocked_balance();
-    seeker.withdraw(seeker_withdrawn, 5_000).await?;
-
-    // Verify locked seek and provide and fee remittance
-    let (seeker_info, provider_info) =
-        tokio::try_join!(seeker.get_sp_account_info(), provider.get_sp_account_info())?;
-    let seeker_canceled_withdrawn = (locked_seek_1 + locked_seek_2) / 2;
-    let locked_seek_2 = locked_seek_2 - seeker_canceled_withdrawn; // cancellation comes out of later seek
-    let locked_provide_1 = locked_seek_1 + locked_seek_2 - 1 + 1; // 24ppb is 1 parts for 300_000, +1 for rounding
-    let fees_paid = fees_paid + 1 + 1; // 24ppb is 1 parts for 300_000, +1 for rounding
-    let locked_seek_1 = locked_seek_1 - 1;
-    let locked_seek_2 = locked_seek_2 - 1; // extra -1 from ceil division
-    let staged_provide_1 = provide1_msats - locked_provide_1;
-    let staged_provide_2 = provide2_msats;
-    assert_eq!(
-        seeker_info,
-        AccountInfo {
-            idle_balance: 0,
-            staged_seeks: vec![],
-            staged_provides: vec![],
-            locked_seeks: vec![
-                LockedSeek {
-                    staged_sequence: seeker_info.locked_seeks[0].staged_sequence,
-                    amount: locked_seek_1
-                },
-                LockedSeek {
-                    staged_sequence: seeker_info.locked_seeks[1].staged_sequence,
-                    amount: locked_seek_2
-                }
-            ],
-            locked_provides: vec![]
-        }
-    );
-    assert_eq!(
-        provider_info,
-        AccountInfo {
-            idle_balance: fees_paid,
-            staged_seeks: vec![],
-            staged_provides: vec![
-                StagedProvide {
-                    sequence: provider_info.staged_provides[0].sequence,
-                    amount: staged_provide_1,
-                    min_fee_rate: provide1_min_fee_rate
-                },
-                StagedProvide {
-                    sequence: provider_info.staged_provides[1].sequence,
-                    amount: staged_provide_2,
-                    min_fee_rate: provide2_min_fee_rate
-                }
-            ],
-            locked_seeks: vec![],
-            locked_provides: vec![LockedProvide {
-                staged_sequence: provider_info.locked_provides[0].staged_sequence,
-                staged_min_fee_rate: provide1_min_fee_rate,
-                amount: locked_provide_1,
-            },]
-        }
-    );
-    assert!(provider_info.locked_provides_total() >= seeker_info.locked_seeks_total());
-    assert_eq!(
-        seek1_msats + provide1_msats + seek2_msats + provide2_msats,
-        seeker_info.total_balance()
-            + provider_info.total_balance()
-            + seeker_withdrawn
-            + seeker_canceled_withdrawn
-    );
-
-    // Let provider take out their unlocked balances
-    let provider_withdrawn = provider_info.total_unlocked_balance();
-    tokio::try_join!(provider.withdraw(provider_info.total_unlocked_balance(), 0))?;
-
-    // Wait for one last cycle change
     // Verify locked seek and provide and fee remittance
     let (seeker_info, provider_info) = tokio::try_join!(
-        seeker.wait_for_locked_seek_change(seeker.get_sp_account_info().await?),
-        provider.wait_for_locked_provide_change(provider.get_sp_account_info().await?)
+        seeker.get_sp_account_info(AccountType::Seeker),
+        provider.get_sp_account_info(AccountType::Provider)
     )?;
-
-    let fees_paid = 1 + 1; // 24ppb is 1 parts for 300_000, +1 for rounding
-    let locked_provide_1 = locked_seek_1 + locked_seek_2 - 1 + 1; // 24ppb is 1 parts for 300_000, +1 for rounding
+    let locked_seek_2 = (staged_seek_2 + locked_seek_2) - 400_000; // after staged seek is drained, newer locked seek is drained
+    let locked_provide_1 = locked_seek_1 + locked_seek_2 + 1;
+    let fees_paid = fees_paid + 1 + 1; // 24ppb is 1 parts for 300_000, +1 for rounding
     let locked_seek_1 = locked_seek_1 - 1;
-    let locked_seek_2 = locked_seek_2 - 1; // extra -1 from ceil division
-    let staged_provide_1 = 2; // excess after fee reduced the locked seeks
-    assert_eq!(
-        seeker_info,
-        AccountInfo {
-            idle_balance: 0,
-            staged_seeks: vec![],
-            staged_provides: vec![],
-            locked_seeks: vec![
-                LockedSeek {
-                    staged_sequence: seeker_info.locked_seeks[0].staged_sequence,
-                    amount: locked_seek_1
-                },
-                LockedSeek {
-                    staged_sequence: seeker_info.locked_seeks[1].staged_sequence,
-                    amount: locked_seek_2
-                }
-            ],
-            locked_provides: vec![]
-        }
-    );
-    assert_eq!(
-        provider_info,
-        AccountInfo {
-            idle_balance: fees_paid,
-            staged_seeks: vec![],
-            staged_provides: vec![StagedProvide {
-                sequence: provider_info.staged_provides[0].sequence,
-                amount: staged_provide_1,
-                min_fee_rate: provide1_min_fee_rate
-            }],
-            locked_seeks: vec![],
-            locked_provides: vec![LockedProvide {
-                staged_sequence: provider_info.locked_provides[0].staged_sequence,
-                staged_min_fee_rate: provide1_min_fee_rate,
-                amount: locked_provide_1,
-            },]
-        }
-    );
-    assert!(provider_info.locked_provides_total() >= seeker_info.locked_seeks_total());
-    assert_eq!(
-        seek1_msats + provide1_msats + seek2_msats + provide2_msats,
-        seeker_info.total_balance()
-            + provider_info.total_balance()
-            + seeker_withdrawn
-            + seeker_canceled_withdrawn
-            + provider_withdrawn
-    );
+    let staged_provide_1 = provide1_msats - locked_provide_1;
+    let staged_provide_2 = provide2_msats;
+    let ActiveDeposits::Seeker { staged, locked } = seeker_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+    assert!(staged.is_empty());
+    assert!(matches!(
+        locked.as_slice(),
+        [Seek {
+            amount: amount1,
+            ..
+        }, Seek {
+            amount: amount2,
+            ..
+        }] if amount1.msats == locked_seek_1 && amount2.msats == locked_seek_2
+    ));
+    let ActiveDeposits::Provider { staged, locked } = provider_info.active_deposits else {
+        bail!("Invalid active deposits variant for provider");
+    };
+    assert!(matches!(
+        staged.as_slice(),
+        [Provide {
+            amount: amount1, meta: meta1, ..
+        }, Provide {
+            amount: amount2, meta: meta2, ..
+        }] if amount1.msats == staged_provide_1 && *meta1 == FeeRate(provide1_min_fee_rate)
+            && amount2.msats == staged_provide_2 && *meta2 == FeeRate(provide2_min_fee_rate)
+    ));
+    assert!(matches!(
+        locked.as_slice(),
+        [Provide {
+            amount: amount1, meta: meta1, ..
+        }] if amount1.msats == locked_provide_1 && *meta1 == FeeRate(provide1_min_fee_rate)
+    ));
+    assert_eq!(provider_info.sync_response.idle_balance.msats, fees_paid);
+
+    // Let provider take out accrued fees from idle balance
+    let provider_info = provider
+        .withdraw_idle_balance(AccountType::Provider, Amount::from_msats(fees_paid))
+        .await?;
+    assert!(provider_info.sync_response.idle_balance == Amount::ZERO);
+
+    // Make seeker and provider withdraw all
+    seeker.withdraw(AccountType::Seeker, FiatOrAll::All).await?;
+    provider
+        .withdraw(AccountType::Provider, FiatOrAll::All)
+        .await?;
 
     Ok(())
 }
 
-async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> {
-    // Record initial ecash balance and unlocked SP balance
-    let initial_ecash_balance = seeker.balance().await?;
-    let initial_unlocked_sp_balance = seeker.get_sp_account_info().await?.total_unlocked_balance();
+async fn transfer_tests(
+    seeker1: Arc<ForkedClient>,
+    seeker2: Arc<ForkedClient>,
+    provider: Arc<ForkedClient>,
+) -> anyhow::Result<()> {
+    // Make 4 separate deposits with seeker1
+    seeker1.deposit_to_seek(100_000).await?;
+    seeker1.deposit_to_seek(200_000).await?;
+    seeker1.deposit_to_seek(300_000).await?;
+    let seeker1_acc_info = seeker1.deposit_to_seek(400_000).await?;
 
-    // Try to withdraw, expect error
-    assert!(seeker.withdraw(10_000, 0).await.is_err());
+    // Use 0 fee rate here for easy calculations since fee rates are already tested
+    // separately.
+    provider.deposit_to_provide(400_000, 0).await?;
 
-    // Deposit-to-seek
-    let first_deposit_amount = 150_000;
-    seeker.deposit_to_seek(first_deposit_amount).await?;
-
-    // Verify new ecash balance and new unlocked SP balance
-    // Verify staged seek
-    let new_ecash_balance = seeker.balance().await?;
-    let new_sp_account_info = seeker.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount
-    );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
-            sequence: 0,
-            amount
-        }] if *amount == first_deposit_amount
-    ));
-
-    // Deposit-to-seek again
-    let second_deposit_amount = 250_000;
-    seeker.deposit_to_seek(second_deposit_amount).await?;
-
-    // Verify new ecash balance and new unlocked SP balance
-    // Verify staged seeks
-    let new_ecash_balance = seeker.balance().await?;
-    let new_sp_account_info = seeker.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount - second_deposit_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
-    );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
-            sequence: 0,
-            amount: amount1
-        }, StagedSeek  {
-            sequence: 1,
-            amount: amount2
-        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount
-    ));
-
-    // Try to provide, expect error
-    assert!(seeker.deposit_to_provide(500_000, 100).await.is_err());
-
-    // Try to withdraw more than unlocked balance, expect error
-    assert!(seeker.withdraw(initial_ecash_balance, 0).await.is_err());
-
-    // Withdraw less than 2nd staged seek, verify 2nd staged seek modified
-    // Verify ecash balance
-    let first_withdraw_amount = 50_000;
-    seeker.withdraw(first_withdraw_amount, 0).await?;
-    let new_ecash_balance = seeker.balance().await?;
-    let new_sp_account_info = seeker.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount - second_deposit_amount
-            + first_withdraw_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
-            - first_withdraw_amount
-    );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
-            sequence: 0,
-            amount: amount1
-        }, StagedSeek  {
-            sequence: 1,
-            amount: amount2
-        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount - first_withdraw_amount
-    ));
-
-    // Withdraw more than 2nd staged seek, verify 2nd staged seek removed
-    // Verify ecash balance
-    let second_withdraw_amount = 250_000;
-    seeker.withdraw(second_withdraw_amount, 0).await?;
-
-    let total_withdrawn = first_withdraw_amount + second_withdraw_amount;
-    let remaining_first_deposit = first_deposit_amount - (total_withdrawn - second_deposit_amount);
-    let new_ecash_balance = seeker.balance().await?;
-    let new_sp_account_info = seeker.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount - second_deposit_amount
-            + first_withdraw_amount
-            + second_withdraw_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
-            - first_withdraw_amount
-            - second_withdraw_amount
-    );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
-            sequence: 0,
-            amount: amount1
-        }] if *amount1 == remaining_first_deposit
-    ));
-
-    // Withdraw any remaining unlocked balance
-    seeker
-        .withdraw(new_sp_account_info.total_unlocked_balance(), 0)
-        .await?;
-    Ok(())
-}
-
-async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<()> {
-    // Record initial ecash balance and unlocked SP balance
-    let initial_ecash_balance = provider.balance().await?;
-    let initial_unlocked_sp_balance = provider
-        .get_sp_account_info()
-        .await?
-        .total_unlocked_balance();
-
-    // Try to withdraw, expect error
-    assert!(provider.withdraw(10_000, 0).await.is_err());
-
-    // Deposit-to-provide
-    let first_deposit_amount = 150_000;
-    provider
-        .deposit_to_provide(first_deposit_amount, 10)
+    let seeker1_info = seeker1
+        .wait_for_locked_seek_change(seeker1_acc_info)
         .await?;
 
-    // Verify new ecash balance and new unlocked SP balance
-    // Verify staged provide
-    let new_ecash_balance = provider.balance().await?;
-    let new_sp_account_info = provider.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount
-    );
+    // Verify that seeker1's locked seeks are 100_000, 200_000, and 100_000 (partial
+    // lock) and seeker1's staged seeks are 200_000 and 400_000
+    let ActiveDeposits::Seeker { staged, locked } = seeker1_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
     assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
-            sequence: 0,
-            amount,
-            min_fee_rate: 10
-        }] if *amount == first_deposit_amount
-    ));
-
-    // Deposit-to-provide again
-    let second_deposit_amount = 250_000;
-    provider
-        .deposit_to_provide(second_deposit_amount, 20)
-        .await?;
-
-    // Verify new ecash balance and new unlocked SP balance
-    // Verify staged provides
-    let new_ecash_balance = provider.balance().await?;
-    let new_sp_account_info = provider.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount - second_deposit_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
-    );
-    assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
-            sequence: 0,
+        staged.as_slice(),
+        [Seek {
             amount: amount1,
-            min_fee_rate: 10,
-        }, StagedProvide  {
-            sequence: 1,
+            ..
+        }, Seek {
             amount: amount2,
-            min_fee_rate: 20,
-        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount
+            ..
+        }] if amount1.msats == 200_000 && amount2.msats == 400_000
     ));
-
-    // Try to seek, expect error
-    assert!(provider.deposit_to_seek(500_000).await.is_err());
-
-    // Try to withdraw more than unlocked balance, expect error
-    assert!(provider.withdraw(initial_ecash_balance, 0).await.is_err());
-
-    // Withdraw less than 2nd staged provide, verify 2nd staged provide modified
-    // Verify ecash balance
-    let first_withdraw_amount = 50_000;
-    provider.withdraw(first_withdraw_amount, 0).await?;
-    let new_ecash_balance = provider.balance().await?;
-    let new_sp_account_info = provider.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount - second_deposit_amount
-            + first_withdraw_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
-            - first_withdraw_amount
-    );
     assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
-            sequence: 0,
+        locked.as_slice(),
+        [Seek {
             amount: amount1,
-            min_fee_rate: 10,
-        }, StagedProvide {
-            sequence: 1,
+            ..
+        }, Seek {
             amount: amount2,
-            min_fee_rate: 20,
-        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount - first_withdraw_amount
+            ..
+        }, Seek {
+            amount: amount3,
+            ..
+        }] if amount1.msats == 100_000 && amount2.msats == 200_000 && amount3.msats == 100_000
     ));
 
-    // Withdraw more than 2nd staged provide, verify 2nd staged provide removed
-    // Verify ecash balance
-    let second_withdraw_amount = 250_000;
-    provider.withdraw(second_withdraw_amount, 0).await?;
-
-    let total_withdrawn = first_withdraw_amount + second_withdraw_amount;
-    let remaining_first_deposit = first_deposit_amount - (total_withdrawn - second_deposit_amount);
-    let new_ecash_balance = provider.balance().await?;
-    let new_sp_account_info = provider.get_sp_account_info().await?;
-    assert_eq!(
-        new_ecash_balance,
-        initial_ecash_balance - first_deposit_amount - second_deposit_amount
-            + first_withdraw_amount
-            + second_withdraw_amount
-    );
-    assert_eq!(
-        new_sp_account_info.total_unlocked_balance(),
-        initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
-            - first_withdraw_amount
-            - second_withdraw_amount
-    );
-    assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
-            sequence: 0,
-            amount: amount1,
-            min_fee_rate: 10,
-        }] if *amount1 == remaining_first_deposit
-    ));
-
-    // Withdraw any remaining unlocked balance
-    provider
-        .withdraw(new_sp_account_info.total_unlocked_balance(), 0)
+    // Transfer 800_000 (8 cents) from seeker1 to seeker2
+    let signed_request = seeker1
+        .simple_transfer(
+            seeker2.get_account(AccountType::Seeker).await?.id(),
+            FiatAmount(8),
+        )
         .await?;
+    seeker2.transfer(signed_request).await?;
+
+    // Verify end state of staged and locked seeks for seeker1 and seeker2
+    let seeker1_acc_info = seeker1.get_sp_account_info(AccountType::Seeker).await?;
+    let seeker2_acc_info = seeker2.get_sp_account_info(AccountType::Seeker).await?;
+
+    // Seeker1 should only be left with locked seeks of 100_000 and 100_000
+    let ActiveDeposits::Seeker { staged, locked } = seeker1_acc_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+    assert!(staged.is_empty());
+    assert!(matches!(
+        locked.as_slice(),
+        [Seek {
+            amount: amount1,
+            ..
+        }, Seek {
+            amount: amount2,
+            ..
+        }] if amount1.msats == 100_000 && amount2.msats == 100_000
+    ));
+
+    // Seeker2 should get both of seeker1's staged seeks as a new single staged
+    // seek, as well as a new locked seek from seeker1
+    let ActiveDeposits::Seeker { staged, locked } = seeker2_acc_info.active_deposits else {
+        bail!("Invalid active deposits variant for seeker");
+    };
+    assert!(matches!(
+        staged.as_slice(),
+        [Seek {
+            amount: amount1,
+            ..
+        }] if amount1.msats == 600_000
+    ));
+    assert!(matches!(
+        locked.as_slice(),
+        [Seek {
+            amount: amount1,
+            ..
+        }] if amount1.msats == 200_000
+    ));
+
     Ok(())
 }
 
@@ -662,131 +751,174 @@ impl ForkedClient {
         Ok(())
     }
 
-    async fn get_sp_account_info(&self) -> anyhow::Result<AccountInfo> {
-        let cmd_out_json = cmd!(self, "module", "stability_pool", "account-info",)
+    async fn get_account(&self, account_type: AccountType) -> anyhow::Result<Account> {
+        let pubkey_json = cmd!(self, "module", "multi_sig_stability_pool", "pubkey",)
             .out_json()
             .await?;
-        info!("{cmd_out_json}");
+        let pubkey = serde_json::from_value(pubkey_json)?;
 
-        let account_info = cmd_out_json
-            .as_object()
-            .ok_or(anyhow!("couldn't transform json value into object"))?
-            .get("account_info")
-            .ok_or(anyhow!("key account_info not found"))?;
+        Ok(Account::single(pubkey, account_type))
+    }
 
-        let idle_balance = account_info["idle_balance"]
-            .as_u64()
-            .ok_or(anyhow!("key idle_balance not found"))?;
+    async fn get_sp_account_info(&self, account_type: AccountType) -> anyhow::Result<AccountInfo> {
+        let account_type = match account_type {
+            AccountType::Seeker => "seeker",
+            AccountType::Provider => "provider",
+            AccountType::BtcDepositor => "btc-depositor",
+        };
+        let sync_response_json = cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "account-info",
+            account_type
+        )
+        .out_json()
+        .await?;
+        info!("{sync_response_json}");
+        let sync_response = serde_json::from_value(sync_response_json)?;
 
-        let staged_seeks = account_info["staged_seeks"]
-            .as_array()
-            .ok_or(anyhow!("key staged_seeks not found"))?
-            .iter()
-            .map(|staged_seek_json| StagedSeek {
-                sequence: staged_seek_json["sequence"]
-                    .as_u64()
-                    .expect("key sequence must exist inside staged seek"),
-                amount: staged_seek_json["seek"]
-                    .as_u64()
-                    .expect("key seek must exist inside staged seek"),
-            })
-            .collect();
+        let active_deposits_json = cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "active-deposits",
+            account_type
+        )
+        .out_json()
+        .await?;
+        info!("{active_deposits_json}");
+        let active_deposits = serde_json::from_value(active_deposits_json)?;
 
-        let staged_provides = account_info["staged_provides"]
-            .as_array()
-            .ok_or(anyhow!("key staged_provides not found"))?
-            .iter()
-            .map(|staged_provide_json| {
-                let sequence = staged_provide_json["sequence"]
-                    .as_u64()
-                    .expect("key sequence must exist inside staged provide");
-                let provide_json = staged_provide_json["provide"]
-                    .as_object()
-                    .expect("key provide must exist inside staged provide");
-                StagedProvide {
-                    sequence,
-                    amount: provide_json["amount"]
-                        .as_u64()
-                        .expect("key amount must exist inside provide"),
-                    min_fee_rate: provide_json["min_fee_rate"]
-                        .as_u64()
-                        .expect("key min_fee_rate must exist inside provide"),
-                }
-            })
-            .collect();
-
-        let locked_seeks = account_info["locked_seeks"]
-            .as_array()
-            .ok_or(anyhow!("key locked_seeks not found"))?
-            .iter()
-            .map(|locked_seek_json| LockedSeek {
-                staged_sequence: locked_seek_json["staged_sequence"]
-                    .as_u64()
-                    .expect("key staged_sequence must exist inside locked seek"),
-                amount: locked_seek_json["amount"]
-                    .as_u64()
-                    .expect("key amount must exist inside locked seek"),
-            })
-            .collect();
-
-        let locked_provides = account_info["locked_provides"]
-            .as_array()
-            .ok_or(anyhow!("key locked_provides not found"))?
-            .iter()
-            .map(|locked_provide_json| LockedProvide {
-                staged_sequence: locked_provide_json["staged_sequence"]
-                    .as_u64()
-                    .expect("key staged_sequence must exist inside locked provide"),
-                staged_min_fee_rate: locked_provide_json["staged_min_fee_rate"]
-                    .as_u64()
-                    .expect("key staged_min_fee_rate must exist inside locked provide"),
-                amount: locked_provide_json["amount"]
-                    .as_u64()
-                    .expect("key amount must exist inside locked provide"),
-            })
-            .collect();
         Ok(AccountInfo {
-            idle_balance,
-            staged_seeks,
-            staged_provides,
-            locked_seeks,
-            locked_provides,
+            sync_response,
+            active_deposits,
         })
     }
 
     async fn deposit_to_seek(&self, amount: u64) -> anyhow::Result<AccountInfo> {
-        cmd!(self, "module", "stability_pool", "deposit-to-seek", amount)
-            .run()
-            .await?;
-        self.get_sp_account_info().await
+        cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "deposit-to-seek",
+            amount
+        )
+        .run()
+        .await?;
+        self.get_sp_account_info(AccountType::Seeker).await
     }
 
     async fn deposit_to_provide(&self, amount: u64, fee_rate: u64) -> anyhow::Result<AccountInfo> {
         cmd!(
             self,
             "module",
-            "stability_pool",
+            "multi_sig_stability_pool",
             "deposit-to-provide",
             amount,
             fee_rate
         )
         .run()
         .await?;
-        self.get_sp_account_info().await
+        self.get_sp_account_info(AccountType::Provider).await
     }
 
-    async fn withdraw(&self, unlocked_amount: u64, locked_bps: u32) -> anyhow::Result<()> {
+    async fn withdraw(
+        &self,
+        account_type: AccountType,
+        amount: FiatOrAll,
+    ) -> anyhow::Result<AccountInfo> {
+        let account_type_str = match account_type {
+            AccountType::Seeker => "seeker",
+            AccountType::Provider => "provider",
+            AccountType::BtcDepositor => "btc-depositor",
+        };
+        let amount = match amount {
+            FiatOrAll::Fiat(fiat_amount) => fiat_amount.0.to_string(),
+            FiatOrAll::All => "all".to_owned(),
+        };
         cmd!(
             self,
             "module",
-            "stability_pool",
+            "multi_sig_stability_pool",
             "withdraw",
-            unlocked_amount,
-            locked_bps
+            account_type_str,
+            amount,
         )
         .run()
         .await?;
+        self.get_sp_account_info(account_type).await
+    }
+
+    #[allow(unused)]
+    async fn sign_transfer_request(
+        &self,
+        request: TransferRequest,
+    ) -> anyhow::Result<schnorr::Signature> {
+        let signature_json = cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "sign-transfer",
+            serde_json::to_string(&request)?,
+        )
+        .out_json()
+        .await?;
+        Ok(serde_json::from_value(signature_json)?)
+    }
+
+    async fn simple_transfer(
+        &self,
+        to_account: AccountId,
+        amount: FiatAmount,
+    ) -> anyhow::Result<SignedTransferRequest> {
+        let signed_request_json = cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "simple-transfer",
+            to_account,
+            amount.0.to_string(),
+        )
+        .out_json()
+        .await?;
+        Ok(serde_json::from_value(signed_request_json)?)
+    }
+
+    async fn transfer(&self, signed_request: SignedTransferRequest) -> anyhow::Result<()> {
+        cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "transfer",
+            serde_json::to_string(&signed_request)?,
+        )
+        .out_json()
+        .await?;
         Ok(())
+    }
+
+    async fn withdraw_idle_balance(
+        &self,
+        account_type: AccountType,
+        amount: Amount,
+    ) -> anyhow::Result<AccountInfo> {
+        let account_type_str = match account_type {
+            AccountType::Seeker => "seeker",
+            AccountType::Provider => "provider",
+            AccountType::BtcDepositor => "btc-depositor",
+        };
+        cmd!(
+            self,
+            "module",
+            "multi_sig_stability_pool",
+            "withdraw-idle-balance",
+            account_type_str,
+            amount,
+        )
+        .run()
+        .await?;
+        self.get_sp_account_info(account_type).await
     }
 
     async fn wait_for_locked_seek_change(
@@ -794,11 +926,21 @@ impl ForkedClient {
         initial_account_info: AccountInfo,
     ) -> anyhow::Result<AccountInfo> {
         loop {
-            let new_account_info = self.get_sp_account_info().await?;
-            if new_account_info.locked_seeks != initial_account_info.locked_seeks {
-                return Ok(new_account_info);
+            let new_account_info = self.get_sp_account_info(AccountType::Seeker).await?;
+            match (
+                &initial_account_info.active_deposits,
+                &new_account_info.active_deposits,
+            ) {
+                (
+                    ActiveDeposits::Seeker {
+                        locked: old_locked, ..
+                    },
+                    ActiveDeposits::Seeker {
+                        locked: new_locked, ..
+                    },
+                ) if old_locked != new_locked => return Ok(new_account_info),
+                (_, _) => tokio::time::sleep(Duration::from_secs(2)).await,
             }
-            tokio::time::sleep(Duration::from_secs(2)).await;
         }
     }
 
@@ -807,74 +949,28 @@ impl ForkedClient {
         initial_account_info: AccountInfo,
     ) -> anyhow::Result<AccountInfo> {
         loop {
-            let new_account_info = self.get_sp_account_info().await?;
-            if new_account_info.locked_provides != initial_account_info.locked_provides {
-                return Ok(new_account_info);
+            let new_account_info = self.get_sp_account_info(AccountType::Provider).await?;
+            match (
+                &initial_account_info.active_deposits,
+                &new_account_info.active_deposits,
+            ) {
+                (
+                    ActiveDeposits::Provider {
+                        locked: old_locked, ..
+                    },
+                    ActiveDeposits::Provider {
+                        locked: new_locked, ..
+                    },
+                ) if old_locked != new_locked => return Ok(new_account_info),
+                (_, _) => tokio::time::sleep(Duration::from_secs(2)).await,
             }
-            tokio::time::sleep(Duration::from_secs(2)).await;
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-struct AccountInfo {
-    idle_balance: u64,
-    staged_seeks: Vec<StagedSeek>,
-    staged_provides: Vec<StagedProvide>,
-    locked_seeks: Vec<LockedSeek>,
-    locked_provides: Vec<LockedProvide>,
-}
-
-impl AccountInfo {
-    fn total_unlocked_balance(&self) -> u64 {
-        self.idle_balance + self.staged_seeks_total() + self.staged_provides_total()
-    }
-
-    fn staged_seeks_total(&self) -> u64 {
-        self.staged_seeks.iter().map(|s| s.amount).sum()
-    }
-
-    fn staged_provides_total(&self) -> u64 {
-        self.staged_provides.iter().map(|p| p.amount).sum()
-    }
-
-    fn locked_seeks_total(&self) -> u64 {
-        self.locked_seeks.iter().map(|s| s.amount).sum()
-    }
-
-    fn locked_provides_total(&self) -> u64 {
-        self.locked_provides.iter().map(|p| p.amount).sum()
-    }
-
-    fn total_balance(&self) -> u64 {
-        self.total_unlocked_balance() + self.locked_seeks_total() + self.locked_provides_total()
-    }
-}
-
-#[derive(Debug, PartialEq)]
-struct StagedSeek {
-    sequence: u64,
-    amount: u64,
-}
-
-#[derive(Debug, PartialEq)]
-struct StagedProvide {
-    sequence: u64,
-    amount: u64,
-    min_fee_rate: u64,
-}
-
-#[derive(Debug, PartialEq)]
-struct LockedSeek {
-    staged_sequence: u64,
-    amount: u64,
-}
-
-#[derive(Debug, PartialEq)]
-struct LockedProvide {
-    staged_sequence: u64,
-    staged_min_fee_rate: u64,
-    amount: u64,
+pub struct AccountInfo {
+    sync_response: SyncResponse,
+    active_deposits: ActiveDeposits,
 }
 
 async fn setup() -> anyhow::Result<(ProcessManager, TaskGroup)> {

@@ -5,6 +5,9 @@ import { z } from 'zod'
 const schema = z.object({
     id: z.string(),
     ticketNumber: z.string(),
+    appVersion: z.string().optional(),
+    fedimintVersion: z.string().optional(),
+    platform: z.string().optional(),
 })
 
 export default async function handler(
@@ -65,6 +68,20 @@ async function postToSlack(data: z.infer<typeof schema>) {
         {
             label: 'Support ticket number',
             value: '`' + data.ticketNumber + '`',
+        },
+        {
+            label: 'Platform',
+            value: data.platform ? '`' + data.platform + '`' : 'Unknown',
+        },
+        {
+            label: 'Fedi App version',
+            value: data.appVersion ? '`' + data.appVersion + '`' : 'Unknown',
+        },
+        {
+            label: 'Fedimint version',
+            value: data.fedimintVersion
+                ? '`' + data.fedimintVersion + '`'
+                : 'Unknown',
         },
     ]
 

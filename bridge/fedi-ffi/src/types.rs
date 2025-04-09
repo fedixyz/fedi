@@ -5,15 +5,19 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use bitcoin::secp256k1::ecdsa::Signature;
+use bitcoin::secp256k1::schnorr;
 use bitcoin::Network;
 use fedimint_core::config::{GlobalClientConfig, JsonWithKind, PeerUrl};
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::Amount;
+use fedimint_core::{Amount, TransactionId};
 use fedimint_ln_client::pay::GatewayPayError;
 use fedimint_ln_client::{LnPayState, LnReceiveState};
+use fedimint_mint_client::{ReissueExternalNotesState, SpendOOBState};
 use fedimint_wallet_client::{DepositStateV2, WithdrawState};
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+use stability_pool_client::common::TransferRequestId;
+use stability_pool_client::db::CachedSyncResponseValue;
 use stability_pool_client_old::ClientAccountInfo;
 use ts_rs::TS;
 
@@ -54,6 +58,35 @@ impl std::fmt::Display for RpcAmount {
         write!(f, "{}", self.0)
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq)]
+#[ts(export)]
+pub struct RpcFiatAmount(#[ts(type = "number")] pub u64);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq)]
+#[ts(export)]
+pub struct RpcTransactionId(#[ts(type = "string")] pub TransactionId);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq)]
+#[ts(export)]
+pub struct RpcSignature(#[ts(type = "string")] pub schnorr::Signature);
+
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    Hash,
+    PartialEq,
+    Eq,
+    TS,
+    Encodable,
+    Decodable,
+    PartialOrd,
+    Ord,
+)]
+#[ts(export)]
+pub struct RpcEventId(#[ts(type = "string")] pub String);
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -465,7 +498,21 @@ impl fmt::Display for RpcPeerId {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, TS)]
+#[derive(
+    Debug,
+    Serialize,
+    Deserialize,
+    Clone,
+    Copy,
+    TS,
+    PartialEq,
+    Eq,
+    Hash,
+    Encodable,
+    Decodable,
+    Ord,
+    PartialOrd,
+)]
 #[ts(export)]
 pub struct RpcPublicKey(#[ts(type = "string")] pub bitcoin::secp256k1::PublicKey);
 
@@ -513,140 +560,146 @@ pub enum RpcTransactionDirection {
     Send,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct WithdrawalDetails {
-    pub address: String,
-    pub txid: String,
-    pub fee: RpcAmount,
-    #[ts(type = "number")]
-    pub fee_rate: u64,
-}
-
 #[derive(Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcTransaction {
     pub id: String,
-    #[ts(type = "number")]
-    pub created_at: u64,
     pub amount: RpcAmount,
     pub fedi_fee_status: Option<RpcOperationFediFeeStatus>,
-    pub direction: RpcTransactionDirection,
-    pub notes: String,
+    pub txn_notes: String,
+    pub tx_date_fiat_info: Option<FiatFXInfo>,
+    pub frontend_metadata: FrontendMetadata,
+    #[serde(flatten)]
+    pub kind: RpcTransactionKind,
     /// time when this operation was settled.
     #[ts(type = "number | null")]
     pub outcome_time: Option<u64>,
-    pub onchain_state: Option<RpcOnchainState>,
-    pub bitcoin: Option<RpcBitcoinDetails>,
-    pub ln_state: Option<RpcLnState>,
-    pub lightning: Option<RpcLightningDetails>,
-    pub oob_state: Option<RpcOOBState>,
-    pub onchain_withdrawal_details: Option<WithdrawalDetails>,
-    pub stability_pool_state: Option<RpcStabilityPoolTransactionState>,
-    pub tx_date_fiat_info: Option<FiatFXInfo>,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcTransactionListEntry {
+    #[ts(type = "number")]
+    pub created_at: u64,
+    #[serde(flatten)]
+    pub transaction: RpcTransaction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "kind")]
+#[ts(export)]
+pub enum RpcTransactionKind {
+    LnPay {
+        ln_invoice: String,
+        lightning_fees: RpcAmount,
+        state: Option<RpcLnPayState>,
+    },
+    LnReceive {
+        ln_invoice: String,
+        state: Option<RpcLnReceiveState>,
+    },
+    OnchainWithdraw {
+        onchain_address: String,
+        onchain_txid: String,
+        onchain_fees: RpcAmount,
+        #[ts(type = "number")]
+        onchain_fee_rate: u64,
+        state: Option<RpcOnchainWithdrawState>,
+    },
+    OnchainDeposit {
+        onchain_address: String,
+        state: Option<RpcOnchainDepositState>,
+    },
+    OobSend {
+        state: Option<RpcOOBSpendState>,
+    },
+    OobReceive {
+        state: Option<RpcOOBReissueState>,
+    },
+    SpDeposit {
+        state: RpcSPDepositState,
+    },
+    SpWithdraw {
+        state: Option<RpcSPWithdrawState>,
+    },
+    SPV2Deposit {
+        state: RpcSPV2DepositState,
+    },
+    SPV2Withdrawal {
+        state: RpcSPV2WithdrawalState,
+    },
+    SPV2TransferOut {
+        state: RpcSPV2TransferOutState,
+    },
+    SPV2TransferIn {
+        state: RpcSPV2TransferInState,
+    },
 }
 
 impl RpcTransaction {
     pub fn new(
         id: String,
-        created_at: u64,
         amount: RpcAmount,
-        direction: RpcTransactionDirection,
         fedi_fee_status: Option<RpcOperationFediFeeStatus>,
         tx_date_fiat_info: Option<FiatFXInfo>,
+        txn_notes: String,
+        frontend_metadata: FrontendMetadata,
+        kind: RpcTransactionKind,
     ) -> Self {
         Self {
             id,
-            created_at,
             amount,
-            direction,
             fedi_fee_status,
-            notes: Default::default(),
-            outcome_time: None,
-            onchain_state: Default::default(),
-            bitcoin: Default::default(),
-            ln_state: Default::default(),
-            lightning: Default::default(),
-            oob_state: Default::default(),
-            onchain_withdrawal_details: Default::default(),
-            stability_pool_state: Default::default(),
+            txn_notes,
             tx_date_fiat_info,
-        }
-    }
-
-    pub fn with_notes(self, notes: String) -> Self {
-        Self { notes, ..self }
-    }
-
-    pub fn with_onchain_state(self, onchain_state: RpcOnchainState) -> Self {
-        Self {
-            onchain_state: Some(onchain_state),
-            ..self
-        }
-    }
-
-    pub fn with_bitcoin(self, bitcoin: RpcBitcoinDetails) -> Self {
-        Self {
-            bitcoin: Some(bitcoin),
-            ..self
-        }
-    }
-
-    pub fn with_ln_state(self, ln_state: RpcLnState) -> Self {
-        Self {
-            ln_state: Some(ln_state),
-            ..self
-        }
-    }
-
-    pub fn with_lightning(self, lightning: RpcLightningDetails) -> Self {
-        Self {
-            lightning: Some(lightning),
-            ..self
-        }
-    }
-
-    pub fn with_oob_state(self, oob_state: RpcOOBState) -> Self {
-        Self {
-            oob_state: Some(oob_state),
-            ..self
-        }
-    }
-
-    pub fn with_onchain_withdrawal_details(
-        self,
-        onchain_withdrawal_details: WithdrawalDetails,
-    ) -> Self {
-        Self {
-            onchain_withdrawal_details: Some(onchain_withdrawal_details),
-            ..self
-        }
-    }
-
-    pub fn with_stability_pool_state(
-        self,
-        stability_pool_state: RpcStabilityPoolTransactionState,
-    ) -> Self {
-        Self {
-            stability_pool_state: Some(stability_pool_state),
-            ..self
+            frontend_metadata,
+            kind,
+            outcome_time: None,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 #[ts(export)]
-pub enum RpcStabilityPoolTransactionState {
+pub enum RpcSPDepositState {
     PendingDeposit,
     CompleteDeposit {
         #[ts(type = "number")]
         initial_amount_cents: u64,
         fees_paid_so_far: RpcAmount,
     },
+    DataNotInCache,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+#[ts(export)]
+pub enum RpcSPV2DepositState {
+    PendingDeposit {
+        amount: RpcAmount,
+        #[ts(type = "number")]
+        fiat_amount: u64,
+    },
+    CompletedDeposit {
+        amount: RpcAmount,
+        #[ts(type = "number")]
+        fiat_amount: u64,
+        fees_paid_so_far: RpcAmount,
+    },
+    DataNotInCache,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+#[ts(export)]
+pub enum RpcSPWithdrawState {
     PendingWithdrawal {
         #[ts(type = "number")]
         estimated_withdrawal_cents: u64,
@@ -659,16 +712,53 @@ pub enum RpcStabilityPoolTransactionState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-#[serde(untagged)]
+#[serde(tag = "type")]
 #[ts(export)]
-pub enum RpcOnchainState {
-    DepositState(RpcOnchainDepositState),
-    WithdrawState(RpcOnchainWithdrawState),
+pub enum RpcSPV2WithdrawalState {
+    PendingWithdrawal {
+        amount: RpcAmount,
+        #[ts(type = "number")]
+        fiat_amount: u64,
+    },
+    CompletedWithdrawal {
+        amount: RpcAmount,
+        #[ts(type = "number")]
+        fiat_amount: u64,
+    },
+    DataNotInCache,
 }
 
-impl RpcOnchainState {
-    pub fn from_deposit_state(state: DepositStateV2) -> RpcOnchainState {
-        Self::DepositState(match state {
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+#[ts(export)]
+pub enum RpcSPV2TransferOutState {
+    CompletedTransfer {
+        to_account_id: String,
+        amount: RpcAmount,
+        #[ts(type = "number")]
+        fiat_amount: u64,
+    },
+    DataNotInCache,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+#[ts(export)]
+pub enum RpcSPV2TransferInState {
+    CompletedTransfer {
+        from_account_id: String,
+        amount: RpcAmount,
+        #[ts(type = "number")]
+        fiat_amount: u64,
+    },
+    DataNotInCache,
+}
+
+impl From<DepositStateV2> for RpcOnchainDepositState {
+    fn from(value: DepositStateV2) -> Self {
+        match value {
             DepositStateV2::WaitingForTransaction => RpcOnchainDepositState::WaitingForTransaction,
             DepositStateV2::WaitingForConfirmation { btc_out_point, .. } => {
                 RpcOnchainDepositState::WaitingForConfirmation(
@@ -682,20 +772,16 @@ impl RpcOnchainState {
                 RpcOnchainDepositTransactionData::new(&btc_out_point),
             ),
             DepositStateV2::Failed(_) => RpcOnchainDepositState::Failed,
-        })
+        }
     }
+}
 
-    pub fn from_withdraw_state(state: WithdrawState) -> RpcOnchainState {
+impl From<WithdrawState> for RpcOnchainWithdrawState {
+    fn from(state: WithdrawState) -> Self {
         match state {
-            WithdrawState::Created => {
-                RpcOnchainState::WithdrawState(RpcOnchainWithdrawState::Created)
-            }
-            WithdrawState::Succeeded(_) => {
-                RpcOnchainState::WithdrawState(RpcOnchainWithdrawState::Succeeded)
-            }
-            WithdrawState::Failed(_) => {
-                RpcOnchainState::WithdrawState(RpcOnchainWithdrawState::Failed)
-            }
+            WithdrawState::Created => RpcOnchainWithdrawState::Created,
+            WithdrawState::Succeeded(_) => RpcOnchainWithdrawState::Succeeded,
+            WithdrawState::Failed(_) => RpcOnchainWithdrawState::Failed,
         }
     }
 }
@@ -737,64 +823,41 @@ pub enum RpcOnchainWithdrawState {
     Failed,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct RpcBitcoinDetails {
-    pub address: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[serde(untagged)]
-#[ts(export)]
-pub enum RpcLnState {
-    PayState(RpcLnPayState),
-    RecvState(RpcLnReceiveState),
-}
-
-impl RpcLnState {
-    pub fn from_ln_recv_state(state: LnReceiveState) -> RpcLnState {
+impl From<LnReceiveState> for RpcLnReceiveState {
+    fn from(state: LnReceiveState) -> Self {
         match state {
-            LnReceiveState::Created => RpcLnState::RecvState(RpcLnReceiveState::Created),
+            LnReceiveState::Created => RpcLnReceiveState::Created,
             LnReceiveState::WaitingForPayment { invoice, timeout } => {
-                RpcLnState::RecvState(RpcLnReceiveState::WaitingForPayment { invoice, timeout })
+                RpcLnReceiveState::WaitingForPayment { invoice, timeout }
             }
-            LnReceiveState::Canceled { reason } => {
-                RpcLnState::RecvState(RpcLnReceiveState::Canceled {
-                    reason: reason.to_string(),
-                })
-            }
-            LnReceiveState::Funded => RpcLnState::RecvState(RpcLnReceiveState::Funded),
-            LnReceiveState::AwaitingFunds => {
-                RpcLnState::RecvState(RpcLnReceiveState::AwaitingFunds)
-            }
-            LnReceiveState::Claimed => RpcLnState::RecvState(RpcLnReceiveState::Claimed),
-        }
-    }
-    pub fn from_ln_pay_state(state: LnPayState) -> RpcLnState {
-        match state {
-            LnPayState::Created => RpcLnState::PayState(RpcLnPayState::Created),
-            LnPayState::Canceled => RpcLnState::PayState(RpcLnPayState::Canceled),
-            LnPayState::Funded { block_height } => {
-                RpcLnState::PayState(RpcLnPayState::Funded { block_height })
-            }
-            LnPayState::WaitingForRefund { error_reason } => {
-                RpcLnState::PayState(RpcLnPayState::WaitingForRefund { error_reason })
-            }
-            LnPayState::AwaitingChange => RpcLnState::PayState(RpcLnPayState::AwaitingChange),
-            LnPayState::Success { preimage } => {
-                RpcLnState::PayState(RpcLnPayState::Success { preimage })
-            }
-            LnPayState::Refunded { gateway_error } => {
-                RpcLnState::PayState(RpcLnPayState::Refunded { gateway_error })
-            }
-            LnPayState::UnexpectedError { .. } => RpcLnState::PayState(RpcLnPayState::Failed),
+            LnReceiveState::Canceled { reason } => RpcLnReceiveState::Canceled {
+                reason: reason.to_string(),
+            },
+            LnReceiveState::Funded => RpcLnReceiveState::Funded,
+            LnReceiveState::AwaitingFunds => RpcLnReceiveState::AwaitingFunds,
+            LnReceiveState::Claimed => RpcLnReceiveState::Claimed,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+impl From<LnPayState> for RpcLnPayState {
+    fn from(state: LnPayState) -> Self {
+        match state {
+            LnPayState::Created => RpcLnPayState::Created,
+            LnPayState::Canceled => RpcLnPayState::Canceled,
+            LnPayState::Funded { block_height } => RpcLnPayState::Funded { block_height },
+            LnPayState::WaitingForRefund { error_reason } => {
+                RpcLnPayState::WaitingForRefund { error_reason }
+            }
+            LnPayState::AwaitingChange => RpcLnPayState::AwaitingChange,
+            LnPayState::Success { preimage } => RpcLnPayState::Success { preimage },
+            LnPayState::Refunded { gateway_error } => RpcLnPayState::Refunded { gateway_error },
+            LnPayState::UnexpectedError { .. } => RpcLnPayState::Failed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 #[ts(export)]
@@ -818,7 +881,7 @@ pub enum RpcLnPayState {
     Failed,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 #[ts(export)]
@@ -869,9 +932,9 @@ pub enum RpcOOBReissueState {
     Failed { error: String },
 }
 
-impl RpcOOBState {
-    pub fn from_spend_v2(state: fedimint_mint_client::SpendOOBState) -> Self {
-        let state = match state {
+impl From<SpendOOBState> for RpcOOBSpendState {
+    fn from(state: SpendOOBState) -> Self {
+        match state {
             fedimint_mint_client::SpendOOBState::Created => RpcOOBSpendState::Created,
             fedimint_mint_client::SpendOOBState::UserCanceledProcessing => {
                 RpcOOBSpendState::UserCanceledProcessing
@@ -884,44 +947,85 @@ impl RpcOOBState {
             }
             fedimint_mint_client::SpendOOBState::Success => RpcOOBSpendState::UserCanceledSuccess,
             fedimint_mint_client::SpendOOBState::Refunded => RpcOOBSpendState::Refunded,
-        };
-        Self::Spend(state)
+        }
     }
+}
 
-    pub fn from_reissue_v2(state: fedimint_mint_client::ReissueExternalNotesState) -> Self {
-        let state = match state {
+impl From<ReissueExternalNotesState> for RpcOOBReissueState {
+    fn from(state: ReissueExternalNotesState) -> Self {
+        match state {
             fedimint_mint_client::ReissueExternalNotesState::Created => RpcOOBReissueState::Created,
             fedimint_mint_client::ReissueExternalNotesState::Issuing => RpcOOBReissueState::Issuing,
             fedimint_mint_client::ReissueExternalNotesState::Done => RpcOOBReissueState::Done,
             fedimint_mint_client::ReissueExternalNotesState::Failed(error) => {
                 RpcOOBReissueState::Failed { error }
             }
-        };
-        Self::Reissue(state)
+        }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, TS)]
+#[derive(Serialize, Deserialize, Default, Debug, TS, Clone)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct RpcLightningDetails {
-    pub invoice: String,
-    pub fee: Option<RpcAmount>,
+pub struct FrontendMetadata {
+    pub initial_notes: Option<String>,
+    pub recipient_matrix_id: Option<String>,
+    pub sender_matrix_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+/// Use this meta unless a specific metadata is defined for that transaction.
+pub enum BaseMetadata {
+    // Maps to null in json
+    Legacy,
+    // Maps to object in json
+    Default {
+        frontend_metadata: Option<FrontendMetadata>,
+    },
+}
+
+impl From<FrontendMetadata> for BaseMetadata {
+    fn from(value: FrontendMetadata) -> Self {
+        Self::Default {
+            frontend_metadata: Some(value),
+        }
+    }
+}
+
+impl From<BaseMetadata> for Option<FrontendMetadata> {
+    fn from(value: BaseMetadata) -> Self {
+        match value {
+            BaseMetadata::Legacy => None,
+            BaseMetadata::Default { frontend_metadata } => frontend_metadata,
+        }
+    }
+}
+
+impl Default for BaseMetadata {
+    fn default() -> Self {
+        BaseMetadata::Default {
+            frontend_metadata: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EcashReceiveMetadata {
     pub internal: bool,
+    pub frontend_metadata: Option<FrontendMetadata>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EcashSendMetadata {
     pub internal: bool,
+    pub frontend_metadata: Option<FrontendMetadata>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LightningSendMetadata {
     pub is_fedi_fee_remittance: bool,
+    pub frontend_metadata: Option<FrontendMetadata>,
 }
 
 #[derive(Debug, Deserialize, Serialize, TS)]
@@ -989,6 +1093,41 @@ impl From<ClientAccountInfo> for RpcStabilityPoolAccountInfo {
                 .collect(),
             timestamp: to_unix_time(value.timestamp).expect("Response timestamp must be valid"),
             is_fetched_from_server: value.is_fetched_from_server,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcSPv2CachedSyncResponse {
+    #[ts(type = "number")]
+    pub fetch_time: u64,
+    #[ts(type = "number")]
+    pub curr_cycle_idx: u64,
+    #[ts(type = "number")]
+    pub curr_cycle_start_time: u64,
+    #[ts(type = "number")]
+    pub curr_cycle_start_price: u64,
+    pub staged_balance: RpcAmount,
+    pub locked_balance: RpcAmount,
+    pub idle_balance: RpcAmount,
+    #[ts(type = "number | null")]
+    pub pending_unlock_request: Option<u64>,
+}
+
+impl From<CachedSyncResponseValue> for RpcSPv2CachedSyncResponse {
+    fn from(value: CachedSyncResponseValue) -> Self {
+        Self {
+            fetch_time: to_unix_time(value.fetch_time).expect("fetch time must be valid"),
+            curr_cycle_idx: value.value.current_cycle.idx,
+            curr_cycle_start_time: to_unix_time(value.value.current_cycle.start_time)
+                .expect("cycle time must be valid"),
+            curr_cycle_start_price: value.value.current_cycle.start_price.0,
+            staged_balance: RpcAmount(value.value.staged_balance),
+            locked_balance: RpcAmount(value.value.locked_balance),
+            idle_balance: RpcAmount(value.value.idle_balance),
+            pending_unlock_request: value.value.unlock_request.map(|r| r.total_fiat_requested.0),
         }
     }
 }
@@ -1129,3 +1268,7 @@ pub enum RpcDeviceIndexAssignmentStatus {
     Assigned(u8),
     Unassigned,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct RpcTransferRequestId(#[ts(type = "string")] pub TransferRequestId);

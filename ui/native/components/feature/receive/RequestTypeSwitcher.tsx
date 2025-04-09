@@ -31,13 +31,14 @@ const RequestTypeSwitcher: React.FC<Props> = ({ requestType, onSwitch }) => {
     )
 }
 
-const styles = (_theme: Theme) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             width: '100%',
+            marginTop: theme.spacing.lg,
         },
     })
 

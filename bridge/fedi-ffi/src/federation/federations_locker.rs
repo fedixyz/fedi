@@ -4,6 +4,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::{Mutex, OwnedMutexGuard, TryLockError};
 
+use crate::utils::PoisonedLockExt as _;
+
 /// To prevent concurrent fedimint client to exist for same federation id
 ///
 /// A lock guard is meant to be held for entire duration of fedimint client
@@ -21,7 +23,7 @@ pub struct FederationLockGuard {
 impl FederationsLocker {
     pub async fn lock_federation(&self, federation_id: String) -> FederationLockGuard {
         let federation_lock = {
-            let mut big_lock = self.locks.lock().expect("posioned");
+            let mut big_lock = self.locks.ensure_lock();
             Arc::clone(big_lock.entry(federation_id).or_default())
         };
         FederationLockGuard {
@@ -33,7 +35,7 @@ impl FederationsLocker {
         federation_id: String,
     ) -> Result<FederationLockGuard, TryLockError> {
         let federation_lock = {
-            let mut big_lock = self.locks.lock().expect("posioned");
+            let mut big_lock = self.locks.ensure_lock();
             Arc::clone(big_lock.entry(federation_id).or_default())
         };
         Ok(FederationLockGuard {

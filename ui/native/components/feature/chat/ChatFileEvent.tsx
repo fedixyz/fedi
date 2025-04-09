@@ -14,6 +14,7 @@ import Share from 'react-native-share'
 import { useToast } from '@fedi/common/hooks/toast'
 import { setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
+import { JSONObject } from '@fedi/common/types/bindings'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { formatFileSize } from '@fedi/common/utils/media'
 
@@ -48,7 +49,7 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
             // bridge downloads the file to the path we provide
             const downloadedFilePath = await fedimint.matrixDownloadFile(
                 path,
-                event.content,
+                event.content as JSONObject,
             )
 
             const downloadedFileUri = prefixFileUri(downloadedFilePath)

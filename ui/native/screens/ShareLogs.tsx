@@ -11,24 +11,22 @@ import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { RootStackParamList } from '../types/navigation'
 import { useShareLogs } from '../utils/hooks/export'
+import { useLaunchZendesk } from '../utils/hooks/support'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'ShareLogs'>
 
-const ShareLogs: React.FC<Props> = ({ navigation }) => {
+const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const [ticketNumber, setTicketNumber] = useState('')
+    const initialTicketNumber = route?.params?.ticketNumber ?? ''
+    const [ticketNumber, setTicketNumber] = useState(initialTicketNumber)
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
     const [dbTaps, setDbTaps] = useState(0)
     const [sendDb, setShouldSendDb] = useState(false)
 
     const { status, collectAttachmentsAndSubmit } = useShareLogs()
 
-    const handleOpenSupport = useCallback(() => {
-        navigation.navigate('FediModBrowser', {
-            url: 'https://support.fedi.xyz',
-        })
-    }, [navigation])
+    const { launchZendesk } = useLaunchZendesk()
 
     const isSubmitDisabled = status !== 'idle'
     const submitText =
@@ -109,7 +107,7 @@ const ShareLogs: React.FC<Props> = ({ navigation }) => {
                     </Pressable>
                     <Text caption medium style={style.disclaimer}>
                         <Trans
-                            i18nKey="feature.bug.log-disclaimer"
+                            i18nKey="feature.support.log-disclaimer"
                             components={{
                                 anchor: (
                                     <Text
@@ -119,7 +117,7 @@ const ShareLogs: React.FC<Props> = ({ navigation }) => {
                                             style.disclaimer,
                                             style.disclaimerLink,
                                         ]}
-                                        onPress={handleOpenSupport}
+                                        onPress={() => launchZendesk()}
                                     />
                                 ),
                             }}

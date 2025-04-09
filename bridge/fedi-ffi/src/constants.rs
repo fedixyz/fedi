@@ -40,6 +40,7 @@ pub const LIGHTNING_OPERATION_TYPE: &str = "ln";
 pub const MINT_OPERATION_TYPE: &str = "mint";
 pub const WALLET_OPERATION_TYPE: &str = "wallet";
 pub const STABILITY_POOL_OPERATION_TYPE: &str = "stability_pool";
+pub const STABILITY_POOL_V2_OPERATION_TYPE: &str = "multi_sig_stability_pool";
 
 // URL for Fedi fee schedule API
 pub const FEDI_FEE_API_URL_MUTINYNET: &str =

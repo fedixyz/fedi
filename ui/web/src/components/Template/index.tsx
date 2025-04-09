@@ -7,7 +7,7 @@ import { MatrixSyncStatus } from '@fedi/common/types'
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
-import { ChatOfflineIndicator } from '../ChatOfflineIndicator'
+import { ChatOfflineIndicator } from '../Chat/ChatOfflineIndicator'
 import { PageError } from '../PageError'
 import { PopupFederationOver } from '../PopupFederationOver'
 import { FederationSelector } from './FederationSelector'

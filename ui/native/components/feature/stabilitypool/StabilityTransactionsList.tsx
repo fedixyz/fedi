@@ -1,25 +1,19 @@
-import { useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTxnDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectActiveFederationId, selectCurrency } from '@fedi/common/redux'
+import { selectActiveFederationId } from '@fedi/common/redux'
 import { updateTransactionNotes } from '@fedi/common/redux/transactions'
-import type { Transaction } from '@fedi/common/types'
-import {
-    makeStabilityTxnDetailTitleText,
-    makeStabilityTxnStatusSubtext,
-    makeStabilityTxnStatusText,
-} from '@fedi/common/utils/wallet'
+import type { TransactionListEntry } from '@fedi/common/types'
+import { makeTransactionAmountState } from '@fedi/common/utils/wallet'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { HistoryIcon } from '../transaction-history/HistoryIcon'
 import { HistoryList } from '../transaction-history/HistoryList'
-import { CurrencyAvatar } from './CurrencyAvatar'
+import { TransactionIcon } from '../transaction-history/TransactionIcon'
 
 type StabilityTransactionsListProps = {
-    transactions: Transaction[]
+    transactions: TransactionListEntry[]
     loading?: boolean
     loadMoreTransactions: () => void
 }
@@ -31,38 +25,39 @@ const StabilityTransactionsList = ({
 }: StabilityTransactionsListProps) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
-    const { theme } = useTheme()
     const toast = useToast()
-    const selectedCurrency = useAppSelector(selectCurrency)
     const activeFederationId = useAppSelector(selectActiveFederationId)
     const {
-        makeStabilityTxnDetailAmountText,
-        makeStabilityTxnAmountText,
         makeStabilityTxnDetailItems,
+        getCurrencyText,
         makeStabilityTxnFeeDetailItems,
-    } = useTxnDisplayUtils(t)
+        makeTxnAmountText,
+        makeTxnTypeText,
+        makeTxnNotesText,
+        makeTxnStatusText,
+        makeStabilityTxnDetailTitleText,
+    } = useTxnDisplayUtils(t, true)
 
     return (
         <HistoryList
             rows={transactions}
             loading={loading}
-            makeIcon={() => (
-                <HistoryIcon>
-                    <CurrencyAvatar size={theme.sizes.historyIcon} />
-                </HistoryIcon>
-            )}
+            makeIcon={txn => <TransactionIcon txn={txn} />}
             makeRowProps={txn => ({
-                status: makeStabilityTxnStatusText(t, txn),
-                notes: makeStabilityTxnStatusSubtext(t, txn),
-                amount: makeStabilityTxnAmountText(txn),
-                currencyText: selectedCurrency,
+                status: makeTxnStatusText(txn),
+                notes: makeTxnNotesText(txn),
+                amount: makeTxnAmountText(txn, false),
+                currencyText: getCurrencyText(txn),
                 timestamp: txn.createdAt,
+                type: makeTxnTypeText(txn),
+                amountState: makeTransactionAmountState(txn),
             })}
             makeDetailProps={txn => ({
-                title: makeStabilityTxnDetailTitleText(t, txn),
+                id: txn.id,
+                title: makeStabilityTxnDetailTitleText(txn),
                 items: makeStabilityTxnDetailItems(txn),
-                amount: makeStabilityTxnDetailAmountText(txn),
-                notes: txn.notes,
+                amount: makeTxnAmountText(txn, true),
+                notes: txn.txnNotes,
                 onSaveNotes: async (notes: string) => {
                     try {
                         if (!activeFederationId)

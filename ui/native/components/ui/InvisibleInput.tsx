@@ -31,7 +31,7 @@ const InvisibleInput: React.FC<Props> = ({
                 <Text h1 numberOfLines={1}>
                     {value}
                 </Text>
-                <Text h2 numberOfLines={1} style={styles(theme).labelText}>
+                <Text h2 numberOfLines={1} h2Style={styles(theme).labelText}>
                     {label}
                 </Text>
             </Pressable>

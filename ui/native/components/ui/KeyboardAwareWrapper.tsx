@@ -27,6 +27,7 @@ type KeyboardAwareWrapperProps = {
     additionalVerticalOffset?: number
     containerStyle?: ViewStyle
     dismissableAreaStyle?: ViewStyle
+    behavior?: 'height' | 'position' | 'padding' | undefined
 }
 
 const KeyboardAwareWrapper: React.FC<KeyboardAwareWrapperProps> = ({
@@ -35,6 +36,7 @@ const KeyboardAwareWrapper: React.FC<KeyboardAwareWrapperProps> = ({
     additionalVerticalOffset = 0,
     containerStyle = {},
     dismissableAreaStyle = {},
+    behavior = 'padding',
 }: KeyboardAwareWrapperProps) => {
     const insets = useSafeAreaInsets()
 
@@ -49,7 +51,7 @@ const KeyboardAwareWrapper: React.FC<KeyboardAwareWrapperProps> = ({
             style={mergedContainerStyles}
             enabled={Platform.OS === 'ios'}
             keyboardVerticalOffset={insets.bottom + additionalVerticalOffset}
-            behavior={'padding'}>
+            behavior={behavior}>
             <Pressable
                 disabled={dismissableArea === false}
                 style={mergedDismissableAreaStyles}

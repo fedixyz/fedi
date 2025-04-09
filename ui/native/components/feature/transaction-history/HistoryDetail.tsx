@@ -1,5 +1,5 @@
-import { Input, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Text, Theme, useTheme, Button, Input } from '@rneui/themed'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Keyboard,
@@ -10,12 +10,17 @@ import {
     View,
 } from 'react-native'
 
+import { useToast } from '@fedi/common/hooks/toast'
+import { selectActiveFederationId } from '@fedi/common/redux'
 import { hexToRgba } from '@fedi/common/utils/color'
 
+import { fedimint } from '../../../bridge'
+import { useAppSelector } from '../../../state/hooks'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
 
 export type HistoryDetailProps = {
+    id: string
     icon: React.ReactNode
     title: React.ReactNode
     amount: string
@@ -28,6 +33,7 @@ export type HistoryDetailProps = {
 }
 
 export const HistoryDetail: React.FC<HistoryDetailProps> = ({
+    id,
     icon,
     title,
     amount,
@@ -41,8 +47,11 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     const inputRef = useRef<TextInput | null>(null)
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const [notes, setNotes] = useState(propsNotes || '')
+    const [notes, setNotes] = useState<string>(propsNotes || '')
     const [isFocused, setIsFocused] = useState(false)
+    const [checkLoading, setCheckLoading] = useState(false)
+    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const toast = useToast()
 
     // If notes prop changes, update notes state
     useEffect(() => {
@@ -50,6 +59,27 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
             setNotes(propsNotes)
         }
     }, [propsNotes])
+
+    const isOnchain = useMemo(
+        () =>
+            items.some(
+                item =>
+                    item.label === t('words.type') &&
+                    item.value === t('words.onchain'),
+            ),
+        [items, t],
+    )
+
+    const hasReceivedBitcoin = useMemo(
+        () =>
+            isOnchain &&
+            items.some(
+                item =>
+                    item.label === t('words.status') &&
+                    item.value === t('phrases.received-bitcoin'),
+            ),
+        [items, t, isOnchain],
+    )
 
     const handleNotesInputChanged = useCallback(
         (input: string) => {
@@ -68,6 +98,37 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
         handleSaveNotes()
         onClose()
     }, [handleSaveNotes, onClose])
+
+    const checkAndToastOnchainReceiveStatus = useCallback(async () => {
+        handleClose()
+        if (hasReceivedBitcoin) {
+            toast.show({
+                status: 'success',
+                content: t('feature.receive.onchain-funds-received'),
+            })
+        } else {
+            toast.show({
+                status: 'info',
+                content: t('feature.receive.no-incoming-funds-detected'),
+            })
+        }
+    }, [t, toast, hasReceivedBitcoin, handleClose])
+
+    const handleCheckIncomingFunds = useCallback(async () => {
+        if (!activeFederationId) return
+
+        setCheckLoading(true)
+        await fedimint.recheckPeginAddress({
+            federationId: activeFederationId,
+            operationId: id,
+        })
+        // Needs a timeout to check if the item has updated because the RPC triggers a bridge observable
+        setTimeout(() => {
+            // Needs to be called in a different callback since `hasReceivedBitcoin` points to the value at the time of the function call
+            checkAndToastOnchainReceiveStatus()
+            setCheckLoading(false)
+        }, 1000)
+    }, [activeFederationId, id, checkAndToastOnchainReceiveStatus])
 
     const style = styles(theme)
 
@@ -151,6 +212,19 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                     />
                 )}
             </View>
+            {isOnchain && !hasReceivedBitcoin && (
+                <View style={style.checkFundsContainer}>
+                    <Button
+                        title={
+                            checkLoading
+                                ? t('words.checking')
+                                : t('phrases.check-incoming-funds')
+                        }
+                        onPress={handleCheckIncomingFunds}
+                        disabled={checkLoading}
+                    />
+                </View>
+            )}
         </Pressable>
     )
 }
@@ -163,6 +237,10 @@ const styles = (theme: Theme) =>
         },
         closeIconContainer: {
             alignSelf: 'flex-end',
+        },
+        checkFundsContainer: {
+            width: '100%',
+            paddingTop: theme.spacing.lg,
         },
         detailItemsContainer: {
             marginTop: theme.spacing.xl,

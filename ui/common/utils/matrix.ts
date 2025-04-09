@@ -19,6 +19,7 @@ import {
     MatrixTimelineItem,
     MatrixUser,
 } from '../types'
+import { RpcTimelineEventItemId } from '../types/bindings'
 import { makeLog } from './log'
 
 const log = makeLog('common/utils/matrix')
@@ -42,7 +43,7 @@ export const mxcUrlToHttpUrl = (
     return url.toString()
 }
 
-const fileSchema = z
+const encryptedFileSchema = z
     .object({
         hashes: z.object({
             sha256: z.string(),
@@ -52,6 +53,8 @@ const fileSchema = z
     })
     // Don't strip off additional decryption keys from the file object
     .passthrough()
+
+export type MatrixEncryptedFile = z.infer<typeof encryptedFileSchema>
 
 const contentSchemas = {
     /* Matrix standard events, not an exhaustive list */
@@ -72,7 +75,7 @@ const contentSchemas = {
             w: z.number(),
             h: z.number(),
         }),
-        file: fileSchema,
+        file: encryptedFileSchema,
     }),
     'm.video': z.object({
         msgtype: z.literal('m.video'),
@@ -83,7 +86,7 @@ const contentSchemas = {
             w: z.number(),
             h: z.number(),
         }),
-        file: fileSchema,
+        file: encryptedFileSchema,
     }),
     'm.file': z.object({
         msgtype: z.literal('m.file'),
@@ -92,11 +95,31 @@ const contentSchemas = {
             mimetype: z.string(),
             size: z.number(),
         }),
-        file: fileSchema,
+        file: encryptedFileSchema,
     }),
     'm.emote': z.object({
         msgtype: z.literal('m.emote'),
         body: z.string(),
+    }),
+    /* This event is defined by Matrix, but we extend it with the `msgtype` for simpler parsing */
+    'm.room.encrypted': z.object({
+        msgtype: z.literal('m.room.encrypted'),
+        body: z.string(),
+        algorithm: z.string(),
+        ciphertext: z.string(),
+        device_id: z.string(),
+        sender_key: z.string(),
+        session_id: z.string(),
+    }),
+    'm.poll': z.object({
+        msgtype: z.literal('m.poll'),
+        body: z.string(),
+        answers: z.array(z.object({ id: z.string(), text: z.string() })),
+        endTime: z.nullable(z.number()),
+        hasBeenEdited: z.boolean(),
+        kind: z.enum(['disclosed', 'undisclosed']),
+        maxSelections: z.number(),
+        votes: z.record(z.array(z.string())),
     }),
     /**
      * Fedi custom events
@@ -184,6 +207,12 @@ export type MatrixEventContentType<T extends keyof typeof contentSchemas> =
 export type MatrixEventContent =
     | z.infer<(typeof contentSchemas)[keyof typeof contentSchemas]>
     | MatrixEventUnknownContent
+
+export function getEventId(event: MatrixEvent): RpcTimelineEventItemId {
+    return event.eventId
+        ? { eventId: event.eventId }
+        : { transactionId: event.txnId || '' }
+}
 
 export function formatMatrixEventContent(
     content: MatrixEventContent,
@@ -431,7 +460,7 @@ export function getReceivablePaymentEvents(
  * @param deep set to true to encode as a deep link
  */
 export function encodeFediMatrixUserUri(id: string, deep = false) {
-    if (deep) return `fedi://user:${id}`
+    if (deep) return `fedi://user/${encodeURIComponent(id)}`
     return `fedi:user:${id}`
 }
 
@@ -439,7 +468,7 @@ export function encodeFediMatrixUserUri(id: string, deep = false) {
  * @param deep set to true to encode as a deep link
  */
 export function encodeFediMatrixRoomUri(id: MatrixRoom['id'], deep = false) {
-    if (deep) return `fedi://room:${id}`
+    if (deep) return `fedi://room/${encodeURIComponent(id)}`
     return `fedi:room:${id}:::`
 }
 
@@ -451,11 +480,11 @@ export function decodeFediMatrixRoomUri(uri: string) {
     // Regex breakdown:
     // ^fedi           - Ensures the string starts with "fedi".
     // (?::|:\/\/)     - Matches either ":" or "://" for both `fedi:room:` and `fedi://room:`
-    // room:           - Matches the "room:" part of the string
+    // room[:/]           - Matches the "room:" or "room/" part of the string
     // (.+?)           - Non-greedy capture of the room ID (which contains a single colon)
     // (?:::|$)        - Ensures the room ID is followed either by ":::” or the end of the string
     // /i              - Case-insensitive matching.
-    const match = cleaned.match(/^fedi(?::|:\/\/)room:(.+?)(?:::|$)/i)
+    const match = cleaned.match(/^fedi(?::|:\/\/)room[:/](.+?)(?:::|$)/i)
     if (!match) throw new Error('feature.chat.invalid-room')
 
     const decodedId = match[1]
@@ -470,8 +499,9 @@ export function decodeFediMatrixUserUri(uri: string) {
     const cleaned = uri.replace(/https?:\/\//g, '')
 
     // Decode both fedi:user:{id} and fedi://user:{id}
+    // Also matches fedi:user/{id} and fedi://user/{id}
     // const match = uri.match(FEDI_USER)
-    const match = cleaned.match(/^fedi(?::|:\/\/)user:(.+)$/i)
+    const match = cleaned.match(/^fedi(?::|:\/\/)user[:/](.+)$/i)
     if (!match) throw new Error('feature.chat.invalid-member')
 
     // Validate that it's a valid matrix user id
@@ -557,6 +587,18 @@ export function isVideoEvent(
     return event.content.msgtype === 'm.video'
 }
 
+export function isEncryptedEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<MatrixEventContentType<'m.room.encrypted'>> {
+    return event.content.msgtype === 'm.room.encrypted'
+}
+
+export function isPollEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<MatrixEventContentType<'m.poll'>> {
+    return event.content.msgtype === 'm.poll'
+}
+
 /**
  * Checks to see if a chat video/image event's content matches the `media` argument
  */
@@ -568,3 +610,22 @@ export const doesEventContentMatchPreviewMedia = (
     content.info.w === media.width &&
     content.info.h === media.height &&
     content.body === media.fileName
+
+export const arePollEventsEqual = (
+    prev: MatrixEvent<MatrixEventContentType<'m.poll'>>,
+    curr: MatrixEvent<MatrixEventContentType<'m.poll'>>,
+) => {
+    if (
+        prev.id !== curr.id ||
+        prev.content.endTime !== curr.content.endTime ||
+        prev.content.answers.length !== curr.content.answers.length ||
+        prev.content.votes.length !== curr.content.votes.length
+    )
+        return false
+
+    for (const [key, value] of Object.entries(prev.content.votes)) {
+        if (curr.content.votes[key] !== value) return false
+    }
+
+    return true
+}

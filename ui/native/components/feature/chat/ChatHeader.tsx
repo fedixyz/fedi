@@ -46,7 +46,7 @@ const ChatHeader: React.FC = () => {
                             shouldShow={isChatEmpty && !hasViewedMemberQr}
                             orientation="below"
                             side="right"
-                            text="Your username"
+                            text={t('phrases.your-username')}
                             horizontalOffset={20}
                             verticalOffset={34}
                         />

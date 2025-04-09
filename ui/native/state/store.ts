@@ -7,10 +7,10 @@ import {
     commonMiddleware,
     commonReducers,
     CommonState,
-    fetchCurrencyPrices,
     initializeCommonStore,
     setCurrencyLocale,
     setNetworkInfo,
+    refreshHistoricalCurrencyRates,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -51,8 +51,18 @@ export function initializeNativeStore() {
     const changeSubscription = RNAppState.addEventListener('change', state => {
         if (state === 'active') {
             log.debug('App returned to foreground, refreshing prices...')
-            //@ts-ignore
-            store.dispatch(fetchCurrencyPrices())
+            const appDispatch = store.dispatch as AppDispatch
+
+            appDispatch(refreshHistoricalCurrencyRates({ fedimint }))
+                .unwrap()
+                .catch((err: unknown) => {
+                    const message =
+                        err instanceof Error ? err.message : String(err)
+                    log.warn(
+                        'Failed to refresh currency rates on app foreground:',
+                        message,
+                    )
+                })
         }
     })
 

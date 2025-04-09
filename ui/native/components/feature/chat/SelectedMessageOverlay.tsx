@@ -16,8 +16,9 @@ import {
     setSelectedChatMessage,
 } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
+import { JSONObject } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
+import { getEventId, MatrixEventContentType } from '@fedi/common/utils/matrix'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -58,9 +59,10 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         setIsDeleting(true)
 
         try {
+            const event = getEventId(selectedMessage)
             await fedimint.matrixDeleteMessage(
                 selectedMessage.roomId,
-                selectedMessage.eventId,
+                event,
                 null,
             )
 
@@ -118,7 +120,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
 
             const downloadedFilePath = await fedimint.matrixDownloadFile(
                 path,
-                selectedMessage.content,
+                selectedMessage.content as JSONObject,
             )
 
             const downloadedFileUri = prefixFileUri(downloadedFilePath)

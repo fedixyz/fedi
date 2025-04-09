@@ -21,6 +21,7 @@ const SendOfflineAmount: React.FC<Props> = () => {
     const [amount, setAmount] = useState(0 as Sats)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const { minimumAmount, maximumAmount } = useMinMaxSendAmount()
+    const [notes, setNotes] = useState('')
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)
@@ -32,7 +33,7 @@ const SendOfflineAmount: React.FC<Props> = () => {
         if (amount < minimumAmount || amount > maximumAmount) {
             return
         }
-        navigation.navigate('ConfirmSendEcash', { amount })
+        navigation.navigate('ConfirmSendEcash', { amount, notes })
     }
 
     return (
@@ -50,6 +51,8 @@ const SendOfflineAmount: React.FC<Props> = () => {
                     onPress: onNext,
                 },
             ]}
+            notes={notes}
+            setNotes={setNotes}
         />
     )
 }

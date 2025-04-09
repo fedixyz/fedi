@@ -2,21 +2,20 @@ use std::mem;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
-use bip39::Mnemonic;
-use fedimint_core::db::{Database, IDatabaseTransactionOpsCore};
+use anyhow::{Context, Result};
+use fedimint_core::db::{Database, IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Encodable;
-use fedimint_core::task::TaskGroup;
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
-use super::federations_locker::FederationsLocker;
+use super::federations_locker::{FederationLockGuard, FederationsLocker};
+use crate::bridge::BridgeRuntime;
+use crate::db::FederationPendingRejoinFromScratchKey;
 use crate::error::RpcError;
-use crate::event::{Event, EventSink, TypedEventExt as _};
-use crate::features::FeatureCatalog;
+use crate::event::{Event, TypedEventExt as _};
 use crate::federation::federation_v2::FederationV2;
 use crate::fedi_fee::FediFeeHelper;
-use crate::storage::{AppState, DatabaseInfo, FederationInfo, FediFeeSchedule, Storage};
+use crate::storage::{DatabaseInfo, FederationInfo, FediFeeSchedule, Storage};
 use crate::types::{RpcFederationId, RpcFederationMaybeLoading};
 
 // label: * = lock held
@@ -89,17 +88,10 @@ impl FederationStateMachine {
         &self,
         federation_id: String,
         invite_code: String,
+        runtime: Arc<BridgeRuntime>,
         locker: &FederationsLocker,
-        event_sink: &EventSink,
-        root_task_group: &TaskGroup,
-        db: Database,
-        database_info: DatabaseInfo,
-        root_mnemonic: Mnemonic,
-        device_index: u8,
         recover_from_scratch: bool,
         fedi_fee_helper: &Arc<FediFeeHelper>,
-        app_state: &Arc<AppState>,
-        feature_catalog: &Arc<FeatureCatalog>,
     ) -> Result<Arc<FederationV2>> {
         let mut wstate = self.state.write().await;
         anyhow::ensure!(
@@ -112,31 +104,43 @@ impl FederationStateMachine {
         let gaurd = locker
             .try_lock_federation(federation_id.clone())
             .expect("lock must not be held in this federation state");
+        let db_prefix = runtime
+            .app_state
+            .new_federation_db_prefix()
+            .await
+            .context("failed to write AppState")?;
+        let federation_db = runtime
+            .global_db
+            .with_prefix(db_prefix.consensus_encode_to_vec());
+        let root_mnemonic = runtime.app_state.root_mnemonic().await;
+        let device_index = runtime.app_state.ensure_device_index().await?;
         let federation_arc = FederationV2::join(
             invite_code,
             gaurd,
-            event_sink.clone(),
-            root_task_group.make_subgroup(),
-            db,
+            runtime.event_sink.clone(),
+            runtime.task_group.make_subgroup(),
+            runtime.bridge_db(),
+            federation_db,
             &root_mnemonic,
             device_index,
             recover_from_scratch,
             fedi_fee_helper.clone(),
-            feature_catalog.clone(),
-            app_state.clone(),
+            runtime.feature_catalog.clone(),
+            runtime.app_state.clone(),
         )
         .await?;
 
         // If the phone dies here, it's still ok because the federation wouldn't
         // exist in the app_state, and we'd reattempt to join it. And the name of the
         // DB file is random so there shouldn't be any collisions.
-        app_state
+        runtime
+            .app_state
             .with_write_lock(|state| {
                 let old_value = state.joined_federations.insert(
                     federation_id,
                     FederationInfo {
                         version: 2,
-                        database: database_info,
+                        database: DatabaseInfo::DatabasePrefix(db_prefix),
                         fedi_fee_schedule: FediFeeSchedule::default(),
                     },
                 );
@@ -146,7 +150,7 @@ impl FederationStateMachine {
 
         if federation_arc.recovering() {
             *wstate = FederationStateInternal::Recovering(federation_arc.clone());
-            self.start_recovery_monitoring(root_task_group.clone(), root_mnemonic, device_index);
+            self.start_recovery_monitoring(runtime);
         } else {
             *wstate = FederationStateInternal::Normal(federation_arc.clone());
         }
@@ -159,33 +163,19 @@ impl FederationStateMachine {
     pub async fn load_from_db(
         &self,
         federation_id: String,
-        db: Database,
+        runtime: Arc<BridgeRuntime>,
+        federation_info: FederationInfo,
         locker: &FederationsLocker,
-        event_sink: &EventSink,
-        root_task_group: &TaskGroup,
-        root_mnemonic: Mnemonic,
-        device_index: u8,
         fedi_fee_helper: &Arc<FediFeeHelper>,
-        feature_catalog: &Arc<FeatureCatalog>,
-        app_state: &Arc<AppState>,
     ) {
         let mut wstate = self.state.write().await;
         assert!(matches!(&*wstate, FederationStateInternal::NewForLoad));
-        let gaurd = locker
+        let guard = locker
             .try_lock_federation(federation_id.clone())
             .expect("lock must not be held in this federation state");
-        let federation_result = FederationV2::from_db(
-            db,
-            gaurd,
-            event_sink.clone(),
-            root_task_group.make_subgroup(),
-            &root_mnemonic,
-            device_index,
-            fedi_fee_helper.clone(),
-            feature_catalog.clone(),
-            app_state.clone(),
-        )
-        .await;
+        let federation_result = self
+            .load_from_db_inner(&runtime, federation_info, fedi_fee_helper, guard)
+            .await;
 
         // TODO: send federation event
         match federation_result {
@@ -193,49 +183,68 @@ impl FederationStateMachine {
                 federation_arc.send_federation_event().await;
                 if federation_arc.recovering() {
                     *wstate = FederationStateInternal::Recovering(federation_arc);
-                    self.start_recovery_monitoring(
-                        root_task_group.clone(),
-                        root_mnemonic,
-                        device_index,
-                    );
+                    self.start_recovery_monitoring(runtime);
                 } else {
                     *wstate = FederationStateInternal::Normal(federation_arc);
                 }
             }
             Err(err) => {
-                event_sink.typed_event(&Event::federation(RpcFederationMaybeLoading::Failed {
-                    error: RpcError::from_anyhow(&err),
-                    id: RpcFederationId(federation_id),
-                }));
+                runtime.event_sink.typed_event(&Event::federation(
+                    RpcFederationMaybeLoading::Failed {
+                        error: RpcError::from_anyhow(&err),
+                        id: RpcFederationId(federation_id),
+                    },
+                ));
                 *wstate = FederationStateInternal::LoadFailed(Arc::new(err));
             }
         }
     }
 
-    fn start_recovery_monitoring(
+    async fn load_from_db_inner(
         &self,
-        root_task_group: TaskGroup,
-        root_mnemonic: Mnemonic,
-        device_index: u8,
-    ) {
-        root_task_group.clone().spawn_cancellable(
+        runtime: &Arc<BridgeRuntime>,
+        federation_info: FederationInfo,
+        fedi_fee_helper: &Arc<FediFeeHelper>,
+        guard: FederationLockGuard,
+    ) -> anyhow::Result<Arc<FederationV2>> {
+        let root_mnemonic = runtime.app_state.root_mnemonic().await;
+        let device_index = runtime
+            .app_state
+            .device_index()
+            .await
+            .context("device index must exist when joined federations exist")?;
+        let federation_db = match &federation_info.database {
+            DatabaseInfo::DatabaseName(db_name) => {
+                runtime.storage.federation_database_v2(db_name).await?
+            }
+            DatabaseInfo::DatabasePrefix(prefix) => runtime
+                .global_db
+                .with_prefix(prefix.consensus_encode_to_vec()),
+        };
+        FederationV2::from_db(
+            federation_db,
+            guard,
+            runtime.event_sink.clone(),
+            runtime.task_group.make_subgroup(),
+            &root_mnemonic,
+            device_index,
+            fedi_fee_helper.clone(),
+            runtime.feature_catalog.clone(),
+            runtime.app_state.clone(),
+        )
+        .await
+    }
+
+    fn start_recovery_monitoring(&self, runtime: Arc<BridgeRuntime>) {
+        runtime.task_group.clone().spawn_cancellable(
             "waiting for recovery to replace federation",
-            self.clone().start_recovery_monitoring_inner(
-                root_task_group,
-                root_mnemonic,
-                device_index,
-            ),
+            self.clone().start_recovery_monitoring_inner(runtime),
         );
     }
     // Start monitoring federation recovery in background
     // Invariant: this must called exactly once when transitioning to
     // Self::Recovering
-    async fn start_recovery_monitoring_inner(
-        self,
-        root_task_group: TaskGroup,
-        root_mnemonic: Mnemonic,
-        device_index: u8,
-    ) -> Result<()> {
+    async fn start_recovery_monitoring_inner(self, runtime: Arc<BridgeRuntime>) -> Result<()> {
         // acquire read lock to block all other writes
         let rstate = self.state.read().await;
         let FederationStateInternal::Recovering(federation_arc) = &*rstate else {
@@ -248,7 +257,7 @@ impl FederationStateMachine {
 
         drop(rstate);
         // something else can get write lock at this time, but only permitted transition
-        // is Recovering -> Normal which is this task.
+        // is Recovering -> something  which is this task.
         let mut wstate = self.state.write().await;
         let FederationStateInternal::Recovering(federation_arc) =
             std::mem::replace(&mut *wstate, FederationStateInternal::Dead)
@@ -273,11 +282,18 @@ impl FederationStateMachine {
             ..
         } = wait_for_unique(federation_arc).await;
         client.shutdown().await;
+
+        let root_mnemonic = runtime.app_state.root_mnemonic().await;
+        let device_index = runtime
+            .app_state
+            .device_index()
+            .await
+            .context("device index must exist when joined federations exist")?;
         let federation_result = FederationV2::from_db(
             db,
             guard,
             event_sink.clone(),
-            root_task_group.make_subgroup(),
+            runtime.task_group.make_subgroup(),
             &root_mnemonic,
             device_index,
             fedi_fee_helper,
@@ -292,6 +308,35 @@ impl FederationStateMachine {
                     !federation_arc.recovering(),
                     "recovery must be complete after restart"
                 );
+                // After recovery finishes (and if it was not from scratch), ensure no e-cash
+                // blind nonces are being reused. If they are, return an error and clear out the
+                // federation. The front-end will take care of taking user through rejoining
+                // with recover-from-scratch.
+                let fed_pending_rejoin_key = FederationPendingRejoinFromScratchKey {
+                    invite_code_str: federation_arc.get_invite_code().await,
+                };
+                let bridge_db = runtime.bridge_db();
+                let mut dbtx = bridge_db.begin_transaction().await;
+                if dbtx.get_value(&fed_pending_rejoin_key).await.is_none() {
+                    if !federation_arc.perform_nonce_reuse_check().await {
+                        let federation_id = federation_arc.rpc_federation_id();
+                        dbtx.insert_entry(&fed_pending_rejoin_key, &()).await;
+                        dbtx.commit_tx().await;
+
+                        *wstate = FederationStateInternal::Left;
+                        self.leave_internal(federation_arc, &runtime.storage, &runtime.global_db)
+                            .await?;
+                        runtime
+                            .event_sink
+                            .typed_event(&Event::nonce_reuse_check_failed(federation_id));
+                        return Ok(());
+                    }
+                } else {
+                    // a recovery from scratch completed so we remove this marker.
+                    dbtx.remove_entry(&fed_pending_rejoin_key).await;
+                    dbtx.commit_tx().await;
+                }
+
                 *wstate = FederationStateInternal::Normal(federation_arc);
             }
             Err(err) => {
@@ -317,6 +362,16 @@ impl FederationStateMachine {
         else {
             unreachable!("checked above");
         };
+        self.leave_internal(federation_arc, storage, global_db)
+            .await
+    }
+
+    async fn leave_internal(
+        &self,
+        federation_arc: Arc<FederationV2>,
+        storage: &Storage,
+        global_db: &Database,
+    ) -> Result<()> {
         let removed_federation_info = federation_arc
             .app_state
             .with_write_lock(|state| {

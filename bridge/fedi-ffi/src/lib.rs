@@ -4,6 +4,7 @@ pub mod community;
 pub mod federation;
 // FIXME: kinda feels like this should just be it's own crate ...
 pub mod constants;
+pub mod db;
 pub mod device_registration;
 pub mod envs;
 pub mod error;

@@ -2,6 +2,10 @@ use std::sync::Arc;
 
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use serde::{Deserialize, Serialize};
+use stability_pool_client::{
+    StabilityPoolDepositOperationState, StabilityPoolTransferOperationState,
+    StabilityPoolWithdrawalOperationState,
+};
 use ts_rs::TS;
 
 use super::types::{RpcFederationId, RpcOperationId, RpcTransaction, SocialRecoveryApproval};
@@ -64,6 +68,68 @@ pub enum StabilityPoolDepositState {
     TxRejected(String),
     PrimaryOutputError(String),
     Success,
+}
+
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SPv2DepositEvent {
+    pub federation_id: RpcFederationId,
+    pub operation_id: RpcOperationId,
+    pub state: SPv2DepositState,
+}
+
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SPv2DepositState {
+    Initiated,
+    TxAccepted,
+    TxRejected(String),
+    PrimaryOutputError(String),
+    Success,
+}
+
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SPv2WithdrawalEvent {
+    pub federation_id: RpcFederationId,
+    pub operation_id: RpcOperationId,
+    pub state: SPv2WithdrawalState,
+}
+
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SPv2WithdrawalState {
+    Initiated,
+    UnlockTxAccepted,
+    UnlockTxRejected(String),
+    UnlockProcessingError(String),
+    WithdrawalInitiated(RpcAmount),
+    WithdrawalTxAccepted(RpcAmount),
+    WithdrawalTxRejected(String),
+    PrimaryOutputError(String),
+    Success(RpcAmount),
+}
+
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SPv2TransferEvent {
+    pub federation_id: RpcFederationId,
+    pub operation_id: RpcOperationId,
+    pub state: SPv2TransferState,
+}
+
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SPv2TransferState {
+    Initiated,
+    Success,
+    TxRejected(String),
 }
 
 #[derive(Serialize, Debug, TS)]
@@ -176,6 +242,15 @@ pub struct CommunityMetadataUpdatedEvent {
     pub new_community: RpcCommunity,
 }
 
+/// Notify front-end that given federation has failed the e-cash blind nonce
+/// reuse check and must be rejoined using a recovery-from-scratch.
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NonceReuseCheckFailedEvent {
+    pub federation_id: RpcFederationId,
+}
+
 #[derive(Debug, TS)]
 #[ts(export)]
 #[ts(rename_all = "camelCase")]
@@ -185,6 +260,9 @@ pub enum Event {
     Federation(RpcFederationMaybeLoading),
     Balance(BalanceEvent),
     Panic(PanicEvent),
+    SPv2Deposit(SPv2DepositEvent),
+    SPv2Withdrawal(SPv2WithdrawalEvent),
+    SPv2Transfer(SPv2TransferEvent),
     StabilityPoolDeposit(StabilityPoolDepositEvent),
     StabilityPoolWithdrawal(StabilityPoolWithdrawalEvent),
     RecoveryComplete(RecoveryCompleteEvent),
@@ -192,6 +270,7 @@ pub enum Event {
     DeviceRegistration(DeviceRegistrationEvent),
     StabilityPoolUnfilledDepositSwept(StabilityPoolUnfilledDepositSweptEvent),
     CommunityMetadataUpdated(CommunityMetadataUpdatedEvent),
+    NonceReuseCheckFailed(NonceReuseCheckFailedEvent),
 }
 
 impl Event {
@@ -216,6 +295,84 @@ impl Event {
     pub fn recovery_complete(federation_id: String) -> Self {
         Self::RecoveryComplete(RecoveryCompleteEvent {
             federation_id: RpcFederationId(federation_id),
+        })
+    }
+
+    pub fn spv2_deposit(
+        federation_id: String,
+        operation_id: fedimint_core::core::OperationId,
+        state: StabilityPoolDepositOperationState,
+    ) -> Self {
+        Self::SPv2Deposit(SPv2DepositEvent {
+            federation_id: RpcFederationId(federation_id),
+            operation_id: RpcOperationId(operation_id),
+            state: match state {
+                StabilityPoolDepositOperationState::Initiated => SPv2DepositState::Initiated,
+                StabilityPoolDepositOperationState::TxAccepted => SPv2DepositState::TxAccepted,
+                StabilityPoolDepositOperationState::TxRejected(e) => {
+                    SPv2DepositState::TxRejected(e)
+                }
+                StabilityPoolDepositOperationState::PrimaryOutputError(e) => {
+                    SPv2DepositState::PrimaryOutputError(e)
+                }
+                StabilityPoolDepositOperationState::Success => SPv2DepositState::Success,
+            },
+        })
+    }
+
+    pub fn spv2_withdrawal(
+        federation_id: String,
+        operation_id: fedimint_core::core::OperationId,
+        state: StabilityPoolWithdrawalOperationState,
+    ) -> Self {
+        Self::SPv2Withdrawal(SPv2WithdrawalEvent {
+            federation_id: RpcFederationId(federation_id),
+            operation_id: RpcOperationId(operation_id),
+            state: match state {
+                StabilityPoolWithdrawalOperationState::Initiated => SPv2WithdrawalState::Initiated,
+                StabilityPoolWithdrawalOperationState::UnlockTxAccepted => {
+                    SPv2WithdrawalState::UnlockTxAccepted
+                }
+                StabilityPoolWithdrawalOperationState::UnlockTxRejected(e) => {
+                    SPv2WithdrawalState::UnlockTxRejected(e)
+                }
+                StabilityPoolWithdrawalOperationState::UnlockProcessingError(e) => {
+                    SPv2WithdrawalState::UnlockProcessingError(e)
+                }
+                StabilityPoolWithdrawalOperationState::WithdrawalInitiated(amt) => {
+                    SPv2WithdrawalState::WithdrawalInitiated(RpcAmount(amt))
+                }
+                StabilityPoolWithdrawalOperationState::WithdrawalTxAccepted(amt) => {
+                    SPv2WithdrawalState::WithdrawalTxAccepted(RpcAmount(amt))
+                }
+                StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(e) => {
+                    SPv2WithdrawalState::WithdrawalTxRejected(e)
+                }
+                StabilityPoolWithdrawalOperationState::PrimaryOutputError(e) => {
+                    SPv2WithdrawalState::PrimaryOutputError(e)
+                }
+                StabilityPoolWithdrawalOperationState::Success(amt) => {
+                    SPv2WithdrawalState::Success(RpcAmount(amt))
+                }
+            },
+        })
+    }
+
+    pub fn spv2_transfer(
+        federation_id: String,
+        operation_id: fedimint_core::core::OperationId,
+        state: StabilityPoolTransferOperationState,
+    ) -> Self {
+        Self::SPv2Transfer(SPv2TransferEvent {
+            federation_id: RpcFederationId(federation_id),
+            operation_id: RpcOperationId(operation_id),
+            state: match state {
+                StabilityPoolTransferOperationState::Initiated => SPv2TransferState::Initiated,
+                StabilityPoolTransferOperationState::Success => SPv2TransferState::Success,
+                StabilityPoolTransferOperationState::TxRejected(e) => {
+                    SPv2TransferState::TxRejected(e)
+                }
+            },
         })
     }
 
@@ -284,6 +441,10 @@ impl Event {
     pub fn community_metadata_updated(new_community: RpcCommunity) -> Self {
         Self::CommunityMetadataUpdated(CommunityMetadataUpdatedEvent { new_community })
     }
+
+    pub fn nonce_reuse_check_failed(federation_id: RpcFederationId) -> Self {
+        Self::NonceReuseCheckFailed(NonceReuseCheckFailedEvent { federation_id })
+    }
 }
 
 /// Sends events to iOS / Android layer
@@ -331,6 +492,18 @@ pub trait TypedEventExt: IEventSink {
                 let body = serde_json::to_string(&event).expect("failed to json serialize");
                 IEventSink::event(self, "panic".into(), body);
             }
+            Event::SPv2Deposit(event) => {
+                let body = serde_json::to_string(&event).expect("failed to json serialize");
+                IEventSink::event(self, "spv2Deposit".into(), body);
+            }
+            Event::SPv2Withdrawal(event) => {
+                let body = serde_json::to_string(&event).expect("failed to json serialize");
+                IEventSink::event(self, "spv2Withdrawal".into(), body);
+            }
+            Event::SPv2Transfer(event) => {
+                let body = serde_json::to_string(&event).expect("failed to json serialize");
+                IEventSink::event(self, "spv2Transfer".into(), body);
+            }
             Event::StabilityPoolDeposit(event) => {
                 let body = serde_json::to_string(&event).expect("failed to json serialize");
                 IEventSink::event(self, "stabilityPoolDeposit".into(), body);
@@ -358,6 +531,10 @@ pub trait TypedEventExt: IEventSink {
             Event::CommunityMetadataUpdated(event) => {
                 let body = serde_json::to_string(&event).expect("failed to json serialize");
                 IEventSink::event(self, "communityMetadataUpdated".into(), body);
+            }
+            Event::NonceReuseCheckFailed(event) => {
+                let body = serde_json::to_string(&event).expect("failed to json serialize");
+                IEventSink::event(self, "nonceReuseCheckFailed".into(), body);
             }
         };
     }

@@ -18,6 +18,7 @@ fedi-social-server = { path = "../modules/fedi-social/server" }
 fedi-social-common = { path = "../modules/fedi-social/common" }
 fedimint-core = { workspace = true }
 stability-pool-server-old = { path = "../modules/stability-pool-old/server" }
+stability-pool-server = { path = "../modules/stability-pool/server" }
 tracing = { workspace = true }
 
 [build-dependencies]

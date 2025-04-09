@@ -68,14 +68,16 @@ const ShortcutsList: React.FC = () => {
         )
         setActionsMod(undefined)
     }
+
+    //remove 'ask fedi' and 'support' mods
+    const getValidFediMods = () => {
+        return fediMods
+            .filter(s => s.title !== 'Ask Fedi' && s.title !== 'Support')
+            .map(s => new FediMod(s))
+    }
+
     const renderFediModShortcuts = () => {
-        const fediModShortcuts = fediMods.map(s => new FediMod(s))
-        //remove 'ask fedi' title mod
-        fediMods.map((s, index) => {
-            if (s.title === 'Ask Fedi') {
-                fediModShortcuts.splice(index, 1)
-            }
-        })
+        const fediModShortcuts = getValidFediMods()
 
         return fediModShortcuts.map((s: FediMod) => {
             return (
@@ -113,7 +115,7 @@ const ShortcutsList: React.FC = () => {
     // while also left-justifying rows with 1 or 2 tiles so we just
     // make sure to fill the remaining space with invisible elements
     const renderBuffers = () => {
-        const totalShortcuts = fediMods.length
+        const totalShortcuts = getValidFediMods().length
         const bufferCount = (columns - (totalShortcuts % columns)) % columns
 
         return new Array(bufferCount).fill('').map((_, i) => {

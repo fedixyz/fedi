@@ -9,6 +9,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import Router from './Router'
 import { subscribeToBridgeEvents, unsubscribeFromBridgeEvents } from './bridge'
 import FediBridgeInitializer from './components/FediBridgeInitializer'
+import { InternetIsUnreachableBadge } from './components/feature/environment/InternetIsUnreachableBadge'
 import ToastManager from './components/ui/ToastManager'
 import { ErrorScreen } from './screens/ErrorScreen'
 import { BackupRecoveryProvider } from './state/contexts/BackupRecoveryContext'
@@ -59,6 +60,7 @@ const App = () => {
                                 ]}>
                                 {<Router />}
                                 <ToastManager />
+                                <InternetIsUnreachableBadge />
                             </ProviderComposer>
                         </FediBridgeInitializer>
                     </ReduxProvider>

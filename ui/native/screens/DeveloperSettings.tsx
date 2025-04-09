@@ -182,8 +182,8 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     throw new Error('No active federation')
                 const _gateways = await reduxDispatch(
                     listGateways({
-                        fedimint,
                         federationId: activeFederation?.id,
+                        fedimint,
                     }),
                 ).unwrap()
                 setGateways(_gateways)

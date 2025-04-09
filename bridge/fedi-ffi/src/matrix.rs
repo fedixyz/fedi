@@ -1,17 +1,24 @@
-use std::path::Path;
+use std::future::pending;
+use std::path::{Path, PathBuf};
+use std::pin::pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use fedimint_derive_secret::DerivableSecret;
 use futures::StreamExt;
+use imbl::Vector;
 use matrix_sdk::attachment::{
     AttachmentConfig, AttachmentInfo, BaseFileInfo, BaseImageInfo, BaseVideoInfo,
 };
+use matrix_sdk::encryption::recovery::RecoveryState;
 use matrix_sdk::encryption::BackupDownloadStrategy;
-use matrix_sdk::media::{MediaFormat, MediaRequest};
+use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
 use matrix_sdk::notification_settings::NotificationSettings;
+use matrix_sdk::room::edit::EditedContent;
+use matrix_sdk::room::Room;
 pub use matrix_sdk::ruma::api::client::account::register::v3 as register;
+use matrix_sdk::ruma::api::client::authenticated_media::get_media_preview;
 use matrix_sdk::ruma::api::client::directory::get_public_rooms_filtered::v3 as get_public_rooms_filtered;
 use matrix_sdk::ruma::api::client::message::get_message_events;
 use matrix_sdk::ruma::api::client::profile::get_profile;
@@ -22,11 +29,12 @@ use matrix_sdk::ruma::api::client::room::Visibility;
 use matrix_sdk::ruma::api::client::state::send_state_event;
 use matrix_sdk::ruma::api::client::uiaa;
 use matrix_sdk::ruma::directory::PublicRoomsChunk;
-use matrix_sdk::ruma::events::message::TextContentBlock;
-use matrix_sdk::ruma::events::poll::end::PollEndEventContent;
-use matrix_sdk::ruma::events::poll::response::{PollResponseEventContent, SelectionsContentBlock};
-use matrix_sdk::ruma::events::poll::start::{
-    PollAnswer, PollAnswers, PollContentBlock, PollStartEventContent,
+use matrix_sdk::ruma::events::poll::start::PollKind;
+use matrix_sdk::ruma::events::poll::unstable_end::UnstablePollEndEventContent;
+use matrix_sdk::ruma::events::poll::unstable_response::UnstablePollResponseEventContent;
+use matrix_sdk::ruma::events::poll::unstable_start::{
+    NewUnstablePollStartEventContent, UnstablePollAnswer, UnstablePollAnswers,
+    UnstablePollStartContentBlock,
 };
 use matrix_sdk::ruma::events::receipt::ReceiptThread;
 use matrix_sdk::ruma::events::room::encryption::RoomEncryptionEventContent;
@@ -35,24 +43,34 @@ use matrix_sdk::ruma::events::room::message::{
 };
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use matrix_sdk::ruma::events::room::MediaSource;
-use matrix_sdk::ruma::events::{AnySyncTimelineEvent, InitialStateEvent};
-use matrix_sdk::ruma::{assign, EventId, OwnedMxcUri, RoomId, UInt, UserId};
-use matrix_sdk::sliding_sync::Ranges;
-use matrix_sdk::{Client, RoomInfo, RoomMemberships};
+use matrix_sdk::ruma::events::{
+    AnyMessageLikeEventContent, AnySyncMessageLikeEvent, AnySyncTimelineEvent, InitialStateEvent,
+    SyncMessageLikeEvent,
+};
+use matrix_sdk::ruma::{assign, EventId, OwnedEventId, OwnedMxcUri, RoomId, UInt, UserId};
+use matrix_sdk::{sliding_sync, Client, RoomInfo, RoomMemberships};
+use matrix_sdk_ui::room_list_service;
 use matrix_sdk_ui::sync_service::{self, SyncService};
-use matrix_sdk_ui::timeline::default_event_filter;
-use matrix_sdk_ui::{room_list_service, RoomListService};
+use matrix_sdk_ui::timeline::{default_event_filter, TimelineEventItemId};
 use mime::Mime;
+use multispend::{GroupInvitationWithKeys, MsEventData, MultispendEvent};
+use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, warn};
 
 use crate::bridge::BridgeRuntime;
 use crate::error::ErrorCode;
-use crate::observable::{Observable, ObservablePool, ObservableVec};
+use crate::features::StabilityPoolV2FeatureConfigState;
+use crate::observable::{Observable, ObservableVec, ObservableVecUpdate};
 use crate::storage::AppState;
-use crate::types::RpcMediaUploadParams;
+use crate::types::{RpcEventId, RpcMediaUploadParams};
+use crate::utils::PoisonedLockExt as _;
 
+pub mod multispend;
+mod rescanner;
 mod types;
 pub use types::*;
+
+use crate::matrix::rescanner::RoomRescannerManager;
 
 #[derive(Clone)]
 pub struct Matrix {
@@ -60,11 +78,32 @@ pub struct Matrix {
     client: Client,
     /// sync service to load new messages
     sync_service: Arc<SyncService>,
-    /// manages list of room visible to user.
-    room_list_service: Arc<RoomListService>,
     pub runtime: Arc<BridgeRuntime>,
     notification_settings: NotificationSettings,
-    pub observable_pool: ObservablePool,
+    /// Manager for room rescanning operations
+    rescanner: RoomRescannerManager,
+    /// Mutex to prevent concurrent send_multispend_event
+    send_multispend_mutex: Arc<Mutex<()>>,
+    // This is used as a synchronization mechanism between sending multispend
+    // events and receiving server confirmation. When sending a multispend
+    // event:
+    //
+    // 1. A new channel is created and its sender is stored here
+    // 2. After sending the event to the server, we wait on the receiver
+    // 3. When the Matrix sync service receives the event back from the server, it sends the event
+    //    ID through this channel
+    // 4. The send_multispend_event method waits until it receives back the same event ID it sent,
+    //    confirming server acknowledgment
+    //
+    // This ensures multispend events are properly synchronized with the server
+    // before returning from the send method.
+    send_multispend_server_ack: Arc<std::sync::Mutex<Option<mpsc::Sender<OwnedEventId>>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ClientKind {
+    SlidingSyncProxy { url: String },
+    NativeSync,
 }
 
 impl Matrix {
@@ -72,20 +111,48 @@ impl Matrix {
         base_dir: &Path,
         home_server: String,
         passphrase: &str,
+        client_kind: &ClientKind,
     ) -> Result<Client> {
         let builder = Client::builder()
+            .sliding_sync_version_builder(match client_kind {
+                ClientKind::SlidingSyncProxy { url } => sliding_sync::VersionBuilder::Proxy {
+                    url: url::Url::parse(url)?,
+                },
+                ClientKind::NativeSync => sliding_sync::VersionBuilder::Native,
+            })
             .homeserver_url(home_server)
             // make backup and recovery automagically work.
             .with_encryption_settings(matrix_sdk::encryption::EncryptionSettings {
                 auto_enable_cross_signing: true,
-                backup_download_strategy: BackupDownloadStrategy::OneShot,
+                backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
                 auto_enable_backups: true,
             })
             .handle_refresh_tokens();
+
+        // after migration we changed db names to not delete current database in case we
+        // do something bad, we can always rollback to sliding sync proxy
+        // version
+        let is_sliding_sync_proxy = matches!(client_kind, ClientKind::SlidingSyncProxy { .. });
+
         #[cfg(not(target_family = "wasm"))]
-        let builder = builder.sqlite_store(base_dir.join("db.sqlite"), Some(passphrase));
+        let builder = builder.sqlite_store(
+            base_dir.join(if is_sliding_sync_proxy {
+                "db.sqlite"
+            } else {
+                "db-native-sync.sqlite"
+            }),
+            Some(passphrase),
+        );
+
         #[cfg(target_family = "wasm")]
-        let builder = builder.indexeddb_store("matrix-db", Some(passphrase));
+        let builder = builder.indexeddb_store(
+            if is_sliding_sync_proxy {
+                "matrix-db"
+            } else {
+                "matrix-db-native-sync"
+            },
+            Some(passphrase),
+        );
 
         let client = builder.build().await?;
         Ok(client)
@@ -115,13 +182,27 @@ impl Matrix {
         home_server: String,
         sliding_sync_proxy: String,
     ) -> Result<Self> {
+        Self::run_migration_task(
+            runtime.clone(),
+            base_dir.to_path_buf(),
+            matrix_secret.clone(),
+            home_server.clone(),
+            sliding_sync_proxy.clone(),
+        );
         let matrix_session = runtime
             .app_state
-            .with_read_lock(|r| r.matrix_session.clone())
+            .with_read_lock(|r| r.matrix_session_native_sync.clone())
             .await;
         let user_password = &Self::home_server_password(matrix_secret, &home_server);
         let encryption_passphrase = Self::encryption_passphrase(matrix_secret);
-        let client = Self::build_client(base_dir, home_server, &encryption_passphrase).await?;
+        // always run the new client
+        let client = Self::build_client(
+            base_dir,
+            home_server,
+            &encryption_passphrase,
+            &ClientKind::NativeSync,
+        )
+        .await?;
 
         if let Some(session) = matrix_session {
             client.restore_session(session).await?;
@@ -141,19 +222,20 @@ impl Matrix {
             "username must stay same"
         );
 
-        client.set_sliding_sync_proxy(Some(url::Url::parse(&sliding_sync_proxy)?));
-        let sync_service = SyncService::builder(client.clone()).build().await?;
+        let sync_service = SyncService::builder(client.clone())
+            .with_offline_mode()
+            .build()
+            .await?;
         let matrix = Self {
             notification_settings: client.notification_settings().await,
-            client,
-            room_list_service: sync_service.room_list_service(),
+            client: client.clone(),
             sync_service: Arc::new(sync_service),
-            observable_pool: ObservablePool::new(
-                runtime.event_sink.clone(),
-                runtime.task_group.clone(),
-            ),
-            runtime,
+            runtime: runtime.clone(),
+            rescanner: RoomRescannerManager::new(client, runtime),
+            send_multispend_mutex: Arc::new(Mutex::new(())),
+            send_multispend_server_ack: Arc::new(std::sync::Mutex::new(None)),
         };
+
         let encryption_passphrase = Self::encryption_passphrase(matrix_secret);
         matrix.start_background(encryption_passphrase).await?;
         Ok(matrix)
@@ -171,7 +253,9 @@ impl Matrix {
                         sync_service::State::Terminated | sync_service::State::Error => {
                             this.sync_service.start().await;
                         }
-                        sync_service::State::Idle | sync_service::State::Running => {}
+                        sync_service::State::Offline
+                        | sync_service::State::Idle
+                        | sync_service::State::Running => {}
                     }
                     fedimint_core::task::sleep(Duration::from_millis(500)).await;
                 }
@@ -180,56 +264,48 @@ impl Matrix {
         let this = self.clone();
         self.runtime
             .task_group
-            .spawn_cancellable("matrix::Recovery::enable", {
-                async move {
-                    // if there are no backups on server, enable backups
-                    if this
-                        .client
-                        .encryption()
-                        .backups()
-                        .exists_on_server()
-                        .await
-                        .is_ok_and(|x| x)
-                    {
-                        return;
-                    }
-                    // enable auto backups with passphrase for e2e keys.
-                    // TODO: subscribe to backup progress
-                    this.client
-                        .encryption()
-                        .recovery()
-                        .enable()
-                        .with_passphrase(&encryption_passphrase)
-                        .await
-                        .inspect_err(|err| error!(%err, "unable to enable recovery (start backup)"))
-                        .ok();
+            .spawn_cancellable("matrix::Recovery::enable", async move {
+                if let Err(err) = Self::enable_recovery(&this.client, encryption_passphrase).await {
+                    warn!(?err, "failed to enable recovery");
                 }
             });
-        let this = self.clone();
-        // use session token changed stream to update the token in app state
-        self.runtime
-            .task_group
-            .spawn_cancellable("matrix::session_token_changed", async move {
-                let Some(mut session_token_changed) =
-                    this.client.matrix_auth().session_tokens_stream()
-                else {
-                    return;
-                };
-                while let Some(token) = session_token_changed.next().await {
-                    if let Err(err) = this
-                        .runtime
-                        .app_state
-                        .with_write_lock(|w| {
-                            if let Some(session) = w.matrix_session.as_mut() {
-                                session.tokens = token;
+
+        self.runtime.task_group.spawn_cancellable(
+            "matrix::session_token_changed",
+            Self::handle_session_tokens_updated(
+                self.client.clone(),
+                self.runtime.clone(),
+                ClientKind::NativeSync,
+            ),
+        );
+
+        if self.is_multispend_enabled() {
+            let this = self.clone();
+            self.client
+                .add_event_handler(move |event: AnySyncMessageLikeEvent, room: Room| {
+                    let this = this.clone();
+                    async move {
+                        if let AnySyncMessageLikeEvent::RoomMessage(
+                            SyncMessageLikeEvent::Original(m),
+                        ) = event
+                        {
+                            if m.content.msgtype() == multispend::MULTISPEND_MSGTYPE {
+                                let room_id = room.room_id();
+
+                                // anytime we see multispend event, we rescan the room.
+                                this.rescanner.queue_rescan(room_id);
+
+                                // see docs on `send_multispend_server_ack`
+                                let sender = this.send_multispend_server_ack.ensure_lock().clone();
+                                if let Some(sender) = sender {
+                                    sender.send(m.event_id).await.ok();
+                                }
                             }
-                        })
-                        .await
-                    {
-                        error!(%err, "unable to update session token");
+                        }
                     }
-                }
-            });
+                });
+        }
+
         Ok(())
     }
 
@@ -284,13 +360,146 @@ impl Matrix {
             Some(matrix_sdk::AuthSession::Matrix(matrix_session)) => {
                 app_state
                     .with_write_lock(|a| {
-                        a.matrix_session = Some(matrix_session);
+                        a.matrix_session_native_sync = Some(matrix_session);
                     })
                     .await?;
             }
             Some(_) => warn!("unknown session"),
             None => warn!("session not found after login"),
         }
+        Ok(())
+    }
+
+    async fn handle_session_tokens_updated(
+        client: Client,
+        runtime: Arc<BridgeRuntime>,
+        client_kind: ClientKind,
+    ) {
+        let Some(mut session_token_changed) = client.matrix_auth().session_tokens_stream() else {
+            warn!("handle session tokens updated called on a logged out client");
+            return;
+        };
+        while let Some(token) = session_token_changed.next().await {
+            if let Err(err) = runtime
+                .app_state
+                .with_write_lock(|w| {
+                    let session = match client_kind {
+                        ClientKind::SlidingSyncProxy { .. } => {
+                            w.matrix_session_sliding_sync_proxy.as_mut()
+                        }
+                        ClientKind::NativeSync => w.matrix_session_native_sync.as_mut(),
+                    };
+                    if let Some(session) = session {
+                        session.tokens = token;
+                    }
+                })
+                .await
+            {
+                error!(%err, "unable to update session token");
+            }
+        }
+    }
+    // backup (set of room keys) is encrypted by (a random) key called backup key
+    // - auto_enable_backups enables backup process automatically.
+    // - enabling recovery means encrypting this backup key with a passphrase
+    // so a future client can recover the backup key and hence the room keys
+    async fn enable_recovery(client: &Client, encryption_passphrase: String) -> anyhow::Result<()> {
+        let mut state_stream = pin!(client.encryption().recovery().state_stream());
+        while let Some(state) = state_stream.next().await {
+            match state {
+                RecoveryState::Unknown => {
+                    // wait for matrix background tasks to fetch the recovery state
+                    continue;
+                }
+                RecoveryState::Enabled => {
+                    // recovery is already on
+                    return Ok(());
+                }
+                RecoveryState::Incomplete | RecoveryState::Disabled => {
+                    // enable auto backups with passphrase for e2e keys.
+                    // TODO: subscribe to backup progress to show something in ui
+                    client
+                        .encryption()
+                        .recovery()
+                        .enable()
+                        .with_passphrase(&encryption_passphrase)
+                        .await?;
+                    // ? means we will not enable recovery in this run, we will
+                    // try again on next startup
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn run_migration_task(
+        runtime: Arc<BridgeRuntime>,
+        base_dir: PathBuf,
+        matrix_secret: DerivableSecret,
+        home_server: String,
+        sliding_sync_proxy: String,
+    ) {
+        runtime
+            .task_group
+            .clone()
+            .spawn_cancellable("matrix::migration_task", async move {
+                if let Err(err) = Self::migration_task_inner(
+                    runtime,
+                    base_dir,
+                    matrix_secret,
+                    home_server,
+                    sliding_sync_proxy,
+                )
+                .await
+                {
+                    warn!(?err, "migration task failed");
+                }
+            });
+    }
+
+    // run a client that connects to sliding sync proxy in background to get keys
+    // from it.
+    async fn migration_task_inner(
+        runtime: Arc<BridgeRuntime>,
+        base_dir: PathBuf,
+        matrix_secret: DerivableSecret,
+        home_server: String,
+        sliding_sync_proxy: String,
+    ) -> Result<()> {
+        let Some(session) = runtime
+            .app_state
+            .with_read_lock(|r| r.matrix_session_sliding_sync_proxy.clone())
+            .await
+        else {
+            // the user never logged in on old matrix, no migration needed
+            return Ok(());
+        };
+        let encryption_passphrase = Self::encryption_passphrase(&matrix_secret);
+        let client_kind = ClientKind::SlidingSyncProxy {
+            url: sliding_sync_proxy,
+        };
+        let client =
+            Self::build_client(&base_dir, home_server, &encryption_passphrase, &client_kind)
+                .await?;
+        client.restore_session(session).await?;
+
+        // save refreshed access tokens to disk in case it refreshes.
+        runtime.task_group.spawn_cancellable(
+            "matrix::migration_task::session_token_changed",
+            Self::handle_session_tokens_updated(client.clone(), runtime.clone(), client_kind),
+        );
+
+        let sync_service = SyncService::builder(client.clone())
+            .with_offline_mode()
+            .build()
+            .await?;
+        // start sync from sliding sync proxy in background
+        sync_service.start().await;
+        // maybe better to retry in case of error instead of waiting for next startup
+        Self::enable_recovery(&client, encryption_passphrase).await?;
+        // keep this task alive, stuff in happen in background if we don't drop (stop)
+        // sync_service
+        pending::<()>().await;
         Ok(())
     }
 
@@ -339,31 +548,38 @@ impl Matrix {
     }
 
     pub async fn observable_cancel(&self, id: u64) -> Result<()> {
-        self.observable_pool.observable_cancel(id).await
+        self.runtime.observable_pool.observable_cancel(id).await
     }
 
     /// All chats in matrix are rooms, whether DM or group chats.
-    pub async fn room_list(&self, observable_id: u64) -> Result<ObservableVec<RpcRoomListEntry>> {
-        self.room_list_to_observable(observable_id, self.room_list_service.all_rooms().await?)
+    pub async fn room_list(&self, observable_id: u64) -> Result<ObservableVec<RpcRoomId>> {
+        const PAGE_SIZE: usize = 1000;
+        // manual construction required to to have correct lifetimes
+        let room_list_service = self.sync_service.room_list_service();
+        self.runtime
+            .observable_pool
+            .make_observable(observable_id, Vector::new(), move |this, id| async move {
+                let list = room_list_service.all_rooms().await?;
+                let (stream, controller) = list.entries_with_dynamic_adapters(PAGE_SIZE);
+                // setting filter is required to start the controller - so we use no op filter
+                controller.set_filter(Box::new(|_| true));
+                let mut update_index = 0;
+                let mut stream = std::pin::pin!(stream);
+                while let Some(diffs) = stream.next().await {
+                    this.send_observable_update(ObservableVecUpdate::new_diffs(
+                        id,
+                        update_index,
+                        diffs
+                            .into_iter()
+                            .map(|diff| diff.map(|x| RpcRoomId::from(x.room_id().to_owned())))
+                            .collect(),
+                    ))
+                    .await;
+                    update_index += 1;
+                }
+                Ok(())
+            })
             .await
-    }
-
-    async fn room_list_to_observable(
-        &self,
-        observable_id: u64,
-        list: room_list_service::RoomList,
-    ) -> Result<Observable<imbl::Vector<RpcRoomListEntry>>> {
-        let (initial, stream) = list.entries();
-        self.observable_pool
-            .make_observable_from_vec_diff_stream(observable_id, initial, stream)
-            .await
-    }
-
-    pub async fn room_list_update_ranges(&self, ranges: Ranges) -> Result<()> {
-        self.room_list_service
-            .apply_input(room_list_service::Input::Viewport(ranges))
-            .await?;
-        Ok(())
     }
 
     /// Sync status is used to display "Waiting for network" indicator on
@@ -374,11 +590,13 @@ impl Matrix {
         &self,
         observable_id: u64,
     ) -> Result<Observable<RpcSyncIndicator>> {
-        self.observable_pool
+        self.runtime
+            .observable_pool
             .make_observable_from_stream(
                 observable_id,
                 None,
-                self.room_list_service
+                self.sync_service
+                    .room_list_service()
                     .sync_indicator(Duration::from_secs(2), Duration::from_secs(2)),
             )
             .await
@@ -388,7 +606,7 @@ impl Matrix {
         &self,
         room_id: &RoomId,
     ) -> Result<room_list_service::Room, room_list_service::Error> {
-        self.room_list_service.room(room_id)
+        self.sync_service.room_list_service().room(room_id)
     }
 
     /// See [`matrix_sdk_ui::Timeline`].
@@ -424,8 +642,9 @@ impl Matrix {
         room_id: &RoomId,
     ) -> Result<ObservableVec<RpcTimelineItem>> {
         let timeline = self.timeline(room_id).await?;
-        let (initial, stream) = timeline.subscribe_batched().await;
-        self.observable_pool
+        let (initial, stream) = timeline.subscribe().await;
+        self.runtime
+            .observable_pool
             .make_observable_from_vec_diff_stream(observable_id, initial, stream)
             .await
     }
@@ -450,7 +669,8 @@ impl Matrix {
             .live_back_pagination_status()
             .await
             .context("we only have live rooms")?;
-        self.observable_pool
+        self.runtime
+            .observable_pool
             .make_observable_from_stream(observable_id, Some(current), stream)
             .await
     }
@@ -466,7 +686,7 @@ impl Matrix {
     pub async fn send_message_json(
         &self,
         room_id: &RoomId,
-        msgtype: String,
+        msgtype: &str,
         body: String,
         data: serde_json::Map<String, serde_json::Value>,
     ) -> anyhow::Result<()> {
@@ -474,11 +694,81 @@ impl Matrix {
         timeline
             .send(
                 RoomMessageEventContent::new(
-                    MessageType::new(&msgtype, body, data).context(ErrorCode::BadRequest)?,
+                    MessageType::new(msgtype, body, data).context(ErrorCode::BadRequest)?,
                 )
                 .into(),
             )
             .await?;
+        Ok(())
+    }
+
+    /// Sends a message immediately without using the sendqueue for automatic
+    /// retries.
+    pub async fn send_message_json_no_queue(
+        &self,
+        room_id: &RoomId,
+        msgtype: &str,
+        body: String,
+        data: serde_json::Map<String, serde_json::Value>,
+    ) -> anyhow::Result<OwnedEventId> {
+        let room = self.room(room_id).await?;
+        Ok(room
+            .send(RoomMessageEventContent::new(
+                MessageType::new(msgtype, body, data).context(ErrorCode::BadRequest)?,
+            ))
+            .await?
+            .event_id)
+    }
+
+    pub async fn send_multispend_event(
+        &self,
+        room_id: &RoomId,
+        content: MultispendEvent,
+    ) -> anyhow::Result<()> {
+        if !self.is_multispend_enabled() {
+            bail!("multispend feature is disabled");
+        }
+        // Acquire the lock to prevent concurrent sends
+        let _lock = self.send_multispend_mutex.lock().await;
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+        // Store the sender in the global field. see docs for send_mulitspend_server_ack
+        *self.send_multispend_server_ack.ensure_lock() = Some(tx);
+
+        // wait for all background events to persisted.
+        self.rescanner.wait_for_scanned(room_id).await;
+
+        // Send the message
+        let event_id = self
+            .send_message_json_no_queue(
+                room_id,
+                multispend::MULTISPEND_MSGTYPE,
+                String::from("Multispend Event"),
+                serde_json::to_value(content)?
+                    .as_object()
+                    .context("invalid serialization of content")?
+                    .clone(),
+            )
+            .await?;
+
+        // Receive messages until we find the one matching our event_id
+        let mut received = false;
+        while let Some(received_event_id) = rx.recv().await {
+            if received_event_id == event_id {
+                received = true;
+                break;
+            }
+        }
+        assert!(
+            received,
+            "only way to get out of loop because we don't drop the sender"
+        );
+        // Drop the sender
+        *self.send_multispend_server_ack.ensure_lock() = None;
+        // wait for this event to be scanned in state.
+        self.rescanner.wait_for_scanned(room_id).await;
+
         Ok(())
     }
 
@@ -551,7 +841,8 @@ impl Matrix {
         room_id: &RoomId,
     ) -> Result<Observable<RoomInfo>> {
         let sub = self.room(room_id).await?.inner_room().subscribe_info();
-        self.observable_pool
+        self.runtime
+            .observable_pool
             .make_observable_from_subscriber(observable_id, sub)
             .await
     }
@@ -573,7 +864,7 @@ impl Matrix {
             .room(room_id)
             .await?
             .inner_room()
-            .room_power_levels()
+            .power_levels()
             .await?
             .into())
     }
@@ -745,7 +1036,7 @@ impl Matrix {
     }
 
     pub async fn upload_file(&self, mime: Mime, file: Vec<u8>) -> Result<RpcMatrixUploadResult> {
-        let result = self.client.media().upload(&mime, file).await?;
+        let result = self.client.media().upload(&mime, file, None).await?;
         Ok(RpcMatrixUploadResult {
             content_uri: result.content_uri.to_string(),
         })
@@ -792,16 +1083,13 @@ impl Matrix {
     pub async fn preview_room_content(&self, room_id: &RoomId) -> Result<Vec<RpcTimelineItem>> {
         let response: get_message_events::v3::Response = self
             .client
-            .send(
-                assign!(
-                    get_message_events::v3::Request::new(
-                        room_id.into(),
-                        matrix_sdk::ruma::api::Direction::Forward,
-                    ),
-                    { limit: 50000u32.into() }
+            .send(assign!(
+                get_message_events::v3::Request::new(
+                    room_id.into(),
+                    matrix_sdk::ruma::api::Direction::Forward,
                 ),
-                None,
-            )
+                { limit: 50000u32.into() }
+            ))
             .await?;
 
         Ok(response
@@ -835,6 +1123,7 @@ impl Matrix {
                 height,
                 size,
                 blurhash: None,
+                is_animated: None,
             }),
             mime::VIDEO => AttachmentInfo::Video(BaseVideoInfo {
                 width,
@@ -858,18 +1147,15 @@ impl Matrix {
     pub async fn edit_message(
         &self,
         room_id: &RoomId,
-        event_id: &EventId,
+        item_id: &TimelineEventItemId,
         new_content: String,
     ) -> Result<()> {
         let timeline = self.timeline(room_id).await?;
-        let edit_info = timeline
-            .edit_info_from_event_id(event_id)
-            .await
-            .context("failed to get edit info")?;
-
         let new_content = RoomMessageEventContentWithoutRelation::text_plain(new_content);
 
-        timeline.edit(new_content, edit_info).await?;
+        timeline
+            .edit(item_id, EditedContent::RoomMessage(new_content))
+            .await?;
 
         Ok(())
     }
@@ -877,22 +1163,17 @@ impl Matrix {
     pub async fn delete_message(
         &self,
         room_id: &RoomId,
-        event_id: &EventId,
+        item_id: &TimelineEventItemId,
         reason: Option<String>,
     ) -> Result<()> {
         let timeline = self.timeline(room_id).await?;
-        let event = timeline
-            .item_by_event_id(event_id)
-            .await
-            .ok_or_else(|| anyhow::anyhow!("Event not found"))?;
-
-        timeline.redact(&event, reason.as_deref()).await?;
+        timeline.redact(item_id, reason.as_deref()).await?;
 
         Ok(())
     }
 
     pub async fn download_file(&self, source: MediaSource) -> Result<Vec<u8>> {
-        let request = MediaRequest {
+        let request = MediaRequestParameters {
             source,
             format: MediaFormat::File,
         };
@@ -910,36 +1191,50 @@ impl Matrix {
         room_id: &RoomId,
         question: String,
         answers: Vec<String>,
+        is_multiple_choice: bool,
+        is_disclosed: bool,
     ) -> Result<()> {
         let timeline = self.timeline(room_id).await?;
 
-        let poll_answers: PollAnswers = answers
+        let poll_answers: UnstablePollAnswers = answers
             .into_iter()
             .enumerate()
-            .map(|(i, text)| PollAnswer::new(i.to_string(), TextContentBlock::plain(text)))
+            .map(|(i, text)| UnstablePollAnswer::new(i.to_string(), text))
             .collect::<Vec<_>>()
             .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid number of poll answers"))?;
+            .context(ErrorCode::BadRequest)?;
 
-        let poll_content =
-            PollContentBlock::new(TextContentBlock::plain(question.clone()), poll_answers);
+        let mut poll_content =
+            UnstablePollStartContentBlock::new(question.clone(), poll_answers.clone());
 
-        let content = PollStartEventContent::new(
-            TextContentBlock::plain(format!("Poll: {}", question)),
-            poll_content,
-        );
+        if is_multiple_choice {
+            poll_content.max_selections = UInt::try_from(poll_answers.len())?;
+        }
 
-        timeline.send(content.into()).await?;
+        if is_disclosed {
+            poll_content.kind = PollKind::Disclosed
+        } else {
+            poll_content.kind = PollKind::Undisclosed
+        }
+
+        let poll_start_event_content =
+            NewUnstablePollStartEventContent::plain_text(question, poll_content);
+
+        let event_content =
+            AnyMessageLikeEventContent::UnstablePollStart(poll_start_event_content.into());
+
+        timeline.send(event_content).await?;
         Ok(())
     }
 
     pub async fn end_poll(&self, room_id: &RoomId, poll_start_id: &EventId) -> Result<()> {
         let timeline = self.timeline(room_id).await?;
 
-        let content =
-            PollEndEventContent::with_plain_text("This poll has ended", poll_start_id.to_owned());
+        let poll_end_event_content =
+            UnstablePollEndEventContent::new("This poll has ended", poll_start_id.to_owned());
+        let event_content = AnyMessageLikeEventContent::UnstablePollEnd(poll_end_event_content);
 
-        timeline.send(content.into()).await?;
+        timeline.send(event_content).await?;
         Ok(())
     }
 
@@ -947,28 +1242,74 @@ impl Matrix {
         &self,
         room_id: &RoomId,
         poll_start_id: &EventId,
-        selections: Vec<String>,
+        answer_ids: Vec<String>,
     ) -> Result<()> {
         let timeline = self.timeline(room_id).await?;
 
-        let selections_content = SelectionsContentBlock::from(selections);
+        let poll_response_event_content =
+            UnstablePollResponseEventContent::new(answer_ids, poll_start_id.into());
+        let event_content =
+            AnyMessageLikeEventContent::UnstablePollResponse(poll_response_event_content);
 
-        let content = PollResponseEventContent::new(selections_content, poll_start_id.to_owned());
-
-        timeline.send(content.into()).await?;
+        timeline.send(event_content).await?;
         Ok(())
+    }
+
+    pub async fn get_media_preview(
+        &self,
+        url: String,
+    ) -> anyhow::Result<get_media_preview::v1::Response> {
+        Ok(self
+            .client
+            .send(get_media_preview::v1::Request::new(url))
+            .await?)
+    }
+
+    pub async fn get_multispend_finalized_group(
+        &self,
+        room_id: RpcRoomId,
+    ) -> anyhow::Result<Option<GroupInvitationWithKeys>> {
+        let multispend_db = self.runtime.multispend_db();
+        let mut dbtx = multispend_db.begin_transaction_nc().await;
+        let finalized = multispend::get_finalized_group_db(&mut dbtx, &room_id).await;
+        Ok(finalized.map(|(group, _account)| group))
+    }
+
+    /// Get all accumulated data for an event id.
+    pub async fn get_multispend_event_data(
+        &self,
+        room_id: RpcRoomId,
+        event_id: RpcEventId,
+    ) -> anyhow::Result<Option<MsEventData>> {
+        let multispend_db = self.runtime.multispend_db();
+        let mut dbtx = multispend_db.begin_transaction_nc().await;
+        let data = multispend::get_event_data_db(&mut dbtx, &room_id, event_id).await;
+        Ok(data)
+    }
+
+    fn is_multispend_enabled(&self) -> bool {
+        self.runtime
+            .feature_catalog
+            .stability_pool_v2
+            .as_ref()
+            .is_some_and(|cfg| matches!(cfg.state, StabilityPoolV2FeatureConfigState::Multispend))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
     use std::str::FromStr;
     use std::sync::atomic::{AtomicU64, Ordering};
 
+    use bitcoin::secp256k1;
     use fedimint_bip39::Bip39RootSecretStrategy;
     use fedimint_client::secret::RootSecretStrategy as _;
+    use fedimint_core::util::backoff_util::aggressive_backoff;
+    use fedimint_core::util::retry;
     use fedimint_derive_secret::ChildId;
     use fedimint_logging::TracingSetup;
+    use multispend::GroupInvitation;
     use rand::{thread_rng, Rng};
     use tempfile::TempDir;
     use tokio::sync::mpsc;
@@ -979,7 +1320,9 @@ mod tests {
     use crate::event::IEventSink;
     use crate::features::{FeatureCatalog, RuntimeEnvironment};
     use crate::ffi::PathBasedStorage;
+    use crate::matrix::multispend::MultispendGroupVoteType;
     use crate::rpc::tests::MockFediApi;
+    use crate::types::RpcPublicKey;
 
     const TEST_HOME_SERVER: &str = "staging.m1.8fa.in";
     const TEST_SLIDING_SYNC: &str = "https://staging.sliding.m1.8fa.in";
@@ -1167,6 +1510,23 @@ mod tests {
 
     #[ignore]
     #[tokio::test(flavor = "multi_thread")]
+    async fn test_create_room() -> Result<()> {
+        TracingSetup::default().init().unwrap();
+        let (matrix, _event_rx, _temp_dir) = mk_matrix_new_user().await?;
+        let mut request = create_room::Request::default();
+        let room_name = "my name is one".to_string();
+        request.name = Some(room_name.clone());
+        let room_id = matrix.room_create(request).await?;
+        let room = matrix.room(&room_id).await?;
+        while room.name() != Some(room_name.clone()) {
+            warn!("## WAITING");
+            fedimint_core::runtime::sleep(Duration::from_millis(100)).await;
+        }
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_send_and_download_attachment() -> Result<()> {
         TracingSetup::default().init().unwrap();
         let (matrix, _event_rx, _temp_dir) = mk_matrix_new_user().await?;
@@ -1215,6 +1575,307 @@ mod tests {
             downloaded_data, data,
             "Downloaded data does not match original data"
         );
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_multispend_minimal() -> Result<()> {
+        TracingSetup::default()
+            .with_directive("fediffi=trace")
+            .init()
+            .ok();
+        let (matrix, _event_rx, _temp_dir) = mk_matrix_new_user().await?;
+        let (matrix2, _event_rx, _temp_dir) = mk_matrix_new_user().await?;
+
+        // Create a room
+        let room_id = matrix
+            .create_or_get_dm(matrix2.client.user_id().unwrap())
+            .await?;
+
+        // Test initial state
+        assert!(matrix
+            .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+            .await?
+            .is_none());
+
+        // Send group invitation
+        let user1 = RpcUserId(matrix.client.user_id().unwrap().to_string());
+        let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
+        let (_, pk1) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
+        let invitation = GroupInvitation {
+            signers: BTreeSet::from([user1.clone(), user2.clone()]),
+            threshold: 2,
+            federation_invite_code: "test".to_string(),
+            federation_name: "test".to_string(),
+        };
+        let event = MultispendEvent::GroupInvitation {
+            invitation: invitation.clone(),
+            proposer_pubkey: RpcPublicKey(pk1),
+        };
+        error!("SENDING MESSAGE");
+        matrix.send_multispend_event(&room_id, event).await?;
+        error!("SENT MESSAGE");
+        matrix.rescanner.wait_for_scanned(&room_id).await;
+        error!("DONE SCANNING");
+
+        // Test event data
+        let timeline = matrix.timeline(&room_id).await?;
+        let last_event = timeline.latest_event().await.unwrap();
+        let event_id = last_event.event_id().unwrap();
+        let event_data = matrix
+            .get_multispend_event_data(
+                RpcRoomId(room_id.to_string()),
+                RpcEventId(event_id.to_string()),
+            )
+            .await?;
+        assert!(event_data.is_some());
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_multispend_group_acceptance() -> Result<()> {
+        TracingSetup::default()
+            .with_directive("fediffi=trace")
+            .init()
+            .ok();
+        let (matrix1, _event_rx1, _temp_dir1) = mk_matrix_new_user().await?;
+        let (matrix2, _event_rx2, _temp_dir2) = mk_matrix_new_user().await?;
+
+        let room_id = matrix1
+            .create_or_get_dm(matrix2.client.user_id().unwrap())
+            .await?;
+        matrix2.wait_for_room_id(&room_id).await?;
+        matrix2.room_join(&room_id).await?;
+
+        let user1 = RpcUserId(matrix1.client.user_id().unwrap().to_string());
+        let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
+        let (_, pk1) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
+        let (_, pk2) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
+
+        let invitation = GroupInvitation {
+            signers: BTreeSet::from([user1.clone(), user2.clone()]),
+            threshold: 2,
+            federation_invite_code: "test".to_string(),
+            federation_name: "test".to_string(),
+        };
+
+        let event = MultispendEvent::GroupInvitation {
+            invitation: invitation.clone(),
+            proposer_pubkey: RpcPublicKey(pk1),
+        };
+        matrix1.send_multispend_event(&room_id, event).await?;
+
+        matrix1.rescanner.wait_for_scanned(&room_id).await;
+        matrix2.rescanner.wait_for_scanned(&room_id).await;
+
+        let timeline = matrix1.timeline(&room_id).await?;
+        let last_event = timeline.latest_event().await.unwrap();
+        let invitation_event_id = RpcEventId(last_event.event_id().unwrap().to_string());
+
+        let event_data1 = matrix1
+            .get_multispend_event_data(RpcRoomId(room_id.to_string()), invitation_event_id.clone())
+            .await?;
+
+        assert_eq!(
+            event_data1,
+            Some(MsEventData::GroupInvitation(GroupInvitationWithKeys {
+                invitation: invitation.clone(),
+                pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
+                rejections: BTreeSet::new(),
+            }))
+        );
+        let event_data2 = retry(
+            "wait for user2 to receive",
+            aggressive_backoff(),
+            || async {
+                matrix2
+                    .get_multispend_event_data(
+                        RpcRoomId(room_id.to_string()),
+                        invitation_event_id.clone(),
+                    )
+                    .await?
+                    .context("event not found")
+            },
+        )
+        .await?;
+        assert_eq!(event_data1, Some(event_data2));
+
+        let event = MultispendEvent::GroupInvitationVote {
+            invitation: invitation_event_id.clone(),
+            vote: MultispendGroupVoteType::Accept {
+                member_pubkey: RpcPublicKey(pk2),
+            },
+        };
+        matrix2.send_multispend_event(&room_id, event).await?;
+
+        matrix1.rescanner.wait_for_scanned(&room_id).await;
+        matrix2.rescanner.wait_for_scanned(&room_id).await;
+
+        // Verify group is finalized in matrix1
+        let final_group1 = retry(
+            "wait for group to be finalized",
+            aggressive_backoff(),
+            || async {
+                matrix1
+                    .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+                    .await?
+                    .context("finalized group not found")
+            },
+        )
+        .await?;
+        assert_eq!(
+            final_group1,
+            GroupInvitationWithKeys {
+                invitation,
+                pubkeys: BTreeMap::from_iter([
+                    (user1.clone(), RpcPublicKey(pk1)),
+                    (user2.clone(), RpcPublicKey(pk2))
+                ]),
+                rejections: BTreeSet::new(),
+            }
+        );
+
+        // Verify group is finalized in matrix2 as well
+        let final_group2 = matrix2
+            .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+            .await?;
+
+        assert_eq!(Some(final_group1), final_group2);
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_multispend_group_rejection() -> Result<()> {
+        TracingSetup::default()
+            .with_directive("fediffi=trace")
+            .init()
+            .ok();
+        let (matrix1, _event_rx1, _temp_dir1) = mk_matrix_new_user().await?;
+        let (matrix2, _event_rx2, _temp_dir2) = mk_matrix_new_user().await?;
+
+        let room_id = matrix1
+            .create_or_get_dm(matrix2.client.user_id().unwrap())
+            .await?;
+        matrix2.wait_for_room_id(&room_id).await?;
+        matrix2.room_join(&room_id).await?;
+
+        let user1 = RpcUserId(matrix1.client.user_id().unwrap().to_string());
+        let user2 = RpcUserId(matrix2.client.user_id().unwrap().to_string());
+        let (_, pk1) = secp256k1::SECP256K1.generate_keypair(&mut rand::thread_rng());
+
+        let invitation = GroupInvitation {
+            signers: BTreeSet::from([user1.clone(), user2.clone()]),
+            threshold: 2,
+            federation_invite_code: "test".to_string(),
+            federation_name: "test".to_string(),
+        };
+
+        let event = MultispendEvent::GroupInvitation {
+            invitation: invitation.clone(),
+            proposer_pubkey: RpcPublicKey(pk1),
+        };
+        matrix1.send_multispend_event(&room_id, event).await?;
+
+        matrix1.rescanner.wait_for_scanned(&room_id).await;
+        matrix2.rescanner.wait_for_scanned(&room_id).await;
+
+        let timeline = matrix1.timeline(&room_id).await?;
+        let last_event = timeline.latest_event().await.unwrap();
+        let invitation_event_id = RpcEventId(last_event.event_id().unwrap().to_string());
+
+        let event_data1 = matrix1
+            .get_multispend_event_data(RpcRoomId(room_id.to_string()), invitation_event_id.clone())
+            .await?;
+
+        assert_eq!(
+            event_data1,
+            Some(MsEventData::GroupInvitation(GroupInvitationWithKeys {
+                invitation: invitation.clone(),
+                pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
+                rejections: BTreeSet::new(),
+            }))
+        );
+
+        let event_data2 = retry(
+            "wait for user2 to receive",
+            aggressive_backoff(),
+            || async {
+                matrix2
+                    .get_multispend_event_data(
+                        RpcRoomId(room_id.to_string()),
+                        invitation_event_id.clone(),
+                    )
+                    .await?
+                    .context("event not found")
+            },
+        )
+        .await?;
+        assert_eq!(event_data1, Some(event_data2));
+
+        // Send rejection from user2
+        let event = MultispendEvent::GroupInvitationVote {
+            invitation: invitation_event_id.clone(),
+            vote: MultispendGroupVoteType::Reject,
+        };
+        matrix2.send_multispend_event(&room_id, event).await?;
+
+        matrix1.rescanner.wait_for_scanned(&room_id).await;
+        matrix2.rescanner.wait_for_scanned(&room_id).await;
+
+        // Verify invitation state has the rejection recorded
+        let event_data1 = retry(
+            "wait for rejection to be recorded",
+            aggressive_backoff(),
+            || async {
+                let data = matrix1
+                    .get_multispend_event_data(
+                        RpcRoomId(room_id.to_string()),
+                        invitation_event_id.clone(),
+                    )
+                    .await?
+                    .unwrap();
+
+                match &data {
+                    MsEventData::GroupInvitation(group) if group.rejections.contains(&user2) => {
+                        Ok(data)
+                    }
+                    _ => anyhow::bail!("Rejection not yet recorded"),
+                }
+            },
+        )
+        .await?;
+
+        assert_eq!(
+            event_data1,
+            MsEventData::GroupInvitation(GroupInvitationWithKeys {
+                invitation: invitation.clone(),
+                pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
+                rejections: BTreeSet::from([user2.clone()]),
+            })
+        );
+
+        // Verify matrix2 has the same data
+        let event_data2 = matrix2
+            .get_multispend_event_data(RpcRoomId(room_id.to_string()), invitation_event_id)
+            .await?;
+        assert_eq!(Some(event_data1), event_data2);
+
+        // Verify group is not finalized in matrix1
+        let final_group1 = matrix1
+            .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+            .await?;
+        assert_eq!(final_group1, None);
+
+        // Verify group is not finalized in matrix2 either
+        let final_group2 = matrix2
+            .get_multispend_finalized_group(RpcRoomId(room_id.to_string()))
+            .await?;
+        assert_eq!(final_group2, None);
 
         Ok(())
     }
