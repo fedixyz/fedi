@@ -18,6 +18,16 @@ const nextConfig = {
 
         return config
     },
+    images: {
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: '**',
+                port: '',
+                search: '',
+            },
+        ],
+    },
 }
 
 const withPwa = require('next-pwa')({

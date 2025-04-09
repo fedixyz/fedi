@@ -15,7 +15,7 @@ use fedimint_api_client::api::net::Connector;
 use fedimint_api_client::api::DynGlobalApi;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::core::ModuleKind;
-use fedimint_core::db::Database;
+use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Decodable;
 use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::module::CommonModuleInit;
@@ -23,6 +23,7 @@ use fedimint_core::task::TaskGroup;
 use fedimint_core::PeerId;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use fedimint_mint_client::OOBNotes;
+use futures::StreamExt;
 use tokio::sync::{Mutex, OnceCell};
 use tracing::debug;
 
@@ -35,6 +36,7 @@ use super::types::{
 use crate::api::IFediApi;
 use crate::community::Communities;
 use crate::constants::{LNURL_CHILD_ID, MATRIX_CHILD_ID, NOSTR_CHILD_ID};
+use crate::db::{BridgeDbPrefix, FederationPendingRejoinFromScratchKeyPrefix};
 use crate::device_registration::{self, DeviceRegistrationService};
 use crate::error::ErrorCode;
 use crate::event::SocialRecoveryEvent;
@@ -42,7 +44,10 @@ use crate::features::FeatureCatalog;
 use crate::federation::{federation_v2, Federations};
 use crate::fedi_fee::FediFeeHelper;
 use crate::matrix::Matrix;
-use crate::storage::{AppState, DeviceIdentifier, FiatFXInfo, ModuleFediFeeSchedule};
+use crate::observable::ObservablePool;
+use crate::storage::{
+    AppState, DeviceIdentifier, FiatFXInfo, ModuleFediFeeSchedule, BRIDGE_DB_PREFIX,
+};
 use crate::types::{
     RpcAmount, RpcBridgeStatus, RpcDeviceIndexAssignmentStatus, RpcEcashInfo, RpcNostrPubkey,
     RpcNostrSecret, RpcRegisteredDevice,
@@ -65,6 +70,7 @@ pub struct BridgeRuntime {
     pub fedi_api: Arc<dyn IFediApi>,
     pub global_db: Database,
     pub feature_catalog: Arc<FeatureCatalog>,
+    pub observable_pool: Arc<ObservablePool>,
 }
 
 impl BridgeRuntime {
@@ -78,6 +84,7 @@ impl BridgeRuntime {
         let task_group = TaskGroup::new();
         let app_state = Arc::new(AppState::load(storage.clone(), device_identifier).await?);
         let global_db = storage.federation_database_v2("global").await?;
+        let observable_pool = Arc::new(ObservablePool::new(event_sink.clone(), task_group.clone()));
 
         Ok(Self {
             storage,
@@ -87,7 +94,20 @@ impl BridgeRuntime {
             fedi_api,
             global_db,
             feature_catalog,
+            observable_pool,
         })
+    }
+
+    pub fn bridge_db(&self) -> Database {
+        self.global_db.with_prefix(vec![BRIDGE_DB_PREFIX])
+    }
+
+    /// DB for mulitspend state.
+    pub fn multispend_db(&self) -> Database {
+        self.global_db.with_prefix(vec![
+            BRIDGE_DB_PREFIX,
+            BridgeDbPrefix::MultispendPrefix as u8,
+        ])
     }
 
     pub async fn device_index_assignment_status(
@@ -216,6 +236,17 @@ impl BridgeRuntime {
             .await?
             .ok_or(anyhow!("media file not found"))?;
         Ok(media_file)
+    }
+
+    pub async fn list_federations_pending_rejoin_from_scratch(&self) -> Vec<String> {
+        self.bridge_db()
+            .begin_transaction_nc()
+            .await
+            .find_by_prefix(&FederationPendingRejoinFromScratchKeyPrefix)
+            .await
+            .map(|(key, _)| key.invite_code_str)
+            .collect::<Vec<_>>()
+            .await
     }
 }
 
@@ -753,7 +784,11 @@ impl Bridge {
         let matrix_setup = self
             .runtime()
             .app_state
-            .with_read_lock(|x| x.matrix_session.is_some())
+            // did we ever setup matrix?
+            .with_read_lock(|x| {
+                x.matrix_session_sliding_sync_proxy.is_some()
+                    || x.matrix_session_native_sync.is_some()
+            })
             .await;
         let device_index_assignment_status =
             self.runtime().device_index_assignment_status().await?;

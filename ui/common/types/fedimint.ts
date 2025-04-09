@@ -3,6 +3,7 @@ import {
     CommunityMetadataUpdatedEvent,
     DeviceRegistrationEvent,
     LogEvent,
+    NonceReuseCheckFailedEvent,
     ObservableUpdate,
     PanicEvent,
     RecoveryCompleteEvent,
@@ -19,6 +20,8 @@ import {
     SocialRecoveryEvent,
     StabilityPoolDepositEvent,
     StabilityPoolWithdrawalEvent,
+    RpcTransactionListEntry,
+    TransactionEvent as RpcTransactionEvent,
 } from './bindings'
 import { MSats, Usd, UsdCents } from './units'
 
@@ -35,7 +38,52 @@ export enum TransactionDirection {
     receive = 'receive',
 }
 
+// These types are almost identical (only difference is the `createdAt` field),
+// but we need to keep both for now. The `listTransactions` rpc includes the
+// `createdAt` field, while `getTransaction` & transaction updates do not.
+// TODO: Find a way to include the `createdAt` field in all types on the bridge.
 export type Transaction = RpcTransaction
+export type TransactionListEntry = RpcTransactionListEntry
+
+type TestEquals<T, K> = T extends K ? (K extends T ? true : never) : never
+
+// Sanity check!
+// This should only compile if the Transaction RPC types and the
+// TransactionListEntry types are identical (except for the `createdAt` field).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _TEST = true satisfies TestEquals<
+    RpcTransaction & { createdAt: number },
+    RpcTransactionListEntry
+>
+
+/*
+ * Mocked-out social backup and recovery events
+ */
+
+export type FederationEvent = RpcFederationMaybeLoading
+
+export type TransactionEvent = RpcTransactionEvent
+
+/**
+ * Utility type to narrow a transaction union type to a specific kind.
+ *
+ * @param K - The specific transaction kind to narrow to
+ * @param T - The union type to narrow from (defaults to RpcTransactionListEntry)
+ * @returns The narrowed type with only the specified kind
+ */
+type TransactionKind<
+    K extends RpcTransactionListEntry['kind'],
+    T = RpcTransactionListEntry,
+> = Extract<T, { kind: K }>
+
+export type LnPayTxn = TransactionKind<'lnPay'>
+export type LnReceiveTxn = TransactionKind<'lnReceive'>
+export type OnchainWithdrawTxn = TransactionKind<'onchainWithdraw'>
+export type OnchainDepositTxn = TransactionKind<'onchainDeposit'>
+export type OobSendTxn = TransactionKind<'oobSend'>
+export type OobReceiveTxn = TransactionKind<'oobReceive'>
+export type SpDepositTxn = TransactionKind<'spDeposit'>
+export type SpWithdrawTxn = TransactionKind<'spWithdraw'>
 
 export interface Node {
     name: string
@@ -216,17 +264,6 @@ export type FederationPreview = RpcFederationPreview & {
     hasWallet: true
 }
 
-/*
- * Mocked-out social backup and recovery events
- */
-
-export type FederationEvent = RpcFederationMaybeLoading
-
-export interface TransactionEvent {
-    federationId: string
-    transaction: Transaction
-}
-
 // TODO: Create a type that derives the map from the `Event` type in bindings.ts
 // so we don't have to manually update it every time we add a new event type
 //
@@ -247,6 +284,7 @@ export type FedimintBridgeEventMap = {
     observableUpdate: ObservableUpdate<unknown>
     deviceRegistration: DeviceRegistrationEvent
     communityMetadataUpdated: CommunityMetadataUpdatedEvent
+    nonceReuseCheckFailed: NonceReuseCheckFailedEvent
 }
 
 export type StabilityPoolTxn = {
@@ -261,8 +299,8 @@ export type StabilityPoolTxn = {
 export type ReceiveSuccessStatus = 'success' | 'pending'
 
 export type ReceiveSuccessData = {
-    amount: Transaction['amount']
-    bitcoin?: Transaction['bitcoin']
+    amount: TransactionListEntry['amount']
+    onchain_address?: string
 }
 
 export type ReceiveEcashResult =
@@ -282,3 +320,5 @@ export type TransactionStatusBadge =
     | 'pending'
     | 'expired'
     | 'failed'
+
+export type TransactionAmountState = 'settled' | 'pending' | 'failed'

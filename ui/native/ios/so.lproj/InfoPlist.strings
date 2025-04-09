@@ -1,0 +1,12 @@
+/*
+  InfoPlist.strings
+  FediReactNative
+
+  Created by Someone on 03/04/2025.
+
+*/
+"NSCameraUsageDescription" = "Fedi wuxuu u baahan yahay gelitaanka kamarada si uu u sawiro koodka QR";
+"NSLocationWhenInUseUsageDescription" = "Fedi ma isticmaalo goobtaada";
+"NSMicrophoneUsageDescription" = "Fedi waxa uu u baahan yahay in uu galo makarafoonkaaga si uu muuqaal ugu duubo habka soo kabashada bulshada";
+"NSPhotoLibraryAddUsageDescription" = "Fedi wuxuu u baahan yahay marin u helida si uu u kaydiyo sawirada maktabadaada sawirka";
+"NSPhotoLibraryUsageDescription" = "Fedi wuxuu u baahan yahay marin u helida maktabadaada sawirka si uu u doorto warbaahinta avatarkaaga iyo lifaaqyada sheekeysiga";

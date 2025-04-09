@@ -1,10 +1,13 @@
+import { useFocusEffect } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 
+import { fedimint } from '../bridge'
 import {
     OmniInput,
     OmniInputAction,
@@ -19,6 +22,7 @@ const Send: React.FC<Props> = ({ navigation }: Props) => {
     const showOfflineWallet = useIsOfflineWalletSupported()
 
     const { navigate } = navigation
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
 
     const customActions: OmniInputAction[] = useMemo(() => {
         if (!showOfflineWallet) return []
@@ -30,6 +34,12 @@ const Send: React.FC<Props> = ({ navigation }: Props) => {
             },
         ]
     }, [showOfflineWallet, t, navigate])
+
+    useFocusEffect(
+        useCallback(() => {
+            syncCurrencyRatesAndCache()
+        }, [syncCurrencyRatesAndCache]),
+    )
 
     return (
         <View style={styles().container}>

@@ -12,6 +12,7 @@ import {
     getFederationDefaultCurrency,
     getFederationFixedExchangeRate,
 } from '../utils/FederationUtils'
+import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { loadFromStorage } from './storage'
 
@@ -90,6 +91,102 @@ export const {
 } = currencySlice.actions
 
 /*** Async thunk actions ***/
+export const updateHistoricalCurrencyRates = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        btcUsdRate: number
+        fiatUsdRates: Record<string, number | undefined>
+    },
+    { state: CommonState }
+>(
+    'currency/updateHistoricalCurrencyRates',
+    async ({ fedimint, btcUsdRate, fiatUsdRates }, { dispatch, getState }) => {
+        const selectedCurrency = selectCurrency(getState())
+
+        if (
+            btcUsdRate === undefined ||
+            fiatUsdRates === undefined ||
+            !selectedCurrency
+        ) {
+            log.warn(
+                'Missing BTC to USD rate, fiat rates, or selected currency',
+            )
+            throw new Error('Missing required currency data')
+        }
+
+        let btcToFiatHundredths: number | undefined
+
+        if (selectedCurrency === 'USD') {
+            btcToFiatHundredths = Math.round(btcUsdRate * 100)
+            log.info(
+                `Updating cached fiat rate for USD: ${btcToFiatHundredths} in btcToFiatHundredths`,
+            )
+        } else {
+            const selectedExchangeRate = fiatUsdRates[selectedCurrency]
+            if (!selectedExchangeRate || selectedExchangeRate <= 0) {
+                log.error(
+                    `Invalid exchange rate for ${selectedCurrency}: ${selectedExchangeRate}`,
+                )
+                throw new Error(`Invalid exchange rate for ${selectedCurrency}`)
+            }
+            btcToFiatHundredths = Math.round(
+                (btcUsdRate * 100) / selectedExchangeRate,
+            )
+            log.info(
+                `Updating cached fiat rate for ${selectedCurrency}: ${btcToFiatHundredths} (btcUsdRate: ${btcUsdRate} * 100 / exchangeRate: ${selectedExchangeRate})`,
+            )
+        }
+
+        try {
+            const { success, fiatCode } = await dispatch(
+                updateCachedFiatFXInfo({
+                    fedimint,
+                    fiatCode: selectedCurrency,
+                    btcToFiatHundredths,
+                }),
+            ).unwrap()
+
+            log.info(
+                `Successfully updated the rate for ${fiatCode}. Success: ${success}`,
+            )
+        } catch (error) {
+            log.error(
+                `Failed to dispatch exchange rate update for ${selectedCurrency}:`,
+                error,
+            )
+            throw error
+        }
+    },
+)
+
+export const refreshHistoricalCurrencyRates = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>(
+    'currency/refreshHistoricalCurrencyRates',
+    async ({ fedimint }, { dispatch }) => {
+        try {
+            const { btcUsdRate, fiatUsdRates } = await dispatch(
+                fetchCurrencyPrices(),
+            ).unwrap()
+
+            log.debug('Fetched latest currency prices, initiating update.')
+
+            await dispatch(
+                updateHistoricalCurrencyRates({
+                    fedimint,
+                    btcUsdRate,
+                    fiatUsdRates,
+                }),
+            ).unwrap()
+        } catch (_err: unknown) {
+            log.warn('Failed to refresh historical currency rates')
+            throw _err
+        }
+    },
+)
 
 export const fetchCurrencyPrices = createAsyncThunk<
     Pick<CurrencyState, 'btcUsdRate' | 'fiatUsdRates'>,
@@ -120,6 +217,25 @@ export const fetchCurrencyPrices = createAsyncThunk<
 
     return { btcUsdRate, fiatUsdRates }
 })
+
+export const updateCachedFiatFXInfo = createAsyncThunk<
+    { success: boolean; fiatCode: string },
+    { fedimint: FedimintBridge; fiatCode: string; btcToFiatHundredths: number }
+>(
+    'currency/updateCachedFiatFXInfo',
+    async ({ fedimint, fiatCode, btcToFiatHundredths }) => {
+        try {
+            await fedimint.updateCachedFiatFXInfo(fiatCode, btcToFiatHundredths)
+            return { success: true, fiatCode }
+        } catch (error) {
+            log.error(
+                `Error updating cached fiat FX info for ${fiatCode}:`,
+                error,
+            )
+            throw error
+        }
+    },
+)
 
 /*** Selectors ***/
 

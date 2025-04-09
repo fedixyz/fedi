@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -9,7 +8,6 @@ import {
     StyleSheet,
     View,
 } from 'react-native'
-import { TemporaryDirectoryPath, exists } from 'react-native-fs'
 
 import {
     matchAndRemovePreviewMedia,
@@ -17,21 +15,16 @@ import {
     setSelectedChatMessage,
 } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { JSONObject } from '@fedi/common/types/bindings'
-import { makeLog } from '@fedi/common/utils/log'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { pathJoin, prefixFileUri } from '../../../utils/media'
+import { useMatrixFile } from '../../../utils/hooks/media'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
     event: MatrixEvent<MatrixEventContentType<'m.image'>>
 }
-
-const log = makeLog('ChatImageEvent')
 
 const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     event,
@@ -40,52 +33,17 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     const matchingPreviewImage = useAppSelector(s =>
         selectPreviewMediaMatchingEventContent(s, event.content),
     )
-    const [isLoading, setIsLoading] = useState(true)
-    const [isError, setIsError] = useState(false)
-    const [uri, setURI] = useState<string>(
-        matchingPreviewImage?.media.uri ?? '',
-    )
+    const { uri, isLoading, isError } = useMatrixFile(event.content.file)
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const navigation = useNavigation()
 
-    const resolvedUri = prefixFileUri(uri)
+    const resolvedUri = matchingPreviewImage?.media.uri ?? uri ?? ''
 
     const handleLongPress = () => {
         dispatch(setSelectedChatMessage(event))
     }
-
-    useEffect(() => {
-        const loadImage = async () => {
-            try {
-                const path = pathJoin(
-                    TemporaryDirectoryPath,
-                    event.content.body,
-                )
-
-                const imagePath = await fedimint.matrixDownloadFile(
-                    path,
-                    event.content as JSONObject,
-                )
-
-                const imageUri = prefixFileUri(imagePath)
-
-                if (await exists(imageUri)) {
-                    setURI(imageUri)
-                } else {
-                    throw new Error('Image does not exist in fs')
-                }
-            } catch (err) {
-                log.error('Failed to load image', err)
-                setIsError(true)
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
-        loadImage()
-    }, [event.content])
 
     const style = styles(theme)
 
@@ -120,7 +78,6 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
             <Image
                 source={{ uri: resolvedUri }}
                 style={imageBaseStyle}
-                onError={() => setIsError(true)}
                 onLoad={() => {
                     dispatch(matchAndRemovePreviewMedia(event.content))
                 }}

@@ -82,8 +82,28 @@ export function generateZendeskTokenFromPubkey(
     }
 }
 
+export async function zendeskReset(): Promise<void> {
+    try {
+        await Zendesk.reset()
+    } catch (error) {
+        log.debug('Failed to reset Zendesk:', error)
+    }
+}
+
 export async function zendeskLogout(): Promise<void> {
     return await Zendesk.logout()
+}
+
+export async function zendeskCloseMessagingView(): Promise<void> {
+    try {
+        await Zendesk.closeMessagingView()
+        log.debug('Zendesk messaging view closed successfully')
+    } catch (error) {
+        log.debug(
+            'Failed to close Zendesk messaging view, probably was not open',
+            error,
+        )
+    }
 }
 
 export async function zendeskOpenMessagingView({

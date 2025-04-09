@@ -3,13 +3,19 @@
  */
 import notifee, { AndroidImportance } from '@notifee/react-native'
 import messaging from '@react-native-firebase/messaging'
-import { AppRegistry, AppState } from 'react-native'
+import {
+    AppRegistry,
+    AppState,
+    NativeEventEmitter,
+    NativeModules,
+} from 'react-native'
 import 'react-native-gesture-handler'
 import 'react-native-get-random-values'
 import { install } from 'react-native-quick-crypto'
 import 'react-native-reanimated'
 import 'react-native-url-polyfill/auto'
 import * as Zendesk from 'react-native-zendesk-messaging'
+import { v4 as uuidv4 } from 'uuid'
 
 import {
     configureLogging,
@@ -24,11 +30,63 @@ import {
     handleBackgroundFCMReceived,
     handleBackgroundNotificationUpdate,
     handleForegroundFCMReceived,
+    getNotificationBackgroundColor,
+    dispatchNotification,
 } from './utils/notifications'
 import { storage } from './utils/storage'
+import {
+    launchZendeskSupport,
+    zendeskCloseMessagingView,
+} from './utils/support'
 
+const { PushNotificationEmitter } = NativeModules
 const log = makeLog('native/index')
-install()
+
+const initializePushNotificationListeners = () => {
+    ///////////////////////////////
+    //Initalise Push Notification Listeners
+    ///////////////////////////////
+
+    messaging().onMessage(async m => {
+        await handleFCMNotification(m, true) // isForeground = true
+    })
+
+    // Dispatches FCM notifications when app is closed
+    messaging().setBackgroundMessageHandler(async m => {
+        await handleFCMNotification(m, false) // isForeground = false
+    })
+
+    //ios only - handles direct ios push notification events - currently taps, but can hook in to anything. Used for support SDK currently
+    if (PushNotificationEmitter) {
+        const eventEmitter = new NativeEventEmitter(PushNotificationEmitter)
+
+        eventEmitter.addListener(
+            'PushNotificationTapped',
+            notificationPayload => {
+                if (notificationPayload?.SmoochNotification !== undefined) {
+                    zendeskCloseMessagingView()
+                    launchZendeskSupport(() => {
+                        log.error('Error', 'Failed to open Zendesk Support.')
+                    })
+                    return
+                }
+            },
+        )
+    }
+
+    // Handles updates to notification (delivered, user taps notification, actions, etc)
+    // Runs in headless js, so we don't have access to the UI or clients.
+    // However, we can make api calls or access offline resources.
+    notifee.onBackgroundEvent(e => handleBackgroundNotificationUpdate(e))
+
+    // Create a channel (required for Android) - for all notifications
+    notifee.createChannel({
+        id: 'and-notification-channel',
+        name: 'Android Notification Channel',
+        importance: AndroidImportance.HIGH,
+        sound: 'default',
+    })
+}
 
 const parseZendeskNotification = async rawMessage => {
     let senderName = 'Unknown Sender'
@@ -62,7 +120,6 @@ const parseZendeskNotification = async rawMessage => {
     }
 }
 
-// Handles FCM notifications when app is open
 async function handleFCMNotification(m, isForeground = true) {
     log.info(
         `${isForeground ? 'Foreground' : 'Background'} FCM message received:`,
@@ -70,73 +127,71 @@ async function handleFCMNotification(m, isForeground = true) {
     )
 
     try {
-        // Delegate to Zendesk SDK
         const responsibility = await Zendesk.handleNotification(m.data)
-        log.debug('ZendeskResponsibility', responsibility)
+        log.info('ZendeskResponsibility', responsibility)
         switch (responsibility) {
             case 'MESSAGING_SHOULD_DISPLAY': {
-                log.info(
-                    'Zendesk message detected. Manually displaying notification.',
-                )
-                const notificationId = m.messageId || 'zendesk-message'
+                log.info('Zendesk notification message detected.')
 
-                //get the data
+                const uniqueId = `zendesk-${uuidv4()}`
+
                 const rawMessage = m.data?.message
+                log.debug('Raw Zendesk message:', rawMessage)
 
-                log.debug('Raw Zendesk message:', rawMessage) // <-- Log the raw value
-
-                // Parse the raw message into senderName and messageText
                 const { senderName, messageText } =
                     await parseZendeskNotification(rawMessage)
 
-                notifee.cancelNotification(notificationId) // Cancel any existing notification
-
-                const notificationPayload = {
-                    id: notificationId, // Must match for replacement
-                    title: senderName,
-                    body: messageText,
-                    data: m.data,
-                    android: {
-                        channelId: 'zendesk-channel', // Android needs a channel Id which we set up earlier
-                        pressAction: {
-                            id: 'zendesk-message',
-                            launchActivity: 'default',
-                        },
-                        autoCancel: true,
-                        onlyAlertOnce: true,
-                        smallIcon: 'ic_stat_notification',
+                await dispatchNotification(
+                    uniqueId,
+                    'and-notification-channel',
+                    senderName,
+                    messageText,
+                    {
+                        type: 'zendesk',
+                        data: m.data,
                     },
-                    ios: {
-                        foregroundPresentationOptions: {
-                            alert: true,
-                            badge: true,
-                            sound: true, // Play sound on iOS
+                    {
+                        android: {
+                            pressAction: {
+                                id: uniqueId,
+                                launchActivity: 'default',
+                            },
+                            autoCancel: true,
+                            onlyAlertOnce: false,
+                            smallIcon: 'ic_stat_notification',
+                            color: getNotificationBackgroundColor(),
                         },
-                        categoryId: 'zendesk-chat', // iOS notification category
+                        ios: {
+                            foregroundPresentationOptions: {
+                                alert: true,
+                                badge: true,
+                                sound: true,
+                            },
+                            sound: 'default',
+                        },
                     },
-                }
+                )
 
-                // Display the notification on both platforms
-                await notifee.displayNotification(notificationPayload)
                 return
             }
-
             case 'MESSAGING_SHOULD_NOT_DISPLAY': {
                 log.info('Notification handled by Zendesk, not displaying.')
                 return
             }
-            case 'NOT_FROM_MESSAGING':
+            case 'NOT_FROM_MESSAGING': {
+                break
+            }
             default: {
                 log.info(
                     'Notification not handled by Zendesk, forwarding to custom handler.',
                 )
-                // Handle non-Zendesk notifications or additional actions
-                if (isForeground) {
-                    handleForegroundFCMReceived(m)
-                } else {
-                    handleBackgroundFCMReceived(m, i18next.t)
-                }
             }
+        }
+
+        if (isForeground) {
+            handleForegroundFCMReceived(m)
+        } else {
+            handleBackgroundFCMReceived(m, i18next.t)
         }
     } catch (error) {
         log.error(
@@ -146,28 +201,10 @@ async function handleFCMNotification(m, isForeground = true) {
     }
 }
 
-messaging().onMessage(async m => {
-    await handleFCMNotification(m, true) // isForeground = true
-})
-
-// Dispatches FCM notifications when app is closed
-messaging().setBackgroundMessageHandler(async m => {
-    await handleFCMNotification(m, false) // isForeground = false
-})
-
-// Handles updates to notification (delivered, user taps notification, actions, etc)
-// Runs in headless js, so we don't have access to the UI or clients.
-// However, we can make api calls or access offline resources.
-notifee.onBackgroundEvent(e => handleBackgroundNotificationUpdate(e))
-
-//need this channel for Zendesk deeplinking
-notifee.createChannel({
-    id: 'zendesk-channel',
-    name: 'Zendesk Support Messages',
-    importance: AndroidImportance.HIGH,
-    sound: 'default',
-})
-
+//startup code
+install()
+initializePushNotificationListeners()
+//end startup code
 // Register the app component
 AppRegistry.registerComponent(appName, () => App)
 

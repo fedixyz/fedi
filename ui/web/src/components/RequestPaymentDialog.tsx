@@ -150,18 +150,22 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     useEffect(() => {
         if (!lightningInvoice) return
         const unsubscribe = fedimint.addListener('transaction', event => {
-            const { lightning, bitcoin } = event.transaction
+            const txn = event.transaction
+
+            // check if the txn we got is the same as the one we're waiting for
             const wasLnPayment =
                 lightningInvoice &&
-                lightning &&
-                lightning.invoice.toLowerCase() ===
-                    lightningInvoice.toLowerCase()
+                txn.kind === 'lnReceive' &&
+                'ln_invoice' in txn &&
+                txn.ln_invoice.toLowerCase() === lightningInvoice.toLowerCase()
             const wasBitcoinPayment =
                 bitcoinUrl &&
-                bitcoin &&
+                txn.kind === 'onchainDeposit' &&
+                'onchain_address' in txn &&
                 bitcoinUrl
                     .toLowerCase()
-                    .includes(bitcoin?.address.toLowerCase())
+                    .includes(txn.onchain_address.toLowerCase())
+
             if (wasLnPayment || wasBitcoinPayment) {
                 setIsWithdrawing(false)
                 setReceivedTransaction(event.transaction)
@@ -303,7 +307,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                     <DialogStatus
                         status="success"
                         title={`${t(
-                            receivedTransaction.bitcoin
+                            receivedTransaction.kind === 'onchainDeposit'
                                 ? 'feature.receive.pending-transaction'
                                 : 'feature.receive.you-received',
                         )}`}

@@ -1,5 +1,7 @@
 import accounting from 'accounting'
 
+import { FiatFXInfo } from '@fedi/common/types/bindings'
+
 import { AmountSymbolPosition } from '../hooks/amount'
 import {
     Btc,
@@ -254,7 +256,18 @@ class AmountUtils {
         )
         return fiat
     }
+
+    getRateFromFiatFxInfo(txDateFiatInfo: FiatFXInfo): number {
+        return txDateFiatInfo.btcToFiatHundredths / 100
+    }
 }
 
 const amountUtils = new AmountUtils()
 export default amountUtils
+
+// Export static constants for use elsewhere
+export const BTC_MAX_DECIMAL_PLACES = AmountUtils.BTC_MAX_DECIMAL_PLACES
+export const MIN_BTC_VALUE = AmountUtils.MIN_BTC_VALUE
+export const SATS_PER_BTC = AmountUtils.SATS_PER_BTC
+export const MSATS_PER_SAT = AmountUtils.MSATS_PER_SAT
+export const FIAT_MAX_DECIMAL_PLACES = AmountUtils.FIAT_MAX_DECIMAL_PLACES

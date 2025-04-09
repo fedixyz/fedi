@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text } from '@rneui/themed'
-import React, { useCallback } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keyboard, StyleSheet, View } from 'react-native'
 
@@ -35,6 +35,8 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
         handleRequestPayment,
     } = useChatPaymentUtils(t, fedimint, existingRoom?.id, recipientId)
 
+    const [notes, setNotes] = useState('')
+
     // Reset navigation stack on going back to the chat to give better back
     // button behavior if directed here from Omni.
     const backToChat = useCallback(() => {
@@ -58,6 +60,7 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
         navigation.navigate('ConfirmSendChatPayment', {
             amount,
             roomId: existingRoom?.id,
+            notes,
         })
     }
 
@@ -97,6 +100,8 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
                     loading: submitAction === 'send',
                 },
             ]}
+            notes={notes}
+            setNotes={setNotes}
         />
     )
 }

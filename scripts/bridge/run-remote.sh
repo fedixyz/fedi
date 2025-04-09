@@ -12,8 +12,5 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 $REPO_ROOT/scripts/enforce-nix.sh
 
-TARGET_DIR="${TARGET_DIR:-${REPO_ROOT}/target}"
-export CARGO_BUILD_TARGET_DIR="${TARGET_DIR}/native"
-BRIDGE_DATADIR="${TARGET_DIR}/datadir"
-
+BRIDGE_DATADIR="$CARGO_BUILD_TARGET_DIR/datadir"
 cargo run --package fedi-rpc-server -- "$BRIDGE_DATADIR"

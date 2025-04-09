@@ -1,19 +1,21 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use fedimint_core::encoding::{Decodable, Encodable};
 use matrix_sdk::notification_settings::RoomNotificationMode;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::api::client::user_directory::search_users::v3 as search_user_directory;
+use matrix_sdk::ruma::events::poll::start::PollKind;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::events::AnyTimelineEvent;
 use matrix_sdk::ruma::serde::Raw;
-use matrix_sdk::ruma::MilliSecondsSinceUnixEpoch;
-use matrix_sdk::RoomListEntry;
+use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedTransactionId};
 use matrix_sdk_ui::room_list_service::SyncIndicator;
 use matrix_sdk_ui::timeline::{
-    EventSendState, LiveBackPaginationStatus, TimelineItem, TimelineItemContent, TimelineItemKind,
-    VirtualTimelineItem,
+    EventSendState, LiveBackPaginationStatus, PollResult, TimelineEventItemId, TimelineItem,
+    TimelineItemContent, TimelineItemKind, VirtualTimelineItem,
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -30,10 +32,31 @@ pub enum RpcTimelineItem {
     ///
     /// The value is a timestamp in milliseconds since Unix Epoch on the given
     /// day in local time.
-    DayDivider(#[ts(type = "number")] MilliSecondsSinceUnixEpoch),
+    DateDivider(#[ts(type = "number")] MilliSecondsSinceUnixEpoch),
     /// The user's own read marker.
     ReadMarker,
     Unknown,
+}
+
+#[derive(Debug, Deserialize, Clone, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcTimelineEventItemId {
+    TransactionId(String),
+    EventId(String),
+}
+
+impl TryFrom<RpcTimelineEventItemId> for TimelineEventItemId {
+    type Error = anyhow::Error;
+
+    fn try_from(value: RpcTimelineEventItemId) -> std::result::Result<Self, Self::Error> {
+        match value {
+            RpcTimelineEventItemId::TransactionId(t) => Ok(TimelineEventItemId::TransactionId(
+                OwnedTransactionId::from(t),
+            )),
+            RpcTimelineEventItemId::EventId(e) => Ok(TimelineEventItemId::EventId(e.parse()?)),
+        }
+    }
 }
 
 /// This type represents the "send state" of a local event timeline item.
@@ -82,6 +105,7 @@ pub enum RpcTimelineItemContent {
     Message(#[ts(type = "JSONObject")] RoomMessageEventContent),
     Json(#[ts(type = "JSONValue")] serde_json::Value),
     RedactedMessage,
+    Poll(RpcPollResult),
     Unknown,
 }
 
@@ -103,11 +127,81 @@ pub struct RpcMatrixUserDirectorySearchUser {
     pub avatar_url: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcPollKind {
+    Undisclosed,
+    Disclosed,
+}
+
+#[derive(Debug, Serialize, Clone, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcPollResult {
+    pub body: String,
+    pub kind: RpcPollKind,
+    pub max_selections: u64,
+    pub answers: Vec<RpcPollResultAnswer>,
+    pub votes: HashMap<String, Vec<String>>,
+    pub end_time: Option<u64>,
+    pub has_been_edited: bool,
+    pub msgtype: String,
+}
+
+impl From<PollResult> for RpcPollResult {
+    fn from(value: PollResult) -> Self {
+        let end_time: Option<u64> = value.end_time.map(|t| t.get().into());
+
+        Self {
+            msgtype: String::from("m.poll"),
+            body: value.question,
+            kind: match value.kind {
+                PollKind::Undisclosed => RpcPollKind::Undisclosed,
+                _ => RpcPollKind::Disclosed,
+            },
+            max_selections: value.max_selections,
+            answers: value
+                .answers
+                .iter()
+                .map(|a| RpcPollResultAnswer {
+                    id: a.id.to_string(),
+                    text: a.text.to_string(),
+                })
+                .collect(),
+            votes: value
+                .votes
+                .into_iter()
+                .map(|(k, v)| (k, v.into_iter().map(|s| s.to_string()).collect()))
+                .collect(),
+            end_time,
+            has_been_edited: value.has_been_edited,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Clone, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcPollResultAnswer {
+    pub id: String,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, Clone, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcPollResponseData {
+    pub sender: RpcUserId,
+    #[ts(type = "number")]
+    pub timestamp: MilliSecondsSinceUnixEpoch,
+    pub answers: Vec<String>,
+}
 impl RpcMatrixUserDirectorySearchUser {
     pub fn from_user(user: search_user_directory::User) -> Self {
         let avatar_url = user.avatar_url.map(|url| url.to_string());
         Self {
-            user_id: user.user_id.into(),
+            user_id: RpcUserId(user.user_id.into()),
             display_name: user.display_name,
             avatar_url,
         }
@@ -152,13 +246,16 @@ impl From<Arc<TimelineItem>> for RpcTimelineItem {
     fn from(item: Arc<TimelineItem>) -> Self {
         match **item {
             TimelineItemKind::Event(ref e) => {
-                let content = if let Some(json) = e.latest_json() {
+                let content = e.content();
+                let content = if let TimelineItemContent::Poll(m) = content {
+                    RpcTimelineItemContent::Poll(RpcPollResult::from(m.results()))
+                } else if let Some(json) = e.latest_json() {
                     RpcTimelineItemContent::Json(
                         json.deserialize_as::<serde_json::Value>()
                             .expect("failed to deserialize event"),
                     )
                 } else {
-                    match e.content() {
+                    match content {
                         TimelineItemContent::Message(m) => RpcTimelineItemContent::Message(
                             RoomMessageEventContent::from(m.clone()),
                         ),
@@ -182,7 +279,7 @@ impl From<Arc<TimelineItem>> for RpcTimelineItem {
                     },
                 });
                 Self::Event(RpcTimelineItemEvent {
-                    id: item.unique_id().to_string(),
+                    id: item.unique_id().0.clone(),
                     txn_id: e.transaction_id().map(|s| s.to_string()),
                     event_id: e.event_id().map(|s| s.to_string()),
                     content,
@@ -193,7 +290,7 @@ impl From<Arc<TimelineItem>> for RpcTimelineItem {
                 })
             }
             TimelineItemKind::Virtual(ref v) => match v {
-                VirtualTimelineItem::DayDivider(t) => Self::DayDivider(*t),
+                VirtualTimelineItem::DateDivider(t) => Self::DateDivider(*t),
                 VirtualTimelineItem::ReadMarker => Self::ReadMarker,
             },
         }
@@ -229,9 +326,9 @@ impl RpcTimelineItem {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, Decodable, Encodable, ts_rs::TS)]
 #[ts(export)]
-pub struct RpcRoomId(String);
+pub struct RpcRoomId(pub String);
 
 impl RpcRoomId {
     pub fn into_typed(&self) -> Result<matrix_sdk::ruma::OwnedRoomId> {
@@ -245,7 +342,20 @@ impl From<matrix_sdk::ruma::OwnedRoomId> for RpcRoomId {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Clone,
+    Debug,
+    Serialize,
+    Deserialize,
+    Eq,
+    PartialEq,
+    ts_rs::TS,
+    Hash,
+    Encodable,
+    Decodable,
+    PartialOrd,
+    Ord,
+)]
 #[ts(export)]
 pub struct RpcUserId(pub String);
 
@@ -258,33 +368,6 @@ impl RpcUserId {
 impl From<matrix_sdk::ruma::OwnedUserId> for RpcUserId {
     fn from(value: matrix_sdk::ruma::OwnedUserId) -> Self {
         RpcUserId(value.to_string())
-    }
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, ts_rs::TS)]
-#[serde(tag = "kind", content = "value")]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub enum RpcRoomListEntry {
-    /// The list knows there is an entry but this entry has not been loaded yet,
-    /// thus it's marked as empty.
-    #[default]
-    Empty,
-    /// The list has loaded this entry in the past, but the entry is now out of
-    /// range and may no longer be synced, thus it's marked as invalidated (to
-    /// use the spec's term).
-    Invalidated(String),
-    /// The list has loaded this entry, and it's up-to-date.
-    Filled(String),
-}
-
-impl From<RoomListEntry> for RpcRoomListEntry {
-    fn from(value: RoomListEntry) -> Self {
-        match value {
-            RoomListEntry::Empty => Self::Empty,
-            RoomListEntry::Invalidated(r) => Self::Invalidated(r.into()),
-            RoomListEntry::Filled(r) => Self::Filled(r.into()),
-        }
     }
 }
 

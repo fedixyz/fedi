@@ -100,6 +100,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                     key={i}
                     containerStyle={style.buttonContainer}
                     title={button.text}
+                    titleProps={{ numberOfLines: 1 }}
                     titleStyle={{
                         color: button.primary
                             ? theme.colors.secondary
@@ -195,7 +196,7 @@ const styles = (theme: Theme, insets: Insets) =>
             shadowColor: 'transparent',
         },
         overlayContents: {
-            position: 'absolute',
+            position: 'relative', // Rollback to relative positioning for Appium testing
             bottom: 0,
             left: 0,
             width: '100%',

@@ -17,6 +17,7 @@ import { hexToRgba } from '@fedi/common/utils/color'
 import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
+import NotesInput from '../components/ui/NotesInput'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
@@ -32,7 +33,8 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const { parsedData } = route.params
+    const { parsedData, notes: notesParam } = route.params
+    const [notes, setNotes] = useState<string>(notesParam || '')
     const [unit] = useState('sats')
     const { feeBreakdownTitle, makeOnchainFeeContent } = useFeeDisplayUtils(t)
     const {
@@ -59,7 +61,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
     const handleSend = useCallback(async () => {
         setIsPayingAddress(true)
         try {
-            await handleOmniSend(inputAmount)
+            await handleOmniSend(inputAmount, notes)
             navigationReplace('SendSuccess', {
                 amount: amountUtils.satToMsat(inputAmount),
                 unit,
@@ -68,7 +70,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
             toast.error(t, err)
         }
         setIsPayingAddress(false)
-    }, [handleOmniSend, inputAmount, unit, navigationReplace, toast, t])
+    }, [handleOmniSend, inputAmount, unit, navigationReplace, toast, t, notes])
 
     if (!isReadyToPay) return <ActivityIndicator />
 
@@ -165,6 +167,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                     {formattedSecondaryAmount}
                 </Text>
             </View>
+            <NotesInput notes={notes} setNotes={setNotes} />
             <View style={style.buttonsGroup}>
                 {renderDetails()}
                 <Button
@@ -207,6 +210,7 @@ const styles = (theme: Theme) =>
         },
         amountContainer: {
             marginTop: 'auto',
+            paddingVertical: theme.spacing.xxl,
         },
         balance: {
             color: hexToRgba(theme.colors.primary, 0.6),

@@ -15,6 +15,11 @@ pub trait ClientExt {
     /// Attempt to get the first stability pool client module instance.
     fn sp(&self) -> anyhow::Result<ClientModuleInstance<StabilityPoolClientModule>>;
 
+    /// Attempt to get the first stability pool v2 client module instance.
+    fn spv2(
+        &self,
+    ) -> anyhow::Result<ClientModuleInstance<stability_pool_client::StabilityPoolClientModule>>;
+
     /// Attempt to get the first mint (e-cash) client module instance.
     fn mint(&self) -> anyhow::Result<ClientModuleInstance<MintClientModule>>;
 }
@@ -30,6 +35,13 @@ impl ClientExt for Client {
 
     fn sp(&self) -> anyhow::Result<ClientModuleInstance<StabilityPoolClientModule>> {
         self.get_first_module::<StabilityPoolClientModule>()
+    }
+
+    fn spv2(
+        &self,
+    ) -> anyhow::Result<ClientModuleInstance<stability_pool_client::StabilityPoolClientModule>>
+    {
+        self.get_first_module::<stability_pool_client::StabilityPoolClientModule>()
     }
 
     fn mint(&self) -> anyhow::Result<ClientModuleInstance<MintClientModule>> {

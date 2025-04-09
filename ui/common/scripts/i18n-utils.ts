@@ -28,6 +28,7 @@ export function formatLanguageJson(json: object) {
 }
 
 export type LanguageJson = { [key: string]: string | LanguageJson }
+export type FlattenedLanguageStrings = { [key: string]: string }
 
 export const localizationPath = path.join(__dirname, '..', 'localization')
 export const getLangJson = (l: string) =>
@@ -38,7 +39,10 @@ export const getLangJson = (l: string) =>
         ),
     )
 
-export function flattenObject(obj: LanguageJson, prefix = ''): LanguageJson {
+export function flattenObject(
+    obj: LanguageJson,
+    prefix = '',
+): FlattenedLanguageStrings {
     return Object.entries(obj).reduce((acc, [key, value]) => {
         const newKey = prefix ? `${prefix}.${key}` : key
         if (typeof value === 'object' && value !== null) {
@@ -47,5 +51,5 @@ export function flattenObject(obj: LanguageJson, prefix = ''): LanguageJson {
             acc[newKey] = value
         }
         return acc
-    }, {} as LanguageJson)
+    }, {} as FlattenedLanguageStrings)
 }

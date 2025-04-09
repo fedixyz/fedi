@@ -5,8 +5,9 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useTxnDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectActiveFederationId } from '@fedi/common/redux'
 import { updateTransactionNotes } from '@fedi/common/redux/transactions'
-import { Transaction } from '@fedi/common/types'
+import { TransactionListEntry } from '@fedi/common/types'
 import {
+    getTxnDirection,
     makeTxnDetailTitleText,
     makeTxnStatusText,
 } from '@fedi/common/utils/wallet'
@@ -17,7 +18,7 @@ import { HistoryList } from '../HistoryList'
 import { TransactionIcon } from './TransactionIcon'
 
 type TransactionsListProps = {
-    transactions: Transaction[]
+    transactions: TransactionListEntry[]
     loading?: boolean
 }
 
@@ -30,8 +31,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
     const { t } = useTranslation()
     const toast = useToast()
     const activeFederationId = useAppSelector(selectActiveFederationId)
-    const { makeTxnDetailAmountText, makeTxnDetailItems } =
-        useTxnDisplayUtils(t)
+    const { makeTxnAmountText, makeTxnDetailItems } = useTxnDisplayUtils(t)
 
     return (
         <HistoryList
@@ -42,19 +42,20 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                 status: makeTxnStatusText(t, txn),
                 amount: txn.amount,
                 direction:
-                    txn.lnState?.type === 'canceled'
+                    (txn.kind === 'lnReceive' || txn.kind === 'lnPay') &&
+                    txn.state?.type === 'canceled'
                         ? undefined
-                        : txn.direction === 'receive'
+                        : getTxnDirection(txn) === 'receive'
                           ? 'incoming'
                           : 'outgoing',
                 timestamp: txn.createdAt,
-                notes: txn.notes,
+                notes: txn.txnNotes,
             })}
             makeDetailProps={txn => ({
                 title: makeTxnDetailTitleText(t, txn),
                 items: makeTxnDetailItems(txn),
-                amount: makeTxnDetailAmountText(txn),
-                notes: txn.notes,
+                amount: makeTxnAmountText(txn),
+                notes: txn.txnNotes,
                 onSaveNotes: async (notes: string) => {
                     if (isUpdating) return // Prevent multiple updates
 

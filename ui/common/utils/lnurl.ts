@@ -35,6 +35,7 @@ export async function lnurlPay(
     federationId: string,
     lnurlData: ParsedLnurlPay['data'],
     amount: MSats,
+    notes?: string,
 ) {
     const callbackUrl = new URL(lnurlData.callback)
     callbackUrl.searchParams.set('amount', amount.toString())
@@ -45,7 +46,7 @@ export async function lnurlPay(
         throw new Error(res.reason || 'errors.unknown-error')
     }
 
-    return fedimint.payInvoice(res.pr, federationId)
+    return fedimint.payInvoice(res.pr, federationId, notes)
 }
 
 /**

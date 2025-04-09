@@ -1,0 +1,12 @@
+/*
+  InfoPlist.strings
+  FediReactNative
+
+  Created by Someone on 03/04/2025.
+
+*/
+"NSCameraUsageDescription" = "Fedi akeneye kwinjira kuri kamera kugirango asuzume kode ya QR";
+"NSLocationWhenInUseUsageDescription" = "Fedi ntabwo ikoresha aho uherereye";
+"NSMicrophoneUsageDescription" = "Fedi akeneye kwinjira kuri mikoro yawe kugirango yandike amashusho yimibereho";
+"NSPhotoLibraryAddUsageDescription" = "Fedi akeneye uburyo bwo kubika amafoto mubitabo byamafoto";
+"NSPhotoLibraryUsageDescription" = "Fedi akeneye kubona isomero ryamafoto yawe kugirango uhitemo itangazamakuru rya avatar yawe hamwe nu mugereka";

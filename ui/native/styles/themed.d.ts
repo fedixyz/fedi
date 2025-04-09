@@ -18,8 +18,10 @@ declare module '@rneui/themed' {
             secondary: string
             success: string
             // Add new colors here
+            moneyGreen: string
             green: string
             orange: string
+            lightOrange: string
             darkGrey: string
             grey: string
             lightGrey: string

@@ -27,7 +27,7 @@ import {
     RpcBackPaginationStatus,
     RpcMatrixAccountSession,
     RpcMatrixUserDirectorySearchResponse,
-    RpcRoomListEntry,
+    RpcRoomId,
     RpcRoomMember,
     RpcRoomNotificationMode,
     RpcSyncIndicator,
@@ -325,7 +325,7 @@ export class MatrixChatClient {
         return this.fedimint
             .matrixUserDirectorySearch({
                 searchTerm,
-                limit: 10,
+                limit: 20,
             })
             .then(this.serializeUserDirectorySearchResponse)
     }
@@ -555,8 +555,8 @@ export class MatrixChatClient {
         if (this.roomListUnsubscribe !== undefined) return
         // Listen and emit on observable updates
         const unsubscribe = this.fedimint.subscribeObservable<
-            RpcRoomListEntry[],
-            ObservableVecUpdate<RpcRoomListEntry>['update']
+            RpcRoomId[],
+            ObservableVecUpdate<RpcRoomId>['update']
         >(
             id => {
                 return this.fedimint.matrixRoomList({ observableId: id })
@@ -572,11 +572,9 @@ export class MatrixChatClient {
 
                 // Observe all of the rooms
                 rooms.map(async room => {
-                    if ('value' in room) {
-                        await this.observeRoomInfo(room.value)
-                        await this.observeRoomPowerLevels(room.value)
-                        await this.observeRoomNotificationMode(room.value)
-                    }
+                    await this.observeRoomInfo(room)
+                    await this.observeRoomPowerLevels(room)
+                    await this.observeRoomNotificationMode(room)
                 })
             },
             update => {
@@ -585,9 +583,7 @@ export class MatrixChatClient {
                     mapObservableUpdates(update, this.serializeRoomListItem),
                 )
                 getNewObservableIds(update, room => {
-                    return room.kind !== 'empty' && room.kind !== 'invalidated'
-                        ? room.value
-                        : false
+                    return room
                 }).forEach(roomId => {
                     this.observeRoomInfo(roomId).catch(err =>
                         log.warn('Failed to observe room info', {
@@ -735,15 +731,8 @@ export class MatrixChatClient {
         })
     }
 
-    private serializeRoomListItem(room: RpcRoomListEntry): MatrixRoomListItem {
-        if (room.kind === 'empty' || room.kind === 'invalidated') {
-            return { status: MatrixRoomListItemStatus.loading }
-        } else {
-            return {
-                status: MatrixRoomListItemStatus.ready,
-                id: room.value,
-            }
-        }
+    private serializeRoomListItem(room: RpcRoomId): MatrixRoomListItem {
+        return { status: MatrixRoomListItemStatus.ready, id: room }
     }
 
     // TODO: get type for this from bridge?
@@ -774,23 +763,32 @@ export class MatrixChatClient {
         let preview: MatrixRoom['preview']
         if (room.latest_event) {
             const { event, sender_profile } = room.latest_event
-            const isDeleted = !!event.event.unsigned?.redacted_because
-            // Try to use the redaction timestamp if found, fallback to event timestamp
-            const timestamp = isDeleted
-                ? event.event.unsigned?.redacted_because.origin_server_ts ||
-                  event.event.origin_server_ts
-                : event.event.origin_server_ts
-            preview = {
-                eventId: event.event.event_id,
-                senderId: sender_profile.Original.content.id,
-                displayName: this.ensureDisplayName(
-                    sender_profile.Original.content.displayname,
-                ),
-                avatarUrl: sender_profile.Original.content.avatar_url,
-                body: event.event.content.body,
-                // Deleted/redacted messages have this in the unsigned field
-                isDeleted,
-                timestamp,
+            if ('kind' in event && 'Decrypted' in event.kind) {
+                const { event: decryptedEvent } = event.kind.Decrypted
+                let timestamp = decryptedEvent.origin_server_ts
+                let isDeleted = false
+                // Deleted/redacted messages have the redaction timestamp in the unsigned field
+                if (
+                    'unsigned' in decryptedEvent &&
+                    'redacted_because' in decryptedEvent.unsigned &&
+                    !!decryptedEvent.unsigned?.redacted_because
+                ) {
+                    isDeleted = true
+                    timestamp =
+                        decryptedEvent.unsigned.redacted_because
+                            .origin_server_ts
+                }
+                preview = {
+                    eventId: decryptedEvent.event_id,
+                    senderId: sender_profile.Original.content.id,
+                    displayName: this.ensureDisplayName(
+                        sender_profile.Original.content.displayname,
+                    ),
+                    avatarUrl: sender_profile.Original.content.avatar_url,
+                    body: decryptedEvent.content.body,
+                    isDeleted,
+                    timestamp,
+                }
             }
         }
 
@@ -888,7 +886,7 @@ export class MatrixChatClient {
 
         // Map the status to an enum, include the error if it failed
         let status: MatrixEventStatus
-        let error: Error | null = null
+        let error: string | null = null
         if (!item.value.localEcho) {
             status = MatrixEventStatus.sent
         } else {
@@ -902,9 +900,10 @@ export class MatrixChatClient {
                         ? MatrixEventStatus.failed
                         : MatrixEventStatus.pending
             if (status === MatrixEventStatus.failed) {
-                error = new Error(
-                    item.value.sendState?.error || 'Unknown error',
-                )
+                error =
+                    typeof item.value.sendState?.error === 'string'
+                        ? item.value.sendState?.error
+                        : 'Unknown error'
             }
         }
 
@@ -934,6 +933,12 @@ export class MatrixChatClient {
                 msgtype: 'xyz.fedi.deleted',
                 body: '',
                 ...eventContent.value.unsigned.redacted_because.content,
+            }
+        } else if (eventContent.value.type === 'm.room.encrypted') {
+            content = {
+                msgtype: 'm.room.encrypted',
+                body: '',
+                ...eventContent.value.content,
             }
         }
 

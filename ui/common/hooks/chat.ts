@@ -134,7 +134,7 @@ export const useChatPaymentPush = (
     const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
     const handleSendPayment = useCallback(
-        async (amount: Sats, onSuccess: () => void) => {
+        async (amount: Sats, onSuccess: () => void, notes?: string) => {
             if (!federationId || !roomId || !amount) return
             setIsProcessing(true)
             try {
@@ -145,6 +145,7 @@ export const useChatPaymentPush = (
                         roomId,
                         recipientId,
                         amount,
+                        notes,
                     }),
                 ).unwrap()
                 onSuccess()
@@ -180,6 +181,7 @@ export const useChatPaymentUtils = (
     )
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [submitType, setSubmitType] = useState<'send' | 'request'>()
+    const [notes, setNotes] = useState('')
 
     const inputMinMax =
         submitType === 'send'
@@ -209,6 +211,7 @@ export const useChatPaymentUtils = (
                         roomId,
                         recipientId,
                         amount,
+                        notes,
                     }),
                 ).unwrap()
                 onSuccess()
@@ -226,6 +229,7 @@ export const useChatPaymentUtils = (
             roomId,
             t,
             toast,
+            notes,
         ],
     )
 
@@ -283,6 +287,8 @@ export const useChatPaymentUtils = (
         canSendAmount,
         handleRequestPayment,
         handleSendPayment,
+        notes,
+        setNotes,
     }
 }
 

@@ -6,14 +6,17 @@ import { RejectionError } from 'webln'
 
 import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederation, selectEcashRequest } from '@fedi/common/redux'
+import {
+    generateEcash,
+    selectActiveFederation,
+    selectEcashRequest,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
-import { useAppSelector } from '../../../state/hooks'
-import { MSats } from '../../../types'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
 import CustomOverlay from '../../ui/CustomOverlay'
 
@@ -45,6 +48,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     const { maximumAmount } = useMinMaxSendAmount({
         selectedPaymentFederation: true,
     })
+    const dispatch = useAppDispatch()
 
     // Reset form when it appears
     const isShowing = Boolean(ecashRequest)
@@ -68,10 +72,19 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
             if (!activeFederation) throw new Error()
             const msats = amountUtils.satToMsat(inputAmount)
 
-            const res = await fedimint.generateEcash(
-                msats as MSats,
-                activeFederation.id,
-            )
+            const res = await dispatch(
+                generateEcash({
+                    fedimint,
+                    federationId: activeFederation.id,
+                    amount: msats,
+                    includeInvite: true,
+                    frontendMetadata: {
+                        initialNotes: null,
+                        recipientMatrixId: null,
+                        senderMatrixId: null,
+                    },
+                }),
+            ).unwrap()
 
             onAcceptRef.current(res.ecash)
         } catch (err) {

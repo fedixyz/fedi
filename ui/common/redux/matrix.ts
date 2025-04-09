@@ -41,7 +41,11 @@ import {
     MatrixUser,
     Sats,
 } from '../types'
-import { RpcRoomId, RpcRoomNotificationMode } from '../types/bindings'
+import {
+    FrontendMetadata,
+    RpcRoomId,
+    RpcRoomNotificationMode,
+} from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import { getFederationGroupChats } from '../utils/FederationUtils'
 import { MatrixChatClient } from '../utils/MatrixChatClient'
@@ -101,7 +105,9 @@ const initialState = {
     groupPreviews: {} as Record<MatrixRoom['id'], MatrixGroupPreview>,
     drafts: {} as Record<MatrixRoom['id'], string>,
     selectedChatMessage: null as MatrixEvent<
-        MatrixEventContentType<'m.text' | 'm.image' | 'm.video' | 'm.file'>
+        MatrixEventContentType<
+            'm.text' | 'm.image' | 'm.video' | 'm.file' | 'm.poll'
+        >
     > | null,
     messageToEdit: null as MatrixEvent<MatrixEventContentType<'m.text'>> | null,
     previewMedia: [] as Array<{
@@ -220,7 +226,7 @@ export const matrixSlice = createSlice({
             state,
             action: PayloadAction<MatrixEvent<
                 MatrixEventContentType<
-                    'm.text' | 'm.image' | 'm.video' | 'm.file'
+                    'm.text' | 'm.image' | 'm.video' | 'm.file' | 'm.poll'
                 >
             > | null>,
         ) {
@@ -262,7 +268,8 @@ export const matrixSlice = createSlice({
                 >
             >,
         ) {
-            state.previewMedia = state.previewMedia.map(cached => {
+            let hasUpdates = false
+            const updatedPreviewMedia = state.previewMedia.map(cached => {
                 if (
                     action.payload.some(event =>
                         doesEventContentMatchPreviewMedia(
@@ -271,11 +278,17 @@ export const matrixSlice = createSlice({
                         ),
                     )
                 ) {
-                    return { ...cached, visible: false }
+                    if (cached.visible) {
+                        hasUpdates = true
+                        return { ...cached, visible: false }
+                    }
                 }
-
                 return cached
             })
+
+            if (hasUpdates) {
+                state.previewMedia = updatedPreviewMedia
+            }
         },
     },
     extraReducers: builder => {
@@ -691,12 +704,13 @@ export const sendMatrixPaymentPush = createAsyncThunk<
         roomId: MatrixRoom['id']
         recipientId: MatrixUser['id']
         amount: Sats
+        notes?: string
     },
     { state: CommonState }
 >(
     'matrix/sendMatrixPaymentPush',
     async (
-        { fedimint, federationId, roomId, recipientId, amount },
+        { fedimint, federationId, roomId, recipientId, amount, notes = null },
         { getState },
     ) => {
         const state = getState()
@@ -708,7 +722,19 @@ export const sendMatrixPaymentPush = createAsyncThunk<
         const msats = amountUtils.satToMsat(amount)
 
         const client = getMatrixClient()
-        const { ecash } = await fedimint.generateEcash(msats, federationId)
+
+        const frontendMetadata = {
+            recipientMatrixId: recipientId,
+            senderMatrixId: matrixAuth.userId,
+            initialNotes: notes,
+        } satisfies FrontendMetadata
+
+        const { ecash } = await fedimint.generateEcash(
+            msats,
+            federationId,
+            true,
+            frontendMetadata,
+        )
 
         await client.sendMessage(roomId, {
             msgtype: 'xyz.fedi.payment',
@@ -721,8 +747,7 @@ export const sendMatrixPaymentPush = createAsyncThunk<
             amount: msats,
             recipientId,
             ecash,
-            federationId: federation?.id,
-            inviteCode: federation?.inviteCode,
+            federationId: federation.id,
         })
     },
 )
@@ -876,6 +901,7 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
         const { ecash } = await fedimint.generateEcash(
             amount as MSats,
             federationId,
+            true,
         )
         await client.sendMessage(event.roomId, {
             ...event.content,
@@ -1450,6 +1476,27 @@ export const selectMatrixHasNotifications = createSelector(
                 room.isMarkedUnread,
             ),
         ),
+)
+
+/**
+ * The contact list is composed of all users we have direct chats with
+ */
+export const selectMatrixContactsList = createSelector(
+    selectMatrixRooms,
+    (s: CommonState) => s.matrix.roomMembers,
+    (rooms, roomMembers) => {
+        const directChatUsers: MatrixRoomMember[] = []
+        for (const room of rooms) {
+            // Only grab users from direct chats
+            const { directUserId } = room
+            if (!directUserId) continue
+            if (directChatUsers.some(u => u.id === directUserId)) continue
+            const user = roomMembers[room.id]?.find(m => m.id === directUserId)
+            if (!user) continue
+            directChatUsers.push(user)
+        }
+        return directChatUsers
+    },
 )
 
 /**

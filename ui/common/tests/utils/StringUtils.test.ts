@@ -1,6 +1,15 @@
 import stringUtils from '@fedi/common/utils/StringUtils'
 
 describe('StringUtils', () => {
+    describe('truncateString', () => {
+        it('returns string without ellipsis when length less than number of chars', () => {
+            expect(stringUtils.truncateString('testing', 20)).toEqual('testing')
+        })
+        it('returns string with truncated length and ellipsis when length greater than number of chars', () => {
+            expect(stringUtils.truncateString('testing', 5)).toEqual('testi...')
+        })
+    })
+
     describe('truncateMiddleOfString', () => {
         it('returns string with correct number of characters before ellipsis', () => {
             const truncateTwo = stringUtils
@@ -21,6 +30,8 @@ describe('StringUtils', () => {
                 'aaaabbbb',
             )
         })
+    })
+    describe('keepOnlyLowercaseLetters', () => {
         it('strips out all whitepspaces', () => {
             expect(stringUtils.keepOnlyLowercaseLetters(' a b c d e ')).toEqual(
                 'abcde',

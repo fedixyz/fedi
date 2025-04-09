@@ -29,7 +29,7 @@ use fedimint_core::module::{
     SupportedModuleApiVersions, TransactionItemAmount,
 };
 use fedimint_core::server::DynServerModule;
-use fedimint_core::{push_db_pair_items, NumPeersExt, OutPoint, PeerId, ServerModule};
+use fedimint_core::{push_db_pair_items, InPoint, NumPeersExt, OutPoint, PeerId, ServerModule};
 use fedimint_server::config::distributedgen::{PeerHandleOps, ThresholdKeys};
 use futures::stream::StreamExt;
 use rand::rngs::OsRng;
@@ -238,6 +238,7 @@ impl ServerModule for FediSocial {
         &'a self,
         _dbtx: &mut DatabaseTransaction<'c>,
         _input: &'b <Self::Common as ModuleCommon>::Input,
+        _in_point: InPoint,
     ) -> Result<InputMeta, FediSocialInputError> {
         unreachable!("FediSocial does not have any inputs")
     }

@@ -1,15 +1,19 @@
 import { Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import React, { useState } from 'react'
 import { StyleProp, StyleSheet, TextStyle, View, ViewStyle } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { selectMatrixAuth } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
+import { deriveUrlsFromText } from '@fedi/common/utils/chat'
 import {
+    arePollEventsEqual,
     isDeletedEvent,
+    isEncryptedEvent,
     isFileEvent,
     isImageEvent,
     isPaymentEvent,
+    isPollEvent,
     isPreviewMediaEvent,
     isTextEvent,
     isVideoEvent,
@@ -17,9 +21,12 @@ import {
 
 import { useAppSelector } from '../../../state/hooks'
 import ChatDeletedEvent from './ChatDeletedEvent'
+import ChatEmbeddedLinkPreview from './ChatEmbeddedLinkPreview'
+import ChatEncryptedEvent from './ChatEncryptedEvent'
 import ChatFileEvent from './ChatFileEvent'
 import ChatImageEvent from './ChatImageEvent'
 import ChatPaymentEvent from './ChatPaymentEvent'
+import ChatPollEvent from './ChatPollEvent'
 import ChatPreviewMediaEvent from './ChatPreviewMediaEvent'
 import ChatTextEvent from './ChatTextEvent'
 import ChatVideoEvent from './ChatVideoEvent'
@@ -40,6 +47,7 @@ const ChatEvent: React.FC<Props> = ({
     isPublic = true,
 }: Props) => {
     const { theme } = useTheme()
+    const [hasWidePreview, setHasWidePreview] = useState(false)
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
     const isMe = event.senderId === matrixAuth?.userId
@@ -57,12 +65,19 @@ const ChatEvent: React.FC<Props> = ({
         bubbleContainerStyles.push(styles(theme).leftAlignedMessage)
     }
 
-    if (last && isText) {
+    if (last && isText && !hasWidePreview) {
         bubbleContainerStyles.push(
             isMe
                 ? styles(theme).lastSentMessage
                 : styles(theme).lastReceivedMessage,
         )
+    } else if (isText && hasWidePreview) {
+        bubbleContainerStyles.push({
+            borderBottomRightRadius: 0,
+            width: theme.sizes.maxMessageWidth,
+            borderBottomLeftRadius: 0,
+            justifyContent: 'flex-start',
+        })
     }
 
     if (
@@ -71,6 +86,8 @@ const ChatEvent: React.FC<Props> = ({
     ) {
         return null
     }
+
+    const derivedLinks = isText ? deriveUrlsFromText(event.content.body) : null
 
     return (
         <ErrorBoundary fallback={() => <MessageItemError />}>
@@ -87,7 +104,12 @@ const ChatEvent: React.FC<Props> = ({
                         ]}>
                         <View style={bubbleContainerStyles}>
                             {isText ? (
-                                <ChatTextEvent event={event} />
+                                <ChatTextEvent
+                                    event={event}
+                                    isWide={hasWidePreview}
+                                />
+                            ) : isEncryptedEvent(event) ? (
+                                <ChatEncryptedEvent event={event} />
                             ) : isPaymentEvent(event) ? (
                                 <ChatPaymentEvent event={event} />
                             ) : isImageEvent(event) ? (
@@ -100,8 +122,29 @@ const ChatEvent: React.FC<Props> = ({
                                 <ChatDeletedEvent event={event} />
                             ) : isPreviewMediaEvent(event) ? (
                                 <ChatPreviewMediaEvent event={event} />
+                            ) : isPollEvent(event) ? (
+                                <ChatPollEvent event={event} />
                             ) : null}
                         </View>
+                        {derivedLinks && isPublic && (
+                            <View
+                                style={[
+                                    styles(theme).previewLinkContainer,
+                                    isMe
+                                        ? styles(theme).rightAlignedMessage
+                                        : styles(theme).leftAlignedMessage,
+                                ]}>
+                                {derivedLinks.map((url, i) => (
+                                    <ChatEmbeddedLinkPreview
+                                        url={url}
+                                        key={`l-prev-${url}-${i}`}
+                                        isFirst={i === 0}
+                                        setHasWidePreview={setHasWidePreview}
+                                        hasWidePreview={hasWidePreview}
+                                    />
+                                ))}
+                            </View>
+                        )}
                     </View>
                 </View>
             </View>
@@ -145,23 +188,24 @@ const styles = (theme: Theme) =>
         lastSentMessage: {
             borderBottomRightRadius: 4,
         },
+        previewLinkContainer: {
+            gap: theme.spacing.xxs,
+            maxWidth: theme.sizes.maxMessageWidth,
+        },
     })
 
-const areEqual = (prev: Props, curr: Props) => {
-    if (
-        isPaymentEvent(curr.event) &&
-        // TODO: make better TS types to avoid this ick
-        'status' in prev.event.content &&
-        'status' in curr.event.content
-    ) {
+const areEqual = ({ event: prevEvent }: Props, { event: currEvent }: Props) => {
+    if (isPaymentEvent(currEvent) && isPaymentEvent(prevEvent)) {
         return (
-            prev.event.id === curr.event.id &&
-            prev.event.content.status === curr.event.content.status
+            prevEvent.id === currEvent.id &&
+            prevEvent.content.status === currEvent.content.status
         )
+    } else if (isPollEvent(currEvent) && isPollEvent(prevEvent)) {
+        return arePollEventsEqual(prevEvent, currEvent)
     } else {
         return (
-            prev.event.eventId === curr.event.eventId &&
-            prev.event.content.body === curr.event.content.body
+            prevEvent.eventId === currEvent.eventId &&
+            prevEvent.content.body === currEvent.content.body
         )
     }
 }

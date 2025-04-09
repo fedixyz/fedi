@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "25.2.6",
+    "version": "25.4.0",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -20,7 +20,7 @@
         "test:ios:regtest": "bash scripts/run-detox-tests-ios.sh -n regtest",
         "test:ios:mainnet": "bash scripts/run-detox-tests-ios.sh -n mainnet",
         "clean": "bash scripts/clean.sh",
-        "lint": "yarn lint:eslint",
+        "lint": "yarn lint:eslint && yarn lint:tsc",
         "lint:tsc": "tsc --noEmit",
         "lint:eslint": "eslint . --ext .js,.jsx,.ts,.tsx",
         "format": "prettier --write .",

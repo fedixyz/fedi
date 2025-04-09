@@ -4,8 +4,10 @@
  */
 
 const HEX_COLORS = {
+    moneyGreen: '#26A07B',
     green: '#00A829',
     orange: '#DF7B00',
+    lightOrange: '#ECA429',
     darkGrey: '#6D7071',
     grey: '#858789',
     lightGrey: '#D3D4DB',

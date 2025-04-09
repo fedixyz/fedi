@@ -23,7 +23,7 @@ import stackernewsImage from '@fedi/common/assets/images/fedimods/stackernews.pn
 import stakworkImage from '@fedi/common/assets/images/fedimods/stakwork.png'
 import wavlakeImage from '@fedi/common/assets/images/fedimods/wavlake.png'
 
-export const FEDIMOD_IMAGES: Record<string, StaticImageData | undefined> = {
+export const FEDIMOD_IMAGES: Record<string, StaticImageData> = {
     'ai-beta': aiBetaImage,
     bitcoinco: bitcoincoImage,
     bitrefill: bitrefillImage,

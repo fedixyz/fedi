@@ -1,3 +1,6 @@
+use serde::Serialize;
+use ts_rs::TS;
+
 /// Enum representing the environment in whose context the bridge is
 /// instantiated. For the Fedi app, this translates to the app flavors:
 /// - Dev = a locally-built developer build of the Fedi app
@@ -36,7 +39,8 @@ pub enum RuntimeEnvironment {
 /// Some(_FeatureName_FeatureConfig).
 ///
 /// PLEASE ADD DOCUMENTATION FOR EACH FEATURE/FIELD BELOW
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct FeatureCatalog {
     /// "Encrypted sync" feature is the Fedi app using a remote server to store,
     /// retrieve, and manipulate data that's necessary for a smooth user
@@ -51,15 +55,46 @@ pub struct FeatureCatalog {
     // (Android/iOS/web). This is typically a dev-only feature needed for testing on Android and
     // iOS emulators.
     pub override_localhost: Option<OverrideLocalhostFeatureConfig>,
+
+    /// Enables stability pool v2 module, which also powers the multispend
+    /// feature. This feature is to be thought of as a tri-state enum
+    /// representing 3 scenarios.
+    /// 1. None: both stability pool v2 (and multispend feature) disabled
+    /// 2. Some(SpV2Only): use stability pool v2, but multispend disabled
+    /// 3. Some(Multispend): use stability pool and multispend enabled
+    ///
+    /// This is a global, bridge-level configuration. Actual availability of the
+    /// feature is on a per-federation basis, depending on whether or not
+    /// the new module is available in the federation. Note however, that
+    /// the feature flag takes precedence. If the feature flag is disabled,
+    /// the feature is never available. If the feature flag is enabled, then
+    /// the federation's module availability determines the availability of
+    /// the feature.
+    pub stability_pool_v2: Option<StabilityPoolV2FeatureConfig>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct EncryptedSyncFeatureConfig {
     pub server_url: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
 pub struct OverrideLocalhostFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct StabilityPoolV2FeatureConfig {
+    pub state: StabilityPoolV2FeatureConfigState,
+}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub enum StabilityPoolV2FeatureConfigState {
+    SpV2Only,
+    Multispend,
+}
 
 impl FeatureCatalog {
     pub fn new(runtime_env: RuntimeEnvironment) -> Self {
@@ -76,6 +111,9 @@ impl FeatureCatalog {
                 server_url: "https://prod-kv-store.dev.fedibtc.com/".to_string(),
             }),
             override_localhost: Some(OverrideLocalhostFeatureConfig {}),
+            stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
+                state: StabilityPoolV2FeatureConfigState::Multispend,
+            }),
         }
     }
 
@@ -83,6 +121,9 @@ impl FeatureCatalog {
         Self {
             encrypted_sync: None,
             override_localhost: None,
+            stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
+                state: StabilityPoolV2FeatureConfigState::SpV2Only,
+            }),
         }
     }
 
@@ -90,6 +131,7 @@ impl FeatureCatalog {
         Self {
             encrypted_sync: None,
             override_localhost: None,
+            stability_pool_v2: None,
         }
     }
 }

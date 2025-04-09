@@ -8,7 +8,7 @@ buildscript {
         compileSdkVersion = 34
         targetSdkVersion = 34
         ndkVersion = "26.1.10909125"
-        zendeskSdkVersion = "2.13.0"
+        zendeskSdkVersion = "2.18.0" //there is a bug in version 2.19.- that affects the Android back button. Do not bump unless you are sure it is resolved!!
 
         //todo: for VisionCameraCodeScanner configurations, if required - Can remove these now - Nadav!
         VisionCameraCodeScanner_minSdkVersion = 23

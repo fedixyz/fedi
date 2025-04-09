@@ -27,6 +27,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
     const toast = useToast()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const { parsedData } = route.params
+    const [notes, setNotes] = useState<string>('')
 
     const {
         isReadyToPay,
@@ -69,6 +70,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
                         amount: amountUtils.satToBtc(inputAmount),
                     },
                 },
+                notes,
             })
         } catch (err) {
             toast.error(t, err)
@@ -82,6 +84,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
         paymentFederation,
         toast,
         t,
+        notes,
     ])
 
     if (!isReadyToPay) return <ActivityIndicator />
@@ -102,6 +105,8 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
                     onPress: handleContinue,
                 },
             ]}
+            notes={notes}
+            setNotes={setNotes}
         />
     )
 }

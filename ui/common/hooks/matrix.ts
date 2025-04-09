@@ -23,6 +23,7 @@ import {
     sendMatrixReadReceipt,
     unobserveMatrixRoom,
     unsubscribeMatrixSyncStatus,
+    selectMatrixContactsList,
 } from '../redux'
 import {
     MatrixPaymentEvent,
@@ -38,6 +39,7 @@ import {
     makeMatrixPaymentText,
     matrixIdToUsername,
 } from '../utils/matrix'
+import { MatrixUrlMetadata, matrixUrlMetadataSchema } from '../utils/media'
 import { useAmountFormatter } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
@@ -61,6 +63,9 @@ export function useMatrixUserSearch() {
     const [isSearching, setIsSearching] = useState(false)
     const [searchError, setSearchError] = useState<unknown>()
     const timeoutRef = useRef<ReturnType<typeof setTimeout>>()
+
+    // Grab your recent room members from state (limit 10 for example).
+    const contactsList = useCommonSelector(s => selectMatrixContactsList(s))
 
     const query = searchQuery.trim()
 
@@ -102,11 +107,17 @@ export function useMatrixUserSearch() {
             dispatch(searchMatrixUsers(query))
                 .unwrap()
                 .then(res => {
-                    // HACK: half-measure to prevent users in public groups from appearing
-                    // in these search results. for now we do this UI-only filter until we
-                    // can migrate default groups to use room previews
-                    const filteredUsers = res.results.filter(
-                        r => r.displayName === query,
+                    // Filter by checking which users from DMs are in the search results
+                    const partialMatchedMemberIds = contactsList
+                        .filter(m =>
+                            m.displayName
+                                ?.toLowerCase()
+                                .includes(query.toLowerCase()),
+                        )
+                        .map(m => m.id)
+
+                    const filteredUsers = res.results.filter(r =>
+                        partialMatchedMemberIds.includes(r.id),
                     )
                     setSearchedUsers(filteredUsers)
                 })
@@ -114,7 +125,7 @@ export function useMatrixUserSearch() {
                 .finally(() => setIsSearching(false))
         }, 500)
         return () => clearTimeout(timeoutRef.current)
-    }, [dispatch, query])
+    }, [dispatch, query, contactsList])
 
     return {
         query: searchQuery,
@@ -434,4 +445,26 @@ export function useObserveMatrixSyncStatus(isMatrixStarted: boolean) {
             dispatch(unsubscribeMatrixSyncStatus())
         }
     }, [isMatrixStarted, dispatch])
+}
+
+export function useMatrixUrlPreview({
+    url,
+    fedimint,
+}: {
+    url: string
+    fedimint: FedimintBridge
+}) {
+    const [urlPreview, setUrlPreview] = useState<MatrixUrlMetadata | null>(null)
+
+    useEffect(() => {
+        fedimint.matrixGetMediaPreview({ url }).then(info => {
+            const parsedPreview = matrixUrlMetadataSchema.safeParse(info.data)
+
+            if (parsedPreview.success) {
+                setUrlPreview(parsedPreview.data)
+            }
+        })
+    }, [url, fedimint])
+
+    return urlPreview
 }

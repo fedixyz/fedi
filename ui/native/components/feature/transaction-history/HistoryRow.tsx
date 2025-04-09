@@ -1,77 +1,108 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import React, { memo, useMemo } from 'react'
 import { StyleSheet, TouchableOpacity, View } from 'react-native'
 
-import { MSats } from '@fedi/common/types'
+import { MSats, TransactionAmountState } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 
 export interface HistoryRowProps {
+    type: string
     icon: React.ReactNode
     status: React.ReactNode
-    notes: React.ReactNode
+    notes: string | undefined
     amount: MSats | string
     currencyText?: string | undefined
     timestamp: number | undefined | null
+    amountState: TransactionAmountState
     onSelect: () => void
 }
 
-export const HistoryRow: React.FC<HistoryRowProps> = ({
-    icon,
-    status,
-    notes,
-    amount,
-    currencyText,
-    timestamp,
-    onSelect,
-}) => {
-    const { theme } = useTheme()
+export const HistoryRow: React.FC<HistoryRowProps> = memo(
+    ({
+        type,
+        icon,
+        status,
+        notes,
+        amount,
+        currencyText,
+        timestamp,
+        amountState,
+        onSelect,
+    }) => {
+        const { theme } = useTheme()
 
-    const style = styles(theme)
+        const style = styles(theme)
 
-    const amountNode: React.ReactNode = (
-        <View style={style.amountContainer}>
-            <Text caption medium>
-                {amount}
-            </Text>
-            {currencyText && (
-                <Text tiny medium style={style.amountSuffix}>
-                    {currencyText}
+        const amountColor = useMemo(() => {
+            switch (amountState) {
+                case 'pending':
+                case 'failed':
+                    return theme.colors.darkGrey
+                case 'settled':
+                    return theme.colors.night
+            }
+        }, [amountState, theme])
+
+        const amountNode: React.ReactNode = (
+            <View style={style.amountContainer}>
+                <Text
+                    medium
+                    caption
+                    color={amountColor}
+                    style={amountState === 'failed' ? style.strikeThrough : {}}>
+                    {amount}
                 </Text>
-            )}
-        </View>
-    )
-
-    return (
-        <TouchableOpacity
-            onPress={() => onSelect()}
-            style={[style.container]}
-            hitSlop={4}>
-            {icon}
-            <View style={style.centerContainer}>
-                <Text caption medium>
-                    {status}
-                </Text>
-                {notes && (
-                    <Text small numberOfLines={1} style={style.subText}>
-                        {notes}
-                    </Text>
-                )}
-            </View>
-
-            <View style={style.rightContainer}>
-                {amountNode}
-                {timestamp && (
+                {currencyText && (
                     <Text
-                        small
-                        style={[style.rightAlignedText, style.subText]}
-                        maxFontSizeMultiplier={1.4}>
-                        {dateUtils.formatTxnTileTimestamp(timestamp)}
+                        tiny
+                        medium
+                        style={style.amountSuffix}
+                        color={amountColor}>
+                        {currencyText}
                     </Text>
                 )}
             </View>
-        </TouchableOpacity>
-    )
-}
+        )
+
+        return (
+            <TouchableOpacity
+                onPress={() => onSelect()}
+                style={[style.container]}
+                hitSlop={4}>
+                {icon}
+                <View style={style.centerContainer}>
+                    <Text caption medium>
+                        {status}
+                    </Text>
+                    <Text small numberOfLines={1} style={style.subText}>
+                        {type} {notes ? `(${notes})` : ''}
+                    </Text>
+                </View>
+
+                <View style={style.rightContainer}>
+                    {amountNode}
+                    {timestamp && (
+                        <Text
+                            small
+                            style={[style.rightAlignedText, style.subText]}
+                            maxFontSizeMultiplier={1.4}>
+                            {dateUtils.formatTxnTileTimestamp(timestamp)}
+                        </Text>
+                    )}
+                </View>
+            </TouchableOpacity>
+        )
+    },
+    (prevProps, nextProps) => {
+        return (
+            prevProps.status === nextProps.status &&
+            prevProps.notes === nextProps.notes &&
+            prevProps.amount === nextProps.amount &&
+            prevProps.currencyText === nextProps.currencyText &&
+            prevProps.timestamp === nextProps.timestamp
+        )
+    },
+)
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
@@ -113,5 +144,10 @@ const styles = (theme: Theme) =>
         },
         amountSuffix: {
             paddingBottom: 1,
+        },
+        strikeThrough: {
+            textDecorationLine: 'line-through',
+            textDecorationColor: theme.colors.grey,
+            textDecorationStyle: 'solid',
         },
     })

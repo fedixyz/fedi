@@ -51,6 +51,9 @@ export async function uploadBugReportLogs(id: string, gzip: Buffer) {
 export async function submitBugReport(args: {
     id: string // uuid
     ticketNumber?: string // support ticket number
+    appVersion?: string
+    fedimintVersion?: string
+    platform?: string
 }) {
     const res = await fetch(`${API_ORIGIN}/api/bug-report/submit`, {
         method: 'POST',

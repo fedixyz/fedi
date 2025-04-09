@@ -112,7 +112,7 @@ const ChatScreen: React.FC<Props> = () => {
                     <Tooltip
                         shouldShow={isChatEmpty && !hasOpenedNewChat}
                         delay={1200}
-                        text="New chat"
+                        text={t('feature.chat.new-chat')}
                         orientation="above"
                         side="right"
                         horizontalOffset={44}

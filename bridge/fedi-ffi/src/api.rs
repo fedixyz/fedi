@@ -194,6 +194,13 @@ impl IFediApi for LiveFediApi {
                 receive_ppm: fee_schedule_v0.modules.stability_pool.receive_ppm,
             },
         );
+        modules.insert(
+            stability_pool_client::common::KIND,
+            ModuleFediFeeSchedule {
+                send_ppm: fee_schedule_v0.modules.multi_sig_stability_pool.send_ppm,
+                receive_ppm: fee_schedule_v0.modules.multi_sig_stability_pool.receive_ppm,
+            },
+        );
 
         Ok(FediFeeSchedule {
             remittance_threshold_msat,

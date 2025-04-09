@@ -8,7 +8,7 @@ import { TFunction } from 'i18next'
 
 import {
     CommonState,
-    fetchCurrencyPrices,
+    refreshHistoricalCurrencyRates,
     selectActiveFederation,
     selectActiveFederationId,
     selectBtcExchangeRate,
@@ -19,6 +19,7 @@ import {
 } from '.'
 import { Federation, MSats, ReceiveEcashResult, Usd, UsdCents } from '../types'
 import {
+    FrontendMetadata,
     JSONObject,
     RpcAmount,
     RpcEcashInfo,
@@ -31,7 +32,7 @@ import amountUtils from '../utils/AmountUtils'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 
-const log = makeLog('native/redux/wallet')
+const log = makeLog('common/redux/wallet')
 
 type FederationPayloadAction<T = object> = PayloadAction<
     { federationId: string } & T
@@ -163,19 +164,46 @@ export const {
 
 export const generateAddress = createAsyncThunk<
     string,
-    { fedimint: FedimintBridge; federationId: string },
+    {
+        fedimint: FedimintBridge
+        federationId: string
+        frontendMetadata: FrontendMetadata
+    },
     { state: CommonState }
->('wallet/generateAddress', async ({ fedimint, federationId }) => {
-    return fedimint.generateAddress(federationId)
-})
+>(
+    'wallet/generateAddress',
+    async ({ fedimint, federationId, frontendMetadata }) => {
+        return fedimint.generateAddress(federationId, frontendMetadata)
+    },
+)
 
 export const generateEcash = createAsyncThunk<
     { ecash: string; cancelAt: number },
-    { fedimint: FedimintBridge; federationId: string; amount: MSats },
+    {
+        fedimint: FedimintBridge
+        federationId: string
+        amount: MSats
+        includeInvite: boolean
+        frontendMetadata: FrontendMetadata
+    },
     { state: CommonState }
->('wallet/generateEcash', async ({ fedimint, federationId, amount }) => {
-    return fedimint.generateEcash(amount, federationId)
-})
+>(
+    'wallet/generateEcash',
+    async ({
+        fedimint,
+        federationId,
+        amount,
+        includeInvite,
+        frontendMetadata,
+    }) => {
+        return fedimint.generateEcash(
+            amount,
+            federationId,
+            includeInvite,
+            frontendMetadata,
+        )
+    },
+)
 
 export const generateInvoice = createAsyncThunk<
     string,
@@ -184,21 +212,39 @@ export const generateInvoice = createAsyncThunk<
         federationId: string
         amount: MSats
         description: string
+        frontendMetadata: FrontendMetadata
     },
     { state: CommonState }
 >(
     'wallet/generateInvoice',
-    async ({ fedimint, federationId, amount, description }) => {
-        return fedimint.generateInvoice(amount, description, federationId)
+    async ({
+        fedimint,
+        federationId,
+        amount,
+        description,
+        frontendMetadata,
+    }) => {
+        return fedimint.generateInvoice(
+            amount,
+            description,
+            federationId,
+            null,
+            frontendMetadata,
+        )
     },
 )
 
 export const payInvoice = createAsyncThunk<
     { preimage: string },
-    { fedimint: FedimintBridge; federationId: string; invoice: string },
+    {
+        fedimint: FedimintBridge
+        federationId: string
+        invoice: string
+        notes?: string
+    },
     { state: CommonState }
->('wallet/payInvoice', async ({ fedimint, federationId, invoice }) => {
-    return fedimint.payInvoice(invoice, federationId)
+>('wallet/payInvoice', async ({ fedimint, federationId, invoice, notes }) => {
+    return fedimint.payInvoice(invoice, federationId, notes)
 })
 
 /**
@@ -225,20 +271,22 @@ export const receiveEcash = createAsyncThunk<
 
         const unsubscribe = fedimint.addListener('transaction', event => {
             if (event.transaction.id !== operationId) return
+            const txn = event.transaction
 
-            if (event.transaction.oobState?.type === 'done') {
-                clearTimeout(timeout)
-                unsubscribe()
-                resolve({ amount, status: 'success' })
-            } else if (event.transaction.oobState?.type === 'failed') {
-                clearTimeout(timeout)
-                unsubscribe()
-                resolve({
-                    amount,
-                    status: 'failed',
-                    // Is the ONLY error case that it's 'already claimed?'
-                    error: event.transaction.oobState?.error,
-                })
+            if (txn.kind === 'oobReceive') {
+                if (txn.state?.type === 'done') {
+                    clearTimeout(timeout)
+                    unsubscribe()
+                    resolve({ amount, status: 'success' })
+                } else if (txn.state?.type === 'failed') {
+                    clearTimeout(timeout)
+                    unsubscribe()
+                    resolve({
+                        amount,
+                        status: 'failed',
+                        error: txn.state?.error,
+                    })
+                }
             }
         })
     })
@@ -250,6 +298,21 @@ export const validateEcash = createAsyncThunk<
     { state: CommonState }
 >('wallet/validateEcash', async ({ fedimint, ecash }) => {
     return fedimint.validateEcash(ecash)
+})
+
+export const cancelEcash = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; ecash: string },
+    { state: CommonState }
+>('wallet/cancelEcash', async ({ fedimint, ecash }) => {
+    const decoded = await fedimint.validateEcash(ecash)
+
+    // Should never happen since the user is the one who minted the ecash notes
+    if (decoded.federation_type !== 'joined') {
+        throw new Error('errors.unknown-ecash-issuer')
+    }
+
+    await fedimint.cancelEcash(ecash, decoded.federation_id)
 })
 
 export const generateReusedEcashProofs = createAsyncThunk<
@@ -357,7 +420,15 @@ export const refreshActiveStabilityPool = createAsyncThunk<
         if (!federationId) throw new Error('errors.unknown-error')
         // Make sure we have the latest exchange rates every time we refresh stabilitypool
         // so deposits/withdrawal amount conversions are as accurate as possible
-        dispatch(fetchCurrencyPrices())
+
+        await dispatch(refreshHistoricalCurrencyRates({ fedimint }))
+            .unwrap()
+            .catch(_error => {
+                log.warn(
+                    'Failed to refresh currency rates during stability pool refresh',
+                )
+            })
+
         dispatch(fetchStabilityPoolCycleStartPrice({ fedimint, federationId }))
 
         dispatch(

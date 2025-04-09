@@ -33,6 +33,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
     const toast = useToast()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
+    const [notes, setNotes] = useState<string>('')
     const { parsedData } = route.params
     const {
         isReadyToPay,
@@ -71,7 +72,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
 
         setIsPayingInvoice(true)
         try {
-            await handleOmniSend(inputAmount)
+            await handleOmniSend(inputAmount, notes || undefined)
             navigationReplace('SendSuccess', {
                 amount: amountUtils.satToMsat(inputAmount),
                 unit,
@@ -89,6 +90,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         navigationReplace,
         toast,
         t,
+        notes,
     ])
 
     if (!isReadyToPay) return <ActivityIndicator />
@@ -166,6 +168,8 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
                           ]
                         : []
                 }
+                notes={notes}
+                setNotes={setNotes}
             />
         </>
     )

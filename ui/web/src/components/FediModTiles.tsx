@@ -50,17 +50,8 @@ const FediModTile = ({
             as={isExternal ? undefined : Link}
             target={isExternal ? '_blank' : undefined}
             rel={isExternal ? 'noopener noreferrer' : undefined}>
-            {typeof image === 'string' ? (
-                <FediModIcon src={image} alt="" />
-            ) : (
-                <FediModIcon
-                    as={Image}
-                    src={image}
-                    alt=""
-                    width={48}
-                    height={48}
-                />
-            )}
+            <FediModIcon src={image} width={48} height={48} alt={title || ''} />
+
             <FediModTitle>
                 <Text variant="small" ellipsize>
                     {title}
@@ -105,7 +96,7 @@ const FediModTileBase = styled('a', {
     },
 })
 
-const FediModIcon = styled('img', {
+const FediModIcon = styled(Image, {
     width: 48,
     height: 48,
     borderRadius: 12,

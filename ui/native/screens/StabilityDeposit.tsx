@@ -1,16 +1,16 @@
-import { useNavigation } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keyboard, StyleSheet } from 'react-native'
 
 import { useDepositForm } from '@fedi/common/hooks/amount'
-import { fetchCurrencyPrices } from '@fedi/common/redux'
+import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { hexToRgba } from '@fedi/common/utils/color'
 
+import { fedimint } from '../bridge'
 import { AmountScreen } from '../components/ui/AmountScreen'
-import { useAppDispatch } from '../state/hooks'
 import { Sats } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -30,8 +30,9 @@ const StabilityDeposit: React.FC<Props> = () => {
         maximumAmount,
         maximumFiatAmount,
     } = useDepositForm()
-    const dispatch = useAppDispatch()
     const [submitAttempts, setSubmitAttempts] = useState(0)
+
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)
@@ -48,10 +49,11 @@ const StabilityDeposit: React.FC<Props> = () => {
         Keyboard.dismiss()
     }
 
-    useEffect(() => {
-        dispatch(fetchCurrencyPrices())
-    }, [dispatch])
-
+    useFocusEffect(
+        useCallback(() => {
+            syncCurrencyRatesAndCache()
+        }, [syncCurrencyRatesAndCache]),
+    )
     const style = styles(theme)
 
     return (

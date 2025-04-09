@@ -12,6 +12,7 @@ pub struct ModulesFeesV0 {
     pub ln: PPMs,
     pub mint: PPMs,
     pub stability_pool: PPMs,
+    pub multi_sig_stability_pool: PPMs,
     pub wallet: PPMs,
 }
 

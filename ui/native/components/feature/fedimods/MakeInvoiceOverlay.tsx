@@ -1,15 +1,16 @@
-import { useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import { RejectionError } from 'webln'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     generateInvoice,
-    selectActiveFederationId,
+    listGateways,
     selectLnurlWithdrawal,
+    selectPaymentFederation,
     selectRequestInvoiceArgs,
     selectSiteInfo,
 } from '@fedi/common/redux'
@@ -22,6 +23,7 @@ import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
 import CustomOverlay from '../../ui/CustomOverlay'
+import FederationWalletSelector from '../send/FederationWalletSelector'
 
 const log = makeLog('MakeInvoiceOverlay')
 
@@ -33,7 +35,7 @@ interface Props {
 export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const federationId = useAppSelector(selectActiveFederationId)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const dispatch = useAppDispatch()
     const lnurlWithdrawal = useAppSelector(selectLnurlWithdrawal)
     const requestInvoiceArgs = useAppSelector(selectRequestInvoiceArgs)
@@ -73,12 +75,21 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
 
         try {
             setIsLoading(true)
-            if (!federationId) throw new Error()
+            if (!paymentFederation?.id) throw new Error()
+
+            const gateways = await dispatch(
+                listGateways({ fedimint, federationId: paymentFederation.id }),
+            ).unwrap()
+
+            if (!gateways.length) {
+                throw new Error('No available lightning gateways')
+            }
+
             const msats = amountUtils.satToMsat(inputAmount)
             const paymentRequest = lnurlWithdrawal
                 ? await lnurlWithdraw(
                       fedimint,
-                      federationId,
+                      paymentFederation.id,
                       lnurlWithdrawal,
                       msats,
                       memo,
@@ -86,9 +97,14 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                 : await dispatch(
                       generateInvoice({
                           fedimint,
-                          federationId,
+                          federationId: paymentFederation.id,
                           amount: msats,
                           description: memo,
+                          frontendMetadata: {
+                              initialNotes: null,
+                              recipientMatrixId: null,
+                              senderMatrixId: null,
+                          },
                       }),
                   ).unwrap()
             onAcceptRef.current({ paymentRequest })
@@ -122,7 +138,8 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                       }),
                 description: requestInvoiceArgs?.defaultMemo || '',
                 body: (
-                    <View style={{ flex: 1, paddingTop: theme.spacing.xl }}>
+                    <View style={styles(theme).container}>
+                        <FederationWalletSelector />
                         <AmountInput
                             key={amountInputKey}
                             amount={inputAmount}
@@ -155,3 +172,13 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         />
     )
 }
+
+const styles = (theme: Theme) =>
+    StyleSheet.create({
+        container: {
+            flex: 1,
+            paddingTop: theme.spacing.xl,
+            alignItems: 'center',
+            gap: theme.spacing.lg,
+        },
+    })

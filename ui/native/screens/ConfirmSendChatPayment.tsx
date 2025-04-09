@@ -33,7 +33,7 @@ export type Props = NativeStackScreenProps<
 const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const { amount, roomId } = route.params
+    const { amount, roomId, notes } = route.params
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
         useFeeDisplayUtils(t)
@@ -55,11 +55,15 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
     )
 
     const onSend = useCallback(async () => {
-        handleSendPayment(amount, () => {
-            // go back to DirectChat to show sent payment
-            navigation.dispatch(resetToDirectChat(roomId))
-        })
-    }, [amount, handleSendPayment, navigation, roomId])
+        handleSendPayment(
+            amount,
+            () => {
+                // go back to DirectChat to show sent payment
+                navigation.dispatch(resetToDirectChat(roomId))
+            },
+            notes,
+        )
+    }, [amount, handleSendPayment, navigation, notes, roomId])
 
     const style = styles(theme)
 

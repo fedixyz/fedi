@@ -14,6 +14,7 @@ use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::module::{CommonModuleInit, ModuleCommon, ModuleConsensusVersion};
 use fedimint_core::{
     extensible_associated_module_type, plugin_types_trait_impl_common, Amount, BitcoinHash,
+    TransactionId,
 };
 use secp256k1::{schnorr, PublicKey};
 use serde::de::Error as _;
@@ -23,7 +24,7 @@ pub mod config;
 use config::StabilityPoolClientConfig;
 
 pub const KIND: ModuleKind = ModuleKind::from_static_str("multi_sig_stability_pool");
-pub const CONSENSUS_VERSION: ModuleConsensusVersion = ModuleConsensusVersion::new(0, 0);
+pub const CONSENSUS_VERSION: ModuleConsensusVersion = ModuleConsensusVersion::new(2, 0);
 
 pub const MSATS_PER_BTC: u128 = 100_000_000_000;
 
@@ -35,6 +36,7 @@ pub const MSATS_PER_BTC: u128 = 100_000_000_000;
 /// interactions and the oracle, everything should "just work".
 #[derive(
     Copy,
+    Default,
     Clone,
     Debug,
     Hash,
@@ -98,6 +100,18 @@ impl FiatAmount {
 pub enum AccountType {
     Seeker,
     Provider,
+    /// A BtcDepositor only wants to hold Bitcoin in the stability pool module
+    /// (typically in a multisig) without any sort of fiat-value stabilization.
+    /// To avoid creating new balance buckets and module input/output types, we
+    /// can represent this account type as a staged-only seeker. This is
+    /// hacky, yes. But one might argue that it is a lot less hacky compared
+    /// to writing new data types for a bitcoin-only multisig within a
+    /// stability pool module; less hacky than stuffing two different
+    /// modules into one. Plus it allows for a ton of code reuse because the
+    /// staging area is a well-defined state for deposits that are
+    /// unstabilized, and we have already handled deposits, withdrawals and
+    /// transfers associated with the staging area.
+    BtcDepositor,
 }
 
 /// `Account` within the stability pool is represented as a naive multi-sig of
@@ -116,10 +130,10 @@ pub struct Account {
 
 /// Account without invariants that can be checked using try_into.
 #[derive(Decodable, Deserialize)]
-struct AccountUnchecked {
-    acc_type: AccountType,
-    pub_keys: BTreeSet<PublicKey>,
-    threshold: u64,
+pub struct AccountUnchecked {
+    pub acc_type: AccountType,
+    pub pub_keys: BTreeSet<PublicKey>,
+    pub threshold: u64,
 }
 
 impl TryFrom<AccountUnchecked> for Account {
@@ -205,6 +219,10 @@ impl Account {
     pub fn acc_type(&self) -> AccountType {
         self.acc_type
     }
+
+    pub fn threshold(&self) -> u64 {
+        self.threshold
+    }
 }
 
 impl AccountId {
@@ -215,12 +233,14 @@ impl AccountId {
 
 pub const SEEKER_HRP: Hrp = Hrp::parse_unchecked("sps");
 pub const PROVIDER_HRP: Hrp = Hrp::parse_unchecked("spp");
+pub const BTC_DEPOSITOR_HRP: Hrp = Hrp::parse_unchecked("spd");
 
 impl Display for AccountId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let hrp = match self.acc_type {
             AccountType::Seeker => SEEKER_HRP,
             AccountType::Provider => PROVIDER_HRP,
+            AccountType::BtcDepositor => BTC_DEPOSITOR_HRP,
         };
         let encoded = bech32::encode::<Bech32m>(hrp, self.hash.as_ref()).map_err(|_| fmt::Error)?;
         write!(f, "{}", encoded)
@@ -237,6 +257,8 @@ impl FromStr for AccountId {
             AccountType::Seeker
         } else if hrp.as_str() == PROVIDER_HRP.as_str() {
             AccountType::Provider
+        } else if hrp.as_str() == BTC_DEPOSITOR_HRP.as_str() {
+            AccountType::BtcDepositor
         } else {
             bail!("Invalid account type");
         };
@@ -252,6 +274,10 @@ impl FromStr for AccountId {
 /// of positions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Deposit<M> {
+    /// ID of TX that birthed this deposit.
+    pub txid: TransactionId,
+
+    /// Incrementing nonce (server-assigned) for priority
     pub sequence: u64,
     pub amount: Amount,
     pub meta: M,
@@ -262,7 +288,7 @@ where
     M: Encodable,
 {
     fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
-        (self.sequence, self.amount, &self.meta).consensus_encode(writer)
+        (self.txid, self.sequence, self.amount, &self.meta).consensus_encode(writer)
     }
 }
 
@@ -274,8 +300,10 @@ where
         r: &mut R,
         modules: &ModuleDecoderRegistry,
     ) -> Result<Self, DecodeError> {
-        let (sequence, amount, meta) = <(u64, Amount, M)>::consensus_decode(r, modules)?;
+        let (txid, sequence, amount, meta) =
+            <(TransactionId, u64, Amount, M)>::consensus_decode(r, modules)?;
         Ok(Self {
+            txid,
             sequence,
             amount,
             meta,
@@ -430,7 +458,7 @@ pub struct TransferRequest {
     /// reasonable.
     nonce: u64,
     from: Account,
-    transfer_amount: FiatOrAll,
+    transfer_amount: FiatAmount,
     to: AccountId,
 
     /// This meta field allows embedding additional arbitrary information as
@@ -456,7 +484,7 @@ impl TransferRequest {
     pub fn new(
         nonce: u64,
         from: Account,
-        transfer_amount: FiatOrAll,
+        transfer_amount: FiatAmount,
         to: AccountId,
         meta: Vec<u8>,
         valid_until_cycle: u64,
@@ -468,14 +496,12 @@ impl TransferRequest {
             "From and to account types must match"
         );
 
-        // Transfer amount must be non-zero or All
-        if let FiatOrAll::Fiat(fiat) = transfer_amount {
-            ensure!(fiat.0 != 0, "Transfer amount must not be 0");
-        }
+        // Transfer amount must be non-zero
+        ensure!(transfer_amount.0 != 0, "Transfer amount must not be 0");
 
         // Fee rate must only be set for a provider-to-provider transfer
         match from.acc_type {
-            AccountType::Seeker => ensure!(
+            AccountType::Seeker | AccountType::BtcDepositor => ensure!(
                 new_fee_rate.is_none(),
                 "Fee rate only applies to provider-to-provider transfer"
             ),
@@ -500,7 +526,7 @@ impl TransferRequest {
         &self.from
     }
 
-    pub fn amount(&self) -> FiatOrAll {
+    pub fn amount(&self) -> FiatAmount {
         self.transfer_amount
     }
 
@@ -521,7 +547,7 @@ impl TransferRequest {
     }
 }
 
-#[derive(Debug, Clone, Encodable, Decodable)]
+#[derive(Debug, Clone, Encodable, Decodable, Serialize, Deserialize)]
 pub struct TransferRequestId(pub sha256::Hash);
 
 impl From<&TransferRequest> for TransferRequestId {
@@ -796,11 +822,12 @@ impl Display for StabilityPoolOutputV0 {
             ),
             StabilityPoolOutputV0::Transfer(transfer_output) => write!(
                 f,
-                "Transfer {} from account {} to account {}",
+                "Transfer {} fiat amount from account {} to account {}",
                 transfer_output
                     .signed_request
                     .transfer_request
-                    .transfer_amount,
+                    .transfer_amount
+                    .0,
                 transfer_output.signed_request.transfer_request.from.id(),
                 transfer_output.signed_request.transfer_request.to,
             ),
@@ -824,31 +851,22 @@ impl Display for StabilityPoolConsensusItemV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encodable, Decodable, Serialize, Deserialize)]
-pub struct SeekMetadata {
-    pub staged_sequence: u64,
-    pub initial_amount: Amount,
-    pub initial_fiat_amount: FiatAmount,
-    pub withdrawn_amount: Amount,
-    pub withdrawn_fiat_amount: FiatAmount,
-    pub fees_paid_so_far: Amount,
-    pub first_lock_start_time: SystemTime,
-    pub fully_withdrawn: bool,
-}
+/// An `UnlockRequest` is stored on the server when staged deposits are not
+/// enough to satisfy a user's unlock request. At the next cycle turnover, we
+/// used the just-settled locked deposits to unlock any additional funds needed,
+/// and then delete the `UnlockRequest` from the DB.
+#[derive(Serialize, Deserialize, Encodable, Decodable, Debug, Clone, PartialEq, Eq)]
+pub struct UnlockRequest {
+    /// ID of the TX representing the user's request to unlock funds
+    pub txid: TransactionId,
 
-impl Default for SeekMetadata {
-    fn default() -> Self {
-        SeekMetadata {
-            staged_sequence: 0,
-            initial_amount: Amount::ZERO,
-            initial_fiat_amount: FiatAmount(0),
-            withdrawn_amount: Amount::ZERO,
-            withdrawn_fiat_amount: FiatAmount(0),
-            fees_paid_so_far: Amount::ZERO,
-            first_lock_start_time: fedimint_core::time::now(),
-            fully_withdrawn: false,
-        }
-    }
+    /// The total fiat amount that was requested to be unlocked. This includes
+    /// any amount that has already been drained from the staged deposits.
+    pub total_fiat_requested: FiatAmount,
+
+    /// The remaining amount needed to be unlocked from locked deposits at the
+    /// next cycle turnover.
+    pub unlock_amount: FiatOrAll,
 }
 
 /// After submitting the TX to unlock funds, clients will query the server for
@@ -875,8 +893,13 @@ impl Default for SeekMetadata {
 /// return it within the status to save the client an extra API call.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnlockRequestStatus {
-    Pending { next_cycle_start_time: SystemTime },
-    NoActiveRequest { idle_balance: Amount },
+    Pending {
+        request: UnlockRequest,
+        next_cycle_start_time: SystemTime,
+    },
+    NoActiveRequest {
+        idle_balance: Amount,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encodable, Decodable)]
@@ -885,6 +908,21 @@ pub struct LiquidityStats {
     pub locked_provides_sum_msat: u64,
     pub staged_seeks_sum_msat: u64,
     pub staged_provides_sum_msat: u64,
+}
+
+/// Client calls /active_deposits endpoint to determine:
+/// - Staged and locked seeks for a seeker account OR
+/// - Staged and locked provides for a provider account
+#[derive(Serialize, Deserialize, Encodable, Decodable, Debug, Clone, PartialEq, Eq)]
+pub enum ActiveDeposits {
+    Seeker {
+        staged: Vec<Seek>,
+        locked: Vec<Seek>,
+    },
+    Provider {
+        staged: Vec<Provide>,
+        locked: Vec<Provide>,
+    },
 }
 
 /// Client calls /sync endpoint to sync client state from server.
@@ -896,10 +934,34 @@ pub struct SyncResponse {
     pub staged_balance: Amount,
     pub locked_balance: Amount,
     pub idle_balance: Amount,
+    pub unlock_request: Option<UnlockRequest>,
     /// Number of history items for this account.
     ///
     /// Client can use this if they have any new history item.
     pub account_history_count: u64,
+
+    /// A map of txid => lifetime fee paid
+    /// This only pertains to seekers, that's why it's Optional
+    /// Only currently locked seeks are included
+    pub locked_seeks_lifetime_fee: Option<BTreeMap<TransactionId, Amount>>,
+}
+
+impl SyncResponse {
+    pub fn amount_from_unlock_request(&self) -> Option<(Amount, FiatAmount)> {
+        match self.unlock_request.as_ref()?.unlock_amount {
+            FiatOrAll::Fiat(fiat_amount) => Some((
+                fiat_amount
+                    .to_btc_amount(self.current_cycle.start_price)
+                    .ok()?,
+                fiat_amount,
+            )),
+            FiatOrAll::All => Some((
+                self.locked_balance,
+                FiatAmount::from_btc_amount(self.locked_balance, self.current_cycle.start_price)
+                    .ok()?,
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -917,62 +979,75 @@ pub struct CycleInfo {
     pub start_time: SystemTime,
 }
 
-/// - History is at account level
-/// - Every state transaction of deposit is tracked.
+/// - History is stored per account
+/// - Every state transition of each deposit is tracked.
 /// - We don't keep history of idle balance.
 /// - Amounts are sent as msats and we also send the cycle price.
 #[derive(Serialize, Deserialize, Encodable, Decodable, Debug, Clone, PartialEq, Eq)]
 pub struct AccountHistoryItem {
     /// Cycle in which the transaction happened
     pub cycle: CycleInfo,
+    /// ID of transaction that gave birth to this account history item. For
+    /// user-initiated operations, this will be the ID of the user-submitted FM
+    /// TX. For automatic operations, like auto-renewal, this will be the ID of
+    /// the TX that birthed the deposit.
+    pub txid: TransactionId,
+    /// Sequence of the particular deposit whose state is being changed
+    pub deposit_sequence: u64,
+    /// The amount that is being effected within this particular deposit. The
+    /// exact "effect" on the amount is determined by the "kind".
+    pub amount: Amount,
     /// Kind of transaction
     pub kind: AccountHistoryItemKind,
 }
 
 #[derive(Debug, Serialize, Deserialize, Encodable, Decodable, Clone, PartialEq, Eq)]
+#[serde(tag = "kind")]
 pub enum AccountHistoryItemKind {
-    DepositToStaged {
-        deposit_sequence: u64,
-        amount: Amount,
-    },
-    StagedToLocked {
-        deposit_sequence: u64,
-        amount_moved: Amount,
-    },
-    LockedToStaged {
-        deposit_sequence: u64,
-        amount_moved: Amount,
-    },
-    LockedToIdle {
-        deposit_sequence: u64,
-        amount_withdrawn: Amount,
-    },
-    StagedToIdle {
-        desposit_sequence: u64,
-        amount_withdrawn: Amount,
-    },
-    LockedTransferIn {
-        desposit_sequence: u64,
-        amount: Amount,
-        from: AccountId,
-        meta: Vec<u8>,
-    },
-    LockedTransferOut {
-        desposit_sequence: u64,
-        amount: Amount,
-        to: AccountId,
-        meta: Vec<u8>,
-    },
-    StagedTransferIn {
-        desposit_sequence: u64,
-        amount: Amount,
-        from: AccountId,
-        meta: Vec<u8>,
-    },
-    StagedTransferOut {
-        desposit_sequence: u64,
-        amount: Amount,
-        to: AccountId,
-        meta: Vec<u8>,
-    },
+    /// Fresh deposit into the stability pool (starts out as staged)
+    DepositToStaged,
+
+    /// A staged deposit is locked EXCEPT during auto-renewal. Note that at the
+    /// end of each cycle, locked deposits are first moved to staged, and
+    /// then they are considered again for locking together with other
+    /// staged deposits. This is called an "auto-renewal". Auto-renewals DO
+    /// NOT log in the account history.
+    StagedToLocked,
+
+    /// A locked deposit is kicked out to staged EXCEPT during auto-renewal. So
+    /// a deposit was locked, and then couldn't be relocked due to lack of
+    /// liquidity. Note that at the end of each cycle, locked deposits are
+    /// first moved to staged, and then they are considered again for
+    /// locking together with other staged deposits. This is called an
+    /// "auto-renewal". Auto-renewals DO NOT log in the account history.
+    LockedToStaged,
+
+    /// A withdrawal request was received, and for the funds that could be
+    /// drained from the staged deposits immediately, idle balance was credited.
+    StagedToIdle,
+
+    /// A withdrawal request was received, and couldn't be fulfilled using
+    /// staged deposits at the time. So an unlock request was registered, and
+    /// the next cycle turnover, part of the locked funds were removed from the
+    /// contract-formation process and sent to idle balance for the user to
+    /// claim.
+    LockedToIdle,
+
+    /// A transfer request was received and processed and as a result the
+    /// recipient of the funds has a new staged deposit.
+    StagedTransferIn { from: AccountId, meta: Vec<u8> },
+
+    /// A transfer request was received and processed and as a result the
+    /// recipient of the funds has a new locked deposit.
+    LockedTransferIn { from: AccountId, meta: Vec<u8> },
+
+    /// A transfer request was received and processed and as a result the sender
+    /// of the funds gave up some staged deposits that were immediately given to
+    /// the recipient.
+    StagedTransferOut { to: AccountId, meta: Vec<u8> },
+
+    /// A transfer request was received and processed and as a result the sender
+    /// of the funds gave up some locked deposits that were immediately given to
+    /// the recipient.
+    LockedTransferOut { to: AccountId, meta: Vec<u8> },
 }

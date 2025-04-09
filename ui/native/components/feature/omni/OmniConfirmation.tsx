@@ -16,10 +16,15 @@ import {
 
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
-import { AnyParsedData, ParserDataType } from '../../../types'
+import {
+    AnyParsedData,
+    ParsedFedimintEcash,
+    ParserDataType,
+} from '../../../types'
 import { NavigationArgs, NavigationHook } from '../../../types/navigation'
 import CustomOverlay, { CustomOverlayContents } from '../../ui/CustomOverlay'
 import RecoveryInProgress from '../recovery/RecoveryInProgress'
+import OmniReceiveEcash from './OmniReceiveEcash'
 
 interface Props<T extends AnyParsedData> {
     parsedData: T
@@ -67,6 +72,25 @@ export const OmniConfirmation = <T extends AnyParsedData>({
         setIsLoading(false)
     }
 
+    const handleContinueFedimintEcash = ({ data }: ParsedFedimintEcash) => {
+        // If you haven't joined the federation
+        // AND if it does include an invite code, don't show any buttons
+        if (
+            data.parsed.federation_type === 'notJoined' &&
+            data.parsed.federation_invite
+        )
+            return null
+
+        // Otherwise if you haven't joined and it DOESN'T include an invite code
+        // Show the "Go Back" button
+        if (data.parsed.federation_type === 'notJoined') return undefined
+
+        return () =>
+            handleNavigate('ConfirmReceiveOffline', {
+                ecash: data.token,
+            })
+    }
+
     const {
         contents,
         continueText = t('words.continue'),
@@ -74,7 +98,10 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     } = ((): {
         contents: CustomOverlayContents
         continueText?: string
-        continueOnPress?: () => void
+        // undefined = show back button only
+        // null = show no buttons
+        // otherwise, show back button and continue button with continueOnPress action
+        continueOnPress?: (() => void) | null
     } => {
         // If they're not yet a member of a federation, they can only scan certain codes.
         if (
@@ -108,6 +135,13 @@ export const OmniConfirmation = <T extends AnyParsedData>({
         }
 
         switch (parsedData.type) {
+            case ParserDataType.OfflineError:
+                return {
+                    contents: {
+                        icon: 'Warning',
+                        title: parsedData.data.title,
+                    },
+                }
             case ParserDataType.Bolt11:
             case ParserDataType.LnurlPay:
                 return {
@@ -164,13 +198,24 @@ export const OmniConfirmation = <T extends AnyParsedData>({
             case ParserDataType.FedimintEcash:
                 return {
                     contents: {
-                        icon: 'Bolt',
-                        title: t('feature.omni.confirm-ecash-token'),
+                        title: t('feature.omni.confirm-receive-ecash'),
+                        icon:
+                            parsedData.data.parsed.federation_type === 'joined'
+                                ? 'Bolt'
+                                : undefined,
+                        body: (
+                            <OmniReceiveEcash
+                                parsed={parsedData.data.parsed}
+                                onContinue={() =>
+                                    handleNavigate('ConfirmReceiveOffline', {
+                                        ecash: parsedData.data.token,
+                                    })
+                                }
+                            />
+                        ),
                     },
-                    continueOnPress: () =>
-                        handleNavigate('ConfirmReceiveOffline', {
-                            ecash: parsedData.data.token,
-                        }),
+                    // I would use if statements but eslint doesn't like them in switch statements
+                    continueOnPress: handleContinueFedimintEcash(parsedData),
                 }
             case ParserDataType.LnurlAuth:
                 return {
@@ -266,6 +311,8 @@ export const OmniConfirmation = <T extends AnyParsedData>({
 
     const goBackText = propsGoBackText || t('phrases.go-back')
     const buttons = useMemo(() => {
+        if (continueOnPress === null) return []
+
         const b = [
             {
                 text: goBackText,

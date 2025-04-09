@@ -10,7 +10,7 @@ import * as Layout from '../../components/Layout'
 import { RadioGroup } from '../../components/RadioGroup'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 
-function AppSettings() {
+function SettingsCurrencyPage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const currency = useAppSelector(selectCurrency)
@@ -46,4 +46,4 @@ function AppSettings() {
     )
 }
 
-export default AppSettings
+export default SettingsCurrencyPage

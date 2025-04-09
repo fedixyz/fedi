@@ -12,6 +12,7 @@ import commonRW from './rw/common.json'
 import commonSO from './so/common.json'
 import commonSW from './sw/common.json'
 import commonTL from './tl/common.json'
+import commonUK from './uk/common.json'
 
 export const resources = {
     en: {
@@ -50,6 +51,9 @@ export const resources = {
     sw: {
         translation: commonSW,
     },
+    uk: {
+        translation: commonUK,
+    },
     am: {
         translation: commonAM,
     },
@@ -73,4 +77,5 @@ export const i18nLanguages: Record<keyof typeof resources, string> = {
     so: 'Soomaaliga',
     sw: 'Kiswahili',
     am: 'አማርኛ',
+    uk: 'Українська',
 } as const

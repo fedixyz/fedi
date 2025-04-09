@@ -6,7 +6,7 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.5.0-rc.4-fed0";
+      url = "github:fedibtc/fedimint?ref=v0.5.0-rc.4-fed4";
     };
 
     fenix = {
@@ -380,6 +380,14 @@
               # this is where we publish the android bridge package so the react native app
               # can find it as a local maven dependency
               export ANDROID_BRIDGE_ARTIFACTS="''${REPO_ROOT}/bridge/fedi-android/artifacts"
+
+              # Disavle turbo telemetry, see https://turbo.build/repo/docs/telemetry#how-do-i-opt-out
+              export TURBO_TELEMETRY_DISABLED=1
+
+              # Make gradle build work on NixOS, otherwise it will try to run a downloaded
+              # generic Linux version of aapt2, which doesn't work on NixOS due to dynamic
+              # linking idiosyncrasies
+              export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt2"
             '';
           }
         );
@@ -463,8 +471,8 @@
                 # https://github.com/NixOS/nixpkgs/blob/f426a494337f326b99f14dcc20ea1b2dc4b3904f/pkgs/development/mobile/xcodeenv/build-app.nix#L122
                 export LD=/usr/bin/clang
                 export LD_FOR_TARGET=/usr/bin/clang
-                export MACOSX_DEPLOYMENT_TARGET="17.0"
-                export IPHONEOS_DEPLOYMENT_TARGET="17.0"
+                export MACOSX_DEPLOYMENT_TARGET="18.0"
+                export IPHONEOS_DEPLOYMENT_TARGET="18.0"
 
                 # overwrite what stdenv from nixpkgs 24.11 seems to set
                 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer/

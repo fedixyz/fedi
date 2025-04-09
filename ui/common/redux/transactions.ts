@@ -7,7 +7,7 @@ import {
 import orderBy from 'lodash/orderBy'
 
 import { CommonState } from '.'
-import { Federation, Transaction } from '../types'
+import { Federation, Transaction, TransactionListEntry } from '../types'
 import { FedimintBridge } from '../utils/fedimint'
 
 type FederationPayloadAction<T = object> = PayloadAction<
@@ -17,7 +17,7 @@ type FederationPayloadAction<T = object> = PayloadAction<
 /*** Initial State ***/
 
 const initialTransactionsState = {
-    transactions: [] as Transaction[],
+    transactions: [] as TransactionListEntry[],
 }
 type FederationTransactionsState = typeof initialTransactionsState
 
@@ -34,43 +34,63 @@ export type TransactionsState = typeof initialState
 const getFederationTxsState = (
     state: TransactionsState,
     federationId: string,
-) =>
-    state[federationId] || {
-        ...initialTransactionsState,
-    }
+) => state[federationId] || { ...initialTransactionsState }
 
 /**
  * Given a list of new transactions and optionally the old ones, return a
  * combined list that has been sorted and deduplicated.
+ *
+ * TODO: maintain createdAt Timestamp for updates... only modify updated fields
+ * for existing transactions
  */
 const updateTransactions = (
-    newTransactions: Transaction[],
-    oldTransactions: Transaction[] = [],
+    newTransactions: TransactionListEntry[],
+    oldTransactions: TransactionListEntry[] = [],
 ) => {
-    // Combine lists with new transactions in the front
-    let transactions = [...newTransactions, ...oldTransactions]
+    // Use a Map for O(1) lookups during deduplication
+    // The Map preserves insertion order, with newer transactions added first
+    const transactionMap = new Map<string, TransactionListEntry>()
 
-    // Deduplicate list, preferring newer transactions
-    transactions = transactions.filter(
-        (tx, i) => transactions.findIndex(t => t.id === tx.id) === i,
-    )
+    for (const tx of newTransactions) {
+        transactionMap.set(tx.id, tx)
+    }
+
+    // Add old transactions only if they don't already exist in the map
+    for (const tx of oldTransactions) {
+        if (!transactionMap.has(tx.id)) {
+            transactionMap.set(tx.id, tx)
+        }
+    }
+
+    const transactions = Array.from(transactionMap.values())
 
     // Sort list in descending order of when the transaction was created
     return orderBy(transactions, 'createdAt', 'desc')
+}
+
+const updateSingleTransaction = (
+    transaction: Transaction,
+    oldTransactions: TransactionListEntry[] = [],
+) => {
+    return oldTransactions.map(t =>
+        t.id === transaction.id ? { ...t, ...transaction } : t,
+    )
 }
 
 export const transactionsSlice = createSlice({
     name: 'transactions',
     initialState,
     reducers: {
-        addTransaction(
+        updateTransaction(
             state,
-            action: FederationPayloadAction<{ transaction: Transaction }>,
+            action: FederationPayloadAction<{
+                transaction: Transaction
+            }>,
         ) {
             const { federationId, transaction } = action.payload
             const fedTxState = getFederationTxsState(state, federationId)
-            const transactions = updateTransactions(
-                [transaction],
+            const transactions = updateSingleTransaction(
+                transaction,
                 fedTxState.transactions,
             )
             return {
@@ -100,7 +120,6 @@ export const transactionsSlice = createSlice({
                 },
             }
         })
-
         builder.addCase(updateTransactionNotes.fulfilled, (state, action) => {
             const { federationId, transactionId, notes } = action.meta.arg
             const fedTxState = getFederationTxsState(state, federationId)
@@ -111,7 +130,7 @@ export const transactionsSlice = createSlice({
             if (!existingTransaction) return
             // Otherwise, update the notes field on the transaction
             const transactions = updateTransactions(
-                [{ ...existingTransaction, notes }],
+                [{ ...existingTransaction, txnNotes: notes }],
                 fedTxState.transactions,
             )
             return {
@@ -127,12 +146,12 @@ export const transactionsSlice = createSlice({
 
 /*** Basic actions ***/
 
-export const { addTransaction } = transactionsSlice.actions
+export const { updateTransaction } = transactionsSlice.actions
 
 /*** Async thunk actions ***/
 
 export const fetchTransactions = createAsyncThunk<
-    Transaction[],
+    TransactionListEntry[],
     {
         fedimint: FedimintBridge
         federationId: string
@@ -143,19 +162,40 @@ export const fetchTransactions = createAsyncThunk<
     { state: CommonState }
 >(
     'transactions/refreshTransactions',
-    async ({ fedimint, federationId, limit = 100, more }, { getState }) => {
-        const { transactions } = getFederationTxsState(
+    async (
+        { fedimint, federationId, limit = 100, more },
+        { getState, dispatch },
+    ) => {
+        const { transactions: cachedTransactions } = getFederationTxsState(
             getState().transactions,
             federationId,
         )
         const paginationTimestamp = more
-            ? transactions[transactions.length - 1]?.createdAt || undefined
+            ? cachedTransactions[cachedTransactions.length - 1]?.createdAt ||
+              undefined
             : undefined
-        return await fedimint.listTransactions(
+
+        const transactions = await fedimint.listTransactions(
             federationId,
             paginationTimestamp,
             limit,
         )
+
+        transactions.forEach(txn => {
+            // TODO: figure out how to determine if someone DELETED their notes.
+            // For now, we'll "reset" the txnNotes to initialNotes if it's missing.
+            if (txn.frontendMetadata.initialNotes && !txn.txnNotes) {
+                dispatch(
+                    updateTransactionNotes({
+                        fedimint,
+                        federationId,
+                        transactionId: txn.id,
+                        notes: txn.frontendMetadata.initialNotes,
+                    }),
+                )
+            }
+        })
+        return transactions
     },
 )
 
@@ -193,7 +233,7 @@ export const selectStabilityTransactionHistory = createSelector(
     selectTransactions,
     transactions =>
         transactions.filter(txn => {
-            if (txn.stabilityPoolState) {
+            if (txn.kind === 'spDeposit' || txn.kind === 'spWithdraw') {
                 return true
             }
         }),

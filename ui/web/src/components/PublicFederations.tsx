@@ -6,9 +6,8 @@ import { useTranslation } from 'react-i18next'
 import AwesomeFedimint from '@fedi/common/assets/images/awesome-fedimint.png'
 import { useLatestPublicFederations } from '@fedi/common/hooks/federation'
 import { selectFederationIds } from '@fedi/common/redux'
-import { ParserDataType } from '@fedi/common/types'
+import stringUtils from '@fedi/common/utils/StringUtils'
 
-import { useRouteStateContext } from '../context/RouteStateContext'
 import { useAppSelector } from '../hooks'
 import { theme } from '../styles'
 import { Button } from './Button'
@@ -19,7 +18,6 @@ export default function PublicFederations() {
     const { t } = useTranslation()
     const joinedFederationIds = useAppSelector(selectFederationIds)
     const router = useRouter()
-    const { pushWithState } = useRouteStateContext()
     const { publicFederations } = useLatestPublicFederations()
 
     return (
@@ -27,45 +25,49 @@ export default function PublicFederations() {
             <IllustrationWrapper>
                 <Image src={AwesomeFedimint} alt="" width={200} height={200} />
             </IllustrationWrapper>
-            <Text
-                variant="h2"
-                weight="medium"
-                css={{
-                    textAlign: 'center',
-                }}>
-                {t('feature.onboarding.guidance-public-federations')}
-            </Text>
+            <IntroTextWrapper>
+                <Text variant="h2" weight="medium">
+                    {t('feature.community.join-a-community')}
+                </Text>
+                <Text>{t('feature.community.join-community-guidance')}</Text>
+            </IntroTextWrapper>
             {publicFederations.length > 0 && (
                 <FederationContainer>
                     {publicFederations.map(f => (
                         <PublicFederationItem key={f.id}>
-                            <FederationAvatar federation={f} size="md" />
+                            <PublicFederationAvatarWrapper>
+                                <FederationAvatar federation={f} size="md" />
+                            </PublicFederationAvatarWrapper>
                             <PublicFederationText>
                                 <Text weight="bold">{f.name}</Text>
-                                <Text
-                                    variant="caption"
-                                    weight="medium"
-                                    css={{ color: theme.colors.grey }}>
-                                    {f.meta.preview_message}
-                                </Text>
+                                {f.meta.preview_message && (
+                                    <Text
+                                        variant="caption"
+                                        weight="medium"
+                                        css={{ color: theme.colors.grey }}>
+                                        {stringUtils.truncateString(
+                                            f.meta.preview_message,
+                                            54,
+                                        )}
+                                    </Text>
+                                )}
                             </PublicFederationText>
-                            <Button
-                                size="sm"
-                                onClick={() =>
-                                    // TODO: fix public federation type.
-                                    // probably should use/extend Federation
-                                    f.meta.invite_code &&
-                                    pushWithState('/onboarding/join', {
-                                        type: ParserDataType.FedimintInvite,
-                                        data: {
-                                            invite: f.meta.invite_code,
-                                        },
-                                    })
-                                }>
-                                {joinedFederationIds.includes(f.id)
-                                    ? t('words.joined')
-                                    : t('words.join')}
-                            </Button>
+                            {f.meta?.invite_code && (
+                                <PublicFederationButtonWrapper>
+                                    <Button
+                                        size="sm"
+                                        width="full"
+                                        onClick={() =>
+                                            router.push(
+                                                `/onboarding/join?code=${encodeURIComponent(String(f.meta.invite_code))}`,
+                                            )
+                                        }>
+                                        {joinedFederationIds.includes(f.id)
+                                            ? t('words.joined')
+                                            : t('words.join')}
+                                    </Button>
+                                </PublicFederationButtonWrapper>
+                            )}
                         </PublicFederationItem>
                     ))}
                 </FederationContainer>
@@ -85,26 +87,47 @@ const ContentContainer = styled('div', {
     gap: 16,
 })
 
-const PublicFederationItem = styled('div', {
+const IntroTextWrapper = styled('div', {
     display: 'flex',
-    gap: 12,
-    background: theme.colors.offWhite,
-    borderRadius: 16,
-    padding: 12,
-    alignItems: 'center',
-})
-
-const PublicFederationText = styled('div', {
-    display: 'flex',
-    gap: 4,
     flexDirection: 'column',
-    flexGrow: 1,
+    gap: 10,
+    textAlign: 'center',
 })
 
 const FederationContainer = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
+})
+
+const PublicFederationItem = styled('div', {
+    alignItems: 'center',
+    background: theme.colors.offWhite,
+    borderRadius: 10,
+    boxSizing: 'border-box',
+    display: 'flex',
+    gap: 10,
+    minHeight: 80,
+    padding: 12,
+})
+
+const PublicFederationAvatarWrapper = styled('div', {
+    alignItems: 'center',
+    display: 'flex',
+    width: 50,
+})
+
+const PublicFederationText = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    textAlign: 'left',
+})
+
+const PublicFederationButtonWrapper = styled('div', {
+    alignItems: 'center',
+    display: 'flex',
+    width: 50,
 })
 
 const IllustrationWrapper = styled('div', {

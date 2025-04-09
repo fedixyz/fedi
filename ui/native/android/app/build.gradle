@@ -122,7 +122,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 240051929
-        versionName "25.2.6"
+        versionName "25.4.0"
     }
 
     packagingOptions {
@@ -281,4 +281,24 @@ tasks.configureEach {
             name == 'lintAnalyzeNightlyDebug') {
             dependsOn('copyReactNativeVectorIconFonts')
         }
+}
+
+//This is for Appium testing - to ensure the APK only installs to the selected device (rather than all devices)
+tasks.withType(com.android.build.gradle.internal.tasks.InstallVariantTask).configureEach { task ->
+    task.doLast {
+        if (project.hasProperty('deviceId')) {
+            def deviceId = project.getProperty('deviceId')
+            def apkDir = task.apkDirectory.get().asFile
+            def apkFiles = apkDir.listFiles().findAll { it.name.endsWith('.apk') }
+            if (apkFiles.size() == 0) {
+                throw new GradleException("APK not found in directory: ${apkDir}")
+            }
+            def apkFile = apkFiles[0]
+            println "Installing ${apkFile} on device ${deviceId}"
+            exec {
+                executable 'adb'
+                args '-s', deviceId, 'install', '-r', apkFile.absolutePath
+            }
+        }
+    }
 }

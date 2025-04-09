@@ -104,10 +104,16 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
                 try {
                     setIsLoading(true)
                     if (!federationId) throw new Error('No active federation')
+
                     const newAddress = await dispatch(
                         generateAddress({
                             fedimint,
                             federationId,
+                            frontendMetadata: {
+                                initialNotes: null,
+                                recipientMatrixId: null,
+                                senderMatrixId: null,
+                            },
                         }),
                     ).unwrap()
 

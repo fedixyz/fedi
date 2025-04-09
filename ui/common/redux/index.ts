@@ -6,6 +6,7 @@ import {
 } from '@reduxjs/toolkit'
 import { CurriedGetDefaultMiddleware } from '@reduxjs/toolkit/dist/getDefaultMiddleware'
 import type { i18n as I18n } from 'i18next'
+import debounce from 'lodash/debounce'
 import type { AnyAction } from 'redux'
 import type { ThunkDispatch } from 'redux-thunk'
 
@@ -19,7 +20,7 @@ import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { hasStorageStateChanged } from '../utils/storage'
 import { browserSlice } from './browser'
-import { currencySlice, fetchCurrencyPrices } from './currency'
+import { currencySlice, refreshHistoricalCurrencyRates } from './currency'
 import { environmentSlice } from './environment'
 import {
     federationSlice,
@@ -27,6 +28,7 @@ import {
     processFederationMeta,
     refreshFederations,
     refreshGuardianStatuses,
+    tryRejoinFederationsPendingScratchRejoin,
     updateFederationBalance,
     upsertFederation,
 } from './federation'
@@ -42,7 +44,7 @@ import { securitySlice } from './security'
 import { loadFromStorage, saveToStorage, storageSlice } from './storage'
 import { supportSlice } from './support'
 import { toastSlice } from './toast'
-import { addTransaction, transactionsSlice } from './transactions'
+import { transactionsSlice, updateTransaction } from './transactions'
 import { walletSlice } from './wallet'
 
 const log = makeLog('common/redux/index')
@@ -111,10 +113,13 @@ export function initializeCommonStore({
 }) {
     const receivedPayments = new Set<string>()
 
-    // Fetch the latest prices immediately.
-    dispatch(fetchCurrencyPrices()).catch(err => {
-        log.warn('Failed initial currency price fetch', err)
-    })
+    dispatch(refreshHistoricalCurrencyRates({ fedimint }))
+        .unwrap()
+        .catch(_error => {
+            log.warn(
+                'Failed to refresh historical currency rates during store initialization:',
+            )
+        })
 
     // Update federation on bridge events
     const unsubscribeFederation = fedimint.addListener(
@@ -138,14 +143,20 @@ export function initializeCommonStore({
                     break
                 // For ready states we prepare the full loaded federation with meta + status updates
                 case 'ready': {
-                    const loadedFederation = coerceLoadedFederation(event)
+                    let loadedFederation = coerceLoadedFederation(event)
                     dispatch(upsertFederation(loadedFederation))
+
                     if ('meta' in loadedFederation) {
                         // if the federation_name is found in the meta, overwrite top-level name field
+
                         if (loadedFederation.meta.federation_name) {
-                            loadedFederation.name =
-                                loadedFederation.meta.federation_name
+                            // Make copy to avoid permission errors assigning value to read-only property
+                            loadedFederation = {
+                                ...loadedFederation,
+                                name: loadedFederation.meta.federation_name,
+                            }
                         }
+
                         dispatch(
                             processFederationMeta({
                                 federation: loadedFederation,
@@ -178,10 +189,22 @@ export function initializeCommonStore({
         },
     )
 
+    // Automatically rejoin federations that fail the nonce reuse check and recover from scratch
+    const unsubscribeNonceReuseCheckFailed = fedimint.addListener(
+        'nonceReuseCheckFailed',
+        () => {
+            dispatch(tryRejoinFederationsPendingScratchRejoin({ fedimint }))
+        },
+    )
+
+    const debouncedUpdate = debounce(event => {
+        log.debug('Debounced Balance update', event)
+        dispatch(updateFederationBalance(event))
+    }, 100) // 100ms delay to maintain trickle effect
+
     // Update balance on bridge events
     const unsubscribeBalance = fedimint.addListener('balance', event => {
-        log.debug('Balance update', event)
-        dispatch(updateFederationBalance(event))
+        debouncedUpdate(event)
     })
 
     // Add or update transactions on bridge events
@@ -189,7 +212,7 @@ export function initializeCommonStore({
         'transaction',
         event => {
             log.debug('Transaction update', event)
-            dispatch(addTransaction(event))
+            dispatch(updateTransaction(event))
         },
     )
 
@@ -258,6 +281,7 @@ export function initializeCommonStore({
 
     return () => {
         unsubscribeFederation()
+        unsubscribeNonceReuseCheckFailed()
         unsubscribeCommunities()
         unsubscribeBalance()
         unsubscribeTransaction()

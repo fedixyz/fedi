@@ -7,6 +7,7 @@ import {
     View,
     useWindowDimensions,
 } from 'react-native'
+import { SvgUri } from 'react-native-svg'
 
 import { selectIsActiveFederationRecovering } from '@fedi/common/redux'
 import { fetchMetadataFromUrl } from '@fedi/common/utils/fedimods'
@@ -70,6 +71,38 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
 
     const renderIcon = () => {
         if (isMod(shortcut) && imageSrc) {
+            const isSvg =
+                // imageSrc can be an array of ImageUriSource
+                // see https://reactnative.dev/docs/image#source
+                !Array.isArray(imageSrc) &&
+                // ImageRequireSource can be a number, so rule that out too
+                typeof imageSrc !== 'number' &&
+                imageSrc.uri?.endsWith('svg')
+
+            if (isSvg) {
+                return (
+                    <SvgUri
+                        uri={imageSrc.uri ?? null}
+                        onError={() => {
+                            setImageSrc(FediModImages.default)
+                        }}
+                        width={48}
+                        height={48}
+                        style={style.iconImage}
+                        fallback={
+                            <Image
+                                style={style.iconImage}
+                                source={FediModImages.default}
+                                resizeMode="contain"
+                            />
+                        }
+                        // Ensure the SVG is always contained and centered
+                        // Does the equivalent of resizeMode="contain" for SVGs
+                        preserveAspectRatio="xMidYMid meet"
+                    />
+                )
+            }
+
             return (
                 <Image
                     style={style.iconImage}
@@ -111,9 +144,11 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
             onPress={() => onSelect(shortcut)}
             onLongPress={() => onHold?.(shortcut)}
             disabled={recoveryInProgress}>
-            <BubbleView containerStyle={style.iconContainer}>
-                {renderIcon()}
-            </BubbleView>
+            <View style={style.iconContainer}>
+                <BubbleView containerStyle={style.bubbleContainer}>
+                    {renderIcon()}
+                </BubbleView>
+            </View>
             <View style={style.title}>
                 <Text
                     caption
@@ -141,19 +176,21 @@ const styles = (theme: Theme, fontScale: number) => {
             opacity: 0.5,
         },
         iconContainer: {
-            width: iconSize,
-            height: iconSize,
-            overflow: 'hidden',
-            borderRadius: theme.borders.fediModTileRadius,
             shadowColor: '#000',
             shadowOffset: {
                 width: 0,
                 height: 1,
             },
-            shadowOpacity: 0.18,
+            shadowOpacity: 0.3,
             shadowRadius: 1.0,
 
             elevation: 1,
+        },
+        bubbleContainer: {
+            width: iconSize,
+            height: iconSize,
+            overflow: 'hidden',
+            borderRadius: theme.borders.fediModTileRadius,
             backgroundColor: theme.colors.white,
         },
         iconImage: {

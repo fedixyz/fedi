@@ -47,6 +47,8 @@ pub enum ErrorCode {
     NoLnGatewayAvailable,
     #[error("Module of type {0} is not available")]
     ModuleNotFound(String),
+    #[error("Federation {0} previously failed nonce reuse check; must recover from scratch")]
+    FederationPendingRejoinFromScratch(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

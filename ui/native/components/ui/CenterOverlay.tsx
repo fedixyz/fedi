@@ -1,6 +1,14 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useMemo } from 'react'
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
+import {
+    StyleProp,
+    StyleSheet,
+    View,
+    ViewStyle,
+    KeyboardAvoidingView,
+    Platform,
+    Dimensions,
+} from 'react-native'
 import Modal from 'react-native-modal'
 
 type CenterOverlayProps = {
@@ -9,6 +17,8 @@ type CenterOverlayProps = {
     overlayStyle?: StyleProp<ViewStyle>
     children: React.ReactNode
 }
+
+const width = Dimensions.get('window').width
 
 const CenterOverlay: React.FC<CenterOverlayProps> = ({
     onBackdropPress,
@@ -19,10 +29,10 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
     const { theme } = useTheme()
     const style = styles(theme)
 
-    // to prevent unnecessary updates
+    // Prevent unnecessary updates
     const memoizedChildren = useMemo(() => children, [children])
 
-    // to prevent re-renders
+    // Prevent re-renders
     const memoizedOverlayStyle = useMemo(
         () => [style.overlayContainer, overlayStyle],
         [style.overlayContainer, overlayStyle],
@@ -37,7 +47,12 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
             animationOut="fadeOut"
             useNativeDriver
             style={style.modalContainer}>
-            <View style={memoizedOverlayStyle}>{memoizedChildren}</View>
+            {/* wraps the modal content for keyboard avoidance - required by react-native-modal */}
+            <KeyboardAvoidingView
+                behavior={'position'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 30 : -50}>
+                <View style={memoizedOverlayStyle}>{memoizedChildren}</View>
+            </KeyboardAvoidingView>
         </Modal>
     )
 }
@@ -50,8 +65,8 @@ const styles = (theme: Theme) =>
             margin: 0,
         },
         overlayContainer: {
-            width: '90%',
-            maxWidth: 312,
+            maxWidth: width - width * 0.1,
+            minWidth: Platform.OS == 'android' ? '79%' : width - width * 0.12,
             padding: theme.spacing.xl,
             borderRadius: theme.borders.defaultRadius,
             alignItems: 'center',

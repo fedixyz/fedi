@@ -1,10 +1,21 @@
+import { z } from 'zod'
+
+import { ONE_KB, ONE_MB } from '../constants/matrix'
+
 /**
- * Formats a file size in bytes to a human-readable string.
+ * Formats a file size in bytes
+ *
+ * @param bytes - The file size in bytes
+ * @returns The rounded file size in B, KB, or MB
  */
+const unfixZero = (n: string) => (n.endsWith('.0') ? n.slice(0, -2) : n)
 export const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} b`
-    else if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kb`
-    else return `${(bytes / 1024 / 1024).toFixed(1)} mb`
+    const kb = (bytes / ONE_KB).toFixed(1)
+    const mb = (bytes / ONE_MB).toFixed(1)
+
+    if (bytes < ONE_KB) return `${bytes} B`
+    else if (bytes < ONE_MB) return `${unfixZero(kb)} KB`
+    else return `${unfixZero(mb)} MB`
 }
 
 /**
@@ -44,3 +55,19 @@ export const scaleAttachment = (
 
     return { width, height }
 }
+
+export const matrixUrlMetadataSchema = z.object({
+    'matrix:image:size': z.number().nullish(),
+    'og:description': z.string().nullish(),
+    'og:image': z.string().nullish(),
+    'og:image:alt': z.string().nullish(),
+    'og:image:height': z.number().nullish(),
+    'og:image:type': z.string().nullish(),
+    'og:image:width': z.number().nullish(),
+    'og:site_name': z.string().nullish(),
+    'og:title': z.string().nullish(),
+    'og:type': z.string().nullish(),
+    'og:url': z.string().nullish(),
+})
+
+export type MatrixUrlMetadata = z.infer<typeof matrixUrlMetadataSchema>

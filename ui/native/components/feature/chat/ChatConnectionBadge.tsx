@@ -10,7 +10,10 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { selectIsMatrixReady } from '@fedi/common/redux'
+import {
+    selectIsMatrixReady,
+    selectInternetUnreachableBadgeShown,
+} from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 
@@ -29,6 +32,9 @@ export const ChatConnectionBadge: React.FC<Props> = ({
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
     const isReady = useAppSelector(s => selectIsMatrixReady(s))
+    const isInternetUnreachableBadgeShown = useAppSelector(
+        selectInternetUnreachableBadgeShown,
+    )
     const [isStillLoading, setIsStillLoading] = useState(false)
 
     let isVisible = !isReady
@@ -94,6 +100,8 @@ export const ChatConnectionBadge: React.FC<Props> = ({
         ? t('feature.chat.waiting-for-network')
         : t('words.loading')
     const style = styles(theme)
+
+    if (isInternetUnreachableBadgeShown) return null
 
     return (
         <Animated.View

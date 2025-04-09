@@ -1,20 +1,30 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { receiveEcash, validateEcash } from '@fedi/common/redux'
+import {
+    receiveEcash,
+    selectFederation,
+    selectIsFederationRecovering,
+    selectIsInternetUnreachable,
+    validateEcash,
+} from '@fedi/common/redux'
 import type { MSats } from '@fedi/common/types'
 import { RpcEcashInfo } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
+import { FederationLogo } from '../components/feature/federations/FederationLogo'
+import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
 import FiatAmount from '../components/feature/wallet/FiatAmount'
+import HoloAlert from '../components/ui/HoloAlert'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppDispatch } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -36,30 +46,30 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
     const [validatedEcash, setValidatedEcash] = useState<RpcEcashInfo | null>(
         null,
     )
-    const [note, setNote] = useState('')
     const [receiving, setReceiving] = useState(false)
 
-    useEffect(() => {
-        dispatch(
-            validateEcash({
-                fedimint,
-                ecash,
-            }),
-        )
-            .unwrap()
-            .then(setValidatedEcash)
-            .catch(() => toast.error(t, 'errors.invalid-ecash-token'))
-    }, [ecash, dispatch, toast, t])
+    const isOffline = useAppSelector(selectIsInternetUnreachable)
 
-    const amount = validatedEcash?.amount ?? (0 as MSats)
+    const ecashFederation = useAppSelector(s => {
+        if (validatedEcash?.federation_type === 'joined') {
+            return selectFederation(s, validatedEcash.federation_id)
+        }
+
+        return null
+    })
+    const isFederationRecovering = useAppSelector(s => {
+        if (validatedEcash?.federation_type === 'joined') {
+            return selectIsFederationRecovering(s, validatedEcash.federation_id)
+        }
+
+        return false
+    })
 
     const onReceive = useCallback(async () => {
-        if (!validatedEcash) return
+        if (!validatedEcash || receiving) return
 
         // Don't call multiple times
-        if (receiving) return
         setReceiving(true)
-
         try {
             // Check to see if the user has joined a federation with a matching `validatedEcash.federationId`
             if (validatedEcash.federation_type !== 'joined') {
@@ -92,35 +102,96 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
         }
     }, [ecash, dispatch, navigation, receiving, toast, t, validatedEcash])
 
+    useEffect(() => {
+        dispatch(validateEcash({ fedimint, ecash }))
+            .unwrap()
+            .then(setValidatedEcash)
+            .catch(() => {
+                // Should never happen since validateEcash is called in OmniInput,
+                // which is the only way to get here
+                log.error('PANIC: ecash validation failed')
+                toast.error(t, 'errors.invalid-ecash-token')
+            })
+    }, [ecash, dispatch, toast, t])
+
+    if (validatedEcash && validatedEcash.federation_type !== 'joined') {
+        // Should never happen since you are required to go through the join flow
+        // via OmniConfirmation before you hit this screen
+        log.error('PANIC: federation_type is not joined')
+        return null
+    }
+
+    const amount = validatedEcash?.amount ?? (0 as MSats)
     const amountSats = amountUtils.msatToSat(amount)
 
-    return (
-        <View style={styles(theme).container}>
-            <View style={styles(theme).offlineContainer}>
-                <SvgImage name="Offline" />
-                <Text caption>{t('phrases.you-are-offline')}</Text>
-            </View>
-            <View style={styles(theme).amountContainer}>
-                {amountSats ? (
-                    <Text h2>{`${amountUtils.formatNumber(amountSats)} `}</Text>
-                ) : (
-                    <ActivityIndicator />
-                )}
-                <Text>{`${t('words.sats').toUpperCase()}`}</Text>
-            </View>
+    const style = styles(theme)
 
-            <FiatAmount amountSats={amountSats} />
-            <Input
-                onChangeText={e => setNote(e)}
-                value={note}
-                placeholder={t('phrases.add-note')}
-                returnKeyType="done"
-                containerStyle={styles(theme).textInput}
-            />
-            <View style={styles(theme).actionContainer}>
-                <Text caption style={styles(theme).offlineSpendNotice}>
-                    {`${t('feature.receive.balance-not-spendable-offline')}`}
-                </Text>
+    return (
+        <SafeAreaContainer edges="notop" style={style.container}>
+            <View style={style.content}>
+                <View style={style.receiveIndicator}>
+                    <Text maxFontSizeMultiplier={1.5}>
+                        {t('feature.receive.receive-ecash-from')}
+                    </Text>
+                    {ecashFederation &&
+                    ecashFederation.init_state === 'ready' ? (
+                        <View style={style.federationIndicator}>
+                            <FederationLogo
+                                federation={ecashFederation}
+                                size={24}
+                            />
+                            <Text
+                                caption
+                                bold
+                                numberOfLines={1}
+                                maxFontSizeMultiplier={1.5}>
+                                {ecashFederation.name || ''}
+                            </Text>
+                        </View>
+                    ) : (
+                        <ActivityIndicator />
+                    )}
+                </View>
+                <View style={style.amountContainer}>
+                    <View style={style.satsContainer}>
+                        {amountSats ? (
+                            <Text
+                                h1>{`${amountUtils.formatNumber(amountSats)} `}</Text>
+                        ) : (
+                            <ActivityIndicator />
+                        )}
+                        <Text h2>{`${t('words.sats').toUpperCase()}`}</Text>
+                    </View>
+                    <FiatAmount amountSats={amountSats} />
+                </View>
+            </View>
+            <View style={style.actionContainer}>
+                {isFederationRecovering && (
+                    <HoloAlert>
+                        <View style={style.recoveryIndicator}>
+                            <Text>{t('phrases.recovery-in-progress')}</Text>
+                            <View style={style.recoverySpinner}>
+                                <RecoveryInProgress
+                                    size={64}
+                                    federationId={validatedEcash?.federation_id}
+                                />
+                            </View>
+                        </View>
+                    </HoloAlert>
+                )}
+                {isOffline && (
+                    <HoloAlert>
+                        <View style={style.offlineIndicator}>
+                            <View style={style.offlineHeader}>
+                                <SvgImage name="Offline" />
+                                <Text bold>{t('phrases.youre-offline')}</Text>
+                            </View>
+                            <Text caption>
+                                {t('feature.receive.claim-ecash-online')}
+                            </Text>
+                        </View>
+                    </HoloAlert>
+                )}
                 <Button
                     fullWidth
                     title={t('feature.receive.receive-amount-unit', {
@@ -130,53 +201,73 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
                         unit: t('words.sats').toUpperCase(),
                     })}
                     onPress={onReceive}
+                    disabled={isFederationRecovering}
                     loading={receiving}
-                    containerStyle={styles(theme).buttonContainer}
                 />
             </View>
-        </View>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: theme.spacing.xl,
         },
-        actionContainer: {
-            marginTop: 'auto',
+        content: {
+            paddingVertical: theme.spacing.xxl,
+            alignItems: 'center',
             width: '100%',
         },
         amountContainer: {
-            flexDirection: 'row',
             alignItems: 'center',
-            marginTop: theme.spacing.xxl,
+            justifyContent: 'center',
+            gap: theme.spacing.xs,
+            paddingVertical: theme.spacing.xxl,
         },
-        buttonContainer: {
-            marginTop: 'auto',
+        actionContainer: {
+            width: '100%',
+            gap: theme.spacing.lg,
+            flex: 1,
+            justifyContent: 'flex-end',
         },
-        offlineSpendNotice: {
-            marginVertical: theme.spacing.xl,
-            paddingHorizontal: theme.spacing.xl,
-            textAlign: 'center',
-        },
-        offlineContainer: {
+        recoveryIndicator: {
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: theme.spacing.xl,
+            minHeight: 64,
+            width: '100%',
+        },
+        recoverySpinner: {
+            width: 64,
+            height: 64,
+        },
+        satsContainer: {
+            flexDirection: 'row',
+            alignItems: 'center',
+        },
+        receiveIndicator: {
+            flexDirection: 'row',
+            alignItems: 'center',
             gap: theme.spacing.sm,
         },
-        offlineIcon: {
-            height: theme.sizes.sm,
-            width: theme.sizes.sm,
-            marginRight: theme.spacing.md,
+        federationIndicator: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.sm,
         },
-        textInput: {
-            width: '80%',
+        offlineIndicator: {
+            flexDirection: 'column',
+            gap: theme.spacing.sm,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        offlineHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.sm,
+            width: '100%',
         },
     })
 

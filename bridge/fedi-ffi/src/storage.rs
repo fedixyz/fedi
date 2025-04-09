@@ -15,7 +15,7 @@ use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{apply, async_trait_maybe_send};
 use fedimint_derive_secret::DerivableSecret;
-use matrix_sdk::matrix_auth::MatrixSession;
+use matrix_sdk::authentication::matrix::MatrixSession;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::error;
@@ -25,6 +25,14 @@ use crate::community::CommunityJson;
 use crate::constants::{
     DEVICE_IDENTIFIER_FIXED_LENGTH, DEVICE_REGISTRATION_CHILD_ID, FEDI_FILE_PATH,
 };
+
+// Within the global DB, each federation's DB uses a prefix assigned using an
+// incrementing nonce.
+const FIRST_FEDERATION_DB_PREFIX: u64 = 1;
+
+// Prefix 0 is reserved for the bridge itself to store information independent
+// of any federation's DB.
+pub const BRIDGE_DB_PREFIX: u8 = 0;
 
 #[apply(async_trait_maybe_send!)]
 pub trait IStorage: 'static + MaybeSend + MaybeSync {
@@ -69,7 +77,15 @@ pub struct AppStateRaw {
     pub social_recovery_state: Option<SocialRecoveryState>,
 
     pub sensitive_log: Option<bool>,
-    pub matrix_session: Option<MatrixSession>,
+    /// Matrix tokens for client with sliding sync.
+    ///
+    /// This will never be set on new users, only migrating users will have
+    /// this.
+    #[serde(rename = "matrix_session")]
+    pub matrix_session_sliding_sync_proxy: Option<MatrixSession>,
+
+    /// Matrix tokens for client with native sliding sync
+    pub matrix_session_native_sync: Option<MatrixSession>,
 
     #[allow(dead_code)]
     #[deprecated = "Now we only store encrypted device ID. Do not reuse this field name."]
@@ -228,8 +244,7 @@ fn default_device_index() -> Option<u8> {
 }
 
 fn default_next_federation_prefix() -> u64 {
-    // zero is reserved for future
-    1
+    FIRST_FEDERATION_DB_PREFIX
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -299,6 +314,13 @@ impl Default for FediFeeSchedule {
         );
         modules.insert(
             stability_pool_client_old::common::KIND,
+            ModuleFediFeeSchedule {
+                send_ppm: default_send_ppm,
+                receive_ppm: 0,
+            },
+        );
+        modules.insert(
+            stability_pool_client::common::KIND,
             ModuleFediFeeSchedule {
                 send_ppm: default_send_ppm,
                 receive_ppm: 0,
@@ -441,7 +463,8 @@ impl AppState {
                 joined_communities: BTreeMap::new(),
                 social_recovery_state: None,
                 sensitive_log: None,
-                matrix_session: None,
+                matrix_session_sliding_sync_proxy: None,
+                matrix_session_native_sync: None,
                 device_identifier: (),
                 // When setting up a new AppState (fresh install), set
                 // encrypted_device_identifier_v1 as None which marks the transfer of ownership as

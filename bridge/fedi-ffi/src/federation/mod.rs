@@ -6,14 +6,14 @@ use anyhow::{bail, Context};
 use federation_sm::{FederationState, FederationStateMachine};
 use federation_v2::FederationV2;
 use federations_locker::FederationsLocker;
-use fedimint_core::encoding::Encodable;
 use fedimint_core::invite_code::InviteCode;
 use tracing::error;
 
 use crate::bridge::BridgeRuntime;
 use crate::fedi_fee::FediFeeHelper;
-use crate::storage::{DatabaseInfo, FederationInfo};
+use crate::storage::FederationInfo;
 use crate::types::RpcFederationPreview;
+use crate::utils::PoisonedLockExt as _;
 
 pub mod federation_sm;
 pub mod federation_v2;
@@ -45,7 +45,7 @@ impl Federations {
             .await;
 
         let mut futures = Vec::new();
-        let mut federations = self.federations.lock().expect("posioned");
+        let mut federations = self.federations.ensure_lock();
         for (federation_id, federation_info) in joined_federations {
             if federation_info.version < 2 {
                 error!(version = federation_info.version, %federation_id, "Invalid federation version");
@@ -103,20 +103,6 @@ impl Federations {
     ) -> anyhow::Result<Arc<FederationV2>> {
         let invite_code = InviteCode::from_str(&invite_code_string.to_lowercase())?;
         let federation_id = invite_code.federation_id().to_string();
-
-        let root_mnemonic = self.runtime.app_state.root_mnemonic().await;
-        let device_index = self.runtime.app_state.ensure_device_index().await?;
-
-        let db_prefix = self
-            .runtime
-            .app_state
-            .new_federation_db_prefix()
-            .await
-            .context("failed to write AppState")?;
-        let db = self
-            .runtime
-            .global_db
-            .with_prefix(db_prefix.consensus_encode_to_vec());
         let fed_sm = self
             .federations
             .lock()
@@ -128,17 +114,10 @@ impl Federations {
             .join(
                 federation_id,
                 invite_code_string,
+                self.runtime.clone(),
                 &self.federations_locker,
-                &self.runtime.event_sink,
-                &self.runtime.task_group,
-                db,
-                DatabaseInfo::DatabasePrefix(db_prefix),
-                root_mnemonic,
-                device_index,
                 recover_from_scratch,
                 &self.fedi_fee_helper,
-                &self.runtime.app_state,
-                &self.runtime.feature_catalog,
             )
             .await?;
         Ok(federation_arc)
@@ -170,8 +149,7 @@ impl Federations {
 
     pub fn get_federation_state(&self, federation_id: &str) -> anyhow::Result<FederationState> {
         self.federations
-            .lock()
-            .expect("posioned")
+            .ensure_lock()
             .get(federation_id)
             .context("Federation not found")?
             .get_state()
@@ -180,8 +158,7 @@ impl Federations {
 
     pub fn get_federations_map(&self) -> BTreeMap<String, FederationState> {
         self.federations
-            .lock()
-            .expect("posioned")
+            .ensure_lock()
             .clone()
             .iter()
             .filter_map(|(id, fed_sm)| fed_sm.get_state().map(|state| (id.clone(), state)))
@@ -191,8 +168,7 @@ impl Federations {
     pub async fn leave_federation(&self, federation_id_str: &str) -> anyhow::Result<()> {
         let fed_sm = self
             .federations
-            .lock()
-            .expect("posoined")
+            .ensure_lock()
             .get(federation_id_str)
             .context("Federation not found")?
             .clone();
@@ -207,8 +183,7 @@ impl Federations {
         // state
         let fed_network_map = self
             .federations
-            .lock()
-            .expect("posioned")
+            .ensure_lock()
             .iter()
             .filter_map(|(id, fed_sm)| match fed_sm.get_state() {
                 Some(FederationState::Ready(fed) | FederationState::Recovering(fed)) => {
@@ -233,34 +208,13 @@ async fn load_federation(
     federation_info: FederationInfo,
     fed_sm: FederationStateMachine,
 ) -> anyhow::Result<()> {
-    let root_mnemonic = runtime.app_state.root_mnemonic().await;
-    let device_index = runtime
-        .app_state
-        .device_index()
-        .await
-        .context("device index must exist when joined federations exist")?;
-
-    let db = match &federation_info.database {
-        DatabaseInfo::DatabaseName(db_name) => {
-            runtime.storage.federation_database_v2(db_name).await?
-        }
-        DatabaseInfo::DatabasePrefix(prefix) => runtime
-            .global_db
-            .with_prefix(prefix.consensus_encode_to_vec()),
-    };
-
     fed_sm
         .load_from_db(
             federation_id_str,
-            db,
+            runtime,
+            federation_info,
             &federations_locker,
-            &runtime.event_sink,
-            &runtime.task_group,
-            root_mnemonic,
-            device_index,
             &fedi_fee_helper,
-            &runtime.feature_catalog,
-            &runtime.app_state,
         )
         .await;
     Ok(())

@@ -2,6 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import { useIsInternetUnreachable } from '@fedi/common/hooks/environment'
 import { FederationStatus } from '@fedi/common/types'
 
 import { ConnectionTag } from './ConnectionTag'
@@ -16,17 +17,34 @@ const ConnectionStatusCard = ({ status, hideArrow = false }: Props) => {
     const style = styles(theme)
     const { t } = useTranslation()
     const caption = t(`feature.federations.connection-status-${status}`)
+    const isInternetUnreachable = useIsInternetUnreachable()
 
     return (
         <View style={style.card}>
+            {isInternetUnreachable && (
+                <Text caption medium style={style.caption}>
+                    {t('feature.federations.last-known-status')}
+                </Text>
+            )}
             <ConnectionTag status={status} size="large" hideArrow={hideArrow} />
-            <Text
-                caption
-                medium
-                style={style.caption}
-                maxFontSizeMultiplier={1.2}>
-                {caption}
-            </Text>
+            {!isInternetUnreachable && (
+                <Text
+                    caption
+                    medium
+                    style={style.caption}
+                    maxFontSizeMultiplier={1.2}>
+                    {caption}
+                </Text>
+            )}
+            {isInternetUnreachable && (
+                <Text
+                    caption
+                    medium
+                    style={style.lastKnownStatus}
+                    maxFontSizeMultiplier={1.2}>
+                    {t('feature.federations.please-reconnect')}
+                </Text>
+            )}
         </View>
     )
 }
@@ -53,6 +71,11 @@ const styles = (theme: Theme) =>
         caption: {
             textAlign: 'center',
             color: theme.colors.darkGrey,
+        },
+        lastKnownStatus: {
+            textAlign: 'center',
+            color: theme.colors.darkGrey,
+            maxWidth: 240,
         },
     })
 

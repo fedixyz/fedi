@@ -1,3 +1,4 @@
+import { RpcEcashInfo } from './bindings'
 import { Invoice } from './fedimint'
 import { Btc, MSats } from './units'
 
@@ -19,6 +20,7 @@ export enum ParserDataType {
     FediChatRoom = 'fedi:room',
     Website = 'website',
     Unknown = 'unknown',
+    OfflineError = 'offlineError',
 }
 
 interface ParsedData<T extends string, D = null> {
@@ -95,6 +97,7 @@ export type ParsedFedimintEcash = ParsedData<
     ParserDataType.FedimintEcash,
     {
         token: string
+        parsed: RpcEcashInfo
     }
 >
 
@@ -148,6 +151,11 @@ export type ParsedUnknownData = ParsedData<
     { message?: string }
 >
 
+export type ParsedOfflineError = ParsedData<
+    ParserDataType.OfflineError,
+    { title: string; message: string; goBackText?: string }
+>
+
 export type AnyParsedData =
     | ParsedBolt11
     | ParsedBolt12
@@ -166,3 +174,4 @@ export type AnyParsedData =
     | ParsedFediChatRoom
     | ParsedWebsite
     | ParsedUnknownData
+    | ParsedOfflineError

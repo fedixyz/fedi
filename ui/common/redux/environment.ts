@@ -27,6 +27,7 @@ const initialState = {
     nostrNpub: undefined as RpcNostrPubkey | undefined,
     nostrNsec: undefined as RpcNostrSecret | undefined,
     fedimintVersion: undefined as string | undefined,
+    internetUnreachableBadgeShown: false,
 }
 
 export type EnvironmentState = typeof initialState
@@ -72,6 +73,15 @@ export const environmentSlice = createSlice({
         },
         setFedimintVersion(state, action: PayloadAction<string>) {
             state.fedimintVersion = action.payload
+        },
+        setInternetUnreachableBadgeVisibility(
+            state,
+            action: PayloadAction<boolean>,
+        ) {
+            state.internetUnreachableBadgeShown = action.payload
+            if (action.payload) {
+                state.internetUnreachableBadgeShown = true
+            }
         },
     },
     extraReducers: builder => {
@@ -119,6 +129,7 @@ export const {
     setNostrNpub,
     setNostrNsec,
     setFedimintVersion,
+    setInternetUnreachableBadgeVisibility,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -227,3 +238,6 @@ export const selectNostrNsec = (s: CommonState) => s.environment.nostrNsec
 
 export const selectFedimintVersion = (s: CommonState) =>
     s.environment.fedimintVersion
+
+export const selectInternetUnreachableBadgeShown = (s: CommonState) =>
+    s.environment.internetUnreachableBadgeShown

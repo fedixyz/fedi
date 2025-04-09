@@ -1,6 +1,8 @@
 import { TFunction } from 'i18next'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { RequestInvoiceArgs } from 'webln'
+
+import { FiatFXInfo } from '@fedi/common/types/bindings'
 
 import {
     selectAmountInputType,
@@ -9,11 +11,11 @@ import {
     selectCurrency,
     selectCurrencyLocale,
     selectFederationBalance,
-    selectFederationMetadata,
     selectMaxInvoiceAmount,
     selectMaxStableBalanceSats,
     selectMinimumDepositAmount,
     selectMinimumWithdrawAmountMsats,
+    selectPaymentFederation,
     selectPaymentFederationBalance,
     selectShowFiatTxnAmounts,
     selectStabilityPoolAvailableLiquidity,
@@ -32,12 +34,13 @@ import {
     ParsedLnurlWithdraw,
     Sats,
     SupportedCurrency,
+    TransactionListEntry,
     UsdCents,
 } from '../types'
 import amountUtils from '../utils/AmountUtils'
-import { getFederationDefaultCurrency } from '../utils/FederationUtils'
 import stringUtils from '../utils/StringUtils'
 import { MeltSummary } from '../utils/cashu'
+import { BridgeError, FedimintBridge } from '../utils/fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useUpdatingRef } from './util'
 
@@ -108,15 +111,26 @@ export const useBtcFiatPrice = (currency?: SupportedCurrency) => {
             [exchangeRate],
         ),
         convertSatsToFormattedFiat: useCallback(
-            (sats: Sats, symbolPosition: AmountSymbolPosition = 'end') => {
-                const amount = amountUtils.satToFiat(sats, exchangeRate)
-                return amountUtils.formatFiat(amount, fiatCurrency, {
+            (
+                sats: Sats,
+                symbolPosition: AmountSymbolPosition = 'end',
+                historicalFiatInfo?: FiatFXInfo,
+            ) => {
+                const conversionCurrency: SupportedCurrency = historicalFiatInfo
+                    ? (historicalFiatInfo.fiatCode as SupportedCurrency)
+                    : fiatCurrency
+                const conversionRate = historicalFiatInfo
+                    ? historicalFiatInfo.btcToFiatHundredths / 100
+                    : exchangeRate
+                const amount = amountUtils.satToFiat(sats, conversionRate)
+                return amountUtils.formatFiat(amount, conversionCurrency, {
                     symbolPosition,
                     locale: currencyLocale,
                 })
             },
             [exchangeRate, fiatCurrency, currencyLocale],
         ),
+
         convertSatsToFormattedUsd: useCallback(
             (sats: Sats, symbolPosition: AmountSymbolPosition = 'end') => {
                 const amount = amountUtils.satToFiat(sats, btcUsdExchangeRate)
@@ -129,6 +143,7 @@ export const useBtcFiatPrice = (currency?: SupportedCurrency) => {
         ),
     }
 }
+
 export const useAmountFormatter = (currency?: SupportedCurrency) => {
     const { convertSatsToFormattedUsd, convertSatsToFormattedFiat } =
         useBtcFiatPrice(currency)
@@ -181,9 +196,53 @@ export const useAmountFormatter = (currency?: SupportedCurrency) => {
         [makeFormattedAmountsFromSats],
     )
 
+    const makeFormattedAmountsFromTxn = useCallback(
+        (
+            txn: TransactionListEntry,
+            symbolPosition: AmountSymbolPosition = 'end',
+        ): FormattedAmounts => {
+            if (txn.txDateFiatInfo) {
+                const sats = amountUtils.msatToSat(txn.amount)
+                const formattedFiat = convertSatsToFormattedFiat(
+                    sats,
+                    symbolPosition,
+                    txn.txDateFiatInfo,
+                )
+                const formattedUsd = convertSatsToFormattedUsd(
+                    sats,
+                    symbolPosition,
+                )
+                const formattedSats =
+                    symbolPosition === 'none'
+                        ? amountUtils.formatSats(sats)
+                        : `${amountUtils.formatSats(sats)} SATS`
+                return {
+                    formattedFiat,
+                    formattedSats,
+                    formattedUsd,
+                    formattedPrimaryAmount: showFiatTxnAmounts
+                        ? formattedFiat
+                        : formattedSats,
+                    formattedSecondaryAmount: showFiatTxnAmounts
+                        ? formattedSats
+                        : formattedFiat,
+                }
+            } else {
+                return makeFormattedAmountsFromMSats(txn.amount, symbolPosition)
+            }
+        },
+        [
+            convertSatsToFormattedFiat,
+            convertSatsToFormattedUsd,
+            makeFormattedAmountsFromMSats,
+            showFiatTxnAmounts,
+        ],
+    )
+
     return {
         makeFormattedAmountsFromMSats,
         makeFormattedAmountsFromSats,
+        makeFormattedAmountsFromTxn,
     }
 }
 
@@ -223,16 +282,11 @@ export function useAmountInput(
     const btcToFiatRateRef = useUpdatingRef(btcToFiatRate)
     const currency = useCommonSelector(selectCurrency)
     const currencyLocale = useCommonSelector(selectCurrencyLocale)
-    const federationMetadata = useCommonSelector(selectFederationMetadata)
     const defaultAmountInputType = useCommonSelector(selectAmountInputType)
 
-    // If the user has changed amount input type before, default to that.
-    // Otherwise default to whether or not the federation dictates a currency type.
-    const shouldDefaultToFiat = defaultAmountInputType
-        ? defaultAmountInputType === 'fiat'
-        : !!getFederationDefaultCurrency(federationMetadata)
-
-    const [isFiat, _setIsFiat] = useState<boolean>(shouldDefaultToFiat)
+    const [isFiat, _setIsFiat] = useState<boolean>(
+        defaultAmountInputType !== 'sats',
+    )
 
     const [satsValue, setSatsValue] = useState<string>(
         amountUtils.formatSats(amount),
@@ -507,10 +561,14 @@ export function useMinMaxSendAmount(
         lnurlPayment,
         cashuMeltSummary,
         selectedPaymentFederation,
-    }: SendAmountArgs = {},
+        btcAddress,
+        fedimint,
+    }: SendAmountArgs & { fedimint?: FedimintBridge } = {},
     // TODO: Remove this option in favor of always using payFromFederation once
     // https://github.com/fedibtc/fedi/issues/4070 is finished
 ) {
+    const [maxAmountOnchain, setMaxAmountOnchain] = useState<Sats | null>(null)
+    const paymentFederation = useCommonSelector(selectPaymentFederation)
     const balance = useCommonSelector(s =>
         selectedPaymentFederation
             ? selectPaymentFederationBalance(s)
@@ -519,6 +577,32 @@ export function useMinMaxSendAmount(
 
     const invoiceAmount = invoice?.amount
     const { minSendable, maxSendable } = lnurlPayment || {}
+
+    useEffect(() => {
+        if (!btcAddress || !paymentFederation || !fedimint) return
+
+        // Attempts to preview the payment address with the full user balance
+        // Should always result in an insufficient balance error
+        fedimint
+            .previewPayAddress(
+                btcAddress.address,
+                amountUtils.msatToSat(paymentFederation.balance),
+                paymentFederation.id,
+            )
+            .catch(e => {
+                if (
+                    e instanceof BridgeError &&
+                    e.errorCode &&
+                    typeof e.errorCode === 'object' &&
+                    'insufficientBalance' in e.errorCode &&
+                    typeof e.errorCode.insufficientBalance === 'number'
+                ) {
+                    setMaxAmountOnchain(
+                        amountUtils.msatToSat(e.errorCode.insufficientBalance),
+                    )
+                }
+            })
+    }, [paymentFederation, btcAddress, fedimint])
 
     return useMemo(() => {
         if (balance < 1000)
@@ -548,9 +632,24 @@ export function useMinMaxSendAmount(
                     maximumAmount || Infinity,
                 ) as Sats
             }
+
+            if (btcAddress && maxAmountOnchain !== null) {
+                maximumAmount = Math.min(
+                    maximumAmount,
+                    maxAmountOnchain,
+                ) as Sats
+            }
         }
         return { minimumAmount, maximumAmount }
-    }, [balance, cashuMeltSummary, invoiceAmount, minSendable, maxSendable])
+    }, [
+        balance,
+        cashuMeltSummary,
+        invoiceAmount,
+        minSendable,
+        maxSendable,
+        maxAmountOnchain,
+        btcAddress,
+    ])
 }
 
 /**
@@ -698,15 +797,18 @@ export function useSendForm({
     selectedPaymentFederation,
     cashuMeltSummary,
     t,
-}: SendAmountArgs) {
+    fedimint,
+}: SendAmountArgs & { fedimint?: FedimintBridge }) {
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
     if (!t) throw new Error('useSendForm requires a t function')
     const { minimumAmount, maximumAmount } = useMinMaxSendAmount({
         invoice,
         lnurlPayment,
+        btcAddress,
         selectedPaymentFederation,
         cashuMeltSummary,
         t,
+        fedimint,
     })
     const minimumAmountRef = useUpdatingRef(minimumAmount)
 

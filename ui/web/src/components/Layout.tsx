@@ -18,19 +18,24 @@ export function Header({
     children,
     back,
     ...props
-}: React.ComponentProps<typeof HeaderContainer> & { back?: string }) {
+}: React.ComponentProps<typeof HeaderContainer> & { back?: string | boolean }) {
     const isSm = useMediaQuery(config.media.sm)
     const router = useRouter()
 
     return (
         <HeaderContainer displaceBackIcon={!!back} {...props}>
-            {back && isSm ? (
+            {!!back && isSm ? (
                 <IconButton
                     icon={ChevronLeft}
                     size="md"
-                    onClick={() => {
-                        router.push(back)
-                    }}
+                    onClick={
+                        // provide string to specify next route on back
+                        // or provide boolean to call router history back
+                        // (both supported for backwards compatibility)
+                        typeof back === 'string'
+                            ? () => router.push(back)
+                            : () => router.back()
+                    }
                 />
             ) : null}
             <HeaderContent>{children}</HeaderContent>

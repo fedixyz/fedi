@@ -20,7 +20,6 @@ import {
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    listGateways,
     selectActiveFederation,
     selectCurrency,
     selectFediModDebugMode,
@@ -41,9 +40,10 @@ import {
     setRequestInvoiceArgs,
     refetchSiteInfo,
     selectSiteInfo,
+    listGateways,
+    selectIsInternetUnreachable,
 } from '@fedi/common/redux'
 import { AnyParsedData, Invoice, ParserDataType } from '@fedi/common/types'
-import { RpcLightningGateway } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 import { parseUserInput } from '@fedi/common/utils/parser'
 import {
@@ -120,6 +120,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     )
     const siteInfo = useAppSelector(selectSiteInfo)
     const walletFederations = useAppSelector(selectWalletFederations)
+    const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
     const webview = useRef<WebView>() as MutableRefObject<WebView>
     const overlayResolveRef = useRef<
         FediModResolver<FediModResponse> | undefined
@@ -132,8 +133,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const [isBrowserLoading, setIsBrowserLoading] = useState(true)
     const [browserLoadProgress, setBrowserLoadProgress] = useState(0)
 
-    const getActiveGatewayPromiseRef =
-        useRef<Promise<RpcLightningGateway> | null>(null)
     const [showRecoveryInProgress, setShowRecoveryInProgress] =
         useState<boolean>(false)
     const { setParsedLink } = useOmniLinkContext()
@@ -166,29 +165,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     // Intercept any URIs the user tries to navigate to that we can handle inline
     useOmniLinkInterceptor(handleParsedLink)
 
-    const getActiveGatewayOrThrow = async () => {
-        log.info('getActiveGatewayOrThrow')
-        if (getActiveGatewayPromiseRef.current)
-            return getActiveGatewayPromiseRef.current
-        if (!activeFederation?.id)
-            throw new Error('No available lightning gateways')
-        getActiveGatewayPromiseRef.current = dispatch(
-            listGateways({
-                fedimint,
-                federationId: activeFederation?.id,
-            }),
-        )
-            .unwrap()
-            .then(gateways => {
-                if (!gateways.length) {
-                    log.info('No available lightning gateways')
-                    throw new Error('No available lightning gateways')
-                }
-                return gateways.find(g => g.active) || gateways[0]
-            })
-        return getActiveGatewayPromiseRef.current
-    }
-
     // Handle all messages coming from a WebLN-enabled site
     const onMessage = makeWebViewMessageHandler(webview, {
         [InjectionMessageType.webln_enable]: async () => {
@@ -201,7 +177,16 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             const alias = member?.displayName || ''
             let pubkey = ''
             try {
-                const gateway = await getActiveGatewayOrThrow()
+                if (!paymentFederation?.id)
+                    throw new Error('No available lightning gateways')
+
+                const gateways = await dispatch(
+                    listGateways({
+                        fedimint,
+                        federationId: paymentFederation?.id,
+                    }),
+                ).unwrap()
+                const gateway = gateways.find(g => g.active) || gateways[0]
 
                 if (gateway) {
                     pubkey = gateway.nodePubKey
@@ -218,8 +203,14 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 setShowRecoveryInProgress(true)
                 throw Error(t('errors.unknown-error'))
             }
-            // Check for an active gateway or throw error
-            await getActiveGatewayOrThrow()
+
+            if (walletFederations.length === 0) {
+                toast.show({
+                    content: t('errors.please-join-wallet-community'),
+                    status: 'error',
+                })
+                throw new Error(t('errors.please-join-wallet-community'))
+            }
 
             // Wait for user to interact with alert
             return new Promise((resolve, reject) => {
@@ -341,11 +332,11 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 throw new Error('No active federation')
             }
             try {
-                const msats = await fedimint.receiveEcash(
+                const res = await fedimint.receiveEcash(
                     ecash,
                     activeFederation.id,
                 )
-                return { msats }
+                return { msats: res[0] }
             } catch (err) {
                 log.warn('fedi.receiveEcash', err)
                 throw new Error(t('errors.receive-ecash-failed'))
@@ -404,7 +395,13 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         // be handled elsewhere in the app, pass it to the OmniLinkContext. If it
         // can't be parsed, pass it on to the OS to decide how to handle it.
         setIsParsingLink(true)
-        parseUserInput(req.url, fedimint, t, activeFederation?.id)
+        parseUserInput(
+            req.url,
+            fedimint,
+            t,
+            activeFederation?.id,
+            isInternetUnreachable,
+        )
             .then(parsed => {
                 const handled = handleParsedLink(parsed)
                 if (handled) return

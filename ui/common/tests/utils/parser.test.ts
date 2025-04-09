@@ -3,10 +3,11 @@ import { t } from 'i18next'
 import { rest } from 'msw'
 import { setupServer } from 'msw/node'
 
-import { Invoice, MSats } from '../../types'
+import { Invoice, MSats, StorageApi } from '../../types'
 import { RpcAmount } from '../../types/bindings'
 import { ParserDataType } from '../../types/parser'
 import { FedimintBridge } from '../../utils/fedimint'
+import { configureLogging } from '../../utils/log'
 import { parseUserInput } from '../../utils/parser'
 
 // Constants
@@ -116,8 +117,23 @@ describe('parseUserInput', () => {
             },
         ),
     )
+    beforeAll(() => {
+        server.listen({ onUnhandledRequest: 'warn' })
 
-    beforeAll(() => server.listen())
+        const storage: StorageApi = {
+            getItem: jest.fn().mockResolvedValue('[]'),
+            setItem: jest.fn().mockResolvedValue(undefined),
+            removeItem: jest.fn().mockResolvedValue(undefined),
+        }
+
+        // Mock network request to return a 404 for "www.fedi.xyz"
+        server.use(
+            rest.get('https://www.fedi.xyz', (_req, res, ctx) => {
+                return res.once(ctx.status(404), ctx.delay(1)) // Return fast response
+            }),
+        )
+        configureLogging(storage)
+    })
     afterEach(() => server.resetHandlers())
     afterAll(() => server.close())
 
@@ -221,7 +237,7 @@ describe('parseUserInput', () => {
     })
     testCases.push({
         input: 'www.fedi.xyz', // Not a proper url
-        type: ParserDataType.Unknown,
+        type: ParserDataType.OfflineError,
         data: {},
     })
 
@@ -346,7 +362,7 @@ describe('parseUserInput', () => {
 
     testCases.push({
         input: 'this is random text',
-        type: ParserDataType.Unknown,
+        type: ParserDataType.OfflineError,
         data: {},
     })
 
@@ -376,17 +392,18 @@ describe('parseUserInput', () => {
         str.length > 40 ? `${str.slice(0, 37)}...` : str
 
     for (const testCase of testCases) {
-        it(`parses ${testCase.type} from ${truncate(
-            testCase.input,
-        )}`, async () => {
+        it(`parses ${testCase.type} from ${truncate(testCase.input)}`, async () => {
             const parsed = await parseUserInput(
                 testCase.input,
                 fedimint,
                 t,
                 mockFedId,
+                testCase.input === 'www.fedi.xyz' ||
+                    testCase.input === 'this is random text'
+                    ? true
+                    : false,
             )
             expect(parsed.type).toEqual(testCase.type)
-            // expect(parsed.data).toEqual(testCase.data)
-        })
+        }, 2000) // Increase timeout to 2 seconds
     }
 })

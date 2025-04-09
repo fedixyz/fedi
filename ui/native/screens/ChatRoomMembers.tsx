@@ -111,9 +111,7 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                 showsVerticalScrollIndicator={false}
             />
             <ChatUserActionsOverlay
-                onDismiss={() =>
-                    requestAnimationFrame(() => setSelectedUserId(null))
-                }
+                onDismiss={() => setSelectedUserId(null)}
                 selectedUserId={selectedUserId}
                 roomId={roomId}
             />

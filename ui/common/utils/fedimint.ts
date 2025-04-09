@@ -4,21 +4,27 @@ import type {
     FedimintBridgeEventMap,
     MSats,
     Sats,
-    Transaction,
+    TransactionListEntry,
     bindings,
 } from '../types'
 import {
     ErrorCode,
+    FrontendMetadata,
     GuardianStatus,
     Observable,
     ObservableVec,
     ObservableVecUpdate,
     RpcAmount,
+    RpcError,
+    RpcFederationId,
     RpcFeeDetails,
     RpcMediaSource,
+    RpcOperationId,
     RpcPayAddressResponse,
     RpcRoomId,
     RpcStabilityPoolAccountInfo,
+    RpcTimelineEventItemId,
+    RpcTransaction,
 } from '../types/bindings'
 import { isDev } from './environment'
 import { formatBridgeError } from './error'
@@ -112,12 +118,25 @@ export class FedimintBridge {
         startTime?: number,
         limit?: number,
     ) {
-        return this.rpcTyped<'listTransactions', Transaction[]>(
+        return this.rpcTyped<'listTransactions', TransactionListEntry[]>(
             'listTransactions',
             {
                 federationId,
                 startTime: startTime || null,
                 limit: limit || null,
+            },
+        )
+    }
+
+    async getTransaction(
+        federationId: RpcFederationId,
+        operationId: RpcOperationId,
+    ) {
+        return this.rpcTyped<'getTransaction', RpcTransaction>(
+            'getTransaction',
+            {
+                federationId,
+                operationId,
             },
         )
     }
@@ -138,6 +157,17 @@ export class FedimintBridge {
             federationId,
             transactionId,
             notes,
+        })
+    }
+
+    async updateCachedFiatFXInfo(
+        fiatCode: string,
+        btcToFiatHundredths: number,
+    ) {
+        // FIXME: btcToFiatHundredths must be bigint to use this.rpcTyped
+        return this.rpc('updateCachedFiatFXInfo', {
+            fiatCode,
+            btcToFiatHundredths,
         })
     }
 
@@ -165,12 +195,18 @@ export class FedimintBridge {
         description: string,
         federationId: string,
         expiry: number | null = null,
+        frontendMetadata: FrontendMetadata = {
+            initialNotes: null,
+            recipientMatrixId: null,
+            senderMatrixId: null,
+        },
     ) {
         return this.rpcTyped('generateInvoice', {
             amount,
             description,
             federationId,
             expiry,
+            frontendMetadata,
         })
     }
 
@@ -178,15 +214,30 @@ export class FedimintBridge {
         return this.rpcTyped('decodeInvoice', { invoice, federationId })
     }
 
-    async payInvoice(invoice: string, federationId: string) {
+    async payInvoice(invoice: string, federationId: string, notes?: string) {
         return this.rpcTyped('payInvoice', {
             invoice,
             federationId,
+            frontendMetadata: {
+                initialNotes: notes || null,
+                recipientMatrixId: null,
+                senderMatrixId: null,
+            },
         })
     }
 
-    async generateAddress(federationId: string) {
-        return this.rpcTyped('generateAddress', { federationId })
+    async generateAddress(
+        federationId: string,
+        frontendMetadata: FrontendMetadata = {
+            initialNotes: null,
+            recipientMatrixId: null,
+            senderMatrixId: null,
+        },
+    ) {
+        return this.rpcTyped('generateAddress', {
+            federationId,
+            frontendMetadata,
+        })
     }
 
     async previewPayAddress(address: string, sats: Sats, federationId: string) {
@@ -198,12 +249,28 @@ export class FedimintBridge {
         })
     }
 
-    async payAddress(address: string, sats: Sats, federationId: string) {
+    async recheckPeginAddress(
+        args: bindings.RpcPayload<'recheckPeginAddress'>,
+    ) {
+        return this.rpcTyped('recheckPeginAddress', args)
+    }
+
+    async payAddress(
+        address: string,
+        sats: Sats,
+        federationId: string,
+        notes?: string,
+    ) {
         // FIXME: sats must be bigint to use this.rpcTyped
         return this.rpc<RpcPayAddressResponse>('payAddress', {
             address,
             sats,
             federationId,
+            frontendMetadata: {
+                initialNotes: notes || null,
+                recipientMatrixId: null,
+                senderMatrixId: null,
+            },
         })
     }
 
@@ -211,21 +278,40 @@ export class FedimintBridge {
         amount: MSats,
         federationId: string,
         includeInvite = false,
+        frontendMetadata: FrontendMetadata = {
+            initialNotes: null,
+            recipientMatrixId: null,
+            senderMatrixId: null,
+        },
     ) {
         return this.rpcTyped('generateEcash', {
             federationId,
             amount,
             includeInvite,
+            frontendMetadata,
         })
+    }
+
+    async listFederationsPendingRejoinFromScratch() {
+        return this.rpcTyped('listFederationsPendingRejoinFromScratch', {})
     }
 
     // Attempts to reissues ecash, can be started offline but requires
     // a connection to guardians to actually redeem the ecash.
     // Will retry in the background.
-    async receiveEcash(ecash: string, federationId: string) {
+    async receiveEcash(
+        ecash: string,
+        federationId: string,
+        frontendMetadata: FrontendMetadata = {
+            initialNotes: null,
+            recipientMatrixId: null,
+            senderMatrixId: null,
+        },
+    ) {
         return await this.rpcTyped('receiveEcash', {
             federationId,
             ecash,
+            frontendMetadata,
         })
     }
 
@@ -397,7 +483,7 @@ export class FedimintBridge {
 
     async matrixEditMessage(
         roomId: RpcRoomId,
-        eventId: string,
+        eventId: RpcTimelineEventItemId,
         newContent: string,
     ) {
         return this.rpcTyped('matrixEditMessage', {
@@ -409,7 +495,7 @@ export class FedimintBridge {
 
     async matrixDeleteMessage(
         roomId: RpcRoomId,
-        eventId: string,
+        eventId: RpcTimelineEventItemId,
         reason: string | null,
     ) {
         return this.rpcTyped('matrixDeleteMessage', { roomId, eventId, reason })
@@ -423,8 +509,16 @@ export class FedimintBridge {
         roomId: RpcRoomId,
         question: string,
         answers: Array<string>,
+        isMultipleChoice: boolean,
+        isDisclosed: boolean,
     ) {
-        return this.rpcTyped('matrixStartPoll', { roomId, question, answers })
+        return this.rpcTyped('matrixStartPoll', {
+            roomId,
+            question,
+            answers,
+            isMultipleChoice,
+            isDisclosed,
+        })
     }
 
     async matrixEndPoll(roomId: RpcRoomId, pollStartId: string) {
@@ -434,12 +528,12 @@ export class FedimintBridge {
     async matrixRespondToPoll(
         roomId: RpcRoomId,
         pollStartId: string,
-        selections: Array<string>,
+        answerIds: Array<string>,
     ) {
         return this.rpcTyped('matrixRespondToPoll', {
             roomId,
             pollStartId,
-            selections,
+            answerIds,
         })
     }
 
@@ -467,12 +561,6 @@ export class FedimintBridge {
 
     async matrixRoomList(args: bindings.RpcPayload<'matrixRoomList'>) {
         return this.rpcTyped('matrixRoomList', args)
-    }
-
-    async matrixRoomListUpdateRanges(
-        args: bindings.RpcPayload<'matrixRoomListUpdateRanges'>,
-    ) {
-        return this.rpcTyped('matrixRoomListUpdateRanges', args)
     }
 
     async matrixRoomTimelineItems(
@@ -668,6 +756,12 @@ export class FedimintBridge {
         args: bindings.RpcPayload<'getAccruedPendingFediFeesPerTXType'>,
     ) {
         return this.rpcTyped('getAccruedPendingFediFeesPerTXType', args)
+    }
+
+    async matrixGetMediaPreview(
+        args: bindings.RpcPayload<'matrixGetMediaPreview'>,
+    ) {
+        return this.rpcTyped('matrixGetMediaPreview', args)
     }
 
     /*** COMMUNITIES RPCs ***/
@@ -877,16 +971,12 @@ export class FedimintBridge {
 export class BridgeError extends Error {
     public detail: string
     public error: string
-    public code: ErrorCode | null
+    public errorCode: ErrorCode | null
 
-    constructor(json: {
-        detail: string
-        error: string
-        code: ErrorCode | null
-    }) {
+    constructor(json: RpcError) {
         super(json.error)
         this.error = json.error
-        this.code = json.code
+        this.errorCode = json.errorCode
         this.detail = json.detail
     }
 

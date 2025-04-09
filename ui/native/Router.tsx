@@ -4,12 +4,13 @@ import {
     useNavigationContainerRef,
 } from '@react-navigation/native'
 import { useTheme } from '@rneui/themed'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from './bridge'
 import ConnectedFederationsDrawer from './components/feature/federations/ConnectedFederationsDrawer'
 import { OmniLinkHandler } from './components/feature/omni/OmniLinkHandler'
 import Header from './components/ui/Header'
@@ -53,6 +54,15 @@ const Router = () => {
             },
         )
     }, [navigation, toast])
+
+    // If a nonce reuse check fails
+    // Notify the user by directing them to the RecoveryFromNonceReuse screen
+    useEffect(() => {
+        return fedimint.addListener('nonceReuseCheckFailed', async event => {
+            log.info('nonce reuse check failed', event)
+            navigation.navigate('RecoverFromNonceReuse')
+        })
+    }, [navigation])
 
     // Handles deep linking
     const linkingConfig = getLinkingConfig(parseUrl)

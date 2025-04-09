@@ -10,7 +10,10 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import {
+    selectActiveFederationId,
+    selectIsInternetUnreachable,
+} from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 import { parseUserInput } from '@fedi/common/utils/parser'
 
@@ -55,6 +58,8 @@ export const OmniLinkContextProvider: React.FC<{
     const interceptorsRef = useRef<OmniLinkInterceptFunction[]>([])
     const tRef = useUpdatingRef(t)
 
+    const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
+
     const parseUrl = useCallback(
         async (url: string | null) => {
             if (!url) return
@@ -66,6 +71,7 @@ export const OmniLinkContextProvider: React.FC<{
                     fedimint,
                     tRef.current,
                     federationId,
+                    isInternetUnreachable,
                 )
                 const wasIntercepted = interceptorsRef.current.find(
                     interceptor => interceptor(parsed),
@@ -81,7 +87,7 @@ export const OmniLinkContextProvider: React.FC<{
             }
             setIsParsingLink(false)
         },
-        [tRef, federationId],
+        [tRef, federationId, isInternetUnreachable],
     )
 
     const subscribeInterceptor: OmniLinkContextState['subscribeInterceptor'] =

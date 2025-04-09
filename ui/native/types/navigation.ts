@@ -18,7 +18,9 @@ import {
     ReceiveSuccessStatus,
     ReceiveSuccessData,
     Sats,
+    MatrixEvent,
 } from '@fedi/common/types'
+import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 
 import { MSats } from '.'
 
@@ -70,24 +72,31 @@ export type RootStackParamList = {
     ChooseRecoveryMethod: undefined
     MigratedDevice: undefined
     MigratedDeviceSuccess: undefined
+    CreatePoll: { roomId: string }
+    EditPoll: { event: MatrixEvent<MatrixEventContentType<'m.poll'>> }
     FederationCurrency: { federationId: string }
     GlobalCurrency: undefined
     CompleteRecoveryAssist: { videoPath: string; recoveryId: string }
     CompleteSocialBackup: undefined
     CompleteSocialRecovery: undefined
     ConfirmJoinPublicGroup: { groupId: string }
-    ConfirmSendEcash: { amount: Sats }
+    ConfirmSendEcash: { amount: Sats; notes?: string }
     ConfirmSendChatPayment: {
         amount: Sats
         roomId: string
+        notes?: string
     }
     ConfirmRecoveryAssist: undefined
-    ConfirmReceiveOffline: { ecash: string }
-    ConfirmReceiveCashu: { parsedData: ParsedCashuEcash }
-    ConfirmSendLightning: { parsedData: ParsedBolt11 | ParsedLnurlPay }
-    ConfirmSendOnChain: { parsedData: ParsedBip21 }
+    ConfirmReceiveOffline: { ecash: string; notes?: string }
+    ConfirmReceiveCashu: { parsedData: ParsedCashuEcash; notes?: string }
+    ConfirmSendLightning: {
+        parsedData: ParsedBolt11 | ParsedLnurlPay
+        notes?: string
+    }
+    ConfirmSendOnChain: { parsedData: ParsedBip21; notes?: string }
     ConnectedFederationsDrawer: undefined
     CreateGroup: { defaultGroup?: boolean }
+    EcashSendCancelled: undefined
     EnterDisplayName: undefined
     DirectChat: { memberId: string }
     EditGroup: { roomId: string }
@@ -136,6 +145,7 @@ export type RootStackParamList = {
     GroupChat: { groupId: string }
     RoomSettings: { roomId: string }
     GroupInvite: { groupId: string }
+    RecoverFromNonceReuse: undefined
     ScanMemberCode: { inviteToRoomId?: string } | undefined
     ScanSocialRecoveryCode: undefined
     SelectRecoveryFileSuccess: { fileName: string }
@@ -146,7 +156,7 @@ export type RootStackParamList = {
     SendOnChainAmount: { parsedData: ParsedBip21 | ParsedBitcoinAddress }
     SendSuccess: { amount: MSats; unit: string }
     Settings: undefined
-    ShareLogs: undefined
+    ShareLogs: { ticketNumber: string } | undefined
     FediModBrowser: { url: string }
     Splash: undefined
     StabilityConfirmDeposit: { amount: Sats }

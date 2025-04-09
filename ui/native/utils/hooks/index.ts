@@ -70,7 +70,7 @@ export function useNotificationsPermission() {
     }, [])
 
     const requestNotificationsPermission = useCallback(() => {
-        requestNotifications(['alert', 'sound']).then(res => {
+        requestNotifications(['alert', 'sound', 'badge']).then(res => {
             setNotificationsPermission(res.status)
         })
     }, [])

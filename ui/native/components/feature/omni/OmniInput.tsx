@@ -1,22 +1,24 @@
 import Clipboard from '@react-native-clipboard/clipboard'
 import { Theme, useTheme } from '@rneui/themed'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, View, ActivityIndicator, Pressable } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectActiveFederationId } from '@fedi/common/redux'
+import { selectIsInternetUnreachable } from '@fedi/common/redux/environment'
+import {
+    AnyParsedData,
+    ParsedOfflineError,
+    ParsedUnknownData,
+    ParserDataType,
+} from '@fedi/common/types'
 import { parseUserInput } from '@fedi/common/utils/parser'
+import { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
-import {
-    AnyParsedData,
-    ParsedUnknownData,
-    ParserDataType,
-} from '../../../types'
-import { SvgImageName } from '../../ui/SvgImage'
 import { OmniConfirmation } from './OmniConfirmation'
 import { OmniMemberSearch } from './OmniMemberSearch'
 import { OmniQrScanner } from './OmniQrScanner'
@@ -49,12 +51,17 @@ export function OmniInput<
     const { t } = useTranslation()
     const activeFederationId = useAppSelector(selectActiveFederationId)
     const toast = useToast()
+    const [showActivityIndicator, setShowActivityIndicator] = useState(false)
     const [inputMethod, setInputMethod] = useState<'scan' | 'search'>('scan')
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
-    const [invalidData, setInvalidData] = useState<ParsedUnknownData>()
-    const isParsingRef = useUpdatingRef(isParsing)
+    const emptyString = ''
+    const [omniError, setOmniError] = useState(emptyString)
 
+    const [invalidData, setInvalidData] = useState<
+        ParsedUnknownData | ParsedOfflineError
+    >()
+    const isParsingRef = useUpdatingRef(isParsing)
     const {
         expectedInputTypes,
         customActions,
@@ -71,6 +78,24 @@ export function OmniInput<
         ParserDataType.FediChatUser as T,
     )
 
+    const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
+
+    // Centralized error handling using useEffect
+    useEffect(() => {
+        if (omniError !== emptyString) {
+            const errorData: ParsedOfflineError = {
+                type: ParserDataType.OfflineError,
+                data: {
+                    title: omniError,
+                    message: omniError,
+                    goBackText: 'Retry',
+                },
+            }
+            setInvalidData(errorData)
+            setOmniError(emptyString)
+        }
+    }, [omniError, invalidData, unexpectedData, t])
+
     // TODO: Implement Room search for matrix (knocking)
     // const canRoomSearch = expectedInputTypes.includes(
     //     ParserDataType.FediChatRoom as T,
@@ -80,36 +105,63 @@ export function OmniInput<
         async (input: string) => {
             if (!input || isParsingRef.current) return
             setIsParsing(true)
-            const parsedData = await parseUserInput(
-                input,
-                fedimint,
-                t,
-                activeFederationId,
-            )
-            setIsParsing(false)
+            setShowActivityIndicator(true)
 
-            const expectedTypes = propsRef.current
-                .expectedInputTypes as readonly string[]
+            try {
+                const parsedData = await parseUserInput(
+                    input,
+                    fedimint,
+                    t,
+                    activeFederationId,
+                    isInternetUnreachable,
+                )
 
-            if (expectedTypes.includes(parsedData.type)) {
-                propsRef.current.onExpectedInput(parsedData as ExpectedData)
-            } else if (parsedData.type === ParserDataType.Unknown) {
-                setInvalidData(parsedData)
-            } else {
-                setUnexpectedData(parsedData)
+                const expectedTypes = propsRef.current
+                    .expectedInputTypes as readonly string[]
+
+                if (expectedTypes.includes(parsedData.type)) {
+                    propsRef.current.onExpectedInput(parsedData as ExpectedData)
+                } else if (parsedData.type === ParserDataType.Unknown) {
+                    setInvalidData(parsedData)
+                } else if (parsedData.type === ParserDataType.OfflineError) {
+                    setOmniError(parsedData.data.message)
+                } else {
+                    setUnexpectedData(parsedData)
+                }
+            } catch (err) {
+                setOmniError(t('feature.omni.error-network-message'))
+            } finally {
+                setIsParsing(false)
+                setShowActivityIndicator(false)
             }
         },
-        [propsRef, isParsingRef, t, activeFederationId],
+        [propsRef, isParsingRef, t, activeFederationId, isInternetUnreachable],
+    )
+
+    const checkForEmptyInput = useCallback(
+        (input: string) => {
+            if (!input || input.trim() === '') {
+                setOmniError(t('feature.omni.error-paste-empty'))
+                return true
+            }
+            return false
+        },
+        [t],
     )
 
     const handlePaste = useCallback(async () => {
         try {
+            setShowActivityIndicator(true)
             const input = await Clipboard.getString()
-            await parseInput(input)
+            if (!checkForEmptyInput(input)) {
+                await parseInput(input)
+            }
         } catch (err) {
             toast.error(t, err)
+        } finally {
+            setShowActivityIndicator(false)
         }
-    }, [parseInput, toast, t])
+    }, [parseInput, toast, t, checkForEmptyInput])
 
     const actions: OmniInputAction[] = useMemo(() => {
         const contextualActions: OmniInputAction[] = []
@@ -159,6 +211,7 @@ export function OmniInput<
                 onGoBack={() => {
                     setInvalidData(undefined)
                     setUnexpectedData(undefined)
+                    setIsParsing(false)
                 }}
                 onSuccess={onUnexpectedSuccess}
             />
@@ -168,6 +221,16 @@ export function OmniInput<
     const style = styles(theme)
     return (
         <View style={style.container}>
+            {showActivityIndicator && (
+                <Pressable
+                    onPress={() => setShowActivityIndicator(false)}
+                    style={style.overlay}>
+                    <ActivityIndicator
+                        size="large"
+                        color={theme.colors.primary}
+                    />
+                </Pressable>
+            )}
             {inputMethod === 'scan' && (
                 <OmniQrScanner
                     onInput={parseInput}
@@ -195,5 +258,16 @@ const styles = (theme: Theme) =>
             width: '100%',
             flexDirection: 'column',
             gap: theme.spacing.lg,
+        },
+        overlay: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+            zIndex: 2,
         },
     })

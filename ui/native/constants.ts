@@ -62,4 +62,4 @@ export const ZENDESK_USER_SCOPE = 'user'
     -----
 */
 
-export const ZENDESK_PUSH_NOTIFICATION_CHANNEL = 'zendesk-channel'
+export const ZENDESK_PUSH_NOTIFICATION_CHANNEL = 'and-notification-channel'
