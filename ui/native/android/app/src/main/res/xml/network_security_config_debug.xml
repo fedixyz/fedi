@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- Needed for the FediModBrowser to be able to open captive portal URLs used by wireless APs -->
+    <!-- TODO: Replace with <domain-config> once we know what specific domains we need to allow -->
+    <base-config cleartextTrafficPermitted="false"></base-config>
     <!-- This config allows the app running in an emulator to connect to locally running regtest
     federations used in development only -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">10.0.2.2</domain>
         <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">internet.fedi.xyz</domain>
     </domain-config>
 </network-security-config>

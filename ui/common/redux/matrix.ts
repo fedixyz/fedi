@@ -461,7 +461,7 @@ export const startMatrixClient = createAsyncThunk<
     MatrixAuth,
     { fedimint: FedimintBridge },
     { state: CommonState }
->('matrix/startMatrix', async ({ fedimint }, { getState, dispatch }) => {
+>('matrix/startMatrix', ({ fedimint }, { getState, dispatch }) => {
     // Create or grab existing client, bail out if we've already started.
     // TODO: when short circuiting on hasStarted, we should try to return
     // the same promise as the existing start call. Otherwise we may show
@@ -503,7 +503,7 @@ export const startMatrixClient = createAsyncThunk<
     })
 
     // Start the client
-    return await client.start(fedimint)
+    return client.start(fedimint)
 })
 
 export const setMatrixDisplayName = createAsyncThunk<

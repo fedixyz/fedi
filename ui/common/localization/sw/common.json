@@ -152,7 +152,7 @@
         "email-address": "Anwani ya barua pepe",
         "failed-to-decode-invoice": "Imeshindwa kusimbua ankara",
         "federation-fee": "Ada ya jumuiya",
-        "fedi-app-terms-of-service": "Masharti ya huduma ya programu ya Fedi",
+        "fedi-app-terms-of-service": "Masharti ya huduma ya Fedi",
         "fedi-fee": "Ada ya Fedi",
         "fedimint-version": "Fedimint {{version}}",
         "fee-details": "Maelezo ya ada",
@@ -443,7 +443,7 @@
             "log-fcm-token": "Log FCM token",
             "logs": "Logs",
             "nightly": "nightly",
-            "share-logs": "Tumia wengine logs",
+            "share-logs": "Tuma logs",
             "share-state": "Tumia wengine hali ya app",
             "show-fcm-token": "Onyesha FCM token"
         },
@@ -876,10 +876,10 @@
             "you-withdrew": "Ulitoa"
         },
         "support": {
-            "effective-support-1a": "Kwa kuendelea, unakubali kwamba Fedi inaweza kukusanya baadhi ya",
-            "effective-support-1b": "ili kukupa usaidizi bora zaidi.",
+            "effective-support-1a": "Kwa kuendelea, unakubali kwamba Fedi inaweza kukusanya baadhi ya ",
+            "effective-support-1b": " ili kukupa usaidizi bora zaidi.",
             "effective-support-2a": "Je, hupendi kushiriki? Hakuna tatizo! Unaweza kuchunguza ",
-            "effective-support-2b": "ili kupata maarifa mengi ya Fedi.",
+            "effective-support-2b": " ili kupata maarifa mengi ya Fedi.",
             "effective-support-help-center": "Kituo chetu cha usaidizi",
             "effective-support-info": "taarifa",
             "enter-ticket-number": "Weka nambari ya tiketi uliyopewa na timu yetu.",

@@ -173,6 +173,8 @@ const styles = (theme: Theme, fontScale: number) =>
             marginBottom: theme.spacing.lg,
             width: 32,
             height: 32,
+            justifyContent: 'center',
+            alignItems: 'center',
         },
         welcomeText: {
             textAlign: 'center',

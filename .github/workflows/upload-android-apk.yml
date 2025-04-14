@@ -23,10 +23,10 @@ jobs:
 
             - name: Inject secrets into .env file
               run: |
-                  echo "CHANNEL_KEY_ANDROID=${{ secrets.CHANNEL_KEY_ANDROID }}" >> ui/native/.env
-                  echo "CHANNEL_KEY_IOS=${{ secrets.CHANNEL_KEY_IOS }}" >> ui/native/.env
-                  echo "ZENDESK_KID=${{ secrets.ZENDESK_KID }}" >> ui/native/.env
-                  echo "ZENDESK_SECRET_KEY=${{ secrets.ZENDESK_SECRET_KEY }}" >> ui/native/.env
+                  echo "CHANNEL_KEY_ANDROID=${{ secrets.ZENDESK_CHANNEL_KEY_ANDROID }}" >> ui/native/.env
+                  echo "CHANNEL_KEY_IOS=${{ secrets.ZENDESK_CHANNEL_KEY_IOS }}" >> ui/native/.env
+                  echo "ZENDESK_KID=${{ secrets.ZENDESK_KEY_ID }}" >> ui/native/.env
+                  echo "ZENDESK_SECRET_KEY=${{ secrets.ZENDESK_SECRET }}" >> ui/native/.env
 
             - name: Build bridge
               run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
