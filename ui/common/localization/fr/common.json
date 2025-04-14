@@ -876,10 +876,10 @@
             "you-withdrew": "Vous avez retiré"
         },
         "support": {
-            "effective-support-1a": "En poursuivant, vous acceptez que Fedi puisse collecter certaines",
-            "effective-support-1b": "uniquement pour vous offrir la meilleure assistance possible.",
-            "effective-support-2a": "Vous préférez ne pas partager ? Pas de problème ! Vous pouvez toujours explorer notre",
-            "effective-support-2b": "pour une mine de connaissances sur Fedi.",
+            "effective-support-1a": "En poursuivant, vous acceptez que Fedi puisse collecter certaines ",
+            "effective-support-1b": " uniquement pour vous offrir la meilleure assistance possible.",
+            "effective-support-2a": "Vous préférez ne pas partager ? Pas de problème ! Vous pouvez toujours explorer notre ",
+            "effective-support-2b": " pour une mine de connaissances sur Fedi.",
             "effective-support-help-center": "Centre d'assistance",
             "effective-support-info": "informations",
             "enter-ticket-number": "Entrez le numéro de ticket fourni par notre équipe.",

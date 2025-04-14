@@ -124,12 +124,17 @@ function innerLog(
         const consoleFn = console[level]
         consoleFn(context ? `[${context}] ${message}` : message, ...extra)
     }
-
-    // Force a save if we have more than 20 logs in the cache. Otherwise save
-    // after a brief delay.
+    // Saves each log after a brief delay to batch multiple logs together, but
+    // minimizes the risk of losing logs on app close by saving more quickly if we have
+    // more than 20 logs in the cache.
+    // Acts as an *imperfect* debouncer to prevent UI thread blockage during rapid logging:
+    // - clearTimeout cancels any previous calls waiting for the timeout
+    // - setTimeout yields to the event loop, allowing UI thread operations to continue
+    // - The 1ms delay is a compromise - it yields to the UI thread but doesn't guarantee
+    // cancellation of all previous timeouts like a true debouncer should
     clearTimeout(saveTimeout)
     if (cachedLogs.length >= 20) {
-        saveLogsToStorage()
+        saveTimeout = setTimeout(saveLogsToStorage, 1)
     } else {
         saveTimeout = setTimeout(saveLogsToStorage, 100)
     }
