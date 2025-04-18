@@ -131,7 +131,9 @@ impl FeatureCatalog {
         Self {
             encrypted_sync: None,
             override_localhost: None,
-            stability_pool_v2: None,
+            stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
+                state: StabilityPoolV2FeatureConfigState::SpV2Only,
+            }),
         }
     }
 }

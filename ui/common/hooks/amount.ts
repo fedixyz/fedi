@@ -20,6 +20,7 @@ import {
     selectShowFiatTxnAmounts,
     selectStabilityPoolAvailableLiquidity,
     selectStableBalanceSats,
+    selectWithdrawableStableBalanceCents,
     selectWithdrawableStableBalanceMsats,
     setAmountInputType,
 } from '../redux'
@@ -28,11 +29,13 @@ import {
     EcashRequest,
     Invoice,
     MSats,
+    NonGenericCurrency,
     ParsedBip21,
     ParsedBitcoinAddress,
     ParsedLnurlPay,
     ParsedLnurlWithdraw,
     Sats,
+    SelectableCurrency,
     SupportedCurrency,
     TransactionListEntry,
     UsdCents,
@@ -79,7 +82,7 @@ export const numpadButtons = [
 
 export type NumpadButtonValue = (typeof numpadButtons)[number]
 
-export const useBtcFiatPrice = (currency?: SupportedCurrency) => {
+export const useBtcFiatPrice = (currency?: SelectableCurrency) => {
     const selectedFiatCurrency = useCommonSelector(selectCurrency)
     const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const exchangeRate: number = useCommonSelector(selectBtcExchangeRate)
@@ -110,15 +113,24 @@ export const useBtcFiatPrice = (currency?: SupportedCurrency) => {
             },
             [exchangeRate],
         ),
+        convertSatsToCents: useCallback(
+            (sats: Sats) => {
+                return Math.round(
+                    amountUtils.satToFiat(sats, btcUsdExchangeRate) * 100,
+                ) as UsdCents
+            },
+            [btcUsdExchangeRate],
+        ),
         convertSatsToFormattedFiat: useCallback(
             (
                 sats: Sats,
                 symbolPosition: AmountSymbolPosition = 'end',
                 historicalFiatInfo?: FiatFXInfo,
             ) => {
-                const conversionCurrency: SupportedCurrency = historicalFiatInfo
-                    ? (historicalFiatInfo.fiatCode as SupportedCurrency)
-                    : fiatCurrency
+                const conversionCurrency: SelectableCurrency =
+                    historicalFiatInfo
+                        ? (historicalFiatInfo.fiatCode as NonGenericCurrency)
+                        : fiatCurrency
                 const conversionRate = historicalFiatInfo
                     ? historicalFiatInfo.btcToFiatHundredths / 100
                     : exchangeRate
@@ -143,8 +155,7 @@ export const useBtcFiatPrice = (currency?: SupportedCurrency) => {
         ),
     }
 }
-
-export const useAmountFormatter = (currency?: SupportedCurrency) => {
+export const useAmountFormatter = (currency?: SelectableCurrency) => {
     const { convertSatsToFormattedUsd, convertSatsToFormattedFiat } =
         useBtcFiatPrice(currency)
     const showFiatTxnAmounts = useCommonSelector(selectShowFiatTxnAmounts)
@@ -408,8 +419,8 @@ export function useAmountInput(
             currency,
             clampSats,
             btcToFiatRateRef,
-            maximumAmount,
             minimumAmount,
+            maximumAmount,
             onChangeAmount,
         ],
     )
@@ -861,15 +872,27 @@ export function useSendForm({
  * that decreases the stable USD balance in the wallet
  */
 export function useWithdrawForm() {
-    const { convertSatsToFormattedFiat } = useBtcFiatPrice()
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
+    const [inputFiatAmount, setInputFiatAmount] = useState<UsdCents>(
+        0 as UsdCents,
+    )
     const { minimumAmount, maximumAmount } = useMinMaxWithdrawAmount()
+    const maximumFiatCents = useCommonSelector(
+        selectWithdrawableStableBalanceCents,
+    )
 
-    const maximumFiatAmount = convertSatsToFormattedFiat(maximumAmount)
+    const { convertCentsToFormattedFiat, convertSatsToCents } =
+        useBtcFiatPrice()
+
+    const maximumFiatAmount = convertCentsToFormattedFiat(maximumFiatCents)
+    const inputAmountCents = convertSatsToCents(inputAmount)
 
     return {
         inputAmount,
+        inputAmountCents,
         setInputAmount,
+        inputFiatAmount,
+        setInputFiatAmount,
         minimumAmount,
         maximumAmount,
         maximumFiatAmount,

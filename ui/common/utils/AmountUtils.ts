@@ -10,11 +10,12 @@ import {
     MsatsString,
     Sats,
     SatsString,
-    SupportedCurrency,
+    SelectableCurrency,
     Usd,
     UsdCents,
     UsdString,
 } from '../types'
+import { getCurrencyCode } from './currency'
 
 class AmountUtils {
     static BTC_MAX_DECIMAL_PLACES = 8
@@ -139,16 +140,18 @@ class AmountUtils {
      */
     formatFiat = (
         amount: number,
-        currency: SupportedCurrency,
+        currency: SelectableCurrency,
         options: {
             locale?: string | string[]
             symbolPosition?: AmountSymbolPosition
         } = {},
     ) => {
+        const currencyCode = getCurrencyCode(currency)
+
         if (options.symbolPosition === 'none') {
             const fmtOptions = new Intl.NumberFormat(options.locale, {
                 style: 'currency',
-                currency,
+                currency: currencyCode,
             }).resolvedOptions()
             return amount.toLocaleString(options.locale, {
                 ...fmtOptions,
@@ -159,7 +162,7 @@ class AmountUtils {
         } else {
             const formatted = Intl.NumberFormat(options.locale, {
                 style: 'currency',
-                currency,
+                currency: currencyCode,
                 currencyDisplay: 'code',
             }).format(amount)
 
@@ -172,13 +175,15 @@ class AmountUtils {
      * Given a currency, return a symbol for it in the user's default locale.
      */
     getCurrencySymbol = (
-        currency: SupportedCurrency,
+        currency: SelectableCurrency,
         options: { locale?: string | string[] } = {},
     ) => {
+        const currencyCode = getCurrencyCode(currency)
+
         return (0)
             .toLocaleString(options.locale, {
                 style: 'currency',
-                currency,
+                currency: currencyCode,
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0,
             })
@@ -191,12 +196,14 @@ class AmountUtils {
      * If undefined, return 0.
      */
     getCurrencyDecimals = (
-        currency: SupportedCurrency,
+        currency: SelectableCurrency,
         options: { locale?: string | string[] } = {},
     ): number => {
+        const currencyCode = getCurrencyCode(currency)
+
         const fmtOptions = new Intl.NumberFormat(options.locale, {
             style: 'currency',
-            currency,
+            currency: currencyCode,
         }).resolvedOptions()
         if (fmtOptions.maximumFractionDigits === undefined) {
             return 0

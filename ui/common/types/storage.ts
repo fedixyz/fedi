@@ -4,7 +4,13 @@
 import { ProtectedFeatures } from '../redux'
 import { ModVisibility } from '../redux/mod'
 import { Chat, ChatGroup, ChatMember, ChatMessage } from './chat'
-import { Federation, FediMod, Guardian, SupportedCurrency } from './fedimint'
+import {
+    Federation,
+    FediMod,
+    Guardian,
+    SelectableCurrency,
+    SupportedCurrency,
+} from './fedimint'
 
 export interface StoredStateV0 {
     version: 0 // Not a real version, just implemented for demonstrative purposes
@@ -13,7 +19,7 @@ export interface StoredStateV0 {
 export interface StoredStateV1 extends Omit<StoredStateV0, 'version'> {
     version: 1
     language: string | null
-    currency: SupportedCurrency | null
+    currency: SelectableCurrency | null
     activeFederationId: string | null
     authenticatedGuardian: Guardian | null
     chatIdentities: Record<string, ChatMember | undefined>
@@ -214,7 +220,7 @@ export interface StoredStateV22 extends Omit<StoredStateV21, 'version'> {
 
 export interface StoredStateV23 extends Omit<StoredStateV22, 'version'> {
     version: 23
-    customFederationCurrencies: Record<string, SupportedCurrency>
+    customFederationCurrencies: Record<string, SelectableCurrency>
 }
 
 /*** Union of all past shapes of stored state ***/

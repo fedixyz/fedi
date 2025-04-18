@@ -1,6 +1,7 @@
 import { ResourceKey, TFunction } from 'i18next'
 
-import { SupportedCurrency } from '../types'
+import { SelectableCurrency } from '../types'
+import { getCurrencyCode } from './currency'
 import { BridgeError } from './fedimint'
 
 /**
@@ -32,9 +33,9 @@ export function formatErrorMessage<T extends TFunction>(
 
 export function formatCurrencyText<T extends TFunction>(
     t: T,
-    currency: SupportedCurrency,
+    currency: SelectableCurrency,
 ) {
     const i18nKey = `feature.settings.currency-names.${currency.toLowerCase()}`
 
-    return `${currency} - ${t(i18nKey as ResourceKey)}`
+    return `${getCurrencyCode(currency)} - ${t(i18nKey as ResourceKey)}`
 }

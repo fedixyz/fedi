@@ -26,12 +26,9 @@ import {
     MSats,
     PublicFederation,
     Sats,
+    StabilityPoolConfig,
 } from '../types'
-import {
-    RpcJsonClientConfig,
-    RpcLightningGateway,
-    RpcStabilityPoolConfig,
-} from '../types/bindings'
+import { RpcLightningGateway, RpcStabilityPoolConfig } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import {
     coerceFederationListItem,
@@ -692,18 +689,30 @@ export const selectFederationClientConfig = createSelector(
 export const selectFederationStabilityPoolConfig = createSelector(
     selectFederationClientConfig,
     config => {
-        if (!config) return null
+        if (!config || !('modules' in config)) return null
 
-        if ('modules' in config) {
-            const { modules } = config as RpcJsonClientConfig
-            for (const key in modules) {
-                // TODO: add better typing for this
-                const fmModule = modules[key] as Partial<{ kind: string }>
-                if (fmModule.kind === 'stability_pool') {
-                    return fmModule as RpcStabilityPoolConfig
-                }
+        const { modules } = config
+        for (const key in modules) {
+            // TODO: add better typing for this
+            const fmModule = modules[key] as Partial<{ kind: string }>
+
+            // Stability pool v2
+            if (fmModule.kind === 'multi_sig_stability_pool') {
+                return {
+                    ...(fmModule as RpcStabilityPoolConfig),
+                    version: 2,
+                } satisfies StabilityPoolConfig
+            }
+
+            // Stability pool v1
+            if (fmModule.kind === 'stability_pool') {
+                return {
+                    ...(fmModule as RpcStabilityPoolConfig),
+                    version: 1,
+                } satisfies StabilityPoolConfig
             }
         }
+
         return null
     },
 )
@@ -735,6 +744,8 @@ export const selectStabilityPoolFeeSchedule = createSelector(
         const { modules } = feeSchedule
         if ('stability_pool' in modules) {
             return modules['stability_pool']
+        } else if ('multi_sig_stability_pool' in modules) {
+            return modules['multi_sig_stability_pool']
         }
     },
 )

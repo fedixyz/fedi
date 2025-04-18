@@ -56,6 +56,13 @@ pub enum BridgeDbPrefix {
     // Same as [`LastStabilityPoolDepositCycle`] but for the v2 stability pool module.
     LastStabilityPoolV2DepositCycle = 0xc1,
 
+    // The stability pool v2 sweeper service will automatically withdraw deposits that could not
+    // be locked. However, if the app crashes before the transaction state machine could actually
+    // submit the TX to the servers, then we might accidentally issue another withdrawal on
+    // app-restart. So to guard against a repeated withdrawal TX, we store the operation ID and
+    // check it first.
+    LastSPv2SweeperWithdrawal = 0xc2,
+
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
     #[allow(dead_code)]
@@ -150,6 +157,15 @@ impl_db_record!(
     key = LastStabilityPoolV2DepositCycleKey,
     value = u64,
     db_prefix = BridgeDbPrefix::LastStabilityPoolV2DepositCycle,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LastSPv2SweeperWithdrawalKey;
+
+impl_db_record!(
+    key = LastSPv2SweeperWithdrawalKey,
+    value = OperationId,
+    db_prefix = BridgeDbPrefix::LastSPv2SweeperWithdrawal,
 );
 
 #[derive(Debug, Decodable, Encodable)]

@@ -22,6 +22,10 @@ import {
     StabilityPoolWithdrawalEvent,
     RpcTransactionListEntry,
     TransactionEvent as RpcTransactionEvent,
+    SPv2DepositEvent,
+    SPv2WithdrawalEvent,
+    SPv2TransferEvent,
+    RpcStabilityPoolConfig,
 } from './bindings'
 import { MSats, Usd, UsdCents } from './units'
 
@@ -84,6 +88,8 @@ export type OobSendTxn = TransactionKind<'oobSend'>
 export type OobReceiveTxn = TransactionKind<'oobReceive'>
 export type SpDepositTxn = TransactionKind<'spDeposit'>
 export type SpWithdrawTxn = TransactionKind<'spWithdraw'>
+export type Spv2DepositTxn = TransactionKind<'sPV2Deposit'>
+export type Spv2WithdrawalTxn = TransactionKind<'sPV2Withdrawal'>
 
 export interface Node {
     name: string
@@ -112,10 +118,11 @@ export enum SupportedCurrency {
     BDT = 'BDT',
     BIF = 'BIF',
     BRL = 'BRL',
+    BTN = 'BTN',
     BWP = 'BWP',
     CAD = 'CAD',
     CDF = 'CDF',
-    CFA = 'CFA',
+    CHF = 'CHF',
     CLP = 'CLP',
     COP = 'COP',
     CRC = 'CRC',
@@ -142,23 +149,58 @@ export enum SupportedCurrency {
     NAD = 'NAD',
     NGN = 'NGN',
     NIO = 'NIO',
+    NZD = 'NZD',
     PEN = 'PEN',
     PHP = 'PHP',
     PKR = 'PKR',
+    PLN = 'PLN',
     RWF = 'RWF',
     SDG = 'SDG',
     SOS = 'SOS',
     SRD = 'SRD',
     SSP = 'SSP',
     THB = 'THB',
+    UAH = 'UAH',
     UGX = 'UGX',
     UYU = 'UYU',
     VES = 'VES',
     VND = 'VND',
-    XAF = 'XAF',
     ZAR = 'ZAR',
     ZMW = 'ZMW',
+    XAF = 'XAF',
+    XOF = 'XOF',
 }
+
+export const CurrencyAliases = {
+    cameroon: SupportedCurrency.XAF,
+    central_african_republic: SupportedCurrency.XAF,
+    chad: SupportedCurrency.XAF,
+    equatorial_guinea: SupportedCurrency.XAF,
+    gabon: SupportedCurrency.XAF,
+    republic_of_the_congo: SupportedCurrency.XAF,
+    benin: SupportedCurrency.XOF,
+    burkina_faso: SupportedCurrency.XOF,
+    cote_d_ivoire: SupportedCurrency.XOF,
+    guinea_bissau: SupportedCurrency.XOF,
+    mali: SupportedCurrency.XOF,
+    niger: SupportedCurrency.XOF,
+    senegal: SupportedCurrency.XOF,
+    togo: SupportedCurrency.XOF,
+} as const satisfies Record<string, SupportedCurrency>
+
+export type CurrencyAlias = keyof typeof CurrencyAliases
+
+// Exclude generic currencies XAF and XOF from currency flags
+export type NonGenericCurrency = Exclude<
+    SupportedCurrency,
+    SupportedCurrency.XAF | SupportedCurrency.XOF
+>
+
+// Currency option that can be selected in the UI
+export type SelectableCurrency = NonGenericCurrency | CurrencyAlias
+
+// Key type for currency options
+export type SelectableCurrencyKey = keyof NonGenericCurrency | CurrencyAlias
 
 export enum SupportedMetaFields {
     default_currency = 'default_currency',
@@ -279,6 +321,9 @@ export type FedimintBridgeEventMap = {
     panic: PanicEvent
     stabilityPoolDeposit: StabilityPoolDepositEvent
     stabilityPoolWithdrawal: StabilityPoolWithdrawalEvent
+    spv2Deposit: SPv2DepositEvent
+    spv2Withdrawal: SPv2WithdrawalEvent
+    spv2Transfer: SPv2TransferEvent
     recoveryComplete: RecoveryCompleteEvent
     recoveryProgress: RecoveryProgressEvent
     observableUpdate: ObservableUpdate<unknown>
@@ -322,3 +367,11 @@ export type TransactionStatusBadge =
     | 'failed'
 
 export type TransactionAmountState = 'settled' | 'pending' | 'failed'
+
+export type StabilityPoolVersion = 1 | 2
+
+// Allows us to distinguish between spv1 and spv2 using the
+// same stabilityPoolConfig selector
+export type StabilityPoolConfig = RpcStabilityPoolConfig & {
+    version: StabilityPoolVersion
+}

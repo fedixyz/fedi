@@ -738,9 +738,10 @@ async fn spv2AvailableLiquidity(federation: Arc<FederationV2>) -> anyhow::Result
 async fn spv2DepositToSeek(
     federation: Arc<FederationV2>,
     amount: RpcAmount,
+    frontend_meta: FrontendMetadata,
 ) -> anyhow::Result<RpcOperationId> {
     federation
-        .spv2_deposit_to_seek(amount.0)
+        .spv2_deposit_to_seek(amount.0, frontend_meta)
         .await
         .map(Into::into)
 }
@@ -749,17 +750,24 @@ async fn spv2DepositToSeek(
 async fn spv2Withdraw(
     federation: Arc<FederationV2>,
     fiat_amount: u32,
+    frontend_meta: FrontendMetadata,
 ) -> anyhow::Result<RpcOperationId> {
     federation
-        .spv2_withdraw(FiatOrAll::Fiat(FiatAmount(fiat_amount.into())))
+        .spv2_withdraw(
+            FiatOrAll::Fiat(FiatAmount(fiat_amount.into())),
+            frontend_meta,
+        )
         .await
         .map(Into::into)
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
-async fn spv2WithdrawAll(federation: Arc<FederationV2>) -> anyhow::Result<RpcOperationId> {
+async fn spv2WithdrawAll(
+    federation: Arc<FederationV2>,
+    frontend_meta: FrontendMetadata,
+) -> anyhow::Result<RpcOperationId> {
     federation
-        .spv2_withdraw(FiatOrAll::All)
+        .spv2_withdraw(FiatOrAll::All, frontend_meta)
         .await
         .map(Into::into)
 }
@@ -836,6 +844,23 @@ async fn setStabilityPoolModuleFediFeeSchedule(
         .set_module_fedi_fee_schedule(
             federation_id,
             stability_pool_client_old::common::KIND,
+            send_ppm,
+            receive_ppm,
+        )
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn setSPv2ModuleFediFeeSchedule(
+    bridge: &BridgeFull,
+    federation_id: RpcFederationId,
+    send_ppm: u64,
+    receive_ppm: u64,
+) -> anyhow::Result<()> {
+    bridge
+        .set_module_fedi_fee_schedule(
+            federation_id,
+            stability_pool_client::common::KIND,
             send_ppm,
             receive_ppm,
         )
@@ -1676,6 +1701,7 @@ rpc_methods!(RpcMethods {
     setWalletModuleFediFeeSchedule,
     setLightningModuleFediFeeSchedule,
     setStabilityPoolModuleFediFeeSchedule,
+    setSPv2ModuleFediFeeSchedule,
     getAccruedOutstandingFediFeesPerTXType,
     getAccruedPendingFediFeesPerTXType,
     dumpDb,
@@ -2255,6 +2281,7 @@ pub mod tests {
         spawn_and_attach_name!(tests_set, tests_names, test_validate_ecash);
         spawn_and_attach_name!(tests_set, tests_names, test_social_backup_and_recovery);
         spawn_and_attach_name!(tests_set, tests_names, test_stability_pool);
+        spawn_and_attach_name!(tests_set, tests_names, test_spv2);
         spawn_and_attach_name!(tests_set, tests_names, test_lnurl_sign_message);
         spawn_and_attach_name!(tests_set, tests_names, test_federation_preview);
         spawn_and_attach_name!(
@@ -3274,6 +3301,134 @@ pub mod tests {
         );
         assert!(account_info.staged_cancellation.is_none());
         assert!(account_info.locked_seeks.is_empty());
+        Ok(())
+    }
+
+    async fn test_spv2() -> anyhow::Result<()> {
+        if should_skip_test_using_stock_fedimintd() {
+            return Ok(());
+        }
+
+        // Vec of tuple of (send_ppm, receive_ppm)
+        let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
+        for (send_ppm, receive_ppm) in fee_ppm_values {
+            test_spv2_with_fedi_fees(send_ppm, receive_ppm).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn test_spv2_with_fedi_fees(
+        fedi_fees_send_ppm: u64,
+        fedi_fees_receive_ppm: u64,
+    ) -> anyhow::Result<()> {
+        let (bridge, federation) = setup().await?;
+        setSPv2ModuleFediFeeSchedule(
+            &bridge,
+            federation.rpc_federation_id(),
+            fedi_fees_send_ppm,
+            fedi_fees_receive_ppm,
+        )
+        .await?;
+
+        // Test default account info state
+        let RpcSPv2CachedSyncResponse { sync_response, .. } =
+            spv2AccountInfo(federation.clone()).await?;
+        assert_eq!(sync_response.idle_balance.0, Amount::ZERO);
+        assert_eq!(sync_response.staged_balance.0, Amount::ZERO);
+        assert_eq!(sync_response.locked_balance.0, Amount::ZERO);
+        assert!(sync_response.pending_unlock_request.is_none());
+
+        // Receive some ecash first
+        let initial_balance = Amount::from_msats(500_000);
+        let ecash = cli_generate_ecash(initial_balance).await?;
+        let (receive_amount, _) = federation
+            .receive_ecash(ecash, FrontendMetadata::default())
+            .await?;
+        wait_for_ecash_reissue(&federation).await?;
+
+        // Deposit to seek and verify account info
+        let amount_to_deposit = Amount::from_msats(receive_amount.msats / 2);
+        let deposit_fedi_fee =
+            Amount::from_msats((amount_to_deposit.msats * fedi_fees_send_ppm).div_ceil(MILLION));
+        spv2DepositToSeek(
+            federation.clone(),
+            RpcAmount(amount_to_deposit),
+            FrontendMetadata::default(),
+        )
+        .await?;
+        loop {
+            // Wait until deposit operation succeeds
+            // Initiated -> TxAccepted -> Success
+            if bridge
+                .runtime
+                .event_sink
+                .num_events_of_type("spv2Deposit".into())
+                == 3
+            {
+                break;
+            }
+
+            fedimint_core::task::sleep(Duration::from_millis(100)).await;
+        }
+
+        assert_eq!(
+            receive_amount - amount_to_deposit - deposit_fedi_fee,
+            federation.get_balance().await,
+        );
+        let RpcSPv2CachedSyncResponse { sync_response, .. } =
+            spv2AccountInfo(federation.clone()).await?;
+        assert_eq!(sync_response.idle_balance.0, Amount::ZERO);
+        assert_eq!(sync_response.staged_balance.0, amount_to_deposit);
+        assert!(sync_response.pending_unlock_request.is_none());
+        assert_eq!(sync_response.locked_balance.0, Amount::ZERO);
+
+        // Withdraw and verify account info
+        let amount_to_withdraw = Amount::from_msats(200_000);
+        let withdraw_fedi_fee = Amount::from_msats(
+            (amount_to_withdraw.msats * fedi_fees_receive_ppm).div_ceil(MILLION),
+        );
+        spv2Withdraw(
+            federation.clone(),
+            FiatAmount::from_btc_amount(
+                amount_to_withdraw,
+                FiatAmount(sync_response.curr_cycle_start_price),
+            )?
+            .0
+            .try_into()?,
+            FrontendMetadata::default(),
+        )
+        .await?;
+        loop {
+            // Wait until withdrawal operation succeeds
+            // Initiated -> UnlockTxAccepted -> WithdrawalInitiated -> WithdrawalTxAccepted
+            // -> Success
+            if bridge
+                .runtime
+                .event_sink
+                .num_events_of_type("spv2Withdrawal".into())
+                == 5
+            {
+                break;
+            }
+
+            fedimint_core::task::sleep(Duration::from_millis(100)).await;
+        }
+
+        assert_eq!(
+            receive_amount - amount_to_deposit - deposit_fedi_fee + amount_to_withdraw
+                - withdraw_fedi_fee,
+            federation.get_balance().await,
+        );
+        let RpcSPv2CachedSyncResponse { sync_response, .. } =
+            spv2AccountInfo(federation.clone()).await?;
+        assert_eq!(sync_response.idle_balance.0, Amount::ZERO);
+        assert_eq!(
+            sync_response.staged_balance.0.msats,
+            amount_to_deposit.msats - amount_to_withdraw.msats
+        );
+        assert!(sync_response.pending_unlock_request.is_none());
+        assert_eq!(sync_response.locked_balance.0, Amount::ZERO);
         Ok(())
     }
 

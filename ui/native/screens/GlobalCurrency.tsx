@@ -9,12 +9,13 @@ import {
     changeOverrideCurrency,
     selectOverrideCurrency,
 } from '@fedi/common/redux/currency'
+import { getSelectableCurrencies } from '@fedi/common/utils/currency'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { SupportedCurrency } from '../types'
+import { SelectableCurrency, SupportedCurrency } from '../types'
 import { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'GlobalCurrency'>
@@ -24,12 +25,16 @@ const GlobalCurrency: React.FC<Props> = () => {
     const { theme } = useTheme()
     const overrideCurrency = useAppSelector(s => selectOverrideCurrency(s))
     const dispatch = useAppDispatch()
+    const allCurrencies = getSelectableCurrencies()
 
     const style = styles(theme)
 
-    const currencies = Object.values(SupportedCurrency).filter(
-        c => c !== SupportedCurrency.USD,
-    )
+    const currencies: SelectableCurrency[] = [
+        SupportedCurrency.USD,
+        ...Object.values(allCurrencies).filter(
+            currency => currency !== SupportedCurrency.USD,
+        ),
+    ]
 
     const isSelected = overrideCurrency === null
 
@@ -56,7 +61,7 @@ const GlobalCurrency: React.FC<Props> = () => {
                     </Pressable>
                     {
                         // Put USD first
-                        [SupportedCurrency.USD, ...currencies].map(currency => (
+                        currencies.map(currency => (
                             <CurrencyItem currency={currency} key={currency} />
                         ))
                     }
@@ -66,7 +71,7 @@ const GlobalCurrency: React.FC<Props> = () => {
     )
 }
 
-function CurrencyItem({ currency }: { currency: SupportedCurrency }) {
+function CurrencyItem({ currency }: { currency: SelectableCurrency }) {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const dispatch = useAppDispatch()

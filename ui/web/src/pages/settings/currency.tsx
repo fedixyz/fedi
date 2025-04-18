@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { changeOverrideCurrency, selectCurrency } from '@fedi/common/redux'
-import { SupportedCurrency } from '@fedi/common/types'
+import { getSelectableCurrencies } from '@fedi/common/utils/currency'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 
 import { ContentBlock } from '../../components/ContentBlock'
@@ -14,16 +14,15 @@ function SettingsCurrencyPage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const currency = useAppSelector(selectCurrency)
+    const selectableCurrencies = getSelectableCurrencies()
 
     const currencyOptions = useMemo(
         () =>
-            Object.entries(SupportedCurrency).map(
-                ([_, value]: [string, SupportedCurrency]) => ({
-                    label: formatCurrencyText(t, value),
-                    value,
-                }),
-            ),
-        [t],
+            Object.entries(selectableCurrencies).map(([_, value]) => ({
+                label: formatCurrencyText(t, value),
+                value,
+            })),
+        [t, selectableCurrencies],
     )
 
     return (

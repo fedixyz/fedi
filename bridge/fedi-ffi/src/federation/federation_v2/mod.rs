@@ -79,6 +79,7 @@ use lightning_invoice::{Bolt11Invoice, RoutingFees};
 use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries, MetaServiceExt};
 use rand::Rng;
 use serde::de::DeserializeOwned;
+use spv2_sweeper_service::SPv2SweeperService;
 use stability_pool_client::common::{
     Account, AccountId, AccountType, FiatAmount, FiatOrAll, SignedTransferRequest, TransferRequest,
 };
@@ -127,12 +128,14 @@ use crate::types::{
     RpcPayAddressResponse, RpcPayInvoiceResponse, RpcPublicKey, RpcReturningMemberStatus,
     RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState,
     RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcTransaction, RpcTransactionDirection,
-    RpcTransactionKind, RpcTransactionListEntry,
+    RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata,
+    SPv2WithdrawMetadata,
 };
 use crate::utils::{display_currency, to_unix_time};
 
 mod backup_service;
 mod ln_gateway_service;
+mod spv2_sweeper_service;
 mod stability_pool_sweeper_service;
 
 pub const GUARDIAN_STATUS_TIMEOUT: Duration = Duration::from_secs(10);
@@ -196,6 +199,7 @@ pub struct FederationV2 {
     // Stability pool v2 services for syncing accout history between client and server
     pub spv2_sync_service: OnceCell<StabilityPoolSyncService>,
     pub spv2_history_service: OnceCell<StabilityPoolHistoryService>,
+    pub spv2_sweeper_service: OnceCell<SPv2SweeperService>,
 }
 
 impl FederationV2 {
@@ -247,6 +251,7 @@ impl FederationV2 {
             guard,
             spv2_sync_service: Default::default(),
             spv2_history_service: Default::default(),
+            spv2_sweeper_service: Default::default(),
         });
         if !recovering {
             federation.start_background_tasks().await;
@@ -347,6 +352,15 @@ impl FederationV2 {
                 let history_service = fed.spv2_history_service.get().expect("init above");
                 history_service.update_continuously(sync_service).await
             });
+
+            #[cfg(not(test))]
+            if self
+                .spv2_sweeper_service
+                .set(SPv2SweeperService::new(self))
+                .is_err()
+            {
+                error!("spv2 sweeper service already initialized");
+            }
         } else {
             #[cfg(not(test))]
             if self.client.sp().is_ok()
@@ -1441,6 +1455,7 @@ impl FederationV2 {
                     txid: _,
                     amount: _,
                     outpoints: _,
+                    extra_meta: _,
                 } => todo!("Implement with sweeper service for spv2, no FE events required"),
             },
             // FIXME: should I return an error or just log something?
@@ -2471,72 +2486,135 @@ impl FederationV2 {
                 }
             },
             STABILITY_POOL_V2_OPERATION_TYPE => match entry.meta() {
-                StabilityPoolMeta::Deposit { txid, amount, .. } => {
+                StabilityPoolMeta::Deposit {
+                    txid,
+                    amount,
+                    extra_meta,
+                    ..
+                } => {
                     transaction_amount = RpcAmount(amount + Amount::from_msats(fedi_fee_msats));
-                    frontend_metadata = None;
-                    transaction_kind = RpcTransactionKind::SPV2Deposit {
-                        state: if let Some(item) = self.spv2_user_op_history_item(txid).await {
-                            match item.kind {
-                                UserOperationHistoryItemKind::PendingDeposit => {
-                                    RpcSPV2DepositState::PendingDeposit {
-                                        amount: RpcAmount(item.amount),
-                                        fiat_amount: item.fiat_amount.0,
-                                    }
-                                }
-                                UserOperationHistoryItemKind::CompletedDeposit => {
-                                    let fees_paid_so_far = RpcAmount(
-                                        self.spv2_seek_lifetime_fee(txid)
-                                            .await
-                                            .unwrap_or(Amount::ZERO),
-                                    );
-                                    RpcSPV2DepositState::CompletedDeposit {
-                                        amount: RpcAmount(item.amount),
-                                        fiat_amount: item.fiat_amount.0,
-                                        fees_paid_so_far,
-                                    }
-                                }
-                                _ => panic!(
-                                    "SPV2 meta does not match user operation kind for {txid}"
-                                ),
+                    frontend_metadata =
+                        match serde_json::from_value::<SPv2DepositMetadata>(extra_meta) {
+                            Ok(SPv2DepositMetadata::StableBalance { frontend_metadata }) => {
+                                frontend_metadata
                             }
-                        } else {
-                            RpcSPV2DepositState::DataNotInCache
+                            _ => None,
+                        };
+                    let outcome = self
+                        .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                            self.client.spv2()?.subscribe_deposit_operation(op_id).await
+                        })
+                        .await;
+                    transaction_kind = match outcome {
+                        Some(
+                            StabilityPoolDepositOperationState::TxRejected(e)
+                            | StabilityPoolDepositOperationState::PrimaryOutputError(e),
+                        ) => RpcTransactionKind::SPV2Deposit {
+                            state: RpcSPV2DepositState::FailedDeposit {
+                                error: e.to_string(),
+                            },
+                        },
+                        _ => RpcTransactionKind::SPV2Deposit {
+                            state: if let Some(item) = self.spv2_user_op_history_item(txid).await {
+                                match item.kind {
+                                    UserOperationHistoryItemKind::PendingDeposit => {
+                                        RpcSPV2DepositState::PendingDeposit {
+                                            amount: RpcAmount(item.amount),
+                                            fiat_amount: item.fiat_amount.0,
+                                        }
+                                    }
+
+                                    UserOperationHistoryItemKind::CompletedDeposit => {
+                                        let fees_paid_so_far = RpcAmount(
+                                            self.spv2_seek_lifetime_fee(txid)
+                                                .await
+                                                .unwrap_or(Amount::ZERO),
+                                        );
+                                        RpcSPV2DepositState::CompletedDeposit {
+                                            amount: RpcAmount(item.amount),
+                                            fiat_amount: item.fiat_amount.0,
+                                            fees_paid_so_far,
+                                        }
+                                    }
+                                    _ => panic!(
+                                        "SPV2 meta does not match user operation kind for {txid}"
+                                    ),
+                                }
+                            } else {
+                                RpcSPV2DepositState::DataNotInCache
+                            },
                         },
                     }
                 }
-                StabilityPoolMeta::Withdrawal { txid, .. } => {
-                    frontend_metadata = None;
-                    transaction_kind = RpcTransactionKind::SPV2Withdrawal {
-                        state: if let Some(item) = self.spv2_user_op_history_item(txid).await {
-                            transaction_amount = RpcAmount(item.amount);
-                            match item.kind {
-                                UserOperationHistoryItemKind::PendingWithdrawal => {
-                                    RpcSPV2WithdrawalState::PendingWithdrawal {
-                                        amount: RpcAmount(item.amount),
-                                        fiat_amount: item.fiat_amount.0,
-                                    }
-                                }
-                                UserOperationHistoryItemKind::CompletedWithdrawal => {
-                                    RpcSPV2WithdrawalState::CompletedWithdrawal {
-                                        amount: RpcAmount(item.amount),
-                                        fiat_amount: item.fiat_amount.0,
-                                    }
-                                }
-                                _ => panic!(
-                                    "SPV2 meta does not match user operation kind for {txid}"
-                                ),
+                StabilityPoolMeta::Withdrawal {
+                    txid, extra_meta, ..
+                } => {
+                    frontend_metadata =
+                        match serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta) {
+                            Ok(SPv2WithdrawMetadata::StableBalance { frontend_metadata }) => {
+                                frontend_metadata
                             }
-                        } else {
+                            _ => None,
+                        };
+                    let outcome = self
+                        .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                            self.client.spv2()?.subscribe_withdraw(op_id).await
+                        })
+                        .await;
+                    transaction_kind = match outcome {
+                        Some(
+                            StabilityPoolWithdrawalOperationState::UnlockTxRejected(e)
+                            | StabilityPoolWithdrawalOperationState::UnlockProcessingError(e)
+                            | StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(e)
+                            | StabilityPoolWithdrawalOperationState::PrimaryOutputError(e),
+                        ) => {
                             transaction_amount = RpcAmount(Amount::ZERO);
-                            RpcSPV2WithdrawalState::DataNotInCache
+                            RpcTransactionKind::SPV2Withdrawal {
+                                state: RpcSPV2WithdrawalState::FailedWithdrawal {
+                                    error: e.to_string(),
+                                },
+                            }
+                        }
+                        _ => RpcTransactionKind::SPV2Withdrawal {
+                            state: if let Some(item) = self.spv2_user_op_history_item(txid).await {
+                                transaction_amount = RpcAmount(item.amount);
+                                match item.kind {
+                                    UserOperationHistoryItemKind::PendingWithdrawal => {
+                                        RpcSPV2WithdrawalState::PendingWithdrawal {
+                                            amount: RpcAmount(item.amount),
+                                            fiat_amount: item.fiat_amount.0,
+                                        }
+                                    }
+                                    UserOperationHistoryItemKind::CompletedWithdrawal => {
+                                        RpcSPV2WithdrawalState::CompletedWithdrawal {
+                                            amount: RpcAmount(item.amount),
+                                            fiat_amount: item.fiat_amount.0,
+                                        }
+                                    }
+                                    _ => panic!(
+                                        "SPV2 meta does not match user operation kind for {txid}"
+                                    ),
+                                }
+                            } else {
+                                transaction_amount = RpcAmount(Amount::ZERO);
+                                RpcSPV2WithdrawalState::DataNotInCache
+                            },
                         },
                     }
                 }
                 StabilityPoolMeta::Transfer {
                     txid,
                     signed_request,
+                    extra_meta,
+                    ..
                 } => {
-                    frontend_metadata = None;
+                    frontend_metadata =
+                        match serde_json::from_value::<SPv2TransferMetadata>(extra_meta) {
+                            Ok(SPv2TransferMetadata::StableBalance { frontend_metadata }) => {
+                                frontend_metadata
+                            }
+                            _ => None,
+                        };
                     // We must either be the sender or the recipient of the
                     // transfer, otherwise we can ignore it for our own personal
                     // operation history
@@ -2580,6 +2658,8 @@ impl FederationV2 {
                                 },
                             }
                         } else {
+                            let details = signed_request.details();
+                            error!(?details, "Unexpected transfer in TX history");
                             return None;
                         }
                     } else {
@@ -2870,7 +2950,11 @@ impl FederationV2 {
     /// is accepted, the deposit is staged (pending). When the next
     /// cycle turnover occurs, staged seeks are processed in order
     /// to produce locks.
-    pub async fn spv2_deposit_to_seek(&self, amount: Amount) -> Result<OperationId> {
+    pub async fn spv2_deposit_to_seek(
+        &self,
+        amount: Amount,
+        frontend_meta: FrontendMetadata,
+    ) -> Result<OperationId> {
         ensure!(
             self.spv2_feature_state().is_some(),
             ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
@@ -2893,7 +2977,14 @@ impl FederationV2 {
             )));
         }
 
-        let operation_id = spv2.deposit_to_seek(amount).await?;
+        let operation_id = spv2
+            .deposit_to_seek(
+                amount,
+                SPv2DepositMetadata::StableBalance {
+                    frontend_metadata: Some(frontend_meta),
+                },
+            )
+            .await?;
         self.write_pending_send_fedi_fee(operation_id, fedi_fee)
             .await?;
         let _ = self
@@ -2972,7 +3063,11 @@ impl FederationV2 {
     /// by implicitly waiting for cycle turnover for the locked seeks to be
     /// freed up. The overall operation only completes when both parts have
     /// completed.
-    pub async fn spv2_withdraw(&self, amount: FiatOrAll) -> Result<OperationId> {
+    pub async fn spv2_withdraw(
+        &self,
+        amount: FiatOrAll,
+        frontend_meta: FrontendMetadata,
+    ) -> Result<OperationId> {
         ensure!(
             self.spv2_feature_state().is_some(),
             ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
@@ -2986,7 +3081,15 @@ impl FederationV2 {
                 RpcTransactionDirection::Receive,
             )
             .await?;
-        let (operation_id, _) = spv2.withdraw(AccountType::Seeker, amount).await?;
+        let (operation_id, _) = spv2
+            .withdraw(
+                AccountType::Seeker,
+                amount,
+                SPv2WithdrawMetadata::StableBalance {
+                    frontend_metadata: Some(frontend_meta),
+                },
+            )
+            .await?;
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
             .await?;
         self.spawn_cancellable("subscribe_spv2_withdraw", move |fed| async move {
@@ -3042,6 +3145,7 @@ impl FederationV2 {
         &self,
         to_account: AccountId,
         amount: FiatAmount,
+        meta: SPv2TransferMetadata,
     ) -> Result<OperationId> {
         ensure!(
             self.spv2_feature_state().is_some(),
@@ -3061,7 +3165,7 @@ impl FederationV2 {
         let signature = spv2.sign_transfer_request(&request);
         let mut signatures = BTreeMap::new();
         signatures.insert(0, signature);
-        self.spv2_transfer(SignedTransferRequest::new(request, signatures)?)
+        self.spv2_transfer(SignedTransferRequest::new(request, signatures)?, meta)
             .await
     }
 
@@ -3076,6 +3180,7 @@ impl FederationV2 {
     pub async fn spv2_transfer(
         &self,
         signed_request: SignedTransferRequest,
+        meta: SPv2TransferMetadata,
     ) -> Result<OperationId> {
         ensure!(
             self.spv2_feature_state().is_some(),
@@ -3089,7 +3194,7 @@ impl FederationV2 {
         // 1. We don't always know the amount (it could be ALL)
         // 2. The submitter of the TX might not be the sender or the recipient
 
-        let operation_id = spv2.transfer(signed_request).await?;
+        let operation_id = spv2.transfer(signed_request, meta).await?;
         self.spawn_cancellable("subscribe_spv2_transfer", move |fed| async move {
             fed.subscribe_spv2_transfer(operation_id).await
         });

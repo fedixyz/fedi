@@ -1,8 +1,7 @@
 use std::time::Duration;
 
-use fedimint_api_client::api::{DynModuleApi, FederationApiExt as _};
+use fedimint_api_client::api::DynModuleApi;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
-use fedimint_core::module::ApiRequestErased;
 use fedimint_core::util::update_merge::UpdateMerge;
 use fedimint_core::util::{backoff_util, retry};
 use futures::Stream;
@@ -11,6 +10,7 @@ use stability_pool_common::{AccountId, SyncResponse};
 use tokio::sync::watch;
 use tokio_stream::wrappers::WatchStream;
 
+use crate::api::StabilityPoolApiExt;
 use crate::db::{CachedSyncResponseKey, CachedSyncResponseValue, SeekLifetimeFeeKey};
 
 /// Service that syncs account state from server in the background
@@ -70,13 +70,7 @@ impl StabilityPoolSyncService {
     pub async fn update_once(&self) -> anyhow::Result<()> {
         self.update_merge
             .merge(async {
-                let sync_response: SyncResponse = self
-                    .module_api
-                    .request_current_consensus(
-                        "sync".to_string(),
-                        ApiRequestErased::new(self.account_id),
-                    )
-                    .await?;
+                let sync_response = self.module_api.account_sync(self.account_id).await?;
 
                 let mut dbtx = self.db.begin_transaction().await;
                 dbtx.insert_entry(

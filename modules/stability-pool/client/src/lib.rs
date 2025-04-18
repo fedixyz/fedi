@@ -31,6 +31,7 @@ use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
     ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
 };
+use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::{apply, async_trait_maybe_send, Amount, OutPoint, TransactionId};
 use futures::{Stream, StreamExt};
@@ -46,6 +47,7 @@ use stability_pool_common::{
 };
 use tracing::info;
 
+pub mod api;
 pub mod db;
 mod history_service;
 mod sync_service;
@@ -179,7 +181,7 @@ impl ClientModule for StabilityPoolClientModule {
             }
 
             CliCommand::DepositToSeek { amount_msats } => {
-                let operation_id = self.deposit_to_seek(amount_msats).await?;
+                let operation_id = self.deposit_to_seek(amount_msats, ()).await?;
                 let mut updates = self
                     .subscribe_deposit_operation(operation_id)
                     .await?
@@ -206,7 +208,7 @@ impl ClientModule for StabilityPoolClientModule {
                 amount_msats,
                 fee_rate,
             } => {
-                let operation_id = self.deposit_to_provide(amount_msats, fee_rate).await?;
+                let operation_id = self.deposit_to_provide(amount_msats, fee_rate, ()).await?;
                 let mut updates = self
                     .subscribe_deposit_operation(operation_id)
                     .await?
@@ -233,7 +235,7 @@ impl ClientModule for StabilityPoolClientModule {
                 account_type,
                 amount,
             } => {
-                let (operation_id, _) = self.withdraw(account_type.into(), amount).await?;
+                let (operation_id, _) = self.withdraw(account_type.into(), amount, ()).await?;
                 let mut updates = self.subscribe_withdraw(operation_id).await?.into_stream();
 
                 while let Some(update) = updates.next().await {
@@ -282,7 +284,7 @@ impl ClientModule for StabilityPoolClientModule {
             }
 
             CliCommand::Transfer { request } => {
-                let operation_id = self.transfer(request).await?;
+                let operation_id = self.transfer(request, ()).await?;
                 let mut updates = self
                     .subscribe_transfer_operation(operation_id)
                     .await?
@@ -305,7 +307,7 @@ impl ClientModule for StabilityPoolClientModule {
                 amount_msats,
             } => {
                 let (operation_id, _) = self
-                    .withdraw_idle_balance(account_type.into(), amount_msats)
+                    .withdraw_idle_balance(account_type.into(), amount_msats, ())
                     .await?;
                 let mut updates = self
                     .subscribe_withdraw_idle_balance(operation_id)
@@ -459,24 +461,32 @@ pub enum StabilityPoolMeta {
         txid: TransactionId,
         change_outpoints: Vec<OutPoint>,
         amount: Amount,
+        #[serde(default)]
+        extra_meta: serde_json::Value,
     },
     /// Submit request to transfer given FiatAmount (or all) between two
     /// accounts.
     Transfer {
         txid: TransactionId,
         signed_request: SignedTransferRequest,
+        #[serde(default)]
+        extra_meta: serde_json::Value,
     },
     /// Submit a request to unlock the given FiatAmount (or all) followed by
     /// another TX to withdraw the unlocked idle balance.
     Withdrawal {
         txid: TransactionId,
         unlock_amount: FiatOrAll,
+        #[serde(default)]
+        extra_meta: serde_json::Value,
     },
     /// Withdraw accumulated idle balance.
     WithdrawIdleBalance {
         txid: TransactionId,
         amount: Amount,
         outpoints: Vec<OutPoint>,
+        #[serde(default)]
+        extra_meta: serde_json::Value,
     },
 }
 
@@ -563,13 +573,18 @@ impl StabilityPoolClientModule {
             .await
     }
 
-    pub async fn deposit_to_seek(&self, amount: Amount) -> anyhow::Result<OperationId> {
+    pub async fn deposit_to_seek(
+        &self,
+        amount: Amount,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
+    ) -> anyhow::Result<OperationId> {
         let (operation_id, _) = submit_tx_with_output(
             self,
             StabilityPoolOutputV0::DepositToSeek(DepositToSeekOutput {
                 account_id: self.our_account(AccountType::Seeker).id(),
                 seek_request: SeekRequest(amount),
             }),
+            extra_meta,
         )
         .await?;
         Ok(operation_id)
@@ -579,6 +594,7 @@ impl StabilityPoolClientModule {
         &self,
         amount: Amount,
         min_fee_rate: FeeRate,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<OperationId> {
         let (operation_id, _) = submit_tx_with_output(
             self,
@@ -589,6 +605,7 @@ impl StabilityPoolClientModule {
                     min_fee_rate,
                 },
             }),
+            extra_meta,
         )
         .await?;
         Ok(operation_id)
@@ -645,11 +662,16 @@ impl StabilityPoolClientModule {
     pub async fn transfer(
         &self,
         signed_request: SignedTransferRequest,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<OperationId> {
         let transfer_output = TransferOutput { signed_request };
 
-        let (operation_id, _) =
-            submit_tx_with_output(self, StabilityPoolOutputV0::Transfer(transfer_output)).await?;
+        let (operation_id, _) = submit_tx_with_output(
+            self,
+            StabilityPoolOutputV0::Transfer(transfer_output),
+            extra_meta,
+        )
+        .await?;
         Ok(operation_id)
     }
 
@@ -683,6 +705,7 @@ impl StabilityPoolClientModule {
         &self,
         acc_type: AccountType,
         unlock_amount: FiatOrAll,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<(OperationId, TransactionId)> {
         if let FiatOrAll::Fiat(amount) = unlock_amount {
             if amount.0 == 0 {
@@ -722,6 +745,7 @@ impl StabilityPoolClientModule {
         let withdrawal_meta_gen = |txid, _| StabilityPoolMeta::Withdrawal {
             txid,
             unlock_amount,
+            extra_meta: serde_json::to_value(extra_meta.clone()).expect("to value must never fail"),
         };
         let (transaction_id, _) = self
             .client_ctx
@@ -811,6 +835,7 @@ impl StabilityPoolClientModule {
         &self,
         acc_type: AccountType,
         amount: Amount,
+        extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<(OperationId, TransactionId)> {
         if amount == Amount::ZERO {
             bail!("Withdrawal amount must be non-0");
@@ -838,6 +863,7 @@ impl StabilityPoolClientModule {
             txid,
             amount,
             outpoints,
+            extra_meta: serde_json::to_value(extra_meta.clone()).expect("to value must never fail"),
         };
         let (transaction_id, _) = self
             .client_ctx
@@ -861,6 +887,7 @@ impl StabilityPoolClientModule {
                 txid,
                 amount,
                 outpoints,
+                ..
             } => (txid, amount, outpoints),
             _ => bail!("Operation is not of type withdraw idle balance"),
         };
@@ -906,6 +933,7 @@ async fn stability_pool_operation(
 async fn submit_tx_with_output(
     module: &StabilityPoolClientModule,
     output_v0: StabilityPoolOutputV0,
+    extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
 ) -> anyhow::Result<(OperationId, TransactionId)> {
     let operation_id = OperationId::new_random();
     let client_ctx = &module.client_ctx;
@@ -928,12 +956,17 @@ async fn submit_tx_with_output(
         StabilityPoolOutputV0::Transfer(output) => StabilityPoolMeta::Transfer {
             txid,
             signed_request: output.signed_request,
+            extra_meta: serde_json::to_value(extra_meta.clone()).expect("to value must never fail"),
         },
-        _ => StabilityPoolMeta::Deposit {
-            txid,
-            change_outpoints,
-            amount,
-        },
+        StabilityPoolOutputV0::DepositToSeek(..) | StabilityPoolOutputV0::DepositToProvide(..) => {
+            StabilityPoolMeta::Deposit {
+                txid,
+                change_outpoints,
+                amount,
+                extra_meta: serde_json::to_value(extra_meta.clone())
+                    .expect("to value must never fail"),
+            }
+        }
     };
     let (transaction_id, _) = client_ctx
         .finalize_and_submit_transaction(

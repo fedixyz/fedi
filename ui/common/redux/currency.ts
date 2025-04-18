@@ -7,11 +7,12 @@ import {
     selectLoadedFederations,
     selectStabilityPoolCycleStartPrice,
 } from '.'
-import { Federation, SupportedCurrency } from '../types'
+import { Federation, SelectableCurrency, SupportedCurrency } from '../types'
 import {
     getFederationDefaultCurrency,
     getFederationFixedExchangeRate,
 } from '../utils/FederationUtils'
+import { getCurrencyCode, getSelectableCurrencies } from '../utils/currency'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { loadFromStorage } from './storage'
@@ -23,9 +24,9 @@ const log = makeLog('redux/currency')
 const initialState = {
     btcUsdRate: 0 as number,
     fiatUsdRates: {} as Record<string, number | undefined>,
-    overrideCurrency: null as SupportedCurrency | null,
+    overrideCurrency: null as SelectableCurrency | null,
     currencyLocale: undefined as string | undefined,
-    customFederationCurrencies: {} as Record<string, SupportedCurrency>,
+    customFederationCurrencies: {} as Record<string, SelectableCurrency>,
 }
 
 export type CurrencyState = typeof initialState
@@ -38,7 +39,7 @@ export const currencySlice = createSlice({
     reducers: {
         changeOverrideCurrency(
             state,
-            action: PayloadAction<SupportedCurrency | null>,
+            action: PayloadAction<SelectableCurrency | null>,
         ) {
             state.overrideCurrency = action.payload
         },
@@ -52,7 +53,7 @@ export const currencySlice = createSlice({
             state,
             action: PayloadAction<{
                 federationId: Federation['id']
-                currency: SupportedCurrency
+                currency: SelectableCurrency
             }>,
         ) {
             state.customFederationCurrencies = {
@@ -299,23 +300,26 @@ export const selectFederationCurrencies = (
     federationId: Federation['id'],
 ) => {
     const defaultCurrency = selectFederationDefaultCurrency(s, federationId)
+    const currencies = getSelectableCurrencies()
 
-    const sortedCurrencies = Object.entries(SupportedCurrency)
-        .filter(([a]) => a !== defaultCurrency)
-        .sort(([, a], [, b]) => a.localeCompare(b))
-
-    return Object.fromEntries(sortedCurrencies)
+    return Object.fromEntries(
+        Object.entries(currencies)
+            .filter(([a]) => a !== defaultCurrency)
+            .sort(([, a], [, b]) => a.localeCompare(b)),
+    )
 }
 
 export const selectBtcUsdExchangeRate = (
     s: CommonState,
     federationId?: Federation['id'],
 ) => {
-    const stabilityPoolPrice = selectStabilityPoolCycleStartPrice(
+    const stabilityPoolPriceCents = selectStabilityPoolCycleStartPrice(
         s,
         federationId,
     )
-    return stabilityPoolPrice || s.currency.btcUsdRate || 0
+    return stabilityPoolPriceCents
+        ? stabilityPoolPriceCents / 100
+        : s.currency.btcUsdRate || 0
 }
 
 export const selectBtcExchangeRate = (s: CommonState) => {
@@ -340,9 +344,16 @@ export const selectBtcExchangeRate = (s: CommonState) => {
         }
     }
 
+    const currencyCode = getCurrencyCode(currency)
+
     // Special case for the CFA franc which is a fixed rate to the dollar
     // TODO: Remove me when CFA is added to price oracle.
-    if (currency === SupportedCurrency.CFA && !fiatUsdRate) {
+    if (
+        // XAF and XOF both map to CFA, so just for consistency we need to check for both
+        (currencyCode === SupportedCurrency.XAF ||
+            currencyCode === SupportedCurrency.XOF) &&
+        !fiatUsdRate
+    ) {
         fiatUsdRate = 0.0016
     }
 

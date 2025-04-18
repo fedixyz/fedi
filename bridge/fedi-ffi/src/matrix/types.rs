@@ -326,7 +326,7 @@ impl RpcTimelineItem {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Decodable, Encodable, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, Decodable, Encodable, ts_rs::TS, PartialEq, Eq)]
 #[ts(export)]
 pub struct RpcRoomId(pub String);
 

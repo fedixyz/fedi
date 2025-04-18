@@ -14,8 +14,8 @@ import {
     LoadedFederation,
     MSats,
     PublicFederation,
-    SupportedCurrency,
     SupportedMetaFields,
+    SelectableCurrency,
 } from '../types'
 import { GuardianStatus, RpcCommunity, RpcFederation } from '../types/bindings'
 import { FedimintBridge } from './fedimint'
@@ -266,7 +266,7 @@ export const getFederationDefaultCurrency = (metadata: FederationMetadata) => {
     return getMetaField(
         SupportedMetaFields.default_currency,
         metadata,
-    ) as SupportedCurrency | null
+    ) as SelectableCurrency | null
 }
 
 export const getFederationFixedExchangeRate = (

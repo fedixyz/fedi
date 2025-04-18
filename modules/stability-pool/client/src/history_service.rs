@@ -1,20 +1,21 @@
+use std::cmp::Ordering;
 use std::ops::Range;
 
 use anyhow::bail;
-use fedimint_api_client::api::{DynModuleApi, FederationApiExt as _};
+use fedimint_api_client::api::DynModuleApi;
 use fedimint_core::db::{Database, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
-use fedimint_core::module::ApiRequestErased;
 use fedimint_core::util::backoff_util::{self};
 use fedimint_core::util::retry;
 use fedimint_core::{Amount, TransactionId};
 use futures::{Stream, StreamExt};
 use stability_pool_common::{
-    AccountHistoryItem, AccountHistoryItemKind, AccountHistoryRequest, AccountId, FiatAmount,
-    SyncResponse, UnlockRequest,
+    AccountHistoryItem, AccountHistoryItemKind, AccountId, FiatAmount, SyncResponse, UnlockRequest,
 };
 use tokio::sync::watch;
 use tokio_stream::wrappers::WatchStream;
+use tracing::error;
 
+use crate::api::StabilityPoolApiExt;
 use crate::db::{
     self, AccountHistoryItemKey, AccountHistoryItemKeyPrefix, UserOperationHistoryItem,
     UserOperationHistoryItemKey, UserOperationHistoryItemKind, UserOperationIndexAccountPrefix,
@@ -47,7 +48,10 @@ impl StabilityPoolHistoryService {
         let mut updates = sync_service.subscribe_to_updates();
 
         // Keep updating based on sync updates
-        while let Some(Some(sync)) = updates.next().await {
+        while let Some(maybe_sync) = updates.next().await {
+            let Some(sync) = maybe_sync else {
+                continue;
+            };
             retry("history fetch", backoff_util::background_backoff(), || {
                 self.update_once(&sync)
             })
@@ -61,24 +65,32 @@ impl StabilityPoolHistoryService {
             get_account_history_count(&mut self.db.begin_transaction_nc().await, self.account_id)
                 .await;
 
-        if sync_response.account_history_count == local_count {
-            return Ok(());
-        }
+        let should_fetch = match sync_response.account_history_count.cmp(&local_count) {
+            Ordering::Equal => false,
+            Ordering::Less => {
+                error!(?sync_response, "server account history should not lag!");
+                bail!("server error: incorrect sync response");
+            }
+            Ordering::Greater => true,
+        };
 
-        if sync_response.account_history_count < local_count {
-            bail!("server error: incorrect sync response");
+        // If we don't need to fetch new history items, we still need to account for any
+        // new unlock requests
+        if !should_fetch {
+            let mut dbtx = self.db.begin_transaction().await;
+            ensure_unlock_request_registered(&mut dbtx.to_ref_nc(), self.account_id, sync_response)
+                .await;
+            dbtx.commit_tx().await;
+            return Ok(());
         }
 
         self.is_fetching.send_replace(true);
         let result = async {
-            let new_history_items: Vec<AccountHistoryItem> = self
+            let new_history_items = self
                 .module_api
-                .request_current_consensus(
-                    "account_history".to_string(),
-                    ApiRequestErased::new(AccountHistoryRequest {
-                        account_id: self.account_id,
-                        range: local_count..sync_response.account_history_count,
-                    }),
+                .account_history(
+                    self.account_id,
+                    local_count..sync_response.account_history_count,
                 )
                 .await?;
 
@@ -99,31 +111,8 @@ impl StabilityPoolHistoryService {
                 .await;
             }
 
-            // If we see a pending unlock request that we are not already tracking, add a
-            // user operation history item for it
-            if let Some(unlock_request) = sync_response.unlock_request.as_ref() {
-                let user_op_key = UserOperationHistoryItemKey {
-                    account_id: self.account_id,
-                    txid: unlock_request.txid,
-                };
-                if dbtx.get_value(&user_op_key).await.is_none() {
-                    let (amount, fiat_amount) = sync_response
-                        .amount_from_unlock_request()
-                        .unwrap_or((Amount::ZERO, Default::default()));
-                    db::insert_user_operation_history_item(
-                        &mut dbtx.to_ref_nc(),
-                        &user_op_key,
-                        &UserOperationHistoryItem {
-                            txid: unlock_request.txid,
-                            cycle: sync_response.current_cycle,
-                            amount,
-                            fiat_amount,
-                            kind: UserOperationHistoryItemKind::PendingWithdrawal,
-                        },
-                    )
-                    .await;
-                }
-            }
+            ensure_unlock_request_registered(&mut dbtx.to_ref_nc(), self.account_id, sync_response)
+                .await;
 
             dbtx.commit_tx().await;
             Ok(())
@@ -406,4 +395,36 @@ async fn update_user_operation_history(
         },
     )
     .await;
+}
+
+async fn ensure_unlock_request_registered(
+    dbtx: &mut DatabaseTransaction<'_>,
+    account_id: AccountId,
+    sync_response: &SyncResponse,
+) {
+    // If we see a pending unlock request that we are not already tracking, add a
+    // user operation history item for it
+    if let Some(unlock_request) = sync_response.unlock_request.as_ref() {
+        let user_op_key = UserOperationHistoryItemKey {
+            account_id,
+            txid: unlock_request.txid,
+        };
+        if dbtx.get_value(&user_op_key).await.is_none() {
+            let (amount, fiat_amount) = sync_response
+                .amount_from_unlock_request()
+                .unwrap_or((Amount::ZERO, Default::default()));
+            db::insert_user_operation_history_item(
+                &mut dbtx.to_ref_nc(),
+                &user_op_key,
+                &UserOperationHistoryItem {
+                    txid: unlock_request.txid,
+                    cycle: sync_response.current_cycle,
+                    amount,
+                    fiat_amount,
+                    kind: UserOperationHistoryItemKind::PendingWithdrawal,
+                },
+            )
+            .await;
+        }
+    }
 }

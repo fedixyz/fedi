@@ -1,4 +1,10 @@
-import { Btc, MSats, Sats, SupportedCurrency } from '../../types'
+import {
+    Btc,
+    MSats,
+    Sats,
+    SelectableCurrency,
+    SupportedCurrency,
+} from '../../types'
 import amountUtils from '../../utils/AmountUtils'
 
 describe('AmountUtils', () => {
@@ -202,27 +208,29 @@ describe('AmountUtils', () => {
                 expectedResult: '1.234,57\xa0EUR', // test for non-breaking space char
                 expectedResultNoSymbol: '1.234,57',
             },
-            {
-                currency: SupportedCurrency.CFA,
-                locale: 'fr-TG',
-                expectedResult: '1 234,57 CFA', // careful for non-standard whitespace char
-                expectedResultNoSymbol: '1 234,57', // careful for non-standard whitespace char
-            },
         ]
 
         testCases.forEach(
             ({ currency, locale, expectedResult, expectedResultNoSymbol }) => {
                 it(`should format ${amount} to ${expectedResult} for ${currency} in ${locale} locale`, () => {
-                    const result = amountUtils.formatFiat(amount, currency, {
-                        locale: locale,
-                    })
+                    const result = amountUtils.formatFiat(
+                        amount,
+                        currency as SelectableCurrency,
+                        {
+                            locale: locale,
+                        },
+                    )
                     expect(result).toEqual(expectedResult)
                 })
                 it(`should format ${amount} to ${expectedResultNoSymbol} for ${currency} in ${locale} locale with no symbol`, () => {
-                    const result = amountUtils.formatFiat(amount, currency, {
-                        locale: locale,
-                        symbolPosition: 'none',
-                    })
+                    const result = amountUtils.formatFiat(
+                        amount,
+                        currency as SelectableCurrency,
+                        {
+                            locale: locale,
+                            symbolPosition: 'none',
+                        },
+                    )
                     expect(result).toEqual(expectedResultNoSymbol)
                 })
             },
@@ -245,18 +253,16 @@ describe('AmountUtils', () => {
                 currency: SupportedCurrency.EUR,
                 expectedResult: '€',
             },
-            {
-                locale: 'fr-TG',
-                currency: SupportedCurrency.CFA,
-                expectedResult: 'CFA',
-            },
         ]
 
         testCases.forEach(({ currency, locale, expectedResult }) => {
             it(`should give us the symbol ${expectedResult} for ${currency} in ${locale} locale`, () => {
-                const result = amountUtils.getCurrencySymbol(currency, {
-                    locale,
-                })
+                const result = amountUtils.getCurrencySymbol(
+                    currency as SelectableCurrency,
+                    {
+                        locale,
+                    },
+                )
                 expect(result).toEqual(expectedResult)
             })
         })
@@ -265,14 +271,13 @@ describe('AmountUtils', () => {
         const testCases = [
             { currency: SupportedCurrency.USD, expectedResult: 2 },
             { currency: SupportedCurrency.EUR, expectedResult: 2 },
-            { currency: SupportedCurrency.CFA, expectedResult: 2 },
             { currency: 'JPY' as SupportedCurrency, expectedResult: 0 },
         ]
 
         testCases.forEach(({ currency, expectedResult }) => {
-            expect(amountUtils.getCurrencyDecimals(currency)).toEqual(
-                expectedResult,
-            )
+            expect(
+                amountUtils.getCurrencyDecimals(currency as SelectableCurrency),
+            ).toEqual(expectedResult)
         })
     })
     describe('parseFiatString', () => {
