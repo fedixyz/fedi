@@ -45,6 +45,8 @@ export function makeLog(context: string) {
     }
 }
 
+export type Logger = ReturnType<typeof makeLog>
+
 /**
  * Export logs as a plain string that can be saved to a file.
  */

@@ -5,8 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
-
 import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -20,9 +18,7 @@ export type Props = NativeStackScreenProps<
 const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { amount } = route.params
-    const { convertSatsToFormattedFiat } = useBtcFiatPrice()
-    const formattedFiat = convertSatsToFormattedFiat(amount)
+    const { formattedFiat } = route.params
 
     const style = styles(theme)
 

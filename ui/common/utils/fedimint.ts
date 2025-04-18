@@ -5,6 +5,7 @@ import type {
     MSats,
     Sats,
     TransactionListEntry,
+    UsdCents,
     bindings,
 } from '../types'
 import {
@@ -111,6 +112,68 @@ export class FedimintBridge {
         return this.rpcTyped('stabilityPoolNextCycleStartTime', {
             federationId,
         })
+    }
+
+    async spv2AccountInfo(federationId: string) {
+        return this.rpcTyped('spv2AccountInfo', { federationId })
+    }
+
+    async spv2NextCycleStartTime(federationId: string) {
+        return this.rpcTyped('spv2NextCycleStartTime', { federationId })
+    }
+
+    async spv2DepositToSeek(
+        amount: RpcAmount,
+        federationId: string,
+        frontendMeta: FrontendMetadata = {
+            initialNotes: null,
+            recipientMatrixId: null,
+            senderMatrixId: null,
+        },
+    ) {
+        return this.rpcTyped('spv2DepositToSeek', {
+            amount,
+            federationId,
+            frontendMeta,
+        })
+    }
+
+    async spv2Withdraw(
+        federationId: string,
+        fiatAmount: UsdCents,
+        frontendMeta: FrontendMetadata = {
+            initialNotes: null,
+            recipientMatrixId: null,
+            senderMatrixId: null,
+        },
+    ) {
+        return this.rpcTyped('spv2Withdraw', {
+            federationId,
+            fiatAmount,
+            frontendMeta,
+        })
+    }
+
+    async spv2WithdrawAll(
+        federationId: string,
+        frontendMeta: FrontendMetadata = {
+            initialNotes: null,
+            recipientMatrixId: null,
+            senderMatrixId: null,
+        },
+    ) {
+        return this.rpcTyped('spv2WithdrawAll', { federationId, frontendMeta })
+    }
+
+    async spv2AverageFeeRate(federationId: string, numCycles: number) {
+        return this.rpcTyped('spv2AverageFeeRate', {
+            federationId,
+            numCycles,
+        })
+    }
+
+    async spv2AvailableLiquidity(federationId: string) {
+        return this.rpcTyped('spv2AvailableLiquidity', { federationId })
     }
 
     async listTransactions(

@@ -44,6 +44,7 @@ import {
     selectIsInternetUnreachable,
 } from '@fedi/common/redux'
 import { AnyParsedData, Invoice, ParserDataType } from '@fedi/common/types'
+import { getCurrencyCode } from '@fedi/common/utils/currency'
 import { makeLog } from '@fedi/common/utils/log'
 import { parseUserInput } from '@fedi/common/utils/parser'
 import {
@@ -374,7 +375,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         [InjectionMessageType.fedi_getCurrencyCode]: async () => {
             log.info('fedi.getActiveFederation')
 
-            return currency
+            return getCurrencyCode(currency)
         },
         [InjectionMessageType.fedi_getLanguageCode]: async () => {
             log.info('fedi.getActiveFederation')

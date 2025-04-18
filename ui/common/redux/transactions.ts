@@ -233,8 +233,11 @@ export const selectStabilityTransactionHistory = createSelector(
     selectTransactions,
     transactions =>
         transactions.filter(txn => {
-            if (txn.kind === 'spDeposit' || txn.kind === 'spWithdraw') {
-                return true
-            }
+            return (
+                txn.kind === 'spDeposit' ||
+                txn.kind === 'spWithdraw' ||
+                txn.kind === 'sPV2Deposit' ||
+                txn.kind === 'sPV2Withdrawal'
+            )
         }),
 )

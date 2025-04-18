@@ -16,7 +16,7 @@ import { formatCurrencyText } from '@fedi/common/utils/format'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { SupportedCurrency } from '../types'
+import { SelectableCurrency } from '../types'
 import { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -70,7 +70,7 @@ function CurrencyItem({
     currency,
     federationId,
 }: {
-    currency: SupportedCurrency
+    currency: SelectableCurrency
     federationId: string
 }) {
     const { t } = useTranslation()

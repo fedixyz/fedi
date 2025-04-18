@@ -47,18 +47,20 @@ export function useIsSocialRecoverySupported() {
 export function useIsStabilityPoolSupported() {
     const activeFederation = useCommonSelector(selectActiveFederation)
     if (!activeFederation || !activeFederation.hasWallet) return false
-    let supported = false
-    if (activeFederation.clientConfig) {
-        const { modules } = activeFederation.clientConfig
-        for (const key in modules) {
-            // TODO: add better typing for this
-            const fmModule = modules[key] as Partial<{ kind: string }>
-            if (fmModule.kind === 'stability_pool') {
-                supported = true
-            }
+    if (!activeFederation.clientConfig) return false
+
+    const { modules } = activeFederation.clientConfig
+    for (const key in modules) {
+        // TODO: add better typing for this
+        const fmModule = modules[key] as Partial<{ kind: string }>
+        if (
+            fmModule.kind === 'stability_pool' ||
+            fmModule.kind === 'multi_sig_stability_pool'
+        ) {
+            return true
         }
     }
-    return supported
+    return false
 }
 
 export function useIsStabilityPoolEnabledByFederation() {

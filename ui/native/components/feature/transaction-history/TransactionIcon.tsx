@@ -20,7 +20,12 @@ const getTxnIcon = (
 
     if (txn.kind === 'onchainDeposit' || txn.kind === 'onchainWithdraw')
         icon = 'OnChainCircle'
-    else if (txn.kind === 'spDeposit' || txn.kind === 'spWithdraw') {
+    else if (
+        txn.kind === 'spDeposit' ||
+        txn.kind === 'spWithdraw' ||
+        txn.kind === 'sPV2Deposit' ||
+        txn.kind === 'sPV2Withdrawal'
+    ) {
         icon = 'DollarCircle'
         color = theme.colors.moneyGreen
     } else if (txn.kind === 'oobSend' || txn.kind === 'oobReceive')

@@ -8,8 +8,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    decreaseStableBalance,
+    decreaseStableBalanceV1,
+    decreaseStableBalanceV2,
     selectFormattedDepositTime,
+    selectStabilityPoolVersion,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
@@ -31,26 +33,42 @@ const StabilityConfirmWithdraw: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const { amount } = route.params
+    const { amountSats, amountCents } = route.params
     const toast = useToast()
     const [processingDeposit, setProcessingDeposit] = useState<boolean>(false)
     const [showDetails, setShowDetails] = useState<boolean>(false)
-    const { convertSatsToFormattedFiat } = useBtcFiatPrice()
-    const formattedFiat = convertSatsToFormattedFiat(amount)
+    const { convertSatsToFormattedFiat, convertCentsToFormattedFiat } =
+        useBtcFiatPrice()
+    const version = useAppSelector(selectStabilityPoolVersion)
+
+    const formattedFiat =
+        version === 2
+            ? convertCentsToFormattedFiat(amountCents)
+            : convertSatsToFormattedFiat(amountSats)
+
     const depositTime = useAppSelector(s => selectFormattedDepositTime(s, t))
 
     const handleSubmit = async () => {
         try {
             setProcessingDeposit(true)
-            const amountToWithdraw = amountUtils.satToMsat(amount)
-            await dispatch(
-                decreaseStableBalance({
-                    fedimint,
-                    amount: amountToWithdraw,
-                }),
-            ).unwrap()
+            if (version === 2) {
+                await dispatch(
+                    decreaseStableBalanceV2({
+                        fedimint,
+                        amount: amountCents,
+                    }),
+                ).unwrap()
+            } else {
+                const amountMsats = amountUtils.satToMsat(amountSats)
+                await dispatch(
+                    decreaseStableBalanceV1({
+                        fedimint,
+                        amount: amountMsats,
+                    }),
+                ).unwrap()
+            }
             navigation.replace('StabilityWithdrawInitiated', {
-                amount,
+                formattedFiat,
             })
         } catch (error) {
             setProcessingDeposit(false)

@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import {
     refreshActiveStabilityPool,
     selectActiveFederationId,
-    selectStabilityPoolAccountInfo,
+    selectStabilityPoolState,
     selectStableBalancePending,
 } from '../redux'
 import {
@@ -31,9 +31,7 @@ export async function useMonitorStabilityPool(fedimint: FedimintBridge) {
     const dispatch = useCommonDispatch()
     const activeFederationId = useCommonSelector(selectActiveFederationId)
     const isStabilityPoolSupported = useIsStabilityPoolSupported()
-    const idleBalance = useCommonSelector(
-        selectStabilityPoolAccountInfo,
-    )?.idleBalance
+    const idleBalance = useCommonSelector(selectStabilityPoolState)?.idleBalance
     const hasWithdrawPending = useCommonSelector(selectStableBalancePending) < 0
     const isSweepingIdleBalanceRef = useRef(false)
 

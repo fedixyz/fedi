@@ -19,6 +19,7 @@ import {
     ReceiveSuccessData,
     Sats,
     MatrixEvent,
+    UsdCents,
 } from '@fedi/common/types'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 
@@ -160,13 +161,13 @@ export type RootStackParamList = {
     FediModBrowser: { url: string }
     Splash: undefined
     StabilityConfirmDeposit: { amount: Sats }
-    StabilityConfirmWithdraw: { amount: Sats }
+    StabilityConfirmWithdraw: { amountSats: Sats; amountCents: UsdCents }
     StabilityDeposit: undefined
     StabilityDepositInitiated: { amount: Sats }
     StabilityHistory: undefined
     StabilityHome: undefined
     StabilityWithdraw: undefined
-    StabilityWithdrawInitiated: { amount: Sats }
+    StabilityWithdrawInitiated: { formattedFiat: string }
     StableBalanceIntro: undefined
     StartPersonalBackup: undefined
     StartRecoveryAssist: undefined

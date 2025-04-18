@@ -29,6 +29,7 @@ const StabilityWithdraw: React.FC<Props> = () => {
         minimumAmount,
         maximumAmount,
         maximumFiatAmount,
+        inputAmountCents,
     } = useWithdrawForm()
     const [submitAttempts, setSubmitAttempts] = useState(0)
 
@@ -44,7 +45,8 @@ const StabilityWithdraw: React.FC<Props> = () => {
             return
         }
         navigation.navigate('StabilityConfirmWithdraw', {
-            amount,
+            amountSats: amount,
+            amountCents: inputAmountCents,
         })
         Keyboard.dismiss()
     }
