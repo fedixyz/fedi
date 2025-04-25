@@ -9,5 +9,6 @@
         <domain includeSubdomains="true">10.0.2.2</domain>
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">internet.fedi.xyz</domain>
+        <domain includeSubdomains="true">connect.fedi.xyz</domain>
     </domain-config>
 </network-security-config>
