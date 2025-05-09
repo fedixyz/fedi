@@ -193,9 +193,16 @@ export const deriveUrlsFromText = (text: string) => {
 
 export const generateRandomDisplayName = (length: number) => {
     const words = []
+
+    // Remove banned words from list (currently only "security")
+    const filteredWordsList = BIP39_WORD_LIST.filter(
+        word => !BANNED_DISPLAY_NAME_TERMS.includes(word),
+    )
+
     for (let i = 0; i < length; i++) {
-        const randomIndex = Math.floor(Math.random() * BIP39_WORD_LIST.length)
-        words.push(BIP39_WORD_LIST[randomIndex])
+        const randomIndex = Math.floor(Math.random() * filteredWordsList.length)
+
+        words.push(filteredWordsList[randomIndex])
     }
 
     return words.join(' ')

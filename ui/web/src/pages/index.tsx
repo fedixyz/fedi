@@ -1,49 +1,144 @@
-import { useTranslation } from 'react-i18next'
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 
-import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { selectFederations } from '@fedi/common/redux'
+import welcomeBackground from '@fedi/common/assets/images/welcome-bg.png'
+import FediLogo from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
+import { useToast } from '@fedi/common/hooks/toast'
+import { startMatrixClient } from '@fedi/common/redux'
+import { makeLog } from '@fedi/common/utils/log'
 
-import { BitcoinWallet } from '../components/BitcoinWallet'
+import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
-import { FediModTiles } from '../components/FediModTiles'
 import * as Layout from '../components/Layout'
-import PublicFederations from '../components/PublicFederations'
-import { useAppSelector } from '../hooks'
-import { styled } from '../styles'
+import { Text } from '../components/Text'
+import { useAppDispatch } from '../hooks'
+import { fedimint } from '../lib/bridge'
+import { styled, theme } from '../styles'
 
-function HomePage() {
+const log = makeLog('WelcomePage')
+
+function WelcomePage() {
     const { t } = useTranslation()
-    const federations = useAppSelector(selectFederations)
+    const { query, push } = useRouter()
+    const dispatch = useAppDispatch()
+    const toast = useToast()
+    const [inviteCode, setInviteCode] = useState<string | null>(null)
+    const [loading, setLoading] = useState<boolean>(false)
 
-    const hasFederations = federations.length > 0
+    useEffect(() => {
+        if (query.invite_code) {
+            setInviteCode(String(query.invite_code))
+        }
+    }, [query.invite_code, push])
+
+    const handleOnContinue = async () => {
+        try {
+            dispatch(startMatrixClient({ fedimint })).unwrap()
+
+            // Return early if no invite code
+            if (!inviteCode) {
+                push('/onboarding')
+                return
+            }
+
+            push(`/onboarding/join?invite_code=${inviteCode}`)
+        } catch (err) {
+            log.error('handleJoin', err)
+            toast.error(t, 'errors.invalid-federation-code')
+        } finally {
+            setLoading(false)
+        }
+    }
 
     return (
-        <ContentBlock>
+        <ContentBlock
+            css={{
+                backgroundImage: `url(${welcomeBackground.src})`,
+                backgroundPosition: 'center -40px',
+                backgroundSize: 'cover',
+            }}>
             <Layout.Root>
-                <Layout.Header>
-                    <Layout.Title>{t('words.home')}</Layout.Title>
-                </Layout.Header>
-                <Layout.Content>
-                    {hasFederations ? (
-                        <ContentInner>
-                            <BitcoinWallet />
-                            <ErrorBoundary fallback={null}>
-                                <FediModTiles />
-                            </ErrorBoundary>
-                        </ContentInner>
-                    ) : (
-                        <PublicFederations />
-                    )}
+                <Layout.Content centered fadeIn>
+                    <ContentInner>
+                        <FediLogo width={50} />
+                        <Text variant="h2" weight="medium">
+                            {t('feature.onboarding.fedi')}
+                        </Text>
+                        <Text variant="body">
+                            {t('feature.onboarding.empower-tagline')}
+                        </Text>
+                    </ContentInner>
                 </Layout.Content>
+                <Layout.Actions>
+                    <Button
+                        width="full"
+                        onClick={handleOnContinue}
+                        loading={loading}>
+                        {t('words.continue')}
+                    </Button>
+
+                    {!inviteCode && (
+                        <Button
+                            width="full"
+                            href="/onboarding/recover"
+                            variant="secondary">
+                            {t('phrases.recover-my-account')}
+                        </Button>
+                    )}
+
+                    <TextWrapper>
+                        <Text
+                            variant="caption"
+                            css={{ color: theme.colors.darkGrey }}>
+                            <Trans
+                                i18nKey="feature.onboarding.agree-terms-privacy"
+                                components={{
+                                    termsLink: (
+                                        <Link
+                                            target="_blank"
+                                            href={
+                                                'https://www.fedi.xyz/terms-of-use'
+                                            }
+                                        />
+                                    ),
+                                    privacyLink: (
+                                        <Link
+                                            target="_blank"
+                                            href={
+                                                'https://www.fedi.xyz/privacy-policy'
+                                            }
+                                        />
+                                    ),
+                                }}
+                            />
+                        </Text>
+                    </TextWrapper>
+                </Layout.Actions>
             </Layout.Root>
         </ContentBlock>
     )
 }
 
 const ContentInner = styled('div', {
+    alignItems: 'center',
     display: 'flex',
     flexDirection: 'column',
-    gap: 16,
+    gap: 10,
+    maxWidth: '80%',
+    margin: '50px auto 0',
+    textAlign: 'center',
+    width: '100%',
 })
 
-export default HomePage
+const TextWrapper = styled('div', {
+    paddingBottom: 10,
+    paddingTop: 5,
+    width: 260,
+})
+
+const Link = styled('a', {
+    color: theme.colors.link,
+})
+
+export default WelcomePage

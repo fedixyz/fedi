@@ -79,14 +79,16 @@ addEventListener('message', e => {
         return
     }
     if (method == 'getLogs') {
-        ;(async () => {
-            const file = await get_logs()
+        try {
+            const file: Blob = get_logs()
             postMessage({
                 token,
                 // TODO: release data??
-                result: JSON.stringify({ result: URL.createObjectURL(file) }),
+                result: file,
             })
-        })()
+        } catch (err) {
+            postMessage({ token, error: String(err) })
+        }
         return
     }
     if (method === 'readFile') {

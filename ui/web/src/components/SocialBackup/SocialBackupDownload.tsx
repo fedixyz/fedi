@@ -35,7 +35,7 @@ export const SocialBackupDownload: React.FC<Props> = ({ backupBlob }) => {
 
     const handleComplete = () => {
         toast.show(t('feature.backup.successfully-backed-up'))
-        push('/')
+        push('/home')
     }
 
     return (

@@ -36,7 +36,7 @@ function PersonalRecoverPage() {
                     mnemonic: words,
                 }),
             ).unwrap()
-            push('/')
+            push('/home')
             toast.show({
                 content: t('feature.recovery.you-completed-personal-recovery'),
             })

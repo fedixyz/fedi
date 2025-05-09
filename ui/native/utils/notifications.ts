@@ -2,7 +2,8 @@ import notifee, {
     Event,
     EventType,
     NotificationAndroid,
-    NotificationIOS,
+    type NotificationIOS,
+    AndroidGroupAlertBehavior,
 } from '@notifee/react-native'
 import messaging, {
     FirebaseMessagingTypes,
@@ -33,8 +34,21 @@ import { launchZendeskSupport, zendeskCloseMessagingView } from './support'
 
 const log = makeLog('Notifications')
 
-export const NOTIFICATION_TYPES = ['chat', 'payment', 'announcement'] as const
+export const NOTIFICATION_TYPES = [
+    'chat',
+    'payment',
+    'announcement',
+    'zendesk',
+] as const
 export type NOTIFICATION_TYPE = (typeof NOTIFICATION_TYPES)[number]
+
+/** One Android notification-group (a “stack”) per business type */
+export const GROUP_IDS: Record<NOTIFICATION_TYPE, string> = {
+    chat: 'group-chat',
+    payment: 'group-payment',
+    announcement: 'group-announcement',
+    zendesk: 'group-zendesk',
+}
 
 export const manuallyPublishNotificationToken = async (
     supportPermissionGranted: boolean,
@@ -316,23 +330,22 @@ export const displayAnnouncement = async (
         },
     )
 }
-
 export const dispatchNotification = async (
     id: string,
     channelId: string,
     title: string,
     body: string,
     data: NotificationData,
-    params: {
-        android?: NotificationAndroid
-        ios?: NotificationIOS
-    } = {},
+    params: { android?: NotificationAndroid; ios?: NotificationIOS } = {},
 ) => {
     try {
+        log.debug('dispatchNotification', { id, channelId, type: data.type })
+
         await notifee.incrementBadgeCount()
         const currentBadgeCount = await notifee.getBadgeCount()
+        log.debug('notification badge-count', currentBadgeCount)
 
-        const androidParams = {
+        const androidParams: NotificationAndroid = {
             channelId,
             badgeCount: currentBadgeCount,
             pressAction: {
@@ -347,15 +360,11 @@ export const dispatchNotification = async (
             ...params.android,
         }
 
-        const iosParams = {
-            ...params.ios,
-            badge: currentBadgeCount,
-            sound: 'default',
-            foregroundPresentationOptions: {
-                alert: true,
-                badge: true,
-                sound: true,
-            },
+        const groupId = data.type ? GROUP_IDS[data.type] : undefined
+        if (groupId) {
+            androidParams.groupId = groupId
+            androidParams.groupAlertBehavior = AndroidGroupAlertBehavior.SUMMARY
+            log.debug('notification groupId', groupId)
         }
 
         await notifee.displayNotification({
@@ -364,12 +373,38 @@ export const dispatchNotification = async (
             body,
             data,
             android: androidParams,
-            ios: iosParams,
+            ios: {
+                ...params.ios,
+                badgeCount: currentBadgeCount,
+                sound: 'default',
+                foregroundPresentationOptions: {
+                    alert: true,
+                    badge: true,
+                    sound: true,
+                },
+            },
         })
+        log.info('displayed notification child', id)
 
-        log.info(
-            `Notification displayed with badge count: ${currentBadgeCount}`,
-        )
+        if (groupId) {
+            await notifee.displayNotification({
+                id: `${groupId}-summary`,
+                title,
+                body,
+                android: {
+                    channelId,
+                    groupId,
+                    groupSummary: true,
+                    smallIcon: 'ic_stat_notification',
+                    color: getNotificationBackgroundColor(),
+                    groupAlertBehavior: AndroidGroupAlertBehavior.SUMMARY,
+                    pressAction: { id: 'default', launchActivity: 'default' },
+                },
+            })
+            log.info('updated notification summary', `${groupId}-summary`)
+        }
+
+        log.info(`badge count ${currentBadgeCount}`)
     } catch (e) {
         log.error('Failed to display notification', e)
     }

@@ -17,18 +17,19 @@ import {
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import {
     matchAndHidePreviewMedia,
-    paginateMatrixRoomTimeline,
     selectPreviewMedia,
     selectMatrixAuth,
     selectMatrixRoom,
     selectMatrixRoomEvents,
-    selectMatrixRoomEventsHaveLoaded,
     selectMatrixRoomMembersCount,
+    selectMatrixRoomEventsHaveLoaded,
+    selectMatrixRoomIsBlocked,
 } from '@fedi/common/redux'
 import { ChatType, MatrixEvent, MatrixEventStatus } from '@fedi/common/types'
 import {
     MatrixEventContent,
     isImageEvent,
+    isMultispendEvent,
     isVideoEvent,
     makeMatrixEventGroups,
 } from '@fedi/common/utils/matrix'
@@ -44,18 +45,17 @@ type MessagesListProps = {
     id: string
     multiUserChat?: boolean
     isPublic?: boolean
+    newMessageBottomOffset: number
 }
 
 const ChatConversation: React.FC<MessagesListProps> = ({
     type,
     id,
     isPublic = true,
+    newMessageBottomOffset = 90,
 }: MessagesListProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const [hasPaginated, setHasPaginated] = useState(false)
-    const [isPaginating, setIsPaginating] = useState(false)
-    const [isAtEnd, setIsAtEnd] = useState(false)
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const myId = useMemo(() => matrixAuth?.userId, [matrixAuth])
     const isBroadcast = !!useAppSelector(s => selectMatrixRoom(s, id))
@@ -63,19 +63,20 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const [hasNewMessage, setHasNewMessages] = useState(false)
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
     const previewMedia = useAppSelector(selectPreviewMedia)
+    const hasLoadedEvents = useAppSelector(s =>
+        selectMatrixRoomEventsHaveLoaded(s, id),
+    )
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
     const dispatch = useAppDispatch()
 
     // Room is empty if we're the only member
     const isAlone =
         useAppSelector(s => selectMatrixRoomMembersCount(s, id)) === 1
+    const isBlocked = useAppSelector(s => selectMatrixRoomIsBlocked(s, id))
 
-    useObserveMatrixRoom(id)
+    const { isPaginating, handlePaginate } = useObserveMatrixRoom(id)
 
     const events = useAppSelector(s => selectMatrixRoomEvents(s, id))
-    const hasLoadedEvents = useAppSelector(s =>
-        selectMatrixRoomEventsHaveLoaded(s, id),
-    )
     const listRef = useRef<FlatList>(null)
     const lastScrolledMessageIdRef = useRef(events?.[0]?.id)
     const isScrolledToBottomRef = useRef(true)
@@ -117,27 +118,24 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     }, [previewMedia, events, id, myId])
 
     const eventGroups = useMemo(
-        () => makeMatrixEventGroups(chatEvents, 'desc'),
+        () =>
+            chatEvents.length > 0
+                ? makeMatrixEventGroups(chatEvents, 'desc')
+                : [],
         [chatEvents],
     )
-
-    // Any time we get a change in the number of events, we reset hasPaginated
-    // so that the user will attempt pagination again.
-    useEffect(() => {
-        setHasPaginated(false)
-    }, [events.length])
 
     const style = useMemo(() => styles(theme), [theme])
 
     // Animate new message button in and out
     useEffect(() => {
         Animated.timing(animatedNewMessageBottom, {
-            toValue: hasNewMessage ? 90 : -50,
+            toValue: hasNewMessage ? newMessageBottomOffset : -50,
             duration: 100,
             useNativeDriver: false,
             easing: Easing.linear,
         }).start()
-    }, [animatedNewMessageBottom, hasNewMessage])
+    }, [animatedNewMessageBottom, hasNewMessage, newMessageBottomOffset])
 
     const scrollToEnd = useCallback(() => {
         // Use scrollToOffset instead of scrollToEnd because the list is inverted
@@ -166,16 +164,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         }
     }, [eventGroups, myId, scrollToEnd])
 
-    const handlePaginate = useCallback(async () => {
-        if (isPaginating || hasPaginated || isAtEnd) return
-        setIsPaginating(true)
-        setHasPaginated(true)
-        await dispatch(paginateMatrixRoomTimeline({ roomId: id, limit: 30 }))
-            .unwrap()
-            .then(({ end }) => setIsAtEnd(end))
-            .finally(() => setIsPaginating(false))
-    }, [hasPaginated, id, isAtEnd, isPaginating, dispatch])
-
     // Mark hasNewMessages as false when we scroll to the bottom, and keep a ref up to date
     const handleScroll = useCallback(
         (ev: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -197,7 +185,12 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     key={item[0].at(-1)?.eventId}
                     roomId={id}
                     collection={item}
-                    showUsernames={type === ChatType.group}
+                    showUsernames={
+                        type === ChatType.group &&
+                        // TODO: Separate multispend events into their own collection
+                        // This is causing some normal messages to not show usernames
+                        item.every(e => e.every(ev => !isMultispendEvent(ev)))
+                    }
                     onSelect={setSelectedUserId}
                     isPublic={isPublic}
                 />
@@ -233,7 +226,6 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                         },
                     ]}
                     contentContainerStyle={style.contentContainer}
-                    removeClippedSubviews={false}
                     ListEmptyComponent={
                         isAlone ? (
                             <NoMembersNotice roomId={id} />
@@ -241,7 +233,19 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                             <NoMessagesNotice isBroadcast={isBroadcast} />
                         )
                     }
+                    ListHeaderComponent={
+                        isBlocked ? (
+                            <View style={style.blockedContainer}>
+                                <Text tiny style={style.blockedText}>
+                                    {t('feature.chat.user-is-blocked-guidance')}
+                                </Text>
+                            </View>
+                        ) : undefined
+                    }
                     onScroll={handleScroll}
+                    // this prop is required to accomplish both:
+                    // 1) correct ordering of messages with the most recent message at the bottom
+                    // 2) prevent the ListEmptyComponent from rendering upside down
                     inverted={events.length > 0}
                     // adjust this for more/less aggressive loading
                     onEndReachedThreshold={0.1}
@@ -252,12 +256,21 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                         autoscrollToTopThreshold: 100,
                     }}
                     scrollsToTop={false}
+                    // Enable better scroll performance
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    initialNumToRender={10}
                 />
             ) : (
                 <View style={style.center}>
-                    <ActivityIndicator size="large" />
+                    <ActivityIndicator
+                        size="large"
+                        color={theme.colors.primary}
+                    />
                 </View>
             )}
+
             <ChatUserActionsOverlay
                 onDismiss={() => setSelectedUserId(null)}
                 selectedUserId={selectedUserId}
@@ -306,6 +319,25 @@ const styles = (theme: Theme) =>
         center: {
             flex: 1,
             justifyContent: 'center',
+        },
+        initialLoadingContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: 200,
+        },
+        contentContainerLoading: {
+            flexGrow: 1,
+            justifyContent: 'center',
+        },
+        blockedContainer: {
+            alignItems: 'center',
+            width: '100%',
+            marginBottom: theme.spacing.md,
+        },
+        blockedText: {
+            color: theme.colors.red,
+            textAlign: 'center',
         },
     })
 

@@ -7,7 +7,6 @@ import { StyleSheet, View } from 'react-native'
 import { selectStableBalancePending } from '@fedi/common/redux/wallet'
 
 import { useAppSelector, useStabilityPool } from '../../../state/hooks'
-import SvgImage from '../../ui/SvgImage'
 
 const Balance: React.FC = () => {
     const { t } = useTranslation()
@@ -44,12 +43,6 @@ const Balance: React.FC = () => {
                     </Text>
                 )}
             </View>
-            <SvgImage
-                name="ChevronRightSmall"
-                color={theme.colors.secondary}
-                dimensions={{ width: 10, height: 18 }}
-                svgProps={{ style: style.svgStyle }}
-            />
         </View>
     )
 }

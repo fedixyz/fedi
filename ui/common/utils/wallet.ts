@@ -12,6 +12,8 @@ import {
     TransactionAmountState,
     TransactionListEntry,
     SelectableCurrency,
+    MultispendTransactionListEntry,
+    MatrixRoomMember,
 } from '../types'
 import {
     StabilityPoolWithdrawalEvent,
@@ -27,6 +29,7 @@ import dateUtils from './DateUtils'
 import { getCurrencyCode } from './currency'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
+import { makeNameWithSuffix } from './matrix'
 
 const log = makeLog('common/utils/wallet')
 
@@ -527,6 +530,21 @@ export const makeTxnStatusBadge = (
         default:
             badge = 'incoming'
     }
+    if (txn.kind === 'multispend') {
+        if (txn.state === 'invalid') return 'failed'
+        if ('depositNotification' in txn.event) {
+            badge = 'incoming'
+        } else if ('withdrawalRequest' in txn.event) {
+            const withdrawalRequest = txn.event.withdrawalRequest
+            if (withdrawalRequest.completed) {
+                badge = 'outgoing'
+            } else {
+                badge = 'pending'
+            }
+        } else {
+            badge = 'pending'
+        }
+    }
 
     return badge
 }
@@ -835,6 +853,70 @@ export const makeStabilityTxnFeeDetails = (
         formattedAmount: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
     }
     items.push(totalFees)
+
+    return items
+}
+
+export const makeMultispendTxnDetailItems = (
+    t: TFunction,
+    txn: MultispendTransactionListEntry,
+    roomMembers: MatrixRoomMember[],
+    convertCentsToFormattedFiat: (amt: UsdCents) => string,
+) => {
+    const items: DetailItem[] = []
+
+    items.push({
+        label: t('words.type'),
+        value: t('words.multispend'),
+    })
+
+    items.push({
+        label: t('words.time'),
+        value: dateUtils.formatTimestamp(
+            Number((txn.time / 1000).toFixed(0)),
+            'MMM dd yyyy, h:mmaaa',
+        ),
+    })
+
+    if (txn.state === 'deposit') {
+        const deposit = txn.event.depositNotification
+        const matchingMember = roomMembers.find(m => m.id === deposit.user)
+        if (matchingMember?.displayName) {
+            items.push({
+                label: t('words.depositor'),
+                value: makeNameWithSuffix(matchingMember),
+            })
+        }
+        if (deposit.fiatAmount) {
+            items.push({
+                label: t('words.amount'),
+                value: convertCentsToFormattedFiat(
+                    deposit.fiatAmount as UsdCents,
+                ),
+            })
+        }
+    }
+
+    if (txn.state === 'withdrawal') {
+        const withdrawalRequest = txn.event.withdrawalRequest
+        const matchingMember = roomMembers.find(
+            m => m.id === withdrawalRequest.sender,
+        )
+        if (matchingMember?.displayName) {
+            items.push({
+                label: t('words.withdrawer'),
+                value: makeNameWithSuffix(matchingMember),
+            })
+        }
+        if (withdrawalRequest.request.transfer_amount) {
+            items.push({
+                label: t('words.amount'),
+                value: convertCentsToFormattedFiat(
+                    withdrawalRequest.request.transfer_amount as UsdCents,
+                ),
+            })
+        }
+    }
 
     return items
 }

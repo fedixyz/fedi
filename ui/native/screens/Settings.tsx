@@ -49,7 +49,7 @@ const Settings: React.FC<Props> = () => {
             {sortedFederations.length > 0 && (
                 <View style={style.section}>
                     <Text color={theme.colors.night} style={style.sectionTitle}>
-                        {t('words.communities')}
+                        {t('words.federations')}
                     </Text>
                     {sortedFederations.map(federation => (
                         <CommunitySettings

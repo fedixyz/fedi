@@ -15,6 +15,11 @@ const initialState = {
         hasOpenedNewChat: false,
         hasPerformedPersonalBackup: false,
         hasOpenedStabilityPool: false,
+        hasSeenMultispendIntro: false,
+        displayNameModal: false,
+        communityModal: false,
+        chatModal: false,
+        modsModal: false,
     },
 }
 

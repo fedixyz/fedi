@@ -12,6 +12,7 @@ import {
     isEncryptedEvent,
     isFileEvent,
     isImageEvent,
+    isMultispendEvent,
     isPaymentEvent,
     isPollEvent,
     isPreviewMediaEvent,
@@ -20,6 +21,7 @@ import {
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
+import ChatMultispendEvent from '../multispend/chat-events/ChatMultispendEvent'
 import ChatDeletedEvent from './ChatDeletedEvent'
 import ChatEmbeddedLinkPreview from './ChatEmbeddedLinkPreview'
 import ChatEncryptedEvent from './ChatEncryptedEvent'
@@ -50,7 +52,8 @@ const ChatEvent: React.FC<Props> = ({
     const [hasWidePreview, setHasWidePreview] = useState(false)
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
-    const isMe = event.senderId === matrixAuth?.userId
+    const isMe =
+        event.senderId === matrixAuth?.userId && !isMultispendEvent(event)
     const isQueued = false
     const isText = isTextEvent(event)
 
@@ -124,6 +127,8 @@ const ChatEvent: React.FC<Props> = ({
                                 <ChatPreviewMediaEvent event={event} />
                             ) : isPollEvent(event) ? (
                                 <ChatPollEvent event={event} />
+                            ) : isMultispendEvent(event) ? (
+                                <ChatMultispendEvent event={event} />
                             ) : null}
                         </View>
                         {derivedLinks && isPublic && (

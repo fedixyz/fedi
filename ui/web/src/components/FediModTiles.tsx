@@ -3,32 +3,39 @@ import Link from 'next/link'
 import React from 'react'
 
 import DefaultFediModIcon from '@fedi/common/assets/images/fedimods/default.png'
-import { selectActiveFederationFediMods } from '@fedi/common/redux'
+import {
+    selectCoreMods,
+    selectVisibleCommunityMods,
+} from '@fedi/common/redux/mod'
 
 import { FEDIMOD_IMAGES } from '../constants/fedimodimages'
 import { useAppSelector } from '../hooks'
 import { styled } from '../styles'
 import { Text } from './Text'
 
-export const FediModTiles: React.FC = () => {
-    const fediMods = useAppSelector(selectActiveFederationFediMods)
+type Props = {
+    isFederation?: boolean
+}
+
+export const FediModTiles: React.FC<Props> = ({ isFederation }) => {
+    const fediMods = useAppSelector(
+        isFederation ? selectVisibleCommunityMods : selectCoreMods,
+    )
 
     return (
         <Container>
-            {fediMods.map(fediMod => {
-                const image =
-                    fediMod.imageUrl ||
-                    FEDIMOD_IMAGES[fediMod.id] ||
-                    DefaultFediModIcon
-                return (
-                    <FediModTile
-                        key={fediMod.id}
-                        href={fediMod.url}
-                        title={fediMod.title}
-                        image={image}
-                    />
-                )
-            })}
+            {fediMods.map(fediMod => (
+                <FediModTile
+                    key={fediMod.id}
+                    href={fediMod.url}
+                    title={fediMod.title}
+                    image={
+                        fediMod.imageUrl ||
+                        FEDIMOD_IMAGES[fediMod.id] ||
+                        DefaultFediModIcon
+                    }
+                />
+            ))}
         </Container>
     )
 }

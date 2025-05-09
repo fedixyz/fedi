@@ -1,16 +1,18 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     banUser,
+    ignoreUser,
     kickUser,
     selectMatrixAuth,
     selectMatrixRoomSelfPowerLevel,
     setMatrixRoomMemberPowerLevel,
+    unignoreUser,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
@@ -19,6 +21,7 @@ import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 
 import ChatAction from './ChatAction'
+import { ConfirmBlockOverlay } from './ConfirmBlockOverlay'
 
 export type Props = {
     roomId: string
@@ -31,6 +34,8 @@ type Action = {
     label: string
     icon: SvgImageName
     onPress: () => void
+    red?: boolean
+    hideArrow?: boolean
 }
 type RoleChangeAction = Action & {
     powerLevel: MatrixPowerLevel
@@ -57,6 +62,38 @@ const ChatUserActions: React.FC<Props> = ({
     const dispatch = useAppDispatch()
     const { error, show } = useToast()
     const [loadingAction, setLoadingAction] = useState<number | null>(null)
+
+    const [isConfirmingBlock, setIsConfirmingBlock] = useState(false)
+    const [isBlockingUser, setIsBlockingUser] = useState(false)
+
+    const handleBlockUser = useCallback(async () => {
+        setIsBlockingUser(true)
+        try {
+            // unblock if already blocked
+            if (member.ignored) {
+                await dispatch(
+                    unignoreUser({ userId: member.id, roomId }),
+                ).unwrap()
+                show({
+                    content: t('feature.chat.unblock-user-success'),
+                    status: 'success',
+                })
+            } else {
+                await dispatch(
+                    ignoreUser({ userId: member.id, roomId }),
+                ).unwrap()
+                show({
+                    content: t('feature.chat.block-user-success'),
+                    status: 'success',
+                })
+            }
+        } catch (err) {
+            log.error('Failed to ignore user', err)
+            error(t, 'feature.chat.block-user-failure')
+        }
+        setIsBlockingUser(false)
+        dismiss()
+    }, [dispatch, member.id, show, t, dismiss, error, roomId, member.ignored])
 
     const handleChangePowerLevel = async (
         userId: string,
@@ -112,6 +149,18 @@ const ChatUserActions: React.FC<Props> = ({
                 dismiss()
             },
         },
+        {
+            id: 1,
+            label: member.ignored
+                ? t('feature.chat.unblock-user')
+                : t('feature.chat.block-user'),
+            icon: 'BlockMember',
+            red: true,
+            hideArrow: true,
+            onPress: () => {
+                setIsConfirmingBlock(true)
+            },
+        },
     ]
 
     const handleRemoveUser = async (
@@ -158,7 +207,7 @@ const ChatUserActions: React.FC<Props> = ({
 
     const changeRoles: RoleChangeAction[] = [
         {
-            id: 1,
+            id: 2,
             label: t('words.member'),
             powerLevel: MatrixPowerLevel.Member,
             icon: 'User',
@@ -166,7 +215,7 @@ const ChatUserActions: React.FC<Props> = ({
                 handleChangePowerLevel(member.id, MatrixPowerLevel.Member, 1),
         },
         {
-            id: 2,
+            id: 3,
             label: t('words.moderator'),
             powerLevel: MatrixPowerLevel.Moderator,
             icon: 'ChatModerator',
@@ -178,7 +227,7 @@ const ChatUserActions: React.FC<Props> = ({
                 ),
         },
         {
-            id: 3,
+            id: 4,
             label: t('words.admin'),
             powerLevel: MatrixPowerLevel.Admin,
             icon: 'ChatAdmin',
@@ -189,13 +238,13 @@ const ChatUserActions: React.FC<Props> = ({
 
     const moderationActions: ModerationAction[] = [
         {
-            id: 4,
+            id: 5,
             label: t('feature.chat.remove-user'),
             icon: 'KickMember',
             onPress: () => handleRemoveUser(member.id, 4),
         },
         {
-            id: 5,
+            id: 6,
             label: t('feature.chat.ban-user'),
             icon: 'BlockMember',
             onPress: () => handleBanUser(member.id, 5),
@@ -223,9 +272,21 @@ const ChatUserActions: React.FC<Props> = ({
                 {actions.map(action => (
                     <ChatAction
                         key={action.id}
-                        leftIcon={<SvgImage name={action.icon} />}
-                        rightIcon={<SvgImage name={'ChevronRight'} />}
+                        leftIcon={
+                            <SvgImage
+                                name={action.icon}
+                                color={
+                                    action.red ? theme.colors.red : undefined
+                                }
+                            />
+                        }
+                        rightIcon={
+                            !action.hideArrow && (
+                                <SvgImage name={'ChevronRight'} />
+                            )
+                        }
                         label={action.label}
+                        labelColor={action.red ? theme.colors.red : undefined}
                         onPress={() => action.onPress()}
                     />
                 ))}
@@ -293,6 +354,18 @@ const ChatUserActions: React.FC<Props> = ({
                     </View>
                 </>
             )}
+            <ConfirmBlockOverlay
+                show={isConfirmingBlock}
+                confirming={isBlockingUser}
+                onConfirm={() => handleBlockUser()}
+                onDismiss={() => setIsConfirmingBlock(false)}
+                user={{
+                    id: member.id,
+                    displayName: member.displayName,
+                    avatarUrl: member.avatarUrl,
+                }}
+                isIgnored={member.ignored}
+            />
         </View>
     )
 }

@@ -191,7 +191,7 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
                     name="Home"
                     initialParams={{ offline }}
                     options={() => ({
-                        title: t('words.community'),
+                        title: t('words.home'),
                         header: () => <HomeHeader />,
                     })}>
                     {props => <Home {...props} offline={offline} />}

@@ -1,5 +1,4 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import toLower from 'lodash/toLower'
 import toUpper from 'lodash/toUpper'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,28 +21,29 @@ const WalletHeader: React.FC = () => {
     if (!activeFederation) return null
 
     return (
-        <View style={[style.container, style.shrink]}>
+        <View style={style.container}>
             <SvgImage
                 name="UsdCircle"
                 size={SvgImageSize.md}
                 color={theme.colors.white}
             />
-            <View style={style.shrink}>
-                <View style={[style.row, style.shrink]}>
-                    <Text
-                        medium
-                        style={style.title}
-                        adjustsFontSizeToFit
-                        numberOfLines={1}>
-                        {`${toUpper(selectedCurrency)} ${toLower(
-                            t('words.balance'),
-                        )}`}
-                    </Text>
-                </View>
+            <View style={style.labelRow}>
+                <Text
+                    medium
+                    style={style.title}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.5}
+                    numberOfLines={1}>
+                    {`${toUpper(selectedCurrency)} ${t(
+                        'feature.stabilitypool.stable-balance',
+                    )}`}
+                </Text>
+
                 <SvgImage
-                    name="Beta"
-                    dimensions={{ width: 50, height: 20 }}
+                    name="ChevronRightSmall"
                     color={theme.colors.secondary}
+                    dimensions={style.chevronDimensions}
+                    svgProps={{ style: style.chevron }}
                 />
             </View>
         </View>
@@ -52,26 +52,30 @@ const WalletHeader: React.FC = () => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        title: {
-            color: theme.colors.secondary,
-            flexShrink: 1,
-        },
         container: {
             flexDirection: 'row',
-            maxWidth: '60%',
-            textAlign: 'left',
+            flex: 1,
             alignItems: 'center',
             justifyContent: 'flex-start',
             gap: theme.spacing.sm,
         },
-        shrink: {
-            flex: 1,
-            flexShrink: 1,
-        },
-        row: {
+        labelRow: {
             flexDirection: 'row',
             alignItems: 'center',
-            gap: theme.spacing.sm,
+            flexShrink: 1,
+            minWidth: 0,
+        },
+        title: {
+            color: theme.colors.secondary,
+            flexShrink: 1,
+        },
+        chevron: {
+            marginLeft: theme.spacing.md,
+            top: 1,
+        },
+        chevronDimensions: {
+            width: 6,
+            height: 12,
         },
     })
 

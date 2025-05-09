@@ -186,6 +186,7 @@ export function formatBridgeFfiLog(event: LogEvent): string {
         } else {
             // we don't log every event since it just adds a lot of clutter during UI dev
             stringToLog += `> received unspecified log event. uncomment ui/native/utils/log:formatBridgeFfiLog to view the full log\n`
+
             // Uncomment this to see the full log of this unspecified event
             // stringToLog += `------ |  > full log: ${stripped}\n`
         }

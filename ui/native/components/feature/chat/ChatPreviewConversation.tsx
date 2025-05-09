@@ -163,9 +163,12 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
                     <NoMessagesNotice isBroadcast={isBroadcast} />
                 }
                 onScroll={handleScroll}
+                // this prop is required to accomplish both:
+                // 1) correct ordering of messages with the most recent message at the bottom
+                // 2) prevent the ListEmptyComponent from rendering upside down
+                inverted={events.length > 0}
                 // adjust this for more/less aggressive loading
                 onEndReachedThreshold={1}
-                inverted={events.length > 0}
                 refreshing={isRefreshing}
                 maintainVisibleContentPosition={{
                     minIndexForVisible: 1,

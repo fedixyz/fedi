@@ -38,7 +38,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({
     return (
         <OnboardingContainer>
             {isSm && (
-                <Header back="/onboarding/welcome">
+                <Header back="/">
                     <Title subheader>
                         {t('feature.federations.join-federation')}
                     </Title>
@@ -63,7 +63,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({
             <OnboardingActions>
                 <Button
                     width="full"
-                    href="/onboarding/welcome"
+                    href="/"
                     disabled={!hasTermsLoaded || isAccepting}
                     variant="tertiary">
                     {t('feature.onboarding.i-do-not-accept')}

@@ -1,0 +1,18 @@
+[package]
+name = "communities"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+fedimint-core = { workspace = true }
+
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bech32 = { workspace = true }
+futures = "0.3"
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["time", "macros"] }
+reqwest = { workspace = true }
+runtime = { workspace = true }
+rpc-types = { workspace = true }

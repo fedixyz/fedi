@@ -6,7 +6,7 @@ jobs:
     release-production-apk:
         name: Build Android APK and upload to GitHub draft release
         timeout-minutes: 90
-        runs-on: [self-hosted, linux]
+        runs-on: [self-hosted, linux, legacy]
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4

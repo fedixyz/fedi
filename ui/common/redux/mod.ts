@@ -169,6 +169,19 @@ export const selectGlobalMods = createSelector(
     },
 )
 
+// This is used to select lngpt (AI assistant), catalog and swap mods
+// to show on new wallet (home) page/screen when user hasn't yet
+// joined a federation
+export const selectCoreMods = createSelector(
+    (s: CommonState) => selectGlobalCommunityMeta(s),
+    globalCommunityMeta => {
+        if (!globalCommunityMeta) return []
+        const mods = getFederationFediMods(globalCommunityMeta)
+        const coreMods = ['lngpt', 'catalog', 'swap']
+        return mods.filter(mod => coreMods.includes(mod.id))
+    },
+)
+
 // Global mods
 export const selectVisibleGlobalMods = createSelector(
     (s: CommonState) => s.mod.modVisibility,

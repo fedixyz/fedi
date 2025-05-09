@@ -207,10 +207,10 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
 
             if (walletFederations.length === 0) {
                 toast.show({
-                    content: t('errors.please-join-wallet-community'),
+                    content: t('errors.please-join-wallet-federation'),
                     status: 'error',
                 })
-                throw new Error(t('errors.please-join-wallet-community'))
+                throw new Error(t('errors.please-join-wallet-federation'))
             }
 
             // Wait for user to interact with alert
@@ -240,7 +240,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
 
             if (walletFederations.length === 0) {
                 toast.show({
-                    content: t('errors.please-join-wallet-community'),
+                    content: t('errors.please-join-wallet-federation'),
                     status: 'error',
                 })
                 // Don't duplicate errors we display via toasts

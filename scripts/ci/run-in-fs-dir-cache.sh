@@ -10,9 +10,6 @@ if [ -z "$job_name" ]; then
     exit 1
 fi
 
-# In CI sccache serves no purpose, and has a small negative perf. impact
-export FEDI_DISABLE_SCCACHE=1
-
 export FS_DIR_CACHE_ROOT="$HOME/.cache/fs-dir-cache" # directory to hold all cache (sub)directories
 export FS_DIR_CACHE_LOCK_ID="pid-$$-rnd-$RANDOM"     # acquire lock based on the current pid and something random (just in case pid gets reused)
 export FS_DIR_CACHE_KEY_NAME="$job_name"             # the base name of our key

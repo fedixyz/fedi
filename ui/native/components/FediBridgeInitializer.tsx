@@ -10,6 +10,7 @@ import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     fetchRegisteredDevices,
     fetchSocialRecovery,
+    initializeFeatureFlags,
     initializeFedimintVersion,
     initializeNostrKeys,
     previewAllDefaultChats,
@@ -77,6 +78,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
 
                 // These all happen in parallel after bridge is initialized
                 await Promise.all([
+                    dispatchRef.current(initializeFeatureFlags({ fedimint })),
                     dispatchRef.current(fetchSocialRecovery(fedimint)),
                     dispatchRef.current(initializeNostrKeys({ fedimint })),
                     // this happens when the user entered seed words but quit the app

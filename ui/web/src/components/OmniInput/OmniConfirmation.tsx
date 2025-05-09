@@ -12,7 +12,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { selectActiveFederationId } from '@fedi/common/redux'
 import { AnyParsedData, ParserDataType } from '@fedi/common/types'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
-import { ALLOWED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parser'
+import { BLOCKED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parser'
 
 import { useRouteStateContext } from '../../context/RouteStateContext'
 import { useAppSelector } from '../../hooks'
@@ -107,8 +107,8 @@ export const OmniConfirmation: React.FC<Props> = ({
     } => {
         // If they're not yet a member of a federation, they can only scan certain codes.
         if (
-            !activeFederationId &&
-            !ALLOWED_PARSER_TYPES_BEFORE_FEDERATION.includes(parsedData.type)
+            BLOCKED_PARSER_TYPES_BEFORE_FEDERATION.includes(parsedData.type) &&
+            !activeFederationId
         ) {
             return {
                 icon: ScanSadIcon,

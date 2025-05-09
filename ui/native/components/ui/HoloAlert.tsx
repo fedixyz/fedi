@@ -1,10 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { StyleSheet, View } from 'react-native'
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 
 import HoloGradient from './HoloGradient'
 
 interface BaseProps {
     fullWidth?: boolean
+    containerStyle?: StyleProp<ViewStyle>
 }
 
 type ChildProps =
@@ -15,15 +16,19 @@ type ChildProps =
           text: string
       }
 
-const HoloAlert: React.FC<ChildProps & BaseProps> = props => {
+const HoloAlert: React.FC<ChildProps & BaseProps> = ({
+    fullWidth,
+    containerStyle,
+    ...props
+}) => {
     const { theme } = useTheme()
     const style = styles(theme)
 
     return (
         <HoloGradient
             gradientStyle={style.holoBorder}
-            style={props.fullWidth ? style.fullWidth : {}}>
-            <View style={style.container}>
+            style={fullWidth ? style.fullWidth : {}}>
+            <View style={[style.container, containerStyle]}>
                 {'children' in props ? (
                     props.children
                 ) : (

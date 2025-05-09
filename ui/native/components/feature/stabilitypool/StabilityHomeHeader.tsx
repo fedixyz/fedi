@@ -24,6 +24,7 @@ const StabilityHomeHeader: React.FC = () => {
         <>
             <Header
                 backButton
+                onBackButtonPress={() => navigation.replace('TabsNavigator')}
                 headerCenter={
                     <Text bold>{`${selectedCurrency} ${t(
                         'words.balance',

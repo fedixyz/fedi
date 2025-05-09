@@ -15,7 +15,7 @@ export const WalletRecovery: React.FC = () => {
 
     return (
         <OnboardingContainer>
-            <Header back="/onboarding/welcome">
+            <Header back="/">
                 <Title subheader>{t('feature.recovery.choose-method')}</Title>
             </Header>
 

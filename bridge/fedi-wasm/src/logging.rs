@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex as StdMutex};
 
-use fediffi::event::IEventSink;
+use runtime::event::IEventSink;
 use tracing_subscriber::fmt::MakeWriter;
 // nosemgrep: ban-wildcard-imports
 use tracing_subscriber::prelude::*;
@@ -28,7 +28,7 @@ fn set_panic_hook() {
 }
 
 struct MemWriter<'a, T>(std::sync::MutexGuard<'a, T>);
-impl<'a, T: Write> Write for MemWriter<'a, T> {
+impl<T: Write> Write for MemWriter<'_, T> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         (*self.0).write(buf)
     }

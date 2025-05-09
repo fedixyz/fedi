@@ -16,6 +16,7 @@ import { LoadedFederationListItem } from '@fedi/common/types'
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import HoloGradient from '../../ui/HoloGradient'
+import SvgImage from '../../ui/SvgImage'
 import CommunityTile from './CommunityTile'
 import CommunityTileLoading from './CommunityTileLoading'
 
@@ -90,14 +91,19 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
                     },
                 ]}>
                 <View style={style.content}>
-                    <Text
-                        h2
-                        medium
-                        style={style.title}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit>
-                        {t('words.communities')}
-                    </Text>
+                    <View style={style.topTextContainer}>
+                        <Text
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            style={style.drawerTitle}>
+                            {`${t('phrases.my-communities')}`}
+                        </Text>
+                        {federations.length === 0 && (
+                            <Text style={style.drawerSubtitle}>
+                                {t('feature.federations.drawer-subtitle')}
+                            </Text>
+                        )}
+                    </View>
                     <View style={style.communitiesList}>
                         {federations.map((f, i) => {
                             if (f.init_state === 'ready') {
@@ -131,12 +137,18 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
             <View style={style.buttonContainer}>
                 <Button
                     onPress={() => {
-                        mainNavigation.navigate('JoinFederation', {
-                            invite: undefined,
-                        })
+                        mainNavigation.navigate('PublicFederations')
                     }}
                     titleStyle={style.buttonText}
                     titleProps={{ medium: true, caption: true }}
+                    icon={
+                        <SvgImage
+                            size={14}
+                            containerStyle={style.svgPlus}
+                            name="Plus"
+                            color={theme.colors.white}
+                        />
+                    }
                     title={
                         <>
                             <Text
@@ -144,7 +156,7 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
                                 medium
                                 adjustsFontSizeToFit
                                 style={style.buttonText}>
-                                {t('feature.community.add-community')}
+                                {t('feature.federation.add-federation')}
                             </Text>
                         </>
                     }
@@ -169,6 +181,7 @@ const styles = (theme: Theme) =>
         },
         communitiesList: {
             padding: 0,
+            marginTop: 10,
         },
         buttonContainer: {
             padding: theme.spacing.lg,
@@ -188,9 +201,28 @@ const styles = (theme: Theme) =>
             height: '100%',
             width: '100%',
         },
-        title: {
+        topTextContainer: {
+            left: 3,
             padding: theme.spacing.lg,
+            paddingBottom: theme.spacing.xxs,
+            gap: 10,
+        },
+        drawerTitle: {
+            fontSize: 16,
+            fontWeight: 600,
+        },
+        drawerSubtitle: {
+            fontSize: 14,
+            color: theme.colors.darkGrey,
+            textAlign: 'left',
+            margin: 0,
+            padding: 0,
             paddingBottom: theme.spacing.lg + 2,
+        },
+        svgPlus: {
+            padding: 0,
+            margin: 0,
+            right: -4,
         },
     })
 

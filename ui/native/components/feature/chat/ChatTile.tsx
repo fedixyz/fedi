@@ -1,6 +1,6 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { t } from 'i18next'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import dateUtils from '@fedi/common/utils/DateUtils'
@@ -19,6 +19,7 @@ type ChatTileProps = {
 
 const ChatTile = ({ room, onSelect, onLongPress }: ChatTileProps) => {
     const { theme } = useTheme()
+    const { t } = useTranslation()
 
     const showUnreadIndicator = useMemo(
         () =>
@@ -32,7 +33,13 @@ const ChatTile = ({ room, onSelect, onLongPress }: ChatTileProps) => {
         () => (showUnreadIndicator ? { medium: true } : {}),
         [showUnreadIndicator],
     )
-    const previewMessage = useMemo(() => room?.preview?.body, [room?.preview])
+    const previewMessage = useMemo(
+        () =>
+            room.isBlocked
+                ? t('feature.chat.user-is-blocked')
+                : room?.preview?.body,
+        [room?.preview, room.isBlocked, t],
+    )
     const previewMessageIsDeleted = useMemo(
         () => room?.preview?.isDeleted,
         [room?.preview],

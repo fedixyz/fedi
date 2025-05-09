@@ -136,7 +136,9 @@ const theme = createTheme({
                 paddingLeft: 10,
                 paddingRight: 10,
                 fontFamily: 'AlbertSans-Regular',
-                ...(props.day ? { color: theme.colors?.primary } : {}),
+                ...(props.day || props.outline
+                    ? { color: theme.colors?.primary }
+                    : {}),
             },
             titleProps: {
                 maxFontSizeMultiplier:
@@ -156,11 +158,17 @@ const theme = createTheme({
                 color: theme.colors?.primary,
             },
             buttonStyle: {
-                // borderRadius: 60,
-                ...(props.loading
+                borderRadius: 60,
+                ...(props.loading || props.outline
                     ? {
                           backgroundColor: 'transparent',
                           color: theme.colors?.primary,
+                      }
+                    : {}),
+                ...(props.outline
+                    ? {
+                          borderColor: theme.colors?.primary,
+                          borderWidth: 1.5,
                       }
                     : {}),
             },

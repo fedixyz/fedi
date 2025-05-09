@@ -1,21 +1,32 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
     ImageBackground,
     StyleSheet,
     View,
     useWindowDimensions,
+    Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { useToast } from '@fedi/common/hooks/toast'
+import {
+    selectIsMatrixReady,
+    selectHasSetMatrixDisplayName,
+    startMatrixClient,
+    setMatrixDisplayName,
+} from '@fedi/common/redux'
+//import { flagUserCreatedOnThisDevice } from '@fedi/common/redux/support'
+import { generateRandomDisplayName } from '@fedi/common/utils/chat'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
-import CustomOverlay from '../components/ui/CustomOverlay'
+import { fedimint } from '../bridge'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('Splash')
@@ -26,19 +37,39 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { fontScale } = useWindowDimensions()
-    const [showOverlay, setShowOverlay] = useState(false)
     const pin = usePinContext()
 
-    const handleContinue = async () => {
-        setShowOverlay(true)
+    const dispatch = useAppDispatch()
+    const toast = useToast()
+    const isMatrixReady = useAppSelector(selectIsMatrixReady)
+    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
+
+    const generateAndSetUsername = async () => {
+        try {
+            if (!isMatrixReady) {
+                await dispatch(startMatrixClient({ fedimint })).unwrap()
+            }
+
+            if (!hasSetDisplayName) {
+                const name = generateRandomDisplayName(2)
+                await dispatch(
+                    setMatrixDisplayName({ displayName: name }),
+                ).unwrap()
+                //  dispatch(flagUserCreatedOnThisDevice())
+            }
+            return true
+        } catch (error) {
+            toast.show('Please ensure you are online to continue')
+            return false
+        }
     }
-    const handleNewUser = async () => {
-        navigation.navigate('EnterDisplayName')
-        setShowOverlay(false)
+
+    const handleContinue = async () => {
+        navigation.navigate('PublicFederations')
+        await generateAndSetUsername()
     }
     const handleReturningUser = async () => {
         navigation.navigate('ChooseRecoveryMethod')
-        setShowOverlay(false)
     }
 
     // PINs are stored in the keychain and persist between app installs
@@ -60,11 +91,11 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                     <View style={style.iconContainer}>
                         <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
                     </View>
-                    <Text h2 medium style={style.welcomeText}>
-                        {t('feature.onboarding.welcome-to-fedi')}
+                    <Text style={style.title}>
+                        {t('feature.onboarding.fedi')}
                     </Text>
                     <Text style={style.welcomeText}>
-                        {t('feature.onboarding.guidance-1')}
+                        {t('feature.onboarding.chat-earn-save-spend')}
                     </Text>
                 </View>
 
@@ -72,14 +103,20 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                     <Button
                         fullWidth
                         testID="JoinFederationButton"
-                        title={t('words.continue')}
+                        title={t('feature.onboarding.get-a-wallet')}
                         onPress={handleContinue}
+                    />
+                    <Button
+                        fullWidth
+                        onPress={handleReturningUser}
+                        day
+                        title={t('phrases.recover-my-account')}
                     />
                     <Text style={style.agreementText} small>
                         <Trans
-                            i18nKey="feature.onboarding.by-clicking-you-agree-user-agreement"
+                            i18nKey="feature.onboarding.agree-terms-privacy"
                             components={{
-                                anchor: (
+                                termsLink: (
                                     <Text
                                         small
                                         style={style.agreementLink}
@@ -88,41 +125,21 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                                         }
                                     />
                                 ),
+                                privacyLink: (
+                                    <Text
+                                        small
+                                        style={style.agreementLink}
+                                        onPress={() =>
+                                            Linking.openURL(
+                                                'https://www.fedi.xyz/privacy-policy',
+                                            )
+                                        }
+                                    />
+                                ),
                             }}
                         />
                     </Text>
                 </View>
-                <CustomOverlay
-                    show={showOverlay}
-                    onBackdropPress={() => setShowOverlay(false)}
-                    contents={{
-                        body: (
-                            <View style={style.overlayContainer}>
-                                <Text h1>{'👋'}</Text>
-                                <Text h2>
-                                    {t('feature.onboarding.are-you-new')}
-                                </Text>
-                                <View style={style.overlayButtonsContainer}>
-                                    <Button
-                                        fullWidth
-                                        onPress={handleNewUser}
-                                        title={t(
-                                            'feature.onboarding.yes-create-account',
-                                        )}
-                                    />
-                                    <Button
-                                        fullWidth
-                                        onPress={handleReturningUser}
-                                        day
-                                        title={t(
-                                            'feature.onboarding.im-returning',
-                                        )}
-                                    />
-                                </View>
-                            </View>
-                        ),
-                    }}
-                />
             </SafeAreaView>
         </ImageBackground>
     )
@@ -146,7 +163,7 @@ const styles = (theme: Theme, fontScale: number) =>
             width: '100%',
             alignItems: 'center',
             justifyContent: 'space-evenly',
-            gap: theme.spacing.xl,
+            gap: theme.spacing.md,
         },
         welcomeContainer: {
             flexGrow: 1,
@@ -175,6 +192,11 @@ const styles = (theme: Theme, fontScale: number) =>
             height: 32,
             justifyContent: 'center',
             alignItems: 'center',
+        },
+        title: {
+            textAlign: 'center',
+            fontWeight: 700,
+            fontSize: 30,
         },
         welcomeText: {
             textAlign: 'center',

@@ -16,7 +16,7 @@ import { exportLogs, makeLog } from '@fedi/common/utils/log'
 import { makeTarGz } from '@fedi/common/utils/targz'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
-import { fedimint, readBridgeFile } from '../lib/bridge'
+import { fedimint, readBridgeFile, getBridgeLogs } from '../lib/bridge'
 
 export type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -93,6 +93,21 @@ export const useShareLogs = () => {
                             content: JSON.stringify(proofs, null, 2),
                         })
                     }
+                }
+
+                // Bridge logs
+                const bridgeLogsBlob = await getBridgeLogs()
+                attachmentFiles.push({
+                    name: 'bridge.log',
+                    content: await bridgeLogsBlob.text(),
+                })
+
+                // Add device info
+                if (navigator?.userAgent) {
+                    attachmentFiles.push({
+                        name: 'info.txt',
+                        content: navigator.userAgent,
+                    })
                 }
 
                 const gzip = await makeTarGz(attachmentFiles)

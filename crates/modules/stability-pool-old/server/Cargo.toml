@@ -1,0 +1,19 @@
+[package]
+name = "stability-pool-server-old"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+fedimint-core = { workspace = true }
+fedimint-server-core = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+secp256k1 = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+erased-serde = { workspace = true }
+stability-pool-common-old = { workspace = true }
+itertools = { workspace = true }
+tokio = { workspace = true }

@@ -13,6 +13,7 @@ import {
     previewCommunityDefaultChats,
     previewGlobalDefaultChats,
     selectIsInternetUnreachable,
+    selectIsMultispendFeatureEnabled,
 } from '.'
 import { FEDI_GLOBAL_COMMUNITY } from '../constants/community'
 import {
@@ -43,7 +44,9 @@ import {
     getFederationPinnedMessage,
     getFederationStatus,
     getFederationWelcomeMessage,
+    hasMultispendModule,
     joinFromInvite,
+    hasMultispendEnabled,
 } from '../utils/FederationUtils'
 import type { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
@@ -943,3 +946,39 @@ export const selectFederationPinnedMessage = createSelector(
 
 export const selectGatewaysByFederation = (state: CommonState) =>
     state.federation.gatewaysByFederation
+
+export const selectDoesAnyFederationHaveMultispend = createSelector(
+    selectWalletFederations,
+    federations => {
+        if (federations.length === 0) return false
+
+        return federations.some(federation => {
+            return (
+                hasMultispendModule(federation) &&
+                hasMultispendEnabled(federation.meta)
+            )
+        })
+    },
+)
+
+export const selectDoesFederationHaveMultispend = (
+    state: CommonState,
+    federationId: string,
+) => {
+    const federation = selectFederation(state, federationId)
+
+    if (!federation?.hasWallet || federation.init_state !== 'ready')
+        return false
+
+    return Boolean(
+        hasMultispendModule(federation) &&
+            hasMultispendEnabled(federation.meta),
+    )
+}
+
+export const selectShouldShowMultispend = createSelector(
+    (s: CommonState) => selectIsMultispendFeatureEnabled(s),
+    isMultispendEnabled => {
+        return isMultispendEnabled
+    },
+)

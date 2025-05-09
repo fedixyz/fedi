@@ -38,14 +38,16 @@ import {
 
 const log = makeLog('common/utils/parser')
 
-/** List of parse types that are usable before a user is a member of a federation */
-export const ALLOWED_PARSER_TYPES_BEFORE_FEDERATION = [
-    ParserDataType.FediChatRoom,
-    ParserDataType.FediChatUser,
-    ParserDataType.FedimintInvite,
-    ParserDataType.CommunityInvite,
-    ParserDataType.Website,
-    ParserDataType.Unknown,
+/** List of parse types that are not usable before a user is a member of a federation */
+export const BLOCKED_PARSER_TYPES_BEFORE_FEDERATION = [
+    ParserDataType.Bolt11,
+    ParserDataType.Bolt12,
+    ParserDataType.LnurlPay,
+    ParserDataType.LnurlWithdraw,
+    ParserDataType.LnurlAuth,
+    ParserDataType.BitcoinAddress,
+    ParserDataType.Bip21,
+    ParserDataType.CashuEcash,
 ]
 
 /** List of parse types that are not usable before recovery is complete */

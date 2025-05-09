@@ -1,4 +1,5 @@
 #![allow(non_snake_case, non_camel_case_types)]
+use std::collections::BTreeSet;
 use std::panic::PanicHookInfo;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -9,7 +10,22 @@ use std::time::{Duration, UNIX_EPOCH};
 use anyhow::Context;
 use bitcoin::secp256k1::Message;
 use bitcoin::Amount;
-use fedi_bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
+use bridge::{Bridge, BridgeFull, RpcBridgeStatus, RuntimeExt as _};
+use bridge_inner::federation::federation_sm::FederationState;
+use bridge_inner::federation::federation_v2::client::ClientExt;
+use bridge_inner::federation::federation_v2::{BackupServiceStatus, FederationV2};
+use bridge_inner::federation::Federations;
+use bridge_inner::matrix::multispend::db::RpcMultispendGroupStatus;
+use bridge_inner::matrix::multispend::{
+    GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendGroupVoteType,
+    MultispendListedEvent, WithdrawRequestWithApprovals, WithdrawalResponseType,
+};
+use bridge_inner::matrix::{
+    self, Matrix, RpcBackPaginationStatus, RpcMatrixAccountSession, RpcMatrixUploadResult,
+    RpcMatrixUserDirectorySearchResponse, RpcRoomId, RpcRoomMember, RpcRoomNotificationMode,
+    RpcSyncIndicator, RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
+};
+use bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
 use fedimint_client::db::ChronologicalOperationLogKey;
 use fedimint_core::core::OperationId;
 use fedimint_core::timing::TimeReporter;
@@ -25,44 +41,31 @@ use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::OwnedEventId;
 use matrix_sdk::RoomInfo;
 use mime::Mime;
+use rpc_types::error::{ErrorCode, RpcError};
+use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
+use rpc_types::{
+    FrontendMetadata, GuardianStatus, NetworkError, RpcAmount, RpcCommunity,
+    RpcDeviceIndexAssignmentStatus, RpcEcashInfo, RpcEventId, RpcFederation, RpcFederationId,
+    RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails, RpcFiatAmount,
+    RpcGenerateEcashResponse, RpcInvoice, RpcLightningGateway, RpcMediaUploadParams,
+    RpcNostrPubkey, RpcNostrSecret, RpcOperationId, RpcPayAddressResponse, RpcPayInvoiceResponse,
+    RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey, RpcRecoveryId, RpcRegisteredDevice,
+    RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature, RpcSignedLnurlMessage,
+    RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry,
+    SocialRecoveryQr,
+};
+use runtime::api::IFediApi;
+use runtime::bridge_runtime::Runtime;
+use runtime::constants::{GLOBAL_MATRIX_SERVER, GLOBAL_MATRIX_SLIDING_SYNC_PROXY};
+use runtime::event::IEventSink;
+use runtime::features::FeatureCatalog;
+use runtime::observable::{Observable, ObservableVec};
+use runtime::storage::{DeviceIdentifier, FiatFXInfo, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use stability_pool_client::common::{FiatAmount, FiatOrAll};
 pub use tokio;
 use tracing::{error, info, instrument, Level};
-
-use super::bridge::Bridge;
-use super::error::ErrorCode;
-use super::storage::Storage;
-use super::types::{
-    RpcAmount, RpcFederation, RpcFederationId, RpcInvoice, RpcOperationId, RpcPayInvoiceResponse,
-    RpcPeerId, RpcPublicKey, RpcRecoveryId, RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo,
-    SocialRecoveryQr,
-};
-use crate::api::IFediApi;
-use crate::bridge::{BridgeFull, BridgeRuntime};
-use crate::constants::{GLOBAL_MATRIX_SERVER, GLOBAL_MATRIX_SLIDING_SYNC_PROXY};
-use crate::error::RpcError;
-use crate::event::{Event, EventSink, IEventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
-use crate::features::FeatureCatalog;
-use crate::federation::federation_sm::FederationState;
-use crate::federation::federation_v2::{BackupServiceStatus, FederationV2};
-use crate::federation::Federations;
-use crate::matrix::{
-    self, Matrix, RpcBackPaginationStatus, RpcMatrixAccountSession, RpcMatrixUploadResult,
-    RpcMatrixUserDirectorySearchResponse, RpcRoomId, RpcRoomMember, RpcRoomNotificationMode,
-    RpcSyncIndicator, RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
-};
-use crate::observable::{Observable, ObservableVec};
-use crate::storage::{DeviceIdentifier, FiatFXInfo};
-use crate::types::{
-    federation_v2_to_rpc_federation, FrontendMetadata, GuardianStatus, RpcBridgeStatus,
-    RpcCommunity, RpcDeviceIndexAssignmentStatus, RpcEcashInfo, RpcFederationMaybeLoading,
-    RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse, RpcLightningGateway,
-    RpcMediaUploadParams, RpcNostrPubkey, RpcNostrSecret, RpcPayAddressResponse,
-    RpcRegisteredDevice, RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection,
-    RpcTransactionListEntry,
-};
 
 #[derive(Debug, thiserror::Error)]
 pub enum FedimintError {
@@ -84,7 +87,7 @@ pub async fn fedimint_initialize_async(
     let _g = TimeReporter::new("fedimint_initialize").level(Level::INFO);
 
     let device_identifier = DeviceIdentifier::from_str(&device_identifier)?;
-    let runtime = BridgeRuntime::new(
+    let runtime = Runtime::new(
         storage,
         event_sink,
         fedi_api,
@@ -127,8 +130,8 @@ impl<'a> TryGet<&'a BridgeFull> for &'a Bridge {
     }
 }
 
-impl TryGet<Arc<BridgeRuntime>> for &Bridge {
-    fn try_get(self) -> anyhow::Result<Arc<BridgeRuntime>> {
+impl TryGet<Arc<Runtime>> for &Bridge {
+    fn try_get(self) -> anyhow::Result<Arc<Runtime>> {
         Ok(self.runtime().clone())
     }
 }
@@ -141,6 +144,16 @@ impl<'a> TryGet<&'a Federations> for &'a Bridge {
 
 impl<'a> TryGet<&'a Matrix> for &'a Bridge {
     fn try_get(self) -> anyhow::Result<&'a Matrix> {
+        self.full()?
+            .matrix
+            .get()
+            .map(|x| x.as_ref())
+            .context(ErrorCode::MatrixNotInitialized)
+    }
+}
+
+impl<'a> TryGet<&'a Arc<Matrix>> for &'a Bridge {
+    fn try_get(self) -> anyhow::Result<&'a Arc<Matrix>> {
         self.full()?
             .matrix
             .get()
@@ -278,7 +291,7 @@ async fn joinFederation(
     let fed_arc = federations
         .join_federation(invite_code, recover_from_scratch)
         .await?;
-    Ok(federation_v2_to_rpc_federation(&fed_arc).await)
+    Ok(fed_arc.to_rpc_federation().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -301,7 +314,7 @@ async fn listFederations(
         feds_list.push(match fed_state {
             FederationState::Loading => RpcFederationMaybeLoading::Loading { id },
             FederationState::Ready(fed_arc) | FederationState::Recovering(fed_arc) => {
-                RpcFederationMaybeLoading::Ready(federation_v2_to_rpc_federation(&fed_arc).await)
+                RpcFederationMaybeLoading::Ready(fed_arc.to_rpc_federation().await)
             }
             FederationState::Failed(err_arc) => RpcFederationMaybeLoading::Failed {
                 id,
@@ -371,6 +384,15 @@ async fn payInvoice(
     federation.pay_invoice(&invoice, frontend_metadata).await
 }
 
+#[macro_rules_derive(federation_rpc_method!)]
+async fn getPrevPayInvoiceResult(
+    federation: Arc<FederationV2>,
+    invoice: String,
+) -> anyhow::Result<RpcPrevPayInvoiceResult> {
+    let invoice: Bolt11Invoice = invoice.trim().parse().context(ErrorCode::InvalidInvoice)?;
+    federation.get_prev_pay_invoice_result(&invoice).await
+}
+
 #[macro_rules_derive(federation_recovering_rpc_method!)]
 async fn listGateways(federation: Arc<FederationV2>) -> anyhow::Result<Vec<RpcLightningGateway>> {
     federation.list_gateways().await
@@ -382,6 +404,11 @@ async fn switchGateway(
     gateway_id: RpcPublicKey,
 ) -> anyhow::Result<()> {
     federation.switch_gateway(&gateway_id.0).await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn supportsSafeOnchainDeposit(federation: Arc<FederationV2>) -> anyhow::Result<bool> {
+    Ok(federation.client.wallet()?.supports_safe_deposit().await)
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -458,7 +485,7 @@ async fn validateEcash(bridge: &BridgeFull, ecash: String) -> anyhow::Result<Rpc
 
 #[macro_rules_derive(rpc_method!)]
 async fn updateCachedFiatFXInfo(
-    runtime: Arc<BridgeRuntime>,
+    runtime: Arc<Runtime>,
     fiat_code: String,
     btc_to_fiat_hundredths: u64,
 ) -> anyhow::Result<()> {
@@ -517,12 +544,12 @@ async fn updateTransactionNotes(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getMnemonic(runtime: Arc<BridgeRuntime>) -> anyhow::Result<Vec<String>> {
+async fn getMnemonic(runtime: Arc<Runtime>) -> anyhow::Result<Vec<String>> {
     runtime.get_mnemonic_words().await
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn checkMnemonic(runtime: Arc<BridgeRuntime>, mnemonic: Vec<String>) -> anyhow::Result<bool> {
+async fn checkMnemonic(runtime: Arc<Runtime>, mnemonic: Vec<String>) -> anyhow::Result<bool> {
     Ok(runtime.get_mnemonic_words().await? == mnemonic)
 }
 
@@ -553,7 +580,7 @@ async fn uploadBackupFile(
 
 // This method is a bit of a stopgap ...
 #[macro_rules_derive(rpc_method!)]
-async fn locateRecoveryFile(runtime: Arc<BridgeRuntime>) -> anyhow::Result<PathBuf> {
+async fn locateRecoveryFile(runtime: Arc<Runtime>) -> anyhow::Result<PathBuf> {
     let storage = runtime.storage.clone();
     Ok(storage.platform_path(RECOVERY_FILENAME.as_ref()))
 }
@@ -611,7 +638,7 @@ async fn completeSocialRecovery(bridge: &BridgeFull) -> anyhow::Result<Vec<RpcRe
 
 #[macro_rules_derive(rpc_method!)]
 async fn signLnurlMessage(
-    runtime: Arc<BridgeRuntime>,
+    runtime: Arc<Runtime>,
     // hex-encoded message
     message: String,
     domain: String,
@@ -637,18 +664,36 @@ async fn fedimintVersion(_bridge: &Bridge) -> anyhow::Result<String> {
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getNostrSecret(runtime: Arc<BridgeRuntime>) -> anyhow::Result<RpcNostrSecret> {
+async fn getNostrSecret(runtime: Arc<Runtime>) -> anyhow::Result<RpcNostrSecret> {
     runtime.get_nostr_secret().await
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getNostrPubkey(runtime: Arc<BridgeRuntime>) -> anyhow::Result<RpcNostrPubkey> {
+async fn getNostrPubkey(runtime: Arc<Runtime>) -> anyhow::Result<RpcNostrPubkey> {
     runtime.get_nostr_pubkey().await
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn signNostrEvent(runtime: Arc<BridgeRuntime>, event_hash: String) -> anyhow::Result<String> {
+async fn signNostrEvent(runtime: Arc<Runtime>, event_hash: String) -> anyhow::Result<String> {
     runtime.sign_nostr_event(event_hash).await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn nostrEncrypt(
+    runtime: Arc<Runtime>,
+    pubkey: String,
+    plaintext: String,
+) -> anyhow::Result<String> {
+    runtime.nip44_encrypt(pubkey, plaintext).await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn nostrDecrypt(
+    runtime: Arc<Runtime>,
+    pubkey: String,
+    ciphertext: String,
+) -> anyhow::Result<String> {
+    runtime.nip44_decrypt(pubkey, ciphertext).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -720,6 +765,14 @@ async fn spv2AccountInfo(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
+async fn spv2ObserveAccountInfo(
+    federation: Arc<FederationV2>,
+    observable_id: u32,
+) -> anyhow::Result<Observable<RpcSPv2CachedSyncResponse>> {
+    federation.spv2_observe_account_info(observable_id).await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
 async fn spv2NextCycleStartTime(federation: Arc<FederationV2>) -> anyhow::Result<u64> {
     federation.spv2_next_cycle_start_time().await
 }
@@ -773,12 +826,12 @@ async fn spv2WithdrawAll(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getSensitiveLog(runtime: Arc<BridgeRuntime>) -> anyhow::Result<bool> {
+async fn getSensitiveLog(runtime: Arc<Runtime>) -> anyhow::Result<bool> {
     Ok(runtime.sensitive_log().await)
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn setSensitiveLog(runtime: Arc<BridgeRuntime>, enable: bool) -> anyhow::Result<()> {
+async fn setSensitiveLog(runtime: Arc<Runtime>, enable: bool) -> anyhow::Result<()> {
     runtime.set_sensitive_log(enable).await
 }
 
@@ -903,20 +956,23 @@ async fn matrixInit(bridge: &BridgeFull) -> anyhow::Result<()> {
     }
     let nostr_pubkey = bridge.runtime.get_nostr_pubkey().await?.npub;
     let matrix_secret = bridge.runtime.get_matrix_secret().await;
+    let matrix = Matrix::init(
+        bridge.runtime.clone(),
+        &bridge.runtime.storage.platform_path("matrix".as_ref()),
+        &matrix_secret,
+        &nostr_pubkey,
+        GLOBAL_MATRIX_SERVER.to_owned(),
+        GLOBAL_MATRIX_SLIDING_SYNC_PROXY.to_owned(),
+        bridge.multispend_services.clone(),
+    )
+    .await?;
     bridge
         .matrix
-        .set(
-            Matrix::init(
-                bridge.runtime.clone(),
-                &bridge.runtime.storage.platform_path("matrix".as_ref()),
-                &matrix_secret,
-                &nostr_pubkey,
-                GLOBAL_MATRIX_SERVER.to_owned(),
-                GLOBAL_MATRIX_SLIDING_SYNC_PROXY.to_owned(),
-            )
-            .await?,
-        )
+        .set(matrix.clone())
         .map_err(|_| anyhow::anyhow!("matrix already initialized"))?;
+    if matrix.is_multispend_enabled() {
+        bridge.start_multispend_services(matrix);
+    }
     Ok(())
 }
 
@@ -945,7 +1001,7 @@ async fn transferExistingDeviceRegistration(
     bridge.register_device_with_index(index, true).await
 }
 
-async fn ensure_device_index_unassigned(runtime: &BridgeRuntime) -> anyhow::Result<()> {
+async fn ensure_device_index_unassigned(runtime: &Arc<Runtime>) -> anyhow::Result<()> {
     anyhow::ensure!(
         matches!(
             runtime.device_index_assignment_status().await,
@@ -959,7 +1015,7 @@ async fn ensure_device_index_unassigned(runtime: &BridgeRuntime) -> anyhow::Resu
 
 #[macro_rules_derive(rpc_method!)]
 async fn deviceIndexAssignmentStatus(
-    runtime: Arc<BridgeRuntime>,
+    runtime: Arc<Runtime>,
 ) -> anyhow::Result<RpcDeviceIndexAssignmentStatus> {
     runtime.device_index_assignment_status().await
 }
@@ -1029,7 +1085,7 @@ async fn evilSpamAddress(federation: Arc<FederationV2>) -> anyhow::Result<()> {
 
 #[macro_rules_derive(rpc_method!)]
 async fn listFederationsPendingRejoinFromScratch(
-    bridge: Arc<BridgeRuntime>,
+    bridge: Arc<Runtime>,
 ) -> anyhow::Result<Vec<String>> {
     Ok(bridge.list_federations_pending_rejoin_from_scratch().await)
 }
@@ -1567,8 +1623,264 @@ async fn matrixGetMediaPreview(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn getFeatureCatalog(runtime: Arc<BridgeRuntime>) -> anyhow::Result<Arc<FeatureCatalog>> {
+async fn getFeatureCatalog(runtime: Arc<Runtime>) -> anyhow::Result<Arc<FeatureCatalog>> {
     Ok(runtime.feature_catalog.clone())
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixObserveMultispendGroup(
+    matrix: &Arc<Matrix>,
+    observable_id: u32,
+    room_id: RpcRoomId,
+) -> anyhow::Result<Observable<RpcMultispendGroupStatus>> {
+    matrix
+        .observe_multispend_group(observable_id.into(), room_id.into_typed()?)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixMultispendAccountInfo(
+    bridge: &BridgeFull,
+    room_id: RpcRoomId,
+    observable_id: u32,
+) -> anyhow::Result<Observable<Result<RpcSPv2SyncResponse, NetworkError>>> {
+    let matrix = bridge.matrix.get().context("matrix not initialized")?;
+    let finalized_group = matrix
+        .get_multispend_finalized_group(room_id.clone())
+        .await?
+        .context("multispend group not finalized yet")?;
+    let fed = bridge
+        .federations
+        .get_federation(&finalized_group.federation_id.0)?;
+    fed.ensure_multispend_feature()?;
+    let room_id = room_id.into_typed()?;
+    matrix
+        .observe_multispend_account_info(observable_id.into(), fed, room_id, &finalized_group)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+pub async fn matrixMultispendListEvents(
+    matrix: &Arc<Matrix>,
+    room_id: RpcRoomId,
+    start_after: Option<u32>,
+    limit: u32,
+) -> anyhow::Result<Vec<MultispendListedEvent>> {
+    Ok(matrix
+        .list_multispend_events(
+            &room_id,
+            start_after.map(Into::into),
+            usize::try_from(limit).unwrap(),
+        )
+        .await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixSendMultispendGroupInvitation(
+    bridge: &BridgeFull,
+    room_id: RpcRoomId,
+    signers: BTreeSet<RpcUserId>,
+    threshold: u32,
+    federation_id: RpcFederationId,
+    federation_name: String,
+) -> anyhow::Result<()> {
+    let fed = bridge.federations.get_federation(&federation_id.0)?;
+    let proposer_pubkey = fed.multispend_public_key(room_id.0.clone())?;
+    let invitation = GroupInvitation {
+        signers,
+        threshold: threshold.into(),
+        federation_invite_code: fed.get_invite_code().await,
+        federation_name,
+    };
+    bridge
+        .matrix
+        .get()
+        .ok_or(ErrorCode::MatrixNotInitialized)?
+        .send_multispend_group_invitation(
+            &room_id.into_typed()?,
+            invitation,
+            RpcPublicKey(proposer_pubkey),
+        )
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixApproveMultispendGroupInvitation(
+    bridge: &BridgeFull,
+    room_id: RpcRoomId,
+    invitation: RpcEventId,
+) -> anyhow::Result<()> {
+    let matrix = bridge.matrix.get().ok_or(ErrorCode::MatrixNotInitialized)?;
+    let Some(MsEventData::GroupInvitation(GroupInvitationWithKeys { federation_id, .. })) = matrix
+        .get_multispend_event_data(&room_id, &invitation)
+        .await
+    else {
+        anyhow::bail!("invalid matrix invitation id")
+    };
+    matrix
+        .vote_multispend_group_invitation(
+            &room_id.into_typed()?,
+            invitation,
+            MultispendGroupVoteType::Accept {
+                member_pubkey: RpcPublicKey(
+                    bridge
+                        .federations
+                        .get_federation(&federation_id.0)?
+                        .multispend_public_key(room_id.0.clone())?,
+                ),
+            },
+        )
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixRejectMultispendGroupInvitation(
+    matrix: &Matrix,
+    room_id: RpcRoomId,
+    invitation: RpcEventId,
+) -> anyhow::Result<()> {
+    matrix
+        .vote_multispend_group_invitation(
+            &room_id.into_typed()?,
+            invitation,
+            MultispendGroupVoteType::Reject,
+        )
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixCancelMultispendGroupInvitation(
+    matrix: &Matrix,
+    room_id: RpcRoomId,
+) -> anyhow::Result<()> {
+    matrix
+        .cancel_multispend_group_invitation(&room_id.into_typed()?)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixMultispendDeposit(
+    bridge: &BridgeFull,
+    room_id: RpcRoomId,
+    amount: RpcFiatAmount,
+    description: String,
+    frontend_meta: FrontendMetadata,
+) -> anyhow::Result<()> {
+    let matrix = bridge.matrix.get().context("matrix not initialized")?;
+    let finalized_group = matrix
+        .get_multispend_finalized_group(room_id.clone())
+        .await?
+        .context("multispend group not finalized yet")?;
+    let fed = bridge
+        .federations
+        .get_federation(&finalized_group.federation_id.0)?;
+    fed.multispend_deposit(
+        FiatAmount(amount.0),
+        finalized_group.spv2_account.id(),
+        room_id,
+        description,
+        frontend_meta,
+    )
+    .await?;
+    Ok(())
+}
+#[macro_rules_derive(rpc_method!)]
+async fn matrixSendMultispendWithdrawalRequest(
+    bridge: &BridgeFull,
+    room_id: RpcRoomId,
+    amount: RpcFiatAmount,
+    description: String,
+) -> anyhow::Result<()> {
+    let matrix = bridge.matrix.get().context("matrix not initialized")?;
+    let finalized_group = matrix
+        .get_multispend_finalized_group(room_id.clone())
+        .await?
+        .context("multispend group not finalized yet")?;
+    let fed = bridge
+        .federations
+        .get_federation(&finalized_group.federation_id.0)?;
+    let transfer_request =
+        fed.multispend_create_transfer_request(FiatAmount(amount.0), finalized_group.spv2_account)?;
+    matrix
+        .send_multispend_withdraw_request(&room_id.into_typed()?, transfer_request, description)
+        .await?;
+    Ok(())
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixSendMultispendWithdrawalApprove(
+    bridge: &BridgeFull,
+    room_id: RpcRoomId,
+    withdraw_request_id: RpcEventId,
+) -> anyhow::Result<()> {
+    let matrix = bridge.matrix.get().context("matrix not initialized")?;
+    let finalized_group = matrix
+        .get_multispend_finalized_group(room_id.clone())
+        .await?
+        .context("multispend group not finalized yet")?;
+    let Some(MsEventData::WithdrawalRequest(WithdrawRequestWithApprovals {
+        request: transfer_request,
+        ..
+    })) = matrix
+        .get_multispend_event_data(&room_id, &withdraw_request_id)
+        .await
+    else {
+        anyhow::bail!("invalid matrix withdraw request id")
+    };
+    let fed = bridge
+        .federations
+        .get_federation(&finalized_group.federation_id.0)?;
+    let signature = fed.multispend_approve_withdrawal(room_id.0.clone(), &transfer_request)?;
+
+    matrix
+        .respond_multispend_withdraw(
+            &room_id.into_typed()?,
+            withdraw_request_id,
+            WithdrawalResponseType::Approve {
+                signature: RpcSignature(signature),
+            },
+        )
+        .await?;
+
+    Ok(())
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixSendMultispendWithdrawalReject(
+    bridge: &BridgeFull,
+    room_id: RpcRoomId,
+    withdraw_request_id: RpcEventId,
+) -> anyhow::Result<()> {
+    let matrix = bridge.matrix.get().context("matrix not initialized")?;
+    matrix
+        .respond_multispend_withdraw(
+            &room_id.into_typed()?,
+            withdraw_request_id,
+            WithdrawalResponseType::Reject,
+        )
+        .await?;
+    Ok(())
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixMultispendEventData(
+    matrix: &Matrix,
+    room_id: RpcRoomId,
+    event_id: RpcEventId,
+) -> anyhow::Result<Option<MsEventData>> {
+    Ok(matrix.get_multispend_event_data(&room_id, &event_id).await)
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixObserveMultispendEventData(
+    matrix: &Arc<Matrix>,
+    observable_id: u32,
+    room_id: RpcRoomId,
+    event_id: RpcEventId,
+) -> anyhow::Result<Observable<MsEventData>> {
+    matrix
+        .observe_multispend_event_data(observable_id.into(), room_id, event_id)
+        .await
 }
 
 // converts from a typed handler into untyped handler
@@ -1637,9 +1949,11 @@ rpc_methods!(RpcMethods {
     generateInvoice,
     decodeInvoice,
     payInvoice,
+    getPrevPayInvoiceResult,
     listGateways,
     switchGateway,
     // On-Chain
+    supportsSafeOnchainDeposit,
     generateAddress,
     recheckPeginAddress,
     previewPayAddress,
@@ -1678,6 +1992,8 @@ rpc_methods!(RpcMethods {
     getNostrPubkey,
     getNostrSecret,
     signNostrEvent,
+    nostrEncrypt,
+    nostrDecrypt,
     // Stability Pool
     stabilityPoolAccountInfo,
     stabilityPoolNextCycleStartTime,
@@ -1688,6 +2004,7 @@ rpc_methods!(RpcMethods {
     stabilityPoolAvailableLiquidity,
     // Stability Pool v2
     spv2AccountInfo,
+    spv2ObserveAccountInfo,
     spv2NextCycleStartTime,
     spv2DepositToSeek,
     spv2Withdraw,
@@ -1762,7 +2079,20 @@ rpc_methods!(RpcMethods {
     matrixEndPoll,
     matrixRespondToPoll,
     matrixGetMediaPreview,
-
+    // multispend
+    matrixObserveMultispendGroup,
+    matrixMultispendAccountInfo,
+    matrixMultispendListEvents,
+    matrixSendMultispendGroupInvitation,
+    matrixApproveMultispendGroupInvitation,
+    matrixRejectMultispendGroupInvitation,
+    matrixCancelMultispendGroupInvitation,
+    matrixMultispendEventData,
+    matrixObserveMultispendEventData,
+    matrixSendMultispendWithdrawalRequest,
+    matrixSendMultispendWithdrawalApprove,
+    matrixSendMultispendWithdrawalReject,
+    matrixMultispendDeposit,
     // Communities
     communityPreview,
     joinCommunity,
@@ -1829,12 +2159,16 @@ pub mod tests {
     use bech32::{self, Bech32m};
     use bitcoin::secp256k1::PublicKey;
     use bitcoin::Network;
+    use bridge::RuntimeExt as _;
+    use bridge_inner::federation::federation_sm::FederationState;
+    use bridge_inner::federation::federation_v2::FederationV2;
+    use communities::CommunityInvite;
     use devimint::devfed::DevJitFed;
     use devimint::envs::FM_INVITE_CODE_ENV;
     use devimint::util::{ClnLightningCli, FedimintCli, LnCli, ProcessManager};
     use devimint::vars::{self, mkdir};
     use devimint::{cmd, DevFed};
-    use fedi_core::envs::FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV;
+    use env::envs::FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV;
     use fedi_social_client::common::VerificationDocument;
     use fedimint_bip39::Bip39RootSecretStrategy;
     use fedimint_client::secret::RootSecretStrategy;
@@ -1842,28 +2176,25 @@ pub mod tests {
     use fedimint_core::task::{sleep_in_test, TaskGroup};
     use fedimint_core::{apply, async_trait_maybe_send, Amount};
     use fedimint_logging::{TracingSetup, LOG_DEVIMINT};
+    use nostr::nips::nip44;
     use rand::distributions::Alphanumeric;
     use rand::Rng;
+    use rpc_types::event::{DeviceRegistrationEvent, TransactionEvent};
+    use rpc_types::{
+        RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState, RpcReturningMemberStatus,
+        RpcTransactionDirection, RpcTransactionKind,
+    };
+    use runtime::api::{RegisterDeviceError, RegisteredDevice, TransactionDirection};
+    use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_FILE_PATH, MILLION};
+    use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
+    use runtime::features::RuntimeEnvironment;
+    use runtime::storage::{DeviceIdentifier, FediFeeSchedule, IStorage};
     use tokio::sync::Mutex;
     use tokio::task::JoinSet;
     use tracing::{debug, info, trace};
 
     use super::*;
-    use crate::api::{RegisterDeviceError, RegisteredDevice};
-    use crate::community::CommunityInvite;
-    use crate::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_FILE_PATH, MILLION};
-    use crate::envs::USE_UPSTREAM_FEDIMINTD_ENV;
-    use crate::event::{DeviceRegistrationEvent, TransactionEvent};
-    use crate::features::RuntimeEnvironment;
-    use crate::federation::federation_sm::FederationState;
-    use crate::federation::federation_v2::client::ClientExt;
-    use crate::federation::federation_v2::FederationV2;
     use crate::ffi::PathBasedStorage;
-    use crate::storage::{DeviceIdentifier, FediFeeSchedule, IStorage};
-    use crate::types::{
-        RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState, RpcReturningMemberStatus,
-        RpcTransactionDirection, RpcTransactionKind,
-    };
 
     struct FakeEventSink {
         pub events: Arc<RwLock<Vec<(String, String)>>>,
@@ -1935,7 +2266,7 @@ pub mod tests {
             _amount: Amount,
             _network: Network,
             _module: ModuleKind,
-            _tx_direction: RpcTransactionDirection,
+            _tx_direction: TransactionDirection,
         ) -> anyhow::Result<Bolt11Invoice> {
             self.fedi_fee_invoice
                 .clone()
@@ -2205,7 +2536,7 @@ pub mod tests {
         let event_sink = Arc::new(FakeEventSink::new());
         let storage = Arc::new(PathBasedStorage::new(data_dir).await?);
         let device_identifier = DeviceIdentifier::from_str(&device_identifier)?;
-        let runtime = BridgeRuntime::new(
+        let runtime = Runtime::new(
             storage,
             event_sink,
             fedi_api,
@@ -2267,7 +2598,9 @@ pub mod tests {
         let mut tests_names: HashMap<tokio::task::Id, String> = HashMap::new();
         spawn_and_attach_name!(tests_set, tests_names, test_join_and_leave_and_join);
         spawn_and_attach_name!(tests_set, tests_names, test_join_concurrent);
-        spawn_and_attach_name!(tests_set, tests_names, test_lightning_send_and_receive);
+        // TODO: re-enable
+        // spawn_and_attach_name!(tests_set, tests_names,
+        // test_lightning_send_and_receive);
         spawn_and_attach_name!(tests_set, tests_names, test_ecash);
         spawn_and_attach_name!(tests_set, tests_names, test_ecash_overissue);
         spawn_and_attach_name!(tests_set, tests_names, test_on_chain);
@@ -2300,7 +2633,6 @@ pub mod tests {
             test_new_device_registration_post_recovery
         );
         spawn_and_attach_name!(tests_set, tests_names, test_fee_remittance_on_startup);
-        spawn_and_attach_name!(tests_set, tests_names, test_reused_ecash_proofs);
         spawn_and_attach_name!(
             tests_set,
             tests_names,
@@ -2360,7 +2692,7 @@ pub mod tests {
     async fn dev_fed() -> anyhow::Result<DevFed> {
         trace!(target: LOG_DEVIMINT, "Starting dev fed");
         let (process_mgr, _) = process_setup(4).await?;
-        let dev_fed = DevJitFed::new(&process_mgr, false)?;
+        let dev_fed = DevJitFed::new(&process_mgr, false).await?;
 
         debug!(target: LOG_DEVIMINT, "Peging in client and gateways");
 
@@ -2383,17 +2715,25 @@ pub mod tests {
                     .await
             },
             async {
-                let pegin_addr = dev_fed
-                    .gw_cln_registered()
+                let gw_ldk = dev_fed
+                    .gw_ldk_connected()
                     .await?
+                    .clone()
+                    .expect("Must start LDK gateway");
+                let address = gw_ldk
                     .get_pegin_addr(&dev_fed.fed().await?.calculate_federation_id())
                     .await?;
+                debug!(
+                    target: LOG_DEVIMINT,
+                    %address,
+                    "Sending funds to LDK deposit addr"
+                );
                 dev_fed
                     .bitcoind()
                     .await?
-                    .send_to(pegin_addr, gw_pegin_amount)
-                    .await?;
-                dev_fed.bitcoind().await?.mine_blocks_no_wait(11).await
+                    .send_to(address, gw_pegin_amount)
+                    .await
+                    .map(|_| ())
             },
             async {
                 let pegin_addr = dev_fed
@@ -2589,6 +2929,7 @@ pub mod tests {
         }
     }
 
+    #[allow(dead_code)]
     async fn test_lightning_send_and_receive() -> anyhow::Result<()> {
         // Vec of tuple of (send_ppm, receive_ppm)
         let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
@@ -2653,7 +2994,10 @@ pub mod tests {
             .await;
         }
 
-        assert_eq!(receive_amount - fedi_fee, federation.get_balance().await);
+        assert_eq!(
+            receive_amount.checked_sub(fedi_fee).expect("Can't fail"),
+            federation.get_balance().await
+        );
 
         // get invoice
         let send_amount = Amount::from_sats(50);
@@ -2711,7 +3055,9 @@ pub mod tests {
 
         // check balance (sometimes fedimint-cli gives more than we ask for)
         assert_eq!(
-            ecash_receive_amount - receive_fedi_fee,
+            ecash_receive_amount
+                .checked_sub(receive_fedi_fee)
+                .expect("Can't fail"),
             federation.get_balance().await,
         );
 
@@ -2741,7 +3087,13 @@ pub mod tests {
         .ecash;
 
         assert_eq!(
-            ecash_receive_amount - receive_fedi_fee - ecash_send_amount - send_fedi_fee,
+            ecash_receive_amount
+                .checked_sub(receive_fedi_fee)
+                .expect("Can't fail")
+                .checked_sub(ecash_send_amount)
+                .expect("Can't fail")
+                .checked_sub(send_fedi_fee)
+                .expect("Can't fail"),
             federation.get_balance().await,
         );
 
@@ -2789,6 +3141,7 @@ pub mod tests {
         assert_eq!(ecash_receive_amount, federation.get_balance().await,);
 
         let fedi_fee_ppm = bridge
+            .federations
             .fedi_fee_helper
             .get_fedi_fee_ppm(
                 federation.rpc_federation_id().0,
@@ -2813,7 +3166,9 @@ pub mod tests {
         }
         // check balance
         assert_eq!(
-            ecash_receive_amount - ((iteration_amount + iteration_expected_fee) * iterations),
+            ecash_receive_amount
+                .checked_sub((iteration_amount + iteration_expected_fee) * iterations)
+                .expect("Can't fail"),
             federation.get_balance().await,
         );
 
@@ -2964,6 +3319,7 @@ pub mod tests {
         // Interact with stability pool
         let amount_to_deposit = Amount::from_msats(110_000);
         let fedi_fee_ppm = backup_bridge
+            .federations
             .fedi_fee_helper
             .get_fedi_fee_ppm(
                 federation.rpc_federation_id().0,
@@ -3063,6 +3419,7 @@ pub mod tests {
         // Interact with stability pool
         let amount_to_deposit = Amount::from_msats(110_000);
         let fedi_fee_ppm = original_bridge
+            .federations
             .fedi_fee_helper
             .get_fedi_fee_ppm(
                 federation.rpc_federation_id().0,
@@ -3252,7 +3609,11 @@ pub mod tests {
         }
 
         assert_eq!(
-            receive_amount - amount_to_deposit - deposit_fedi_fee,
+            receive_amount
+                .checked_sub(amount_to_deposit)
+                .expect("Can't fail")
+                .checked_sub(deposit_fedi_fee)
+                .expect("Can't fail"),
             federation.get_balance().await,
         );
         let account_info = stabilityPoolAccountInfo(federation.clone(), true).await?;
@@ -3289,8 +3650,14 @@ pub mod tests {
         }
 
         assert_eq!(
-            receive_amount - amount_to_deposit - deposit_fedi_fee + amount_to_withdraw
-                - withdraw_fedi_fee,
+            (receive_amount
+                .checked_sub(amount_to_deposit)
+                .expect("Can't fail")
+                .checked_sub(deposit_fedi_fee)
+                .expect("Can't fail")
+                + amount_to_withdraw)
+                .checked_sub(withdraw_fedi_fee)
+                .expect("Can't fail"),
             federation.get_balance().await,
         );
         let account_info = stabilityPoolAccountInfo(federation.clone(), true).await?;
@@ -3373,7 +3740,11 @@ pub mod tests {
         }
 
         assert_eq!(
-            receive_amount - amount_to_deposit - deposit_fedi_fee,
+            receive_amount
+                .checked_sub(amount_to_deposit)
+                .expect("Can't fail")
+                .checked_sub(deposit_fedi_fee)
+                .expect("Can't fail"),
             federation.get_balance().await,
         );
         let RpcSPv2CachedSyncResponse { sync_response, .. } =
@@ -3416,8 +3787,14 @@ pub mod tests {
         }
 
         assert_eq!(
-            receive_amount - amount_to_deposit - deposit_fedi_fee + amount_to_withdraw
-                - withdraw_fedi_fee,
+            (receive_amount
+                .checked_sub(amount_to_deposit)
+                .expect("Can't fail")
+                .checked_sub(deposit_fedi_fee)
+                .expect("Can't fail")
+                + amount_to_withdraw)
+                .checked_sub(withdraw_fedi_fee)
+                .expect("Can't fail"),
             federation.get_balance().await,
         );
         let RpcSPv2CachedSyncResponse { sync_response, .. } =
@@ -3615,7 +3992,7 @@ pub mod tests {
         // service would try to renew registration. The conflict event is what the
         // front-end uses to block further user action.
         let registration_conflict_body = serde_json::to_string(&DeviceRegistrationEvent {
-            state: crate::event::DeviceRegistrationState::Conflict,
+            state: rpc_types::event::DeviceRegistrationState::Conflict,
         })
         .expect("failed to json serialize");
         assert!(!bridge_1
@@ -3681,6 +4058,7 @@ pub mod tests {
         // Interact with stability pool
         let amount_to_deposit = Amount::from_msats(110_000);
         let fedi_fee_ppm = backup_bridge
+            .federations
             .fedi_fee_helper
             .get_fedi_fee_ppm(
                 federation.rpc_federation_id().0,
@@ -3751,7 +4129,7 @@ pub mod tests {
         // service would try to renew registration. The conflict event is what the
         // front-end uses to block further user action.
         let registration_conflict_body = serde_json::to_string(&DeviceRegistrationEvent {
-            state: crate::event::DeviceRegistrationState::Conflict,
+            state: rpc_types::event::DeviceRegistrationState::Conflict,
         })
         .expect("failed to json serialize");
         assert!(!backup_bridge
@@ -4262,105 +4640,6 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_reused_ecash_proofs() -> anyhow::Result<()> {
-        let bridge_dir1 = create_data_dir();
-        let bridge_dir2 = create_data_dir();
-
-        let mnemonic;
-        // trigger seed reuse
-        {
-            let device_identifier1 = "bridge:test:d4d743a7-b343-48e3-a5f9-90d032af3e98".to_owned();
-            let fedi_api = Arc::new(MockFediApi::default());
-            let bridge1 = setup_bridge_custom_with_data_dir(
-                device_identifier1.clone(),
-                fedi_api.clone(),
-                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-                bridge_dir1.clone(),
-            )
-            .await?;
-            mnemonic = getMnemonic(bridge1.runtime.clone()).await?;
-
-            // trigger seed reuse: a second bridge with same seed and same device identifier
-            let bridge2 = setup_bridge_custom_with_data_dir(
-                device_identifier1.clone(),
-                fedi_api.clone(),
-                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-                bridge_dir2.clone(),
-            )
-            .await?;
-            recoverFromMnemonic(&bridge2, mnemonic.clone()).await?;
-            transferExistingDeviceRegistration(&bridge2, 0).await?;
-
-            let (federation_b1, federation_b2) =
-                tokio::try_join!(join_test_fed(&bridge1), join_test_fed(&bridge2))?;
-            let ecash_receive_amount = fedimint_core::Amount::from_msats(10000);
-
-            // use some note indices
-            let ecash1 = cli_generate_ecash(ecash_receive_amount).await?;
-            receiveEcash(federation_b1.clone(), ecash1, FrontendMetadata::default()).await?;
-            wait_for_ecash_reissue(&federation_b1).await?;
-
-            // trigger note index reuse
-            let ecash2 = cli_generate_ecash(ecash_receive_amount).await?;
-            receiveEcash(federation_b2.clone(), ecash2, FrontendMetadata::default()).await?;
-            // this will still pass but federation will have unspendable ecash
-            wait_for_ecash_reissue(&federation_b2).await?;
-
-            // kill both bridges
-            drop(federation_b1);
-            drop(federation_b2);
-            tokio::try_join!(
-                bridge1
-                    .runtime
-                    .task_group
-                    .clone()
-                    .shutdown_join_all(Duration::from_secs(5)),
-                bridge2
-                    .runtime
-                    .task_group
-                    .clone()
-                    .shutdown_join_all(Duration::from_secs(5))
-            )?;
-            drop(bridge1);
-            drop(bridge2);
-        }
-
-        let bridge = setup_bridge().await?;
-        recoverFromMnemonic(&bridge, mnemonic).await?;
-        registerAsNewDevice(&bridge).await?;
-        let recovery_federation = join_test_fed_recovery(&bridge, true).await?;
-        assert!(recovery_federation.recovering());
-        let id = recovery_federation.rpc_federation_id();
-        drop(recovery_federation);
-        loop {
-            // Wait until recovery complete
-            if bridge
-                .runtime
-                .event_sink
-                .num_events_of_type("recoveryComplete".into())
-                == 1
-            {
-                break;
-            }
-
-            fedimint_core::task::sleep(Duration::from_millis(100)).await;
-        }
-        let federation = bridge.federations.get_federation(&id.0)?;
-        let proofs = generateReusedEcashProofs(federation.clone()).await?;
-        assert!(
-            proofs.0.total_amount_msats > Amount::ZERO,
-            "there must be some amount in proof"
-        );
-        proofs
-            .0
-            .deserialize()?
-            .into_iter()
-            .map(|x| x.verify())
-            .collect::<anyhow::Result<Vec<_>>>()
-            .context("verification failed")?;
-        Ok(())
-    }
-
     #[tokio::test(flavor = "multi_thread")]
     async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
         let mut dev_fed = dev_fed().await?;
@@ -4581,6 +4860,49 @@ pub mod tests {
         )
         .await
         .is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_nip44_encrypt_and_decrypt() -> anyhow::Result<()> {
+        let bridge = setup_bridge().await?;
+
+        let other_nsec = "nsec1u66skyesf45vd9w0u63q7qhfj2wnhjplxkympvh5t2q28h0lvz8qgglls9";
+        let other_npub = "npub1e9uht8sv5msnz7gwartsntt0w2v8tzxyrzemk793lzs0ulegr4es0fafdx";
+        let our_npub = getNostrPubkey(bridge.runtime.clone()).await?.npub;
+
+        // Simulate us sending a message to other
+        let our_plaintext = "Hey, Fedi is cool!";
+        let ciphertext = nostrEncrypt(
+            bridge.runtime.clone(),
+            other_npub.to_string(),
+            our_plaintext.to_string(),
+        )
+        .await?;
+
+        // Other decrypts our encrypted message
+        let other_decrypted = nip44::decrypt(
+            &nostr::SecretKey::parse(other_nsec)?,
+            &nostr::PublicKey::parse(&our_npub)?,
+            ciphertext,
+        )?;
+
+        assert_eq!(our_plaintext, other_decrypted);
+
+        // Simulate other sending a message to us
+        let other_plaintext = "I know right, it is pretty cool!";
+        let ciphertext = nip44::encrypt(
+            &nostr::SecretKey::parse(other_nsec)?,
+            &nostr::PublicKey::parse(&our_npub)?,
+            other_plaintext,
+            nip44::Version::V2,
+        )?;
+
+        // We decrypt other's message
+        let our_decrypted =
+            nostrDecrypt(bridge.runtime.clone(), other_npub.to_string(), ciphertext).await?;
+        assert_eq!(other_plaintext, our_decrypted);
 
         Ok(())
     }

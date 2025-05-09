@@ -19,6 +19,7 @@ export type SettingsItemProps = {
     isLoading?: boolean
     adornment?: React.ReactNode
     onPress: (event: GestureResponderEvent) => void
+    color?: string
 }
 
 const SettingsItem = ({
@@ -30,6 +31,7 @@ const SettingsItem = ({
     isLoading = false,
     onPress,
     adornment = null,
+    color,
 }: SettingsItemProps) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -50,12 +52,13 @@ const SettingsItem = ({
             <>
                 <View style={style.content}>
                     <SvgImage
+                        color={color || theme.colors.primary}
                         dimensions={{ width: 24, height: 24 }}
                         name={icon}
                         size={theme.sizes.md}
                     />
                     <Text
-                        color={theme.colors.primary}
+                        color={color || theme.colors.primary}
                         adjustsFontSizeToFit
                         maxFontSizeMultiplier={1.6}
                         numberOfLines={1}>
@@ -67,7 +70,10 @@ const SettingsItem = ({
                     <ActivityIndicator size={theme.sizes.sm} />
                 ) : (
                     action || (
-                        <SvgImage name={actionIcon} color={theme.colors.grey} />
+                        <SvgImage
+                            name={actionIcon}
+                            color={color || theme.colors.grey}
+                        />
                     )
                 )}
             </>

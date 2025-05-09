@@ -7,7 +7,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import {
     joinFederation,
     selectFederationIds,
-    selectHasSetMatrixDisplayName,
     setActiveFederationId,
 } from '@fedi/common/redux'
 import { JoinPreview, ParserDataType } from '@fedi/common/types'
@@ -45,35 +44,30 @@ export const JoinFederation: React.FC = () => {
     const { push, query } = useRouter()
     const toast = useToast()
 
+    const federationIds = useAppSelector(selectFederationIds)
+    const isSm = useMediaQuery(config.media.sm)
+
     const [isJoining, setIsJoining] = useState(false)
     const [isFetchingPreview, setIsFetchingPreview] = useState<boolean>(false)
     const [isShowingTos, setIsShowingTos] = useState(false)
     const [federationPreview, setFederationPreview] = useState<JoinPreview>()
 
-    const federationIds = useAppSelector(selectFederationIds)
-    const isSm = useMediaQuery(config.media.sm)
     const popupInfo = usePopupFederationInfo(federationPreview?.meta)
-    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
 
     const handleCode = useCallback(
-        async (code: string) => {
+        async (invite_code: string) => {
             setIsFetchingPreview(true)
 
             try {
-                const fed = await previewInvite(fedimint, code)
-                if (federationIds.includes(fed.id)) {
-                    dispatch(setActiveFederationId(fed.id))
-                    push('/')
-                } else {
-                    setFederationPreview(fed)
-                }
+                const fed = await previewInvite(fedimint, invite_code)
+                setFederationPreview(fed)
             } catch (err) {
                 log.error('handleCode', err)
                 toast.error(t, err, 'errors.invalid-federation-code')
             }
             setIsFetchingPreview(false)
         },
-        [federationIds, dispatch, push, t, toast],
+        [t, toast],
     )
 
     const handleJoin = useCallback(async () => {
@@ -81,31 +75,34 @@ export const JoinFederation: React.FC = () => {
         try {
             if (!federationPreview) throw new Error()
 
+            if (federationIds.includes(federationPreview.id)) {
+                dispatch(setActiveFederationId(federationPreview.id))
+                push('/home')
+                return
+            }
+
             await dispatch(
                 joinFederation({
                     fedimint,
                     code: federationPreview.inviteCode,
                 }),
             ).unwrap()
-            push(
-                hasSetDisplayName
-                    ? '/onboarding/complete'
-                    : '/onboarding/username',
-            )
+
+            push('/home')
         } catch (err) {
             log.error('handleJoin', err)
             toast.error(t, err, 'errors.invalid-federation-code')
             setIsJoining(false)
         }
-    }, [dispatch, federationPreview, hasSetDisplayName, push, t, toast])
+    }, [dispatch, federationIds, federationPreview, push, t, toast])
 
     // If they came here with invite code in query string then paste the code for them
     useEffect(() => {
-        if (query.code && !federationPreview) {
-            const code = String(query.code)
-            handleCode(code)
+        if (query.invite_code && !federationPreview) {
+            const invite_code = String(query.invite_code)
+            handleCode(invite_code)
         }
-    }, [query.code, federationPreview, handleCode])
+    }, [query.invite_code, federationPreview, handleCode])
 
     const tosUrl = federationPreview
         ? getFederationTosUrl(federationPreview.meta)
@@ -115,7 +112,7 @@ export const JoinFederation: React.FC = () => {
     let actions: React.ReactNode
 
     if (isFetchingPreview) {
-        content = <HoloLoader size={'lg'} />
+        content = <HoloLoader size={'xl'} />
     } else if (!federationPreview) {
         content = (
             <ScanWrap>

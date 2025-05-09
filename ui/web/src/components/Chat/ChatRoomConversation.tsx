@@ -61,16 +61,11 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     )
 
     const handlePaginate = useCallback(async () => {
-        let end = false
         try {
-            const res = await dispatch(
-                paginateMatrixRoomTimeline({ roomId }),
-            ).unwrap()
-            end = res.end
+            await dispatch(paginateMatrixRoomTimeline({ roomId })).unwrap()
         } catch (err) {
             error(t, 'errors.unknown-error')
         }
-        return { end }
     }, [dispatch, roomId, error, t])
 
     if (isLoading) {

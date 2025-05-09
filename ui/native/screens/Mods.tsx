@@ -13,8 +13,12 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
+import { useNuxStep } from '@fedi/common/hooks/nux'
 import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
 
+import FirstTimeCommunityEntryOverlay, {
+    FirstTimeCommunityEntryItem,
+} from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
 import ShortcutTile from '../components/feature/home/ShortcutTile'
 import ZendeskBadge from '../components/feature/support/ZendeskBadge'
@@ -32,19 +36,21 @@ const Mods: React.FC = () => {
 
     const mods = useAppSelector(selectAllVisibleMods)
     const { width, fontScale } = useWindowDimensions()
-
     const columns = width / fontScale < 300 ? 2 : 3
     const style = styles(theme, columns)
 
     const [actionsMod, setActionsMod] = useState<FediMod>()
-
     const { launchZendesk } = useLaunchZendesk()
+
+    const [hasSeenMods, completeSeenMods] = useNuxStep('modsModal')
+
+    const modsFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
+        { icon: 'Apps', text: t('feature.fedimods.first-entry-option-1') },
+    ]
 
     const onSelectFediMod = (shortcut: Shortcut) => {
         setActionsMod(undefined)
         const fediMod = shortcut as FediMod
-        // Handle telegram and whatsapp links natively
-        // TODO: check URL HEAD status to see if it's a redirect and open with Linking if it's a 301 or 302
         if (
             fediMod.url.includes('https://t.me') ||
             fediMod.url.includes('https://wa.me')
@@ -58,79 +64,63 @@ const Mods: React.FC = () => {
     }
 
     const handleModHold = (shortcut: Shortcut) => {
-        const fediMod = shortcut as FediMod
-        setActionsMod(fediMod)
+        setActionsMod(shortcut as FediMod)
     }
 
     const toggleHideMod = (modId: FediMod['id']) => {
         dispatch(setModVisibility({ modId, isHidden: true }))
-
         setActionsMod(undefined)
     }
 
     const renderFediModShortcuts = () => {
-        const sortedMods = mods.sort((a, b) => {
+        const sorted = mods.slice().sort((a, b) => {
             if (a.title.toLowerCase() === 'ask fedi') return -1 // "Ask Fedi" comes first
             if (b.title.toLowerCase() === 'ask fedi') return 1 // Move others down
             return 0 // Maintain original order otherwise
         })
-
-        const fediModShortcuts = sortedMods.map(s => {
+        return sorted.map((s, i) => {
             const mod = new FediMod(s)
-            return mod
-        })
-        // Method to render the popover or return null
-        const renderPopover = (mod: FediMod) => {
             return (
-                <Pressable
-                    style={style.tooltipAction}
-                    onPress={() => toggleHideMod(mod.id)}>
-                    <Text style={style.tooltipText}>{t('words.hide')}</Text>
-                    <SvgImage name="Eye" />
-                </Pressable>
-            )
-        }
-
-        return fediModShortcuts.map((s: FediMod, i) => {
-            return (
-                <View key={`fediMod-s-${i}`} style={style.shortcut}>
+                <View key={i} style={style.shortcut}>
                     <Tooltip
-                        visible={actionsMod?.id === s.id}
+                        visible={actionsMod?.id === mod.id}
                         onClose={() => setActionsMod(undefined)}
                         withPointer
-                        popover={renderPopover(s)}
+                        popover={
+                            <Pressable
+                                style={style.tooltipAction}
+                                onPress={() => toggleHideMod(mod.id)}>
+                                <Text style={style.tooltipText}>
+                                    {t('words.hide')}
+                                </Text>
+                                <SvgImage name="Eye" />
+                            </Pressable>
+                        }
                         closeOnlyOnBackdropPress
                         withOverlay
                         overlayColor={theme.colors.overlay}
                         width={96}
                         backgroundColor={theme.colors.blue100}>
                         <ShortcutTile
-                            shortcut={s}
+                            shortcut={mod}
                             onSelect={onSelectFediMod}
                             onHold={handleModHold}
                         />
-                        <ZendeskBadge title={s.title} />
+                        <ZendeskBadge title={mod.title} />
                     </Tooltip>
                 </View>
             )
         })
     }
-
     // There is flexbox complexity in centering rows with 3 tiles
     // while also left-justifying rows with 1 or 2 tiles so we just
     // make sure to fill the remaining space with invisible elements
     const renderBuffers = () => {
-        const totalShortcuts = mods.length
-        const bufferCount = columns - (totalShortcuts % columns)
-
-        return new Array(bufferCount).fill('').map((b, i) => {
-            return (
-                <View
-                    key={`buffer-s-${i}`}
-                    style={[style.shortcut, style.buffer]}
-                />
-            )
-        })
+        const count = mods.length
+        const bufferCount = columns - (count % columns)
+        return Array.from({ length: bufferCount }).map((_, i) => (
+            <View key={i} style={[style.shortcut, style.buffer]} />
+        ))
     }
 
     return (
@@ -150,22 +140,21 @@ const Mods: React.FC = () => {
                     <Text>{t('feature.fedimods.add-mods-homescreen')}</Text>
                 </View>
             )}
+            <FirstTimeCommunityEntryOverlay
+                overlayItems={modsFirstTimeOverlayItems}
+                title={t('feature.fedimods.first-entry')}
+                show={!hasSeenMods}
+                onDismiss={completeSeenMods}
+            />
         </View>
     )
 }
 
 const styles = (theme: Theme, columns: number) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-            width: '100%',
-        },
-        shortcut: {
-            width: `${100 / columns}%`,
-        },
-        buffer: {
-            height: theme.sizes.lg,
-        },
+        container: { flex: 1, width: '100%' },
+        shortcut: { width: `${100 / columns}%` },
+        buffer: { height: theme.sizes.lg },
         empty: {
             flex: 1,
             display: 'flex',
@@ -186,9 +175,7 @@ const styles = (theme: Theme, columns: number) =>
             alignItems: 'center',
             gap: theme.spacing.sm,
         },
-        tooltipText: {
-            color: theme.colors.primary,
-        },
+        tooltipText: { color: theme.colors.primary },
     })
 
 export default Mods

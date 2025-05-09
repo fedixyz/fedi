@@ -1,6 +1,15 @@
-import React, { createContext, useCallback, useContext, useMemo } from 'react'
+import React, {
+    createContext,
+    useCallback,
+    useContext,
+    useMemo,
+    useEffect,
+} from 'react'
+import { Linking } from 'react-native'
+import { requestNotifications } from 'react-native-permissions'
 import { useSelector } from 'react-redux'
 
+import { selectMatrixChatsWithoutDefaultGroupPreviewsList } from '@fedi/common/redux/matrix'
 import { selectSupportPermissionGranted } from '@fedi/common/redux/support'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -13,7 +22,7 @@ const log = makeLog('NotificationContext')
 
 interface NotificationContextState {
     isNotificationEnabled: boolean
-    triggerPushNotificationSetup: () => void // Manual trigger function
+    triggerPushNotificationSetup: () => void
 }
 
 const NotificationContext = createContext<NotificationContextState | null>(null)
@@ -21,8 +30,12 @@ const NotificationContext = createContext<NotificationContextState | null>(null)
 export const NotificationContextProvider: React.FC<{
     children: React.ReactNode
 }> = ({ children }) => {
-    const { notificationsPermission } = useNotificationsPermission() // Track permission status
+    const { notificationsPermission } = useNotificationsPermission()
     const supportPermissionGranted = useSelector(selectSupportPermissionGranted)
+    const chatList = useSelector(
+        selectMatrixChatsWithoutDefaultGroupPreviewsList,
+    )
+
     log.debug(`Current notifications permission: ${notificationsPermission}`)
 
     // Automatically run the push notification setup on app startup
@@ -36,16 +49,35 @@ export const NotificationContextProvider: React.FC<{
                 notificationsPermission,
         )
 
-        await manuallyPublishNotificationToken(supportPermissionGranted) // Call manual publishing function
-    }, [notificationsPermission, supportPermissionGranted]) // Add dependencies
+        await manuallyPublishNotificationToken(supportPermissionGranted)
+    }, [notificationsPermission, supportPermissionGranted])
 
     const value = useMemo(
         () => ({
             isNotificationEnabled: notificationsPermission === 'granted',
-            triggerPushNotificationSetup, // Expose manual trigger
+            triggerPushNotificationSetup,
         }),
         [notificationsPermission, triggerPushNotificationSetup],
     )
+
+    // Prompt for permissions once the user has at least one chats
+    useEffect(() => {
+        if (chatList.length >= 1 && notificationsPermission !== 'granted') {
+            ;(async () => {
+                const { status } = await requestNotifications([
+                    'alert',
+                    'sound',
+                    'badge',
+                ])
+
+                if (status !== 'granted') {
+                    Linking.openSettings()
+                }
+
+                triggerPushNotificationSetup()
+            })()
+        }
+    }, [chatList.length, notificationsPermission, triggerPushNotificationSetup])
 
     return (
         <NotificationContext.Provider value={value}>

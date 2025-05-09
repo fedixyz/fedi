@@ -26,6 +26,7 @@ interface Props<T extends { id: string }> {
     makeFeeItems: (item: T) => FeeItem[]
     makeIcon: (item: T) => React.ReactNode
     onEndReached?: () => void
+    onRefresh?: () => void
 }
 
 export function HistoryList<T extends { id: string }>({
@@ -36,6 +37,7 @@ export function HistoryList<T extends { id: string }>({
     makeFeeItems,
     makeIcon,
     onEndReached,
+    onRefresh,
 }: Props<T>): React.ReactElement {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -103,6 +105,8 @@ export function HistoryList<T extends { id: string }>({
                     index,
                 })}
                 initialNumToRender={20}
+                onRefresh={() => onRefresh && onRefresh()}
+                refreshing={loading || false}
                 onEndReached={() => onEndReached && onEndReached()}
                 onEndReachedThreshold={0.9}
             />

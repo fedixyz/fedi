@@ -5,8 +5,8 @@
   Created by Someone on 01/01/2025.
 
 */
-"NSCameraUsageDescription" = "Fedi necesita acceso a la cámara para escanear códigos QR";
+"NSCameraUsageDescription" = "Fedi necesita acceso a tu cámara para escanear códigos QR";
 "NSLocationWhenInUseUsageDescription" = "Fedi no utiliza tu ubicación";
 "NSMicrophoneUsageDescription" = "Fedi necesita acceso a tu micrófono para poder grabar el video de respaldo social";
 "NSPhotoLibraryAddUsageDescription" = "Fedi necesita acceso para guardar fotos en tu fototeca";
-"NSPhotoLibraryUsageDescription" = "Fedi necesita acceso a tu fototeca para configurar tu avatar y permitirte enviar archivos adjuntos en el chat";
+"NSPhotoLibraryUsageDescription" = "Fedi necesita acceso a tu fototeca para configurar tu foto de perfil y permitirte enviar archivos adjuntos en el chat";

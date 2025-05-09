@@ -2,12 +2,8 @@ import RNDI from 'react-native-device-info'
 import { exists, readFile } from 'react-native-fs'
 import { getNumberFormatSettings, getTimeZone } from 'react-native-localize'
 
-import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
-import dateUtils from '@fedi/common/utils/DateUtils'
 import { type FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
-
-import { SvgImageName } from '../components/ui/SvgImage'
 
 const log = makeLog('native/utils/device-info')
 
@@ -118,43 +114,6 @@ export async function generateDeviceId() {
 
 export function getOsFromDeviceId() {
     return RNDI.getDeviceId().includes('iPhone') ? 'iOS' : 'Android'
-}
-
-type FormattedDeviceInfo = {
-    deviceName: string
-    iconName: SvgImageName
-    lastSeenAt: string
-}
-export function getFormattedDeviceInfo(
-    device: RpcRegisteredDevice,
-): FormattedDeviceInfo {
-    let deviceName = 'Unknown'
-    let iconName: SvgImageName = 'Error'
-    let lastSeenAt = '-'
-    try {
-        const { deviceIdentifier, lastRegistrationTimestamp } = device
-        const [hardware, platform, uuid] = deviceIdentifier.split(':')
-        let os = hardware.includes('iPhone') ? 'iOS' : 'Android'
-        iconName = hardware.includes('iPhone') ? 'DeviceIos' : 'DeviceAndroid'
-        if (platform === 'Web') {
-            os = 'Web'
-            iconName = 'DeviceBrowser'
-        }
-        // use first 3 characters of uuid as a human-readable ID
-        const shortId = uuid.split('-')[0].substring(0, 3).toUpperCase()
-        deviceName = `${os} - ${shortId}`
-        lastSeenAt = dateUtils.formatDeviceRegistrationTimestamp(
-            lastRegistrationTimestamp,
-        )
-    } catch (error) {
-        log.error('getFormattedDeviceInfo', error)
-    }
-
-    return {
-        deviceName,
-        iconName,
-        lastSeenAt,
-    }
 }
 
 /**

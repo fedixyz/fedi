@@ -4,7 +4,6 @@ import type {
     FedimintBridgeEventMap,
     MSats,
     Sats,
-    TransactionListEntry,
     UsdCents,
     bindings,
 } from '../types'
@@ -26,6 +25,7 @@ import {
     RpcStabilityPoolAccountInfo,
     RpcTimelineEventItemId,
     RpcTransaction,
+    RpcTransactionListEntry,
 } from '../types/bindings'
 import { isDev } from './environment'
 import { formatBridgeError } from './error'
@@ -181,7 +181,7 @@ export class FedimintBridge {
         startTime?: number,
         limit?: number,
     ) {
-        return this.rpcTyped<'listTransactions', TransactionListEntry[]>(
+        return this.rpcTyped<'listTransactions', RpcTransactionListEntry[]>(
             'listTransactions',
             {
                 federationId,
@@ -247,6 +247,10 @@ export class FedimintBridge {
 
     async fedimintVersion() {
         return this.rpcTyped('fedimintVersion', {})
+    }
+
+    async getFeatureCatalog() {
+        return this.rpcTyped('getFeatureCatalog', {})
     }
 
     async listFederations() {
@@ -685,6 +689,12 @@ export class FedimintBridge {
         return this.rpcTyped('matrixIgnoreUser', args)
     }
 
+    async matrixListIgnoredUsers(
+        args: bindings.RpcPayload<'matrixListIgnoredUsers'>,
+    ) {
+        return this.rpcTyped('matrixListIgnoredUsers', args)
+    }
+
     async matrixUnignoreUser(args: bindings.RpcPayload<'matrixUnignoreUser'>) {
         return this.rpcTyped('matrixUnignoreUser', args)
     }
@@ -825,6 +835,91 @@ export class FedimintBridge {
         args: bindings.RpcPayload<'matrixGetMediaPreview'>,
     ) {
         return this.rpcTyped('matrixGetMediaPreview', args)
+    }
+
+    /*** MULTISPEND RPCs ***/
+
+    // Group active/pending_invitation/inactive status
+    async matrixObserveMultispendGroup(
+        args: bindings.RpcPayload<'matrixObserveMultispendGroup'>,
+    ) {
+        return this.rpcTyped('matrixObserveMultispendGroup', args)
+    }
+
+    async matrixObserveMultispendEventData(
+        args: bindings.RpcPayload<'matrixObserveMultispendEventData'>,
+    ) {
+        return this.rpcTyped('matrixObserveMultispendEventData', args)
+    }
+
+    async matrixSendMultispendGroupInvitation(
+        args: bindings.RpcPayload<'matrixSendMultispendGroupInvitation'>,
+    ) {
+        return this.rpcTyped('matrixSendMultispendGroupInvitation', args)
+    }
+
+    async matrixApproveMultispendGroupInvitation(
+        args: bindings.RpcPayload<'matrixApproveMultispendGroupInvitation'>,
+    ) {
+        return this.rpcTyped('matrixApproveMultispendGroupInvitation', args)
+    }
+
+    async matrixRejectMultispendGroupInvitation(
+        args: bindings.RpcPayload<'matrixRejectMultispendGroupInvitation'>,
+    ) {
+        return this.rpcTyped('matrixRejectMultispendGroupInvitation', args)
+    }
+
+    async matrixCancelMultispendGroupInvitation(
+        args: bindings.RpcPayload<'matrixCancelMultispendGroupInvitation'>,
+    ) {
+        return this.rpcTyped('matrixCancelMultispendGroupInvitation', args)
+    }
+
+    // Active group status (MUST be in federation to use)
+    async matrixMultispendAccountInfo(
+        args: bindings.RpcPayload<'matrixMultispendAccountInfo'>,
+    ) {
+        return this.rpcTyped('matrixMultispendAccountInfo', args)
+    }
+
+    async matrixMultispendListEvents(
+        args: bindings.RpcPayload<'matrixMultispendListEvents'>,
+    ) {
+        return this.rpcTyped('matrixMultispendListEvents', args)
+    }
+
+    async matrixMultispendEventData(
+        args: bindings.RpcPayload<'matrixMultispendEventData'>,
+    ) {
+        return this.rpcTyped('matrixMultispendEventData', args)
+    }
+
+    // Matrix observe multispnd group events ()
+    // observe multispend event data
+
+    async matrixMultispendDeposit(
+        args: bindings.RpcPayload<'matrixMultispendDeposit'>,
+    ) {
+        return this.rpcTyped('matrixMultispendDeposit', args)
+    }
+
+    async matrixSendMultispendWithdrawalRequest(
+        args: bindings.RpcPayload<'matrixSendMultispendWithdrawalRequest'>,
+    ) {
+        return this.rpcTyped('matrixSendMultispendWithdrawalRequest', args)
+    }
+
+    async matrixSendMultispendWithdrawalApprove(
+        args: bindings.RpcPayload<'matrixSendMultispendWithdrawalApprove'>,
+    ) {
+        return this.rpcTyped('matrixSendMultispendWithdrawalApprove', args)
+    }
+
+    async matrixSendMultispendWithdrawalReject(
+        args: bindings.RpcPayload<'matrixSendMultispendWithdrawalReject'>,
+    ) {
+        return this.rpcTyped('matrixSendMultispendWithdrawalReject', args)
     }
 
     /*** COMMUNITIES RPCs ***/

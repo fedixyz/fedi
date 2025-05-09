@@ -1,8 +1,9 @@
 import { useNavigation } from '@react-navigation/native'
 import { Button, Card, Switch, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { Linking, ScrollView, StyleSheet, View } from 'react-native'
+import Hyperlink from 'react-native-hyperlink'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { JoinPreview } from '@fedi/common/types'
@@ -13,10 +14,10 @@ import {
     shouldShowJoinFederation,
 } from '@fedi/common/utils/FederationUtils'
 
-import HoloGradient from '../../ui/HoloGradient'
+import RotatingSvg from '../../ui/RotatingSvg'
+import { SvgImageSize } from '../../ui/SvgImage'
 import EndedFederationPreview from '../federations/EndedPreview'
 import { FederationLogo } from '../federations/FederationLogo'
-import AcceptTermsOfService from './AcceptTermsOfService'
 
 type Props = {
     federation: JoinPreview
@@ -27,7 +28,7 @@ type Props = {
 const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const [showTerms, setShowTerms] = useState<boolean>(false)
+
     const showJoinFederation = shouldShowJoinFederation(federation.meta)
     const [isJoining, setIsJoining] = useState(false)
     const [selectedRecoverFromScratch, setSelectedRecoverFromScratch] =
@@ -41,21 +42,37 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         federation.hasWallet &&
         federation.returningMemberStatus.type === 'returningMember'
 
-    const style = styles(theme)
+    useEffect(() => {
+        navigation.setOptions({ headerShown: !isJoining })
+    }, [isJoining, navigation])
+
+    const s = styles(theme)
+
+    if (isJoining) {
+        return (
+            <View style={s.loadingContainer}>
+                <RotatingSvg
+                    name="FediLogoIcon"
+                    size={SvgImageSize.md}
+                    containerStyle={s.loadingIcon}
+                />
+            </View>
+        )
+    }
 
     if (popupInfo?.ended) {
         return (
-            <View style={style.container}>
+            <View style={s.container}>
                 <EndedFederationPreview
                     popupInfo={popupInfo}
                     federation={federation}
                 />
-                <View style={style.buttonsContainer}>
+                <View style={s.buttonsContainer}>
                     <Button
                         fullWidth
                         title={t('phrases.go-back')}
                         onPress={navigation.goBack}
-                        containerStyle={styles(theme).button}
+                        containerStyle={s.button}
                     />
                 </View>
             </View>
@@ -64,65 +81,43 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
 
     if (!isSupported) {
         return (
-            <View style={style.container}>
-                <View style={style.unsupportedContainer}>
+            <View style={s.container}>
+                <View style={s.unsupportedContainer}>
                     <FederationLogo federation={federation} size={96} />
-                    <Text h2 medium style={style.welcome}>
+                    <Text h2 medium style={s.welcome}>
                         {federation?.name}
                     </Text>
-                    <View style={style.unsupportedBadge}>
-                        <Text caption bold style={style.unsupportedBadgeLabel}>
+                    <View style={s.unsupportedBadge}>
+                        <Text caption bold style={s.unsupportedBadgeLabel}>
                             {t('words.unsupported')}
                         </Text>
                     </View>
-                    <Text caption style={style.welcomeText}>
+                    <Text caption style={s.welcomeText}>
                         {t('feature.onboarding.unsupported-notice')}
                     </Text>
                 </View>
-                <View style={style.buttonsContainer}>
+                <View style={s.buttonsContainer}>
                     <Button
                         fullWidth
                         title={t('words.okay')}
-                        onPress={() => onBack()}
-                        containerStyle={style.button}
+                        onPress={onBack}
+                        containerStyle={s.button}
                     />
                 </View>
             </View>
         )
     }
 
-    if (showTerms) {
-        return (
-            <AcceptTermsOfService
-                onAccept={() => onJoin(selectedRecoverFromScratch)}
-                onReject={() => setShowTerms(false)}
-                federation={federation}
-            />
-        )
-    }
-
     const handleJoin = async () => {
         setIsJoining(true)
-        if (tosUrl) {
-            setShowTerms(true)
+        try {
+            await onJoin(selectedRecoverFromScratch)
+        } catch {
             setIsJoining(false)
-        } else {
-            try {
-                await onJoin(selectedRecoverFromScratch)
-            } catch {
-                setIsJoining(false)
-                /* no-op, onJoin should handle */
-            }
         }
     }
 
-    const welcomeTitle = isReturningMember
-        ? t('feature.onboarding.welcome-back-to-federation', {
-              federation: federation?.name,
-          })
-        : t('feature.onboarding.welcome-to-federation', {
-              federation: federation?.name,
-          })
+    const welcomeTitle = federation?.name
     const welcomeInstructions =
         federation.hasWallet &&
         federation.returningMemberStatus.type === 'newMember'
@@ -132,81 +127,100 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
               : t('feature.onboarding.welcome-instructions-unknown')
 
     return (
-        <View style={style.container}>
-            <Card containerStyle={style.roundedCardContainer}>
-                <View style={style.cardContent}>
-                    <FederationLogo federation={federation} size={96} />
-                    <Text h2 medium style={style.welcome}>
-                        {welcomeTitle}
-                    </Text>
+        <View style={s.container}>
+            <View style={{ alignItems: 'center' }}>
+                <FederationLogo federation={federation} size={96} />
+                <Text h2 medium style={s.welcome}>
+                    {welcomeTitle}
+                </Text>
+            </View>
+
+            <Card containerStyle={s.roundedCardContainer}>
+                <View style={s.cardContent}>
                     {welcomeMessage ? (
-                        <HoloGradient
-                            level="100"
-                            style={style.customWelcomeContainer}
-                            gradientStyle={style.customWelcomeInner}>
-                            <ScrollView style={style.scrollTos}>
-                                <Text caption style={style.welcomeText}>
-                                    <Trans
-                                        components={{
-                                            bold: (
-                                                <Text
-                                                    caption
-                                                    bold
-                                                    style={style.welcomeText}
-                                                />
-                                            ),
-                                        }}>
-                                        {welcomeMessage}
-                                    </Trans>
-                                </Text>
-                            </ScrollView>
-                        </HoloGradient>
+                        <ScrollView
+                            style={s.scrollTos}
+                            contentContainerStyle={{
+                                padding: theme.spacing.md,
+                            }}>
+                            <Text caption style={s.welcomeText}>
+                                <Trans
+                                    components={{
+                                        bold: (
+                                            <Text
+                                                caption
+                                                bold
+                                                style={s.welcomeText}
+                                            />
+                                        ),
+                                    }}>
+                                    {welcomeMessage}
+                                </Trans>
+                            </Text>
+                        </ScrollView>
                     ) : (
-                        <Text caption style={style.welcomeText}>
+                        <Text caption style={s.welcomeText}>
                             {welcomeInstructions}
                         </Text>
                     )}
                 </View>
             </Card>
-            <View style={style.buttonsContainer}>
-                {showJoinFederation ? (
-                    <>
-                        {isReturningMember && (
-                            <View style={style.switchWrapper}>
-                                <View style={style.switchLabelContainer}>
-                                    <Text bold caption>
-                                        {t(
-                                            'feature.federations.recover-from-scratch',
-                                        )}
-                                    </Text>
-                                    <Text small>
-                                        {t(
-                                            'feature.federations.recover-from-scratch-warning',
-                                        )}
-                                    </Text>
-                                </View>
-                                <Switch
-                                    value={selectedRecoverFromScratch}
-                                    onValueChange={value => {
-                                        setSelectedRecoverFromScratch(value)
-                                    }}
-                                />
-                            </View>
-                        )}
-                        <Button
-                            fullWidth
-                            title={t('words.continue')}
-                            onPress={() => handleJoin()}
-                            containerStyle={style.button}
-                            disabled={isJoining}
-                            loading={isJoining}
+
+            <View style={s.bottomSection}>
+                {showJoinFederation && isReturningMember && (
+                    <View style={s.switchWrapper}>
+                        <View style={s.switchLabelContainer}>
+                            <Text bold caption>
+                                {t('feature.federations.recover-from-scratch')}
+                            </Text>
+                            <Text small>
+                                {t(
+                                    'feature.federations.recover-from-scratch-warning',
+                                )}
+                            </Text>
+                        </View>
+                        <Switch
+                            value={selectedRecoverFromScratch}
+                            onValueChange={setSelectedRecoverFromScratch}
                         />
-                    </>
-                ) : (
-                    <Text caption style={style.disabledNotice}>
-                        {t('feature.onboarding.new-users-disabled-notice')}
-                    </Text>
+                    </View>
                 )}
+
+                {showJoinFederation && tosUrl && (
+                    <View style={s.guidance}>
+                        <Hyperlink
+                            onPress={() => Linking.openURL(tosUrl)}
+                            linkStyle={s.linkText}>
+                            <Text
+                                style={{
+                                    fontSize: 14,
+                                    color: theme.colors.darkGrey,
+                                }}>
+                                {t('feature.onboarding.by-clicking-i-accept', {
+                                    tos_url: tosUrl,
+                                })}
+                            </Text>
+                        </Hyperlink>
+                    </View>
+                )}
+
+                <View style={s.buttonsContainer}>
+                    <Button
+                        fullWidth
+                        title={t('feature.onboarding.i-accept')}
+                        onPress={handleJoin}
+                        containerStyle={s.button}
+                        disabled={isJoining}
+                        loading={isJoining}
+                    />
+                    <Button
+                        fullWidth
+                        type="clear"
+                        title={t('feature.onboarding.i-do-not-accept')}
+                        onPress={navigation.goBack}
+                        containerStyle={s.button}
+                    />
+                </View>
             </View>
         </View>
     )
@@ -214,57 +228,65 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
+        loadingContainer: {
             flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            padding: theme.spacing.xl,
+            paddingHorizontal: theme.spacing.lg,
         },
-        button: {
-            marginVertical: theme.sizes.xxs,
+        loadingIcon: { marginBottom: theme.spacing.md },
+        loadingTitle: {
+            fontSize: 16,
+            fontWeight: '600',
+            marginBottom: theme.spacing.sm,
+            textAlign: 'center',
+            color: theme.colors.night,
         },
+        loadingFactText: {
+            textAlign: 'center',
+            fontSize: 16,
+            fontWeight: '500',
+            color: theme.colors.darkGrey,
+        },
+        container: { flex: 1, padding: theme.spacing.xl },
+        bottomSection: { marginTop: 'auto' },
+        guidance: { marginBottom: theme.spacing.xs },
+        button: { marginVertical: theme.spacing.sm, width: '100%' },
+        linkText: { color: theme.colors.link },
         buttonsContainer: {
-            marginTop: 'auto',
             width: '100%',
-            alignItems: 'center',
+            flexDirection: 'column',
+            marginBottom: theme.spacing.sm,
         },
         disabledNotice: {
             color: theme.colors.red,
             textAlign: 'center',
-            width: '100%',
-            marginVertical: theme.sizes.md,
+            marginVertical: theme.spacing.md,
         },
         roundedCardContainer: {
-            marginTop: 'auto',
+            flexShrink: 1,
+            backgroundColor: theme.colors.offWhite100,
+            marginTop: 10,
             borderRadius: theme.borders.defaultRadius,
             marginHorizontal: 0,
-            padding: theme.spacing.xl,
+            padding: theme.spacing.md,
+            borderWidth: 0,
+            borderColor: 'transparent',
         },
-        cardContent: {
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
+        cardContent: { alignSelf: 'stretch' },
         welcome: {
             marginTop: theme.spacing.md,
             marginBottom: theme.spacing.md,
             textAlign: 'center',
         },
         welcomeText: {
-            textAlign: 'center',
+            fontWeight: '400',
+            fontSize: 16,
             lineHeight: 20,
+            letterSpacing: -0.16,
+            textAlign: 'left',
         },
-        customWelcomeContainer: {
-            borderRadius: theme.spacing.lg,
-            overflow: 'hidden',
-        },
-        customWelcomeInner: {
-            padding: theme.spacing.md,
-        },
-        scrollTos: {
-            flexGrow: 0,
-            maxHeight: 100,
-        },
+        scrollTos: { flexGrow: 1, flexShrink: 1, width: '100%' },
         unsupportedContainer: {
             maxWidth: 280,
             paddingTop: theme.spacing.xl,
@@ -280,13 +302,10 @@ const styles = (theme: Theme) =>
             borderRadius: 30,
             backgroundColor: theme.colors.red,
         },
-        unsupportedBadgeLabel: {
-            color: theme.colors.white,
-        },
+        unsupportedBadgeLabel: { color: theme.colors.white },
         switchWrapper: {
             margin: theme.spacing.xl,
             padding: theme.spacing.lg,
-            display: 'flex',
             borderRadius: 12,
             flexDirection: 'row',
             alignItems: 'center',
@@ -294,9 +313,8 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.sm,
         },
         switchLabelContainer: {
-            display: 'flex',
+            flex: 1,
             flexDirection: 'column',
-            justifyContent: 'center',
             gap: theme.spacing.md,
         },
     })

@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
+import { selectActiveFederation } from '@fedi/common/redux'
 
+import { useAppSelector } from '../../../state/hooks'
 import {
     DRAWER_NAVIGATION_ID,
     DrawerNavigationHook,
@@ -16,6 +18,7 @@ import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
 import HeaderAvatar from '../chat/HeaderAvatar'
 import FederationSelector from '../federations/FederationSelector'
+import FederationSelectorPlaceholder from '../federations/FederationSelectorPlaceholder'
 import { PopupFederationCountdown } from '../federations/PopupFederationCountdown'
 import { NetworkBanner } from '../wallet/NetworkBanner'
 
@@ -25,6 +28,7 @@ const HomeHeader: React.FC = () => {
     const navigation = useNavigation<NavigationHook>()
     const popupInfo = usePopupFederationInfo()
     const showNightlyBanner = useMemo(() => isNightly(), [])
+    const activeFederation = useAppSelector(selectActiveFederation)
 
     const style = styles(theme)
 
@@ -53,7 +57,13 @@ const HomeHeader: React.FC = () => {
                     />
                 }
                 headerRight={<HeaderAvatar onPress={openSettings} />}
-                headerCenter={<FederationSelector />}
+                headerCenter={
+                    activeFederation ? (
+                        <FederationSelector />
+                    ) : (
+                        <FederationSelectorPlaceholder />
+                    )
+                }
                 centerContainerStyle={style.centerContainer}
             />
             <NetworkBanner />

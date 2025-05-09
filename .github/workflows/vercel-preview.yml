@@ -17,7 +17,7 @@ on:
             - ui/common/**
 jobs:
     Deploy-Preview:
-        runs-on: [self-hosted, linux]
+        runs-on: [self-hosted, linux, legacy]
         environment:
             name: Preview
             url: ${{steps.deploy.outputs.url}}

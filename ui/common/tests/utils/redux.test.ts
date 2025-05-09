@@ -16,7 +16,6 @@ const baseFed: LoadedFederation = {
     balance: 0 as MSats,
     recovering: false,
     network: 'regtest',
-    version: 0,
     clientConfig: null,
     meta: {},
     fediFeeSchedule: {
@@ -47,7 +46,6 @@ const testCommunity: Community = {
     id: 'id3',
     name: 'Community 1',
     inviteCode: 'testcommunityinvitecode',
-    version: 0,
     init_state: 'ready',
     hasWallet: false,
     status: 'online',

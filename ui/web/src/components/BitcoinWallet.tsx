@@ -3,8 +3,10 @@ import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ReceiveArrowIcon from '@fedi/common/assets/svgs/arrow-down.svg'
+import SendArrowIcon from '@fedi/common/assets/svgs/arrow-right.svg'
 import BitcoinIcon from '@fedi/common/assets/svgs/bitcoin.svg'
-import ListIcon from '@fedi/common/assets/svgs/list.svg'
+import arrowRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { selectActiveFederation } from '@fedi/common/redux'
 
@@ -16,61 +18,71 @@ import { RequestPaymentDialog } from './RequestPaymentDialog'
 import { SendPaymentDialog } from './SendPaymentDialog'
 import { Text } from './Text'
 
+const MIN_BALANCE_TO_SEND = 1000
+
 export const BitcoinWallet: React.FC = () => {
     const { t } = useTranslation()
     const { pathname, push } = useRouter()
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance()
     const activeFederation = useAppSelector(selectActiveFederation)
 
-    if (!activeFederation || !activeFederation.hasWallet) return null
-
     return (
         <Container>
             <Header>
-                <IconWrapper>
-                    <Icon size="md" icon={BitcoinIcon} />
-                </IconWrapper>
-                <Name>
-                    <Text weight="bold">{t('words.bitcoin')}</Text>
-                </Name>
-                <Link href="/transactions">
-                    <Icon icon={ListIcon} />
-                </Link>
+                <HeaderLeft>
+                    <IconWrapper>
+                        <Icon size="md" icon={BitcoinIcon} />
+                    </IconWrapper>
+                    <Name href="/transactions">
+                        <Text weight="bold">{t('words.bitcoin')}</Text>
+                        <Icon icon={arrowRightIcon} size={'xs'} />
+                    </Name>
+                </HeaderLeft>
+                <HeaderRight>
+                    {formattedBalanceFiat && (
+                        <Text variant="body" weight="medium">
+                            {formattedBalanceFiat}
+                        </Text>
+                    )}
+                    {formattedBalanceSats && (
+                        <Text variant="small" weight="normal">
+                            {formattedBalanceSats}
+                        </Text>
+                    )}
+                </HeaderRight>
             </Header>
-            <Balance>
-                {formattedBalanceFiat && (
-                    <Text variant="h2" weight="normal">
-                        {formattedBalanceFiat}
-                    </Text>
-                )}
-                {formattedBalanceSats && (
-                    <Text variant="caption" weight="medium">
-                        {formattedBalanceSats}
-                    </Text>
-                )}
-            </Balance>
-            <Buttons>
-                <Button
-                    variant="secondary"
-                    width="full"
-                    onClick={() => push('/request')}>
-                    {t('words.request')}
-                </Button>
-                <Button
-                    variant="secondary"
-                    width="full"
-                    onClick={() => push('/send')}
-                    disabled={activeFederation.balance < 1000}>
-                    {t('words.send')}
-                </Button>
-            </Buttons>
+            {activeFederation ? (
+                <Buttons>
+                    <Button
+                        variant="secondary"
+                        width="full"
+                        onClick={() => push('/request')}
+                        icon={ReceiveArrowIcon}>
+                        {t('words.request')}
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        width="full"
+                        onClick={() => push('/send')}
+                        icon={RotatedSendIcon}
+                        disabled={
+                            activeFederation.balance < MIN_BALANCE_TO_SEND
+                        }>
+                        {t('words.send')}
+                    </Button>
+                </Buttons>
+            ) : (
+                <Text variant="body">
+                    {t('feature.wallet.join-federation')}
+                </Text>
+            )}
             <RequestPaymentDialog
                 open={pathname === '/request'}
-                onOpenChange={() => push('/')}
+                onOpenChange={() => push('/home')}
             />
             <SendPaymentDialog
                 open={pathname === '/send'}
-                onOpenChange={() => push('/')}
+                onOpenChange={() => push('/home')}
             />
         </Container>
     )
@@ -85,13 +97,27 @@ const Container = styled('div', {
 
 const Header = styled('div', {
     display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    marginBottom: 20,
 })
 
-const Name = styled('div', {
+const HeaderLeft = styled('div', {
+    alignItems: 'center',
+    display: 'flex',
     flex: 1,
+    gap: 10,
+})
+
+const HeaderRight = styled('div', {
+    display: 'flex',
+    flex: 1,
+    flexDirection: 'column',
+    textAlign: 'right',
+})
+
+const Name = styled(Link, {
+    alignItems: 'flex-end',
+    display: 'flex',
 })
 
 const IconWrapper = styled('div', {
@@ -105,16 +131,6 @@ const IconWrapper = styled('div', {
     borderRadius: '100%',
 })
 
-const Balance = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    textAlign: 'center',
-    gap: 2,
-    marginBottom: 20,
-})
-
 const Buttons = styled('div', {
     display: 'flex',
     alignItems: 'center',
@@ -124,4 +140,8 @@ const Buttons = styled('div', {
     '@xs': {
         flexDirection: 'column',
     },
+})
+
+const RotatedSendIcon = styled(SendArrowIcon, {
+    transform: 'rotate(-45deg)',
 })

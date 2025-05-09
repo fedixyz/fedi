@@ -7,12 +7,12 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import { hexToRgba } from '@fedi/common/utils/color'
+import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
 import { fedimint } from '../bridge'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
-import { getFormattedDeviceInfo } from '../utils/device-info'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,

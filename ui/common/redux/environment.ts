@@ -8,7 +8,11 @@ import {
 import type { i18n } from 'i18next'
 
 import { CommonState } from '.'
-import { RpcNostrPubkey, RpcNostrSecret } from '../types/bindings'
+import {
+    FeatureCatalog,
+    RpcNostrPubkey,
+    RpcNostrSecret,
+} from '../types/bindings'
 import { FedimintBridge } from '../utils/fedimint'
 import { loadFromStorage } from './storage'
 
@@ -27,6 +31,7 @@ const initialState = {
     nostrNpub: undefined as RpcNostrPubkey | undefined,
     nostrNsec: undefined as RpcNostrSecret | undefined,
     fedimintVersion: undefined as string | undefined,
+    featureFlags: undefined as FeatureCatalog | undefined,
     internetUnreachableBadgeShown: false,
 }
 
@@ -73,6 +78,9 @@ export const environmentSlice = createSlice({
         },
         setFedimintVersion(state, action: PayloadAction<string>) {
             state.fedimintVersion = action.payload
+        },
+        setFeatureFlags(state, action: PayloadAction<FeatureCatalog>) {
+            state.featureFlags = action.payload
         },
         setInternetUnreachableBadgeVisibility(
             state,
@@ -129,6 +137,7 @@ export const {
     setNostrNpub,
     setNostrNsec,
     setFedimintVersion,
+    setFeatureFlags,
     setInternetUnreachableBadgeVisibility,
 } = environmentSlice.actions
 
@@ -190,6 +199,16 @@ export const initializeFedimintVersion = createAsyncThunk<
     },
 )
 
+export const initializeFeatureFlags = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>('environment/initializeFeatureFlags', async ({ fedimint }, { dispatch }) => {
+    const features = await fedimint.getFeatureCatalog()
+
+    dispatch(setFeatureFlags(features))
+})
+
 /*** Selectors ***/
 
 export const selectNetworkInfo = (s: CommonState) => s.environment.networkInfo
@@ -238,6 +257,16 @@ export const selectNostrNsec = (s: CommonState) => s.environment.nostrNsec
 
 export const selectFedimintVersion = (s: CommonState) =>
     s.environment.fedimintVersion
+
+export const selectFeatureFlags = (s: CommonState) => s.environment.featureFlags
+
+export const selectIsMultispendFeatureEnabled = ({
+    environment: { featureFlags },
+}: CommonState) => {
+    return Boolean(
+        featureFlags && featureFlags.stability_pool_v2?.state === 'Multispend',
+    )
+}
 
 export const selectInternetUnreachableBadgeShown = (s: CommonState) =>
     s.environment.internetUnreachableBadgeShown

@@ -1,0 +1,18 @@
+[package]
+name = "stability-pool-common-old"
+version = "0.3.0"
+authors = ["The Stability Pool Developers"]
+description = "stability pool module for fedimint"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+fedimint-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+secp256k1 = { workspace = true }
+serde_json = { workspace = true }
+
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+getrandom = { workspace = true, features = ["wasm_js"] }

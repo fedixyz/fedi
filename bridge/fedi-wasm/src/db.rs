@@ -125,7 +125,7 @@ impl IRawDatabase for MemAndIndexedDb {
 }
 
 #[apply(async_trait_maybe_send!)]
-impl<'a> IDatabaseTransactionOpsCore for MemTransaction<'a> {
+impl IDatabaseTransactionOpsCore for MemTransaction<'_> {
     async fn raw_insert_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<Option<Vec<u8>>> {
         let val = IDatabaseTransactionOpsCore::raw_get_bytes(self, key).await;
         // Insert data from copy so we can read our own writes
@@ -216,7 +216,7 @@ impl<'a> IDatabaseTransactionOpsCore for MemTransaction<'a> {
 }
 
 #[apply(async_trait_maybe_send!)]
-impl<'a> IDatabaseTransactionOps for MemTransaction<'a> {
+impl IDatabaseTransactionOps for MemTransaction<'_> {
     async fn rollback_tx_to_savepoint(&mut self) -> Result<()> {
         self.tx_data = self.savepoint.clone();
 
@@ -239,7 +239,7 @@ impl<'a> IDatabaseTransactionOps for MemTransaction<'a> {
 // In-memory database transaction should only be used for test code and never
 // for production as it doesn't properly implement MVCC
 #[apply(async_trait_maybe_send!)]
-impl<'a> IRawDatabaseTransaction for MemTransaction<'a> {
+impl IRawDatabaseTransaction for MemTransaction<'_> {
     async fn commit_tx(self) -> Result<()> {
         let mut data = self.db.data.lock().await;
         let mut data_new = data.clone();

@@ -96,15 +96,9 @@ jobs:
           matrix:
             host:
               - linux
-              - macos
             include:
               - host: linux
                 runs-on: [self-hosted, linux]
-                run-tests: true
-                build-wasm: true
-              - host: macos
-                runs-on: [self-hosted, macos, arm64]
-                run-tests: false
 
         name: "Build workspace on ${{ matrix.host }}"
         runs-on: ${{ matrix.runs-on }}
@@ -129,12 +123,10 @@ jobs:
 
             - name: Tests
               timeout-minutes: 10
-              if: matrix.run-tests
               run: nix build -L .#ci.testCiAll
 
             - name: Build wasm
               timeout-minutes: 10
-              if: matrix.build-wasm
               run: nix build -L .#wasm32-unknown.ci.fedi-wasm-pack
 
             - name: Cleanup build folder
@@ -150,7 +142,7 @@ jobs:
             needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
             needs.precheck.outputs.IS_PUSH_TO_MASTER == '1' ||
             needs.precheck.outputs.IS_PUSH_TO_TAG == '1'
-        runs-on: [self-hosted, linux]
+        runs-on: [ self-hosted, linux ]
         timeout-minutes: 60
         steps:
             - uses: actions/checkout@v4
@@ -171,8 +163,8 @@ jobs:
             - name: Build fedi-fedimint-cli
               run: nix build -L .#ci.fedi-fedimint-cli
 
-            - name: Build fedi-api-types
-              run: nix build -L .#ci.fedi-api-types
+            - name: Build api-types
+              run: nix build -L .#ci.api-types
 
             - name: Build fedi-ffi
               run: nix build -L .#ci.fedi-ffi
@@ -223,7 +215,7 @@ jobs:
         if: >
             needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
             needs.precheck.outputs.IS_PUSH_TO_MASTER == '1'
-        runs-on: [self-hosted, linux]
+        runs-on: [self-hosted, linux, legacy]
         timeout-minutes: 60
         steps:
             - uses: actions/checkout@v4
@@ -387,7 +379,7 @@ jobs:
       name: Status
       needs: [lint, build-workspace, build-linux, build-android, build-ios, shell]
       if: ${{ always() }}
-      runs-on: [self-hosted, linux]
+      runs-on: [self-hosted, linux, legacy]
       steps:
         - name: Check status of all jobs
           if: >-

@@ -26,6 +26,7 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
         },
         [setLoadingActions],
     )
+
     return (
         <View style={style.container}>
             {actions.map(({ label, icon, onPress }, idx) => (
@@ -33,10 +34,16 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
                     key={idx}
                     onPress={() => handlePress(onPress, idx)}
                     containerStyle={style.action}>
-                    <SvgImage name={icon} />
-                    <Text bold numberOfLines={2}>
-                        {label}
-                    </Text>
+                    {typeof label === 'string' && icon && (
+                        <SvgImage name={icon} />
+                    )}
+                    {typeof label === 'string' ? (
+                        <Text bold numberOfLines={2}>
+                            {label}
+                        </Text>
+                    ) : (
+                        label
+                    )}
                     {loadingActions.includes(idx) && (
                         <View key={idx} style={styles(theme).loaderContainer}>
                             <HoloLoader key={idx} size={24} />

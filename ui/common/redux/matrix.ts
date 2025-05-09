@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import {
     CommonState,
+    selectBtcUsdExchangeRate,
     selectGlobalCommunityMeta,
     selectLoadedFederation,
     selectLoadedFederations,
@@ -39,12 +40,24 @@ import {
     MatrixTimelineItem,
     MatrixTimelineObservableUpdates,
     MatrixUser,
+    MultispendActiveInvitation,
+    MultispendFinalized,
+    MultispendRole,
+    MultispendTransactionListEntry,
     Sats,
+    UsdCents,
 } from '../types'
 import {
     FrontendMetadata,
+    GroupInvitation,
+    MsEventData,
+    MultispendListedEvent,
+    NetworkError,
+    RpcBackPaginationStatus,
+    RpcMultispendGroupStatus,
     RpcRoomId,
     RpcRoomNotificationMode,
+    RpcSPv2SyncResponse,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import { getFederationGroupChats } from '../utils/FederationUtils'
@@ -53,15 +66,23 @@ import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
     MatrixEventContentType,
+    coerceMultispendTxn,
+    filterMultispendEvents,
+    consolidatePaymentEvents,
     doesEventContentMatchPreviewMedia,
+    getMultispendInvite,
+    getMultispendRole,
     getReceivablePaymentEvents,
     getRoomEventPowerLevel,
     getUserSuffix,
+    isMultispendInvitation,
+    isMultispendWithdrawalEvent,
     isPaymentEvent,
     makeChatFromPreview,
     matrixIdToUsername,
     mxcUrlToHttpUrl,
     shouldShowUnreadIndicator,
+    isMultispendFinancialTransaction,
 } from '../utils/matrix'
 import { applyObservableUpdates } from '../utils/observable'
 import { isBolt11 } from '../utils/parser'
@@ -81,6 +102,7 @@ const getMatrixClient = () => {
 /*** Initial State ***/
 
 const initialState = {
+    setup: false,
     started: false,
     auth: null as null | MatrixAuth,
     status: MatrixSyncStatus.uninitialized,
@@ -91,6 +113,10 @@ const initialState = {
         MatrixRoom['id'],
         MatrixTimelineItem[] | undefined
     >,
+    roomPaginationStatus: {} as Record<
+        MatrixRoom['id'],
+        RpcBackPaginationStatus | undefined
+    >,
     roomPowerLevels: {} as Record<
         MatrixRoom['id'],
         MatrixRoomPowerLevels | undefined
@@ -99,7 +125,26 @@ const initialState = {
         MatrixRoom['id'],
         RpcRoomNotificationMode | undefined
     >,
+    roomMultispendStatus: {} as Record<
+        MatrixRoom['id'],
+        MultispendActiveInvitation | MultispendFinalized | undefined
+    >,
+    roomMultispendAccountInfo: {} as Record<
+        MatrixRoom['id'],
+        { Ok: RpcSPv2SyncResponse } | { Err: NetworkError } | undefined
+    >,
+    // TODO: change this to something like `roomMultispendEventStates`
+    // and remove the `counter` and `time` fields. Since we're using this
+    // for multiple things (txn list, withdraw screen, chat), the type of this
+    // should be the union of all possible event types.
+    //
+    // e.g. type MultispendEvent = MultispendTransaction | MultispendInvitationEvent
+    roomMultispendTransactions: {} as Record<
+        MatrixRoom['id'],
+        MultispendTransactionListEntry[] | undefined
+    >,
     users: {} as Record<MatrixUser['id'], MatrixUser | undefined>,
+    ignoredUsers: [] as MatrixUser['id'][],
     errors: [] as MatrixError[],
     pushNotificationToken: null as string | null,
     groupPreviews: {} as Record<MatrixRoom['id'], MatrixGroupPreview>,
@@ -119,12 +164,46 @@ const initialState = {
 
 export type MatrixState = typeof initialState
 
+/**
+ * Given a list of new transactions and optionally the old ones, return a
+ * combined list that has been sorted and deduplicated.
+ *
+ * TODO: only modify updated fields for existing transactions
+ */
+const updateMultispendTransactions = (
+    newTransactions: MultispendTransactionListEntry[],
+    oldTransactions: MultispendTransactionListEntry[] = [],
+) => {
+    // Use a Map for O(1) lookups during deduplication
+    // The Map preserves insertion order, with newer transactions added first
+    const transactionMap = new Map<string, MultispendTransactionListEntry>()
+
+    for (const tx of newTransactions) {
+        transactionMap.set(tx.id, tx)
+    }
+
+    // Add old transactions only if they don't already exist in the map
+    for (const tx of oldTransactions) {
+        if (!transactionMap.has(tx.id)) {
+            transactionMap.set(tx.id, tx)
+        }
+    }
+
+    const transactions = Array.from(transactionMap.values())
+
+    // Sort list in descending order of when the transaction was created
+    return orderBy(transactions, 'counter', 'desc')
+}
+
 /*** Slice definition ***/
 
 export const matrixSlice = createSlice({
     name: 'matrix',
     initialState,
     reducers: {
+        setMatrixSetup(state, action: PayloadAction<boolean>) {
+            state.setup = action.payload
+        },
         setMatrixStatus(state, action: PayloadAction<MatrixState['status']>) {
             state.status = action.payload
         },
@@ -163,6 +242,12 @@ export const matrixSlice = createSlice({
         ) {
             state.roomMembers[action.payload.roomId] = action.payload.members
         },
+        setMatrixIgnoredUsers(
+            state,
+            action: PayloadAction<MatrixUser['id'][]>,
+        ) {
+            state.ignoredUsers = action.payload
+        },
         addMatrixUser(state, action: PayloadAction<MatrixUser>) {
             state.users = upsertRecordEntity(state.users, action.payload)
         },
@@ -185,6 +270,16 @@ export const matrixSlice = createSlice({
                 updates,
             )
         },
+        handleMatrixRoomTimelinePaginationStatus(
+            state,
+            action: PayloadAction<{
+                roomId: string
+                paginationStatus: RpcBackPaginationStatus
+            }>,
+        ) {
+            const { roomId, paginationStatus } = action.payload
+            state.roomPaginationStatus[roomId] = paginationStatus
+        },
         setMatrixRoomPowerLevels(
             state,
             action: PayloadAction<{
@@ -204,6 +299,94 @@ export const matrixSlice = createSlice({
         ) {
             const { roomId, mode } = action.payload
             state.roomNotificationMode[roomId] = mode
+        },
+        setMatrixRoomMultispendStatus(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                status: RpcMultispendGroupStatus
+            }>,
+        ) {
+            const { roomId, status } = action.payload
+            state.roomMultispendStatus[roomId] =
+                status.status === 'inactive'
+                    ? undefined
+                    : (status as
+                          | MultispendActiveInvitation
+                          | MultispendFinalized)
+        },
+        setMatrixRoomMultispendAccountInfo(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                info:
+                    | { Ok: RpcSPv2SyncResponse }
+                    | { Err: NetworkError }
+                    | undefined
+            }>,
+        ) {
+            const { roomId, info } = action.payload
+            state.roomMultispendAccountInfo[roomId] = info
+        },
+        setMatrixRoomMultispendTransactions(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                transactions: MultispendListedEvent[]
+            }>,
+        ) {
+            const { roomId, transactions } = action.payload
+            state.roomMultispendTransactions[roomId] =
+                transactions.map(coerceMultispendTxn)
+        },
+        updateMatrixRoomMultispendTxns(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                transactions: MultispendListedEvent[]
+            }>,
+        ) {
+            const { roomId, transactions } = action.payload
+            const currentTxns = state.roomMultispendTransactions[roomId] || []
+            const updatedTxns = updateMultispendTransactions(
+                transactions.map(coerceMultispendTxn),
+                currentTxns,
+            )
+            state.roomMultispendTransactions[roomId] = updatedTxns
+        },
+        updateMatrixRoomMultispendEvent(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                eventId: string
+                update: MsEventData
+            }>,
+        ) {
+            const existingRoomEvents =
+                state.roomMultispendTransactions[action.payload.roomId]
+
+            if (!existingRoomEvents) {
+                state.roomMultispendTransactions[action.payload.roomId] = [
+                    coerceMultispendTxn({
+                        eventId: action.payload.eventId,
+                        event: action.payload.update,
+                        // TODO: Remove this once we change the type of roomMultispendTransactions
+                        counter: 0,
+                        time: 0,
+                    }),
+                ]
+            } else {
+                state.roomMultispendTransactions[action.payload.roomId] =
+                    existingRoomEvents.map(evt =>
+                        evt.id === action.payload.eventId
+                            ? coerceMultispendTxn({
+                                  ...evt,
+                                  event: action.payload.update,
+                                  eventId: action.payload.eventId,
+                              })
+                            : evt,
+                    )
+            }
         },
         addMatrixError(state, action: PayloadAction<MatrixError>) {
             state.errors = [...state.errors, action.payload]
@@ -392,60 +575,86 @@ export const matrixSlice = createSlice({
             }
         })
         builder.addMatcher(
-            isAnyOf(
-                previewGlobalDefaultChats.fulfilled,
-                previewCommunityDefaultChats.fulfilled,
-                previewAllDefaultChats.fulfilled,
-            ),
+            isAnyOf(ignoreUser.fulfilled, unignoreUser.fulfilled),
             (state, action) => {
-                let hasUpdates = false
-                const updatedDefaultGroups = action.payload.reduce(
-                    (
-                        result: Record<RpcRoomId, MatrixGroupPreview>,
-                        preview: MatrixGroupPreview,
-                    ) => {
-                        const existingPreview = result[preview.info.id]
-                        const updatedPreview = {
-                            ...preview,
-                            isDefaultGroup: true,
-                        }
-
-                        if (
-                            !existingPreview ||
-                            !isEqual(existingPreview, updatedPreview)
-                        ) {
-                            hasUpdates = true
-                            result[preview.info.id] = updatedPreview
-                        }
-
-                        return result
+                const oldRoomMembers = state.roomMembers
+                Object.entries(oldRoomMembers).forEach(
+                    ([roomId, roomMembers]) => {
+                        const member = roomMembers?.find(
+                            m => m.id === action.meta.arg.userId,
+                        )
+                        if (!member) return
+                        const newRoomMembers = upsertListItem(roomMembers, {
+                            ...member,
+                            ignored: action.payload,
+                        })
+                        state.roomMembers[roomId] = newRoomMembers
                     },
-                    { ...state.groupPreviews },
                 )
-
-                if (hasUpdates) {
-                    state.groupPreviews = updatedDefaultGroups
-                }
             },
-        )
+        ),
+            builder.addMatcher(
+                isAnyOf(
+                    previewGlobalDefaultChats.fulfilled,
+                    previewCommunityDefaultChats.fulfilled,
+                    previewAllDefaultChats.fulfilled,
+                ),
+                (state, action) => {
+                    let hasUpdates = false
+                    const updatedDefaultGroups = action.payload.reduce(
+                        (
+                            result: Record<RpcRoomId, MatrixGroupPreview>,
+                            preview: MatrixGroupPreview,
+                        ) => {
+                            const existingPreview = result[preview.info.id]
+                            const updatedPreview = {
+                                ...preview,
+                                isDefaultGroup: true,
+                            }
+
+                            if (
+                                !existingPreview ||
+                                !isEqual(existingPreview, updatedPreview)
+                            ) {
+                                hasUpdates = true
+                                result[preview.info.id] = updatedPreview
+                            }
+
+                            return result
+                        },
+                        { ...state.groupPreviews },
+                    )
+
+                    if (hasUpdates) {
+                        state.groupPreviews = updatedDefaultGroups
+                    }
+                },
+            )
     },
 })
 
 /*** Basic actions ***/
 
 export const {
+    setMatrixSetup,
     setMatrixStatus,
     setMatrixAuth,
     addMatrixRoomInfo,
     addMatrixRoomMember,
     setMatrixRoomMembers,
+    setMatrixIgnoredUsers,
     addMatrixUser,
     setMatrixUsers,
     setMatrixRoomPowerLevels,
     setMatrixRoomNotificationMode,
+    setMatrixRoomMultispendStatus,
+    setMatrixRoomMultispendAccountInfo,
+    setMatrixRoomMultispendTransactions,
+    updateMatrixRoomMultispendTxns,
     addMatrixError,
     handleMatrixRoomListObservableUpdates,
     handleMatrixRoomTimelineObservableUpdates,
+    handleMatrixRoomTimelinePaginationStatus,
     resetMatrixState,
     setChatDraft,
     setSelectedChatMessage,
@@ -453,9 +662,74 @@ export const {
     addPreviewMedia,
     matchAndHidePreviewMedia,
     matchAndRemovePreviewMedia,
+    updateMatrixRoomMultispendEvent,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
+
+export const matrixApproveMultispendInvitation = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] },
+    { state: CommonState }
+>(
+    'matrix/approveMultispendInvitation',
+    async ({ fedimint, roomId }, { getState }) => {
+        const multispendStatus = selectMatrixRoomMultispendStatus(
+            getState(),
+            roomId,
+        )
+
+        if (multispendStatus?.status !== 'activeInvitation')
+            throw new Error(
+                'Cannot vote if multispend status is not activeInvitation',
+            )
+
+        await fedimint.matrixApproveMultispendGroupInvitation({
+            roomId,
+            invitation: multispendStatus.active_invite_id,
+        })
+    },
+)
+
+export const matrixRejectMultispendInvitation = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] },
+    { state: CommonState }
+>(
+    'matrix/approveMultispendInvitation',
+    async ({ fedimint, roomId }, { getState }) => {
+        const multispendStatus = selectMatrixRoomMultispendStatus(
+            getState(),
+            roomId,
+        )
+
+        if (multispendStatus?.status !== 'activeInvitation')
+            throw new Error(
+                'Cannot vote if multispend status is not activeInvitation',
+            )
+
+        await fedimint.matrixRejectMultispendGroupInvitation({
+            roomId,
+            invitation: multispendStatus.active_invite_id,
+        })
+    },
+)
+
+export const observeMultispendEvent = createAsyncThunk<
+    void,
+    { roomId: MatrixRoom['id']; eventId: string }
+>('matrix/observeMultispendEvent', async ({ roomId, eventId }) => {
+    const client = getMatrixClient()
+    return client.observeMultispendEvent(roomId, eventId)
+})
+
+export const unobserveMultispendEvent = createAsyncThunk<
+    void,
+    { roomId: MatrixRoom['id']; eventId: string }
+>('matrix/unobserveMultispendEvent', async ({ roomId, eventId }) => {
+    const client = getMatrixClient()
+    return client.unobserveMultispendEvent(roomId, eventId)
+})
 
 export const startMatrixClient = createAsyncThunk<
     MatrixAuth,
@@ -474,9 +748,9 @@ export const startMatrixClient = createAsyncThunk<
 
     // Bind all the listeners we need to dispatch actions
     client.on('auth', auth => dispatch(setMatrixAuth(auth)))
-    client.on('roomListUpdate', updates =>
-        dispatch(handleMatrixRoomListObservableUpdates(updates)),
-    )
+    client.on('roomListUpdate', updates => {
+        dispatch(handleMatrixRoomListObservableUpdates(updates))
+    })
     client.on('roomInfo', room => {
         dispatch(addMatrixRoomInfo(room))
         if (room.roomState === 'Invited') {
@@ -488,11 +762,55 @@ export const startMatrixClient = createAsyncThunk<
     client.on('roomTimelineUpdate', ev =>
         dispatch(handleMatrixRoomTimelineObservableUpdates(ev)),
     )
+    client.on('roomTimelinePaginationStatus', ev =>
+        dispatch(handleMatrixRoomTimelinePaginationStatus(ev)),
+    )
     client.on('roomPowerLevels', ev => dispatch(setMatrixRoomPowerLevels(ev)))
-
     client.on('roomNotificationMode', ev =>
         dispatch(setMatrixRoomNotificationMode(ev)),
     )
+    client.on('multispendUpdate', ev => {
+        if (ev.status)
+            dispatch(
+                setMatrixRoomMultispendStatus({
+                    roomId: ev.roomId,
+                    status: ev.status,
+                }),
+            )
+    })
+    client.on('multispendEventUpdate', ({ update, roomId, eventId }) => {
+        if (!update) return
+
+        dispatch(
+            updateMatrixRoomMultispendEvent({
+                roomId,
+                eventId,
+                update,
+            }),
+        )
+    })
+    client.on('multispendAccountUpdate', ev => {
+        if (ev.info) {
+            dispatch(
+                setMatrixRoomMultispendAccountInfo({
+                    roomId: ev.roomId,
+                    info: ev.info,
+                }),
+            )
+        }
+    })
+    client.on('multispendTransactions', ev => {
+        if (ev.transactions) {
+            dispatch(
+                updateMatrixRoomMultispendTxns({
+                    roomId: ev.roomId,
+                    transactions: ev.transactions,
+                }),
+            )
+        }
+    })
+
+    client.on('ignoredUsers', ev => dispatch(setMatrixIgnoredUsers(ev)))
 
     client.on('error', err => dispatch(addMatrixError(err)))
 
@@ -586,6 +904,22 @@ export const unobserveMatrixRoom = createAsyncThunk<
 >('matrix/unobserveMatrixRoom', async ({ roomId }) => {
     const client = getMatrixClient()
     return client.unobserveRoom(roomId)
+})
+
+export const observeMultispendAccountInfo = createAsyncThunk<
+    void,
+    { roomId: MatrixRoom['id'] }
+>('matrix/observeMultispendRoomDetails', async ({ roomId }) => {
+    const client = getMatrixClient()
+    return client.observeMultispendAccount(roomId)
+})
+
+export const unobserveMultispendAccountInfo = createAsyncThunk<
+    void,
+    { roomId: MatrixRoom['id'] }
+>('matrix/unobserveMultispendRoomDetails', async ({ roomId }) => {
+    const client = getMatrixClient()
+    return client.unobserveMultispendAccount(roomId)
 })
 
 export const inviteUserToMatrixRoom = createAsyncThunk<
@@ -968,15 +1302,15 @@ export const refetchMatrixRoomList = createAsyncThunk<void, void>(
 )
 
 export const paginateMatrixRoomTimeline = createAsyncThunk<
-    { end: boolean },
+    void,
     { roomId: MatrixRoom['id']; limit?: number },
     { state: CommonState }
 >(
     'matrix/paginateMatrixRoomTimeline',
-    async ({ roomId, limit = 30 }, { getState }) => {
+    ({ roomId, limit = 30 }, { getState }) => {
         const numEvents = getState().matrix.roomTimelines[roomId]?.length || 0
         const client = getMatrixClient()
-        return client.roomPaginateTimeline(roomId, numEvents + limit)
+        client.paginateTimeline(roomId, numEvents + limit)
     },
 )
 
@@ -1012,21 +1346,95 @@ export const updateMatrixRoomNotificationMode = createAsyncThunk<
     return mode
 })
 
-export const ignoreUser = createAsyncThunk<void, { userId: MatrixUser['id'] }>(
-    'matrix/ignoreUser',
-    async ({ userId }) => {
-        const client = getMatrixClient()
-        await client.ignoreUser(userId)
-    },
-)
+export const ignoreUser = createAsyncThunk<
+    boolean,
+    { userId: MatrixUser['id']; roomId?: MatrixRoom['id'] }
+>('matrix/ignoreUser', async ({ userId }) => {
+    const client = getMatrixClient()
+    await client.ignoreUser(userId)
+
+    // TODO: make the ignored list observable to avoid the need
+    // to refetch manually. (this is kinda racy)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Refresh the list of ignored users
+    await client.listIgnoredUsers()
+    return true
+})
 
 export const unignoreUser = createAsyncThunk<
-    void,
-    { userId: MatrixUser['id'] }
+    boolean,
+    { userId: MatrixUser['id']; roomId?: MatrixRoom['id'] }
 >('matrix/unignoreUser', async ({ userId }) => {
     const client = getMatrixClient()
     await client.unignoreUser(userId)
+
+    // TODO: make the ignored list observable to avoid the need
+    // to refetch manually. (this is kinda racy)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Refresh the list of ignored users
+    await client.listIgnoredUsers()
+    return false
 })
+
+export const fetchMultispendTransactions = createAsyncThunk<
+    Promise<MultispendListedEvent[] | undefined>,
+    {
+        roomId: MatrixRoom['id']
+        limit?: number
+        more?: boolean
+        refresh?: boolean
+    },
+    { state: CommonState }
+>(
+    'matrix/fetchMultispendTransactions',
+    async (
+        { roomId, refresh = false, limit = 100, more = false },
+        { getState },
+    ) => {
+        const state = getState()
+        const client = getMatrixClient()
+        if (refresh) {
+            const txns = selectRoomMultispendFinancialTransactions(
+                state,
+                roomId,
+            )
+            // when refreshing:
+            // - always use startAfter: null for fresh results. use { more: true } for pagination
+            // - limit should be at least 100 or the # of fetched txns (if we have already paginated)
+            // - refreshing will ignore limit param if passed to the thunk
+            return client.fetchMultispendTransactions({
+                roomId,
+                startAfter: null,
+                limit: Math.max(100, txns.length + 1),
+            })
+        } else if (more) {
+            // when fetching more, find the latest txn (txn with highest counter field)
+            const latestRoomTxn = selectLatestMultispendTxnInRoom(state, roomId)
+            const startAfter = latestRoomTxn ? latestRoomTxn.counter : null
+            return client.fetchMultispendTransactions({
+                roomId,
+                startAfter,
+                limit,
+            })
+        } else {
+            return client.fetchMultispendTransactions({
+                roomId,
+                startAfter: null,
+                limit,
+            })
+        }
+    },
+)
+
+export const listIgnoredUsers = createAsyncThunk<string[], void>(
+    'matrix/listIgnoredUsers',
+    async () => {
+        const client = getMatrixClient()
+        return client.listIgnoredUsers()
+    },
+)
 
 export const kickUser = createAsyncThunk<
     void,
@@ -1185,7 +1593,8 @@ export const selectMatrixRooms = createSelector(
     (s: CommonState) => s.matrix.roomList,
     (s: CommonState) => s.matrix.roomInfo,
     (s: CommonState) => s.matrix.roomPowerLevels,
-    (roomList, roomInfo, roomPowerLevels) => {
+    (s: CommonState) => s.matrix.ignoredUsers,
+    (roomList, roomInfo, roomPowerLevels, ignoredUsers) => {
         const rooms: MatrixRoom[] = []
         for (const item of roomList) {
             if (!item.id) continue
@@ -1199,6 +1608,9 @@ export const selectMatrixRooms = createSelector(
                           'm.room.message',
                           'm.room.encrypted',
                       ]) >= MatrixPowerLevel.Moderator
+                    : false,
+                isBlocked: room.directUserId
+                    ? ignoredUsers.includes(room.directUserId)
                     : false,
             })
         }
@@ -1252,6 +1664,14 @@ export const selectMatrixUsers = (s: CommonState) => s.matrix.users
 
 export const selectMatrixUser = (s: CommonState, userId: MatrixUser['id']) =>
     s.matrix.users[userId]
+
+export const selectMatrixChatsWithoutDefaultGroupPreviewsList = createSelector(
+    selectMatrixRooms,
+    (roomsList): MatrixRoom[] => {
+        const joined = roomsList.filter(r => r.roomState === 'Joined')
+        return orderBy(joined, room => room.preview?.timestamp ?? 0, 'desc')
+    },
+)
 
 export const selectMatrixChatsList = createSelector(
     selectMatrixRooms,
@@ -1310,6 +1730,11 @@ export const selectMatrixRoomNotificationMode = (
     s: CommonState,
     roomId: MatrixRoom['id'],
 ) => s.matrix.roomNotificationMode[roomId]
+
+export const selectMatrixRoomMultispendStatus = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) => s.matrix.roomMultispendStatus[roomId]
 
 export const selectMatrixRoomMembers = (
     s: CommonState,
@@ -1384,35 +1809,13 @@ export const selectMatrixRoomEvents = createSelector(
         if (!timeline) return []
 
         // Filter out non-events from the timeline
-        let events = timeline.filter((item): item is MatrixEvent => {
+        const allEvents = timeline.filter((item): item is MatrixEvent => {
             return item !== null
         })
 
-        // Filter out payment events that aren't the initial push or request
-        // since we only render the original event. Keep track of the latest
-        // payment for each payment ID, and replace the intial event's content
-        // with the latest content.
-        const latestPayments: Record<string, MatrixPaymentEvent> = {}
-        events = events.filter(event => {
-            if (!isPaymentEvent(event)) return true
-            latestPayments[event.content.paymentId] = event
-            return [
-                MatrixPaymentStatus.pushed,
-                MatrixPaymentStatus.requested,
-            ].includes(event.content.status)
-        })
-        events = events.map(event => {
-            if (!isPaymentEvent(event)) return event
-            const latestPayment = latestPayments[event.content.paymentId]
-            if (!latestPayment || event.id === latestPayment.id) return event
-            return {
-                ...event,
-                content: {
-                    ...event.content,
-                    ...latestPayment.content,
-                },
-            }
-        })
+        const filteredEvents = filterMultispendEvents(allEvents)
+
+        const events = consolidatePaymentEvents(filteredEvents)
 
         return events
     },
@@ -1465,6 +1868,14 @@ export const selectMatrixDirectMessageRoom = createSelector(
     (_: CommonState, userId: string) => userId,
     selectMatrixRooms,
     (userId, rooms) => rooms.find(room => room.directUserId === userId),
+)
+
+const selectMatrixIgnoredUsers = (s: CommonState) => s.matrix.ignoredUsers
+
+export const selectMatrixUserIsIgnored = createSelector(
+    selectMatrixIgnoredUsers,
+    (_: CommonState, userId: string) => userId,
+    (ignoredUsers, userId) => ignoredUsers.includes(userId),
 )
 
 export const selectMatrixHasNotifications = createSelector(
@@ -1610,6 +2021,19 @@ export const selectDefaultMatrixRoomIds = createSelector(
     },
 )
 
+export const selectIsDefaultGroup = (s: CommonState, id: string) =>
+    selectDefaultMatrixRoomIds(s).includes(id)
+
+export const selectMatrixRoomIsBlocked = (
+    s: CommonState,
+    id: MatrixRoom['id'],
+) => selectMatrixRoom(s, id)?.isBlocked
+
+export const selectMatrixRoomPaginationStatus = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) => s.matrix.roomPaginationStatus[roomId]
+
 export const selectChatDrafts = (s: CommonState) => s.matrix.drafts
 export const selectSelectedChatMessage = (s: CommonState) =>
     s.matrix.selectedChatMessage
@@ -1625,3 +2049,139 @@ export const selectPreviewMediaMatchingEventContent = (
     s.matrix.previewMedia.find(({ media }) =>
         doesEventContentMatchPreviewMedia(media, content),
     )
+
+export const selectMyMultispendRole = (
+    s: CommonState,
+    roomId: string,
+): MultispendRole | null => {
+    const multispendStatus = selectMatrixRoomMultispendStatus(s, roomId)
+    const myId = selectMatrixAuth(s)?.userId
+
+    if (!myId || !multispendStatus) return null
+
+    return getMultispendRole(multispendStatus, myId)
+}
+
+export const selectMultispendRole = (
+    s: CommonState,
+    roomId: string,
+    userId: string,
+): MultispendRole | null => {
+    const multispendStatus = selectMatrixRoomMultispendStatus(s, roomId)
+
+    if (!userId || !multispendStatus) return null
+
+    return getMultispendRole(multispendStatus, userId)
+}
+
+export const selectMultispendInvite = (
+    s: CommonState,
+    roomId: string,
+): GroupInvitation | null => {
+    const multispendStatus = selectMatrixRoomMultispendStatus(s, roomId)
+    if (!multispendStatus) return null
+    return getMultispendInvite(multispendStatus)
+}
+
+export const selectMatrixRoomMultispendAccountInfo = (
+    s: CommonState,
+    roomId: string,
+) => {
+    return s.matrix.roomMultispendAccountInfo[roomId]
+}
+
+export const selectMatrixRoomMultispendTransactions = (
+    s: CommonState,
+    roomId: string,
+) => {
+    return s.matrix.roomMultispendTransactions[roomId] || []
+}
+
+export const selectRoomMultispendFinancialTransactions = createSelector(
+    selectMatrixRoomMultispendTransactions,
+    transactions => {
+        return transactions.filter(isMultispendFinancialTransaction)
+    },
+)
+
+export const selectLatestMultispendTxnInRoom = createSelector(
+    selectRoomMultispendFinancialTransactions,
+    transactions => {
+        // unintuitively, the latest txn is the one with the lowest counter
+        const latestTxn = transactions.reduce((latest, current) => {
+            return latest.counter < current.counter ? latest : current
+        }, transactions[0])
+        return latestTxn
+    },
+)
+
+export const selectMultispendBalanceCents = createSelector(
+    selectMatrixRoomMultispendAccountInfo,
+    accountInfo => {
+        if (!accountInfo || 'Err' in accountInfo) return 0 as UsdCents
+
+        const { lockedBalance, currCycleStartPrice } = accountInfo.Ok
+
+        const balanceMsats = lockedBalance
+        const balanceCents = Number(
+            amountUtils
+                .msatToFiat(balanceMsats, currCycleStartPrice)
+                .toFixed(0),
+        ) as UsdCents
+
+        return balanceCents
+    },
+)
+
+// Converts the multispend balance in cents to the selected currency
+export const selectFormattedMultispendBalance = createSelector(
+    selectMultispendBalanceCents,
+    (s: CommonState) => selectBtcUsdExchangeRate(s),
+    (balanceCents, btcUsdExchangeRate) => {
+        return amountUtils.convertCentsToOtherFiat(
+            balanceCents,
+            btcUsdExchangeRate,
+            btcUsdExchangeRate,
+        )
+    },
+)
+
+export const selectMultispendBalanceSats = createSelector(
+    selectMultispendBalanceCents,
+    (s: CommonState) => selectBtcUsdExchangeRate(s),
+    (balanceCents, btcUsdExchangeRate) => {
+        const balanceDollars = balanceCents / 100
+        return amountUtils.fiatToSat(balanceDollars, btcUsdExchangeRate)
+    },
+)
+
+export const selectMatrixRoomMultispendWithdrawalRequests = createSelector(
+    selectRoomMultispendFinancialTransactions,
+    events => {
+        return events.filter(isMultispendWithdrawalEvent)
+    },
+)
+
+export const selectMatrixRoomMultispendEvent = (
+    s: CommonState,
+    roomId: string,
+    eventId: string,
+) => {
+    if (!s.matrix.roomMultispendTransactions[roomId]) return null
+    return (
+        s.matrix.roomMultispendTransactions[roomId].find(
+            e => e.id === eventId,
+        ) ?? null
+    )
+}
+
+export const selectMultispendInvitationEvents = createSelector(
+    selectMatrixRoomMultispendTransactions,
+    events => events.filter(isMultispendInvitation),
+)
+
+export const selectMultispendInvitationEvent = createSelector(
+    selectMultispendInvitationEvents,
+    (_: CommonState, _roomId: string, eventId: string) => eventId,
+    (events, eventId) => events.find(e => e.id === eventId) ?? undefined,
+)

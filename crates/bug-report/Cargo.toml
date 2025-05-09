@@ -1,0 +1,15 @@
+[package]
+name = "bug-report"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+fedimint-core = { workspace = true }
+fedimint-mint-client = { workspace = true }
+fedimint-tbs = { workspace = true }
+fedimint-derive-secret = { workspace = true }
+futures = { workspace = true }
+base64-serde = "0.8.0"
+base64 = "0.22.1"
+serde = { workspace = true }
