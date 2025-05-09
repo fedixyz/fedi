@@ -77,6 +77,19 @@ export type RootStackParamList = {
     EditPoll: { event: MatrixEvent<MatrixEventContentType<'m.poll'>> }
     FederationCurrency: { federationId: string }
     GlobalCurrency: undefined
+    GroupMultispend: { roomId: string }
+    MultispendConfirmDeposit: {
+        roomId: string
+        amount: UsdCents
+        notes?: string
+    }
+    MultispendConfirmWithdraw: {
+        roomId: string
+        amount: UsdCents
+        notes?: string
+    }
+    MultispendDeposit: { roomId: string }
+    MultispendWithdraw: { roomId: string }
     CompleteRecoveryAssist: { videoPath: string; recoveryId: string }
     CompleteSocialBackup: undefined
     CompleteSocialRecovery: undefined
@@ -113,6 +126,10 @@ export type RootStackParamList = {
     Initializing: undefined
     JoinFederation: { invite?: string }
     LanguageSettings: undefined
+    MultispendIntro: { roomId: string }
+    MultispendTransactions: { roomId: string }
+    CreateMultispend: { roomId: string; voters?: string[] }
+    AssignMultispendVoters: { roomId: string; voters?: string[] }
     NewMessage: undefined
     NostrSettings: undefined
     NotificationsPermission:

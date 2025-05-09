@@ -4,19 +4,26 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, ScrollView, StyleSheet, View } from 'react-native'
 
+import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
+    ignoreUser,
     leaveMatrixRoom,
-    selectDefaultMatrixRoomIds,
+    selectIsDefaultGroup,
+    selectIsMultispendFeatureEnabled,
     selectMatrixRoom,
     selectMatrixRoomMembersCount,
+    selectMatrixRoomMultispendStatus,
     selectMatrixRoomSelfPowerLevel,
+    selectMyMultispendRole,
     setMatrixRoomBroadcastOnly,
+    unignoreUser,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
+import { ConfirmBlockOverlay } from '../components/feature/chat/ConfirmBlockOverlay'
 import SettingsItem, {
     SettingsItemProps,
 } from '../components/feature/settings/SettingsItem'
@@ -31,6 +38,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const { show } = useToast()
     const toast = useToast()
     const { roomId } = route.params
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
@@ -38,15 +46,29 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         selectMatrixRoomMembersCount(s, roomId),
     )
     const myPowerLevel = useAppSelector(s =>
-        selectMatrixRoomSelfPowerLevel(s, room?.id || ''),
+        selectMatrixRoomSelfPowerLevel(s, roomId || ''),
     )
     const isAdmin = myPowerLevel >= MatrixPowerLevel.Admin
-    const isDefaultGroup = useAppSelector(s =>
-        selectDefaultMatrixRoomIds(s).includes(room?.id || ''),
+    const multispendStatus = useAppSelector(s =>
+        selectMatrixRoomMultispendStatus(s, roomId),
     )
+    const myMultispendRole = useAppSelector(s =>
+        selectMyMultispendRole(s, roomId),
+    )
+    const isMultispendEnabled = useAppSelector(selectIsMultispendFeatureEnabled)
+    const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, roomId))
     const isGroupChat = room?.directUserId === undefined
     const [isTogglingBroadcastOnly, setIsTogglingBroadcastOnly] =
         useState(false)
+
+    const [isConfirmingBlock, setIsConfirmingBlock] = useState(false)
+    const [isBlockingUser, setIsBlockingUser] = useState(false)
+
+    const [hasSeenMultispendIntro, seeMultispendIntro] = useNuxStep(
+        'hasSeenMultispendIntro',
+    )
+
+    const isIgnored = !!room?.isBlocked
 
     const leaveChat = useCallback(async () => {
         // Immediately navigate and replace navigation stack on leave
@@ -85,6 +107,40 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         navigation.navigate('EditGroup', { roomId })
     }, [navigation, roomId])
 
+    const blockUser = useCallback(async () => {
+        try {
+            if (!room?.directUserId) return
+            setIsBlockingUser(true)
+            await dispatch(ignoreUser({ userId: room.directUserId })).unwrap()
+            setIsBlockingUser(false)
+            setIsConfirmingBlock(false)
+            show({
+                content: t('feature.chat.block-user-success'),
+                status: 'success',
+            })
+        } catch (error) {
+            toast.error(t, t('feature.chat.block-user-failure'))
+        }
+    }, [dispatch, room?.directUserId, show, t, toast])
+
+    const unblockUser = useCallback(async () => {
+        try {
+            if (!room?.directUserId) return
+            setIsBlockingUser(true)
+
+            await dispatch(unignoreUser({ userId: room.directUserId })).unwrap()
+
+            setIsBlockingUser(false)
+            setIsConfirmingBlock(false)
+            show({
+                content: t('feature.chat.unblock-user-success'),
+                status: 'success',
+            })
+        } catch (error) {
+            toast.error(t, t('feature.chat.unblock-user-failure'))
+        }
+    }, [dispatch, room?.directUserId, show, t, toast])
+
     const handleViewMembers = useCallback(() => {
         navigation.navigate('ChatRoomMembers', { roomId })
     }, [navigation, roomId])
@@ -113,6 +169,29 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         setIsTogglingBroadcastOnly(false)
     }, [isDefaultGroup, isTogglingBroadcastOnly, room, dispatch, toast, t])
 
+    const handleNavigateToMultispend = useCallback(() => {
+        if (!multispendStatus && isAdmin) {
+            if (!hasSeenMultispendIntro) {
+                seeMultispendIntro()
+                navigation.navigate('MultispendIntro', {
+                    roomId,
+                })
+            } else {
+                navigation.navigate('CreateMultispend', { roomId })
+            }
+        } else if (myMultispendRole !== null) {
+            navigation.navigate('GroupMultispend', { roomId })
+        }
+    }, [
+        roomId,
+        navigation,
+        myMultispendRole,
+        isAdmin,
+        multispendStatus,
+        hasSeenMultispendIntro,
+        seeMultispendIntro,
+    ])
+
     const style = styles(theme)
     const settingsItems = useMemo(() => {
         const items: SettingsItemProps[] = []
@@ -129,6 +208,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                     onPress: handleViewMembers,
                 })
             }
+
             items.push(
                 {
                     icon: 'Room',
@@ -163,15 +243,46 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                     onPress: handleToggleBroadcastOnly,
                 },
             )
+
+            if (
+                isMultispendEnabled &&
+                isGroupChat &&
+                !room?.isPublic &&
+                !room?.broadcastOnly
+            ) {
+                items.push({
+                    icon: 'Wallet',
+                    label: t('words.multispend'),
+                    onPress: handleNavigateToMultispend,
+                    disabled:
+                        multispendStatus?.status === 'activeInvitation' ||
+                        multispendStatus?.status === 'finalized'
+                            ? myMultispendRole === null
+                            : !isAdmin,
+                })
+            }
         } else {
-            items.push({
-                icon: 'LeaveRoom',
-                label: t('feature.chat.leave-chat'),
-                onPress: handleLeaveChat,
-            })
+            items.push(
+                {
+                    icon: 'LeaveRoom',
+                    label: t('feature.chat.leave-chat'),
+                    onPress: handleLeaveChat,
+                },
+                {
+                    icon: 'BlockMember',
+                    label: isIgnored
+                        ? t('feature.chat.unblock-user')
+                        : t('feature.chat.block-user'),
+                    onPress: () => {
+                        setIsConfirmingBlock(true)
+                    },
+                    color: theme.colors.red,
+                },
+            )
         }
         return items
     }, [
+        handleNavigateToMultispend,
         handleChangeGroupName,
         handleInviteMember,
         handleLeaveChat,
@@ -183,28 +294,50 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         isTogglingBroadcastOnly,
         memberCount,
         room?.broadcastOnly,
+        room?.isPublic,
         style.switch,
         t,
+        theme.colors.red,
+        isIgnored,
+        multispendStatus,
+        isMultispendEnabled,
+        myMultispendRole,
     ])
 
     if (!room) return <HoloLoader />
 
     return (
-        <View style={style.container}>
-            <ChatSettingsAvatar room={room} />
-            <ScrollView bounces={false} contentContainerStyle={style.content}>
-                <View style={style.sectionContainer}>
-                    <Text color={theme.colors.primaryLight}>
-                        {t('feature.chat.chat-settings')}
-                    </Text>
-                    <View style={style.settingsItems}>
-                        {settingsItems.map((item, index) => (
-                            <SettingsItem key={`si-${index}`} {...item} />
-                        ))}
+        <>
+            <View style={style.container}>
+                <ChatSettingsAvatar room={room} />
+                <ScrollView
+                    bounces={false}
+                    contentContainerStyle={style.content}>
+                    <View style={style.sectionContainer}>
+                        <Text color={theme.colors.primaryLight}>
+                            {t('feature.chat.chat-settings')}
+                        </Text>
+                        <View style={style.settingsItems}>
+                            {settingsItems.map((item, index) => (
+                                <SettingsItem key={`si-${index}`} {...item} />
+                            ))}
+                        </View>
                     </View>
-                </View>
-            </ScrollView>
-        </View>
+                </ScrollView>
+            </View>
+            <ConfirmBlockOverlay
+                show={isConfirmingBlock}
+                isIgnored={isIgnored}
+                confirming={isBlockingUser}
+                onConfirm={isIgnored ? unblockUser : blockUser}
+                onDismiss={() => setIsConfirmingBlock(false)}
+                user={{
+                    id: room.directUserId ?? '',
+                    displayName: room?.preview?.displayName ?? '',
+                    avatarUrl: room?.preview?.avatarUrl ?? '',
+                }}
+            />
+        </>
     )
 }
 

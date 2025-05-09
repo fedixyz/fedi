@@ -25,7 +25,7 @@ import {
 import { FederationListItem, LoadedFederation } from '@fedi/common/types'
 import {
     getFederationTosUrl,
-    supportsSingleSeed,
+    shouldShowSocialRecovery,
 } from '@fedi/common/utils/FederationUtils'
 import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
@@ -136,7 +136,7 @@ function AdminPage() {
                     href: `/settings/backup/social`,
                     onClick: () =>
                         dispatch(setActiveFederationId(federation.id)),
-                    hidden: !supportsSingleSeed(federation),
+                    hidden: !shouldShowSocialRecovery(federation),
                 },
                 {
                     label: t('feature.federations.federation-terms'),

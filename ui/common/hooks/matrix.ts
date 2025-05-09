@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
     acceptMatrixPaymentRequest,
@@ -7,6 +7,7 @@ import {
     joinMatrixRoom,
     observeMatrixRoom,
     observeMatrixSyncStatus,
+    paginateMatrixRoomTimeline,
     rejectMatrixPaymentRequest,
     searchMatrixUsers,
     selectCanClaimPayment,
@@ -19,11 +20,16 @@ import {
     selectMatrixPushNotificationToken,
     selectMatrixRoom,
     selectMatrixRoomMember,
+    selectMatrixRoomPaginationStatus,
     selectMatrixUser,
     sendMatrixReadReceipt,
     unobserveMatrixRoom,
     unsubscribeMatrixSyncStatus,
     selectMatrixContactsList,
+    observeMultispendEvent,
+    unobserveMultispendEvent,
+    observeMultispendAccountInfo,
+    unobserveMultispendAccountInfo,
 } from '../redux'
 import {
     MatrixPaymentEvent,
@@ -136,19 +142,38 @@ export function useMatrixUserSearch() {
     }
 }
 
-export function useObserveMatrixRoom(
-    roomId: string | null | undefined,
-    paused = false,
-) {
+/*
+ * This hook activates several effects for observing chat activity
+ * 1) establishes 4 observers (pagination status, timeline, members list, power levels)
+ * 2) sends a read receipt for the latest event
+ * 3) fetches the most recent events & paginates to fetch earlier events
+ * 4) handles paginating when the user scrolls up to the earliest message
+ *
+ * the control flow is such that we don't call paginateTimeline until the pagination
+ * status has been observed and is defined
+ *
+ */
+export function useObserveMatrixRoom(roomId: MatrixRoom['id'], paused = false) {
+    const [hasPaginated, setHasPaginated] = useState(false)
     const dispatch = useCommonDispatch()
+    // latestEventId is used for sending read receipts
     const latestEventId = useCommonSelector(s =>
         roomId ? selectLatestMatrixRoomEventId(s, roomId) : undefined,
+    )
+    const paginationStatus = useCommonSelector(s =>
+        roomId ? selectMatrixRoomPaginationStatus(s, roomId) : undefined,
     )
     const room = useCommonSelector(s =>
         roomId ? selectMatrixRoom(s, roomId) : undefined,
     )
     const isReady = useCommonSelector(s => selectIsMatrixReady(s))
 
+    const isPaginating = useMemo(() => {
+        return paginationStatus === 'paginating'
+    }, [paginationStatus])
+
+    // observeMatrixRoom establishes all of the relevant observables
+    // when unmounting we unobserve the room, but only for groupchats
     useEffect(() => {
         if (!isReady || !roomId || paused) return
         dispatch(observeMatrixRoom({ roomId }))
@@ -167,6 +192,35 @@ export function useObserveMatrixRoom(
         if (!isReady || !roomId || paused || !latestEventId) return
         dispatch(sendMatrixReadReceipt({ roomId, eventId: latestEventId }))
     }, [isReady, roomId, paused, latestEventId, dispatch])
+
+    const handlePaginate = useCallback(async () => {
+        // don't paginate if we don't know the pagination status yet
+        if (!paginationStatus) return
+        // don't paginate if we're already paginating
+        if (isPaginating) return
+        // don't paginate if there is nothing else to paginate
+        if (paginationStatus === 'timelineStartReached') return
+        await dispatch(
+            paginateMatrixRoomTimeline({ roomId, limit: 15 }),
+        ).unwrap()
+    }, [paginationStatus, isPaginating, dispatch, roomId])
+
+    // this is the initial pagination fetch for most recent events which
+    // waits until the pagination status is observed and defined
+    // a hasPaginated flag is used to make sure this only runs once
+    // subsequent fetches trigger via handlePaginate by whatever component is using this hook
+    useEffect(() => {
+        if (!isReady || paused || hasPaginated || !paginationStatus) return
+        setHasPaginated(true)
+        handlePaginate()
+    }, [isReady, paused, handlePaginate, hasPaginated, paginationStatus])
+
+    return {
+        paginationStatus,
+        isPaginating,
+        handlePaginate,
+        showLoading: isPaginating,
+    }
 }
 
 type PaymentThunkAction = ReturnType<
@@ -174,6 +228,17 @@ type PaymentThunkAction = ReturnType<
     | typeof acceptMatrixPaymentRequest
     | typeof rejectMatrixPaymentRequest
 >
+
+// MUST be in the federation to use
+export function useObserveMultispendAccountInfo(roomId: MatrixRoom['id']) {
+    const dispatch = useCommonDispatch()
+    useEffect(() => {
+        dispatch(observeMultispendAccountInfo({ roomId }))
+        return () => {
+            dispatch(unobserveMultispendAccountInfo({ roomId }))
+        }
+    }, [dispatch, roomId])
+}
 
 /**
  * Given a MatrixPaymentEvent, returns all the information necessary for
@@ -445,6 +510,21 @@ export function useObserveMatrixSyncStatus(isMatrixStarted: boolean) {
             dispatch(unsubscribeMatrixSyncStatus())
         }
     }, [isMatrixStarted, dispatch])
+}
+
+export function useObserveMultispendEvent(
+    roomId: MatrixRoom['id'],
+    eventId: string,
+) {
+    const dispatch = useCommonDispatch()
+
+    useEffect(() => {
+        dispatch(observeMultispendEvent({ roomId, eventId }))
+
+        return () => {
+            dispatch(unobserveMultispendEvent({ roomId, eventId }))
+        }
+    }, [dispatch, roomId, eventId])
 }
 
 export function useMatrixUrlPreview({

@@ -20,7 +20,9 @@ declare module '@rneui/themed' {
             // Add new colors here
             moneyGreen: string
             green: string
+            green100: string
             orange: string
+            orange100: string
             lightOrange: string
             darkGrey: string
             grey: string
@@ -29,6 +31,7 @@ declare module '@rneui/themed' {
             ghost: string
             keyboardGrey: string
             red: string
+            red100: string
             white: string
             yellow: string
             offWhite: string
@@ -94,6 +97,7 @@ declare module '@rneui/themed' {
     export interface ButtonProps {
         fullWidth?: boolean
         day?: boolean
+        outline?: boolean
         night?: boolean
         bubble?: boolean
     }

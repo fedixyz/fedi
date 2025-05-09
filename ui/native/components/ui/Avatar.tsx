@@ -37,6 +37,7 @@ export type AvatarProps = {
     icon?: SvgImageName
     containerStyle?: StyleProp<ViewStyle>
     maxFontSizeMultiplier?: number
+    isBlocked?: boolean
 }
 
 const Avatar: React.FC<AvatarProps> = ({
@@ -47,6 +48,7 @@ const Avatar: React.FC<AvatarProps> = ({
     url,
     containerStyle,
     maxFontSizeMultiplier,
+    isBlocked,
 }: AvatarProps) => {
     const { theme } = useTheme()
     const [bgColor, textColor] = getIdentityColors(id)
@@ -71,7 +73,7 @@ const Avatar: React.FC<AvatarProps> = ({
             width: pxSize,
             borderRadius: pxSize * 0.5,
         },
-        { backgroundColor: bgColor },
+        { backgroundColor: isBlocked ? theme.colors.lightGrey : bgColor },
         containerStyle,
     ]
     const mergedTextStyle = [styles.text, { color: textColor }]
@@ -84,7 +86,9 @@ const Avatar: React.FC<AvatarProps> = ({
                 Then falls back to a provided icon.
                 then falls back to initials.
             */}
-            {!isFallback && url ? (
+            {isBlocked ? (
+                <></>
+            ) : !isFallback && url ? (
                 <Image
                     containerStyle={imageStyle}
                     resizeMode="cover"

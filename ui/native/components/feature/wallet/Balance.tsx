@@ -5,8 +5,6 @@ import { StyleSheet, View } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
 
-import SvgImage from '../../ui/SvgImage'
-
 const Balance: React.FC = () => {
     const { theme } = useTheme()
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance()
@@ -23,12 +21,6 @@ const Balance: React.FC = () => {
                     {`${formattedBalanceSats}`}
                 </Text>
             </View>
-            <SvgImage
-                name="ChevronRightSmall"
-                color={theme.colors.secondary}
-                dimensions={{ width: 10, height: 18 }}
-                svgProps={{ style: style.svgStyle }}
-            />
         </View>
     )
 }

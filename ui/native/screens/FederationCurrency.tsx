@@ -42,7 +42,7 @@ const FederationCurrency: React.FC<Props> = props => {
             <View style={style.content}>
                 <View style={style.currencyContainer}>
                     <Text caption style={style.label}>
-                        {t('phrases.community-default')}
+                        {t('phrases.federation-default')}
                     </Text>
                     <CurrencyItem
                         currency={defaultCurrency}

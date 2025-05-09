@@ -7,6 +7,7 @@ import {
     Insets,
     Keyboard,
     KeyboardEvent,
+    LayoutChangeEvent,
     NativeSyntheticEvent,
     Platform,
     Pressable,
@@ -39,6 +40,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
     selectChatDrafts,
+    selectIsDefaultGroup,
     selectMatrixRoom,
     selectMatrixRoomIsReadOnly,
     selectMessageToEdit,
@@ -69,6 +71,7 @@ type MessageInputProps = {
     id: string
     isSending?: boolean
     isPublic?: boolean
+    onHeightChanged?: (height: number) => void
 }
 
 const log = makeLog('MessageInput')
@@ -87,6 +90,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     id,
     isSending,
     isPublic = true,
+    onHeightChanged,
 }: MessageInputProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -97,6 +101,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const toast = useToast()
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
+    const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, id))
+
     const drafts = useAppSelector(s => selectChatDrafts(s))
     const [inputHeight, setInputHeight] = useState<number>(
         theme.sizes.minMessageInputHeight,
@@ -112,6 +118,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const editingMessage = useAppSelector(selectMessageToEdit)
 
     const isEditingMessage = !!editingMessage
+    const inputDisabled = isSending || isReadOnly
 
     useDebouncedEffect(
         () => {
@@ -399,14 +406,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
         isSendingMessage,
     ])
 
-    // Re-focus input after it had been disabled
-    const inputDisabled = isSending || isReadOnly
-    useEffect(() => {
-        if (!inputDisabled) {
-            inputRef.current?.focus()
-        }
-    }, [inputDisabled])
-
     const style = useMemo(() => styles(theme, insets), [theme, insets])
 
     const inputStyle = useMemo(() => {
@@ -440,8 +439,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
         [inputHeight, theme],
     )
 
+    const onLayout = (event: LayoutChangeEvent) => {
+        if (!onHeightChanged) return
+        onHeightChanged(event.nativeEvent.layout.height)
+    }
+
     return (
         <View
+            onLayout={onLayout}
             style={[
                 style.container,
                 keyboardHeight > 0 && Platform.OS === 'ios'
@@ -533,24 +538,24 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             <ChatWalletButton recipientId={directUserId} />
                         )}
                         {/**
-                         * - Polls and media are only available in non-public chats
+                         * - Polls are available in both public and private chat rooms that the user can post in
                          * - Polls are not available in user-to-user direct chats
-                         * - To prevent users from uploading unencrypted media, media uploads are not available in public chats
+                         * - Polls are not available in **default announcment** rooms
                          * */}
+                        {!isReadOnly && !directUserId && !isDefaultGroup && (
+                            <Pressable
+                                onPress={() => {
+                                    navigation.navigate('CreatePoll', {
+                                        roomId: id,
+                                    })
+                                }}
+                                hitSlop={10}>
+                                <SvgImage name="Poll" />
+                            </Pressable>
+                        )}
+                        {/* To prevent users from uploading unencrypted media, media uploads are not available in public chats */}
                         {!isPublic && !isReadOnly && (
                             <>
-                                {/* polls are not available for direct chats */}
-                                {!directUserId && (
-                                    <Pressable
-                                        onPress={() => {
-                                            navigation.navigate('CreatePoll', {
-                                                roomId: id,
-                                            })
-                                        }}
-                                        hitSlop={10}>
-                                        <SvgImage name="Poll" />
-                                    </Pressable>
-                                )}
                                 <Pressable
                                     onPress={handleUploadImage}
                                     hitSlop={10}>

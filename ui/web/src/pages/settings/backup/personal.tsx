@@ -42,7 +42,7 @@ function PersonalBackupPage() {
 
     const handleFinish = useCallback(() => {
         completePersonalBackup()
-        router.push('/')
+        router.push('/home')
     }, [completePersonalBackup, router])
 
     return (

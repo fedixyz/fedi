@@ -1,0 +1,39 @@
+[package]
+name = "rpc-types"
+version = "0.3.0"
+edition = "2021"
+
+[features]
+
+[dependencies]
+fedimint-core = { workspace = true }
+fedimint-mint-client = { workspace = true }
+fedimint-ln-client = { workspace = true }
+fedimint-wallet-client = { workspace = true }
+fedi-social-client = { workspace = true }
+stability-pool-client-old = { workspace = true }
+stability-pool-client = { workspace = true }
+
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bitcoin = { workspace = true }
+lightning-invoice = "0.32.0"
+tracing = { workspace = true }
+thiserror = "2.0.8"
+ts-rs = "10"
+url = "2.3.1"
+matrix-sdk-ui = { workspace = true, default-features = false }
+matrix-sdk = { workspace = true, default-features = false, features = [
+  "js",
+  "indexeddb",
+  "rustls-tls",
+  "e2e-encryption",
+] }
+runtime = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }
+
+[build-dependencies]
+fedimint-build = { workspace = true }

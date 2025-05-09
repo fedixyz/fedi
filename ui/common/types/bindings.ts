@@ -84,11 +84,13 @@ export type ErrorCode =
   | "timeout"
   | "recovery"
   | { invalidJson: string }
+  | { unsupportedCommunityVersion: number }
   | "payLnInvoiceAlreadyPaid"
   | "payLnInvoiceAlreadyInProgress"
   | "noLnGatewayAvailable"
   | { moduleNotFound: string }
-  | { federationPendingRejoinFromScratch: string };
+  | { federationPendingRejoinFromScratch: string }
+  | "invalidMsEvent";
 
 export type Event =
   | { transaction: TransactionEvent }
@@ -168,6 +170,13 @@ export type FiatFXInfo = {
   btcToFiatHundredths: number;
 };
 
+export type FinalizedGroup = {
+  invitation: GroupInvitation;
+  proposer: RpcUserId;
+  pubkeys: { [key in RpcUserId]?: RpcPublicKey };
+  federationId: RpcFederationId;
+};
+
 export type FrontendMetadata = {
   initialNotes: string | null;
   recipientMatrixId: string | null;
@@ -176,7 +185,7 @@ export type FrontendMetadata = {
 
 export type GroupInvitation = {
   signers: Array<RpcUserId>;
-  threshold: bigint;
+  threshold: number;
   federationInviteCode: string;
   federationName: string;
 };
@@ -186,8 +195,10 @@ export type GroupInvitation = {
  */
 export type GroupInvitationWithKeys = {
   invitation: GroupInvitation;
+  proposer: RpcUserId;
   pubkeys: { [key in RpcUserId]?: RpcPublicKey };
   rejections: Array<RpcUserId>;
+  federationId: RpcFederationId;
 };
 
 export type GuardianStatus =
@@ -203,7 +214,8 @@ export type LogEvent = { log: string };
 export type MsEventData =
   | { withdrawalRequest: WithdrawRequestWithApprovals }
   | { groupInvitation: GroupInvitationWithKeys }
-  | { depositNotification: MultispendDepositEventData };
+  | { depositNotification: MultispendDepositEventData }
+  | "invalidEvent";
 
 /**
  * Deposit notification saved to db.
@@ -212,6 +224,7 @@ export type MultispendDepositEventData = {
   user: RpcUserId;
   fiatAmount: RpcFiatAmount;
   txid: RpcTransactionId;
+  description: string;
 };
 
 /**
@@ -228,18 +241,42 @@ export type MultispendEvent =
       invitation: RpcEventId;
       vote: MultispendGroupVoteType;
     }
-  | { kind: "groupInvitationCancel" }
+  | { kind: "groupInvitationCancel"; invitation: RpcEventId }
+  | {
+      kind: "groupReannounce";
+      invitationId: RpcEventId;
+      invitation: GroupInvitation;
+      proposer: RpcUserId;
+      pubkeys: { [key in RpcUserId]?: RpcPublicKey };
+      rejections: Array<RpcUserId>;
+    }
   | {
       kind: "depositNotification";
       fiatAmount: RpcFiatAmount;
       txid: RpcTransactionId;
+      description: string;
     }
-  | { kind: "withdrawalRequest"; request: JSONObject; description: string }
+  | {
+      kind: "withdrawalRequest";
+      request: { transfer_amount: RpcFiatAmount };
+      description: string;
+    }
   | {
       kind: "withdrawalResponse";
       request: RpcEventId;
       response: WithdrawalResponseType;
     };
+
+/**
+ * Represents the current status of a multispend group in a room
+ */
+export type MultispendGroupStatus =
+  | {
+      status: "finalized";
+      invite_event_id: RpcEventId;
+      finalized_group: FinalizedGroup;
+    }
+  | { status: "activeInvitation"; active_invite_id: RpcEventId };
 
 export type MultispendGroupVoteType =
   | { kind: "accept"; memberPubkey: RpcPublicKey }
@@ -249,7 +286,10 @@ export type MultispendListedEvent = {
   counter: number;
   time: number;
   event: MsEventData;
+  eventId: RpcEventId;
 };
+
+export type NetworkError = Record<string, never>;
 
 /**
  * Notify front-end that given federation has failed the e-cash blind nonce
@@ -367,7 +407,6 @@ export type RpcBridgeStatus = {
 export type RpcCommunity = {
   inviteCode: string;
   name: string;
-  version: number;
   meta: { [key in string]?: string };
 };
 
@@ -406,7 +445,6 @@ export type RpcFederation = {
   meta: { [key in string]?: string };
   recovering: boolean;
   nodes: Record<string, { url: string; name: string }>;
-  version: number;
   clientConfig: RpcJsonClientConfig | null;
   fediFeeSchedule: RpcFediFeeSchedule;
   hadReusedEcash: boolean;
@@ -553,8 +591,10 @@ export type RpcMethods = {
   generateInvoice: [generateInvoice, string];
   decodeInvoice: [decodeInvoice, RpcInvoice];
   payInvoice: [payInvoice, RpcPayInvoiceResponse];
+  getPrevPayInvoiceResult: [getPrevPayInvoiceResult, RpcPrevPayInvoiceResult];
   listGateways: [listGateways, Array<RpcLightningGateway>];
   switchGateway: [switchGateway, null];
+  supportsSafeOnchainDeposit: [supportsSafeOnchainDeposit, boolean];
   generateAddress: [generateAddress, string];
   recheckPeginAddress: [recheckPeginAddress, null];
   previewPayAddress: [previewPayAddress, RpcFeeDetails];
@@ -589,6 +629,8 @@ export type RpcMethods = {
   getNostrPubkey: [getNostrPubkey, RpcNostrPubkey];
   getNostrSecret: [getNostrSecret, RpcNostrSecret];
   signNostrEvent: [signNostrEvent, string];
+  nostrEncrypt: [nostrEncrypt, string];
+  nostrDecrypt: [nostrDecrypt, string];
   stabilityPoolAccountInfo: [
     stabilityPoolAccountInfo,
     RpcStabilityPoolAccountInfo,
@@ -600,6 +642,10 @@ export type RpcMethods = {
   stabilityPoolAverageFeeRate: [stabilityPoolAverageFeeRate, bigint];
   stabilityPoolAvailableLiquidity: [stabilityPoolAvailableLiquidity, RpcAmount];
   spv2AccountInfo: [spv2AccountInfo, RpcSPv2CachedSyncResponse];
+  spv2ObserveAccountInfo: [
+    spv2ObserveAccountInfo,
+    Observable<RpcSPv2CachedSyncResponse>,
+  ];
   spv2NextCycleStartTime: [spv2NextCycleStartTime, bigint];
   spv2DepositToSeek: [spv2DepositToSeek, RpcOperationId];
   spv2Withdraw: [spv2Withdraw, RpcOperationId];
@@ -701,6 +747,52 @@ export type RpcMethods = {
   matrixEndPoll: [matrixEndPoll, null];
   matrixRespondToPoll: [matrixRespondToPoll, null];
   matrixGetMediaPreview: [matrixGetMediaPreview, RpcMediaPreviewResponse];
+  matrixObserveMultispendGroup: [
+    matrixObserveMultispendGroup,
+    Observable<RpcMultispendGroupStatus>,
+  ];
+  matrixMultispendAccountInfo: [
+    matrixMultispendAccountInfo,
+    Observable<{ Ok: RpcSPv2SyncResponse } | { Err: NetworkError }>,
+  ];
+  matrixMultispendListEvents: [
+    matrixMultispendListEvents,
+    Array<MultispendListedEvent>,
+  ];
+  matrixSendMultispendGroupInvitation: [
+    matrixSendMultispendGroupInvitation,
+    null,
+  ];
+  matrixApproveMultispendGroupInvitation: [
+    matrixApproveMultispendGroupInvitation,
+    null,
+  ];
+  matrixRejectMultispendGroupInvitation: [
+    matrixRejectMultispendGroupInvitation,
+    null,
+  ];
+  matrixCancelMultispendGroupInvitation: [
+    matrixCancelMultispendGroupInvitation,
+    null,
+  ];
+  matrixMultispendEventData: [matrixMultispendEventData, MsEventData | null];
+  matrixObserveMultispendEventData: [
+    matrixObserveMultispendEventData,
+    Observable<MsEventData>,
+  ];
+  matrixSendMultispendWithdrawalRequest: [
+    matrixSendMultispendWithdrawalRequest,
+    null,
+  ];
+  matrixSendMultispendWithdrawalApprove: [
+    matrixSendMultispendWithdrawalApprove,
+    null,
+  ];
+  matrixSendMultispendWithdrawalReject: [
+    matrixSendMultispendWithdrawalReject,
+    null,
+  ];
+  matrixMultispendDeposit: [matrixMultispendDeposit, null];
   communityPreview: [communityPreview, RpcCommunity];
   joinCommunity: [joinCommunity, RpcCommunity];
   leaveCommunity: [leaveCommunity, null];
@@ -710,6 +802,19 @@ export type RpcMethods = {
 };
 
 export type RpcModuleFediFeeSchedule = { sendPpm: number; receivePpm: number };
+
+export type RpcMultispendGroupStatus =
+  | { status: "inactive" }
+  | {
+      status: "activeInvitation";
+      active_invite_id: RpcEventId;
+      state: GroupInvitationWithKeys;
+    }
+  | {
+      status: "finalized";
+      invite_event_id: RpcEventId;
+      finalized_group: FinalizedGroup;
+    };
 
 export type RpcNostrPubkey = { hex: string; npub: string };
 
@@ -780,6 +885,8 @@ export type RpcPollResult = {
 };
 
 export type RpcPollResultAnswer = { id: string; text: string };
+
+export type RpcPrevPayInvoiceResult = { completed: boolean };
 
 export type RpcPublicKey = string;
 
@@ -1269,11 +1376,12 @@ export type UserProfile = JSONObject;
  * Withdrawal request with extra data accumulated over events.
  */
 export type WithdrawRequestWithApprovals = {
-  request: JSONObject;
+  request: { transfer_amount: RpcFiatAmount };
   description: string;
   signatures: { [key in RpcUserId]?: RpcSignature };
   rejections: Array<RpcUserId>;
   completed: RpcTransactionId | null;
+  sender: RpcUserId;
 };
 
 export type WithdrawalResponseType =
@@ -1363,6 +1471,11 @@ export type getNostrPubkey = {};
 
 export type getNostrSecret = {};
 
+export type getPrevPayInvoiceResult = {
+  federationId: RpcFederationId;
+  invoice: string;
+};
+
 export type getSensitiveLog = {};
 
 export type getTransaction = {
@@ -1397,6 +1510,13 @@ export type listTransactions = {
 
 export type locateRecoveryFile = {};
 
+export type matrixApproveMultispendGroupInvitation = {
+  roomId: RpcRoomId;
+  invitation: RpcEventId;
+};
+
+export type matrixCancelMultispendGroupInvitation = { roomId: RpcRoomId };
+
 export type matrixDeleteMessage = {
   roomId: RpcRoomId;
   eventId: RpcTimelineEventItemId;
@@ -1423,11 +1543,50 @@ export type matrixInit = {};
 
 export type matrixListIgnoredUsers = {};
 
+export type matrixMultispendAccountInfo = {
+  roomId: RpcRoomId;
+  observableId: number;
+};
+
+export type matrixMultispendDeposit = {
+  roomId: RpcRoomId;
+  amount: RpcFiatAmount;
+  description: string;
+  frontendMeta: FrontendMetadata;
+};
+
+export type matrixMultispendEventData = {
+  roomId: RpcRoomId;
+  eventId: RpcEventId;
+};
+
+export type matrixMultispendListEvents = {
+  roomId: RpcRoomId;
+  startAfter: number | null;
+  limit: number;
+};
+
 export type matrixObservableCancel = { observableId: number };
+
+export type matrixObserveMultispendEventData = {
+  observableId: number;
+  roomId: RpcRoomId;
+  eventId: RpcEventId;
+};
+
+export type matrixObserveMultispendGroup = {
+  observableId: number;
+  roomId: RpcRoomId;
+};
 
 export type matrixObserveSyncIndicator = { observableId: number };
 
 export type matrixPublicRoomInfo = { roomId: string };
+
+export type matrixRejectMultispendGroupInvitation = {
+  roomId: RpcRoomId;
+  invitation: RpcEventId;
+};
 
 export type matrixRespondToPoll = {
   roomId: RpcRoomId;
@@ -1526,6 +1685,30 @@ export type matrixSendMessageJson = {
   data: CustomMessageData;
 };
 
+export type matrixSendMultispendGroupInvitation = {
+  roomId: RpcRoomId;
+  signers: Array<RpcUserId>;
+  threshold: number;
+  federationId: RpcFederationId;
+  federationName: string;
+};
+
+export type matrixSendMultispendWithdrawalApprove = {
+  roomId: RpcRoomId;
+  withdrawRequestId: RpcEventId;
+};
+
+export type matrixSendMultispendWithdrawalReject = {
+  roomId: RpcRoomId;
+  withdrawRequestId: RpcEventId;
+};
+
+export type matrixSendMultispendWithdrawalRequest = {
+  roomId: RpcRoomId;
+  amount: RpcFiatAmount;
+  description: string;
+};
+
 export type matrixSetAvatarUrl = { avatarUrl: string };
 
 export type matrixSetDisplayName = { displayName: string };
@@ -1547,6 +1730,10 @@ export type matrixUploadMedia = { path: string; mimeType: string };
 export type matrixUserDirectorySearch = { searchTerm: string; limit: number };
 
 export type matrixUserProfile = { userId: RpcUserId };
+
+export type nostrDecrypt = { pubkey: string; ciphertext: string };
+
+export type nostrEncrypt = { pubkey: string; plaintext: string };
 
 export type onAppForeground = {};
 
@@ -1647,6 +1834,11 @@ export type spv2DepositToSeek = {
 
 export type spv2NextCycleStartTime = { federationId: RpcFederationId };
 
+export type spv2ObserveAccountInfo = {
+  federationId: RpcFederationId;
+  observableId: number;
+};
+
 export type spv2Withdraw = {
   federationId: RpcFederationId;
   fiatAmount: number;
@@ -1684,6 +1876,8 @@ export type stabilityPoolWithdraw = {
   unlockedAmount: RpcAmount;
   lockedBps: number;
 };
+
+export type supportsSafeOnchainDeposit = { federationId: RpcFederationId };
 
 export type switchGateway = {
   federationId: RpcFederationId;

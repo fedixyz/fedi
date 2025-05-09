@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import type { Theme } from '@rneui/themed'
-import { useTheme } from '@rneui/themed'
+import { useTheme, Text } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -8,7 +8,6 @@ import {
     Linking,
     Pressable,
     StyleSheet,
-    Text,
     View,
     useWindowDimensions,
 } from 'react-native'
@@ -130,6 +129,12 @@ const ShortcutsList: React.FC = () => {
 
     return (
         <View style={style.container}>
+            <Text style={style.sectionTitle}>
+                {t('feature.home.federation-mods-title')}
+            </Text>
+            <Text style={style.servicesSelected}>
+                {t('feature.home.federation-services-selected')}
+            </Text>
             <View style={style.listContainer}>
                 {renderFediModShortcuts()}
                 {renderBuffers()}
@@ -158,6 +163,21 @@ const styles = (theme: Theme, columns: number) =>
             // This is smaller than the designs because
             // the tiles already have some padding
             rowGap: theme.spacing.md,
+        },
+        sectionTitle: {
+            color: theme.colors.night,
+            letterSpacing: -0.16,
+            fontSize: 20,
+            marginBottom: 4,
+        },
+        servicesSelected: {
+            fontFamily: 'Albert Sans',
+            fontWeight: '400',
+            fontSize: 14,
+            lineHeight: 18,
+            color: theme.colors.darkGrey,
+            letterSpacing: -0.14,
+            marginBottom: 12,
         },
         tooltipAction: {
             flexDirection: 'row',

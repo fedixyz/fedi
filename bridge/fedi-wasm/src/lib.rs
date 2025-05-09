@@ -5,15 +5,15 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 use anyhow::{bail, Context};
-use fediffi::api::LiveFediApi;
-use fediffi::bridge::Bridge;
-use fediffi::error::ErrorCode;
-use fediffi::event::IEventSink;
-use fediffi::features::{FeatureCatalog, RuntimeEnvironment};
+use bridge::Bridge;
 use fediffi::rpc::rpc_error_json;
-use fediffi::types::{RpcAppFlavor, RpcInitOpts};
 use futures::FutureExt;
 use js_sys::Uint8Array;
+use rpc_types::error::ErrorCode;
+use rpc_types::{RpcAppFlavor, RpcInitOpts};
+use runtime::api::LiveFediApi;
+use runtime::event::IEventSink;
+use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use storage::WasmStorage;
 use tracing::{error, warn};
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -39,7 +39,7 @@ impl IEventSink for EventSink {
 }
 
 thread_local! {
-    static BRIDGE: RefCell<Option<Arc<Bridge>>> = RefCell::new(None);
+    static BRIDGE: RefCell<Option<Arc<Bridge>>> = const { RefCell::new(None) };
 }
 
 #[wasm_bindgen]

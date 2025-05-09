@@ -68,10 +68,14 @@ export function initializeNativeStore() {
 
     // Whenever the app changes its network state, update the store
     const networkSubscription = NetInfo.addEventListener(
-        debounce(state => {
-            log.debug('Network status changed (debounced)', state)
-            store.dispatch(setNetworkInfo(state))
-        }, 1350),
+        debounce(
+            state => {
+                log.debug('Network status changed (debounced)', state)
+                store.dispatch(setNetworkInfo(state))
+            },
+            100,
+            { leading: true, trailing: true },
+        ),
     )
 
     return () => {

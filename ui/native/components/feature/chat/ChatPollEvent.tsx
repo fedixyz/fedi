@@ -4,7 +4,11 @@ import { Dispatch, SetStateAction, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
-import { selectMatrixAuth, setSelectedChatMessage } from '@fedi/common/redux'
+import {
+    selectMatrixAuth,
+    selectMatrixRoomIsReadOnly,
+    setSelectedChatMessage,
+} from '@fedi/common/redux'
 import { RpcPollResultAnswer } from '@fedi/common/types/bindings'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 
@@ -27,6 +31,9 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
     const dispatch = useAppDispatch()
     const navigation = useNavigation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
+    const isReadOnly = useAppSelector(s =>
+        selectMatrixRoomIsReadOnly(s, event.roomId),
+    )
 
     const myId = useMemo(() => matrixAuth?.userId ?? '', [matrixAuth])
     const isMe = useMemo(() => event.senderId === myId, [event.senderId, myId])
@@ -111,8 +118,8 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                             event={event}
                             selections={selections}
                             setSelections={setSelections}
-                            hasVoted={hasVoted}
                             myId={myId}
+                            hasVoted={hasVoted}
                         />
                         {!hasVoted && (
                             <Button
@@ -133,7 +140,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                                         {t('words.vote')}
                                     </Text>
                                 }
-                                disabled={selections.length === 0}
+                                disabled={selections.length === 0 || isReadOnly}
                                 onPress={handleRespondToPoll}
                             />
                         )}
@@ -221,6 +228,9 @@ const PollAnswers: React.FC<{
 }> = ({ event, selections, setSelections, hasVoted, myId }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const isReadOnly = useAppSelector(s =>
+        selectMatrixRoomIsReadOnly(s, event.roomId),
+    )
     const style = styles(theme)
 
     const isMe = event.senderId === myId
@@ -229,6 +239,8 @@ const PollAnswers: React.FC<{
 
     const handleSelectOption = useCallback(
         (answer: RpcPollResultAnswer) => {
+            if (isReadOnly) return
+
             setSelections(prev => {
                 if (event.content.maxSelections === 1) {
                     return [answer]
@@ -243,16 +255,18 @@ const PollAnswers: React.FC<{
                 return [...prev, answer]
             })
         },
-        [event.content.maxSelections, setSelections],
+        [event.content.maxSelections, setSelections, isReadOnly],
     )
 
     return (
         <View style={style.answers}>
             {!hasVoted && (
                 <Text tiny style={textStyle}>
-                    {event.content.maxSelections === 1
-                        ? t('feature.chat.choose-one-option')
-                        : t('feature.chat.multiple-choice')}
+                    {isReadOnly
+                        ? t('feature.chat.only-admins-can-vote')
+                        : event.content.maxSelections === 1
+                          ? t('feature.chat.choose-one-option')
+                          : t('feature.chat.multiple-choice')}
                 </Text>
             )}
             {event.content.answers.map(answer => (
@@ -263,12 +277,13 @@ const PollAnswers: React.FC<{
                             ? event.content.votes[answer.id].includes(myId)
                             : selections.some(s => s.id === answer.id)
                     }
-                    disabled={hasVoted}
+                    disabled={isReadOnly || hasVoted}
                     title={
                         <Text style={textStyle} small>
                             {answer.text}
                         </Text>
                     }
+                    disabledStyle={{ opacity: 0.5 }}
                     onPress={() => handleSelectOption(answer)}
                     checkedIcon={
                         <SvgImage

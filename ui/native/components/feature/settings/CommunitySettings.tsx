@@ -13,7 +13,7 @@ import { LoadedFederation } from '@fedi/common/types'
 import {
     getFederationTosUrl,
     shouldShowInviteCode,
-    supportsSingleSeed,
+    shouldShowSocialRecovery,
 } from '@fedi/common/utils/FederationUtils'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -125,7 +125,7 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
                             }}
                         />
                     )}
-                    {supportsSingleSeed(community) && (
+                    {shouldShowSocialRecovery(community) && (
                         <SettingsItem
                             icon="SocialPeople"
                             label={t('feature.backup.social-backup')}

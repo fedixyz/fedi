@@ -1,0 +1,29 @@
+[package]
+name = "bridge"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+fedimint-core = { workspace = true }
+fedimint-mint-client = { workspace = true }
+fedimint-api-client = { workspace = true }
+fedi-social-client = { workspace = true }
+bug-report = { workspace = true }
+fedimint-derive-secret = { workspace = true }
+
+anyhow = { workspace = true }
+bip39 = { version = "2.0.0", features = ["rand"] }
+serde = { workspace = true }
+bech32 = { workspace = true }
+bitcoin = { workspace = true }
+futures = "0.3"
+tracing = { workspace = true }
+hex = { workspace = true }
+nostr = { workspace = true }
+ts-rs = "10"
+tokio = { workspace = true, features = ["time", "macros"] }
+bridge-inner = { workspace = true }
+communities = { workspace = true }
+runtime = { workspace = true }
+rpc-types = { workspace = true }
+device-registration = { workspace = true }

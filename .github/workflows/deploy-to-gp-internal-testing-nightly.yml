@@ -7,7 +7,7 @@ jobs:
     release-android:
         name: Build Android AAB & Upload to Google Play Dev Console
         timeout-minutes: 90
-        runs-on: [self-hosted, linux]
+        runs-on: [self-hosted, linux, legacy]
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4

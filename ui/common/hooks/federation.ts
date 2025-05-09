@@ -102,8 +102,6 @@ export function useIsOnchainDepositSupported() {
     )
     if (!activeFederation) return false
 
-    if (activeFederation.version < 1) return false
-
     return (
         userEnabledOnchainDeposits ||
         shouldEnableOnchainDeposits(activeFederation.meta)

@@ -10,6 +10,7 @@ import SvgImage, { SvgImageSize } from './SvgImage'
 type NotesInputProps = {
     notes: string
     setNotes: (notes: string) => void
+    label?: string
     onSave?: () => void
 }
 
@@ -17,6 +18,7 @@ export default function NotesInput({
     notes,
     setNotes,
     onSave,
+    label,
 }: NotesInputProps) {
     const { theme } = useTheme()
 
@@ -35,7 +37,7 @@ export default function NotesInput({
                 <View style={style.content}>
                     <View style={style.titleRow}>
                         <Text small bold color={theme.colors.night}>
-                            {t('words.notes')}
+                            {label ?? t('words.notes')}
                         </Text>
                         <View style={style.rightContainer}>
                             <SvgImage name="EditPaper" size={SvgImageSize.sm} />

@@ -9,7 +9,7 @@ const callbacks = new Map()
 
 async function workerRequest<ResponseData, RequestData = unknown>(
     method: string,
-    data: RequestData,
+    data?: RequestData,
 ): Promise<ResponseData> {
     // Instant throw if bridge is not initialized
     // TODO: Just await promise until it is?
@@ -138,6 +138,28 @@ export async function writeBridgeFile(path: string, data: Uint8Array) {
         }
         throw new Error(errMsg)
     }
+}
+
+export async function getBridgeLogs() {
+    const response = workerRequest<Blob>('getLogs')
+
+    if (typeof response === 'string') {
+        let errMsg: string
+        try {
+            const parsed = JSON.parse(response)
+            errMsg = parsed.error
+        } catch (err) {
+            log.error(
+                'Failed to parse response from getLogs as JSON',
+                response,
+                err,
+            )
+            throw err
+        }
+        throw new Error(errMsg)
+    }
+
+    return response
 }
 
 // Expose bridge API to window for testing in development

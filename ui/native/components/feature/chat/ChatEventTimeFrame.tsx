@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
 import { MatrixEvent, MatrixRoomMember } from '@fedi/common/types'
+import { isMultispendEvent } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
 import SvgImage from '../../ui/SvgImage'
@@ -42,7 +43,8 @@ const ChatEventTimeFrame = memo(
         const sentBy = events[0].senderId || ''
 
         const roomMember = roomMembers.find(m => m.id === sentBy)
-        const isMe = sentBy === matrixAuth?.userId
+        const isMe =
+            sentBy === matrixAuth?.userId && !isMultispendEvent(events[0])
         const hasLeft = roomMember?.membership === 'leave'
         const isBanned = roomMember?.membership === 'ban'
         const isAdmin = roomMember?.powerLevel === 100

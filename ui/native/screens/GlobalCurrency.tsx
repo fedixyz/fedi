@@ -55,7 +55,7 @@ const GlobalCurrency: React.FC<Props> = () => {
                                     fontWeight: isSelected ? 'bold' : 'normal',
                                 },
                             ]}>
-                            {t('phrases.community-default')}
+                            {t('phrases.federation-default')}
                         </Text>
                         {isSelected && <SvgImage name="Check" />}
                     </Pressable>

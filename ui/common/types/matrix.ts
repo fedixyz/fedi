@@ -1,9 +1,15 @@
-import type { MatrixEventContent } from '../utils/matrix'
+import type {
+    MatrixEventContent,
+    MultispendEventContentType,
+} from '../utils/matrix'
 import type {
     JSONObject,
+    MultispendEvent,
     ObservableVecUpdate,
     RpcMatrixMembership,
+    RpcMultispendGroupStatus,
 } from './bindings'
+import { MultispendTransactionListEntry } from './fedimint'
 
 export { MatrixEventContent }
 
@@ -48,7 +54,7 @@ export type MatrixGroupPreview = {
     isDefaultGroup?: boolean
 }
 
-export interface MatrixRoom {
+export type MatrixRoom = {
     id: string
     name: string
     avatarUrl?: string
@@ -60,6 +66,7 @@ export interface MatrixRoom {
     joinedMemberCount?: number
     isPreview?: boolean
     isPublic?: boolean
+    isBlocked?: boolean
     inviteCode: string
     roomState: MatrixRoomState
 }
@@ -88,6 +95,7 @@ export interface MatrixRoomMember extends MatrixUser {
     roomId: MatrixRoom['id']
     powerLevel: number
     membership: RpcMatrixMembership
+    ignored: boolean
 }
 
 export enum MatrixEventStatus {
@@ -123,6 +131,8 @@ export enum MatrixPowerLevel {
     Moderator = 50,
     Admin = 100,
 }
+
+export type MultispendRole = 'member' | 'voter' | 'proposer'
 
 export interface MatrixSearchResults {
     results: MatrixUser[]
@@ -195,3 +205,42 @@ export type InputMedia = InputAttachment & {
     width: number
     height: number
 }
+
+export type MultispendActiveInvitation = Extract<
+    RpcMultispendGroupStatus,
+    { status: 'activeInvitation' }
+>
+
+export type MultispendFinalized = Extract<
+    RpcMultispendGroupStatus,
+    { status: 'finalized' }
+>
+
+export type MultispendWithdrawalEvent = Extract<
+    MultispendTransactionListEntry,
+    { state: 'withdrawal' }
+>
+
+export type MultispendDepositEvent = Extract<
+    MultispendTransactionListEntry,
+    { state: 'deposit' }
+>
+
+export type MultispendFilterOption = 'all' | 'pending' | 'approved' | 'rejected'
+
+// Extracts only the invitation events from the transaction list
+export type MultispendListedInvitationEvent =
+    MultispendTransactionListEntry extends infer T
+        ? T extends { state: 'groupInvitation' }
+            ? T
+            : never
+        : never
+
+export type MultispendEventKind = MultispendEvent['kind']
+
+export type MultispendInvitationEvent = MatrixEvent<
+    MultispendEventContentType<'groupInvitation'>
+>
+export type MultispendInvitationVoteEvent = MatrixEvent<
+    MultispendEventContentType<'groupInvitationVote'>
+>

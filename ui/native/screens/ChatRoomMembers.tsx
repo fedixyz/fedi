@@ -42,16 +42,20 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
         requestAnimationFrame(() => setSelectedUserId(userId))
     }, [])
 
-    const handleRefresh = useCallback(() => {
-        setIsRefetching(true)
+    const backgroundRefresh = useCallback(() => {
         roomId &&
             dispatch(refetchMatrixRoomMembers(roomId)).catch(() => {
                 // no-op
             })
-
-        setTimeout(() => setIsRefetching(false), 500)
-        // Dismissing any sooner looks weird
     }, [dispatch, roomId])
+
+    const handleRefresh = useCallback(() => {
+        setIsRefetching(true)
+        backgroundRefresh()
+
+        // Dismissing any sooner looks weird
+        setTimeout(() => setIsRefetching(false), 500)
+    }, [backgroundRefresh])
 
     const handleInviteMember = useCallback(() => {
         if (me?.powerLevel === MatrixPowerLevel.Member) return
@@ -75,13 +79,19 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                 overrideAvatarName={isMe ? item.displayName : undefined}
                 showAdmin={member.powerLevel >= MatrixPowerLevel.Admin}
                 rightIcon={
-                    <Text small color={theme.colors.grey}>
-                        {member.powerLevel >= MatrixPowerLevel.Admin
-                            ? t('words.admin')
-                            : member.powerLevel >= MatrixPowerLevel.Moderator
-                              ? t('words.moderator')
-                              : t('words.member')}
-                    </Text>
+                    <>
+                        <Text small color={theme.colors.grey}>
+                            {member.powerLevel >= MatrixPowerLevel.Admin
+                                ? t('words.admin')
+                                : member.powerLevel >=
+                                    MatrixPowerLevel.Moderator
+                                  ? t('words.moderator')
+                                  : t('words.member')}
+                        </Text>
+                        <Text small color={theme.colors.grey}>
+                            {member.ignored ? `(${t('words.blocked')})` : ''}
+                        </Text>
+                    </>
                 }
                 showSuffix={!isMe}
             />
@@ -111,7 +121,10 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                 showsVerticalScrollIndicator={false}
             />
             <ChatUserActionsOverlay
-                onDismiss={() => setSelectedUserId(null)}
+                onDismiss={() => {
+                    backgroundRefresh()
+                    setSelectedUserId(null)
+                }}
                 selectedUserId={selectedUserId}
                 roomId={roomId}
             />

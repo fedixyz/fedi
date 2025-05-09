@@ -13,4 +13,4 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 $REPO_ROOT/scripts/enforce-nix.sh
 
 BRIDGE_DATADIR="$CARGO_BUILD_TARGET_DIR/datadir"
-cargo run --package fedi-rpc-server -- "$BRIDGE_DATADIR"
+cargo run --package remote-server -- "$BRIDGE_DATADIR"

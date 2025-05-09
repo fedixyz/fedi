@@ -27,7 +27,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 23,
+        version: 24,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -595,6 +595,20 @@ async function migrateStoredState(
             ...migrationState,
             version: 23,
             customFederationCurrencies: {},
+        }
+    }
+
+    if (migrationState.version === 23) {
+        migrationState = {
+            ...migrationState,
+            version: 24,
+            nuxSteps: {
+                ...migrationState.nuxSteps,
+                displayNameModal: true,
+                communityModal: true,
+                chatModal: true,
+                modsModal: true,
+            },
         }
     }
 

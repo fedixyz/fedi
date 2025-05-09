@@ -13,7 +13,7 @@ const JoinFederationHeader: React.FC = () => {
             // onBackButtonPress={}
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
-                    {t('feature.federations.join-federation')}
+                    {t('phrases.welcome')}
                 </Text>
             }
         />

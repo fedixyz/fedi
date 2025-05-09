@@ -66,7 +66,7 @@ const styles = (theme: Theme) =>
         },
         overlayContainer: {
             maxWidth: width - width * 0.1,
-            minWidth: Platform.OS == 'android' ? '79%' : width - width * 0.12,
+            minWidth: Platform.OS === 'android' ? '79%' : width - width * 0.12,
             padding: theme.spacing.xl,
             borderRadius: theme.borders.defaultRadius,
             alignItems: 'center',

@@ -28,7 +28,7 @@ const TransactionsPage: React.FC = () => {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back="/">
+                <Layout.Header back="/home">
                     <Layout.Title subheader>
                         {t('words.transactions')}
                     </Layout.Title>

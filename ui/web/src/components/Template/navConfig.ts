@@ -68,6 +68,8 @@ export function useNavVisibility() {
     const popupInfo = usePopupFederationInfo()
     const router = useRouter()
 
+    const isWelcomePage = router.pathname === '/'
+
     const isPopupOver = !!popupInfo && popupInfo.secondsLeft <= 0
 
     const matched = navRoutes
@@ -79,13 +81,12 @@ export function useNavVisibility() {
             return 0
         })
         .find(route => {
+            if (isWelcomePage) return true
+
             if ('path' in route) {
-                return router.asPath !== '/' && router.asPath === route.path
+                return router.pathname === route.path
             } else {
-                return (
-                    router.asPath !== '/' &&
-                    router.asPath.startsWith(route.prefix)
-                )
+                return router.pathname.startsWith(route.prefix)
             }
         })
 
@@ -104,7 +105,10 @@ export function useNavVisibility() {
             break
     }
 
-    return { hideNavigation: !shouldShowNavigation || isPopupOver, isPopupOver }
+    return {
+        hideNavigation: !shouldShowNavigation || isWelcomePage || isPopupOver,
+        isPopupOver,
+    }
 }
 
 interface PrefixRoute {

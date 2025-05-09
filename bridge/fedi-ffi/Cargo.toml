@@ -13,26 +13,19 @@ name = "fediffi"
 empty-line-after-doc-comments = "allow"
 
 [dependencies]
-fedi-api-types = { workspace = true }
-fedi-core = { workspace = true }
+env = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }
-fedimint-tbs = { workspace = true }
 fedimint-mint-client = { workspace = true }
-fedimint-ln-client = { workspace = true }
-fedimint-api-client = { workspace = true }
 fedimint-ln-common = { workspace = true }
 fedimint-wallet-client = { workspace = true }
-fedimint-meta-client = { workspace = true }
 fedi-social-client = { workspace = true }
-stability-pool-client-old = { path = "../../modules/stability-pool-old/client" }
-stability-pool-client = { path = "../../modules/stability-pool/client" }
-fedi-bug-report = { path = "../../fedi-bug-report" }
+stability-pool-client-old = { workspace = true }
+stability-pool-client = { workspace = true }
+bug-report = { workspace = true }
 fedimint-derive-secret = { workspace = true }
 fedimint-logging = { workspace = true }
 fedimint-bip39 = { workspace = true }
-fedimint_threshold_crypto = { workspace = true }
-fedimint-aead = { workspace = true }
 
 anyhow = { workspace = true }
 bip39 = { version = "2.0.0", features = ["rand"] }
@@ -50,29 +43,24 @@ thiserror = "2.0.8"
 hex = { workspace = true }
 macro_rules_attribute = "0.1.3"
 mime = "0.3.17"
+nostr = { workspace = true }
 ts-rs = "10"
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
-url = "2.3.1"
-reqwest = { workspace = true }
 rolling-file = "0.2.0"
 tracing-appender = "0.2.2"
-matrix-sdk-ui = { git = "https://github.com/fedibtc/matrix-rust-sdk", tag = "fedi-0.10.0", default-features = false, features = [
+matrix-sdk = { workspace = true, default-features = false, features = [
+  "js",
+  "indexeddb",
+  "rustls-tls",
+  "e2e-encryption",
 ] }
-matrix-sdk = {  git = "https://github.com/fedibtc/matrix-rust-sdk", tag = "fedi-0.10.0", default-features = false, features = [
-    "js",
-    "indexeddb",
-    "rustls-tls",
-    "e2e-encryption",
-] }
-imbl = { version = "4", features = ["serde"] }
-serde_with = "3.12.0"
-eyeball-im = "0.6"
 tempfile = "3.17.1"
-slab = "0.4.9"
-eyeball = "0.8.7"
-async-recursion = "1.1.0"
-tokio-stream = { version = "0.1.17", features = ["sync"] }
+bridge-inner = { workspace = true }
+runtime = { workspace = true }
+bridge = { workspace = true }
+communities = { workspace = true }
+rpc-types = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }
@@ -82,8 +70,8 @@ fedimint-rocksdb = { workspace = true }
 tokio-util = { version = "0.7.9", features = ["codec", "net"] }
 tracing-subscriber = { version = "0.3.1", features = ["env-filter", "json"] }
 uniffi = { version = "0.25.3" }
-matrix-sdk = { git = "https://github.com/fedibtc/matrix-rust-sdk", tag = "fedi-0.10.0", default-features = false, features = [
-    "sqlite",
+matrix-sdk = { workspace = true, default-features = false, features = [
+  "sqlite",
 ] }
 rusqlite = { version = "*" }
 
@@ -100,6 +88,7 @@ fedimint-build = { workspace = true }
 tempfile = "3.17.1"
 mockito = "1.4.0"
 clap = { workspace = true }
+bridge-inner = { workspace = true, features = ["test-support"] }
 
 # FIXME: just put these above? or dev-dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

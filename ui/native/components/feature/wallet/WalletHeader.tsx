@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import capitalize from 'lodash/capitalize'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
@@ -21,30 +20,26 @@ const WalletHeader: React.FC = () => {
     const style = styles(theme)
 
     if (!activeFederation) return null
-    const network = activeFederation.network
 
     return (
         <Pressable
             style={style.container}
             onPress={() => navigation.navigate('Transactions')}>
-            <View style={style.titleContainer}>
+            <View style={style.leftGroup}>
                 <SvgImage
                     name="BitcoinCircle"
                     size={SvgImageSize.md}
                     color={theme.colors.white}
                 />
-                <View>
-                    <View style={style.row}>
-                        <Text bold style={style.title}>
-                            {t('words.bitcoin')}
-                        </Text>
-                    </View>
-                    {network && network !== 'bitcoin' && (
-                        <Text small medium style={style.title}>
-                            {capitalize(network)}
-                        </Text>
-                    )}
-                </View>
+                <Text bold style={style.title}>
+                    {t('words.bitcoin')}
+                </Text>
+                <SvgImage
+                    name="ChevronRightSmall"
+                    color={theme.colors.secondary}
+                    containerStyle={{ top: 1 }}
+                    dimensions={{ width: 6, height: 12 }}
+                />
             </View>
             <Balance />
         </Pressable>
@@ -54,25 +49,18 @@ const WalletHeader: React.FC = () => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            display: 'flex',
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
         },
+        /** Row holding icon, title, and chevron ‑ all centered vertically */
+        leftGroup: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.sm,
+        },
         title: {
             color: theme.colors.secondary,
-        },
-        titleContainer: {
-            textAlign: 'left',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            gap: theme.spacing.sm,
-        },
-        row: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
         },
     })
 

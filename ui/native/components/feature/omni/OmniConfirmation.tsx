@@ -10,7 +10,7 @@ import {
 } from '@fedi/common/redux'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import {
-    ALLOWED_PARSER_TYPES_BEFORE_FEDERATION,
+    BLOCKED_PARSER_TYPES_BEFORE_FEDERATION,
     BLOCKED_PARSER_TYPES_DURING_RECOVERY,
 } from '@fedi/common/utils/parser'
 
@@ -105,8 +105,8 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     } => {
         // If they're not yet a member of a federation, they can only scan certain codes.
         if (
-            !activeFederationId &&
-            !ALLOWED_PARSER_TYPES_BEFORE_FEDERATION.includes(parsedData.type)
+            BLOCKED_PARSER_TYPES_BEFORE_FEDERATION.includes(parsedData.type) &&
+            !activeFederationId
         ) {
             return {
                 contents: {

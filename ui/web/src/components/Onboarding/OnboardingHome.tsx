@@ -1,93 +1,207 @@
-import React from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import WorldIllustration from '@fedi/common/assets/images/illustration-world.png'
-import FediLogoIcon from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
-import { EULA_URL } from '@fedi/common/constants/tos'
+import ClipboardIcon from '@fedi/common/assets/svgs/clipboard.svg'
+import { useToast } from '@fedi/common/hooks/toast'
+import {
+    selectActiveFederationId,
+    selectIsInternetUnreachable,
+} from '@fedi/common/redux'
+import { ParserDataType } from '@fedi/common/types'
+import { parseUserInput } from '@fedi/common/utils/parser'
 
-import { styled, theme } from '../../styles'
-import { Button } from '../Button'
-import { Icon } from '../Icon'
-import { Illustration } from '../Illustration'
-import { Text } from '../Text'
+import { Button } from '../../components/Button'
+import { HorizontalLine } from '../../components/HorizontalLine'
+import { Header, Title } from '../../components/Layout'
+import { OmniQrScanner } from '../../components/OmniInput/OmniQrScanner'
+import PublicFederations from '../../components/PublicFederations'
+import { Switcher } from '../../components/Switcher'
+import { Text } from '../../components/Text'
+import { useAppSelector } from '../../hooks'
+import { fedimint } from '../../lib/bridge'
+import { keyframes, styled, theme } from '../../styles'
 import {
     OnboardingActions,
     OnboardingContainer,
     OnboardingContent,
 } from './components'
 
-export const OnboardingHome: React.FC = () => {
+type TabValue = 'discover' | 'join' | 'create'
+
+type SwitcherOption = {
+    label: string
+    value: TabValue
+}
+
+const permittedTabs: string[] = ['discover', 'join']
+const getTab = (tab: string): TabValue => {
+    return permittedTabs.includes(tab) ? (tab as TabValue) : 'discover' // need this typecast
+}
+
+export function OnboardingHome() {
     const { t } = useTranslation()
+    const toast = useToast()
+    const { push, query, replace } = useRouter()
+
+    const federationId = useAppSelector(selectActiveFederationId)
+    const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
+
+    const [activeTab, setActiveTab] = useState<TabValue>('discover')
+    const [scanning, setScanning] = useState<boolean>(false)
+
+    const switcherOptions: SwitcherOption[] = [
+        { label: t('words.discover'), value: 'discover' },
+        { label: t('words.join'), value: 'join' },
+        // { label: t('words.create'), value: 'create' }, // This will be used at a later date
+    ]
+
+    useEffect(() => {
+        if (query.tab) {
+            setActiveTab(getTab(String(query.tab)))
+        }
+    }, [query.tab])
+
+    const handleOnChange = (value: string) => {
+        replace(`/onboarding?tab=${value}`)
+    }
+
+    const parseInput = async (input: string): Promise<string | null> => {
+        try {
+            const parsedResponse = await parseUserInput(
+                input,
+                fedimint,
+                t,
+                federationId,
+                isInternetUnreachable,
+            )
+
+            // Allow community and federation invites
+            const permittedInviteTypes = [
+                ParserDataType.CommunityInvite,
+                ParserDataType.FedimintInvite,
+            ]
+
+            if (
+                !parsedResponse ||
+                !permittedInviteTypes.includes(parsedResponse.type)
+            ) {
+                throw new Error('Invite code is invalid')
+            }
+
+            return input
+        } catch (err) {
+            return null
+        }
+    }
+
+    const handleOnScan = async (input: string) => {
+        try {
+            setScanning(true)
+            const value = await parseInput(input)
+            setScanning(false)
+
+            if (!value) {
+                throw new Error(t('errors.invalid-invite-code'))
+            }
+
+            handleNavigation(value)
+        } catch (err) {
+            toast.error(t, 'errors.unknown-error')
+        }
+    }
+
+    const handleOnPaste = async () => {
+        try {
+            const input = await navigator.clipboard.readText()
+
+            const value = await parseInput(input)
+
+            if (!value) {
+                throw new Error(t('errors.invalid-invite-code'))
+            }
+
+            handleNavigation(value)
+        } catch (err) {
+            toast.error(t, 'errors.unknown-error')
+        }
+    }
+
+    const handleNavigation = (code: string) => {
+        push(`/onboarding/join?invite_code=${code}`)
+    }
+
+    let body: React.ReactElement
+
+    if (activeTab === 'join') {
+        body = (
+            <>
+                <OmniQrScanner onScan={handleOnScan} processing={scanning} />
+                <HorizontalLine text={t('words.or')} />
+                <Button
+                    icon={ClipboardIcon}
+                    width="full"
+                    onClick={handleOnPaste}
+                    variant="secondary">
+                    {t('feature.federations.paste-federation-code')}
+                </Button>
+            </>
+        )
+    } else {
+        body = <PublicFederations />
+    }
 
     return (
         <OnboardingContainer>
-            <OnboardingContent>
-                <IllustrationWrapper>
-                    <Illustration
-                        src={WorldIllustration}
-                        alt=""
-                        width={320}
-                        height={320}
+            <Header back>
+                <Title subheader>{t('phrases.join-a-federation')}</Title>
+            </Header>
+            <OnboardingContent justify="start">
+                <Content>
+                    <TitleWrapper>
+                        <Text variant="h2" css={{ marginBottom: 0 }}>
+                            {t('feature.onboarding.title')}
+                        </Text>
+                        <Text
+                            variant="caption"
+                            css={{ color: theme.colors.darkGrey }}>
+                            {t('feature.onboarding.description')}
+                        </Text>
+                    </TitleWrapper>
+                    <Switcher
+                        options={switcherOptions}
+                        onChange={handleOnChange}
+                        selected={activeTab}
                     />
-                </IllustrationWrapper>
-                <Info>
-                    <Icon size="lg" icon={FediLogoIcon} />
-                    <Text variant="h2" weight="medium">
-                        {t('feature.onboarding.welcome-to-fedi')}
-                    </Text>
-                    <Text>{t('feature.onboarding.chat-earn-save-spend')}</Text>
-                </Info>
+                    <Body>{body}</Body>
+                </Content>
             </OnboardingContent>
             <OnboardingActions>
-                <Text>{t('feature.onboarding.are-you-new')}</Text>
-                <Button width="full" href="/onboarding/username">
-                    {t('feature.onboarding.yes-create-account')}
+                <Button variant="tertiary" onClick={() => push('/home')}>
+                    {t('phrases.maybe-later')}
                 </Button>
-                <Button
-                    width="full"
-                    variant="secondary"
-                    href="/onboarding/recover">
-                    {t('feature.onboarding.im-returning')}
-                </Button>
-                <Terms>
-                    <Text variant="small">
-                        <Trans
-                            i18nKey="feature.onboarding.by-clicking-you-agree-user-agreement"
-                            components={{
-                                anchor: <a target="_blank" href={EULA_URL} />,
-                            }}
-                        />
-                    </Text>
-                </Terms>
             </OnboardingActions>
         </OnboardingContainer>
     )
 }
 
-const IllustrationWrapper = styled('div', {
-    position: 'relative',
-    aspectRatio: '1 / 1',
-    maxWidth: '70vmin',
-    maxHeight: '70vmin',
-    marginBottom: 24,
-
-    '@xs': {
-        marginBottom: 16,
-    },
+const fadeIn = keyframes({
+    '0%, 30%': { opacity: 0 },
+    '100%': { opacity: 1 },
 })
 
-const Info = styled('div', {
-    maxWidth: 320,
+const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
+    gap: 20,
+    textAlign: 'center',
 })
 
-const Terms = styled('div', {
-    maxWidth: 220,
+const TitleWrapper = styled('div', {})
 
-    '& a': {
-        color: theme.colors.blue,
-    },
+const Body = styled('div', {
+    animation: `${fadeIn} 1s ease`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
 })

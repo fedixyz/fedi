@@ -1,0 +1,13 @@
+[package]
+name = "device-registration"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+fedimint-core = { workspace = true }
+
+anyhow = { workspace = true }
+bip39 = { version = "2.0.0", features = ["rand"] }
+tracing = { workspace = true }
+runtime = { workspace = true }
+rpc-types = { workspace = true }

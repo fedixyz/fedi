@@ -10,6 +10,7 @@ use std::time::SystemTime;
 use anyhow::Context;
 use fedimint_logging::{LOG_CLIENT, LOG_CLIENT_MODULE_WALLET, LOG_CLIENT_REACTOR};
 use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
+use rpc_types::event::{Event, EventSink, TypedEventExt};
 use tracing::metadata::LevelFilter;
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_serde::AsSerde;
@@ -17,8 +18,6 @@ use tracing_subscriber::layer::SubscriberExt;
 // nosemgrep: ban-wildcard-imports
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, Layer};
-
-use super::event::{Event, EventSink, TypedEventExt};
 
 pub fn default_log_filter() -> String {
     format!("info,{LOG_CLIENT}=debug,fediffi=trace,{LOG_CLIENT_REACTOR}=trace,{LOG_CLIENT_MODULE_WALLET}=trace")

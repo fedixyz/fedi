@@ -7,15 +7,18 @@ resolver = "2"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[dependencies]
+[target.'cfg(target_family = "wasm")'.dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 console_error_panic_hook = "0.1.7"
-fedi-ffi = { version = "0.3.0", path = "../fedi-ffi" }
+fedi-ffi = { workspace = true }
+bridge = { workspace = true }
+runtime = { workspace = true }
+rpc-types = { workspace = true }
 futures = { workspace = true }
 gloo-file = "0.2.3"
 imbl = "4"
-js-sys = "0.3.61"
+js-sys = "0.3.77"
 rexie = "0.4.2"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -23,7 +26,7 @@ tokio = { workspace = true, features = ["time", "macros"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
 tracing-wasm = "0.2.1"
-wasm-bindgen = "=0.2.99"
+wasm-bindgen = "=0.2.100"
 wasm-bindgen-futures = "0.4.34"
 wasm-bindgen-test = "0.3.49"
 

@@ -66,10 +66,10 @@ export const FederationSelector: React.FC = () => {
                 )
             })}
             <li>
-                <FederationItem add as={Link} href="/onboarding/join">
+                <FederationItem add as={Link} href="/onboarding">
                     <Icon icon={PlusIcon} size="sm" />
                     <Text variant="caption" weight="bold">
-                        {t('feature.federations.add-federation')}
+                        {t('feature.federations.join-federation')}
                     </Text>
                 </FederationItem>
             </li>

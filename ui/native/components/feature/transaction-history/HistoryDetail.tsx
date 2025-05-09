@@ -132,6 +132,9 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
 
     const style = styles(theme)
 
+    // we show uneditable notes if we don't have a save function (like for multispend txns)
+    const shouldShowNotesField = onSaveNotes || notes
+
     return (
         <Pressable style={style.container} onPress={Keyboard.dismiss}>
             <TouchableOpacity
@@ -153,7 +156,9 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                         {...item}
                         // Hide the border on the last item, if we're not
                         // rendering the notes field as the last item.
-                        noBorder={!onSaveNotes && idx === items.length - 1}
+                        noBorder={
+                            !shouldShowNotesField && idx === items.length - 1
+                        }
                     />
                 ))}
                 {fees && (
@@ -169,9 +174,13 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                     />
                 )}
 
-                {onSaveNotes && (
+                {shouldShowNotesField && (
                     <HistoryDetailItem
-                        label={`${t('phrases.add-note')} +`}
+                        label={
+                            onSaveNotes
+                                ? `${t('phrases.add-note')} +`
+                                : t('words.notes')
+                        }
                         value={
                             <Input
                                 ref={(ref: unknown) => {
@@ -199,6 +208,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                                     theme.colors.night,
                                     0.2,
                                 )}
+                                disabled={!onSaveNotes}
                                 blurOnSubmit
                                 multiline
                             />

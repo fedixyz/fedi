@@ -1,0 +1,15 @@
+[package]
+name = "stability-pool-common"
+version = "0.3.0"
+authors = ["The Stability Pool Developers"]
+description = "stability pool module for fedimint"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+fedimint-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+bitcoin = { workspace = true }
+thiserror = { workspace = true }
+secp256k1 = { workspace = true }
+serde_json = { workspace = true }

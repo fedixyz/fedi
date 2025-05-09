@@ -9,9 +9,9 @@
   stdenv,
   curl,
   darwin,
-  version ? "0.2.99",
-  rev ? "b375e974cf30a203f1ea7f6320ad32759c5cb9e6",
-  hash ? "sha256-WDXHS8rt1LqagbPn5+iOimT/uCxmIw2HcNwZJllhEBo=",
+  version ? "0.2.100",
+  rev ? "2405ec2b4bcd1cc4e3bd1562c373e9d5f0cbdcb5",
+  hash ? "sha256-IPqzPjZwub+yuS98O3tEvl3FViann/WBDjDw3+4jmYo=",
   cargoHash ? "",
 }:
 

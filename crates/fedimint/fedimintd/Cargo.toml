@@ -1,0 +1,26 @@
+[package]
+name = "fedi-fedimintd"
+version = "0.3.0"
+authors = ["The Fedi Developers"]
+edition = "2021"
+description = "fedimintd with custom fedi modules"
+
+[[bin]]
+name = "fedimintd"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+fedimintd = { workspace = true }
+tokio = { workspace = true, features = ["full", "tracing"] }
+env = { workspace = true }
+fedi-social-server = { workspace = true }
+fedi-social-common = { workspace = true }
+fedimint-core = { workspace = true }
+fedimint-server-core = { workspace = true }
+stability-pool-server-old = { workspace = true }
+stability-pool-server = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+fedimint-build = { workspace = true }

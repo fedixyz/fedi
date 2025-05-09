@@ -25,6 +25,7 @@ const CommunityChats = () => {
         ? getFederationGroupChats(activeFederation.meta).length
         : 0
     const [hasTimedOut, setHasTimedOut] = useState(false)
+    const hasWallet = activeFederation?.hasWallet
 
     useEffect(() => {
         // After 3s, we assume the loading chats have timed out
@@ -70,8 +71,10 @@ const CommunityChats = () => {
 
     return (
         <View style={style.container}>
-            <Text medium style={style.sectionTitle}>
-                {t('feature.chat.community-chat')}
+            <Text style={style.sectionTitle}>
+                {!hasWallet
+                    ? t('feature.chat.community-news')
+                    : t('feature.chat.federation-news')}
             </Text>
             {chats.map((chat: MatrixRoom | undefined, idx) => (
                 <CommunityChatTile
@@ -88,8 +91,19 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: { gap: theme.spacing.sm, width: '100%' },
         sectionTitle: {
-            color: theme.colors.primaryLight,
+            color: theme.colors.night,
             letterSpacing: -0.16,
+            fontSize: 20,
+            marginBottom: 4,
+        },
+        servicesSelected: {
+            fontFamily: 'Albert Sans',
+            fontWeight: '400',
+            fontSize: 14,
+            lineHeight: 18,
+            color: theme.colors.darkGrey,
+            letterSpacing: -0.14,
+            marginBottom: 12,
         },
     })
 

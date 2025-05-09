@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -16,11 +16,23 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import SvgImage from '../../ui/SvgImage'
 
-type Props = {
-    offline: boolean
+type Override = {
+    label?: string
+    onPress?: () => void
+    disabled?: boolean
 }
 
-const WalletButtons: React.FC<Props> = ({ offline }: Props) => {
+export type WalletButtonsProps = {
+    offline: boolean
+    left?: Override
+    right?: Override
+}
+
+const WalletButtons: React.FC<WalletButtonsProps> = ({
+    offline,
+    left = {},
+    right = {},
+}) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
@@ -29,77 +41,69 @@ const WalletButtons: React.FC<Props> = ({ offline }: Props) => {
     const activeFederation = useAppSelector(selectActiveFederation)
     const hasWallet = useAppSelector(selectActiveFederationHasWallet)
     const receivesDisabled = useAppSelector(selectReceivesDisabled)
-
     const style = styles(theme)
 
     if (!activeFederation || !hasWallet) return null
 
-    // I'm not happy about this, but I couldn't
-    // figure out how to detect clicks when the
-    // button is disabled
+    const leftDisabled = left.disabled ?? receivesDisabled
+    const rightDisabled =
+        right.disabled ??
+        (!activeFederation.hasWallet || activeFederation.balance < 1000)
+
+    const handleLeft = () => {
+        if (left.onPress) return left.onPress()
+        if (receivesDisabled) {
+            toast.show({
+                content: t('errors.receives-have-been-disabled'),
+                status: 'error',
+            })
+        } else {
+            navigation.navigate('ReceiveLightning')
+        }
+    }
+
+    const handleRight = () => {
+        if (right.onPress) return right.onPress()
+        dispatch(setPayFromFederationId(activeFederation.id))
+        navigation.navigate(offline ? 'SendOfflineAmount' : 'Send')
+    }
+
     return (
         <View style={style.container}>
-            {receivesDisabled ? (
-                <Pressable
-                    style={style.buttonContainer}
-                    onPress={() => {
-                        toast.show({
-                            content: t('errors.receives-have-been-disabled'),
-                            status: 'error',
-                        })
-                    }}>
-                    <Button
-                        bubble
-                        icon={<SvgImage name="ArrowDown" />}
-                        titleStyle={style.buttonTitle}
-                        title={
-                            <Text caption numberOfLines={1}>
-                                {t('words.receive')}
-                            </Text>
-                        }
-                        disabled
-                        style={style.disabled}
-                        containerStyle={style.buttonContainer}
-                        buttonStyle={style.button}
-                    />
-                </Pressable>
-            ) : (
-                <Button
-                    bubble
-                    icon={<SvgImage name="ArrowDown" />}
-                    titleStyle={style.buttonTitle}
-                    title={
-                        <Text bold caption numberOfLines={1}>
-                            {t('words.receive')}
-                        </Text>
-                    }
-                    style={style.disabled}
-                    containerStyle={style.buttonContainer}
-                    buttonStyle={style.button}
-                    onPress={() => navigation.navigate('ReceiveLightning')}
-                />
-            )}
-
             <Button
                 bubble
+                disabled={leftDisabled}
+                onPress={handleLeft}
+                icon={<SvgImage name="ArrowDown" />}
+                title={
+                    leftDisabled ? (
+                        <Text caption numberOfLines={1}>
+                            {left.label ?? t('words.receive')}
+                        </Text>
+                    ) : (
+                        <Text bold caption numberOfLines={1}>
+                            {left.label ?? t('words.receive')}
+                        </Text>
+                    )
+                }
+                titleStyle={style.buttonTitle}
+                containerStyle={style.buttonContainer}
+                buttonStyle={style.button}
+            />
+            <Button
+                bubble
+                disabled={rightDisabled}
+                onPress={handleRight}
                 title={
                     <View style={style.buttonRow}>
                         <SvgImage name="ArrowUpRight" />
                         <Text bold caption numberOfLines={1}>
-                            {t('words.send')}
+                            {right.label ?? t('words.send')}
                         </Text>
                     </View>
                 }
-                onPress={() => {
-                    dispatch(setPayFromFederationId(activeFederation.id))
-                    navigation.navigate(offline ? 'SendOfflineAmount' : 'Send')
-                }}
                 containerStyle={style.buttonContainer}
-                // Sats are rounded down from msats. Disable the send button if the user has less than 1000 msat
-                disabled={
-                    !activeFederation.hasWallet ||
-                    activeFederation.balance < 1000
-                }
+                buttonStyle={style.button}
             />
         </View>
     )
@@ -129,7 +133,6 @@ const styles = (theme: Theme) =>
         button: {
             gap: theme.spacing.sm,
         },
-        disabled: {},
     })
 
 export default WalletButtons

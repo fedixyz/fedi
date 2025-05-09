@@ -267,6 +267,15 @@ class AmountUtils {
     getRateFromFiatFxInfo(txDateFiatInfo: FiatFXInfo): number {
         return txDateFiatInfo.btcToFiatHundredths / 100
     }
+
+    //removes any trailing decimal places - i.e. converts '0.00 to 0'
+    stripTrailingZerosWithSuffix(amount: string): string {
+        const [num, ...suffixParts] = amount.split(' ')
+        const cleanedNum = num.replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1')
+        return (
+            cleanedNum + (suffixParts.length ? ` ${suffixParts.join(' ')}` : '')
+        )
+    }
 }
 
 const amountUtils = new AmountUtils()

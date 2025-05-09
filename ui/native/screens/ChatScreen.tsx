@@ -15,6 +15,9 @@ import {
 
 import { Images } from '../assets/images'
 import ChatsList from '../components/feature/chat/ChatsList'
+import FirstTimeCommunityEntryOverlay, {
+    FirstTimeCommunityEntryItem,
+} from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
 import SvgImage from '../components/ui/SvgImage'
 import { Tooltip } from '../components/ui/Tooltip'
 import { useAppSelector } from '../state/hooks'
@@ -35,22 +38,22 @@ const ChatScreen: React.FC<Props> = () => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
+
     const syncStatus = useAppSelector(selectMatrixStatus)
-    const needsChatRegistration = useAppSelector(
-        selectNeedsMatrixRegistration || false,
-    )
+    const needsChatRegistration = useAppSelector(selectNeedsMatrixRegistration)
 
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
     const [hasOpenedNewChat, completeOpenedNewChat] =
         useNuxStep('hasOpenedNewChat')
 
+    const [hasSeenChat, completeSeenChat] = useNuxStep('chatModal')
+
     useDismissIosNotifications()
 
-    // TODO: reimplement seen message hook for matrix
-    // Use this hook only if the screen is in focus
-    // const isFocused = useIsFocused()
-    // useUpdateLastMessageSeen(isFocused !== true)
-
+    const chatFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
+        { icon: 'SpeakerPhone', text: t('feature.chat.first-entry-option-1') },
+        { icon: 'Wallet', text: t('feature.chat.first-entry-option-2') },
+    ]
     const style = styles(theme)
 
     if (syncStatus === MatrixSyncStatus.initialSync) {
@@ -59,7 +62,9 @@ const ChatScreen: React.FC<Props> = () => {
                 <ActivityIndicator size={16} color={theme.colors.primary} />
             </View>
         )
-    } else if (syncStatus === MatrixSyncStatus.stopped) {
+    }
+
+    if (syncStatus === MatrixSyncStatus.stopped) {
         return (
             <View style={style.centerContainer}>
                 <Text style={style.errorText} adjustsFontSizeToFit>
@@ -72,36 +77,32 @@ const ChatScreen: React.FC<Props> = () => {
     return (
         <View style={style.container}>
             {needsChatRegistration ? (
-                <>
-                    <View style={style.registration}>
-                        <Image
-                            resizeMode="contain"
-                            source={Images.IllustrationChat}
-                            style={style.emptyImage}
-                        />
-                        <Text
-                            h1
-                            style={style.registrationText}
-                            numberOfLines={1}
-                            adjustsFontSizeToFit>
-                            {t('feature.chat.need-registration-title')}
-                        </Text>
-                        <Text
-                            style={style.registrationText}
-                            adjustsFontSizeToFit>
-                            {t('feature.chat.need-registration-description')}
-                        </Text>
-                        <Button
-                            fullWidth
-                            title={
-                                <Text style={{ color: theme.colors.secondary }}>
-                                    {t('words.continue')}
-                                </Text>
-                            }
-                            onPress={() => navigation.push('EnterDisplayName')}
-                        />
-                    </View>
-                </>
+                <View style={style.registration}>
+                    <Image
+                        resizeMode="contain"
+                        source={Images.IllustrationChat}
+                        style={style.emptyImage}
+                    />
+                    <Text
+                        h1
+                        style={style.registrationText}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit>
+                        {t('feature.chat.need-registration-title')}
+                    </Text>
+                    <Text style={style.registrationText} adjustsFontSizeToFit>
+                        {t('feature.chat.need-registration-description')}
+                    </Text>
+                    <Button
+                        fullWidth
+                        title={
+                            <Text style={{ color: theme.colors.secondary }}>
+                                {t('words.continue')}
+                            </Text>
+                        }
+                        onPress={() => navigation.push('EnterDisplayName')}
+                    />
+                </View>
             ) : isChatEmpty ? (
                 <>
                     <Image
@@ -151,23 +152,25 @@ const ChatScreen: React.FC<Props> = () => {
                     }}
                 />
             )}
+
+            <FirstTimeCommunityEntryOverlay
+                overlayItems={chatFirstTimeOverlayItems}
+                title={t('feature.chat.first-entry')}
+                show={!hasSeenChat}
+                onDismiss={completeSeenChat}
+            />
         </View>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
+        container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
         emptyImage: {
             width: 200,
             height: 200,
             marginBottom: theme.spacing.xxl,
         },
-        actionContainer: {},
         actionButton: {
             elevation: 4,
             shadowRadius: 4,
@@ -178,9 +181,7 @@ const styles = (theme: Theme) =>
             justifyContent: 'center',
             alignItems: 'center',
         },
-        errorText: {
-            textAlign: 'center',
-        },
+        errorText: { textAlign: 'center' },
         registration: {
             flex: 1,
             width: '100%',

@@ -45,7 +45,7 @@ const OnboardingSlides: React.FC<Props> = ({ onSlideChanged }: Props) => {
     const slides = [
         {
             key: 'welcome-to-fedi',
-            title: t('feature.onboarding.welcome-to-fedi'),
+            title: t('feature.onboarding.fedi'),
             message: t('feature.onboarding.guidance-1'),
             iconImageName: 'FediLogoIcon' as SvgImageName,
         },

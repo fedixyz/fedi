@@ -129,12 +129,7 @@ export async function zendeskInitialize(
 ): Promise<void> {
     try {
         log.info('Initializing Zendesk with values:', userID, displayName)
-        log.info(
-            'channelKey:',
-            Platform.OS === 'android' ? CHANNEL_KEY_ANDROID : CHANNEL_KEY_IOS,
-        )
-        log.info('secretKey:', ZENDESK_SECRET_KEY)
-        log.info('kid:', ZENDESK_KID)
+
         await Zendesk.initialize({
             channelKey:
                 Platform.OS === 'android'
@@ -151,7 +146,6 @@ export async function zendeskInitialize(
                 ZENDESK_SECRET_KEY,
                 displayName,
             )
-            log.info('Zendesk JWT token generated successfully:', token)
             await Zendesk.login(token)
             log.info('Zendesk login successful')
         }

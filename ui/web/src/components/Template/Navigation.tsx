@@ -31,7 +31,7 @@ export const Navigation: React.FC = () => {
     const navLinks = [
         {
             name: 'words.home' as const,
-            path: '/',
+            path: '/home',
             icon: HomeIcon,
             activeIcon: HomeFilledIcon,
             available: true,
@@ -59,7 +59,7 @@ export const Navigation: React.FC = () => {
         <Container>
             <Inner>
                 <Logo>
-                    <Link href="/">
+                    <Link href="/home">
                         <FediLogo />
                     </Link>
                 </Logo>

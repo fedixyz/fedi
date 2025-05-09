@@ -1,0 +1,47 @@
+[package]
+name = "runtime"
+version = "0.3.0"
+edition = "2021"
+
+[features]
+
+[dependencies]
+api-types = { workspace = true }
+fedimint-core = { workspace = true }
+fedimint-client = { workspace = true }
+fedimint-mint-client = { workspace = true }
+fedimint-ln-common = { workspace = true }
+fedimint-wallet-client = { workspace = true }
+fedi-social-client = { workspace = true }
+stability-pool-client-old = { workspace = true }
+stability-pool-client = { workspace = true }
+fedimint-derive-secret = { workspace = true }
+fedimint-bip39 = { workspace = true }
+fedimint-aead = { workspace = true }
+
+anyhow = { workspace = true }
+bip39 = { version = "2.0.0", features = ["rand"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+bech32 = { workspace = true }
+bitcoin = { workspace = true }
+lightning-invoice = "0.32.0"
+futures = "0.3"
+tracing = { workspace = true }
+thiserror = "2.0.8"
+hex = { workspace = true }
+ts-rs = "10"
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["time", "macros"] }
+reqwest = { workspace = true }
+matrix-sdk = { workspace = true, default-features = false, features = [
+  "js",
+  "indexeddb",
+  "rustls-tls",
+  "e2e-encryption",
+] }
+imbl = { version = "4", features = ["serde"] }
+serde_with = "3.12.0"
+eyeball-im = "0.6"
+eyeball = "0.8.7"

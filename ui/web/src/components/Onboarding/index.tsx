@@ -6,9 +6,11 @@ import { JoinFederation } from './JoinFederation'
 import { OnboardingComplete } from './OnboardingComplete'
 import { OnboardingHome } from './OnboardingHome'
 import { PersonalRecovery } from './PersonalRecovery'
+import { SelectDevice } from './SelectDevice'
 import { SocialRecovery } from './SocialRecovery'
 import { UploadAvatarImage } from './UploadAvatarImage'
 import { WalletRecovery } from './WalletRecovery'
+import { WalletTransfer } from './WalletTransfer'
 
 interface Props {
     step?: string
@@ -24,6 +26,10 @@ export const Onboarding: React.FC<Props> = ({ step }) => {
         content = <PersonalRecovery />
     } else if (step === 'recover/social') {
         content = <SocialRecovery />
+    } else if (step === 'recover/wallet-transfer') {
+        content = <WalletTransfer />
+    } else if (step === 'recover/select-device') {
+        content = <SelectDevice />
     } else if (step === 'username') {
         content = <EnterDisplayName />
     } else if (step === 'image') {

@@ -1,9 +1,0 @@
-[package]
-name = "fedi-rpc-server"
-version = "0.3.0"
-edition = "2021"
-
-[dependencies]
-anyhow = "1.0.66"
-fedi-ffi = { path = "../fedi-ffi" }
-tokio = { version = "1.25.0", features = ["full", "tracing"] }

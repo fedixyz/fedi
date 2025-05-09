@@ -37,7 +37,9 @@ export type Props = {
     onChangeAmount?: (amount: Sats) => void
     error?: string | null
     notes?: string
+    notesLabel?: string
     setNotes?: (notes: string) => void
+    content?: React.ReactNode | null
 }
 
 const AmountInput: React.FC<Props> = ({
@@ -53,7 +55,9 @@ const AmountInput: React.FC<Props> = ({
     onChangeAmount,
     error: customError,
     notes = '',
+    notesLabel,
     setNotes,
+    content = null,
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -196,9 +200,16 @@ const AmountInput: React.FC<Props> = ({
                         error
                     )}
                 </View>
+                {content && (
+                    <View style={style.contentContainer}>{content}</View>
+                )}
                 {setNotes && (
                     <View style={style.notesContainer}>
-                        <NotesInput notes={notes} setNotes={setNotes} />
+                        <NotesInput
+                            label={notesLabel}
+                            notes={notes}
+                            setNotes={setNotes}
+                        />
                     </View>
                 )}
             </View>
@@ -240,7 +251,7 @@ const styles = (theme: Theme, width: number) =>
         },
         errorContainer: {
             width: '100%',
-            maxHeight: 20,
+            maxHeight: 60,
             alignItems: 'center',
             justifyContent: 'center',
             paddingHorizontal: theme.spacing.lg,
@@ -261,9 +272,7 @@ const styles = (theme: Theme, width: number) =>
             alignItems: 'center',
         },
         error: {
-            width: '100%',
             color: theme.colors.red,
-            textAlign: 'center',
         },
         errorSuggestion: {
             color: theme.colors.red,
@@ -280,6 +289,12 @@ const styles = (theme: Theme, width: number) =>
         },
         notesContainer: {
             width: '100%',
+        },
+        contentContainer: {
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
         },
     })
 

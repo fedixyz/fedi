@@ -6,15 +6,15 @@ use anyhow::{Context, Result};
 use fedimint_core::task;
 use fedimint_logging::TracingSetup;
 use futures::{Future, SinkExt, StreamExt};
+use runtime::api::LiveFediApi;
+use runtime::event::IEventSink;
+use runtime::features::FeatureCatalog;
 use serde::{Deserialize, Serialize};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_util::codec::{Framed, LinesCodec};
 use tracing::{error, info};
 
-use crate::api::LiveFediApi;
-use crate::event::IEventSink;
-use crate::features::FeatureCatalog;
 use crate::ffi::PathBasedStorage;
 use crate::rpc::{fedimint_initialize_async, fedimint_rpc_async};
 
@@ -148,10 +148,12 @@ pub fn tcp_server() -> (
     })
 }
 
-impl IEventSink for mpsc::Sender<Response> {
+struct SenderEventSink(mpsc::Sender<Response>);
+impl IEventSink for SenderEventSink {
     fn event(&self, event_type: String, body: String) {
         tokio::task::block_in_place(|| {
-            self.blocking_send(Response::Event { event_type, body })
+            self.0
+                .blocking_send(Response::Event { event_type, body })
                 .unwrap()
         });
     }
@@ -170,10 +172,10 @@ pub async fn init(data_dir: PathBuf) -> anyhow::Result<()> {
     let storage = PathBasedStorage::new(data_dir).await?;
     let bridge = fedimint_initialize_async(
         Arc::new(storage),
-        Arc::new(response_tx.clone()),
+        Arc::new(SenderEventSink(response_tx.clone())),
         Arc::new(LiveFediApi::new()),
         "Unknown (remote bridge)".to_owned(),
-        FeatureCatalog::new(crate::features::RuntimeEnvironment::Dev).into(),
+        FeatureCatalog::new(runtime::features::RuntimeEnvironment::Dev).into(),
     )
     .await
     .context("fedimint initalize")?;

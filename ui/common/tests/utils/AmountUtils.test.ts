@@ -388,4 +388,56 @@ describe('AmountUtils', () => {
             expect(defaultSeparator.length).toBe(1)
         })
     })
+    describe('stripTrailingZerosWithSuffix', () => {
+        it('should remove trailing zeros after decimal', () => {
+            const result = amountUtils.stripTrailingZerosWithSuffix('123.45000')
+            expect(result).toEqual('123.45')
+        })
+
+        it('should strip the entire decimal part if it’s all zeros', () => {
+            expect(amountUtils.stripTrailingZerosWithSuffix('123.000')).toEqual(
+                '123',
+            )
+            expect(amountUtils.stripTrailingZerosWithSuffix('0.0')).toEqual('0')
+        })
+
+        it('should leave an integer without decimal intact', () => {
+            expect(amountUtils.stripTrailingZerosWithSuffix('456')).toEqual(
+                '456',
+            )
+        })
+
+        it('should preserve a single non-zero decimal digit', () => {
+            expect(amountUtils.stripTrailingZerosWithSuffix('78.900')).toEqual(
+                '78.9',
+            )
+        })
+
+        it('should preserve suffix after stripping zeros', () => {
+            expect(
+                amountUtils.stripTrailingZerosWithSuffix('100.5000 USD'),
+            ).toEqual('100.5 USD')
+            expect(
+                amountUtils.stripTrailingZerosWithSuffix('250.000 BTC'),
+            ).toEqual('250 BTC')
+            expect(
+                amountUtils.stripTrailingZerosWithSuffix('42 satoshi'),
+            ).toEqual('42 satoshi')
+        })
+
+        it('should handle numbers with multiple-word suffixes', () => {
+            expect(
+                amountUtils.stripTrailingZerosWithSuffix(
+                    '3.14000 miles per hour',
+                ),
+            ).toEqual('3.14 miles per hour')
+        })
+
+        it('should handle a zero input correctly', () => {
+            expect(amountUtils.stripTrailingZerosWithSuffix('0.0000')).toEqual(
+                '0',
+            )
+            expect(amountUtils.stripTrailingZerosWithSuffix('0')).toEqual('0')
+        })
+    })
 })

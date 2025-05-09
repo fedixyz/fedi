@@ -10,7 +10,7 @@ import SpeakerPhoneIcon from '@fedi/common/assets/svgs/speakerphone.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     leaveMatrixRoom,
-    selectDefaultMatrixRoomIds,
+    selectIsDefaultGroup,
     selectMatrixRoomSelfPowerLevel,
     setMatrixRoomBroadcastOnly,
     setMatrixRoomName,
@@ -53,7 +53,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
 
     const isAdmin = myPowerLevel >= MatrixPowerLevel.Admin
     const isDefaultGroup = useAppSelector(s =>
-        selectDefaultMatrixRoomIds(s).includes(room?.id || ''),
+        selectIsDefaultGroup(s, room?.id || ''),
     )
 
     useEffect(() => {

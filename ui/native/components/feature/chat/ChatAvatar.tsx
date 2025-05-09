@@ -15,7 +15,12 @@ type BaseProps = Omit<AvatarProps, 'id' | 'name' | 'icon'>
 type RoomProps = BaseProps & {
     room: Pick<
         MatrixRoom,
-        'id' | 'name' | 'broadcastOnly' | 'avatarUrl' | 'directUserId'
+        | 'id'
+        | 'name'
+        | 'broadcastOnly'
+        | 'avatarUrl'
+        | 'directUserId'
+        | 'isBlocked'
     >
 }
 type UserProps = BaseProps & {
@@ -43,6 +48,7 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
     let icon: AvatarProps['icon'] | undefined
     let src: string | undefined
     let avatarProps: BaseProps
+    let isBlocked: boolean | undefined
     if ('room' in props) {
         const { room, ...rest } = props
         id = room.directUserId || room.id
@@ -54,6 +60,7 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
               : 'SocialPeople'
         src = room.avatarUrl
         avatarProps = rest
+        isBlocked = room.isBlocked
     } else {
         const { user, ...rest } = props
         id = user.id
@@ -76,6 +83,7 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
             icon={icon}
             url={src}
             maxFontSizeMultiplier={maxFontSizeMultiplier}
+            isBlocked={isBlocked}
             {...avatarProps}
         />
     )

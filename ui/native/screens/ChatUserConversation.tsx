@@ -15,6 +15,7 @@ import MessageInput from '../components/feature/chat/MessageInput'
 import NoMessagesNotice from '../components/feature/chat/NoMessagesNotice'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { resetToDirectChat } from '../state/navigation'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -46,11 +47,8 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
     // If we already have a chat room with this user, redirect there
     useEffect(() => {
         if (!existingRoom) return
-        navigationReplace('ChatRoomConversation', {
-            roomId: existingRoom.id,
-            chatType: ChatType.direct,
-        })
-    }, [existingRoom, navigationReplace])
+        navigation.dispatch(resetToDirectChat(existingRoom.id))
+    }, [existingRoom, navigation])
 
     // add another check before creating another room
     const handleSend = useCallback(

@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex as StdMutex;
 
 use anyhow::bail;
-use fediffi::storage::IStorage;
 use fedimint_core::{apply, async_trait_maybe_send};
 use rexie::{ObjectStore, Rexie, TransactionMode};
+use runtime::storage::IStorage;
 use wasm_bindgen::{JsCast, JsValue};
 
 use crate::db::{rexie_to_anyhow, MemAndIndexedDb};
@@ -36,7 +36,7 @@ impl IStorage for WasmStorage {
         &self,
         db_name: &str,
     ) -> anyhow::Result<fedimint_core::db::Database> {
-        let db = MemAndIndexedDb::new(&format!("{db_name}")).await?;
+        let db = MemAndIndexedDb::new(db_name).await?;
         let mut fed = self.federation.lock().unwrap();
         fed.insert(db_name.to_string(), db.clone());
         Ok(fedimint_core::db::Database::new(db, Default::default()))
@@ -57,7 +57,7 @@ impl IStorage for WasmStorage {
             .transaction(&["default"], TransactionMode::ReadOnly)
             .map_err(rexie_to_anyhow)?;
         let store = transaction.store("default").map_err(rexie_to_anyhow)?;
-        let key = JsValue::from_str(&path.to_str().expect("path is valid unicode"));
+        let key = JsValue::from_str(path.to_str().expect("path is valid unicode"));
         let value = store.get(&key).await;
         match value {
             Ok(value) if value.is_undefined() => Ok(None),
@@ -75,7 +75,7 @@ impl IStorage for WasmStorage {
             .transaction(&["default"], TransactionMode::ReadWrite)
             .map_err(rexie_to_anyhow)?;
         let store = transaction.store("default").map_err(rexie_to_anyhow)?;
-        let key = JsValue::from_str(&path.to_str().expect("path is valid unicode"));
+        let key = JsValue::from_str(path.to_str().expect("path is valid unicode"));
         let value = js_sys::Uint8Array::from(&data[..]);
         store
             .put(&value, Some(&key))

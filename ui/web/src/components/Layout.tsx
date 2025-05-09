@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
 
 import { useMediaQuery } from '../hooks'
-import { config, styled, theme } from '../styles'
+import { config, keyframes, styled, theme } from '../styles'
 import { IconButton } from './IconButton'
 import { ShadowScroller } from './ShadowScroller'
 
@@ -111,6 +111,11 @@ export const Title = styled('h1', {
     },
 })
 
+const fadeIn = keyframes({
+    '0%': { opacity: 0 },
+    '100%': { opacity: 1 },
+})
+
 export const Content = styled(ShadowScroller, {
     flex: 1,
     width: '100%',
@@ -143,6 +148,12 @@ export const Content = styled(ShadowScroller, {
                 '& > *:first-child': {
                     height: 'auto',
                 },
+            },
+        },
+
+        fadeIn: {
+            true: {
+                animation: `${fadeIn} .8s ease`,
             },
         },
     },

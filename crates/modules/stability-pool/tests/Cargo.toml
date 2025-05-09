@@ -1,0 +1,19 @@
+[package]
+name = "stability-pool-tests"
+version = "0.3.0"
+authors = ["The Fedimint Developers"]
+edition = "2021"
+description = "tests for stability pool module"
+
+[[test]]
+name = "fedimint-custom-tests"
+path = "tests/tests.rs"
+
+[dependencies]
+anyhow = "1.0.66"
+devimint = { workspace = true }
+fedimint-core = { workspace = true }
+fedimint-logging = { workspace = true }
+stability-pool-common = { workspace = true }
+tokio = { version = "1.25.0", features = ["full", "tracing"] }
+tracing = "0.1.37"

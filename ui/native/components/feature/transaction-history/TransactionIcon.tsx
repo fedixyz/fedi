@@ -32,6 +32,10 @@ const getTxnIcon = (
         icon = 'ChatPaymentCircle'
     else if (txn.kind === 'lnPay' || txn.kind === 'lnReceive')
         icon = 'LightningCircle'
+    else {
+        icon = 'MultispendGroupCircle'
+        color = theme.colors.moneyGreen
+    }
 
     return <SvgImage name={icon} color={color} size={theme.sizes.historyIcon} />
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
@@ -27,6 +28,7 @@ const StabilityTransactionsList = ({
     const { t } = useTranslation()
     const toast = useToast()
     const activeFederationId = useAppSelector(selectActiveFederationId)
+    const [isUpdating, setIsUpdating] = useState(false)
     const {
         makeStabilityTxnDetailItems,
         getCurrencyText,
@@ -59,7 +61,10 @@ const StabilityTransactionsList = ({
                 amount: makeTxnAmountText(txn, true),
                 notes: txn.txnNotes,
                 onSaveNotes: async (notes: string) => {
+                    if (isUpdating) return // Prevent multiple simultaneous updates
+
                     try {
+                        setIsUpdating(true)
                         if (!activeFederationId)
                             throw new Error('errors.unknown-error')
                         await dispatch(
@@ -72,6 +77,8 @@ const StabilityTransactionsList = ({
                         ).unwrap()
                     } catch (err) {
                         toast.error(t, err)
+                    } finally {
+                        setIsUpdating(false)
                     }
                 },
             })}

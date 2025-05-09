@@ -12,6 +12,8 @@ import {
     makeTxnTypeText as makeTxnTypeTextUtil,
     makeTxnDetailTitleText as makeTxnDetailTitleTextUtil,
     makeStabilityTxnDetailTitleText as makeStabilityTxnDetailTitleTextUtil,
+    makeMultispendTxnDetailItems as makeMultispendTxnDetailItemsUtil,
+    makeTransactionAmountState,
 } from '@fedi/common/utils/wallet'
 
 import {
@@ -19,6 +21,8 @@ import {
     selectCurrency,
     selectEcashFeeSchedule,
     selectFederationStabilityPoolConfig,
+    selectMatrixRoomMembers,
+    selectMatrixRoomMultispendStatus,
     selectShowFiatTxnAmounts,
     selectStabilityPoolAverageFeeRate,
     selectStabilityPoolFeeSchedule,
@@ -28,8 +32,16 @@ import {
     selectStabilityTransactionHistory,
     selectTransactions,
 } from '../redux/transactions'
-import { LoadedFederation, MSats, Sats, TransactionListEntry } from '../types'
-import { RpcFeeDetails } from '../types/bindings'
+import {
+    LoadedFederation,
+    MSats,
+    MultispendTransactionListEntry,
+    Sats,
+    SupportedCurrency,
+    TransactionListEntry,
+    UsdCents,
+} from '../types'
+import { RpcFeeDetails, RpcRoomId } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import {
     makeBase64CSVUri,
@@ -37,6 +49,7 @@ import {
     makeTransactionHistoryCSV,
 } from '../utils/csv'
 import { FedimintBridge } from '../utils/fedimint'
+import { getMultispendInvite } from '../utils/matrix'
 import { useAmountFormatter, useBtcFiatPrice } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
@@ -223,6 +236,127 @@ export function useTxnDisplayUtils(t: TFunction, isStabilityPool = false) {
         makeTxnStatusText,
         makeTxnDetailTitleText,
         makeStabilityTxnDetailTitleText,
+    }
+}
+
+export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
+    const { convertCentsToFormattedFiat } = useBtcFiatPrice()
+    const selectedCurrency = useCommonSelector(selectCurrency)
+    const showFiatTxnAmounts = useCommonSelector(selectShowFiatTxnAmounts)
+    const preferredCurrency = showFiatTxnAmounts
+        ? selectedCurrency
+        : t('words.sats').toUpperCase()
+
+    const multispendStatus = useCommonSelector(s =>
+        selectMatrixRoomMultispendStatus(s, roomId),
+    )
+    const roomMembers = useCommonSelector(s =>
+        selectMatrixRoomMembers(s, roomId),
+    )
+
+    const makeMultispendTxnStatusText = useCallback(
+        (txn: MultispendTransactionListEntry) => {
+            if (txn.state === 'invalid') return t('words.unknown')
+            // group should always be finalized at this point
+            if (!multispendStatus || multispendStatus.status !== 'finalized')
+                return t('words.unknown')
+
+            if ('depositNotification' in txn.event) return t('words.deposit')
+            if ('withdrawalRequest' in txn.event) {
+                const withdrawalRequest = txn.event.withdrawalRequest
+                const invitation = getMultispendInvite(multispendStatus)
+                // finalized multispends should always have an invitation
+                if (!invitation) return t('words.unknown')
+
+                if (withdrawalRequest.completed) {
+                    return t('words.withdrawal')
+                } else if (
+                    withdrawalRequest.rejections.length >
+                    invitation.signers.length - Number(invitation.threshold)
+                ) {
+                    return t('words.failed')
+                } else {
+                    return t('words.pending')
+                }
+            }
+            return t('words.unknown')
+        },
+        [multispendStatus, t],
+    )
+
+    const makeMultispendTxnNotesText = useCallback(
+        (txn: MultispendTransactionListEntry) => {
+            if (txn.state === 'invalid') return t('words.unknown')
+            if (txn.state === 'deposit') {
+                return txn.event.depositNotification.description
+            }
+            if (txn.state === 'withdrawal') {
+                return txn.event.withdrawalRequest.description
+            }
+            return t('words.unknown')
+        },
+        [t],
+    )
+
+    const makeMultispendTxnAmountText = useCallback(
+        (txn: MultispendTransactionListEntry, includeCurrency = false) => {
+            if (txn.state === 'invalid') {
+                return '-'
+            }
+            if (txn.state === 'deposit') {
+                const fiatAmount = txn.event.depositNotification
+                    .fiatAmount as UsdCents
+                return `${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
+            }
+            if (txn.state === 'withdrawal') {
+                const fiatAmount = txn.event.withdrawalRequest.request
+                    .transfer_amount as UsdCents
+                return `${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
+            }
+            return '-'
+        },
+        [convertCentsToFormattedFiat, preferredCurrency],
+    )
+
+    const makeMultispendTxnCurrencyText = useCallback(() => {
+        return preferredCurrency ?? SupportedCurrency.USD
+    }, [preferredCurrency])
+
+    const makeMultispendTxnTimestampText = useCallback(
+        (txn: MultispendTransactionListEntry) => {
+            return Number((txn.time / 1000).toFixed(0))
+        },
+        [],
+    )
+
+    const makeMultispendTxnAmountStateText = useCallback(
+        (txn: MultispendTransactionListEntry) => {
+            return makeTransactionAmountState(txn)
+        },
+        [],
+    )
+
+    const makeMultispendTxnDetailItems = useCallback(
+        (txn: MultispendTransactionListEntry) => {
+            return makeMultispendTxnDetailItemsUtil(
+                t,
+                txn,
+                roomMembers,
+                convertCentsToFormattedFiat,
+            )
+        },
+        [convertCentsToFormattedFiat, roomMembers, t],
+    )
+
+    return {
+        preferredCurrency,
+        makeMultispendTxnStatusText,
+        makeMultispendTxnNotesText,
+        makeMultispendTxnAmountText,
+        makeMultispendTxnCurrencyText,
+        makeMultispendTxnTimestampText,
+        makeMultispendTxnAmountStateText,
+        makeMultispendTxnDetailItems,
     }
 }
 

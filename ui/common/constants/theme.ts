@@ -6,7 +6,9 @@
 const HEX_COLORS = {
     moneyGreen: '#26A07B',
     green: '#00A829',
+    green100: '#B4F1C7',
     orange: '#DF7B00',
+    orange100: '#F8DFB3',
     lightOrange: '#ECA429',
     darkGrey: '#6D7071',
     grey: '#858789',
@@ -14,6 +16,7 @@ const HEX_COLORS = {
     extraLightGrey: '#E9E9EA',
     keyboardGrey: '#E8EAED',
     red: '#E00A00',
+    red100: '#FFC6B8',
     white: '#FFFFFF',
     yellow: '#FBE32D',
     offWhite: '#E6F7FF',
@@ -81,6 +84,9 @@ export const theme = {
         '600': makeHoloGradientRgbas(0.6),
         '400': makeHoloGradientRgbas(0.3),
         '100': makeHoloGradientRgbas(0.13),
+
+        // holo gradients using the minimal gradient rgba sequence
+        'm500': makeMinimalGradientRgbas(0.5),
     },
     holoGradientLocations: {
         // Used to mimic the radial gradient in figma
@@ -113,6 +119,18 @@ function makeHoloGradientRgbas(alphaMultiplier: number) {
         [0, 145, 255, 0.3],
         [250, 100, 0, 0.3],
         [255, 255, 255, 0.1],
+        [98, 54, 255, 0.3],
+        [182, 32, 224, 0.3],
+    ].map(([r, g, b, a]) => `rgba(${r}, ${g}, ${b}, ${a * alphaMultiplier})`)
+}
+
+// Drops some colors to make the gradient look cleaner
+// Color sequence originates from figma designs
+function makeMinimalGradientRgbas(alphaMultiplier: number) {
+    return [
+        [247, 181, 0, 0.3],
+        [109, 212, 0, 0.3],
+        [0, 145, 255, 0.3],
         [98, 54, 255, 0.3],
         [182, 32, 224, 0.3],
     ].map(([r, g, b, a]) => `rgba(${r}, ${g}, ${b}, ${a * alphaMultiplier})`)

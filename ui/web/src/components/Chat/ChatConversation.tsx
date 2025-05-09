@@ -36,7 +36,7 @@ interface Props {
     headerActions?: React.ReactNode
     inputActions?: React.ReactNode
     onSendMessage(message: string): Promise<void>
-    onPaginate?: () => Promise<{ end: boolean }>
+    onPaginate?: () => Promise<void>
 }
 
 export const ChatConversation: React.FC<Props> = ({
@@ -59,7 +59,6 @@ export const ChatConversation: React.FC<Props> = ({
     const [isSending, setIsSending] = useState(false)
     const [hasPaginated, setHasPaginated] = useState(false)
     const [isPaginating, setIsPaginating] = useState(false)
-    const [isAtEnd, setIsAtEnd] = useState(false)
     const isTouchScreen = useIsTouchScreen()
     const inputRef = useRef<HTMLTextAreaElement>(null)
     useAutosizeTextArea(inputRef.current, value)
@@ -84,7 +83,6 @@ export const ChatConversation: React.FC<Props> = ({
                 setIsPaginating(true)
                 setHasPaginated(true)
                 onPaginate()
-                    .then(({ end }) => setIsAtEnd(end))
                     .catch(() => null)
                     .finally(() => setIsPaginating(false))
             }
@@ -98,7 +96,6 @@ export const ChatConversation: React.FC<Props> = ({
         setIsPaginating(true)
         setHasPaginated(true)
         onPaginate()
-            .then(({ end }) => setIsAtEnd(end))
             .catch(() => null)
             .finally(() => setIsPaginating(false))
     }, [onPaginate])
@@ -172,7 +169,7 @@ export const ChatConversation: React.FC<Props> = ({
             <Layout.Content fullWidth>
                 <Messages
                     onWheel={
-                        onPaginate && !hasPaginated && !isAtEnd
+                        onPaginate && !hasPaginated
                             ? handleMessagesScroll
                             : undefined
                     }>
