@@ -117,7 +117,11 @@ fi
 
 parallel_args+=(--timeout "${FM_TEST_CI_ALL_TIMEOUT:-300}")
 
-parallel_args+=(--load "${FM_TEST_CI_ALL_MAX_LOAD:-$(($(nproc) / 3 + 1))}")
+# GNU parallel's load measurement is unreliable on Darwin. Honor an explicit
+# override there, but otherwise let the job limit above control concurrency.
+if [[ "$(uname)" != "Darwin" || -n "${FM_TEST_CI_ALL_MAX_LOAD:-}" ]]; then
+  parallel_args+=(--load "${FM_TEST_CI_ALL_MAX_LOAD:-$(($(nproc) / 3 + 1))}")
+fi
 # --delay to let nix start extracting and bump the load
 # usually not needed, as '--jobs' will keep a cap on the load anyway
 parallel_args+=(--delay "${FM_TEST_CI_ALL_DELAY:-0}")

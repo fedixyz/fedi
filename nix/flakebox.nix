@@ -353,6 +353,27 @@ in
       doInstallCargoArtifacts = false;
     };
 
+    darwinWorkspaceTest =
+      let
+        # These integration suites require Linux-only service fixtures. Re-enable
+        # each package once its fixture closure runs on Darwin.
+        darwinExcludedTestPackages = [
+          "fedi-ffi" # Bridge RPC tests spawn bitcoind.
+          "stability-pool-tests" # Stability-pool integration tests spawn bitcoind.
+          "stability-pool-tests-old" # Old stability-pool integration tests spawn bitcoind.
+        ];
+        darwinTestFilter = pkgs.lib.concatMapStringsSep " | " (
+          package: "package(${package})"
+        ) darwinExcludedTestPackages;
+      in
+      craneLib.cargoNextest {
+        cargoArtifacts = workspaceBuild;
+        cargoExtraArgs = "--workspace --all-targets --locked --filter-expr 'not (${darwinTestFilter})'";
+
+        CARGO_DENY_COMPILATION = "1";
+        HOME = "/tmp";
+      };
+
     workspaceCargoUdepsDeps = craneLib.buildDepsOnly {
       pname = "fedi-cargo-udeps-deps";
       nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.cargo-udeps ];
