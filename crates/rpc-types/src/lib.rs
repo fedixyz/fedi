@@ -875,7 +875,7 @@ impl From<SpendOOBState> for RpcOOBSpendState {
             fedimint_mint_client::SpendOOBState::UserCanceledFailure => {
                 RpcOOBSpendState::UserCanceledFailure
             }
-            fedimint_mint_client::SpendOOBState::Success => RpcOOBSpendState::UserCanceledSuccess,
+            fedimint_mint_client::SpendOOBState::Success => RpcOOBSpendState::Success,
             fedimint_mint_client::SpendOOBState::Refunded => RpcOOBSpendState::Refunded,
         }
     }
