@@ -28,7 +28,7 @@ const ChatTextEvent: React.FC<Props> = ({ event, isWide }) => {
     const isMe = event.senderId === matrixAuth?.userId
 
     return (
-        <Pressable onLongPress={isMe ? handleLongPress : undefined}>
+        <Pressable onLongPress={handleLongPress}>
             <OptionalGradient
                 gradient={isMe ? bubbleGradient : undefined}
                 style={[

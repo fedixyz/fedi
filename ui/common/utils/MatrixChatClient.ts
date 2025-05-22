@@ -697,7 +697,6 @@ export class MatrixChatClient {
         // store unsubscribe functions to cancel later if needed
         this.roomListUnsubscribe = unsubscribe
     }
-
     private async observeRoomInfo(roomId: string) {
         // Only observe a room once, subsequent calls are no-ops.
         if (this.roomInfoUnsubscribeMap[roomId] !== undefined) return
@@ -711,33 +710,49 @@ export class MatrixChatClient {
                 })
             },
             (update, isInitialUpdate) => {
-                // Emit the initial info
-                const room = this.serializeRoomInfo(update)
-                this.emit('roomInfo', room)
+                try {
+                    // Emit the initial info
+                    const room = this.serializeRoomInfo(update)
+                    this.emit('roomInfo', room)
 
-                // If it's the initial update of a DM:
-                // - fetch the member since it's small and we use recent DM users.
-                // - HACK: observe all DMs to claim ecash in the background.
-                if (isInitialUpdate && room.directUserId) {
-                    // TODO: remove this when members list is observable
-                    this.observeRoomMembers(roomId).catch(err => {
-                        log.warn(
-                            'Failed to observe room members from initial room info',
-                            { roomId, err },
-                        )
-                    })
-
-                    // TODO: Move this to the bridge... intercept messages that contain
-                    // ecash and claim before passing to the frontend.
-                    this.observeRoomTimeline(roomId).catch(err => {
-                        log.warn('Failed to observe room timeline', {
-                            roomId,
-                            err,
+                    // If it's the initial update of a DM:
+                    // - fetch the member since it's small and we use recent DM users.
+                    // - HACK: observe all DMs to claim ecash in the background.
+                    if (isInitialUpdate && room.directUserId) {
+                        // TODO: remove this when members list is observable
+                        this.observeRoomMembers(roomId).catch(err => {
+                            log.warn(
+                                'Failed to observe room members from initial room info',
+                                { roomId, err },
+                            )
                         })
+
+                        // TODO: Move this to the bridge... intercept messages that contain
+                        // ecash and claim before passing to the frontend.
+                        this.observeRoomTimeline(roomId).catch(err => {
+                            log.warn('Failed to observe room timeline', {
+                                roomId,
+                                err,
+                            })
+                        })
+                    }
+                } catch (error: unknown) {
+                    const err =
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error))
+
+                    log.error('Error handling room update', {
+                        roomId,
+                        update,
+                        isInitialUpdate,
+                        errorMessage: err.message,
+                        errorStack: err.stack,
                     })
                 }
             },
         )
+
         // store unsubscribe functions to cancel later if needed
         this.roomInfoUnsubscribeMap[roomId] = unsubscribe
     }
@@ -951,16 +966,21 @@ export class MatrixChatClient {
                         decryptedEvent.unsigned.redacted_because
                             .origin_server_ts
                 }
-                preview = {
-                    eventId: decryptedEvent.event_id,
-                    senderId: sender_profile.Original.content.id,
-                    displayName: this.ensureDisplayName(
-                        sender_profile.Original.content.displayname,
-                    ),
-                    avatarUrl: sender_profile.Original.content.avatar_url,
-                    body: decryptedEvent.content.body,
-                    isDeleted,
-                    timestamp,
+
+                // Guard against missing sender_profile or Original content
+                const senderContent = sender_profile?.Original?.content
+                if (senderContent) {
+                    preview = {
+                        eventId: decryptedEvent.event_id,
+                        senderId: senderContent.id,
+                        displayName: this.ensureDisplayName(
+                            senderContent.displayname,
+                        ),
+                        avatarUrl: senderContent.avatar_url,
+                        body: decryptedEvent.content.body,
+                        isDeleted,
+                        timestamp,
+                    }
                 }
             }
         }

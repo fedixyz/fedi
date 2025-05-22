@@ -83,7 +83,6 @@ const MessageContents: React.FC<MessageContentsProps> = ({
                             <Text
                                 key={`mi-t-${i}`}
                                 caption
-                                selectable={!sentByMe}
                                 style={[
                                     ...textStyles,
                                     i !== 0 ? styles(theme).topPaddedText : {},
@@ -103,7 +102,7 @@ const MessageContents: React.FC<MessageContentsProps> = ({
     } else {
         // otherwise just render text normally
         text = (
-            <Text caption medium style={textStyles} selectable={!sentByMe}>
+            <Text caption medium style={textStyles}>
                 {content}
             </Text>
         )
