@@ -103,7 +103,7 @@ export const LEGACY_CODE_TYPES = [
         const onlineParsers: (() => Promise<AnyParsedData | undefined>)[] = [
             async () => {
                 log.debug('Running online parser: parseBolt11')
-                return parseBolt11(raw, fedimint, t, federationId)
+                return parseBolt11(raw, fedimint, t, null)
             },
             async () => {
                 log.debug('Running online parser: parseBolt12')

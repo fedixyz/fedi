@@ -1,14 +1,17 @@
 use std::collections::BTreeMap;
 use std::time::SystemTime;
 
-use fedimint_core::db::{IDatabaseTransactionOpsCoreTyped, MigrationContext};
+use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{impl_db_lookup, impl_db_record, Amount, PeerId, TransactionId};
+use fedimint_server_core::migration::ServerModuleDbMigrationFnContext;
 use secp256k1::PublicKey;
 use stability_pool_common_old::{
     CancelRenewal, LockedProvide, LockedSeek, SeekMetadata, StabilityPoolConsensusItem,
     StagedProvide, StagedSeek,
 };
+
+use crate::StabilityPool;
 
 #[repr(u8)]
 #[derive(Clone, Debug)]
@@ -233,7 +236,9 @@ impl_db_lookup!(
 );
 
 /// Migrate DB from version 1 to version 2 by wiping everything
-pub async fn migrate_to_v2(mut ctx: MigrationContext<'_>) -> Result<(), anyhow::Error> {
+pub async fn migrate_to_v2(
+    mut ctx: ServerModuleDbMigrationFnContext<'_, StabilityPool>,
+) -> Result<(), anyhow::Error> {
     let mut dbtx = ctx.dbtx();
     dbtx.remove_by_prefix(&IdleBalanceKeyPrefix).await;
     dbtx.remove_by_prefix(&StagedSeeksKeyPrefix).await;

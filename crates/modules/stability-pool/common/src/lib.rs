@@ -291,7 +291,7 @@ impl<M> Encodable for Deposit<M>
 where
     M: Encodable,
 {
-    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
         (self.txid, self.sequence, self.amount, &self.meta).consensus_encode(writer)
     }
 }

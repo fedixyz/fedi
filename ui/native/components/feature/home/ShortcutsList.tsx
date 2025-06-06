@@ -5,7 +5,6 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Dimensions,
-    Linking,
     Pressable,
     StyleSheet,
     View,
@@ -22,6 +21,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut } from '../../../types'
 import { NavigationHook } from '../../../types/navigation'
+import { handleFediModNavigation } from '../../../utils/linking'
 import SvgImage from '../../ui/SvgImage'
 import { Tooltip } from '../../ui/Tooltip'
 import ShortcutTile from './ShortcutTile'
@@ -40,20 +40,10 @@ const ShortcutsList: React.FC = () => {
     const style = styles(theme, columns)
 
     const onSelectFediMod = (shortcut: Shortcut) => {
-        const fediMod = shortcut as FediMod
-        // Handle telegram and whatsapp links natively
-        if (
-            fediMod.url.includes('https://t.me') ||
-            fediMod.url.includes('https://wa.me')
-        ) {
-            Linking.openURL(fediMod.url)
-        } else {
-            navigation.navigate('FediModBrowser', { url: fediMod.url })
-        }
+        handleFediModNavigation(shortcut, navigation)
     }
 
-    const handleModHold = (shortcut: Shortcut) => {
-        const fediMod = shortcut as FediMod
+    const handleModHold = (fediMod: FediMod) => {
         setActionsMod(fediMod)
     }
 

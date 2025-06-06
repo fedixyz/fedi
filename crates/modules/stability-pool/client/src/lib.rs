@@ -12,20 +12,19 @@ use common::{
     StabilityPoolModuleTypes, StabilityPoolOutput,
 };
 use fedimint_api_client::api::{DynModuleApi, FederationApiExt as _, FederationError};
-use fedimint_client::derivable_secret::DerivableSecret;
-use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
-use fedimint_client::module::recovery::NoModuleBackup;
-use fedimint_client::module::{ClientContext, ClientModule, OutPointRange};
-use fedimint_client::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
-use fedimint_client::sm::util::MapStateTransitions;
-use fedimint_client::sm::{
+use fedimint_client::module::module::init::{ClientModuleInit, ClientModuleInitArgs};
+use fedimint_client::module::module::recovery::NoModuleBackup;
+use fedimint_client::module::module::{ClientContext, OutPointRange};
+use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
+use fedimint_client::module::sm::util::MapStateTransitions;
+use fedimint_client::module::sm::{
     ClientSMDatabaseTransaction, Context, DynState, ModuleNotifier, State, StateTransition,
 };
 use fedimint_client::transaction::{
     ClientInput, ClientInputBundle, ClientInputSM, ClientOutput, ClientOutputBundle,
     ClientOutputSM, TransactionBuilder,
 };
-use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
+use fedimint_client::{sm_enum_variant_translation, ClientModule, DynGlobalClientContext};
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::{Database, DatabaseTransaction};
 use fedimint_core::encoding::{Decodable, Encodable};
@@ -35,6 +34,7 @@ use fedimint_core::module::{
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::{apply, async_trait_maybe_send, Amount, OutPoint, TransactionId};
+use fedimint_derive_secret::DerivableSecret;
 use futures::{Stream, StreamExt};
 use rand::Rng;
 use secp256k1::{schnorr, Keypair, Secp256k1};
@@ -638,7 +638,7 @@ impl StabilityPoolClientModule {
 
         let client_ctx = self.client_ctx.clone();
         Ok(
-            self.client_ctx.outcome_or_updates(&operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
                 stream! {
                     yield StabilityPoolDepositOperationState::Initiated;
 
@@ -699,7 +699,7 @@ impl StabilityPoolClientModule {
         let client_ctx = self.client_ctx.clone();
         Ok(self
             .client_ctx
-            .outcome_or_updates(&operation, operation_id, move || {
+            .outcome_or_updates(operation, operation_id, move || {
                 stream! {
                     yield StabilityPoolTransferOperationState::Initiated;
 
@@ -791,7 +791,7 @@ impl StabilityPoolClientModule {
 
         Ok(self
             .client_ctx
-            .outcome_or_updates(&operation, operation_id, move || {
+            .outcome_or_updates(operation, operation_id, move || {
                 stream! {
                     match next_withdrawal_state(&mut operation_stream).await {
                         StabilityPoolWithdrawalState::Created => {
@@ -909,7 +909,7 @@ impl StabilityPoolClientModule {
 
         let client_ctx = self.client_ctx.clone();
         Ok(
-            self.client_ctx.outcome_or_updates(&operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
                 stream! {
                     yield StabilityPoolWithdrawalOperationState::WithdrawalInitiated(amount);
 

@@ -4,7 +4,6 @@ import { Tooltip, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-    Linking,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -27,6 +26,7 @@ import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
 import { NavigationHook } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
+import { handleFediModNavigation } from '../utils/linking'
 
 const Mods: React.FC = () => {
     const { theme } = useTheme()
@@ -51,15 +51,11 @@ const Mods: React.FC = () => {
     const onSelectFediMod = (shortcut: Shortcut) => {
         setActionsMod(undefined)
         const fediMod = shortcut as FediMod
-        if (
-            fediMod.url.includes('https://t.me') ||
-            fediMod.url.includes('https://wa.me')
-        ) {
-            Linking.openURL(fediMod.url)
-        } else if (fediMod.title.toLowerCase().includes('ask fedi')) {
+
+        if (fediMod.title.toLowerCase().includes('ask fedi')) {
             launchZendesk()
         } else {
-            navigation.navigate('FediModBrowser', { url: fediMod.url })
+            handleFediModNavigation(fediMod, navigation)
         }
     }
 

@@ -435,6 +435,7 @@
             "new-message": "New message",
             "new-messages": "New messages",
             "no-messages": "No messages in this group yet.",
+            "no-messages-header": "Start the conversation",
             "no-one-is-in-this-group": "No one is in this group yet.",
             "notification-always": "Always Notify",
             "notification-mentions": "Only Mentions",

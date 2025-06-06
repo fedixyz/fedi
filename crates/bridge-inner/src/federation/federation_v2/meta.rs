@@ -2,8 +2,11 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use fedimint_api_client::api::DynGlobalApi;
-use fedimint_client::db::{MetaFieldKey, MetaFieldPrefix, MetaFieldValue, MetaServiceInfoKey};
-use fedimint_client::meta::{fetch_meta_overrides, FetchKind, MetaService, MetaSource, MetaValues};
+use fedimint_client::db::{MetaFieldPrefix, MetaServiceInfoKey};
+use fedimint_client::meta::MetaService;
+use fedimint_client::module::meta::{
+    fetch_meta_overrides, FetchKind, MetaFieldKey, MetaFieldValue, MetaSource, MetaValues,
+};
 use fedimint_core::config::ClientConfig;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::util::{backoff_util, retry};
@@ -47,7 +50,7 @@ impl MetaServiceExt for MetaService {
         let entries: MetaEntries = dbtx
             .find_by_prefix(&MetaFieldPrefix)
             .await
-            .map(|(k, v)| (k.0, v.0))
+            .map(|(k, v)| (k.0 .0, v.0 .0))
             .collect()
             .await;
         Some(entries)

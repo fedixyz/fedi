@@ -5,7 +5,7 @@ import {
 } from '@react-navigation/native'
 import { useTheme } from '@rneui/themed'
 import { useCallback, useEffect, useRef } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, View, Linking } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
@@ -23,7 +23,7 @@ import {
     MainNavigatorDrawerParamList,
 } from './types/navigation'
 import { useIsFeatureUnlocked } from './utils/hooks/security'
-import { getLinkingConfig } from './utils/linking'
+import { getLinkingConfig, parseLink } from './utils/linking'
 
 const log = makeLog('NavigationRouter')
 
@@ -34,6 +34,27 @@ const Router = () => {
     const navigation = useNavigationContainerRef()
     const isAppUnlocked = useIsFeatureUnlocked('app')
     const { parseUrl } = useOmniLinkContext()
+
+    // TEMPORARY DEEPLINK SHIM for app.fedi.xyz universal-links
+    useEffect(() => {
+        const originalOpenURL = Linking.openURL.bind(Linking)
+
+        // override globally
+        Linking.openURL = (rawUrl: string) => {
+            // only handle the /link endpoint
+            if (
+                rawUrl.startsWith('https://app.fedi.xyz/link') ||
+                rawUrl.startsWith('https://www.app.fedi.xyz/link')
+            ) {
+                // try to decode to fedi://…; if that fails, opens rawUrl
+                const deep = parseLink(rawUrl, originalOpenURL)
+                return originalOpenURL(deep || rawUrl)
+            }
+
+            // everything else: open as normal
+            return originalOpenURL(rawUrl)
+        }
+    }, [])
 
     const toast = useToast()
     const routeRef = useRef<string>()

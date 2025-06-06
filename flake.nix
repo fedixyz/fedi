@@ -1,12 +1,15 @@
 {
   inputs = {
     nixpkgs = {
-      url = "github:NixOS/nixpkgs/nixos-24.11";
+      # Pineed due to fastelan issues
+      # See https://github.com/fedibtc/fedi/pull/6903
+      # url = "github:NixOS/nixpkgs/nixos-24.11";
+      url = "github:NixOS/nixpkgs?rev=bffc22eb12172e6db3c5dde9e3e5628f8e3e7912";
     };
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedimint/fedimint?ref=v0.6.2";
+      url = "github:fedibtc/fedimint?ref=v0.7.0-fedi1";
     };
 
     fenix = {
@@ -65,6 +68,7 @@
             fedimint-pkgs.overlays.all
 
             (final: prev: {
+              rocksdb_7_10 = nixpkgs.legacyPackages.${system}.rocksdb_7_10;
               fs-dir-cache = fs-dir-cache.packages.${system}.default;
               cargo-deluxe = cargo-deluxe.packages.${system}.default;
               esplora-electrs = pkgs-fedimint.esplora-electrs;
@@ -327,6 +331,7 @@
             toolchain = toolchainAll;
             nativeBuildInputs = craneMultiBuild.commonArgs.nativeBuildInputs ++ [
               fedimint-pkgs.packages.${system}.gateway-pkgs
+              fedimint-pkgs.packages.${system}.fedimint-recurringd
               pkgs.fs-dir-cache
               pkgs.cargo-nextest
               pkgs.cargo-audit
@@ -423,6 +428,7 @@
           gateway-pkgs = fedimint-pkgs.packages.${system}.gateway-pkgs;
           gatewayd = fedimint-pkgs.packages.${system}.gatewayd;
           gateway-cli = fedimint-pkgs.packages.${system}.gateway-cli;
+          fedimint-recurringd = fedimint-pkgs.packages.${system}.fedimint-recurringd;
           fedimint-dbtool = flakeboxLib.pickBinary {
             bin = "fedimint-dbtool";
             pkg = fedimint-pkgs.packages.${system}.fedimint-pkgs;

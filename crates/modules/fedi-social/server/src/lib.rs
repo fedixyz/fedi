@@ -25,14 +25,11 @@ use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
     api_endpoint, ApiEndpoint, ApiError, ApiVersion, CoreConsensusVersion, InputMeta, ModuleCommon,
-    ModuleConsensusVersion, ModuleInit, PeerHandle, SupportedModuleApiVersions,
-    TransactionItemAmount,
+    ModuleConsensusVersion, ModuleInit, SupportedModuleApiVersions, TransactionItemAmount,
 };
 use fedimint_core::{push_db_pair_items, InPoint, NumPeersExt, OutPoint, PeerId};
-use fedimint_server::config::distributedgen::PeerHandleOps;
-use fedimint_server::core::{
-    DynServerModule, ServerModule, ServerModuleInit, ServerModuleInitArgs,
-};
+use fedimint_server::core::config::PeerHandleOps;
+use fedimint_server::core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
 use fedimint_threshold_crypto::serde_impl::SerdeSecret;
 use fedimint_threshold_crypto::{PublicKeySet, SecretKey, SecretKeyShare};
 use futures::stream::StreamExt;
@@ -114,6 +111,7 @@ impl ModuleInit for FediSocialInit {
 
 #[async_trait]
 impl ServerModuleInit for FediSocialInit {
+    type Module = FediSocial;
     type Params = FediSocialGenParams;
 
     fn versions(&self, _core: CoreConsensusVersion) -> &[ModuleConsensusVersion] {
@@ -124,11 +122,10 @@ impl ServerModuleInit for FediSocialInit {
         SupportedModuleApiVersions::from_raw((2, 0), (2, 0), &[(0, 0)])
     }
 
-    async fn init(&self, args: &ServerModuleInitArgs<Self>) -> anyhow::Result<DynServerModule> {
+    async fn init(&self, args: &ServerModuleInitArgs<Self>) -> anyhow::Result<Self::Module> {
         Ok(FediSocial {
             cfg: args.cfg().to_typed()?,
-        }
-        .into())
+        })
     }
     fn trusted_dealer_gen(
         &self,
@@ -166,7 +163,7 @@ impl ServerModuleInit for FediSocialInit {
 
     async fn distributed_gen(
         &self,
-        peers: &PeerHandle,
+        peers: &(dyn PeerHandleOps + Send + Sync),
         _params: &ConfigGenModuleParams,
     ) -> anyhow::Result<ServerModuleConfig> {
         let (polynomial, sks) = peers.run_dkg_g1().await?;

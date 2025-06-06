@@ -217,7 +217,7 @@ impl IStorage for PathBasedStorage {
         db_name: &str,
     ) -> anyhow::Result<fedimint_core::db::Database> {
         let db_name = self.data_dir.join(format!("{db_name}.db"));
-        let db = fedimint_rocksdb::RocksDb::open(db_name)?;
+        let db = fedimint_rocksdb::RocksDb::open(db_name).await?;
         Ok(db.into())
     }
 

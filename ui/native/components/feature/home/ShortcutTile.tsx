@@ -24,9 +24,9 @@ import SvgImage, {
 } from '../../ui/SvgImage'
 
 type ShortcutTileProps = {
-    shortcut: Shortcut
-    onHold?: (shortcut: Shortcut) => void
-    onSelect: (shortcut: Shortcut) => void
+    shortcut: FediMod
+    onHold?: (fediMod: FediMod) => void
+    onSelect: (fediMod: FediMod) => void
 }
 
 function isMod(shortcut: Shortcut | FediMod): shortcut is FediMod {

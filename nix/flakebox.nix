@@ -182,6 +182,7 @@ in
         pkgs.electrs
         pkgs.esplora-electrs
         fedimint-pkgs.packages.${system}.gateway-pkgs
+        fedimint-pkgs.packages.${system}.fedimint-recurringd
         # helpers
         pkgs.jq
         pkgs.bc

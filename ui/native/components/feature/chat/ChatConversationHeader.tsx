@@ -1,6 +1,7 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import {
@@ -31,6 +32,7 @@ const ChatConversationHeader: React.FC = () => {
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const preview = useAppSelector(s => selectGroupPreview(s, roomId))
     const user = useAppSelector(s => selectMatrixUser(s, userId))
+    const { t } = useTranslation()
 
     const style = useMemo(() => styles(theme), [theme])
 
@@ -67,6 +69,7 @@ const ChatConversationHeader: React.FC = () => {
     }, [navigation])
 
     const HeaderCenter = useMemo(() => {
+        const isNameEmpty = !name
         return (
             <Pressable
                 style={style.memberContainer}
@@ -78,7 +81,7 @@ const ChatConversationHeader: React.FC = () => {
                     }
                 }}>
                 <>
-                    {avatar}
+                    {isNameEmpty ? null : avatar}
                     <View style={style.textContainer}>
                         <Text
                             bold
@@ -88,7 +91,9 @@ const ChatConversationHeader: React.FC = () => {
                                 theme.multipliers.headerMaxFontMultiplier
                             }
                             style={style.memberText}>
-                            {name}
+                            {isNameEmpty
+                                ? t('feature.chat.no-messages-header')
+                                : name}
                         </Text>
                         {room?.directUserId && (
                             <Text
@@ -106,7 +111,7 @@ const ChatConversationHeader: React.FC = () => {
                 </>
             </Pressable>
         )
-    }, [avatar, name, navigation, room, roomId, theme, style])
+    }, [avatar, name, navigation, room, roomId, theme, style, t])
 
     return (
         <>
