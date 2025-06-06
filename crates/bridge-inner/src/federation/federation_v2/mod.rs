@@ -33,10 +33,11 @@ use fedimint_api_client::api::net::Connector;
 use fedimint_api_client::api::{DynGlobalApi, DynModuleApi, FederationApiExt as _, StatusResponse};
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::db::{CachedApiVersionSetKey, ChronologicalOperationLogKey};
-use fedimint_client::meta::{FetchKind, MetaService, MetaSource};
-use fedimint_client::module::recovery::RecoveryProgress;
+use fedimint_client::meta::MetaService;
+use fedimint_client::module::meta::{FetchKind, MetaSource};
+use fedimint_client::module::module::recovery::RecoveryProgress;
+use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
 use fedimint_client::module::ClientModule;
-use fedimint_client::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
 use fedimint_client::secret::RootSecretStrategy;
 use fedimint_client::{Client, ClientBuilder, ClientHandle};
 use fedimint_core::config::{ClientConfig, FederationId};
@@ -454,11 +455,8 @@ impl FederationV2 {
         if should_override_localhost {
             override_localhost_invite_code(&mut invite_code);
         }
-        let api_single_guardian = DynGlobalApi::from_endpoints(
-            invite_code.peers(),
-            &invite_code.api_secret(),
-            &Connector::Tcp,
-        );
+        let api_single_guardian =
+            DynGlobalApi::from_endpoints(invite_code.peers(), &invite_code.api_secret()).await?;
         let client_root_sercet = {
             let federation_id = invite_code.federation_id();
             // We do an additional derivation using `DerivableSecret::federation_key` since
@@ -746,11 +744,7 @@ impl FederationV2 {
             .map(|(&peer_id, endpoint)| {
                 (
                     peer_id,
-                    DynGlobalApi::from_endpoints(
-                        vec![(peer_id, endpoint.clone())],
-                        api_secret,
-                        &Connector::Tcp,
-                    ),
+                    DynGlobalApi::from_endpoints(vec![(peer_id, endpoint.clone())], api_secret),
                 )
             })
             .collect();
@@ -758,6 +752,15 @@ impl FederationV2 {
         let futures = peer_clients
             .into_iter()
             .map(|(guardian, client)| async move {
+                let client = match client.await {
+                    Ok(client) => client,
+                    Err(e) => {
+                        return GuardianStatus::Error {
+                            guardian: guardian.to_string(),
+                            error: e.to_string(),
+                        }
+                    }
+                };
                 let start = fedimint_core::time::now();
                 match timeout(
                     GUARDIAN_STATUS_TIMEOUT,
@@ -866,7 +869,7 @@ impl FederationV2 {
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
             .await?;
 
-        self.subscribe_deposit(operation_id).await?;
+        self.subscribe_deposit(operation_id);
 
         Ok(address.to_string())
     }
@@ -921,7 +924,7 @@ impl FederationV2 {
         })
     }
 
-    async fn subscribe_deposit(&self, operation_id: OperationId) -> Result<()> {
+    fn subscribe_deposit(&self, operation_id: OperationId) {
         self.spawn_cancellable("subscribe deposit", move |fed| async move {
             let Ok(wallet) = fed.client.wallet() else {
                 error!("Wallet module not present!");
@@ -968,7 +971,6 @@ impl FederationV2 {
                 }
             }
         });
-        Ok(())
     }
 
     pub async fn recheck_pegin_address(&self, operation_id: OperationId) -> Result<()> {
@@ -1366,6 +1368,7 @@ impl FederationV2 {
                 );
             }
         }
+        self.subscribe_to_onchain_addresses().await;
         info!(
             "subscribe_to_all_operations took {:?}",
             fedimint_core::time::now().duration_since(start)
@@ -1431,10 +1434,13 @@ impl FederationV2 {
                         }
                     });
                 }
+                #[allow(deprecated)]
                 LightningOperationMeta {
-                    variant: LightningOperationMetaVariant::Claim { .. },
+                    variant:
+                        LightningOperationMetaVariant::Claim { .. }
+                        | LightningOperationMetaVariant::RecurringPaymentReceive(_),
                     ..
-                } => unreachable!("claims are not supported"),
+                } => unreachable!("claims and recurring payments are not supported"),
             },
             MINT_OPERATION_TYPE => {
                 let meta = operation.meta::<MintOperationMeta>();
@@ -1464,7 +1470,7 @@ impl FederationV2 {
                         variant: WalletOperationMetaVariant::Deposit { .. },
                         ..
                     } => {
-                        self.subscribe_deposit(operation_id).await?;
+                        // see subscribe_to_onchain_addresses
                     }
                     _ => {
                         tracing::debug!(
@@ -1534,6 +1540,20 @@ impl FederationV2 {
         }
 
         Ok(())
+    }
+
+    pub async fn subscribe_to_onchain_addresses(&self) {
+        let Ok(wallet) = self.client.wallet() else {
+            return;
+        };
+        let Ok(tweak_idxes) = wallet.list_peg_in_tweak_idxes().await else {
+            // failed to get peg in tweak idxes
+            return;
+        };
+
+        for tweak_data in tweak_idxes.into_values() {
+            self.subscribe_deposit(tweak_data.operation_id);
+        }
     }
 
     pub async fn subscribe_to_ln_pay(
@@ -2393,6 +2413,26 @@ impl FederationV2 {
         operation_id: OperationId,
         entry: OperationLogEntry,
     ) -> Option<RpcTransaction> {
+        let meta = entry.meta::<serde_json::Value>();
+        let module = entry.operation_module_kind().to_owned();
+        match fedimint_core::task::timeout(
+            Duration::from_secs(30),
+            self.get_transaction_really_inner(operation_id, entry),
+        )
+        .await
+        {
+            Ok(value) => value,
+            Err(_) => {
+                let meta = serde_json::to_string_pretty(&meta).unwrap();
+                panic!("FOUND culprit {operation_id:?} mod={module} meta={meta}");
+            }
+        }
+    }
+    async fn get_transaction_really_inner(
+        &self,
+        operation_id: OperationId,
+        entry: OperationLogEntry,
+    ) -> Option<RpcTransaction> {
         let notes = self
             .dbtx()
             .await
@@ -2517,8 +2557,10 @@ impl FederationV2 {
                                 .map(Into::into),
                         };
                     }
-                    LightningOperationMetaVariant::Claim { .. } => {
-                        unreachable!("claims are not supported")
+                    #[allow(deprecated)]
+                    LightningOperationMetaVariant::Claim { .. }
+                    | LightningOperationMetaVariant::RecurringPaymentReceive(_) => {
+                        unreachable!("claims and recurring payments are not supported")
                     }
                 }
             }

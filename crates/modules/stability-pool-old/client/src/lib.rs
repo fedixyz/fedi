@@ -14,19 +14,19 @@ use common::{
 };
 use db::AccountInfoKey;
 use fedimint_api_client::api::{DynModuleApi, FederationApiExt as _, FederationError};
-use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
-use fedimint_client::module::recovery::NoModuleBackup;
-use fedimint_client::module::{ClientContext, ClientModule, OutPointRange};
-use fedimint_client::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
-use fedimint_client::sm::util::MapStateTransitions;
-use fedimint_client::sm::{
+use fedimint_client::module::module::init::{ClientModuleInit, ClientModuleInitArgs};
+use fedimint_client::module::module::recovery::NoModuleBackup;
+use fedimint_client::module::module::{ClientContext, OutPointRange};
+use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
+use fedimint_client::module::sm::util::MapStateTransitions;
+use fedimint_client::module::sm::{
     ClientSMDatabaseTransaction, Context, DynState, ModuleNotifier, State, StateTransition,
 };
 use fedimint_client::transaction::{
     ClientInput, ClientInputBundle, ClientInputSM, ClientOutput, ClientOutputBundle,
     ClientOutputSM, TransactionBuilder,
 };
-use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
+use fedimint_client::{sm_enum_variant_translation, ClientModule, DynGlobalClientContext};
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::{Database, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
@@ -665,7 +665,7 @@ impl StabilityPoolClientModule {
 
         let client_ctx = self.client_ctx.clone();
         Ok(
-            self.client_ctx.outcome_or_updates(&operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
                 stream! {
                     yield StabilityPoolDepositOperationState::Initiated;
 
@@ -770,7 +770,7 @@ impl StabilityPoolClientModule {
         let module = self.clone();
 
         Ok(
-            self.client_ctx.outcome_or_updates(&operation, operation_id, move || {
+            self.client_ctx.outcome_or_updates(operation, operation_id, move || {
                 stream! {
                     match operation_meta {
                         StabilityPoolMeta::Deposit { .. } => {

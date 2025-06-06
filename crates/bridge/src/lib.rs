@@ -17,7 +17,6 @@ use device_registration::DeviceRegistrationService;
 use fedi_social_client::{
     self, FediSocialCommonGen, RecoveryFile, SocialRecoveryClient, SocialRecoveryState,
 };
-use fedimint_api_client::api::net::Connector;
 use fedimint_api_client::api::DynGlobalApi;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::core::ModuleKind;
@@ -346,8 +345,8 @@ impl BridgeFull {
                 .iter()
                 .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone())),
             &None, // FIXME: api secret
-            &Connector::Tcp,
         )
+        .await?
         .with_module(social_module_id);
         let client = SocialRecoveryClient::new_start(
             social_module_id,
@@ -445,8 +444,8 @@ impl BridgeFull {
                 .iter()
                 .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone())),
             &None, // FIXME: api secret
-            &Connector::Tcp,
         )
+        .await?
         .with_module(social_module_id);
         let recovery_client = SocialRecoveryClient::new_continue(
             social_module_id,

@@ -25,13 +25,14 @@ async fn starter_test() -> anyhow::Result<()> {
     #[allow(unused_variables)]
     let DevFed {
         bitcoind,
-        cln,
         lnd,
         fed,
         gw_lnd,
         gw_ldk,
         electrs,
         esplora,
+        gw_ldk_second,
+        recurringd,
     } = dev_fed(&process_mgr).await?;
 
     // Get clients for seeker and provider
@@ -880,8 +881,10 @@ async fn setup() -> anyhow::Result<(ProcessManager, TaskGroup)> {
     let offline_nodes = 0;
     let globals = vars::Global::new(
         Path::new(&env::var("FM_TEST_DIR")?),
+        1,
         env::var("FM_FED_SIZE")?.parse::<usize>()?,
         offline_nodes,
+        None,
     )
     .await?;
     let log_file = fs::OpenOptions::new()

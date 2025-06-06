@@ -2165,7 +2165,7 @@ pub mod tests {
     use communities::CommunityInvite;
     use devimint::devfed::DevJitFed;
     use devimint::envs::FM_INVITE_CODE_ENV;
-    use devimint::util::{ClnLightningCli, FedimintCli, LnCli, ProcessManager};
+    use devimint::util::{FedimintCli, LnCli, ProcessManager};
     use devimint::vars::{self, mkdir};
     use devimint::{cmd, DevFed};
     use env::envs::FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV;
@@ -2173,7 +2173,10 @@ pub mod tests {
     use fedimint_bip39::Bip39RootSecretStrategy;
     use fedimint_client::secret::RootSecretStrategy;
     use fedimint_core::core::ModuleKind;
+    use fedimint_core::encoding::Encodable;
     use fedimint_core::task::{sleep_in_test, TaskGroup};
+    use fedimint_core::util::backoff_util::aggressive_backoff;
+    use fedimint_core::util::retry;
     use fedimint_core::{apply, async_trait_maybe_send, Amount};
     use fedimint_logging::{TracingSetup, LOG_DEVIMINT};
     use nostr::nips::nip44;
@@ -2392,7 +2395,7 @@ pub mod tests {
 
     async fn cli_generate_invoice(amount: &Amount) -> anyhow::Result<(Bolt11Invoice, String)> {
         let label = format!("bridge-tests-{}", rand::random::<u128>());
-        let invoice_string = cmd!(ClnLightningCli, "invoice", amount.msats, &label, &label)
+        let invoice_string = cmd!(LnCli, "invoice", amount.msats, &label, &label)
             .out_json()
             .await?["bolt11"]
             .as_str()
@@ -2432,9 +2435,7 @@ pub mod tests {
     }
 
     async fn cln_wait_invoice(label: &str) -> anyhow::Result<()> {
-        let status = cmd!(ClnLightningCli, "waitinvoice", label)
-            .out_json()
-            .await?["status"]
+        let status = cmd!(LnCli, "waitinvoice", label).out_json().await?["status"]
             .as_str()
             .map(|s| s.to_owned())
             .unwrap();
@@ -2482,7 +2483,7 @@ pub mod tests {
     }
 
     async fn cln_pay_invoice(invoice_string: &str) -> anyhow::Result<()> {
-        cmd!(ClnLightningCli, "pay", invoice_string).run().await?;
+        cmd!(LnCli, "pay", invoice_string).run().await?;
         Ok(())
     }
 
@@ -2585,55 +2586,75 @@ pub mod tests {
     }
 
     macro_rules! spawn_and_attach_name {
-        ($tests_set:expr, $tests_names:expr, $test_name:ident) => {
-            let id = $tests_set.spawn($test_name()).id();
+        ($dev_fed:ident, $tests_set:expr, $tests_names:expr, $test_name:ident) => {
+            let id = $tests_set.spawn($test_name($dev_fed.clone())).id();
             $tests_names.insert(id, stringify!($test_name).to_owned());
         };
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
-        let _dev_fed = dev_fed().await?;
+        let dev_fed = dev_fed().await?;
         let mut tests_set = JoinSet::new();
         let mut tests_names: HashMap<tokio::task::Id, String> = HashMap::new();
-        spawn_and_attach_name!(tests_set, tests_names, test_join_and_leave_and_join);
-        spawn_and_attach_name!(tests_set, tests_names, test_join_concurrent);
+        spawn_and_attach_name!(
+            dev_fed,
+            tests_set,
+            tests_names,
+            test_join_and_leave_and_join
+        );
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_join_concurrent);
         // TODO: re-enable
         // spawn_and_attach_name!(tests_set, tests_names,
         // test_lightning_send_and_receive);
-        spawn_and_attach_name!(tests_set, tests_names, test_ecash);
-        spawn_and_attach_name!(tests_set, tests_names, test_ecash_overissue);
-        spawn_and_attach_name!(tests_set, tests_names, test_on_chain);
-        spawn_and_attach_name!(tests_set, tests_names, test_ecash_cancel);
-        spawn_and_attach_name!(tests_set, tests_names, test_backup_and_recovery);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_ecash);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_ecash_overissue);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_on_chain);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_ecash_cancel);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_backup_and_recovery);
         spawn_and_attach_name!(
+            dev_fed,
             tests_set,
             tests_names,
             test_backup_and_recovery_from_scratch
         );
-        spawn_and_attach_name!(tests_set, tests_names, test_validate_ecash);
-        spawn_and_attach_name!(tests_set, tests_names, test_social_backup_and_recovery);
-        spawn_and_attach_name!(tests_set, tests_names, test_stability_pool);
-        spawn_and_attach_name!(tests_set, tests_names, test_spv2);
-        spawn_and_attach_name!(tests_set, tests_names, test_lnurl_sign_message);
-        spawn_and_attach_name!(tests_set, tests_names, test_federation_preview);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_validate_ecash);
         spawn_and_attach_name!(
+            dev_fed,
+            tests_set,
+            tests_names,
+            test_social_backup_and_recovery
+        );
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_stability_pool);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_spv2);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_lnurl_sign_message);
+        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_federation_preview);
+        spawn_and_attach_name!(
+            dev_fed,
             tests_set,
             tests_names,
             test_join_fails_post_recovery_index_unassigned
         );
         spawn_and_attach_name!(
+            dev_fed,
             tests_set,
             tests_names,
             test_transfer_device_registration_post_recovery
         );
         spawn_and_attach_name!(
+            dev_fed,
             tests_set,
             tests_names,
             test_new_device_registration_post_recovery
         );
-        spawn_and_attach_name!(tests_set, tests_names, test_fee_remittance_on_startup);
         spawn_and_attach_name!(
+            dev_fed,
+            tests_set,
+            tests_names,
+            test_fee_remittance_on_startup
+        );
+        spawn_and_attach_name!(
+            dev_fed,
             tests_set,
             tests_names,
             test_fee_remittance_post_successful_tx
@@ -2676,7 +2697,7 @@ pub mod tests {
                 .expect("Failed to initialize tracing");
         });
 
-        let globals = vars::Global::new(&test_dir, fed_size, 0).await?;
+        let globals = vars::Global::new(&test_dir, 1, fed_size, 0, None).await?;
 
         info!(target: LOG_DEVIMINT, path=%globals.FM_DATA_DIR.display() , "Devimint data dir");
 
@@ -2692,13 +2713,13 @@ pub mod tests {
     async fn dev_fed() -> anyhow::Result<DevFed> {
         trace!(target: LOG_DEVIMINT, "Starting dev fed");
         let (process_mgr, _) = process_setup(4).await?;
-        let dev_fed = DevJitFed::new(&process_mgr, false).await?;
+        let dev_fed = DevJitFed::new(&process_mgr, false, false)?;
 
         debug!(target: LOG_DEVIMINT, "Peging in client and gateways");
 
         let gw_pegin_amount = 1_000_000;
         let client_pegin_amount = 1_000_000;
-        let ((), _, _) = tokio::try_join!(
+        let ((), (), _) = tokio::try_join!(
             async {
                 let (address, operation_id) =
                     dev_fed.internal_client().await?.get_deposit_addr().await?;
@@ -2715,11 +2736,7 @@ pub mod tests {
                     .await
             },
             async {
-                let gw_ldk = dev_fed
-                    .gw_ldk_connected()
-                    .await?
-                    .clone()
-                    .expect("Must start LDK gateway");
+                let gw_ldk = dev_fed.gw_ldk_connected().await?.clone();
                 let address = gw_ldk
                     .get_pegin_addr(&dev_fed.fed().await?.calculate_federation_id())
                     .await?;
@@ -2824,7 +2841,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_join_and_leave_and_join() -> anyhow::Result<()> {
+    async fn test_join_and_leave_and_join(_dev_fed: DevFed) -> anyhow::Result<()> {
         let (bridge, federation) = setup().await?;
         let env_invite_code = std::env::var("FM_INVITE_CODE").unwrap();
 
@@ -2856,7 +2873,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_join_concurrent() -> anyhow::Result<()> {
+    async fn test_join_concurrent(_dev_fed: DevFed) -> anyhow::Result<()> {
         let device_identifier = "bridge:test:70c2ad23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
 
         let mock_fedi_api = Arc::new(MockFediApi::default());
@@ -3020,7 +3037,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_ecash() -> anyhow::Result<()> {
+    async fn test_ecash(_dev_fed: DevFed) -> anyhow::Result<()> {
         // Vec of tuple of (send_ppm, receive_ppm)
         let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
         for (send_ppm, receive_ppm) in fee_ppm_values {
@@ -3127,7 +3144,7 @@ pub mod tests {
         .await
     }
 
-    async fn test_ecash_overissue() -> anyhow::Result<()> {
+    async fn test_ecash_overissue(_dev_fed: DevFed) -> anyhow::Result<()> {
         let (bridge, federation) = setup().await?;
 
         // receive ecash
@@ -3176,11 +3193,12 @@ pub mod tests {
     }
 
     // on chain is marked experimental for 0.4
-    async fn test_on_chain() -> anyhow::Result<()> {
+    async fn test_on_chain(_dev_fed: DevFed) -> anyhow::Result<()> {
         // Vec of tuple of (send_ppm, receive_ppm)
         let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
         for (send_ppm, receive_ppm) in fee_ppm_values {
             test_on_chain_with_fedi_fees(send_ppm, receive_ppm).await?;
+            test_on_chain_with_fedi_fees_with_restart(send_ppm, receive_ppm).await?;
         }
 
         Ok(())
@@ -3262,7 +3280,111 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_ecash_cancel() -> anyhow::Result<()> {
+    async fn test_on_chain_with_fedi_fees_with_restart(
+        fedi_fees_send_ppm: u64,
+        fedi_fees_receive_ppm: u64,
+    ) -> anyhow::Result<()> {
+        let device_identifier = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
+        let (address, federation_id, data_dir);
+        {
+            // setup, generate address, shutdown
+            let (bridge, federation) = setup_custom(
+                device_identifier.clone(),
+                Arc::new(MockFediApi::default()),
+                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+            )
+            .await?;
+            setWalletModuleFediFeeSchedule(
+                &bridge,
+                federation.rpc_federation_id(),
+                fedi_fees_send_ppm,
+                fedi_fees_receive_ppm,
+            )
+            .await?;
+
+            address = generateAddress(federation.clone(), FrontendMetadata::default()).await?;
+            federation_id = federation.federation_id();
+            data_dir = bridge.runtime.storage.platform_path(Path::new(""));
+            bridge
+                .runtime
+                .task_group
+                .clone()
+                .shutdown_join_all(Duration::from_secs(5))
+                .await?;
+        }
+        bitcoin_cli_send_to_address(&address, "0.1").await?;
+
+        // restart bridge using same data dir
+        let bridge = setup_bridge_custom_with_data_dir(
+            device_identifier,
+            Arc::new(MockFediApi::default()),
+            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
+            data_dir,
+        )
+        .await?;
+        let federation = wait_for_federation_loading(&bridge, &federation_id.to_string()).await?;
+
+        assert!(matches!(
+            listTransactions(federation.clone(), None, None).await?[0]
+                .transaction
+                .kind,
+            RpcTransactionKind::OnchainDeposit {
+                state: Some(RpcOnchainDepositState::WaitingForTransaction),
+                ..
+            }
+        ));
+        // check for event of type transaction that has onchain_state of
+        // DepositState::Claimed
+        'check: loop {
+            let events = bridge.runtime.event_sink.events();
+            for (_, ev_body) in events
+                .iter()
+                .rev()
+                .filter(|(kind, _)| kind == "transaction")
+            {
+                let ev_body = serde_json::from_str::<TransactionEvent>(ev_body).unwrap();
+                let transaction = ev_body.transaction;
+                if matches!(
+                    transaction.kind,
+                    RpcTransactionKind::OnchainDeposit {
+                        onchain_address,
+                        state: Some(RpcOnchainDepositState::Claimed(_)),
+                        ..
+                    } if onchain_address == address
+                ) {
+                    break 'check;
+                }
+            }
+            fedimint_core::task::sleep_in_test(
+                "waiting for generate to address",
+                Duration::from_secs(1),
+            )
+            .await;
+        }
+        assert!(matches!(
+            listTransactions(federation.clone(), None, None).await?[0]
+                .transaction
+                .kind,
+            RpcTransactionKind::OnchainDeposit {
+                state: Some(RpcOnchainDepositState::Claimed(_)),
+                ..
+            }
+        ),);
+
+        let btc_amount = Amount::from_sats(10_000_000);
+        let pegin_fees = federation.client.wallet()?.get_fee_consensus().peg_in_abs;
+        let receive_fedi_fee = Amount::from_msats(
+            ((btc_amount.msats - pegin_fees.msats) * fedi_fees_receive_ppm).div_ceil(MILLION),
+        );
+        assert_eq!(
+            btc_amount,
+            federation.get_balance().await + receive_fedi_fee + pegin_fees,
+        );
+
+        Ok(())
+    }
+
+    async fn test_ecash_cancel(_dev_fed: DevFed) -> anyhow::Result<()> {
         let (_bridge, federation) = setup().await?;
 
         // receive ecash
@@ -3290,14 +3412,14 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_backup_and_recovery() -> anyhow::Result<()> {
+    async fn test_backup_and_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
         test_backup_and_recovery_inner(false).await
     }
 
-    async fn test_backup_and_recovery_from_scratch() -> anyhow::Result<()> {
+    async fn test_backup_and_recovery_from_scratch(_dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
@@ -3389,14 +3511,14 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_validate_ecash() -> anyhow::Result<()> {
+    async fn test_validate_ecash(_dev_fed: DevFed) -> anyhow::Result<()> {
         let (bridge, _) = setup().await?;
         let v2_ecash = "AgEEsuFO5gD3AwQBmW/h68gy6W5cgnl93aTdduN1OnnFofSCqjth03Q6CA+fXnKlVXQSIVSLqcHzsbhozAuo2q5jPMsO6XMZZZXaYvZyIdXzCUIuDNhdCHkGJWAgAa9M5zsSPPVWDVeCWgkerg0Z+Xv8IQGMh7rsgpLh77NCSVRKA2i4fBYNwPglSbkGs42Yllmz6HJtgmmtl/tdjcyVSR30Nc2cfkZYTJcEEnRjQAGC8ZX5eLYQB8rCAZiX5/gQX2QtjasZMy+BJ67kJ0klVqsS9G1IVWhea6ILISOd9H1MJElma8aHBiWBaWeGjrCXru8Ns7Lz4J18CbxFdHyWEQ==";
         validateEcash(&bridge, v2_ecash.into()).await?;
         Ok(())
     }
 
-    async fn test_social_backup_and_recovery() -> anyhow::Result<()> {
+    async fn test_social_backup_and_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
@@ -3546,7 +3668,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_stability_pool() -> anyhow::Result<()> {
+    async fn test_stability_pool(_dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
@@ -3671,7 +3793,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_spv2() -> anyhow::Result<()> {
+    async fn test_spv2(_dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
@@ -3809,7 +3931,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_lnurl_sign_message() -> anyhow::Result<()> {
+    async fn test_lnurl_sign_message(_dev_fed: DevFed) -> anyhow::Result<()> {
         let (bridge, _federation) = setup().await?;
         let k1 = String::from("cfcb7616d615252180e392f509207e1f610f8d6106588c61c3e7bbe8577e4c4c");
         let message = Message::from_digest_slice(&hex::decode(k1)?)?;
@@ -3850,7 +3972,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_federation_preview() -> anyhow::Result<()> {
+    async fn test_federation_preview(_dev_fed: DevFed) -> anyhow::Result<()> {
         let (bridge, federation) = setup().await?;
         let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
 
@@ -3906,7 +4028,9 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_join_fails_post_recovery_index_unassigned() -> anyhow::Result<()> {
+    async fn test_join_fails_post_recovery_index_unassigned(
+        _dev_fed: DevFed,
+    ) -> anyhow::Result<()> {
         let device_identifier = "bridge:test:fd3e4705-f453-45ee-9e84-4bd4fdc6c22a".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::default());
         let (backup_bridge, federation) = setup_custom(
@@ -4032,7 +4156,9 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_transfer_device_registration_post_recovery() -> anyhow::Result<()> {
+    async fn test_transfer_device_registration_post_recovery(
+        _dev_fed: DevFed,
+    ) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
@@ -4153,7 +4279,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_new_device_registration_post_recovery() -> anyhow::Result<()> {
+    async fn test_new_device_registration_post_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
@@ -4475,7 +4601,7 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_fee_remittance_on_startup() -> anyhow::Result<()> {
+    async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
@@ -4547,7 +4673,7 @@ pub mod tests {
         drop(bridge);
 
         // Mock fee remittance endpoint
-        let (fedi_fee_invoice, label) = cli_generate_invoice(&Amount::from_msats(210_000)).await?;
+        let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(210_000).await?;
         let mut mock_fedi_api = MockFediApi::default();
         mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
 
@@ -4560,8 +4686,13 @@ pub mod tests {
         )
         .await?;
 
-        // Wait for fedi fee to be remitted (timeout of 5s)
-        fedimint_core::task::timeout(Duration::from_secs(5), cln_wait_invoice(&label)).await??;
+        // Wait for fedi fee to be remitted
+        retry("fedi fee remitting", aggressive_backoff(), || {
+            dev_fed
+                .gw_ldk
+                .wait_bolt11_invoice(fedi_fee_invoice.payment_hash().consensus_encode_to_vec())
+        })
+        .await?;
 
         // Ensure outstanding fee has been cleared
         let federation = new_bridge
@@ -4573,13 +4704,13 @@ pub mod tests {
         Ok(())
     }
 
-    async fn test_fee_remittance_post_successful_tx() -> anyhow::Result<()> {
+    async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Result<()> {
         if should_skip_test_using_stock_fedimintd() {
             return Ok(());
         }
 
         // Mock fee remittance endpoint
-        let (fedi_fee_invoice, label) = cli_generate_invoice(&Amount::from_msats(210_000)).await?;
+        let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(210_000).await?;
         let mut mock_fedi_api = MockFediApi::default();
         mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
 
@@ -4631,8 +4762,12 @@ pub mod tests {
         }
 
         // Wait for fedi fee to be remitted
-        fedimint_core::task::timeout(Duration::from_secs(30), cln_wait_invoice(&label)).await??;
-
+        retry("fedi fee remitting", aggressive_backoff(), || {
+            dev_fed
+                .gw_ldk
+                .wait_bolt11_invoice(fedi_fee_invoice.payment_hash().consensus_encode_to_vec())
+        })
+        .await?;
         // Ensure outstanding fee has been cleared
         assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
         assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);

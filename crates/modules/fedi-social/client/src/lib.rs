@@ -4,10 +4,10 @@ use std::collections::BTreeMap;
 
 pub use client::*;
 pub use fedi_social_common::*;
-use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
-use fedimint_client::module::recovery::NoModuleBackup;
+use fedimint_client::module::module::init::{ClientModuleInit, ClientModuleInitArgs};
+use fedimint_client::module::module::recovery::NoModuleBackup;
+use fedimint_client::module::sm::{Context, DynState, State, StateTransition};
 use fedimint_client::module::ClientModule;
-use fedimint_client::sm::{Context, DynState, State, StateTransition};
 use fedimint_client::DynGlobalClientContext;
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::DatabaseTransaction;

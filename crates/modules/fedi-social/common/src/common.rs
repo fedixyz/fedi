@@ -51,11 +51,11 @@ impl<T> Encodable for SerdeEncodable<T>
 where
     T: serde::Serialize,
 {
-    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
         let mut count_writer = CountWrite::new(writer);
         bincode::serialize_into(&mut count_writer, &self.0)
             .map_err(|e| std::io::Error::new(io::ErrorKind::Other, e))?;
-        Ok(count_writer.count)
+        Ok(())
     }
 }
 

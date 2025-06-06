@@ -34,11 +34,13 @@ use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::db::{DatabaseTransaction, DatabaseVersion, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
-    ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit, PeerHandle,
+    ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit,
     SupportedModuleApiVersions, TransactionItemAmount,
 };
 use fedimint_core::{Amount, InPoint, NumPeersExt, OutPoint, PeerId, TransactionId};
-use fedimint_server_core::{DynServerModule, ServerModule, ServerModuleInit, ServerModuleInitArgs};
+use fedimint_server_core::config::PeerHandleOps;
+use fedimint_server_core::migration::ServerModuleDbMigrationFn;
+use fedimint_server_core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
 use futures::{stream, FutureExt, StreamExt};
 use itertools::Itertools;
 use oracle::{AggregateOracle, MockOracle, Oracle};
@@ -68,6 +70,7 @@ impl ModuleInit for StabilityPoolInit {
 
 #[async_trait]
 impl ServerModuleInit for StabilityPoolInit {
+    type Module = StabilityPool;
     type Params = StabilityPoolGenParams;
 
     fn versions(&self, _core: CoreConsensusVersion) -> &[ModuleConsensusVersion] {
@@ -78,8 +81,8 @@ impl ServerModuleInit for StabilityPoolInit {
         SupportedModuleApiVersions::from_raw((2, 0), (2, 0), &[(0, 0)])
     }
 
-    async fn init(&self, args: &ServerModuleInitArgs<Self>) -> anyhow::Result<DynServerModule> {
-        Ok(StabilityPool::new(args.cfg().to_typed()?).into())
+    async fn init(&self, args: &ServerModuleInitArgs<Self>) -> anyhow::Result<Self::Module> {
+        Ok(StabilityPool::new(args.cfg().to_typed()?))
     }
 
     fn trusted_dealer_gen(
@@ -122,7 +125,7 @@ impl ServerModuleInit for StabilityPoolInit {
 
     async fn distributed_gen(
         &self,
-        peers: &PeerHandle,
+        peers: &(dyn PeerHandleOps + Send + Sync),
         params: &ConfigGenModuleParams,
     ) -> anyhow::Result<ServerModuleConfig> {
         let params = params
@@ -171,10 +174,13 @@ impl ServerModuleInit for StabilityPoolInit {
 
     fn get_database_migrations(
         &self,
-    ) -> BTreeMap<DatabaseVersion, fedimint_core::db::CoreMigrationFn> {
+    ) -> BTreeMap<DatabaseVersion, ServerModuleDbMigrationFn<StabilityPool>> {
         let mut migrations =
-            BTreeMap::<DatabaseVersion, fedimint_core::db::CoreMigrationFn>::default();
-        migrations.insert(DatabaseVersion(1), |ctx| migrate_to_v2(ctx).boxed());
+            BTreeMap::<DatabaseVersion, ServerModuleDbMigrationFn<StabilityPool>>::default();
+        migrations.insert(
+            DatabaseVersion(1),
+            Box::new(|ctx| migrate_to_v2(ctx).boxed()),
+        );
         migrations
     }
 }
