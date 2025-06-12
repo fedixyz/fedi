@@ -260,6 +260,7 @@ async fn update_user_operation_history(
                 UserOperationHistoryItemKind::CompletedDeposit
             }
             UserOperationHistoryItemKind::CompletedDeposit => return,
+            UserOperationHistoryItemKind::TransferIn { .. } => return,
             _ => panic!("StagedToLocked can only override existing PendingWithdrawal"),
         },
         (AccountHistoryItemKind::LockedToStaged, _, _) => return,

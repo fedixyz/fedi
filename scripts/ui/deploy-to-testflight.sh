@@ -5,11 +5,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 $REPO_ROOT/scripts/enforce-nix.sh
 
-# Make sure Apple certificates are installed in the keychain
-# and keychain is unlocked since there are some codesigning steps
-# involved in the build process
-security unlock-keychain -p $MATCH_PASSWORD $MATCH_KEYCHAIN_NAME
-$REPO_ROOT/scripts/ci/install-apple-certs.sh
+# Make sure the keychain is setup first
+$REPO_ROOT/scripts/ci/prepare-ios-keychain.sh
 
 BUILD_BRIDGE=${BUILD_BRIDGE:-1}
 BUILD_UI_DEPS=${BUILD_UI_DEPS:-1}

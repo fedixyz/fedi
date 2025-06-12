@@ -3,7 +3,7 @@ import { t } from 'i18next'
 import { rest } from 'msw'
 import { setupServer } from 'msw/node'
 
-import { Invoice, MSats, StorageApi } from '../../types'
+import { Invoice, MSats } from '../../types'
 import { RpcAmount } from '../../types/bindings'
 import { ParserDataType } from '../../types/parser'
 import { FedimintBridge } from '../../utils/fedimint'
@@ -120,10 +120,9 @@ describe('parseUserInput', () => {
     beforeAll(() => {
         server.listen({ onUnhandledRequest: 'warn' })
 
-        const storage: StorageApi = {
-            getItem: jest.fn().mockResolvedValue('[]'),
-            setItem: jest.fn().mockResolvedValue(undefined),
-            removeItem: jest.fn().mockResolvedValue(undefined),
+        const logFileApi = {
+            saveLogs: jest.fn().mockResolvedValue(undefined),
+            readLogs: jest.fn().mockResolvedValue(''),
         }
 
         // Mock network request to return a 404 for "www.fedi.xyz"
@@ -132,7 +131,7 @@ describe('parseUserInput', () => {
                 return res.once(ctx.status(404), ctx.delay(1)) // Return fast response
             }),
         )
-        configureLogging(storage)
+        configureLogging(logFileApi)
     })
     afterEach(() => server.resetHandlers())
     afterAll(() => server.close())

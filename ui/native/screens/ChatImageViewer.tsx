@@ -9,7 +9,6 @@ import {
     Platform,
     Pressable,
     StyleSheet,
-    View,
 } from 'react-native'
 import { exists } from 'react-native-fs'
 import { PermissionStatus, RESULTS } from 'react-native-permissions'
@@ -17,6 +16,7 @@ import { PermissionStatus, RESULTS } from 'react-native-permissions'
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
+import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -74,7 +74,11 @@ const ChatImageViewer: React.FC<Props> = ({ route, navigation }: Props) => {
 
     return (
         <SafeAreaContainer style={style.imageViewerContainer} edges="vertical">
-            <View style={style.imageViewerHeader}>
+            <Flex
+                row
+                align="center"
+                justify="between"
+                style={style.imageViewerHeader}>
                 <Pressable hitSlop={10} onPress={() => navigation.goBack()}>
                     <SvgImage name="Close" color={theme.colors.secondary} />
                 </Pressable>
@@ -88,7 +92,7 @@ const ChatImageViewer: React.FC<Props> = ({ route, navigation }: Props) => {
                         />
                     )}
                 </Pressable>
-            </View>
+            </Flex>
             <ImageZoom uri={uri} style={style.imageZoomContainer} />
         </SafeAreaContainer>
     )
@@ -103,9 +107,6 @@ const styles = (theme: Theme) =>
             flex: 1,
         },
         imageViewerHeader: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             paddingHorizontal: theme.spacing.lg,
             paddingTop: theme.spacing.lg,
         },

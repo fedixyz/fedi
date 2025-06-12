@@ -2,6 +2,7 @@
 module.exports = {
     rootDir: '..',
     testMatch: ['<rootDir>/detox/**/*.test.ts'],
+    testPathIgnorePatterns: ['<rootDir>/appium/*'],
     testTimeout: 120000,
     maxWorkers: 1,
     globalSetup: 'detox/runners/jest/globalSetup',

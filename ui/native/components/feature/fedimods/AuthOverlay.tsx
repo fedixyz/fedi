@@ -1,7 +1,6 @@
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Text, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
 import { RejectionError } from 'webln'
 
 import { selectLnurlAuthRequest, selectSiteInfo } from '@fedi/common/redux'
@@ -12,6 +11,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
 import CustomOverlay from '../../ui/CustomOverlay'
+import Flex from '../../ui/Flex'
 
 const log = makeLog('AuthOverlay')
 
@@ -47,8 +47,6 @@ export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         onReject(new RejectionError('words.rejected'))
     }
 
-    const style = styles(theme)
-
     return (
         <CustomOverlay
             show={Boolean(lnurlAuthRequest)}
@@ -59,7 +57,7 @@ export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
             contents={{
                 icon: 'LockSquareRounded',
                 body: (
-                    <View style={style.body}>
+                    <Flex gap="lg">
                         <Text>
                             <Trans
                                 t={t}
@@ -72,11 +70,11 @@ export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                             />
                         </Text>
                         {error && (
-                            <Text caption style={style.error}>
+                            <Text caption color={theme.colors.red}>
                                 {error}
                             </Text>
                         )}
-                    </View>
+                    </Flex>
                 ),
                 buttons: [
                     {
@@ -93,13 +91,3 @@ export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         />
     )
 }
-
-const styles = (theme: Theme) =>
-    StyleSheet.create({
-        body: {
-            gap: theme.spacing.lg,
-        },
-        error: {
-            color: theme.colors.red,
-        },
-    })

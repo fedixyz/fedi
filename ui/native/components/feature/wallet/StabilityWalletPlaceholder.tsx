@@ -3,7 +3,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import toUpper from 'lodash/toUpper'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { LinearGradientProps } from 'react-native-linear-gradient'
 
@@ -14,6 +14,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { useAppSelector } from '../../../state/hooks'
 import { BubbleCard } from '../../ui/BubbleView'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const StabilityWalletPlaceholder: React.FC = () => {
@@ -39,9 +40,9 @@ const StabilityWalletPlaceholder: React.FC = () => {
             <BubbleCard
                 linearGradientProps={gradientProps}
                 containerStyle={[stylesPlaceholder.card, { height: 100 }]}>
-                <View style={stylesPlaceholder.headerContainer}>
-                    <View style={stylesPlaceholder.leftGroup}>
-                        <View style={stylesPlaceholder.titleContainer}>
+                <Flex style={stylesPlaceholder.headerContainer}>
+                    <Flex style={stylesPlaceholder.leftGroup}>
+                        <Flex style={stylesPlaceholder.titleContainer}>
                             <SvgImage
                                 name="UsdCircle"
                                 size={SvgImageSize.md}
@@ -55,15 +56,14 @@ const StabilityWalletPlaceholder: React.FC = () => {
                                     'feature.stabilitypool.stable-balance',
                                 )}`}
                             </Text>
-                        </View>
+                        </Flex>
                         <SvgImage
                             name="ChevronRightSmall"
                             color={theme.colors.secondary}
                             dimensions={{ width: 6, height: 12 }}
                         />
-                    </View>
-                    {/* Balance on the right */}
-                    <View style={stylesPlaceholder.balanceContainer}>
+                    </Flex>
+                    <Flex style={stylesPlaceholder.balanceContainer}>
                         <Text
                             allowFontScaling={false}
                             style={stylesPlaceholder.balanceTextMain}>
@@ -71,9 +71,9 @@ const StabilityWalletPlaceholder: React.FC = () => {
                                 formattedPrimaryAmount,
                             )}
                         </Text>
-                    </View>
-                </View>
-                <View style={stylesPlaceholder.buttonsContainer}>
+                    </Flex>
+                </Flex>
+                <Flex style={stylesPlaceholder.buttonsContainer}>
                     <Text
                         allowFontScaling={false}
                         numberOfLines={1}
@@ -81,7 +81,7 @@ const StabilityWalletPlaceholder: React.FC = () => {
                         style={stylesPlaceholder.buttonLabel}>
                         {t('feature.wallet.join-federation')}
                     </Text>
-                </View>
+                </Flex>
             </BubbleCard>
         </Pressable>
     )
@@ -120,9 +120,6 @@ const styles = (theme: Theme) =>
             color: theme.colors.white,
             fontSize: 18,
             fontWeight: 'bold',
-        },
-        svgStyle: {
-            /* no longer used after row alignment */
         },
         buttonsContainer: {
             top: -20,

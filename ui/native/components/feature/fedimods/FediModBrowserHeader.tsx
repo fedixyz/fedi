@@ -1,13 +1,19 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
-import { Animated, StyleSheet, View } from 'react-native'
+import { useTranslation } from 'react-i18next'
+import { Alert, Animated, StyleSheet } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import WebView from 'react-native-webview'
 
-import { setAddressOverlayOpen } from '@fedi/common/redux'
+import { useToast } from '@fedi/common/hooks/toast'
+import {
+    selectFediModShowClearCacheButton,
+    setAddressOverlayOpen,
+} from '@fedi/common/redux'
 
-import { useAppDispatch } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import { PressableIcon } from '../../ui/PressableIcon'
 
 type FediModBrowserHeaderProps = {
@@ -24,11 +30,16 @@ const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
     browserLoadProgress,
 }) => {
     const { theme } = useTheme()
+    const toast = useToast()
+    const { t } = useTranslation()
     const navigation = useNavigation()
     const dispatch = useAppDispatch()
     const animatedProgress = useRef(new Animated.Value(0)).current
     const animatedOpacity = useRef(new Animated.Value(1)).current
     const [addressWidth, setAddressWidth] = useState(0)
+    const showClearCacheButton = useAppSelector(
+        selectFediModShowClearCacheButton,
+    )
 
     const style = styles(theme)
 
@@ -50,8 +61,8 @@ const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
     }, [isBrowserLoading, animatedOpacity])
 
     return (
-        <View style={style.container}>
-            <View style={style.iconContainer}>
+        <Flex row align="center" gap="sm" grow={false} style={style.container}>
+            <Flex row gap="xs">
                 <PressableIcon
                     svgName="ChevronLeft"
                     hitSlop={10}
@@ -62,7 +73,7 @@ const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
                     hitSlop={10}
                     onPress={() => webViewRef.current.goForward()}
                 />
-            </View>
+            </Flex>
             <Pressable
                 style={[style.addressInput]}
                 disabled={isBrowserLoading && browserLoadProgress < 1}
@@ -77,24 +88,80 @@ const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
                     }}
                 />
             </Pressable>
-            <View style={style.iconContainer}>
+            <Flex row gap="xs">
                 <PressableIcon
                     svgName="Close"
                     hitSlop={10}
                     onPress={() => navigation.goBack()}
                 />
-            </View>
-        </View>
+                {showClearCacheButton && (
+                    <PressableIcon
+                        svgName="Trash"
+                        hitSlop={10}
+                        onPress={() => {
+                            Alert.alert(
+                                t('feature.fedimods.clear-cache'),
+                                t('feature.fedimods.clear-cache-info'),
+                                [
+                                    {
+                                        text: t('words.cancel'),
+                                        style: 'cancel',
+                                    },
+                                    {
+                                        text: t(
+                                            'feature.fedimods.clear-cache-ram',
+                                        ),
+                                        onPress: () => {
+                                            if (
+                                                webViewRef &&
+                                                webViewRef.current &&
+                                                webViewRef.current.clearCache
+                                            ) {
+                                                webViewRef.current.clearCache(
+                                                    false,
+                                                )
+                                                toast.show(
+                                                    t(
+                                                        'feature.fedimods.clear-cache-ram-done',
+                                                    ),
+                                                )
+                                            }
+                                        },
+                                    },
+                                    {
+                                        text: t(
+                                            'feature.fedimods.clear-cache-disk',
+                                        ),
+                                        onPress: () => {
+                                            if (
+                                                webViewRef &&
+                                                webViewRef.current &&
+                                                webViewRef.current.clearCache
+                                            ) {
+                                                webViewRef.current.clearCache(
+                                                    true,
+                                                )
+                                                toast.show(
+                                                    t(
+                                                        'feature.fedimods.clear-cache-disk-done',
+                                                    ),
+                                                )
+                                            }
+                                        },
+                                    },
+                                ],
+                            )
+                        }}
+                    />
+                )}
+            </Flex>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flexDirection: 'row',
-            flex: 0,
-            gap: theme.spacing.sm,
-            alignContent: 'center',
             paddingVertical: theme.spacing.md,
             paddingHorizontal: theme.spacing.sm,
             borderTopWidth: 1,
@@ -109,10 +176,6 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             position: 'relative',
             overflow: 'hidden',
-        },
-        iconContainer: {
-            flexDirection: 'row',
-            gap: theme.spacing.xs,
         },
         progressBar: {
             position: 'absolute',

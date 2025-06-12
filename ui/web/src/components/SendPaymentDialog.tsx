@@ -1,8 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { z } from 'zod'
 
-import ChevronRight from '@fedi/common/assets/svgs/chevron-right.svg'
 import OfflineIcon from '@fedi/common/assets/svgs/offline.svg'
 import { useBalanceDisplay } from '@fedi/common/hooks/amount'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
@@ -17,11 +15,9 @@ import { useAppSelector, useMediaQuery } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { config, styled } from '../styles'
 import { AmountInput } from './AmountInput'
-import { Avatar } from './Avatar'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { DialogStatus, DialogStatusProps } from './DialogStatus'
-import { Icon } from './Icon'
 import { OmniInput } from './OmniInput'
 import { SendOffline } from './SendOffline'
 import { Text } from './Text'
@@ -65,30 +61,11 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const [hasSent, setHasSent] = useState(false)
     const [sendError, setSendError] = useState<string>()
     const [submitAttempts, setSubmitAttempts] = useState(0)
-    const [value, setValue] = useState('')
 
     const containerRef = useRef<HTMLDivElement | null>(null)
     const isOfflineWalletSupported = useIsOfflineWalletSupported()
     const isSmall = useMediaQuery(config.media.sm)
     const balanceDisplay = useBalanceDisplay(t)
-
-    const enteringLnAddress = value.includes('@')
-    const enteringLnInvoice =
-        value.startsWith('lntbs') || value.startsWith('lnbc')
-
-    const lnAddressValid =
-        enteringLnAddress && z.string().email().safeParse(value).success
-    const lnInvoiceValid = useMemo(async () => {
-        try {
-            if (!enteringLnInvoice || !activeFederation?.id) return false
-
-            await fedimint.decodeInvoice(value, activeFederation.id)
-
-            return true
-        } catch {
-            return false
-        }
-    }, [value, enteringLnInvoice, activeFederation?.id])
 
     // Reset modal on close and open
     useEffect(() => {
@@ -98,7 +75,6 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             setIsSending(false)
             setHasSent(false)
             setSendError(undefined)
-            setValue('')
             setSubmitAttempts(0)
             resetOmniPaymentState()
         } else {
@@ -208,8 +184,6 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         content = (
             <OmniInputContainer>
                 <OmniInput
-                    inputLabel={t('feature.omni.action-enter-text')}
-                    inputPlaceholder="..."
                     expectedInputTypes={expectedInputTypes}
                     onExpectedInput={handleOmniInput}
                     onUnexpectedSuccess={() => onOpenChange(false)}
@@ -223,39 +197,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                                   },
                               ]
                             : undefined
-                    }
-                    value={value}
-                    onValueChange={setValue}
-                    hideConfirmButton>
-                    {({ onSubmit }) =>
-                        (enteringLnAddress && !lnAddressValid) ||
-                        value.length === 0 ? null : enteringLnInvoice ? (
-                            <Button
-                                onClick={() => onSubmit(value)}
-                                disabled={!lnInvoiceValid}
-                                width="full">
-                                {t('feature.send.confirm-send')}
-                            </Button>
-                        ) : (
-                            <MemberContainer>
-                                {lnAddressValid ? (
-                                    <MemberItem onClick={() => onSubmit(value)}>
-                                        <Avatar
-                                            id={value}
-                                            name={value.split('@')[0]}
-                                        />
-                                        <MemberName weight="bold">
-                                            {value}
-                                        </MemberName>
-                                        <Icon size="sm" icon={ChevronRight} />
-                                    </MemberItem>
-                                ) : (
-                                    <></>
-                                )}
-                            </MemberContainer>
-                        )
-                    }
-                </OmniInput>
+                    }></OmniInput>
             </OmniInputContainer>
         )
     }
@@ -282,6 +224,8 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
 const OmniInputContainer = styled('div', {
     display: 'flex',
+    flex: 1,
+    textAlign: 'center',
 })
 
 const Container = styled('div', {
@@ -304,24 +248,4 @@ const InvoiceContainer = styled('div', {
 const InvoiceDescription = styled('div', {
     textAlign: 'center',
     marginBottom: 24,
-})
-
-const MemberContainer = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-    width: '100%',
-})
-
-const MemberItem = styled('button', {
-    display: 'flex',
-    flexDirection: 'row',
-    gap: 16,
-    width: '100%',
-    alignItems: 'center',
-    textAlign: 'left',
-})
-
-const MemberName = styled(Text, {
-    flex: 1,
 })

@@ -53,8 +53,7 @@ where
 {
     fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
         let mut count_writer = CountWrite::new(writer);
-        bincode::serialize_into(&mut count_writer, &self.0)
-            .map_err(|e| std::io::Error::new(io::ErrorKind::Other, e))?;
+        bincode::serialize_into(&mut count_writer, &self.0).map_err(std::io::Error::other)?;
         Ok(())
     }
 }
@@ -140,7 +139,7 @@ impl VerificationDocument {
     }
 }
 
-/// The hash of [`VerificationDocument`] commited to in the backup.
+/// The hash of [`VerificationDocument`] committed to in the backup.
 #[derive(Debug, Serialize, Deserialize, Encodable, Decodable, PartialEq, Eq)]
 pub struct VerificationDocumentHash(sha256::Hash);
 
@@ -162,7 +161,7 @@ impl fmt::Display for RecoveryId {
     }
 }
 
-/// `T` encrypted first to user's (own) symetric key and then to federation's
+/// `T` encrypted first to user's (own) symmetric key and then to federation's
 /// threshold public key
 #[autoimpl(Deref using self.0)]
 #[derive(Debug, Clone, Serialize, Deserialize, Encodable, Decodable, PartialEq, Eq)]

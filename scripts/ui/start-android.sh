@@ -106,44 +106,105 @@ echo "$FEDI_DEVICE_ID" > "$DEVICE_ID_FILE"
 
 echo "You selected device: $selectedDevice with ID: $FEDI_DEVICE_ID"
 
-cd "$REPO_ROOT/ui/native"
-echo "Building android app bundle"
+pushd "$REPO_ROOT/ui/native/android"
+echo "Building & installing android app bundle"
 
-# Explicitly build APK first
-cd android
-run_android_result=0
-./gradlew assembleProductionDebug -Pandroid.injected.testOnly=false || {
-    echo "Something went wrong during APK assembly..."
-    run_android_result=1
-}
+# react-native tries to start metro in a new terminal window if none is detected
+# so wait a few seconds for the metro terminal to start first
+sleep 2
 
-# Find the generated APK explicitly
-APK_PATH=$(find ./app/build/outputs/apk/production/debug -name "*.apk" | head -1)
+already_cleaned_android=false
 
-if [[ $run_android_result -eq 0 && -f "$APK_PATH" ]]; then
+attempt_run_android() {
+
+    # Explicitly build APK first
+    ./gradlew assembleProductionDebug -Pandroid.injected.testOnly=false || {
+        echo "Something went wrong during APK assembly..."
+        return 1
+    }
+
+    # Find the generated APK explicitly
+    APK_PATH=$(find ./app/build/outputs/apk/production/debug -name "*.apk" | head -1)
+    if [[ ! -f "$APK_PATH" ]]; then
+        echo "APK not found after build!"
+        return 1
+    fi
+    echo "APK built successfully at $APK_PATH"
+
+    # Install APK
     echo "Installing APK explicitly to the selected device ($FEDI_DEVICE_ID)..."
     adb -s "$FEDI_DEVICE_ID" install -r "$APK_PATH" || {
         echo "APK installation failed."
-        run_android_result=1
+        return 1
     }
-else
-    echo "APK not found or build failed!"
-    run_android_result=1
-fi
-cd ..
+    echo "APK installed successfully."
 
-# Correct extraction of applicationId from build.gradle
-APP_ID=$(grep applicationId android/app/build.gradle | head -1 | awk -F '\"' '{print $2}')
+    # Correct extraction of applicationId from build.gradle
+    echo "Extracting application ID from build.gradle..."
+    APP_ID=$(grep applicationId $REPO_ROOT/ui/native/android/app/build.gradle | head -1 | awk -F '\"' '{print $2}')
+    if [[ -z "$APP_ID" ]]; then
+        echo "Could not extract applicationId from build.gradle."
+        return 1
+    fi
+    echo "Application ID extracted successfully: $APP_ID"
 
-# Explicitly launch app after successful installation
-if [[ "$run_android_result" -eq 0 && -n "$APP_ID" ]]; then
-    adb -s "$FEDI_DEVICE_ID" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1
-else
-    echo "Could not launch the app, check the APP_ID or installation."
-fi
+    if [[ "$RUN_TESTS" == "1" && "$ANDROID_DRIVER_PASSED" == "1" && -f "$APK_PATH" ]]; then
+        echo "Clearing app data for testing..."
+        adb -s $FEDI_DEVICE_ID shell pm clear $APP_ID || {
+            echo "Warning: Could not clear app data. Tests may fail."
+        }
+        adb -s "$FEDI_DEVICE_ID" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1 || {
+            echo "APK launch failed."
+            return 1
+        }
+        echo "APK launched successfully."
+        echo "Running tests on $FEDI_DEVICE_ID"
+        PLATFORM=android DEVICE_ID=$FEDI_DEVICE_ID APK_PATH=$APK_PATH yarn run ts-node $REPO_ROOT/ui/native/tests/appium/runner.ts $TESTS_TO_RUN
+    fi
 
+    # Explicitly launch app after successful installation
+    echo "Launching APK..."
+    adb -s "$FEDI_DEVICE_ID" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1 || {
+        echo "APK launch failed."
+        return 1
+    }
+
+    echo "APK launched successfully."
+    return 0
+}
+
+attempt_clean_android() {
+    echo "Cleaning android build files..."
+    echo "Running gradlew clean & deleting android build files..."
+    ./gradlew clean
+    rm -rf ./.gradle
+    rm -rf ./build
+    rm -rf ./app/build
+}
+
+# Try to build, install, and launch the app. If it fails, clean and retry once. Exit if it fails again.
+pushd "$REPO_ROOT/ui/native/android"
+attempt_run_android || {
+    if [[ "$already_cleaned_android" == false ]]; then
+        already_cleaned_android=true
+        echo "Android command failed. Attempting to clean android build files and retrying..."
+        attempt_clean_android
+        attempt_run_android || {
+            echo "Android command failed again after cleaning. Exiting with error."
+            popd
+            exit 1
+        }
+    else
+        echo "Android command failed. Exiting with error."
+        popd
+        exit 1
+    fi
+}
+popd >/dev/null
 # Start logging only if the previous command was successful
-if [[ "$ENABLE_ANDROID_LOGGING" == "1" && $run_android_result -eq 0 ]]; then
+if [[ "$ENABLE_ANDROID_LOGGING" == "1" ]]; then
     echo "Starting android logging..."
+    pushd "$REPO_ROOT/ui/native"
     npx react-native log-android
+    popd
 fi

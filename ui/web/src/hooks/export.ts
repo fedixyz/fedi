@@ -12,7 +12,7 @@ import {
     submitBugReport,
     uploadBugReportLogs,
 } from '@fedi/common/utils/bug-report'
-import { exportLogs, makeLog } from '@fedi/common/utils/log'
+import { exportUiLogs, makeLog } from '@fedi/common/utils/log'
 import { makeTarGz } from '@fedi/common/utils/targz'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
@@ -40,20 +40,27 @@ export const useShareLogs = () => {
 
             setStatus('loading')
             try {
-                const jsLogs = await exportLogs()
+                const jsLogs = await exportUiLogs()
 
                 attachmentFiles.push({
                     name: 'app.log',
                     content: jsLogs,
                 })
 
-                const transactions = await fetchTransactions({ limit: 10 })
+                // Ensure this is a federation with a wallet
+                if (activeFederation?.hasWallet) {
+                    const transactions = await fetchTransactions({ limit: 10 })
 
-                // Attach the ten latest transactions to attachmentFiles
-                attachmentFiles.push({
-                    name: 'transactions.json',
-                    content: JSON.stringify(transactions.slice(0, 10), null, 2),
-                })
+                    // Attach the ten latest transactions to attachmentFiles
+                    attachmentFiles.push({
+                        name: 'transactions.json',
+                        content: JSON.stringify(
+                            transactions.slice(0, 10),
+                            null,
+                            2,
+                        ),
+                    })
+                }
 
                 if (npub) {
                     attachmentFiles.push({
@@ -96,10 +103,18 @@ export const useShareLogs = () => {
                 }
 
                 // Bridge logs
-                const bridgeLogsBlob = await getBridgeLogs()
+                const bridgeLogFiles = await getBridgeLogs()
                 attachmentFiles.push({
                     name: 'bridge.log',
-                    content: await bridgeLogsBlob.text(),
+                    content: await Promise.allSettled(
+                        bridgeLogFiles.map(
+                            async x => await (await x.getFile()).text(),
+                        ),
+                    ).then(results =>
+                        results
+                            .map(x => (x.status == 'fulfilled' ? x.value : ''))
+                            .join(''),
+                    ),
                 })
 
                 // Add device info

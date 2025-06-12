@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useCommonSelector } from '@fedi/common/hooks/redux'
@@ -16,6 +16,7 @@ import { fedimint } from '@fedi/native/bridge'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { AmountScreen } from '../components/ui/AmountScreen'
+import Flex from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
 import { RootStackParamList } from '../types/navigation'
@@ -83,10 +84,14 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
 
     if (!isReadyToPay)
         return (
-            <View style={style.loadingContainer}>
+            <Flex
+                grow
+                align="center"
+                justify="between"
+                style={style.loadingContainer}>
                 <Text style={style.loadingText}>{t('words.loading')}</Text>
                 <ActivityIndicator />
-            </View>
+            </Flex>
         )
 
     const renderDetails = () => {
@@ -147,9 +152,6 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         loadingContainer: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'space-between',
             padding: theme.spacing.xl,
         },
         loadingText: {

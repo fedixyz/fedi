@@ -17,6 +17,7 @@ import {
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { fedimint } from '../bridge'
+import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
@@ -84,31 +85,31 @@ const MultispendConfirmWithdraw: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <SafeAreaContainer edges="notop" style={style.container}>
-            <View style={style.content}>
-                <View style={style.header}>
-                    <View style={style.stableBalanceIndicator}>
+            <Flex grow>
+                <Flex align="center" gap="md" style={style.header}>
+                    <Flex row align="center" gap="md">
                         <SvgImage
                             name="DollarCircle"
                             size={16}
                             color={theme.colors.green}
                         />
                         <Text>{t('feature.stabilitypool.stable-balance')}</Text>
-                    </View>
+                    </Flex>
                     <Text h1 medium>
                         {formattedFiatAmount}
                     </Text>
-                </View>
-                <View style={style.rows}>
+                </Flex>
+                <Flex>
                     <View style={style.row}>
                         <Text caption medium>
                             {t('feature.multispend.withdraw-from')}
                         </Text>
-                        <View style={style.groupInfo}>
+                        <Flex align="end">
                             <Text caption>{matrixRoom?.name}</Text>
                             <Text tiny color={theme.colors.grey}>
                                 {t('feature.multispend.multispend-group')}
                             </Text>
-                        </View>
+                        </Flex>
                     </View>
                     <View style={style.separator} />
                     <View style={style.row}>
@@ -132,7 +133,7 @@ const MultispendConfirmWithdraw: React.FC<Props> = ({ route }: Props) => {
                             {formattedFiatAmount}
                         </Text>
                     </View>
-                </View>
+                </Flex>
                 {notes && (
                     <View style={style.notesWidget}>
                         <Text medium small>
@@ -143,7 +144,7 @@ const MultispendConfirmWithdraw: React.FC<Props> = ({ route }: Props) => {
                         </Text>
                     </View>
                 )}
-            </View>
+            </Flex>
             <Button
                 title={t('words.confirm')}
                 disabled={loading}

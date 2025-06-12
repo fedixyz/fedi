@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -11,6 +11,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { fedimint } from '../../../bridge'
 import { NavigationHook } from '../../../types/navigation'
+import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
@@ -19,6 +20,98 @@ import ReceiveForeignEcashOverlay from './ReceiveForeignEcashOverlay'
 
 type Props = {
     event: MatrixPaymentEvent
+}
+type PaymentEventButton = {
+    label: string
+    handler: () => void
+    disabled?: boolean
+    loading?: boolean
+}
+
+export const PaymentEventStatus = ({
+    statusIcon = undefined,
+    statusText,
+}: {
+    statusIcon: string | undefined
+    statusText: string
+}) => {
+    const { theme } = useTheme()
+    const style = styles(theme)
+
+    const iconProps = {
+        size: SvgImageSize.xs,
+        color: theme.colors.secondary,
+    }
+    const icon =
+        statusIcon === 'x' ? (
+            <SvgImage {...iconProps} name={'Close'} />
+        ) : statusIcon === 'reject' ? (
+            <SvgImage {...iconProps} name={'BrokenHeart'} />
+        ) : statusIcon === 'check' ? (
+            <SvgImage {...iconProps} name={'Check'} />
+        ) : statusIcon === 'error' ? (
+            <SvgImage {...iconProps} name={'Error'} />
+        ) : statusIcon === 'loading' ? (
+            <HoloLoader size={4} />
+        ) : null
+
+    return (
+        <Flex row align="center" style={style.paymentResult}>
+            {icon}
+            <Text style={style.statusText}>{statusText}</Text>
+        </Flex>
+    )
+}
+
+export const PaymentEventButtons = ({
+    buttons,
+}: {
+    buttons: PaymentEventButton[]
+}) => {
+    const { theme } = useTheme()
+    const style = styles(theme)
+
+    return (
+        <Flex
+            row
+            justify="start"
+            gap="md"
+            fullWidth
+            style={style.paymentButtons}>
+            {buttons.map(button => (
+                <Button
+                    key={button.label}
+                    color={theme.colors.secondary}
+                    size="sm"
+                    onPress={button.handler}
+                    loading={button.loading}
+                    disabled={button.disabled}
+                    title={
+                        <Text medium caption style={style.buttonText}>
+                            {button.label}
+                        </Text>
+                    }
+                />
+            ))}
+        </Flex>
+    )
+}
+
+export const PaymentEventContainer = ({
+    children,
+}: {
+    children: React.ReactNode
+}) => {
+    const { theme } = useTheme()
+    const style = styles(theme)
+
+    return (
+        <OptionalGradient
+            gradient={bubbleGradient}
+            style={[style.bubbleInner, style.orangeBubble]}>
+            {children}
+        </OptionalGradient>
+    )
 }
 
 const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
@@ -52,65 +145,26 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
         },
     })
 
-    const style = styles(theme)
-
     let extra: React.ReactNode = null
     if (statusText || statusIcon || buttons.length > 0) {
-        const iconProps = {
-            size: SvgImageSize.xs,
-            color: theme.colors.secondary,
-        }
-        const icon =
-            statusIcon === 'x' ? (
-                <SvgImage {...iconProps} name={'Close'} />
-            ) : statusIcon === 'reject' ? (
-                <SvgImage {...iconProps} name={'BrokenHeart'} />
-            ) : statusIcon === 'check' ? (
-                <SvgImage {...iconProps} name={'Check'} />
-            ) : statusIcon === 'error' ? (
-                <SvgImage {...iconProps} name={'Error'} />
-            ) : statusIcon === 'loading' ? (
-                <HoloLoader size={4} />
-            ) : null
         extra = (
             <>
                 {statusText && (
-                    <View style={style.paymentResult}>
-                        {icon}
-                        <Text style={style.statusText}>{statusText}</Text>
-                    </View>
+                    <PaymentEventStatus
+                        statusIcon={statusIcon}
+                        statusText={statusText}
+                    />
                 )}
                 {buttons.length > 0 && (
-                    <View style={style.paymentButtons}>
-                        {buttons.map(button => (
-                            <Button
-                                key={button.label}
-                                color={theme.colors.secondary}
-                                size="sm"
-                                onPress={button.handler}
-                                loading={button.loading}
-                                disabled={button.disabled}
-                                title={
-                                    <Text
-                                        medium
-                                        caption
-                                        style={style.buttonText}>
-                                        {button.label}
-                                    </Text>
-                                }
-                            />
-                        ))}
-                    </View>
+                    <PaymentEventButtons buttons={buttons} />
                 )}
             </>
         )
     }
 
     return (
-        <OptionalGradient
-            gradient={bubbleGradient}
-            style={[style.bubbleInner, style.orangeBubble]}>
-            <Text style={style.messageText}>{messageText}</Text>
+        <PaymentEventContainer>
+            <Text color={theme.colors.secondary}>{messageText}</Text>
             {extra || null}
             {isHandlingForeignEcash && (
                 <ReceiveForeignEcashOverlay
@@ -123,15 +177,12 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
                     }}
                 />
             )}
-        </OptionalGradient>
+        </PaymentEventContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            alignItems: 'flex-start',
-        },
         buttonContainer: {
             flex: 1,
             maxWidth: '50%',
@@ -140,23 +191,14 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.lg,
         },
         paymentResult: {
-            flexDirection: 'row',
-            alignItems: 'center',
             marginTop: theme.spacing.sm,
         },
         paymentButtons: {
-            flexDirection: 'row',
-            justifyContent: 'flex-start',
-            gap: 12,
-            width: '100%',
             marginTop: theme.spacing.sm,
         },
         statusText: {
             color: theme.colors.secondary,
             marginLeft: theme.spacing.sm,
-        },
-        messageText: {
-            color: theme.colors.secondary,
         },
         orangeBubble: {
             backgroundColor: theme.colors.orange,

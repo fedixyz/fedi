@@ -1,7 +1,8 @@
 import { Text, Theme, useTheme, Input } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
+import Flex from '../../ui/Flex'
 import FullModalOverlay from '../../ui/FullModalOverlay'
 import { PressableIcon } from '../../ui/PressableIcon'
 import { SvgImageSize } from '../../ui/SvgImage'
@@ -11,6 +12,7 @@ type EditNotesOverlayProps = {
     dismiss: () => void
     setNotes: (notes: string) => void
     notes: string
+    isOptional?: boolean
 }
 
 const EditNotesOverlay = ({
@@ -18,6 +20,7 @@ const EditNotesOverlay = ({
     dismiss,
     setNotes,
     notes,
+    isOptional = true,
 }: EditNotesOverlayProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -29,7 +32,7 @@ const EditNotesOverlay = ({
             contents={{
                 headerElement: (
                     <>
-                        <View style={style.headerContainer}>
+                        <Flex row center style={style.headerContainer}>
                             <PressableIcon
                                 svgName="Close"
                                 onPress={() => dismiss()}
@@ -39,7 +42,7 @@ const EditNotesOverlay = ({
                             <Text bold style={style.title}>
                                 {t('phrases.add-notes')}
                             </Text>
-                        </View>
+                        </Flex>
                     </>
                 ),
                 body: (
@@ -52,7 +55,11 @@ const EditNotesOverlay = ({
                         placeholder={t('feature.send.edit-notes-placeholder')}
                         label={
                             <Text small style={style.label}>
-                                {t('feature.send.edit-notes-label')}
+                                {t(
+                                    isOptional
+                                        ? 'feature.send.edit-notes-label'
+                                        : 'feature.send.edit-notes-label-required',
+                                )}
                             </Text>
                         }
                         inputStyle={style.inputStyle}
@@ -100,10 +107,6 @@ const styles = (theme: Theme) =>
         },
         headerContainer: {
             alignSelf: 'stretch',
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
             paddingVertical: theme.spacing.md,
         },
         title: {

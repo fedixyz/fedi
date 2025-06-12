@@ -1,6 +1,6 @@
-import Image, { StaticImageData } from 'next/image'
+import Image from 'next/image'
 import Link from 'next/link'
-import React from 'react'
+import React, { useState } from 'react'
 
 import DefaultFediModIcon from '@fedi/common/assets/images/fedimods/default.png'
 import {
@@ -24,16 +24,13 @@ export const FediModTiles: React.FC<Props> = ({ isFederation }) => {
 
     return (
         <Container>
-            {fediMods.map(fediMod => (
+            {fediMods.map(mod => (
                 <FediModTile
-                    key={fediMod.id}
-                    href={fediMod.url}
-                    title={fediMod.title}
-                    image={
-                        fediMod.imageUrl ||
-                        FEDIMOD_IMAGES[fediMod.id] ||
-                        DefaultFediModIcon
-                    }
+                    key={mod.id}
+                    id={mod.id}
+                    href={mod.url}
+                    title={mod.title}
+                    image={mod.imageUrl || ''}
                 />
             ))}
         </Container>
@@ -41,15 +38,18 @@ export const FediModTiles: React.FC<Props> = ({ isFederation }) => {
 }
 
 const FediModTile = ({
+    id,
     href,
     image,
     title,
 }: {
+    id: string
     href: string
-    image: string | StaticImageData
+    image: string
     title: string
 }) => {
     const isExternal = href.startsWith('http')
+    const [imageError, setImageError] = useState(false)
 
     return (
         <FediModTileBase
@@ -57,7 +57,17 @@ const FediModTile = ({
             as={isExternal ? undefined : Link}
             target={isExternal ? '_blank' : undefined}
             rel={isExternal ? 'noopener noreferrer' : undefined}>
-            <FediModIcon src={image} width={48} height={48} alt={title || ''} />
+            <FediModIcon
+                src={
+                    imageError
+                        ? FEDIMOD_IMAGES[id] || DefaultFediModIcon
+                        : image
+                }
+                width={48}
+                height={48}
+                alt={title || ''}
+                onError={() => setImageError(true)}
+            />
 
             <FediModTitle>
                 <Text variant="small" ellipsize>

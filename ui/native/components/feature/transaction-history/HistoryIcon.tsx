@@ -1,9 +1,10 @@
 import { useTheme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { TransactionStatusBadge } from '@fedi/common/types'
 
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 export interface HistoryIconProps {
@@ -36,7 +37,7 @@ export const HistoryIcon: React.FC<HistoryIconProps> = ({
     const style = styles()
 
     return (
-        <View style={style.container}>
+        <Flex shrink={false}>
             {children}
             {badgeSvgName && (
                 <SvgImage
@@ -46,15 +47,12 @@ export const HistoryIcon: React.FC<HistoryIconProps> = ({
                     containerStyle={style.badge}
                 />
             )}
-        </View>
+        </Flex>
     )
 }
 
 const styles = () =>
     StyleSheet.create({
-        container: {
-            flexShrink: 0,
-        },
         badge: {
             position: 'absolute',
             left: -6,

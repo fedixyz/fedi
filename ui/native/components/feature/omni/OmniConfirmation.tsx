@@ -5,8 +5,8 @@ import { Linking } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectActiveFederationId,
     selectIsActiveFederationRecovering,
+    selectWalletFederations,
 } from '@fedi/common/redux'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import {
@@ -43,7 +43,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     const toast = useToast()
     const navigation = useNavigation()
     const [isLoading, setIsLoading] = useState(false)
-    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const walletFederations = useAppSelector(selectWalletFederations)
     const recoveryInProgress = useAppSelector(
         selectIsActiveFederationRecovering,
     )
@@ -106,7 +106,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
         // If they're not yet a member of a federation, they can only scan certain codes.
         if (
             BLOCKED_PARSER_TYPES_BEFORE_FEDERATION.includes(parsedData.type) &&
-            !activeFederationId
+            walletFederations.length === 0
         ) {
             return {
                 contents: {

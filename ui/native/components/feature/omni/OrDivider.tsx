@@ -1,31 +1,25 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { Text, StyleSheet } from 'react-native'
+
+import Flex from '../../ui/Flex'
 
 export const OrDivider: React.FC = () => {
     const { theme } = useTheme()
-    const s = styles(theme)
+    const style = styles(theme)
 
     return (
-        <View style={s.container}>
-            <View style={s.line} />
-            <Text style={s.text}>or</Text>
-            <View style={s.line} />
-        </View>
+        <Flex row align="center" gap="lg" fullWidth>
+            <Flex grow style={style.line} />
+            <Text style={style.text}>or</Text>
+            <Flex grow style={style.line} />
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            width: '100%',
-            gap: 16, // <-- 16px between each child
-            marginVertical: 0,
-        },
         line: {
-            flex: 1,
             height: 1,
             backgroundColor: theme.colors.extraLightGrey,
         },

@@ -7,6 +7,7 @@ import { useFederationPreview } from '@fedi/common/hooks/federation'
 import { RpcEcashInfo } from '@fedi/common/types/bindings'
 
 import { fedimint } from '../../../bridge'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import FederationPreview from '../onboarding/FederationPreview'
@@ -43,11 +44,16 @@ export default function OmniReceiveEcash({
 
     if (parsed.federation_type === 'joined') {
         return (
-            <View style={style.container}>
+            <Flex
+                grow
+                align="stretch"
+                gap="lg"
+                fullWidth
+                style={style.container}>
                 <Text style={style.center}>
                     {t('feature.omni.confirm-ecash-token')}
                 </Text>
-            </View>
+            </Flex>
         )
     }
 
@@ -77,10 +83,10 @@ export default function OmniReceiveEcash({
             <Pressable
                 style={style.actionCardContainer}
                 onPress={() => setShowFederationPreview(true)}>
-                <View style={style.iconContainer}>
+                <Flex center style={style.iconContainer}>
                     <FederationLogo federation={federationPreview} size={32} />
-                </View>
-                <View style={style.actionCardTextContainer}>
+                </Flex>
+                <Flex align="start" gap="xxs">
                     <Text medium>
                         {t('feature.receive.join-new-federation')}
                     </Text>
@@ -98,7 +104,7 @@ export default function OmniReceiveEcash({
                             }}
                         />
                     </Text>
-                </View>
+                </Flex>
                 <View style={style.arrowContainer}>
                     <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
                 </View>
@@ -106,19 +112,18 @@ export default function OmniReceiveEcash({
         )
     }
 
-    return <View style={style.container}>{renderContent()}</View>
+    return (
+        <Flex grow align="stretch" gap="lg" fullWidth style={style.container}>
+            {renderContent()}
+        </Flex>
+    )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            flexDirection: 'column',
-            alignItems: 'stretch',
             paddingTop: theme.spacing.xl,
             paddingHorizontal: theme.spacing.md,
-            gap: theme.spacing.lg,
-            width: '100%',
         },
         actionCardContainer: {
             padding: theme.spacing.md,
@@ -129,15 +134,11 @@ const styles = (theme: Theme) =>
             borderRadius: 16,
             gap: 10,
         },
-        actionCardTextContainer: { alignItems: 'flex-start', gap: 2 },
         iconContainer: {
-            alignItems: 'center',
-            justifyContent: 'center',
             height: 40,
             width: 40,
         },
         arrowContainer: { marginLeft: 'auto' },
         darkGrey: { color: theme.colors.darkGrey },
-        buttonStyle: { width: '100%' },
         center: { textAlign: 'center' },
     })

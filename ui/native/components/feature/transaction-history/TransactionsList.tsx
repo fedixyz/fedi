@@ -31,6 +31,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
     const activeFederationId = useAppSelector(selectActiveFederationId)
     const {
         getCurrencyText,
+        getShowAskFedi,
         makeTxnNotesText,
         makeTxnAmountText,
         makeTxnFeeDetailItems,
@@ -45,6 +46,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
             rows={transactions}
             loading={loading}
             makeIcon={txn => <TransactionIcon txn={txn} />}
+            makeShowAskFedi={txn => getShowAskFedi(txn)}
             makeRowProps={txn => ({
                 id: txn.id,
                 status: makeTxnStatusText(txn),
@@ -56,11 +58,11 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                 amountState: makeTransactionAmountState(txn),
             })}
             makeDetailProps={txn => ({
-                id: txn.id,
                 title: makeTxnDetailTitleText(txn),
                 items: makeTxnDetailItems(txn),
                 amount: makeTxnAmountText(txn, true),
                 notes: txn.txnNotes,
+                txn,
                 onSaveNotes: async (notes: string) => {
                     if (isUpdating) return // Prevent multiple simultaneous updates
 

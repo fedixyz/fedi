@@ -1,8 +1,6 @@
-import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChevronLeftIcon from '@fedi/common/assets/svgs/chevron-left.svg'
 import SendArrowUpCircleIcon from '@fedi/common/assets/svgs/send-arrow-up-circle.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -22,7 +20,6 @@ import { styled, theme } from '../../styles'
 import { Avatar } from '../Avatar'
 import { CircularLoader } from '../CircularLoader'
 import { Icon } from '../Icon'
-import { IconButton } from '../IconButton'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
@@ -51,7 +48,6 @@ export const ChatConversation: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
-    const { back } = useRouter()
     const room = useAppSelector(s => selectMatrixRoom(s, id))
     const user = useAppSelector(s => selectMatrixUser(s, id))
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
@@ -105,7 +101,10 @@ export const ChatConversation: React.FC<Props> = ({
             if (ev) {
                 ev.preventDefault()
             }
-            if (!value) return
+
+            // Prevent messages consisting of just spaces to be sent
+            if (value.trim().length === 0) return
+
             setIsSending(true)
             try {
                 await onSendMessage(value)
@@ -147,16 +146,10 @@ export const ChatConversation: React.FC<Props> = ({
 
     return (
         <Layout.Root>
-            <Layout.Header padded displaceBackIcon={!headerActions}>
-                <HeaderInfo>
-                    <BackButton>
-                        <IconButton
-                            size="md"
-                            icon={ChevronLeftIcon}
-                            onClick={() => back()}
-                        />
-                    </BackButton>
-                </HeaderInfo>
+            <Layout.Header
+                padded
+                displaceBackIcon={!headerActions}
+                back="/chat">
                 <HeaderContent>
                     {avatar}
                     <Text weight="medium">{name}</Text>
@@ -202,7 +195,9 @@ export const ChatConversation: React.FC<Props> = ({
                     onKeyDown={handleInputKeyDown}
                     disabled={isSending || isReadOnly}
                 />
-                <SendButton disabled={!value || isSending} type="submit">
+                <SendButton
+                    disabled={value.trim().length === 0 || isSending}
+                    type="submit">
                     <Icon icon={SendArrowUpCircleIcon} />
                 </SendButton>
             </Actions>
@@ -216,20 +211,6 @@ const HeaderContent = styled('div', {
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-})
-
-const HeaderInfo = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,
-})
-
-const BackButton = styled('div', {
-    display: 'none',
-    '@sm': {
-        display: 'block',
-    },
 })
 
 const HeaderActions = styled('div', {
@@ -290,7 +271,7 @@ const SendButton = styled('button', {
     color: theme.colors.blue,
 
     '&:disabled': {
-        color: theme.colors.lightGrey,
+        color: theme.colors.darkGrey,
         pointerEvents: 'none',
     },
 

@@ -3,10 +3,11 @@ env:
     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 on:
+    workflow_dispatch:
     push:
         branches-ignore:
             - master
-            - vercel/production
+            - web/release/*
         paths:
             - .github/workflows/vercel-preview.yml
             - scripts/ci/vercel-preview.sh
@@ -17,7 +18,7 @@ on:
             - ui/common/**
 jobs:
     Deploy-Preview:
-        runs-on: [self-hosted, linux, legacy]
+        runs-on: [self-hosted, linux]
         environment:
             name: Preview
             url: ${{steps.deploy.outputs.url}}

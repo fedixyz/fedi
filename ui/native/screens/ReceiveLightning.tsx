@@ -2,7 +2,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, Keyboard, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Keyboard, View } from 'react-native'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
@@ -218,7 +218,7 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
     }
 
     return (
-        <SafeScrollArea contentContainerStyle={style.container} edges="notop">
+        <SafeScrollArea edges="notop">
             {showOnchainDeposits && (
                 <RequestTypeSwitcher
                     requestType={requestType}
@@ -230,7 +230,7 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
                 />
             )}
             {requestType === BitcoinOrLightning.bitcoin && onchainAddress ? (
-                <View style={style.qrContainer}>
+                <View>
                     {isLoading ? (
                         <ActivityIndicator />
                     ) : (
@@ -279,10 +279,5 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
         </SafeScrollArea>
     )
 }
-
-const style = StyleSheet.create({
-    qrContainer: {},
-    container: {},
-})
 
 export default ReceiveLightning

@@ -30,6 +30,7 @@ import {
     unobserveMultispendEvent,
     observeMultispendAccountInfo,
     unobserveMultispendAccountInfo,
+    checkBolt11PaymentResult,
 } from '../redux'
 import {
     MatrixPaymentEvent,
@@ -44,8 +45,9 @@ import {
     isValidMatrixUserId,
     makeMatrixPaymentText,
     matrixIdToUsername,
+    MatrixUrlMetadata,
+    matrixUrlMetadataSchema,
 } from '../utils/matrix'
-import { MatrixUrlMetadata, matrixUrlMetadataSchema } from '../utils/media'
 import { useAmountFormatter } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
@@ -250,12 +252,16 @@ export function useMatrixPaymentEvent({
     t,
     onError,
     onPayWithForeignEcash,
+    onViewBolt11,
+    onCopyBolt11,
 }: {
     event: MatrixPaymentEvent
     fedimint: FedimintBridge
     t: TFunction
     onError: (err: unknown) => void
     onPayWithForeignEcash?: () => void
+    onViewBolt11?: (bolt11: string) => void
+    onCopyBolt11?: (bolt11: string) => void
 }) {
     const dispatch = useCommonDispatch()
     const isOffline = useCommonSelector(selectIsInternetUnreachable)
@@ -341,6 +347,18 @@ export function useMatrixPaymentEvent({
         onPayWithForeignEcash,
     ])
 
+    const handleViewBolt11 = useCallback(() => {
+        if (onViewBolt11 && event.content.bolt11) {
+            onViewBolt11(event.content.bolt11)
+        }
+    }, [event, onViewBolt11])
+
+    const handleCopyBolt11 = useCallback(() => {
+        if (onCopyBolt11 && event.content.bolt11) {
+            onCopyBolt11(event.content.bolt11)
+        }
+    }, [event, onCopyBolt11])
+
     const handleRejectRequest = useCallback(async () => {
         handleDispatchPaymentUpdate(
             rejectMatrixPaymentRequest({ event }),
@@ -364,6 +382,7 @@ export function useMatrixPaymentEvent({
     const paymentStatus = event.content.status
     const isSentByMe = event.content.senderId === matrixAuth?.userId
     const isRecipient = event.content.recipientId === matrixAuth?.userId
+    const isBolt11 = !!event.content.bolt11
 
     let statusIcon: 'x' | 'reject' | 'check' | 'error' | 'loading' | undefined
     let statusText: string | undefined
@@ -373,9 +392,27 @@ export function useMatrixPaymentEvent({
         loading?: boolean
         disabled?: boolean
     }[] = []
+    if (isBolt11) {
+        if (onViewBolt11) {
+            buttons.push({
+                label: t('words.view'),
+                handler: handleViewBolt11,
+            })
+        }
+        if (onCopyBolt11) {
+            buttons.push({
+                label: t('words.copy'),
+                handler: handleCopyBolt11,
+            })
+        }
+    }
     if (paymentStatus === MatrixPaymentStatus.received) {
         statusIcon = 'check'
-        statusText = isRecipient ? t('words.received') : t('words.paid')
+        statusText = isBolt11
+            ? t('words.complete')
+            : isRecipient
+              ? t('words.received')
+              : t('words.paid')
     } else if (paymentStatus === MatrixPaymentStatus.rejected) {
         statusIcon = 'reject'
         statusText = t('words.rejected')
@@ -427,18 +464,15 @@ export function useMatrixPaymentEvent({
             })
         }
     } else if (paymentStatus === MatrixPaymentStatus.requested) {
-        if (isRecipient) {
-            buttons = [
-                {
+        if (isBolt11) {
+            if (event.senderId === matrixAuth?.userId) {
+                buttons.push({
                     label: t('words.cancel'),
                     handler: handleCancel,
                     loading: isCanceling,
                     disabled: isOffline,
-                },
-            ]
-        } else {
-            buttons = []
-            if (isDm) {
+                })
+            } else {
                 buttons.push({
                     label: t('words.reject'),
                     handler: handleRejectRequest,
@@ -446,14 +480,46 @@ export function useMatrixPaymentEvent({
                     disabled: isAccepting,
                 })
             }
-            buttons.push({
-                label: t('words.pay'),
-                handler: handleAcceptRequest,
-                loading: isAccepting,
-                disabled: isRejecting,
-            })
+        } else {
+            if (isRecipient) {
+                buttons = [
+                    {
+                        label: t('words.cancel'),
+                        handler: handleCancel,
+                        loading: isCanceling,
+                        disabled: isOffline,
+                    },
+                ]
+            } else {
+                buttons = []
+                if (isDm) {
+                    buttons.push({
+                        label: t('words.reject'),
+                        handler: handleRejectRequest,
+                        loading: isRejecting,
+                        disabled: isAccepting,
+                    })
+                }
+                buttons.push({
+                    label: t('words.pay'),
+                    handler: handleAcceptRequest,
+                    loading: isAccepting,
+                    disabled: isRejecting,
+                })
+            }
         }
     }
+
+    useEffect(() => {
+        if (isBolt11) {
+            dispatch(
+                checkBolt11PaymentResult({
+                    fedimint,
+                    event,
+                }),
+            )
+        }
+    }, [dispatch, event, fedimint, isBolt11])
 
     return {
         messageText,

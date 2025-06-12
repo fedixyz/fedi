@@ -249,7 +249,11 @@ export const selectOverrideCurrency = (s: CommonState) =>
 export const selectCurrency = (s: CommonState) => {
     const federationId = selectActiveFederationId(s)
 
-    if (!federationId) return SupportedCurrency.USD
+    // If no active federation, check for global override first
+    if (!federationId) {
+        const overrideCurrency = selectOverrideCurrency(s)
+        return overrideCurrency || SupportedCurrency.USD
+    }
 
     return selectFederationCurrency(s, federationId)
 }
@@ -275,24 +279,20 @@ export const selectFederationCurrency = (
     s: CommonState,
     federationId: string,
 ) => {
+    // Check custom federation currency first (highest priority)
+    const customCurrency = s.currency.customFederationCurrencies[federationId]
+    if (customCurrency) {
+        return customCurrency
+    }
+
+    // Then check global override (medium priority)
     const overrideCurrency = selectOverrideCurrency(s)
-    const federationDefaultCurrency = selectFederationDefaultCurrency(
-        s,
-        federationId,
-    )
-    const selectedFederationCurrency =
-        s.currency.customFederationCurrencies[federationId] ??
-        SupportedCurrency.USD
-
-    // Setting a custom currency that is NOT the federation default is the highest priority
-    if (selectedFederationCurrency !== federationDefaultCurrency)
-        return selectedFederationCurrency
-
-    // The overrideCurrency overrides the federation default currency
-    if (overrideCurrency && overrideCurrency !== federationDefaultCurrency)
+    if (overrideCurrency) {
         return overrideCurrency
+    }
 
-    return federationDefaultCurrency
+    // Finally fall back to federation default (lowest priority)
+    return selectFederationDefaultCurrency(s, federationId)
 }
 
 export const selectFederationCurrencies = (
@@ -303,9 +303,7 @@ export const selectFederationCurrencies = (
     const currencies = getSelectableCurrencies()
 
     return Object.fromEntries(
-        Object.entries(currencies)
-            .filter(([a]) => a !== defaultCurrency)
-            .sort(([, a], [, b]) => a.localeCompare(b)),
+        Object.entries(currencies).filter(([a]) => a !== defaultCurrency),
     )
 }
 

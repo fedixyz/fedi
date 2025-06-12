@@ -260,7 +260,11 @@ const ModRow: React.FC<ModRowProps> = ({
                 <Text>{mod.title}</Text>
                 <Text small>{mod.url}</Text>
             </View>
-            <Pressable onPress={() => onToggleVisibility(mod)}>
+            <Pressable
+                testID={mod.title
+                    .concat('VisibilityToggleButton')
+                    .replaceAll(' ', '')}
+                onPress={() => onToggleVisibility(mod)}>
                 <SvgImage name={isHidden ? 'EyeClosed' : 'Eye'} size={24} />
             </Pressable>
             {onDelete && (

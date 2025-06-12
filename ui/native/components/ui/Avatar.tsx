@@ -3,7 +3,6 @@ import React, { useState } from 'react'
 import {
     StyleProp,
     StyleSheet,
-    View,
     ViewStyle,
     useWindowDimensions,
 } from 'react-native'
@@ -11,6 +10,7 @@ import {
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { getIdentityColors } from '@fedi/common/utils/color'
 
+import Flex from './Flex'
 import SvgImage, {
     SvgImageName,
     SvgImageSize,
@@ -80,7 +80,7 @@ const Avatar: React.FC<AvatarProps> = ({
     const imageStyle = [styles.image, { borderRadius: pxSize * 0.5 }]
 
     return (
-        <View style={mergedContainerStyle}>
+        <Flex center style={mergedContainerStyle}>
             {/*
                 Defaults to the image url if provided.
                 Then falls back to a provided icon.
@@ -112,15 +112,13 @@ const Avatar: React.FC<AvatarProps> = ({
                     {name ? stringUtils.getInitialsFromName(name) : ''}
                 </Text>
             )}
-        </View>
+        </Flex>
     )
 }
 
 const styles = StyleSheet.create({
     container: {
         position: 'relative',
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     text: {
         position: 'absolute',

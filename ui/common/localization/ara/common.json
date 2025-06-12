@@ -381,7 +381,7 @@
         "onboarding": {
             "by-clicking-i-accept": "be dusu ta ana rudu inta tafik ma gawanin ta kidima al fi  {{tos_url}}",
             "by-clicking-you-agree-user-agreement": " be dusu dumu fi Mugtama inta tafik le  <anchor> tifagia ta istakdam </anchor> ",
-            "chat-earn-save-spend": "Wonusu, ujurat, hafisu wa stgdim kurus ma nebsak wa mujtama taki",
+            "tagline": "Wonusu, ujurat, hafisu wa stgdim kurus ma nebsak wa mujtama taki",
             "community-first": "Mujtama nimira wahid",
             "continue-to-fedi": "Stemir ma Fedi",
             "earn-and-save": "Ligo ujura wa hafisu",

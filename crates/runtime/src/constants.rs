@@ -3,7 +3,6 @@ use std::time::Duration;
 use bech32::Hrp;
 use fedimint_derive_secret::ChildId;
 
-pub const PAY_INVOICE_TIMEOUT: Duration = Duration::from_secs(90);
 pub const REISSUE_ECASH_TIMEOUT: Duration = Duration::from_secs(60);
 /// 3 days
 pub const ECASH_AUTO_CANCEL_DURATION: Duration = Duration::from_secs(60 * 60 * 24 * 3);
@@ -61,3 +60,5 @@ pub const GLOBAL_MATRIX_SERVER: &str = "https://m1.8fa.in";
 pub const GLOBAL_MATRIX_SLIDING_SYNC_PROXY: &str = "https://sliding.m1.8fa.in";
 
 pub const COMMUNITY_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community");
+
+pub const RECURRINGD_API_META: &str = "recurringd_api";

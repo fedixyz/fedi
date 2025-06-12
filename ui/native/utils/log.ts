@@ -4,25 +4,32 @@ import Share from 'react-native-share'
 import RNFB from 'rn-fetch-blob'
 
 import { LogEvent } from '@fedi/common/types/bindings'
-import { exportLogs as exportAppLogs, makeLog } from '@fedi/common/utils/log'
+import {
+    exportUiLogs,
+    exportLegacyUiLogs,
+    makeLog,
+} from '@fedi/common/utils/log'
 import { File, makeTarGz } from '@fedi/common/utils/targz'
 
 import { store } from '../state/store'
 import { getAllDeviceInfo } from './device-info'
+import { storage } from './storage'
 
 const log = makeLog('native/utils/logs-export')
 const MAX_BRIDGE_LOG_SIZE = 1024 * 1024 * 10
 
 export async function generateLogsExportGzip(extraFiles: File[] = []) {
     // Parallelize all information gathering.
-    const [jsLogs, bridgeLogs, infoJson] = await Promise.all([
-        exportAppLogs(),
+    const [legacyUiLogs, uiLogs, bridgeLogs, infoJson] = await Promise.all([
+        exportLegacyUiLogs(storage),
+        exportUiLogs(),
         exportBridgeLogs(),
         getAllDeviceInfo(),
     ])
 
     return await makeTarGz([
-        { name: 'app.log', content: jsLogs },
+        { name: 'app-ui-legacy.log', content: legacyUiLogs },
+        { name: 'app.log', content: uiLogs },
         { name: 'bridge.log', content: bridgeLogs },
         { name: 'info.json', content: JSON.stringify(infoJson, null, 2) },
         ...extraFiles,

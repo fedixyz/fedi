@@ -2,10 +2,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
 
+import Flex from '../components/ui/Flex'
 import HoloGuidance from '../components/ui/HoloGuidance'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -23,7 +24,7 @@ const StableBalanceIntro: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <Flex grow center style={style.container}>
             <HoloGuidance
                 iconImage={<Text style={style.iconText}>⚖️</Text>}
                 title={t('feature.stabilitypool.stable-balance')}
@@ -38,16 +39,13 @@ const StableBalanceIntro: React.FC<Props> = ({ navigation }: Props) => {
                     navigation.navigate('StabilityHome')
                 }}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
             padding: theme.spacing.xl,
         },
         iconText: {

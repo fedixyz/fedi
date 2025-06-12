@@ -238,6 +238,7 @@ const theme = createTheme({
                 ...(props.small ? { fontSize: fediTheme.fontSizes.small } : {}),
                 ...(props.tiny ? { fontSize: fediTheme.fontSizes.tiny } : {}),
                 ...(props.color ? { color: props.color } : {}),
+                ...(props.center ? { textAlign: 'center' } : {}),
             },
             h1Style: {
                 fontSize: 32,

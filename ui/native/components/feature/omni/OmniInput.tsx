@@ -20,6 +20,7 @@ import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import { OmniConfirmation } from './OmniConfirmation'
 import { OmniMemberSearch } from './OmniMemberSearch'
 import { OmniQrScanner } from './OmniQrScanner'
@@ -276,7 +277,7 @@ export function OmniInput<
     }
 
     return (
-        <View style={style.container}>
+        <Flex grow fullWidth>
             {showActivityIndicator && (
                 <Pressable
                     onPress={() => setShowActivityIndicator(false)}
@@ -303,7 +304,7 @@ export function OmniInput<
                 />
             )}
             {confirmation}
-        </View>
+        </Flex>
     )
 }
 
@@ -322,7 +323,6 @@ const styles = () =>
             marginVertical: 6,
             padding: 0,
         },
-        container: { flex: 1, width: '100%', flexDirection: 'column', gap: 0 },
         overlay: {
             position: 'absolute',
             top: 0,

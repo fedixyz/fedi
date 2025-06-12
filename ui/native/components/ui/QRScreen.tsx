@@ -1,7 +1,8 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet, View, useWindowDimensions } from 'react-native'
+import { StyleSheet } from 'react-native'
 
+import Flex from './Flex'
 import QRCodeContainer from './QRCodeContainer'
 
 interface Props {
@@ -34,13 +35,17 @@ const QRScreen: React.FC<Props> = ({
     dark,
 }) => {
     const { theme } = useTheme()
-    const { width } = useWindowDimensions()
 
-    const style = styles(theme, width, dark)
+    const style = styles(theme, dark)
     return (
-        <View style={style.container}>
-            <View style={style.topContainer}>
-                <View style={style.titleContainer}>
+        <Flex
+            grow
+            align="center"
+            justify="between"
+            gap="lg"
+            style={style.container}>
+            <Flex align="center" justify="end" gap="sm" fullWidth>
+                <Flex row center gap="sm" fullWidth>
                     {title && (
                         <Text
                             h2
@@ -56,13 +61,13 @@ const QRScreen: React.FC<Props> = ({
                             {titleSuffix}
                         </Text>
                     )}
-                </View>
+                </Flex>
                 {subtitle && (
                     <Text caption style={style.subtitle}>
                         {subtitle}
                     </Text>
                 )}
-            </View>
+            </Flex>
 
             <QRCodeContainer
                 copyMessage={copyMessage}
@@ -71,39 +76,22 @@ const QRScreen: React.FC<Props> = ({
                 qrValue={qrValue}
             />
 
-            <View style={style.bottomContainer}>{bottom}</View>
-        </View>
+            <Flex fullWidth>{bottom}</Flex>
+        </Flex>
     )
 }
 
-const styles = (theme: Theme, width: number, dark?: boolean) =>
+const styles = (theme: Theme, dark?: boolean) =>
     StyleSheet.create({
         container: {
-            flexGrow: 1,
-            alignItems: 'center',
-            justifyContent: 'space-between',
             padding: theme.spacing.xl,
-            gap: theme.spacing.lg,
             backgroundColor: dark ? theme.colors.primary : undefined,
-        },
-        topContainer: {
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: theme.spacing.sm,
-            width: '100%',
-        },
-        titleContainer: {
-            textAlign: 'center',
-            justifyContent: 'center',
-            flexDirection: 'row',
-            alignItems: 'center',
-            width: '100%',
-            gap: theme.spacing.xs,
         },
         title: {
             textAlign: 'center',
         },
         titleSuffix: {
+            textAlign: 'center',
             color: theme.colors.grey,
         },
         subtitle: {

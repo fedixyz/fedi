@@ -82,13 +82,6 @@ const styles = (theme: Theme) =>
             marginTop: theme.spacing.xl,
             marginBottom: theme.spacing.md,
         },
-        roundedCardContainer: {
-            marginTop: 'auto',
-            borderRadius: theme.borders.defaultRadius,
-            width: '100%',
-            marginHorizontal: 0,
-            padding: theme.spacing.xl,
-        },
         welcomeTitle: {
             marginVertical: theme.spacing.md,
             textAlign: 'center',

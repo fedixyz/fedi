@@ -72,6 +72,14 @@ pub enum WithdrawalResponseType {
         fiat_amount: RpcFiatAmount,
         txid: RpcTransactionId,
     },
+    /// Just because a withdrawal request attained a threshold number of
+    /// approvals doesn't meant that it will be accepted as a valid TX by the
+    /// federation (for example, if requested withdrawal amount > group balance
+    /// at time of transaction). This variant is to broadcast such TX
+    /// rejections.
+    TxRejected {
+        error: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -230,8 +238,17 @@ pub struct WithdrawRequestWithApprovals {
     pub description: String,
     pub signatures: BTreeMap<RpcUserId, RpcSignature>,
     pub rejections: BTreeSet<RpcUserId>,
-    pub completed: Option<RpcTransactionId>,
+    pub tx_submission_status: WithdrawTxSubmissionStatus,
     pub sender: RpcUserId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum WithdrawTxSubmissionStatus {
+    Unknown,
+    Accepted { txid: RpcTransactionId },
+    Rejected { error: String },
 }
 
 impl WithdrawRequestWithApprovals {
@@ -242,7 +259,7 @@ impl WithdrawRequestWithApprovals {
             description,
             signatures: BTreeMap::new(),
             rejections: BTreeSet::new(),
-            completed: None,
+            tx_submission_status: WithdrawTxSubmissionStatus::Unknown,
             sender,
         }
     }
@@ -293,15 +310,38 @@ impl WithdrawRequestWithApprovals {
                 fiat_amount: _,
                 txid,
             } => {
+                // only original sender can send completion mention
                 if self.sender != sender {
-                    // only original sender can send completion mention
                     return Err(ProcessEventError::InvalidMessage);
                 }
-                if self.completed.is_some() {
+
+                // current Tx submission status must be unknown
+                if !matches!(
+                    self.tx_submission_status,
+                    WithdrawTxSubmissionStatus::Unknown
+                ) {
                     return Err(ProcessEventError::InvalidMessage);
                 }
-                self.completed = Some(txid);
+
+                self.tx_submission_status = WithdrawTxSubmissionStatus::Accepted { txid };
                 WithdrawalProcessResponseOutcome::Completed
+            }
+            WithdrawalResponseType::TxRejected { error } => {
+                // only original sender can send Tx rejection message
+                if self.sender != sender {
+                    return Err(ProcessEventError::InvalidMessage);
+                }
+
+                // current Tx submission status must be unknown
+                if !matches!(
+                    self.tx_submission_status,
+                    WithdrawTxSubmissionStatus::Unknown
+                ) {
+                    return Err(ProcessEventError::InvalidMessage);
+                }
+
+                self.tx_submission_status = WithdrawTxSubmissionStatus::Rejected { error };
+                WithdrawalProcessResponseOutcome::TxRejected
             }
         };
         Ok(outcome)
@@ -318,6 +358,8 @@ enum WithdrawalProcessResponseOutcome {
     Rejection,
     /// The transaction completed
     Completed,
+    /// Federation rejected the transaction
+    TxRejected,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq)]

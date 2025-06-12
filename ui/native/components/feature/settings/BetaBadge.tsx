@@ -1,8 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { ImageBackground, StyleSheet, View } from 'react-native'
+import { ImageBackground, StyleSheet } from 'react-native'
 
 import { Images } from '../../../assets/images'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 export const BetaBadge = () => {
@@ -12,12 +13,12 @@ export const BetaBadge = () => {
 
     return (
         <ImageBackground style={style.betaBadge} source={Images.HoloBackground}>
-            <View style={style.betaBadgeInner}>
+            <Flex row center gap="xs" style={style.betaBadgeInner}>
                 <SvgImage name="NorthStar" size={SvgImageSize.xs} />
                 <Text caption medium>
                     {t('words.beta')}
                 </Text>
-            </View>
+            </Flex>
         </ImageBackground>
     )
 }
@@ -36,10 +37,5 @@ const styles = (theme: Theme) =>
             padding: 4,
             backgroundColor: theme.colors.white,
             overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 4,
         },
     })

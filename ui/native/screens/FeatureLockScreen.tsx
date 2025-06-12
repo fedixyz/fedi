@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, useTheme } from '@rneui/themed'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { View, useWindowDimensions } from 'react-native'
+import { useWindowDimensions } from 'react-native'
 
 import { maxPinLength, pinNumbers } from '@fedi/common/constants/security'
 import { numpadButtons } from '@fedi/common/hooks/amount'
@@ -9,6 +9,7 @@ import { useDebounce } from '@fedi/common/hooks/util'
 import { ProtectedFeatures, setFeatureUnlocked } from '@fedi/common/redux'
 
 import PinDot from '../components/feature/pin/PinDot'
+import Flex from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
@@ -62,15 +63,15 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
     }, [])
 
     const handleNumpadPress = useCallback(
-        (btn: (typeof numpadButtons)[number]) => {
-            if (btn === null || pin.status !== 'set') return
+        (btn: number | 'backspace') => {
+            if (pin.status !== 'set') return
 
             if (btn === 'backspace') {
                 setPinDigits(pinDigits.slice(0, pinDigits.length - 1))
             } else if (pinDigits.length < maxPinLength) {
                 const updatedDigits = [...pinDigits, btn]
 
-                // If adding pressing this numpad causes the PIN to be incorrect
+                // If adding this digit causes the PIN to be incorrect, increase attempts.
                 if (
                     pinDigits.length === maxPinLength - 1 &&
                     !pin.check(updatedDigits)
@@ -131,9 +132,9 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
     }, [])
 
     return (
-        <View style={style.container}>
-            <View style={style.content}>
-                <View style={style.dots}>
+        <Flex grow center style={style.container}>
+            <Flex grow center style={style.content}>
+                <Flex row center style={style.dots}>
                     {pinNumbers.map(i => (
                         <PinDot
                             key={i}
@@ -141,26 +142,30 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
                             isLast={i === maxPinLength}
                         />
                     ))}
-                </View>
-            </View>
-            <View style={style.numpad}>
-                {numpadButtons.map(btn => (
-                    <NumpadButton
-                        key={btn}
-                        btn={btn}
-                        onPress={() => handleNumpadPress(btn)}
-                        disabled={timeoutSeconds > 0}
-                    />
-                ))}
+                </Flex>
+            </Flex>
+            <Flex row wrap style={style.numpad}>
+                {numpadButtons
+                    .filter(btn => btn !== '.')
+                    .map(btn => (
+                        <NumpadButton
+                            key={btn}
+                            btn={btn}
+                            onPress={() =>
+                                handleNumpadPress(btn as number | 'backspace')
+                            }
+                            disabled={timeoutSeconds > 0}
+                        />
+                    ))}
                 {timeoutSeconds > 0 && (
-                    <View style={style.timeoutOverlay}>
+                    <Flex center style={style.timeoutOverlay}>
                         <Text bold h1>
                             0:{String(timeoutSeconds).padStart(2, '0')}
                         </Text>
-                    </View>
+                    </Flex>
                 )}
-            </View>
-        </View>
+            </Flex>
+        </Flex>
     )
 }
 

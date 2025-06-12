@@ -16,7 +16,7 @@ import { RouteStateProvider } from '../context/RouteStateContext'
 import { fedimint } from '../lib/bridge'
 import { initializeWebStore, store } from '../state/store'
 import { globalStyles } from '../styles'
-import { asyncLocalStorage } from '../utils/localstorage'
+import { logFileApi } from '../utils/logfile'
 
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
     globalStyles()
@@ -38,7 +38,7 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
 
     // Initialize logging library, force logs to save before closing the tab.
     useEffect(() => {
-        configureLogging(asyncLocalStorage)
+        configureLogging(logFileApi)
         window.addEventListener('beforeunload', saveLogsToStorage)
         return () =>
             window.removeEventListener('beforeunload', saveLogsToStorage)

@@ -1,4 +1,5 @@
 import { Theme, useTheme } from '@rneui/themed'
+import { t } from 'i18next'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     Animated,
@@ -17,30 +18,48 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { selectToast } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../state/hooks'
-import SvgImage from './SvgImage'
+import { useLaunchZendesk } from '../../utils/hooks/support'
+import Flex from './Flex'
+import SvgImage, { SvgImageSize } from './SvgImage'
+
+type ToastAction = {
+    label: string
+    onPress: () => void
+}
+
+export type ExtendedToast = {
+    key: string
+    status: 'success' | 'info' | 'error'
+    content: string
+    action?: ToastAction
+}
 
 const nightGradient = [...fediTheme.nightHoloAmbientGradient]
 
 export default function ToastManager() {
-    const toast = useAppSelector(selectToast)
+    const toast = useAppSelector(selectToast) as ExtendedToast | null
     const slideAnim = useRef(new Animated.Value(-100)).current
     const dimensions = useWindowDimensions()
     const insets = useSafeAreaInsets()
 
     const [toastHeight, setToastHeight] = useState(100)
-    const [cachedToast, setCachedToast] = useState(toast)
+    const [cachedToast, setCachedToast] = useState<ExtendedToast | null>(toast)
     const [isToastOpen, setIsToastOpen] = useState(!!toast)
+
+    const { launchZendesk } = useLaunchZendesk()
 
     const { close } = useToast()
     const { theme } = useTheme()
 
-    const handleCloseToast = useCallback(
-        (open: boolean) => {
-            setIsToastOpen(open)
-            if (!open) close(toast?.key)
-        },
-        [toast, close],
-    )
+    const handleCloseToast = useCallback(() => {
+        setIsToastOpen(false)
+        if (toast) close(toast.key)
+    }, [toast, close])
+
+    const handleActionPress = useCallback(() => {
+        launchZendesk()
+        handleCloseToast()
+    }, [handleCloseToast, launchZendesk])
 
     useEffect(() => {
         if (toast) {
@@ -49,35 +68,24 @@ export default function ToastManager() {
         } else {
             setIsToastOpen(false)
         }
-    }, [toast, slideAnim, toastHeight])
+    }, [toast])
 
     useEffect(() => {
-        if (isToastOpen) {
-            slideAnim.setValue(-toastHeight)
-            Animated.timing(slideAnim, {
-                toValue: insets.top,
-                duration: 300,
-                useNativeDriver: true,
-            }).start()
-        } else {
-            Animated.timing(slideAnim, {
-                toValue: -toastHeight,
-                duration: 300,
-                useNativeDriver: true,
-            }).start()
-        }
-    }, [isToastOpen, insets, slideAnim, toastHeight, toast?.key])
+        const toValue = isToastOpen ? insets.top : -toastHeight
+        Animated.timing(slideAnim, {
+            toValue,
+            duration: 300,
+            useNativeDriver: true,
+        }).start()
+    }, [isToastOpen, insets.top, toastHeight, slideAnim])
 
-    const handleLayout = useCallback(
-        (e: LayoutChangeEvent) => {
-            const { height } = e.nativeEvent.layout
-            setToastHeight(height)
-        },
-        [setToastHeight],
-    )
+    const handleLayout = useCallback((e: LayoutChangeEvent) => {
+        setToastHeight(e.nativeEvent.layout.height)
+    }, [])
 
     const style = styles(theme)
     const maxMultiplier = 1.4
+    const actionLabel = cachedToast?.action?.label ?? t('feature.support.title')
 
     return (
         <Animated.View
@@ -85,15 +93,10 @@ export default function ToastManager() {
             style={[
                 style.toastOuter,
                 {
-                    transform: [
-                        {
-                            translateY: slideAnim,
-                        },
-                    ],
+                    transform: [{ translateY: slideAnim }],
                     maxWidth: dimensions.width - 80,
                 },
             ]}>
-            {/* Please forgive me Oscar 🙏😭. There were five shadows in the figma design I swear */}
             <View style={[style.wrapper, style.toastShadow1]}>
                 <View style={[style.wrapper, style.toastShadow2]}>
                     <View style={[style.wrapper, style.toastShadow3]}>
@@ -102,8 +105,8 @@ export default function ToastManager() {
                                 <LinearGradient
                                     style={style.wrapper}
                                     colors={[
-                                        'rgba(255, 255, 255, 0.15)',
-                                        'rgba(255, 255, 255, 0)',
+                                        'rgba(255,255,255,0.15)',
+                                        'rgba(255,255,255,0)',
                                     ]}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 0, y: 1 }}>
@@ -112,8 +115,17 @@ export default function ToastManager() {
                                         colors={nightGradient}
                                         start={{ x: 0, y: 0.75 }}
                                         end={{ x: 1, y: 0.95 }}>
-                                        <View>
+                                        <View style={style.contentRow}>
                                             <Text
+                                                testID={
+                                                    cachedToast?.status ===
+                                                    'success'
+                                                        ? 'SuccessToast'
+                                                        : cachedToast?.status ===
+                                                            'info'
+                                                          ? 'InfoToast'
+                                                          : 'ErrorToast'
+                                                }
                                                 style={style.toastIcon}
                                                 maxFontSizeMultiplier={
                                                     maxMultiplier
@@ -127,28 +139,54 @@ export default function ToastManager() {
                                                       ? '👀'
                                                       : '⚠️'}
                                             </Text>
-                                        </View>
-                                        <View style={style.toastContent}>
-                                            <Text
-                                                style={style.toastText}
-                                                maxFontSizeMultiplier={
-                                                    maxMultiplier
-                                                }
-                                                adjustsFontSizeToFit>
-                                                {cachedToast?.content}
-                                            </Text>
-                                        </View>
-                                        <View>
+                                            <Flex grow basis={false}>
+                                                <Text
+                                                    style={style.toastText}
+                                                    maxFontSizeMultiplier={
+                                                        maxMultiplier
+                                                    }
+                                                    adjustsFontSizeToFit>
+                                                    {cachedToast?.content}
+                                                </Text>
+                                            </Flex>
                                             <Pressable
-                                                onPress={() =>
-                                                    handleCloseToast(false)
-                                                }>
+                                                onPress={handleCloseToast}>
                                                 <SvgImage
                                                     name="Close"
                                                     color={theme.colors.grey}
                                                 />
                                             </Pressable>
                                         </View>
+                                        {cachedToast?.status === 'error' && (
+                                            <Pressable
+                                                style={style.actionButton}
+                                                android_ripple={{
+                                                    color:
+                                                        theme.colors.white +
+                                                        '20',
+                                                }}
+                                                onPress={handleActionPress}>
+                                                <Flex
+                                                    row
+                                                    align="center"
+                                                    justify="center"
+                                                    gap="sm">
+                                                    <SvgImage
+                                                        name="SmileMessage"
+                                                        size={SvgImageSize.xs}
+                                                        color={
+                                                            theme.colors.white
+                                                        }
+                                                    />
+                                                    <Text
+                                                        style={
+                                                            style.actionButtonText
+                                                        }>
+                                                        {actionLabel}
+                                                    </Text>
+                                                </Flex>
+                                            </Pressable>
+                                        )}
                                     </LinearGradient>
                                 </LinearGradient>
                             </View>
@@ -167,10 +205,10 @@ const styles = (theme: Theme) =>
             top: 0,
             left: 40,
             width: '100%',
-            display: 'flex',
             backgroundColor: theme.colors.black,
             borderRadius: 16,
-            elevation: 4,
+            elevation: 10,
+            zIndex: 10,
         },
         toastShadow1: {
             shadowColor: theme.colors.black,
@@ -209,25 +247,37 @@ const styles = (theme: Theme) =>
         },
         wrapper: {
             flexGrow: 1,
-            display: 'flex',
             borderRadius: 16,
         },
         toast: {
-            alignItems: 'center',
             padding: 14,
+            gap: 12,
+        },
+        contentRow: {
             flexDirection: 'row',
+            alignItems: 'center',
             gap: 12,
         },
         toastIcon: {
             fontSize: 20,
         },
-        toastContent: {
-            flexGrow: 1,
-            flexBasis: 0,
-        },
         toastText: {
             color: theme.colors.white,
             fontSize: 14,
             fontFamily: 'AlbertSans-Regular',
+        },
+        actionButton: {
+            width: '100%',
+            paddingHorizontal: 16,
+            paddingVertical: 6,
+            borderRadius: 12,
+            backgroundColor: theme.colors.darkGrey,
+        },
+        actionButtonText: {
+            color: theme.colors.white,
+            fontSize: 13,
+            fontWeight: '500',
+            fontFamily: 'AlbertSans-Medium',
+            textAlign: 'center',
         },
     })

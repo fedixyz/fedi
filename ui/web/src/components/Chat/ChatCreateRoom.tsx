@@ -22,19 +22,20 @@ export const ChatCreateRoom: React.FC = () => {
     const { push } = useRouter()
     const dispatch = useAppDispatch()
     const toast = useToast()
-    const [newGroupName, setNewGroupName] = useState(
-        t('feature.chat.new-group'),
-    )
+    const [newGroupName, setNewGroupName] = useState('')
     const [isSavingGroup, setIsSavingGroup] = useState(false)
     const [isBroadcastOnly, setIsBroadcastOnly] = useState(false)
     const isSm = useMediaQuery(config.media.sm)
 
     const handleCreateRoom = useCallback(async () => {
+        const groupName = newGroupName.trim()
+        if (groupName.length === 0) return
+
         setIsSavingGroup(true)
         try {
             const { roomId } = await dispatch(
                 createMatrixRoom({
-                    name: newGroupName,
+                    name: groupName,
                     broadcastOnly: isBroadcastOnly,
                 }),
             ).unwrap()
@@ -71,6 +72,8 @@ export const ChatCreateRoom: React.FC = () => {
                     label={t('feature.chat.group-name')}
                     value={newGroupName}
                     onChange={ev => setNewGroupName(ev.currentTarget.value)}
+                    maxLength={30}
+                    placeholder={t('feature.chat.new-group')}
                 />
                 <BroadcastSwitchContainer>
                     <Text>{t('feature.chat.broadcast-only')}</Text>
@@ -84,7 +87,8 @@ export const ChatCreateRoom: React.FC = () => {
                 <Button
                     width="full"
                     loading={isSavingGroup}
-                    onClick={handleCreateRoom}>
+                    onClick={handleCreateRoom}
+                    disabled={newGroupName.trim().length === 0}>
                     {t('feature.chat.create-group')}
                 </Button>
             </Buttons>

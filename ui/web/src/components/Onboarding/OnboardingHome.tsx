@@ -2,25 +2,15 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ClipboardIcon from '@fedi/common/assets/svgs/clipboard.svg'
-import { useToast } from '@fedi/common/hooks/toast'
-import {
-    selectActiveFederationId,
-    selectIsInternetUnreachable,
-} from '@fedi/common/redux'
 import { ParserDataType } from '@fedi/common/types'
-import { parseUserInput } from '@fedi/common/utils/parser'
 
 import { Button } from '../../components/Button'
-import { HorizontalLine } from '../../components/HorizontalLine'
 import { Header, Title } from '../../components/Layout'
-import { OmniQrScanner } from '../../components/OmniInput/OmniQrScanner'
 import PublicFederations from '../../components/PublicFederations'
 import { Switcher } from '../../components/Switcher'
 import { Text } from '../../components/Text'
-import { useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { keyframes, styled, theme } from '../../styles'
+import { OmniInput } from '../OmniInput'
 import {
     OnboardingActions,
     OnboardingContainer,
@@ -41,14 +31,9 @@ const getTab = (tab: string): TabValue => {
 
 export function OnboardingHome() {
     const { t } = useTranslation()
-    const toast = useToast()
     const { push, query, replace } = useRouter()
 
-    const federationId = useAppSelector(selectActiveFederationId)
-    const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
-
     const [activeTab, setActiveTab] = useState<TabValue>('discover')
-    const [scanning, setScanning] = useState<boolean>(false)
 
     const switcherOptions: SwitcherOption[] = [
         { label: t('words.discover'), value: 'discover' },
@@ -66,67 +51,6 @@ export function OnboardingHome() {
         replace(`/onboarding?tab=${value}`)
     }
 
-    const parseInput = async (input: string): Promise<string | null> => {
-        try {
-            const parsedResponse = await parseUserInput(
-                input,
-                fedimint,
-                t,
-                federationId,
-                isInternetUnreachable,
-            )
-
-            // Allow community and federation invites
-            const permittedInviteTypes = [
-                ParserDataType.CommunityInvite,
-                ParserDataType.FedimintInvite,
-            ]
-
-            if (
-                !parsedResponse ||
-                !permittedInviteTypes.includes(parsedResponse.type)
-            ) {
-                throw new Error('Invite code is invalid')
-            }
-
-            return input
-        } catch (err) {
-            return null
-        }
-    }
-
-    const handleOnScan = async (input: string) => {
-        try {
-            setScanning(true)
-            const value = await parseInput(input)
-            setScanning(false)
-
-            if (!value) {
-                throw new Error(t('errors.invalid-invite-code'))
-            }
-
-            handleNavigation(value)
-        } catch (err) {
-            toast.error(t, 'errors.unknown-error')
-        }
-    }
-
-    const handleOnPaste = async () => {
-        try {
-            const input = await navigator.clipboard.readText()
-
-            const value = await parseInput(input)
-
-            if (!value) {
-                throw new Error(t('errors.invalid-invite-code'))
-            }
-
-            handleNavigation(value)
-        } catch (err) {
-            toast.error(t, 'errors.unknown-error')
-        }
-    }
-
     const handleNavigation = (code: string) => {
         push(`/onboarding/join?invite_code=${code}`)
     }
@@ -135,17 +59,19 @@ export function OnboardingHome() {
 
     if (activeTab === 'join') {
         body = (
-            <>
-                <OmniQrScanner onScan={handleOnScan} processing={scanning} />
-                <HorizontalLine text={t('words.or')} />
-                <Button
-                    icon={ClipboardIcon}
-                    width="full"
-                    onClick={handleOnPaste}
-                    variant="secondary">
-                    {t('feature.federations.paste-federation-code')}
-                </Button>
-            </>
+            <OmniInputWrapper>
+                <OmniInput
+                    mode="onboardingScanner"
+                    expectedInputTypes={[
+                        ParserDataType.FedimintInvite,
+                        ParserDataType.CommunityInvite,
+                    ]}
+                    onExpectedInput={({ data }) =>
+                        handleNavigation(data.invite)
+                    }
+                    onUnexpectedSuccess={() => null}
+                />
+            </OmniInputWrapper>
         )
     } else {
         body = <PublicFederations />
@@ -165,7 +91,11 @@ export function OnboardingHome() {
                         <Text
                             variant="caption"
                             css={{ color: theme.colors.darkGrey }}>
-                            {t('feature.onboarding.description')}
+                            {t(
+                                activeTab === 'join'
+                                    ? 'feature.onboarding.description-join'
+                                    : 'feature.onboarding.description',
+                            )}
                         </Text>
                     </TitleWrapper>
                     <Switcher
@@ -204,4 +134,9 @@ const Body = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 10,
+})
+
+const OmniInputWrapper = styled('div', {
+    display: 'flex',
+    minHeight: 400,
 })

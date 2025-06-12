@@ -4,6 +4,7 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native'
 import { MatrixRoomMember } from '../../types'
 import ChatAvatar from '../feature/chat/ChatAvatar'
 import { AvatarSize } from './Avatar'
+import Flex from './Flex'
 import { getIconSizeMultiplier } from './SvgImage'
 
 const AvatarStack: React.FC<{
@@ -37,7 +38,8 @@ const AvatarStack: React.FC<{
                 },
             ]}>
             {members.map((member, i) => (
-                <View
+                <Flex
+                    center
                     key={`avatar-stack-${i}`}
                     style={[
                         style.avatar,
@@ -49,7 +51,7 @@ const AvatarStack: React.FC<{
                         },
                     ]}>
                     <ChatAvatar user={member} size={size} />
-                </View>
+                </Flex>
             ))}
         </View>
     )
@@ -62,9 +64,6 @@ const styles = (theme: Theme) =>
         },
         avatar: {
             position: 'absolute',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             top: 0,
             borderWidth: 1,
             borderColor: theme.colors.white,

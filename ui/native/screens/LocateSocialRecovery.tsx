@@ -2,9 +2,10 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import SelectRecoveryFileButton from '../components/feature/recovery/SelectRecoveryFileButton'
+import Flex from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
@@ -20,7 +21,11 @@ const LocateSocialRecovery: React.FC<Props> = () => {
     const { theme } = useTheme()
 
     return (
-        <View style={styles(theme).container}>
+        <Flex
+            grow
+            align="center"
+            justify="start"
+            style={styles(theme).container}>
             <Text style={styles(theme).instructionsText}>
                 {t('feature.recovery.social-recovery-instructions')}
             </Text>
@@ -29,7 +34,7 @@ const LocateSocialRecovery: React.FC<Props> = () => {
                 title={t('feature.recovery.locate-social-recovery-file')}
                 body={
                     <>
-                        <View style={styles(theme).textContainer}>
+                        <Flex fullWidth>
                             <Text>
                                 {t(
                                     'feature.recovery.locate-social-recovery-instructions-1',
@@ -67,30 +72,24 @@ const LocateSocialRecovery: React.FC<Props> = () => {
                             </Text>
                             <Text bold>backup.fedi</Text>
                             <LineBreak />
-                        </View>
+                        </Flex>
                         <SelectRecoveryFileButton />
                     </>
                 }
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'flex-start',
             paddingHorizontal: theme.spacing.xl,
         },
         instructionsText: {
             textAlign: 'center',
             paddingHorizontal: theme.spacing.md,
             marginVertical: theme.spacing.lg,
-        },
-        textContainer: {
-            width: '100%',
         },
     })
 

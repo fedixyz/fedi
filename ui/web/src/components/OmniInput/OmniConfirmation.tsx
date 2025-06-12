@@ -170,7 +170,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                     text: t('feature.omni.confirm-fedi-chat', {
                         username: parsedData.data.displayName,
                     }),
-                    continueHref: `/chat/user/${parsedData.data.id}`,
+                    continueHref: `/chat/user/${parsedData.data.id}?displayName=${encodeURIComponent(parsedData.data.displayName)}`,
                 }
             case ParserDataType.FediChatRoom:
                 return {
@@ -264,6 +264,7 @@ const Container = styled('div', {
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
 
     '@sm': {
         position: 'fixed',

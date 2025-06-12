@@ -11,7 +11,6 @@ import {
     NativeSyntheticEvent,
     Pressable,
     StyleSheet,
-    View,
 } from 'react-native'
 
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
@@ -35,6 +34,7 @@ import {
 } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import ChatEventCollection from './ChatEventCollection'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import NoMembersNotice from './NoMembersNotice'
@@ -235,11 +235,14 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     }
                     ListHeaderComponent={
                         isBlocked ? (
-                            <View style={style.blockedContainer}>
+                            <Flex
+                                align="center"
+                                fullWidth
+                                style={style.blockedContainer}>
                                 <Text tiny style={style.blockedText}>
                                     {t('feature.chat.user-is-blocked-guidance')}
                                 </Text>
-                            </View>
+                            </Flex>
                         ) : undefined
                     }
                     onScroll={handleScroll}
@@ -256,19 +259,18 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                         autoscrollToTopThreshold: 100,
                     }}
                     scrollsToTop={false}
-                    // Enable better scroll performance
-                    removeClippedSubviews={true}
+                    removeClippedSubviews={false}
                     maxToRenderPerBatch={10}
                     windowSize={10}
                     initialNumToRender={10}
                 />
             ) : (
-                <View style={style.center}>
+                <Flex justify="center" grow>
                     <ActivityIndicator
                         size="large"
                         color={theme.colors.primary}
                     />
-                </View>
+                </Flex>
             )}
 
             <ChatUserActionsOverlay
@@ -316,23 +318,7 @@ const styles = (theme: Theme) =>
         newMessageButtonText: {
             color: theme.colors.secondary,
         },
-        center: {
-            flex: 1,
-            justifyContent: 'center',
-        },
-        initialLoadingContainer: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: 200,
-        },
-        contentContainerLoading: {
-            flexGrow: 1,
-            justifyContent: 'center',
-        },
         blockedContainer: {
-            alignItems: 'center',
-            width: '100%',
             marginBottom: theme.spacing.md,
         },
         blockedText: {

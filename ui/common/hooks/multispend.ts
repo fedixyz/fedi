@@ -10,12 +10,13 @@ import {
     selectWalletFederations,
     selectRoomMultispendFinancialTransactions,
     fetchMultispendTransactions,
-    selectFormattedMultispendBalance,
     selectCurrency,
     selectMatrixRoomMembers,
     selectMultispendInvitationEvent,
     selectMatrixRoomMember,
     selectMatrixRoomMultispendEvent,
+    selectCurrencyLocale,
+    selectMultispendBalanceFiat,
 } from '../redux'
 import {
     MatrixEvent,
@@ -26,10 +27,13 @@ import {
     MultispendListedInvitationEvent,
 } from '../types'
 import { RpcMultispendGroupStatus, RpcRoomId } from '../types/bindings'
+import amountUtils from '../utils/AmountUtils'
 import { FedimintBridge } from '../utils/fedimint'
 import {
     getMultispendInvite,
     isMultispendWithdrawalEvent,
+    isWithdrawalRequestApproved,
+    isWithdrawalRequestRejected,
     makeMultispendWalletHeader,
     MatrixEventContentType,
     MultispendEventContentType,
@@ -83,7 +87,7 @@ export function useMultispendVoting({
         )
             return false
 
-        const hasApproved = Object.values(
+        const hasApproved = Object.keys(
             multispendStatus.state.pubkeys,
         ).includes(myId)
 
@@ -215,6 +219,8 @@ export function useMultispendVoting({
         hasRejected,
         isActive: multispendStatus?.status === 'activeInvitation',
         isFinalized: multispendStatus?.status === 'finalized',
+        canVote:
+            myMultispendRole === 'proposer' || myMultispendRole === 'voter',
         isProposer,
         isLoading,
         isConfirmingAbort,
@@ -232,11 +238,20 @@ export function useMultispendVoting({
 
 export function useMultispendDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const selectedCurrency = useCommonSelector(selectCurrency)
+    const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const multispendStatus = useCommonSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
-    const formattedMultispendBalance = useCommonSelector(s =>
-        selectFormattedMultispendBalance(s, roomId),
+    const myMultispendRole = useCommonSelector(s =>
+        selectMyMultispendRole(s, roomId),
+    )
+    const multispendBalanceFiat = useCommonSelector(s =>
+        selectMultispendBalanceFiat(s, roomId),
+    )
+    const formattedMultispendBalance = amountUtils.formatFiat(
+        multispendBalanceFiat,
+        selectedCurrency,
+        { symbolPosition: 'none', locale: currencyLocale },
     )
 
     const isActiveInvitation = multispendStatus?.status === 'activeInvitation'
@@ -246,11 +261,16 @@ export function useMultispendDisplayUtils(t: TFunction, roomId: RpcRoomId) {
 
     const shouldShowVoters = isActiveInvitation
 
+    const shouldBlockLeaveRoom =
+        multispendStatus &&
+        (myMultispendRole === 'voter' || myMultispendRole === 'proposer')
+
     const walletHeader = makeMultispendWalletHeader(t, multispendStatus)
 
     return {
         shouldShowHeader,
         shouldShowVoters,
+        shouldBlockLeaveRoom,
         walletHeader,
         formattedMultispendBalance,
         selectedCurrency,
@@ -287,7 +307,7 @@ export function useMultispendTransactions(t: TFunction, roomId: RpcRoomId) {
     }
 }
 
-export function useMultispendWithdrawUtils(t: TFunction, roomId: RpcRoomId) {
+export function useMultispendWithdrawUtils(roomId: RpcRoomId) {
     const multispendStatus = useCommonSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
@@ -295,22 +315,17 @@ export function useMultispendWithdrawUtils(t: TFunction, roomId: RpcRoomId) {
     const getWithdrawalStatus = useCallback(
         (event: MultispendWithdrawalEvent) => {
             if (multispendStatus?.status !== 'finalized') return 'pending'
-            if (event.event.withdrawalRequest.completed) return 'completed'
 
-            const voterCount = Object.keys(
-                multispendStatus.finalized_group.pubkeys,
-            ).length
-            const voteCount = Object.keys(
-                event.event.withdrawalRequest.signatures,
-            ).length
-            const rejectionCount =
-                event.event.withdrawalRequest.rejections.length
+            const txStatus = event.event.withdrawalRequest.txSubmissionStatus
 
-            const threshold =
-                multispendStatus.finalized_group.invitation.threshold
+            if (txStatus === 'unknown') return 'pending'
+            if ('accepted' in txStatus) return 'completed'
+            if ('rejected' in txStatus) return 'failed'
 
-            if (voteCount >= threshold) return 'approved'
-            if (voterCount - rejectionCount < threshold) return 'rejected'
+            if (isWithdrawalRequestApproved(event, multispendStatus))
+                return 'approved'
+            if (isWithdrawalRequestRejected(event, multispendStatus))
+                return 'rejected'
 
             return 'pending'
         },
@@ -344,7 +359,7 @@ export function useMultispendWithdrawalRequests({
         selectMatrixRoomMultispendStatus(s, roomId),
     )
     const { transactions } = useMultispendTransactions(t, roomId)
-    const { getWithdrawalStatus } = useMultispendWithdrawUtils(t, roomId)
+    const { getWithdrawalStatus } = useMultispendWithdrawUtils(roomId)
     const matrixAuth = useCommonSelector(selectMatrixAuth)
     const roomMembers = useCommonSelector(s =>
         selectMatrixRoomMembers(s, roomId),
@@ -367,6 +382,8 @@ export function useMultispendWithdrawalRequests({
                     return t('words.pending')
                 case 'completed':
                     return t('words.complete')
+                case 'failed':
+                    return t('words.failed')
             }
         },
         [t, getWithdrawalStatus],
@@ -454,7 +471,9 @@ export function useMultispendWithdrawalRequests({
                     'end',
                 ),
                 selectedFiatCurrency,
-                status: getWithdrawalStatus(event),
+                status: getWithdrawalStatus(event) as ReturnType<
+                    typeof getWithdrawalStatus
+                >,
             }
         },
         [
@@ -501,7 +520,10 @@ export function useMultispendWithdrawalRequests({
         }
     }, [selectedWithdrawalId, roomId, t, toast, fedimint])
 
-    const filterOptions = [
+    const filterOptions: Array<{
+        value: MultispendFilterOption
+        label: string
+    }> = [
         { value: 'all', label: t('words.all') },
         { value: 'pending', label: t('words.pending') },
         { value: 'approved', label: t('words.approved') },
@@ -543,7 +565,9 @@ const extractInvitationData = (
             : undefined
 
     const activeInvitationId =
-        roomStatus?.status === 'activeInvitation'
+        roomStatus?.status === 'activeInvitation' &&
+        // Assume failed if there are rejections
+        roomStatus.state.rejections.length === 0
             ? roomStatus.active_invite_id
             : undefined
 
@@ -709,7 +733,7 @@ export function useMultispendWithdrawalEventContent({
     subText?: string
 } {
     const { senderId, content, roomId } = event
-    const { getWithdrawalStatus } = useMultispendWithdrawUtils(t, roomId)
+    const { getWithdrawalStatus } = useMultispendWithdrawUtils(roomId)
     const selectedFiatCurrency = useCommonSelector(selectCurrency)
     const { convertCentsToFormattedFiat } =
         useBtcFiatPrice(selectedFiatCurrency)
@@ -749,6 +773,9 @@ export function useMultispendWithdrawalEventContent({
                 subText = t(
                     'feature.multispend.chat-events.withdrawal-approved',
                 )
+                break
+            case 'failed':
+                text = t('feature.multispend.chat-events.withdrawal-failed')
                 break
             case 'pending':
             default:

@@ -11,6 +11,7 @@ import {
     selectFederationDefaultCurrency,
     setFederationCurrency,
 } from '@fedi/common/redux/currency'
+import { sortCurrenciesByName } from '@fedi/common/utils/currency'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 
 import { SafeScrollArea } from '../components/ui/SafeArea'
@@ -37,6 +38,8 @@ const FederationCurrency: React.FC<Props> = props => {
 
     const style = styles(theme)
 
+    const sortedCurrencies = sortCurrenciesByName(t, Object.values(currencies))
+
     return (
         <SafeScrollArea style={style.container} edges="notop">
             <View style={style.content}>
@@ -53,7 +56,7 @@ const FederationCurrency: React.FC<Props> = props => {
                     <Text caption style={style.label}>
                         {t('words.others')}
                     </Text>
-                    {Object.values(currencies).map(currency => (
+                    {sortedCurrencies.map(currency => (
                         <CurrencyItem
                             currency={currency}
                             federationId={federationId}

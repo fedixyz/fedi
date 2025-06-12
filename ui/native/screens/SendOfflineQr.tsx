@@ -5,13 +5,7 @@ import { Buffer } from 'buffer'
 import { dataToFrames } from 'qrloop'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    Alert,
-    Pressable,
-    StyleSheet,
-    useWindowDimensions,
-    View,
-} from 'react-native'
+import { Alert, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import Share from 'react-native-share'
 
@@ -22,6 +16,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
 import { fedimint } from '../bridge'
+import Flex from '../components/ui/Flex'
 import HoloAlert from '../components/ui/HoloAlert'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
@@ -106,19 +101,24 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
 
     return (
         <SafeScrollArea safeAreaContainerStyle={style.container} edges="notop">
-            <View style={style.amountContainer}>
+            <Flex align="center" gap="xs">
                 <Text h1>{formattedPrimaryAmount}</Text>
                 <Text style={style.secondaryAmount}>
                     {formattedSecondaryAmount}
                 </Text>
-            </View>
+            </Flex>
             <QRCode
                 value={frames[index]}
                 size={width * 0.7}
                 logo={Images.FediQrLogo} //Should not be replaced with svg
             />
-            <View style={style.infoContainer}>
-                <View style={style.buttonContainer}>
+            <Flex align="center" gap="lg">
+                <Flex
+                    row
+                    justify="between"
+                    gap="md"
+                    fullWidth
+                    style={style.buttonContainer}>
                     <Button
                         size="md"
                         buttonStyle={style.actionButton}
@@ -137,12 +137,16 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                         icon={<SvgImage name="Share" size={20} />}
                         onPress={handleShare}
                     />
-                </View>
+                </Flex>
                 <HoloAlert text={t('feature.send.ecash-recipient-notice')} />
-            </View>
-            <View style={style.optionsContainer}>
+            </Flex>
+            <Flex
+                align="center"
+                gap="md"
+                fullWidth
+                style={style.optionsContainer}>
                 <Pressable onPress={handleCancelSend}>
-                    <View style={style.cancelSendContainer}>
+                    <Flex row center gap="sm" style={style.cancelSendContainer}>
                         <SvgImage
                             name="Close"
                             size={20}
@@ -151,7 +155,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                         <Text style={style.cancelSendText} caption medium>
                             {t('feature.send.cancel-send')}
                         </Text>
-                    </View>
+                    </Flex>
                 </Pressable>
                 <Button
                     fullWidth
@@ -167,7 +171,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                     delayLongPress={500}
                 />
                 <Text small>{t('phrases.hold-to-confirm')}</Text>
-            </View>
+            </Flex>
         </SafeScrollArea>
     )
 }
@@ -179,24 +183,11 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.xl,
             paddingVertical: theme.spacing.lg,
         },
-        amountContainer: {
-            gap: theme.spacing.xs,
-            alignItems: 'center',
-        },
-        infoContainer: {
-            gap: theme.spacing.lg,
-            alignItems: 'center',
-        },
         secondaryAmount: {
             color: theme.colors.darkGrey,
         },
         buttonContainer: {
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            width: '100%',
             paddingHorizontal: theme.spacing.lg,
-            gap: theme.spacing.md,
         },
         actionButton: {
             backgroundColor: theme.colors.offWhite,
@@ -207,20 +198,13 @@ const styles = (theme: Theme) =>
         },
         actionButtonContainerStyle: { flex: 1 },
         cancelSendContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.sm,
             paddingVertical: theme.spacing.md,
         },
         cancelSendText: {
             color: theme.colors.red,
         },
         optionsContainer: {
-            width: '100%',
             marginTop: 'auto',
-            gap: theme.spacing.md,
-            alignItems: 'center',
         },
     })
 

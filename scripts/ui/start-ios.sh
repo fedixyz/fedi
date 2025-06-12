@@ -103,6 +103,15 @@ echo "$FEDI_DEVICE_ID" > "$DEVICE_ID_FILE"
 
 echo "You selected device: $selectedDevice"
 
+# Uninstall the app from selected device for e2e tests
+
+if [[ "$RUN_TESTS" == "1" ]]; then
+    set +e
+    xcrun simctl boot $FEDI_DEVICE_ID
+    set -e
+    xcrun simctl uninstall $FEDI_DEVICE_ID org.fedi.alpha
+fi
+
 cd $REPO_ROOT/ui/native
 echo "Building & installing iOS app bundle"
 run_ios_result=0
@@ -127,4 +136,10 @@ $run_command || {
 # Start logging only if the previous command was successful
 if [[ "$ENABLE_IOS_LOGGING" == "1" && $run_ios_result -eq 0 ]]; then
     nix develop .#xcode --command npx react-native log-ios
+fi
+
+# Run ios tests only if the previous command was successful
+if [[ "$RUN_TESTS" == "1" && "$IOS_DRIVER_PASSED" == "1" && $run_ios_result -eq 0 ]]; then
+    echo "Running tests on $FEDI_DEVICE_ID"
+    PLATFORM=ios DEVICE_ID=$FEDI_DEVICE_ID yarn run ts-node $REPO_ROOT/ui/native/tests/appium/runner.ts $TESTS_TO_RUN
 fi

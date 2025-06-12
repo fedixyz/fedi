@@ -1,7 +1,7 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
@@ -14,6 +14,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { LoadedFederation, MSats } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 
@@ -53,14 +54,14 @@ const FederationWalletSelector: React.FC<{
                 style={style.tileContainer}
                 onPress={() => handleFederationSelected(f)}>
                 <FederationLogo federation={f} size={32} />
-                <View style={style.tileTextContainer}>
+                <Flex gap="xs" style={style.tileTextContainer}>
                     <Text bold numberOfLines={1}>
                         {f?.name || ''}
                     </Text>
                     <Text style={{}}>
                         {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
                     </Text>
-                </View>
+                </Flex>
                 {paymentFederation?.id === f.id && (
                     <SvgImage
                         name="Check"
@@ -77,7 +78,7 @@ const FederationWalletSelector: React.FC<{
     if (federations.length === 0) return null
 
     return (
-        <View style={style.container}>
+        <Flex align="center" fullWidth>
             <Pressable
                 style={[
                     style.selectedFederation,
@@ -86,7 +87,7 @@ const FederationWalletSelector: React.FC<{
                 onPress={() => setOpened(true)}
                 disabled={readonly}>
                 <FederationLogo federation={paymentFederation} size={32} />
-                <View style={style.tileTextContainer}>
+                <Flex gap="xs" style={style.tileTextContainer}>
                     <Text caption bold numberOfLines={1}>
                         {paymentFederation?.name || ''}
                     </Text>
@@ -99,7 +100,7 @@ const FederationWalletSelector: React.FC<{
                             {`${primaryAmountToSendFrom} (${secondaryAmountToSendFrom})`}
                         </Text>
                     )}
-                </View>
+                </Flex>
                 {readonly ? null : (
                     <SvgImage
                         name="ChevronRight"
@@ -125,16 +126,12 @@ const FederationWalletSelector: React.FC<{
                     ),
                 }}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            width: '100%',
-            alignItems: 'center',
-        },
         selectedFederation: {
             flexDirection: 'row',
             alignItems: 'center',
@@ -160,8 +157,6 @@ const styles = (theme: Theme) =>
             width: '100%',
         },
         tileTextContainer: {
-            flexDirection: 'column',
-            gap: theme.spacing.xs,
             maxWidth: '60%',
         },
     })

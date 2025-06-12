@@ -1,8 +1,8 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, StyleSheet, View } from 'react-native'
+import { Linking, Platform, StatusBar, StyleSheet, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import LinearGradient from 'react-native-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -15,6 +15,7 @@ import {
 import { fedimint } from '../../../bridge'
 import { reset } from '../../../state/navigation'
 import CustomOverlay from '../../ui/CustomOverlay'
+import Flex from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
 import HoloGradient from '../../ui/HoloGradient'
 import SvgImage from '../../ui/SvgImage'
@@ -31,6 +32,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
     const insets = useSafeAreaInsets()
     const {
         isProposer,
+        canVote,
         isActive,
         isFinalized,
         isConfirmingAbort,
@@ -62,11 +64,19 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
         )
     }, [])
 
+    useEffect(() => {
+        if (Platform.OS === 'android') {
+            StatusBar.setBackgroundColor('transparent')
+            StatusBar.setTranslucent(true)
+            StatusBar.setBarStyle('dark-content')
+        }
+    }, [])
+
     const actionButtons = (
         <>
-            {isActive && !hasRejected ? (
+            {isActive && !hasRejected && canVote ? (
                 <Pressable onPress={() => setIsConfirmingAbort(true)}>
-                    <Text style={style.abortText} medium>
+                    <Text color={theme.colors.red} medium>
                         {t(isProposer ? 'words.abort' : 'words.reject')}
                     </Text>
                 </Pressable>
@@ -85,13 +95,20 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
 
     return (
         <HoloGradient style={style.container} level="m500">
-            <View style={[style.header, { paddingTop: insets.top }]}>
-                <View style={style.headerSecondary}>
+            <Flex
+                row
+                align="center"
+                justify="between"
+                style={{
+                    paddingTop: insets.top,
+                    paddingHorizontal: theme.spacing.lg,
+                }}>
+                <Flex grow basis={false}>
                     <Pressable onPress={handleBack}>
                         <SvgImage name="ChevronLeft" size={24} />
                     </Pressable>
-                </View>
-                <View style={style.title}>
+                </Flex>
+                <Flex row center gap="xs" basis={false} style={style.title}>
                     <Text medium>{t('words.multispend')}</Text>
                     <Pressable onPress={handleInfoPress}>
                         <SvgImage
@@ -100,15 +117,11 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                             color={theme.colors.grey}
                         />
                     </Pressable>
-                </View>
-                <View
-                    style={[
-                        style.headerSecondary,
-                        style.actionButtonsContainer,
-                    ]}>
+                </Flex>
+                <Flex row grow basis={false} justify="end">
                     {actionButtons}
-                </View>
-            </View>
+                </Flex>
+            </Flex>
             <View style={style.walletPreviewContainer}>
                 <LinearGradient
                     style={style.walletPreview}
@@ -120,26 +133,26 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                         size={40}
                         content={<SvgImage name="MultispendGroup" size={24} />}
                     />
-                    <View style={style.walletInfo}>
+                    <Flex grow align="start" gap="xs">
                         <Text small bold style={style.infoText}>
                             {federationName}
                         </Text>
-                        <View style={style.balance}>
+                        <Flex row gap="xs" style={style.balance}>
                             <Text style={style.infoText} bold>
                                 {formattedMultispendBalance}
                             </Text>
                             <Text small bold style={style.infoText}>
                                 {selectedCurrency}
                             </Text>
-                        </View>
-                    </View>
-                    <View style={style.statusContainer}>
+                        </Flex>
+                    </Flex>
+                    <Flex align="end" gap="xs">
                         <View style={[style.badge, style.pendingBadge]}>
                             <Text tiny bold>
                                 {status}
                             </Text>
                         </View>
-                        <View style={[style.badge]}>
+                        <View style={style.badge}>
                             <Text tiny bold>
                                 {t('feature.multispend.x-n-votes-required', {
                                     x: threshold,
@@ -147,7 +160,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                                 })}
                             </Text>
                         </View>
-                    </View>
+                    </Flex>
                 </LinearGradient>
             </View>
             <CustomOverlay
@@ -169,36 +182,8 @@ const styles = (theme: Theme) =>
             display: 'flex',
             flexDirection: 'column',
         },
-        content: {
-            display: 'flex',
-            flexDirection: 'column',
-        },
-        header: {
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingHorizontal: theme.spacing.lg,
-        },
         title: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.xs,
             flex: 2,
-            flexBasis: 0,
-        },
-        abortText: {
-            color: theme.colors.red,
-        },
-        headerSecondary: {
-            flex: 1,
-            flexBasis: 0,
-        },
-        actionButtonsContainer: {
-            flexDirection: 'row',
-            justifyContent: 'flex-end',
         },
         walletPreviewContainer: {
             padding: theme.spacing.lg,
@@ -212,24 +197,8 @@ const styles = (theme: Theme) =>
             borderRadius: 20,
             padding: 20,
         },
-        walletInfo: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.xs,
-            flex: 1,
-            alignItems: 'flex-start',
-        },
         balance: {
-            display: 'flex',
-            flexDirection: 'row',
             alignItems: 'baseline',
-            gap: theme.spacing.xs,
-        },
-        statusContainer: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.xs,
-            alignItems: 'flex-end',
         },
         badge: {
             borderRadius: 4,

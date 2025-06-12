@@ -7,7 +7,7 @@ jobs:
     release-ios:
         name: Build iOS app and upload to TestFlight
         timeout-minutes: 90
-        runs-on: [self-hosted, macos, arm64]
+        runs-on: [self-hosted, macos, arm64, legacy]
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4

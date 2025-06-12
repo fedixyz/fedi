@@ -2,7 +2,8 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Image, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SvgUri } from 'react-native-svg'
 import { useDispatch } from 'react-redux'
 
@@ -16,6 +17,8 @@ import {
     OmniInput,
     OmniInputAction,
 } from '../components/feature/omni/OmniInput'
+import Flex from '../components/ui/Flex'
+import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { ParserDataType } from '../types'
 
@@ -35,6 +38,7 @@ const AddFediMod: React.FC = () => {
     const [isValidUrl, setIsValidUrl] = useState(false)
     const [action, setAction] = useState<'scan' | 'enter'>('scan')
 
+    const insets = useSafeAreaInsets()
     const style = styles(theme)
 
     const handleSubmit = async () => {
@@ -122,124 +126,107 @@ const AddFediMod: React.FC = () => {
     }
 
     return (
-        <SafeAreaContainer style={style.container} edges="notop">
-            <View style={style.content}>
-                <Input
-                    value={url}
-                    onChangeText={setUrl}
-                    placeholder={t('words.url')}
-                    label={<Text small>{t('words.URL')}</Text>}
-                    inputContainerStyle={style.innerInputContainer}
-                    containerStyle={style.inputContainer}
-                    keyboardType="url"
-                    autoCapitalize="none"
-                />
-                <Input
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder={t('feature.fedimods.mod-title')}
-                    label={
-                        <View style={style.titleLabel}>
-                            <Text small>{t('words.title')}</Text>
-                            {title.length > 0 && (
-                                <Text
-                                    small
-                                    style={{
-                                        color:
-                                            title.length < 3 ||
-                                            title.length > 24
-                                                ? theme.colors.red
-                                                : theme.colors.primary,
-                                    }}>
-                                    {title.length > 24
-                                        ? t('errors.title-too-long')
-                                        : title.length < 3 && title.length > 0
-                                          ? t('errors.title-too-short')
-                                          : ''}
-                                </Text>
-                            )}
-                        </View>
-                    }
-                    inputContainerStyle={[
-                        style.innerInputContainer,
-                        style.modTitle,
-                    ]}
-                    containerStyle={[
-                        style.inputContainer,
-                        style.modTitleContainer,
-                    ]}
-                    inputStyle={{ paddingTop: theme.spacing.sm }}
-                    disabled={isFetching}
-                    multiline
-                />
-                <Input
-                    value={imageUrl}
-                    onChangeText={setImageUrl}
-                    label={<Text small>{t('words.icon')}</Text>}
-                    inputContainerStyle={style.innerInputContainer}
-                    containerStyle={style.inputContainer}
-                    keyboardType="url"
-                    rightIcon={
-                        imageUrl?.endsWith('svg') ? (
-                            <SvgUri
-                                uri={imageUrl}
-                                width={32}
-                                height={32}
-                                fallback={
-                                    <Image
-                                        source={FediModImages.default}
-                                        style={style.previewIcon}
-                                    />
-                                }
-                                style={style.previewIcon}
-                            />
-                        ) : (
-                            <Image
-                                source={
-                                    imageUrl
-                                        ? { uri: imageUrl }
-                                        : FediModImages.default
-                                }
-                                style={style.previewIcon}
-                            />
-                        )
-                    }
-                    disabled={isFetching}
-                />
-            </View>
-            <Button
-                disabled={!canSave}
-                loading={isFetching}
-                onPress={handleSubmit}>
-                {t('words.save')}
-            </Button>
-        </SafeAreaContainer>
+        <KeyboardAwareWrapper
+            containerStyle={style.container}
+            additionalVerticalOffset={insets.top}
+            behavior="padding">
+            <SafeAreaContainer style={style.container} edges="notop">
+                <Flex grow gap="lg">
+                    <Input
+                        value={url}
+                        onChangeText={setUrl}
+                        placeholder={t('words.url')}
+                        label={<Text small>{t('words.URL')}</Text>}
+                        inputContainerStyle={style.innerInputContainer}
+                        containerStyle={style.inputContainer}
+                        keyboardType="url"
+                        autoCapitalize="none"
+                        returnKeyType="done"
+                    />
+                    <Input
+                        value={title}
+                        onChangeText={setTitle}
+                        placeholder={t('feature.fedimods.mod-title')}
+                        label={
+                            <Flex row align="center" justify="between">
+                                <Text small>{t('words.title')}</Text>
+                                {title.length > 0 && (
+                                    <Text
+                                        small
+                                        style={{
+                                            color:
+                                                title.length < 3 ||
+                                                title.length > 24
+                                                    ? theme.colors.red
+                                                    : theme.colors.primary,
+                                        }}>
+                                        {title.length > 24
+                                            ? t('errors.title-too-long')
+                                            : title.length < 3 &&
+                                                title.length > 0
+                                              ? t('errors.title-too-short')
+                                              : ''}
+                                    </Text>
+                                )}
+                            </Flex>
+                        }
+                        inputContainerStyle={style.innerInputContainer}
+                        containerStyle={style.inputContainer}
+                        disabled={isFetching}
+                        returnKeyType="done"
+                    />
+                    <Input
+                        value={imageUrl}
+                        onChangeText={setImageUrl}
+                        label={<Text small>{t('words.icon')}</Text>}
+                        inputContainerStyle={style.innerInputContainer}
+                        containerStyle={style.inputContainer}
+                        keyboardType="url"
+                        rightIcon={
+                            imageUrl?.endsWith('svg') ? (
+                                <SvgUri
+                                    uri={imageUrl}
+                                    width={32}
+                                    height={32}
+                                    fallback={
+                                        <Image
+                                            source={FediModImages.default}
+                                            style={style.previewIcon}
+                                        />
+                                    }
+                                    style={style.previewIcon}
+                                />
+                            ) : (
+                                <Image
+                                    source={
+                                        imageUrl
+                                            ? { uri: imageUrl }
+                                            : FediModImages.default
+                                    }
+                                    style={style.previewIcon}
+                                />
+                            )
+                        }
+                        disabled={isFetching}
+                        returnKeyType="done"
+                    />
+                </Flex>
+                <Button
+                    disabled={!canSave}
+                    loading={isFetching}
+                    onPress={handleSubmit}>
+                    {t('words.save')}
+                </Button>
+            </SafeAreaContainer>
+        </KeyboardAwareWrapper>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        titleLabel: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-        },
-        modTitle: {
-            alignItems: 'flex-start',
-        },
-        modTitleContainer: {
-            display: 'flex',
-        },
-        omniContainer: {
-            width: '100%',
-            flex: 1,
-        },
-        content: {
-            flexGrow: 1,
-            gap: theme.spacing.lg,
-        },
         container: {
             gap: theme.spacing.xs,
+            width: '100%',
         },
         innerInputContainer: {
             marginTop: theme.spacing.xs,

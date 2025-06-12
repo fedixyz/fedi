@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, FAB, Image, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useNuxStep } from '@fedi/common/hooks/nux'
@@ -18,6 +18,7 @@ import ChatsList from '../components/feature/chat/ChatsList'
 import FirstTimeCommunityEntryOverlay, {
     FirstTimeCommunityEntryItem,
 } from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
+import Flex from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { Tooltip } from '../components/ui/Tooltip'
 import { useAppSelector } from '../state/hooks'
@@ -58,26 +59,26 @@ const ChatScreen: React.FC<Props> = () => {
 
     if (syncStatus === MatrixSyncStatus.initialSync) {
         return (
-            <View style={style.centerContainer}>
+            <Flex grow center>
                 <ActivityIndicator size={16} color={theme.colors.primary} />
-            </View>
+            </Flex>
         )
     }
 
     if (syncStatus === MatrixSyncStatus.stopped) {
         return (
-            <View style={style.centerContainer}>
+            <Flex grow center>
                 <Text style={style.errorText} adjustsFontSizeToFit>
                     {t('errors.chat-connection-unhealthy')}
                 </Text>
-            </View>
+            </Flex>
         )
     }
 
     return (
-        <View style={style.container}>
+        <Flex grow center>
             {needsChatRegistration ? (
-                <View style={style.registration}>
+                <Flex grow center fullWidth style={style.registration}>
                     <Image
                         resizeMode="contain"
                         source={Images.IllustrationChat}
@@ -102,7 +103,7 @@ const ChatScreen: React.FC<Props> = () => {
                         }
                         onPress={() => navigation.push('EnterDisplayName')}
                     />
-                </View>
+                </Flex>
             ) : isChatEmpty ? (
                 <>
                     <Image
@@ -123,11 +124,11 @@ const ChatScreen: React.FC<Props> = () => {
             ) : (
                 <ErrorBoundary
                     fallback={() => (
-                        <View style={style.centerContainer}>
+                        <Flex grow center>
                             <Text style={style.errorText}>
                                 {t('errors.chat-list-render-error')}
                             </Text>
-                        </View>
+                        </Flex>
                     )}>
                     <ChatsList />
                 </ErrorBoundary>
@@ -159,13 +160,12 @@ const ChatScreen: React.FC<Props> = () => {
                 show={!hasSeenChat}
                 onDismiss={completeSeenChat}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
         emptyImage: {
             width: 200,
             height: 200,
@@ -176,18 +176,9 @@ const styles = (theme: Theme) =>
             shadowRadius: 4,
             shadowColor: theme.colors.primary,
         },
-        centerContainer: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
         errorText: { textAlign: 'center' },
         registration: {
-            flex: 1,
-            width: '100%',
             maxWidth: 320,
-            justifyContent: 'center',
-            alignItems: 'center',
         },
         registrationText: {
             textAlign: 'center',

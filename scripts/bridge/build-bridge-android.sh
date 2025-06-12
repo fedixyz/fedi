@@ -75,7 +75,7 @@ export -f build_android_target
 # build binaries for each supported target
 for target in "${TARGETS[@]}"; do
   echo "build_android_target $target"
-done | parallel --jobs 3 --halt-on-error 1 --noswap --memfree 2G --ungroup --delay 5
+done | parallel --jobs 3 --halt-on-error 1 --ungroup --delay 5
 
 # build android lib with ffi-bindgen inside nix
 echo "Generating FFI bindings..."

@@ -7,6 +7,7 @@ version = "0.4.0"
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 anyhow.workspace = true
 hex = { version = "0.4.3", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }

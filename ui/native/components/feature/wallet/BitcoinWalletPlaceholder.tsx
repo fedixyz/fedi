@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { LinearGradientProps } from 'react-native-linear-gradient'
 
@@ -11,6 +11,7 @@ import { MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { BubbleCard } from '../../ui/BubbleView'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const BitcoinWalletPlaceholder: React.FC = () => {
@@ -36,32 +37,32 @@ const BitcoinWalletPlaceholder: React.FC = () => {
             <BubbleCard
                 linearGradientProps={gradientProps}
                 containerStyle={[stylesPlaceholder.card, { height: 99 }]}>
-                <View style={stylesPlaceholder.headerContainer}>
-                    <View style={stylesPlaceholder.leftGroup}>
-                        <View style={stylesPlaceholder.titleContainer}>
+                <Flex style={stylesPlaceholder.headerContainer}>
+                    <Flex style={stylesPlaceholder.leftGroup}>
+                        <Flex style={stylesPlaceholder.titleContainer}>
                             <SvgImage
                                 name="BitcoinCircle"
                                 size={SvgImageSize.md}
                                 color={theme.colors.white}
                             />
-                            <View>
-                                <View style={stylesPlaceholder.row}>
+                            <Flex>
+                                <Flex style={stylesPlaceholder.row}>
                                     <Text
                                         allowFontScaling={false}
                                         bold
                                         style={stylesPlaceholder.title}>
                                         {t('words.bitcoin')}
                                     </Text>
-                                </View>
-                            </View>
-                        </View>
+                                </Flex>
+                            </Flex>
+                        </Flex>
                         <SvgImage
                             name="ChevronRightSmall"
                             color={theme.colors.secondary}
                             dimensions={{ width: 6, height: 12 }}
                         />
-                    </View>
-                    <View style={stylesPlaceholder.balanceContainer}>
+                    </Flex>
+                    <Flex style={stylesPlaceholder.balanceContainer}>
                         <Text
                             allowFontScaling={false}
                             medium
@@ -76,9 +77,9 @@ const BitcoinWalletPlaceholder: React.FC = () => {
                             style={stylesPlaceholder.balanceTextSats}>
                             {formattedSecondaryAmount}
                         </Text>
-                    </View>
-                </View>
-                <View style={stylesPlaceholder.buttonsContainer}>
+                    </Flex>
+                </Flex>
+                <Flex style={stylesPlaceholder.buttonsContainer}>
                     <Text
                         allowFontScaling={false}
                         numberOfLines={1}
@@ -86,7 +87,7 @@ const BitcoinWalletPlaceholder: React.FC = () => {
                         style={stylesPlaceholder.buttonLabel}>
                         {t('feature.wallet.join-federation')}
                     </Text>
-                </View>
+                </Flex>
             </BubbleCard>
         </Pressable>
     )

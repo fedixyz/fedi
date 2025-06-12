@@ -111,7 +111,7 @@ export const LEGACY_CODE_TYPES = [
             },
             async () => {
                 log.debug('Running online parser: parseLnurl')
-                return parseLnurl(raw, t)
+                return parseLnurl(raw, fedimint, t, federationId)
             },
             async () => {
                 log.debug('Running online parser: parseFediUri')
@@ -206,13 +206,16 @@ export const LEGACY_CODE_TYPES = [
  */
 async function parseLnurl(
     raw: string,
+    fedimint: FedimintBridge,
     t: TFunction,
+    federationId: string | undefined,
 ): Promise<
     | ParsedLnurlAuth
     | ParsedLnurlPay
     | ParsedLnurlWithdraw
     | ParsedWebsite
     | ParsedUnknownData
+    | ParsedBolt11
     | undefined
 > {
     // Ignore Fedi URIs, they can sometimes look like URLs.
@@ -299,6 +302,31 @@ async function parseLnurl(
             const thumbnail = params.decodedMetadata.find(m =>
                 m[0].startsWith('image/'),
             )?.[1]
+
+            // If min and max are the same, then the amount is exact
+            // In this case, the callback URL should be treated the same as a lightning address callback URL
+            if (params.minSendable === params.maxSendable) {
+                const callbackUrl = new URL(params.callback)
+                callbackUrl.searchParams.set(
+                    'amount',
+                    params.minSendable.toString(),
+                )
+
+                // Don't use lnurlCallback, success does not have `status: 'OK'`
+                const res = await fetch(callbackUrl.toString())
+                    .then(r => r.json())
+                    .catch(() => ({ status: 'ERROR' }))
+                if (
+                    !res.pr ||
+                    typeof res.pr !== 'string' ||
+                    res.status === 'ERROR'
+                ) {
+                    throw new Error(res.reason || 'errors.unknown-error')
+                }
+
+                return parseBolt11(res.pr, fedimint, t, federationId)
+            }
+
             return {
                 type: ParserDataType.LnurlPay,
                 data: {

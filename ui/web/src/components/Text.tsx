@@ -33,6 +33,7 @@ const TextElement = styled('div', {
     lineHeight: 1.25,
     letterSpacing: '-1%',
     color: 'inherit',
+    whiteSpace: 'pre-wrap',
 
     variants: {
         weight: {

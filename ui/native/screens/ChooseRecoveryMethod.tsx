@@ -30,9 +30,11 @@ const ChooseRecoveryMethod: React.FC<Props> = ({ navigation }: Props) => {
     const showSocialRecovery =
         !activeFederation || shouldShowSocialRecovery(activeFederation)
 
+    const style = styles(theme)
+
     return (
-        <ScrollView contentContainerStyle={styles(theme).container}>
-            <Text style={styles(theme).instructionsText}>
+        <ScrollView contentContainerStyle={style.container}>
+            <Text style={style.instructionsText}>
                 {t('feature.recovery.choose-method-instructions', {
                     federation: activeFederation?.name,
                 })}
@@ -43,19 +45,14 @@ const ChooseRecoveryMethod: React.FC<Props> = ({ navigation }: Props) => {
                     title={t('feature.recovery.social-recovery')}
                     body={
                         <>
-                            <Text
-                                style={
-                                    styles(theme).recoveryMethodInstructions
-                                }>
+                            <Text style={style.recoveryMethodInstructions}>
                                 {t('feature.recovery.social-recovery-method')}
                             </Text>
                             <Button
                                 title={t(
                                     'feature.recovery.start-social-recovery',
                                 )}
-                                containerStyle={
-                                    styles(theme).recoveryMethodButton
-                                }
+                                containerStyle={style.recoveryMethodButton}
                                 onPress={onChooseSocialRecovery}
                             />
                         </>
@@ -68,14 +65,14 @@ const ChooseRecoveryMethod: React.FC<Props> = ({ navigation }: Props) => {
                 title={t('feature.recovery.personal-recovery')}
                 body={
                     <>
-                        <Text style={styles(theme).recoveryMethodInstructions}>
+                        <Text style={style.recoveryMethodInstructions}>
                             {t('feature.recovery.personal-recovery-method')}
                         </Text>
                         <Button
                             title={t(
                                 'feature.recovery.start-personal-recovery',
                             )}
-                            containerStyle={styles(theme).recoveryMethodButton}
+                            containerStyle={style.recoveryMethodButton}
                             onPress={() => {
                                 navigation.navigate('PersonalRecovery')
                             }}

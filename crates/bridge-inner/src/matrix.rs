@@ -798,7 +798,7 @@ impl Matrix {
             .send_message_json_no_queue(
                 room_id,
                 multispend::MULTISPEND_MSGTYPE,
-                String::from("Multispend Event"),
+                String::from("This group has new multispend activity"),
                 serde_json::to_value(content)?
                     .as_object()
                     .context("invalid serialization of content")?

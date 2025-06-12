@@ -5,6 +5,7 @@ import { View, StyleSheet } from 'react-native'
 import { theme as globalTheme } from '@fedi/common/constants/theme'
 
 import { BubbleView } from '../../ui/BubbleView'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FirstTimeCommunityEntryItem } from '../federations/FirstTimeCommunityEntryOverlay'
 
@@ -19,7 +20,7 @@ const InfoEntryListItem: React.FC<InfoEntryListItemProps> = ({
     const iconStyles = useMemo(() => createIconStyles(theme), [theme])
 
     return (
-        <View style={styles.itemRow}>
+        <Flex row align="center" gap="md">
             <View style={iconStyles.wrapper}>
                 <BubbleView containerStyle={iconStyles.bubble}>
                     <SvgImage
@@ -30,7 +31,7 @@ const InfoEntryListItem: React.FC<InfoEntryListItemProps> = ({
                 </BubbleView>
             </View>
             <Text style={styles.itemText}>{item.text}</Text>
-        </View>
+        </Flex>
     )
 }
 
@@ -54,11 +55,6 @@ const createIconStyles = (theme: Theme) => {
 }
 
 const styles = StyleSheet.create({
-    itemRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
     itemText: {
         flex: 1,
         fontSize: 14,

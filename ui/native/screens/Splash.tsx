@@ -1,13 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
     ImageBackground,
     StyleSheet,
-    View,
     useWindowDimensions,
     Linking,
+    Pressable,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
@@ -24,10 +24,12 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
 import { fedimint } from '../bridge'
+import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
+import { useLaunchZendesk } from '../utils/hooks/support'
 
 const log = makeLog('Splash')
 
@@ -44,6 +46,10 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
     const isMatrixReady = useAppSelector(selectIsMatrixReady)
     const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
 
+    const [hasNavigatedToHelpCentre, setHasNavigatedToHelpCentre] =
+        useState<boolean>(false)
+    const { launchZendesk } = useLaunchZendesk()
+
     const generateAndSetUsername = async () => {
         try {
             if (!isMatrixReady) {
@@ -55,11 +61,10 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                 await dispatch(
                     setMatrixDisplayName({ displayName: name }),
                 ).unwrap()
-                //  dispatch(flagUserCreatedOnThisDevice())
             }
             return true
         } catch (error) {
-            toast.show('Please ensure you are online to continue')
+            toast.show(t('feature.onboarding.network-error'))
             return false
         }
     }
@@ -87,31 +92,31 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
             source={Images.WelcomeBackground}
             style={style.container}>
             <SafeAreaView style={style.content}>
-                <View style={style.welcomeContainer}>
-                    <View style={style.iconContainer}>
+                <Flex
+                    grow
+                    shrink
+                    center
+                    gap="sm"
+                    fullWidth
+                    style={style.welcomeContainer}>
+                    <Flex center style={style.iconContainer}>
                         <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
-                    </View>
+                    </Flex>
                     <Text style={style.title}>
                         {t('feature.onboarding.fedi')}
                     </Text>
                     <Text style={style.welcomeText}>
-                        {t('feature.onboarding.chat-earn-save-spend')}
+                        {t('feature.onboarding.tagline')}
                     </Text>
-                </View>
+                </Flex>
 
-                <View style={style.buttonsContainer}>
-                    <Button
-                        fullWidth
-                        testID="JoinFederationButton"
-                        title={t('feature.onboarding.get-a-wallet')}
-                        onPress={handleContinue}
-                    />
-                    <Button
-                        fullWidth
-                        onPress={handleReturningUser}
-                        day
-                        title={t('phrases.recover-my-account')}
-                    />
+                <Flex
+                    grow={false}
+                    shrink
+                    align="center"
+                    justify="evenly"
+                    gap="md"
+                    fullWidth>
                     <Text style={style.agreementText} small>
                         <Trans
                             i18nKey="feature.onboarding.agree-terms-privacy"
@@ -139,7 +144,51 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                             }}
                         />
                     </Text>
-                </View>
+                    <Button
+                        fullWidth
+                        testID="JoinFederationButton"
+                        title={t('feature.onboarding.get-a-wallet')}
+                        onPress={handleContinue}
+                    />
+                    <Button
+                        fullWidth
+                        onPress={handleReturningUser}
+                        day
+                        title={t('phrases.recover-my-account')}
+                    />
+                    <Flex align="center" justify="evenly" gap="xs" row>
+                        <Text style={style.helpText}>
+                            {t('feature.onboarding.need-help')}
+                        </Text>
+                        <Pressable
+                            style={{
+                                flexDirection: 'row',
+                                alignContent: 'center',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                            onPress={() => {
+                                if (hasNavigatedToHelpCentre) {
+                                    launchZendesk()
+                                } else {
+                                    setHasNavigatedToHelpCentre(true)
+                                    navigation.navigate({
+                                        name: 'HelpCentre',
+                                        params: { fromOnboarding: true },
+                                    })
+                                }
+                            }}>
+                            <SvgImage
+                                color={theme.colors.night}
+                                size={SvgImageSize.xs}
+                                name="SmileMessage"
+                            />
+                            <Text style={style.askFediText}>
+                                {t('feature.support.title')}
+                            </Text>
+                        </Pressable>
+                    </Flex>
+                </Flex>
             </SafeAreaView>
         </ImageBackground>
     )
@@ -157,45 +206,19 @@ const styles = (theme: Theme, fontScale: number) =>
             justifyContent: 'flex-end',
             padding: theme.spacing.xl,
         },
-        buttonsContainer: {
-            flexGrow: 0,
-            flexShrink: 1,
-            width: '100%',
-            alignItems: 'center',
-            justifyContent: 'space-evenly',
-            gap: theme.spacing.md,
-        },
         welcomeContainer: {
-            flexGrow: 1,
-            flexShrink: 1,
             flexBasis: 'auto',
-            width: '100%',
             maxWidth: 320 * Math.max(fontScale, 1),
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.sm,
             paddingHorizontal: theme.spacing.xl,
-        },
-        overlayContainer: {
-            width: '100%',
-            alignItems: 'center',
-            gap: 16,
-        },
-        overlayButtonsContainer: {
-            marginTop: theme.spacing.lg,
-            width: '100%',
-            gap: 16,
         },
         iconContainer: {
             marginBottom: theme.spacing.lg,
             width: 32,
             height: 32,
-            justifyContent: 'center',
-            alignItems: 'center',
         },
         title: {
             textAlign: 'center',
-            fontWeight: 700,
+            fontWeight: '700',
             fontSize: 30,
         },
         welcomeText: {
@@ -207,6 +230,23 @@ const styles = (theme: Theme, fontScale: number) =>
         agreementText: {
             textAlign: 'center',
             width: '70%',
+            color: theme.colors.darkGrey,
+            fontSize: 12,
+            fontWeight: '400',
+        },
+        helpText: {
+            fontSize: 14,
+            color: theme.colors.darkGrey,
+            lineHeight: 16,
+            fontWeight: '400',
+            marginRight: 2,
+        },
+        askFediText: {
+            fontSize: 14,
+            fontWeight: '500',
+            color: theme.colors.night,
+            lineHeight: 20,
+            marginLeft: 4,
         },
     })
 

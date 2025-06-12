@@ -144,33 +144,57 @@ class AmountUtils {
         options: {
             locale?: string | string[]
             symbolPosition?: AmountSymbolPosition
+            minimumFractionDigits?: number
+            maximumFractionDigits?: number
         } = {},
     ) => {
         const currencyCode = getCurrencyCode(currency)
 
+        // Helper: get fraction digits for this currency
+        const getCurrencyFractionDigits = (
+            code: string, // <-- renamed from currencyCode to code
+            locale?: string | string[],
+        ) => {
+            try {
+                return new Intl.NumberFormat(locale, {
+                    style: 'currency',
+                    currency: code,
+                }).resolvedOptions().maximumFractionDigits
+            } catch {
+                // Fallback to 2 for safety
+                return 2
+            }
+        }
+
+        const defaultFractionDigits = getCurrencyFractionDigits(
+            currencyCode,
+            options.locale,
+        )
+        const minDigits = options.minimumFractionDigits ?? defaultFractionDigits
+        const maxDigits = options.maximumFractionDigits ?? defaultFractionDigits
+
         if (options.symbolPosition === 'none') {
-            const fmtOptions = new Intl.NumberFormat(options.locale, {
-                style: 'currency',
-                currency: currencyCode,
-            }).resolvedOptions()
+            // Format just as a number, using the currency's usual fraction digits
             return amount.toLocaleString(options.locale, {
-                ...fmtOptions,
-                style: undefined,
-                currency: undefined,
-                currencySign: undefined,
+                minimumFractionDigits: minDigits,
+                maximumFractionDigits: maxDigits,
             })
         } else {
             const formatted = Intl.NumberFormat(options.locale, {
                 style: 'currency',
                 currency: currencyCode,
                 currencyDisplay: 'code',
+                minimumFractionDigits: minDigits,
+                maximumFractionDigits: maxDigits,
             }).format(amount)
 
+            // Move code to end if requested (e.g. "1,234 XOF" instead of "XOF 1,234")
             return options.symbolPosition === 'end'
                 ? formatted.replace(/^(-)?([A-Z]{3})\s*(.+)$/, '$1$3 $2')
                 : formatted
         }
     }
+
     /**
      * Given a currency, return a symbol for it in the user's default locale.
      */

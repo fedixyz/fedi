@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import { generateAddress, selectActiveFederationId } from '@fedi/common/redux'
@@ -13,6 +13,7 @@ import { fedimint } from '../bridge'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import RequestTypeSwitcher from '../components/feature/receive/RequestTypeSwitcher'
 import FiatAmount from '../components/feature/wallet/FiatAmount'
+import Flex from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { BitcoinOrLightning, BtcLnUri, MSats } from '../types'
@@ -27,7 +28,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const federationId = useAppSelector(selectActiveFederationId)
     const dispatch = useAppDispatch()
-    const { uri } = route.params
+    const { uri, lockRequestType } = route.params
     const isOnchainSupported = useIsOnchainDepositSupported()
 
     const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -141,7 +142,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
             contentContainerStyle={style.container}
             edges="all"
             padding="xl">
-            {showOnchainDeposits && (
+            {showOnchainDeposits && !lockRequestType && (
                 <RequestTypeSwitcher
                     requestType={requestType}
                     onSwitch={() => {
@@ -151,7 +152,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
                     }}
                 />
             )}
-            <View style={style.detailsContainer}>
+            <Flex center style={style.detailsContainer}>
                 {requestAmount && (
                     <>
                         <Text h2>{`${amountUtils.formatNumber(
@@ -163,7 +164,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
                     </>
                 )}
                 {requestNote && <Text small>{requestNote}</Text>}
-            </View>
+            </Flex>
             {isLoading ? (
                 <ActivityIndicator />
             ) : (
@@ -198,8 +199,6 @@ const styles = (theme: Theme) =>
         },
         detailsContainer: {
             paddingVertical: theme.spacing.md,
-            alignItems: 'center',
-            justifyContent: 'center',
         },
     })
 

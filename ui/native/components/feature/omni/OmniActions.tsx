@@ -2,6 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 
+import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
@@ -28,7 +29,7 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
     )
 
     return (
-        <View style={style.container}>
+        <Flex fullWidth>
             {actions.map(({ label, icon, onPress }, idx) => (
                 <Pressable
                     key={idx}
@@ -51,16 +52,12 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
                     )}
                 </Pressable>
             ))}
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            width: '100%',
-            flexDirection: 'column',
-        },
         action: {
             gap: theme.spacing.lg,
         },

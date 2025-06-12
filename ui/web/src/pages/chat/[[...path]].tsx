@@ -37,6 +37,7 @@ function ChatPage() {
 
     let content: React.ReactNode
     let isShowingContent = true
+
     if (syncStatus === MatrixSyncStatus.initialSync) {
         content = (
             <EmptyMessage>
@@ -44,6 +45,7 @@ function ChatPage() {
             </EmptyMessage>
         )
     }
+
     // Regardless of which page they're on, if they need to register a username
     // or upgrade to matrix chat then intercept here
     else if (needsChatRegistration) {

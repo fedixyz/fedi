@@ -1,10 +1,8 @@
 import { useNavigation } from '@react-navigation/native'
 import { useCallback, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 import * as Zendesk from 'react-native-zendesk-messaging'
 import { useSelector } from 'react-redux'
 
-import { useToast } from '@fedi/common/hooks/toast'
 import { selectNostrNpub } from '@fedi/common/redux'
 import {
     selectSupportPermissionGranted,
@@ -34,8 +32,6 @@ export const useUpdateZendeskNotificationCount = () => {
     const zendeskInitialized = useSelector(selectZendeskInitialized)
     const nostrNpub = useSelector(selectNostrNpub)
     const displayName = useDisplayName()
-    const toast = useToast()
-    const { t } = useTranslation()
     const zendeskRefreshTime = 8_000 // 8 seconds
     const intervalRef = useRef<NodeJS.Timeout | null>(null) // Stores interval reference
 
@@ -45,12 +41,9 @@ export const useUpdateZendeskNotificationCount = () => {
                 nostrNpub ?? null,
                 displayName,
                 isInitialized => dispatch(setZendeskInitialized(isInitialized)),
-                error =>
-                    toast.error(
-                        t,
-                        error,
-                        'feature.support.zendesk-initialization-failed',
-                    ),
+                error => {
+                    log.error('Zendesk initialization failed', error)
+                },
             )
             log.info('Zendesk successfully initialized.')
         }
@@ -60,9 +53,9 @@ export const useUpdateZendeskNotificationCount = () => {
             dispatch(updateZendeskUnreadMessageCount(count))
             log.info(`Updated unread Zendesk messages count: ${count}`)
         } catch (error) {
-            log.error('Failed to fetch unread Zendesk messages:', error)
+            log.error('Failed to fetch unread Zendesk messages', error)
         }
-    }, [dispatch, zendeskInitialized, nostrNpub, displayName, toast, t])
+    }, [dispatch, zendeskInitialized, nostrNpub, displayName])
 
     useEffect(() => {
         if (!supportPermissionGranted) {
@@ -94,29 +87,22 @@ export const useUpdateZendeskNotificationCount = () => {
 export function useLaunchZendesk() {
     const dispatch = useAppDispatch()
     const navigation = useNavigation<NavigationHook>()
-    const toast = useToast()
-    const { t } = useTranslation()
 
     const nostrNpub = useSelector(selectNostrNpub)
     const displayName = useDisplayName()
     const supportPermissionGranted = useSelector(selectSupportPermissionGranted)
     const zendeskInitialized = useSelector(selectZendeskInitialized)
 
-    const onError = useCallback(
-        (error: Error) => {
-            toast.error(
-                t,
-                error,
-                'feature.support.zendesk-initialization-failed',
-            )
-        },
-        [toast, t],
-    )
+    const onError = useCallback((error: Error) => {
+        log.error('Zendesk initialization failed', error)
+    }, [])
 
     const launchZendesk = useCallback(
         async (newlyGranted = false) => {
             if (!supportPermissionGranted && !newlyGranted) {
-                return navigation.navigate('HelpCentre')
+                return navigation.navigate('HelpCentre', {
+                    fromOnboarding: false,
+                })
             }
 
             if (!zendeskInitialized) {

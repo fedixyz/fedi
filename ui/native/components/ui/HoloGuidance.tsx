@@ -1,8 +1,9 @@
 import { Text, TextProps, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { ImageBackground, StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
-import { Images } from '../../assets/images'
+import Flex from './Flex'
+import HoloCircle from './HoloCircle'
 
 type HoloGuidanceProps = {
     iconImage?: React.ReactNode | null
@@ -48,27 +49,11 @@ const HoloGuidance: React.FC<HoloGuidanceProps> = ({
     }
 
     return (
-        <View
-            style={
-                noFlexContainer
-                    ? styles(theme).noFlexContainer
-                    : styles(theme).container
-            }>
-            <ImageBackground
-                source={Images.HoloBackground}
-                style={[
-                    styles(theme).holoCircle,
-                    size === 'default'
-                        ? styles(theme).holoDefault
-                        : styles(theme).holoSmall,
-                ]}
-                imageStyle={
-                    size === 'default'
-                        ? styles(theme).circleBorderDefault
-                        : styles(theme).circleBorderSmall
-                }>
-                {iconImage}
-            </ImageBackground>
+        <Flex center grow={!noFlexContainer}>
+            <HoloCircle
+                size={size === 'default' ? theme.sizes.holoGuidanceCircle : 64}
+                content={iconImage}
+            />
             {body ? (
                 body
             ) : (
@@ -77,21 +62,12 @@ const HoloGuidance: React.FC<HoloGuidanceProps> = ({
                     <Text style={styles(theme).message}>{message}</Text>
                 </>
             )}
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        noFlexContainer: {
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
         title: {
             textAlign: 'center',
             marginVertical: theme.spacing.lg,
@@ -126,10 +102,6 @@ const styles = (theme: Theme) =>
         iconImage: {
             height: theme.sizes.lg,
             width: theme.sizes.lg,
-        },
-        continueButton: {
-            width: '100%',
-            marginVertical: theme.spacing.md,
         },
     })
 

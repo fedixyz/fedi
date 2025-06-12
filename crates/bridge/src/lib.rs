@@ -162,13 +162,9 @@ impl BridgeFull {
 
     pub async fn validate_ecash(&self, ecash: String) -> Result<RpcEcashInfo> {
         let oob = OOBNotes::from_str(&ecash)?;
-        let prefix = oob.federation_id_prefix().to_string();
         let id = self
             .federations
-            .get_federations_map()
-            .keys()
-            .find(|x| x.starts_with(&prefix))
-            .cloned();
+            .find_federation_id_for_prefix(oob.federation_id_prefix());
         match id {
             Some(id) => Ok(RpcEcashInfo::Joined {
                 federation_id: RpcFederationId(id),
@@ -575,13 +571,13 @@ pub enum Bridge {
         runtime: Arc<Runtime>,
         error: BridgeFullInitError,
     },
-    Full(BridgeFull),
+    Full(Arc<BridgeFull>),
 }
 
 impl Bridge {
     pub async fn new(runtime: Arc<Runtime>, device_identifier: DeviceIdentifier) -> Arc<Self> {
         match BridgeFull::new(runtime.clone(), device_identifier).await {
-            Ok(full) => Self::Full(full),
+            Ok(full) => Self::Full(Arc::new(full)),
             Err(error) => Self::RuntimeOnly { runtime, error },
         }
         .into()
@@ -594,7 +590,7 @@ impl Bridge {
         }
     }
 
-    pub fn full(&self) -> anyhow::Result<&BridgeFull> {
+    pub fn full(&self) -> anyhow::Result<&Arc<BridgeFull>> {
         match self {
             Bridge::RuntimeOnly { runtime: _, error } => Err(anyhow!(error.to_string())),
             Bridge::Full(bridge_full) => Ok(bridge_full),

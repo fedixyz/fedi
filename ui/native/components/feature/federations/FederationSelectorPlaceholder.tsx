@@ -60,7 +60,7 @@ const styles = (theme: Theme) =>
         federationName: {
             flexGrow: 1,
             maxWidth: '85%',
-            fontWeight: 600,
+            fontWeight: '600',
             fontSize: 14,
         },
     })

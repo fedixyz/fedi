@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native'
 import dateUtils from '@fedi/common/utils/DateUtils'
 
 import { MatrixEvent } from '../../../types'
+import Flex from '../../ui/Flex'
 import ChatEventTimeFrame from './ChatEventTimeFrame'
 
 interface Props {
@@ -30,15 +31,18 @@ const ChatEventCollection: React.FC<Props> = memo(
         return (
             <View style={style.container}>
                 {earliestEvent.timestamp && (
-                    <View style={style.timestampContainer}>
+                    <Flex
+                        align="center"
+                        fullWidth
+                        style={style.timestampContainer}>
                         <Text tiny style={style.timestampText}>
                             {dateUtils.formatMessageItemTimestamp(
                                 earliestEvent.timestamp / 1000,
                             )}
                         </Text>
-                    </View>
+                    </Flex>
                 )}
-                <View style={style.sendersContainer}>
+                <Flex columnReverse>
                     {collection.map(events => (
                         <ChatEventTimeFrame
                             key={events.at(-1)?.eventId}
@@ -49,7 +53,7 @@ const ChatEventCollection: React.FC<Props> = memo(
                             onSelect={onSelect}
                         />
                     ))}
-                </View>
+                </Flex>
             </View>
         )
     },
@@ -63,36 +67,10 @@ const styles = (theme: Theme) =>
             color: theme.colors.darkGrey,
         },
         timestampContainer: {
-            alignItems: 'center',
-            width: '100%',
             marginBottom: theme.spacing.md,
         },
         timestampText: {
             color: theme.colors.darkGrey,
-        },
-        sendersContainer: {
-            flexDirection: 'column-reverse',
-        },
-        senderGroup: {
-            marginBottom: theme.spacing.md,
-        },
-        senderAvatar: {
-            flexDirection: 'row',
-            alignItems: 'flex-end',
-            marginRight: theme.spacing.sm,
-        },
-        senderGroupContent: {
-            flexDirection: 'row',
-            alignItems: 'flex-end',
-        },
-        senderNameContainer: {
-            paddingLeft: 43,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.xxs,
-        },
-        senderMessages: {
-            flexDirection: 'column-reverse',
         },
     })
 

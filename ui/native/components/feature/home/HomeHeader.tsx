@@ -56,7 +56,12 @@ const HomeHeader: React.FC = () => {
                         svgName="HamburgerIcon"
                     />
                 }
-                headerRight={<HeaderAvatar onPress={openSettings} />}
+                headerRight={
+                    <HeaderAvatar
+                        testID="AvatarButton"
+                        onPress={openSettings}
+                    />
+                }
                 headerCenter={
                     activeFederation ? (
                         <FederationSelector />

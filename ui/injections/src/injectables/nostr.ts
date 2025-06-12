@@ -1,5 +1,9 @@
 import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
-import { sendInjectorMessage } from '../utils'
+import {
+    sendInjectorMessage,
+    encrypt as _encrypt,
+    decrypt as _decrypt,
+} from '../utils'
 import {
     NostrNip07Provider,
     SignedNostrEvent,
@@ -30,6 +34,16 @@ class InjectionNostrProvider implements NostrNip07Provider {
     ): Promise<InjectionMessageResponseMap[T]['response']> {
         const id = this.lastMessageId++
         return sendInjectorMessage({ id, type, data })
+    }
+
+    // We use the same encryption functions for both NIP 44 and NIP 04
+    nip44 = {
+        encrypt: _encrypt,
+        decrypt: _decrypt,
+    }
+    nip04 = {
+        encrypt: _encrypt,
+        decrypt: _decrypt,
     }
 }
 

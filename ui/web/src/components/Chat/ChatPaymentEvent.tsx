@@ -28,6 +28,17 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
             fedimint,
             t,
             onError: _ => toast.error(t, 'errors.chat-payment-failed'),
+            onCopyBolt11: (bolt11: string) => {
+                try {
+                    navigator.clipboard.writeText(bolt11)
+                    toast.show({
+                        content: t('feature.receive.copied-payment-code'),
+                        status: 'success',
+                    })
+                } catch (error) {
+                    toast.error(t, error, 'errors.unknown-error')
+                }
+            },
         })
 
     let extra: React.ReactNode = null

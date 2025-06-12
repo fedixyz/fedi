@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "25.5.4",
+    "version": "25.6.3",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -117,5 +117,9 @@
         "react-native-dotenv": "^3.4.11",
         "react-native-svg-transformer": "^1.5.0",
         "typescript": "^5.6.3"
+    },
+    "optionalDependencies": {
+        "@wdio/appium-service": "^9.11.0",
+        "webdriverio": "^9.11.0"
     }
 }

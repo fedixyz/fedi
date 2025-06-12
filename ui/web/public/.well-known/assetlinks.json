@@ -1,0 +1,22 @@
+[
+    {
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.fedi",
+            "sha256_cert_fingerprints": [
+                "E3:3C:32:2B:99:95:6A:F2:41:D5:21:F1:35:4F:BE:C6:32:36:C3:CB:D5:1A:12:56:A6:6A:CE:AA:02:81:90:A5"
+            ]
+        }
+    },
+    {
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.fedi.nightly",
+            "sha256_cert_fingerprints": [
+                "E3:3C:32:2B:99:95:6A:F2:41:D5:21:F1:35:4F:BE:C6:32:36:C3:CB:D5:1A:12:56:A6:6A:CE:AA:02:81:90:A5"
+            ]
+        }
+    }
+]

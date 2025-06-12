@@ -1,9 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { memo, useMemo } from 'react'
-import { StyleSheet, TouchableOpacity, View } from 'react-native'
+import { StyleSheet, TouchableOpacity } from 'react-native'
 
 import { MSats, TransactionAmountState } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
+
+import Flex from '../../ui/Flex'
 
 export interface HistoryRowProps {
     type: string
@@ -44,7 +46,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
         }, [amountState, theme])
 
         const amountNode: React.ReactNode = (
-            <View style={style.amountContainer}>
+            <Flex row align="end" justify="end" gap="xxs">
                 <Text
                     medium
                     caption
@@ -61,7 +63,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
                         {currencyText}
                     </Text>
                 )}
-            </View>
+            </Flex>
         )
 
         return (
@@ -70,16 +72,16 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
                 style={[style.container]}
                 hitSlop={4}>
                 {icon}
-                <View style={style.centerContainer}>
+                <Flex grow gap="xs" fullWidth basis={false}>
                     <Text caption medium>
                         {status}
                     </Text>
                     <Text small numberOfLines={1} style={style.subText}>
-                        {type} {notes ? `(${notes})` : ''}
+                        {type} {notes ? `(${notes.replace(/\n/g, ' ')})` : ''}
                     </Text>
-                </View>
+                </Flex>
 
-                <View style={style.rightContainer}>
+                <Flex shrink={false} justify="end" gap="xs">
                     {amountNode}
                     {timestamp && (
                         <Text
@@ -89,7 +91,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
                             {dateUtils.formatTxnTileTimestamp(timestamp)}
                         </Text>
                     )}
-                </View>
+                </Flex>
             </TouchableOpacity>
         )
     },
@@ -115,18 +117,6 @@ const styles = (theme: Theme) =>
             backgroundColor: theme.colors.secondary,
             marginBottom: theme.spacing.xl,
         },
-        centerContainer: {
-            flex: 1,
-            width: '100%',
-            flexDirection: 'column',
-            gap: 4,
-        },
-        rightContainer: {
-            flexShrink: 0,
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            gap: 4,
-        },
         rightAlignedText: {
             textAlign: 'right',
         },
@@ -135,12 +125,6 @@ const styles = (theme: Theme) =>
         },
         pending: {
             opacity: 0.6,
-        },
-        amountContainer: {
-            flexDirection: 'row',
-            justifyContent: 'flex-end',
-            alignItems: 'flex-end',
-            gap: 2,
         },
         amountSuffix: {
             paddingBottom: 1,

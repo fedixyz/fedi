@@ -5,7 +5,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 $REPO_ROOT/scripts/enforce-nix.sh
 
-WASM_BUILD_PROFILE=ci $REPO_ROOT/scripts/ui/install-wasm.sh
+WASM_BUILD_PROFILE=release $REPO_ROOT/scripts/ui/install-wasm.sh
 
 # Pull Vercel Environment Information
 vercel pull --yes --environment=preview --token=$VERCEL_TOKEN

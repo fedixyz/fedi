@@ -226,7 +226,12 @@ export type MultispendDepositEvent = Extract<
     { state: 'deposit' }
 >
 
-export type MultispendFilterOption = 'all' | 'pending' | 'approved' | 'rejected'
+export type MultispendFilterOption =
+    | 'all'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'failed'
 
 // Extracts only the invitation events from the transaction list
 export type MultispendListedInvitationEvent =

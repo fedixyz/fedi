@@ -1,11 +1,8 @@
 import { styled } from '@stitches/react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ClipboardIcon from '@fedi/common/assets/svgs/clipboard.svg'
-import KeyboardIcon from '@fedi/common/assets/svgs/keyboard.svg'
-import QRIcon from '@fedi/common/assets/svgs/qr.svg'
-import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
@@ -23,8 +20,8 @@ import { parseUserInput } from '@fedi/common/utils/parser'
 import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { Button } from '../Button'
+import { HorizontalLine } from '../HorizontalLine'
 import { Icon } from '../Icon'
-import { Input } from '../Input'
 import { Text } from '../Text'
 import { OmniConfirmation } from './OmniConfirmation'
 import { OmniQrScanner } from './OmniQrScanner'
@@ -36,22 +33,17 @@ interface OmniInputAction {
 }
 
 interface Props<T extends ParserDataType, ExpectedData> {
+    children?: (props: { onSubmit: (value: string) => void }) => React.ReactNode
     /** List of input types your component will handle. Any others will be handled internally. */
     expectedInputTypes: readonly T[]
     /** Callback for when an expected input is entered. Only types from `expectedInputTypes` will be sent. */
     onExpectedInput(data: ExpectedData): void
     /** Callback for when an unexpected input is successfully handled in-place, e.g. LNURL auth or ecash token redeem. */
     onUnexpectedSuccess(data: AnyParsedData): void
-    inputLabel?: React.ReactNode
-    inputPlaceholder?: string
-    pasteLabel?: string
+    mode?: 'onboardingScanner' | 'scanner'
     customActions?: OmniInputAction[]
-    defaultToScan?: boolean
     loading?: boolean
-    children?: (props: { onSubmit: (value: string) => void }) => React.ReactNode
-    value?: string
-    onValueChange?: (value: string) => void
-    hideConfirmButton?: boolean
+    allowUploads?: boolean
 }
 
 export function OmniInput<
@@ -62,7 +54,6 @@ export function OmniInput<
     const { t } = useTranslation()
     const toast = useToast()
     const federationId = useAppSelector(selectActiveFederationId)
-    const [isScanning, setIsScanning] = useState(props.defaultToScan || false)
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
     const emptyString = ''
@@ -71,14 +62,13 @@ export function OmniInput<
     const [invalidData, setInvalidData] = useState<
         ParsedUnknownData | ParsedOfflineError
     >()
-    const [value, setValue] = useState(props.value || '')
+
     const fileInputRef = useRef<HTMLInputElement>(null)
     const isLoading = props.loading || isParsing
     const isLoadingRef = useUpdatingRef(isLoading)
 
-    const { customActions, inputPlaceholder, onUnexpectedSuccess } = props
-    const inputLabel = props.inputLabel || 'Input data'
-    const pasteLabel = props.pasteLabel || t('feature.omni.action-paste')
+    const { customActions, mode = 'scanner', onUnexpectedSuccess } = props
+    const pasteLabel = t('feature.omni.action-paste')
 
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
 
@@ -95,7 +85,7 @@ export function OmniInput<
             setInvalidData(errorData)
             setOmniError(emptyString)
         }
-    }, [omniError, invalidData, unexpectedData, t])
+    }, [omniError, t])
 
     const parseInput = useCallback(
         async (input: string) => {
@@ -181,49 +171,6 @@ export function OmniInput<
         [toast, parseInput, t],
     )
 
-    const actions = useMemo(() => {
-        return [
-            isScanning
-                ? {
-                      label: inputLabel,
-                      icon: KeyboardIcon,
-                      onClick: () => setIsScanning(false),
-                  }
-                : {
-                      label: t('feature.omni.action-scan'),
-                      icon: ScanIcon,
-                      onClick: () => setIsScanning(true),
-                  },
-            {
-                label: pasteLabel,
-                icon: ClipboardIcon,
-                onClick: handlePaste,
-            },
-            {
-                label: t('feature.omni.action-upload'),
-                icon: QRIcon,
-                onClick: () => fileInputRef.current?.click(),
-            },
-            ...(customActions || []),
-        ]
-    }, [
-        customActions,
-        isScanning,
-        inputLabel,
-        pasteLabel,
-        handlePaste,
-        fileInputRef,
-        t,
-    ])
-
-    const inputOnChange = (val: string) => {
-        setValue(val)
-        if (typeof props.onValueChange === 'function') {
-            props.onValueChange(val)
-        }
-    }
-    const inputValue = props.value || value
-
     let confirmation: React.ReactNode | undefined
     if (invalidData || unexpectedData) {
         confirmation = (
@@ -238,54 +185,75 @@ export function OmniInput<
         )
     }
 
+    // The new onboarding designs make it very difficult
+    // to make this component resuable across different
+    // areas of the app.
+    // Returning early here for onboarding scanner mode allows
+    // us to keep the code a little cleaner
+    if (mode === 'onboardingScanner') {
+        return (
+            <>
+                <Container>
+                    <Main>
+                        <OmniQrScanner
+                            onScan={parseInput}
+                            processing={isLoading}
+                        />
+                    </Main>
+                    <Actions>
+                        <HorizontalLine text={t('words.or')} />
+                        <Button
+                            onClick={handlePaste}
+                            disabled={isLoading}
+                            variant="secondary"
+                            icon={ClipboardIcon}
+                            css={{ marginTop: '10px' }}>
+                            {pasteLabel}
+                        </Button>
+                    </Actions>
+                </Container>
+                {confirmation}
+            </>
+        )
+    }
+
     return (
         <Container>
             <Main>
-                {isScanning ? (
-                    <OmniQrScanner onScan={parseInput} processing={isLoading} />
-                ) : (
-                    <InputForm
-                        onSubmit={e => {
-                            e.preventDefault()
-                            parseInput(value)
-                        }}>
-                        <Input
-                            label={inputLabel}
-                            value={inputValue}
-                            placeholder={inputPlaceholder}
-                            onChange={ev =>
-                                inputOnChange(ev.currentTarget.value)
-                            }
-                            onKeyDown={ev => {
-                                if (ev.key === 'Enter') {
-                                    ev.preventDefault()
-                                }
-                            }}
-                            disabled={isLoading}
-                            autoFocus
-                        />
-                        {props.hideConfirmButton ? null : (
-                            <Button
-                                width="full"
-                                type="submit"
-                                disabled={!inputValue}
-                                loading={isLoading}>
-                                {t('words.confirm')}
-                            </Button>
-                        )}
-                    </InputForm>
-                )}
+                <OmniQrScanner onScan={parseInput} processing={isLoading} />
             </Main>
+
             {typeof props.children === 'function'
                 ? props.children({ onSubmit: parseInput })
                 : null}
+
             <Actions>
-                {actions.map(({ label, icon, onClick }, idx) => (
-                    <Action key={idx} onClick={onClick} disabled={isLoading}>
-                        <Icon size="sm" icon={icon} />
-                        <Text weight="bold">{label}</Text>
+                {/* Paste action */}
+                <Action onClick={handlePaste} disabled={isLoading}>
+                    <Icon size="sm" icon={ClipboardIcon} />
+                    <Text weight="bold">{pasteLabel}</Text>
+                </Action>
+
+                {/* Upload file action */}
+                {props.allowUploads && (
+                    <Action onClick={handlePaste} disabled={isLoading}>
+                        <Icon size="sm" icon={ClipboardIcon} />
+                        <Text weight="bold">{pasteLabel}</Text>
                     </Action>
-                ))}
+                )}
+
+                {/* Custom actions */}
+                {customActions &&
+                    customActions.map(({ label, icon, onClick }, idx) => (
+                        <Action
+                            key={idx}
+                            onClick={onClick}
+                            disabled={isLoading}>
+                            <Icon size="sm" icon={icon} />
+                            <Text weight="bold">{label}</Text>
+                        </Action>
+                    ))}
+
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -312,8 +280,8 @@ const Main = styled('div', {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     width: '100%',
 })
 
@@ -339,11 +307,4 @@ const Action = styled('button', {
         opacity: 0.5,
         pointerEvents: 'none',
     },
-})
-
-const InputForm = styled('form', {
-    display: 'flex',
-    flexDirection: 'column',
-    width: '100%',
-    gap: 8,
 })

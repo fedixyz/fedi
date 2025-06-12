@@ -10,6 +10,7 @@ import { hexToRgba } from '@fedi/common/utils/color'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
 import { fedimint } from '../bridge'
+import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -49,10 +50,13 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                 key={`di-${index}`}
                 style={style.actionCardContainer}
                 onPress={() => selectDevice(device)}>
-                <View style={style.roundIconContainer}>
+                <Flex center style={style.roundIconContainer}>
                     <SvgImage name={iconName} size={SvgImageSize.sm} />
-                </View>
-                <View style={style.actionCardTextContainer}>
+                </Flex>
+                <Flex
+                    align="start"
+                    gap="xxs"
+                    style={style.actionCardTextContainer}>
                     <Text medium numberOfLines={1}>
                         {deviceName}
                     </Text>
@@ -62,7 +66,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                         style={{ color: theme.colors.darkGrey }}>
                         {lastSeen}
                     </Text>
-                </View>
+                </Flex>
                 <View style={style.arrowContainer}>
                     <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
                 </View>
@@ -72,21 +76,21 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
 
     return (
         <ScrollView contentContainerStyle={style.container}>
-            <View style={style.contentContainer}>
+            <Flex align="center" gap="lg">
                 <Text caption>
                     {t('feature.recovery.select-a-device-guidance')}
                 </Text>
-            </View>
+            </Flex>
             {registeredDevices.length === 0 ? (
-                <View style={style.optionsContainer}>
+                <Flex align="center" gap="lg" fullWidth>
                     <Text caption>
                         {t('feature.recovery.no-devices-found')}
                     </Text>
-                </View>
+                </Flex>
             ) : (
-                <View style={style.optionsContainer}>
+                <Flex align="center" gap="lg" fullWidth>
                     {registeredDevices.map(renderDevice)}
-                </View>
+                </Flex>
             )}
             {/*
                 // TODO: reenable once we've figured out a clear
@@ -107,11 +111,6 @@ const styles = (theme: Theme) =>
             padding: theme.spacing.lg,
             gap: 24,
         },
-        contentContainer: {
-            alignItems: 'center',
-            gap: 16,
-        },
-        optionsContainer: { alignItems: 'center', width: '100%', gap: 16 },
         actionCardContainer: {
             padding: theme.spacing.md,
             width: '100%',
@@ -122,8 +121,6 @@ const styles = (theme: Theme) =>
             gap: 10,
         },
         roundIconContainer: {
-            alignItems: 'center',
-            justifyContent: 'center',
             backgroundColor: theme.colors.secondary,
             height: 40,
             width: 40,
@@ -135,8 +132,6 @@ const styles = (theme: Theme) =>
             elevation: 3,
         },
         actionCardTextContainer: {
-            alignItems: 'flex-start',
-            gap: 2,
             maxWidth: '70%',
         },
         arrowContainer: { marginLeft: 'auto' },

@@ -1,31 +1,31 @@
-import { StorageApi } from '../types'
+import { StorageApi } from '../types/storage'
 import { isDev } from './environment'
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
-interface LogItem {
-    timestamp: number
-    level: LogLevel
-    context: string
-    message: string
-    extra?: unknown[]
-}
-
-const LOG_STORAGE_KEY = 'fedi:logs'
-const MAX_LOGS_STORED = 15000
 const MAX_MESSAGE_LENGTH = 1000
 const MAX_ERROR_MESSAGE_LENGTH = 2000
+export const QUICK_SAVE_THRESHOLD = 20
+export const QUICK_SAVE_DELAY = 1
+export const DEBOUNCE_DELAY = 100
 
-let storage: StorageApi | undefined
-let cachedLogs: LogItem[] = []
+export interface LogFileApi {
+    saveLogs(logs: string): Promise<void>
+    readLogs(): Promise<string>
+}
+
+let logFileApi: LogFileApi | undefined
+// invariant: cachedLogs is empty or has \n at end
+let cachedLogs = ''
+let cachedLogsCount = 0
 let saveTimeout: ReturnType<typeof setTimeout> | undefined
 
 /**
  * Configure the logger with platform and environment specific configuration.
  * Can safely be called multiple times with any changes to configuration.
  */
-export function configureLogging(storageArg: StorageApi) {
-    storage = storageArg
+export function configureLogging(logFileApiArg: LogFileApi) {
+    logFileApi = logFileApiArg
 }
 
 /**
@@ -50,58 +50,78 @@ export type Logger = ReturnType<typeof makeLog>
 /**
  * Export logs as a plain string that can be saved to a file.
  */
-export async function exportLogs(): Promise<string> {
-    // Combined stored logs with any cached logs that haven't been saved yet.
-    const logs = [...(await getLogsFromStorage()), ...cachedLogs]
-    return logs.reduce((prev, log) => {
-        // Massage the logs to look more like the rust logs, should make combining
-        // them a lot easier.
-        const { timestamp, level, ...rest } = log
-        const jsonString = JSON.stringify({
-            timestamp: new Date(timestamp).toISOString(),
-            level: level.toUpperCase(),
-            ...rest,
-        })
-        prev += `${jsonString}\n`
-        return prev
-    }, '')
-}
-
-/**
- * Forcibly save logs to storage. Logs are automatically saved to storage
- * periodically, This should only be called when the app is about to close
- * to prevent logs that haven't been stored yet from being lost.
- */
-export async function saveLogsToStorage() {
-    if (!storage) {
-        throw new Error('Logging storage not initialized')
-    }
-    const oldLogs = await getLogsFromStorage()
-    const newLogs = [...oldLogs, ...cachedLogs].slice(-MAX_LOGS_STORED)
-    await storage.setItem(LOG_STORAGE_KEY, JSON.stringify(newLogs))
-    cachedLogs = []
-}
-
-async function getLogsFromStorage(): Promise<LogItem[]> {
-    if (!storage) {
-        throw new Error('Logging storage not initialized')
+export async function exportUiLogs(): Promise<string> {
+    if (!logFileApi) {
+        throw new Error('Logging logFileApi not initialized')
     }
     try {
-        const logs = await storage.getItem(LOG_STORAGE_KEY)
-        if (!logs) return []
-        return JSON.parse(logs)
+        return (await logFileApi.readLogs()) + cachedLogs
     } catch (err) {
-        return [
-            {
+        return (
+            JSON.stringify({
                 timestamp: Date.now(),
                 level: 'error',
                 context: 'common/utils/log',
                 message:
-                    'Encountered an error during log retrieval from storage. Some logging may be missing.',
+                    'Encountered an error during log retrieval from logFileApi. Some logging may be missing.',
                 extra: [formatArgForStorage(err, 'error')],
-            },
-        ]
+            }) +
+            '\n' +
+            cachedLogs
+        )
     }
+}
+
+/**
+ * Export logs to a plain string from the location we used to store UI logs.
+ * TODO: Remove this after some time when we don't need very old logs anymore
+ */
+const LEGACY_LOG_STORAGE_KEY = 'fedi:logs'
+export async function exportLegacyUiLogs(storage: StorageApi): Promise<string> {
+    try {
+        if (!storage) {
+            throw new Error('Storage not initialized')
+        }
+        const legacyLogs = await storage.getItem(LEGACY_LOG_STORAGE_KEY)
+        if (!legacyLogs) return ''
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return JSON.parse(legacyLogs).reduce((prev: string, log: any) => {
+            const { timestamp, level, ...rest } = log
+            const jsonString = JSON.stringify({
+                timestamp: new Date(timestamp).toISOString(),
+                level: level.toUpperCase(),
+                ...rest,
+            })
+            prev += `${jsonString}\n`
+            return prev
+        }, '')
+    } catch (err) {
+        return (
+            JSON.stringify({
+                timestamp: Date.now(),
+                level: 'error',
+                context: 'common/utils/log',
+                message:
+                    'Encountered an error during log retrieval from legacy logs. Some logging may be missing.',
+                extra: [formatArgForStorage(err, 'error')],
+            }) + '\n'
+        )
+    }
+}
+
+/**
+ * Forcibly save logs to logFileApi. Logs are automatically saved to storage
+ * periodically, This should only be called when the app is about to close
+ * to prevent logs that haven't been stored yet from being lost.
+ */
+export async function saveLogsToStorage() {
+    if (!logFileApi) {
+        throw new Error('Logging logFileApi not initialized')
+    }
+    const newLogs = cachedLogs
+    cachedLogs = ''
+    cachedLogsCount = 0
+    await logFileApi.saveLogs(newLogs)
 }
 
 function innerLog(
@@ -111,15 +131,17 @@ function innerLog(
     ...extra: unknown[]
 ) {
     const logItem = {
-        timestamp: Date.now(),
-        level,
+        // date serializes as ISO date format
+        timestamp: new Date(),
+        level: level.toUpperCase(),
         context,
         message: formatArgForStorage(message, level) as string,
         extra: extra.length
             ? extra.map(e => formatArgForStorage(e, level))
             : undefined,
     }
-    cachedLogs.push(logItem)
+    cachedLogs = cachedLogs + JSON.stringify(logItem) + '\n'
+    cachedLogsCount++
 
     if (isDev()) {
         // eslint-disable-next-line no-console
@@ -135,10 +157,10 @@ function innerLog(
     // - The 1ms delay is a compromise - it yields to the UI thread but doesn't guarantee
     // cancellation of all previous timeouts like a true debouncer should
     clearTimeout(saveTimeout)
-    if (cachedLogs.length >= 20) {
-        saveTimeout = setTimeout(saveLogsToStorage, 1)
+    if (cachedLogsCount >= QUICK_SAVE_THRESHOLD) {
+        saveTimeout = setTimeout(saveLogsToStorage, QUICK_SAVE_DELAY)
     } else {
-        saveTimeout = setTimeout(saveLogsToStorage, 100)
+        saveTimeout = setTimeout(saveLogsToStorage, DEBOUNCE_DELAY)
     }
 }
 

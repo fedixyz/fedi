@@ -237,7 +237,9 @@ export const selectStabilityTransactionHistory = createSelector(
                 txn.kind === 'spDeposit' ||
                 txn.kind === 'spWithdraw' ||
                 txn.kind === 'sPV2Deposit' ||
-                txn.kind === 'sPV2Withdrawal'
+                txn.kind === 'sPV2Withdrawal' ||
+                txn.kind === 'sPV2TransferOut' ||
+                txn.kind === 'sPV2TransferIn'
             )
         }),
 )

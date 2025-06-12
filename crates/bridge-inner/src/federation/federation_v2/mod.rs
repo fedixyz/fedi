@@ -52,7 +52,7 @@ use fedimint_core::module::{ApiRequestErased, ApiVersion};
 use fedimint_core::task::{timeout, MaybeSend, MaybeSync, TaskGroup};
 use fedimint_core::timing::TimeReporter;
 use fedimint_core::util::backoff_util::{aggressive_backoff, background_backoff};
-use fedimint_core::util::retry;
+use fedimint_core::util::{retry, SafeUrl};
 use fedimint_core::{maybe_add_send_sync, Amount, PeerId, TransactionId};
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use fedimint_ln_client::pay::GatewayPayError;
@@ -87,16 +87,17 @@ use rpc_types::{
     LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcFederation, RpcFederationId,
     RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails, RpcGenerateEcashResponse,
     RpcInvoice, RpcJsonClientConfig, RpcLightningGateway, RpcOperationFediFeeStatus,
-    RpcPayAddressResponse, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
-    RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState,
-    RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcSPv2CachedSyncResponse,
-    RpcTransaction, RpcTransactionDirection, RpcTransactionKind, RpcTransactionListEntry,
-    SPv2DepositMetadata, SPv2TransferMetadata, SPv2WithdrawMetadata,
+    RpcOperationId, RpcPayAddressResponse, RpcPayInvoiceResponse, RpcPeerId,
+    RpcPrevPayInvoiceResult, RpcPublicKey, RpcReturningMemberStatus, RpcSPDepositState,
+    RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState,
+    RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection,
+    RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata,
+    SPv2WithdrawMetadata,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
     ECASH_AUTO_CANCEL_DURATION, LIGHTNING_OPERATION_TYPE, MILLION, MINT_OPERATION_TYPE,
-    PAY_INVOICE_TIMEOUT, REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE,
+    RECURRINGD_API_META, REISSUE_ECASH_TIMEOUT, STABILITY_POOL_OPERATION_TYPE,
     STABILITY_POOL_V2_OPERATION_TYPE, WALLET_OPERATION_TYPE,
 };
 use runtime::db::FederationPendingRejoinFromScratchKey;
@@ -142,6 +143,7 @@ use crate::matrix::multispend::services::MultispendServices;
 
 mod backup_service;
 mod ln_gateway_service;
+pub mod spv2_pay_address;
 mod spv2_sweeper_service;
 mod stability_pool_sweeper_service;
 
@@ -307,8 +309,7 @@ impl FederationV2 {
         self.spawn_cancellable("send_meta_updates", |fed| async move {
             fed.client.meta_service().wait_initialization().await;
             fed.send_federation_event().await;
-            let mut subscribe_to_updates =
-                std::pin::pin!(fed.client.meta_service().subscribe_to_updates());
+            let mut subscribe_to_updates = pin!(fed.client.meta_service().subscribe_to_updates());
             while subscribe_to_updates.next().await.is_some() {
                 fed.send_federation_event().await;
             }
@@ -930,10 +931,10 @@ impl FederationV2 {
                 error!("Wallet module not present!");
                 return;
             };
-            let Ok(mut updates) = wallet
+            // don't keep emit events if outcome is already cached.
+            let Ok(UpdateStreamOrOutcome::UpdateStream(mut updates)) = wallet
                 .subscribe_deposit(operation_id)
                 .await
-                .map(|x| x.into_stream())
                 .inspect_err(|e| {
                     warn!("subscribing to 0.3 deposits is not implemented: {e}");
                 })
@@ -950,8 +951,7 @@ impl FederationV2 {
                     | DepositStateV2::Claimed { btc_deposited, .. } => {
                         let federation_fees = wallet.get_fee_consensus().peg_in_abs;
                         let amount = Amount::from_sats(btc_deposited.to_sat())
-                            .checked_sub(federation_fees)
-                            .expect("'Can't fail");
+                            .saturating_sub(federation_fees);
                         // FIXME: add fedi fees once fedimint await primary module outputs
                         if let DepositStateV2::Claimed { .. } = &update {
                             fed.write_success_receive_fedi_fee(operation_id, amount)
@@ -1014,6 +1014,38 @@ impl FederationV2 {
                         let _ = fed.write_failed_receive_fedi_fee(operation_id).await;
                         // FIXME: handle this
                         error!("Failed to claim incoming contract: {reason}");
+                    }
+                    _ => {}
+                }
+            }
+        });
+        Ok(())
+    }
+
+    pub async fn subscribe_recurring_payment_receive(
+        &self,
+        operation_id: OperationId,
+    ) -> Result<()> {
+        self.spawn_cancellable("subscribe invoice", move |fed| async move {
+            let Ok(ln) = fed.client.ln() else {
+                error!("Lightning module not found!");
+                return;
+            };
+            let Ok(updates) = ln.subscribe_ln_recurring_receive(operation_id).await else {
+                error!("Lightning operation with ID {:?} not found!", operation_id);
+                return;
+            };
+            let mut updates = updates.into_stream();
+            while let Some(update) = updates.next().await {
+                info!("Update: {:?}", update);
+                fed.update_operation_state(operation_id, update.clone())
+                    .await;
+                match update {
+                    LnReceiveState::Claimed => {
+                        fed.send_transaction_event(operation_id).await;
+                    }
+                    LnReceiveState::Canceled { .. } => {
+                        fed.send_transaction_event(operation_id).await;
                     }
                     _ => {}
                 }
@@ -1175,12 +1207,9 @@ impl FederationV2 {
                 Amount::from_msats(est_total_spend),
             )
             .await;
-        let response = timeout(
-            PAY_INVOICE_TIMEOUT,
-            self.subscribe_to_ln_pay(payment_type, extra_meta, invoice.clone()),
-        )
-        .await
-        .context(ErrorCode::Timeout)??;
+        let response = self
+            .subscribe_to_ln_pay(payment_type, extra_meta, invoice.clone())
+            .await?;
 
         Ok(response)
     }
@@ -1434,11 +1463,24 @@ impl FederationV2 {
                         }
                     });
                 }
+                LightningOperationMeta {
+                    variant: LightningOperationMetaVariant::RecurringPaymentReceive { .. },
+                    ..
+                } => {
+                    self.spawn_cancellable(
+                        "subscribe_to_recurring_payment_receive",
+                        move |fed| async move {
+                            if let Err(e) =
+                                fed.subscribe_recurring_payment_receive(operation_id).await
+                            {
+                                warn!("subscribe_to_ln_receive error: {e:?}")
+                            }
+                        },
+                    );
+                }
                 #[allow(deprecated)]
                 LightningOperationMeta {
-                    variant:
-                        LightningOperationMetaVariant::Claim { .. }
-                        | LightningOperationMetaVariant::RecurringPaymentReceive(_),
+                    variant: LightningOperationMetaVariant::Claim { .. },
                     ..
                 } => unreachable!("claims and recurring payments are not supported"),
             },
@@ -2069,6 +2111,7 @@ impl FederationV2 {
         Ok(RpcGenerateEcashResponse {
             ecash: notes.to_string(),
             cancel_at: to_unix_time(cancel_time)?,
+            operation_id: RpcOperationId(operation_id),
         })
     }
 
@@ -2415,19 +2458,26 @@ impl FederationV2 {
     ) -> Option<RpcTransaction> {
         let meta = entry.meta::<serde_json::Value>();
         let module = entry.operation_module_kind().to_owned();
-        match fedimint_core::task::timeout(
-            Duration::from_secs(30),
-            self.get_transaction_really_inner(operation_id, entry),
-        )
-        .await
-        {
-            Ok(value) => value,
-            Err(_) => {
+        let mut inner = pin!(self.get_transaction_really_inner(operation_id, entry));
+        let sleep = fedimint_core::task::sleep(Duration::from_secs(30));
+        tokio::select! {
+            biased;
+            value = &mut inner => {
+                value
+            },
+            () = sleep => {
                 let meta = serde_json::to_string_pretty(&meta).unwrap();
-                panic!("FOUND culprit {operation_id:?} mod={module} meta={meta}");
-            }
+                error!(
+                    op = %operation_id.fmt_short(),
+                    module,
+                    meta,
+                    "found transaction slow culprit"
+                );
+                inner.await
+            },
         }
     }
+
     async fn get_transaction_really_inner(
         &self,
         operation_id: OperationId,
@@ -2557,9 +2607,30 @@ impl FederationV2 {
                                 .map(Into::into),
                         };
                     }
+                    LightningOperationMetaVariant::RecurringPaymentReceive(payment) => {
+                        transaction_amount = RpcAmount(Amount {
+                            msats: payment.invoice.amount_milli_satoshis().unwrap(),
+                        });
+                        // no frontend meta for recurring payments
+                        frontend_metadata = None;
+                        transaction_kind = RpcTransactionKind::LnRecurringdReceive {
+                            state: self
+                                .get_client_operation_outcome(
+                                    operation_id,
+                                    entry,
+                                    |op_id| async move {
+                                        self.client
+                                            .ln()?
+                                            .subscribe_ln_recurring_receive(op_id)
+                                            .await
+                                    },
+                                )
+                                .await
+                                .map(Into::into),
+                        };
+                    }
                     #[allow(deprecated)]
-                    LightningOperationMetaVariant::Claim { .. }
-                    | LightningOperationMetaVariant::RecurringPaymentReceive(_) => {
+                    LightningOperationMetaVariant::Claim { .. } => {
                         unreachable!("claims and recurring payments are not supported")
                     }
                 }
@@ -2903,9 +2974,7 @@ impl FederationV2 {
                                     .map(|w| w.get_fee_consensus().peg_in_abs)
                                     .unwrap_or(Amount::ZERO);
                                 RpcAmount(
-                                    Amount::from_sats(btc_deposited.to_sat())
-                                        .checked_sub(fees)
-                                        .expect("Can't fail"),
+                                    Amount::from_sats(btc_deposited.to_sat()).saturating_sub(fees),
                                 )
                             }
                             _ => RpcAmount(Amount::ZERO),
@@ -3340,6 +3409,7 @@ impl FederationV2 {
             self.spv2_feature_state().is_some(),
             ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
         );
+        ensure!(to_account.acc_type() == AccountType::Seeker);
         let spv2 = self.client.spv2()?;
 
         let request = TransferRequest::new(
@@ -3403,38 +3473,63 @@ impl FederationV2 {
         if let Ok(update_stream) = update_stream {
             let mut updates = update_stream.into_stream();
             while let Some(state) = updates.next().await {
-                // Force sync spv2 once TX is accepted
-                if matches!(state, StabilityPoolTransferOperationState::Success) {
-                    self.spv2_force_sync();
-                    // send multispend completion notification
-                    match serde_json::from_value::<SPv2TransferMetadata>(extra_meta.clone()) {
-                        Ok(SPv2TransferMetadata::MultispendDeposit {
-                            room, description, ..
-                        }) => {
-                            self.multispend_services
-                                .completion_notification
-                                .add_deposit_notification(
-                                    room,
-                                    signed_request.details().amount(),
-                                    txid,
-                                    description,
-                                )
-                                .await;
+                match state {
+                    StabilityPoolTransferOperationState::Initiated => (),
+                    StabilityPoolTransferOperationState::Success => {
+                        // Force sync spv2 once TX is accepted
+                        self.spv2_force_sync();
+                        // send multispend completion notification
+                        match serde_json::from_value::<SPv2TransferMetadata>(extra_meta.clone()) {
+                            Ok(SPv2TransferMetadata::MultispendDeposit {
+                                room,
+                                description,
+                                ..
+                            }) => {
+                                self.multispend_services
+                                    .completion_notification
+                                    .add_deposit_notification(
+                                        room,
+                                        signed_request.details().amount(),
+                                        txid,
+                                        description,
+                                    )
+                                    .await;
+                            }
+                            Ok(SPv2TransferMetadata::MultispendWithdrawal { room, request_id }) => {
+                                self.multispend_services
+                                    .completion_notification
+                                    .add_withdrawal_notification(
+                                        room,
+                                        request_id,
+                                        signed_request.details().amount(),
+                                        txid,
+                                    )
+                                    .await;
+                            }
+                            Ok(SPv2TransferMetadata::StableBalance { .. }) | Err(_) => {}
                         }
-                        Ok(SPv2TransferMetadata::MultispendWithdrawal { room, request_id }) => {
-                            self.multispend_services
-                                .completion_notification
-                                .add_withdrawal_notification(
-                                    room,
-                                    request_id,
-                                    signed_request.details().amount(),
-                                    txid,
-                                )
-                                .await;
+                    }
+                    StabilityPoolTransferOperationState::TxRejected(ref error) => {
+                        match serde_json::from_value::<SPv2TransferMetadata>(extra_meta.clone()) {
+                            Ok(SPv2TransferMetadata::MultispendWithdrawal { room, request_id }) => {
+                                self.multispend_services
+                                    .completion_notification
+                                    .add_failed_withdrawal_notification(
+                                        room,
+                                        request_id,
+                                        error.to_string(),
+                                    )
+                                    .await;
+                            }
+                            Ok(
+                                SPv2TransferMetadata::StableBalance { .. }
+                                | SPv2TransferMetadata::MultispendDeposit { .. },
+                            )
+                            | Err(_) => {}
                         }
-                        Ok(SPv2TransferMetadata::StableBalance { .. }) | Err(_) => {}
                     }
                 }
+
                 self.update_operation_state(operation_id, state.clone())
                     .await;
                 self.runtime.event_sink.typed_event(&Event::spv2_transfer(
@@ -4289,6 +4384,37 @@ impl FederationV2 {
     ) -> anyhow::Result<SyncResponse> {
         let spv2 = self.client.spv2()?;
         Ok(spv2.api.account_sync(account_id).await?)
+    }
+
+    pub async fn get_recurringd_api(&self) -> Option<SafeUrl> {
+        self.client
+            .meta_service()
+            .get_field::<SafeUrl>(self.client.db(), RECURRINGD_API_META)
+            .await
+            .and_then(|x| x.value)
+    }
+
+    /// Either register or get the lnurl.
+    pub async fn get_recurringd_lnurl(&self, recurringd_api: SafeUrl) -> anyhow::Result<String> {
+        let ln = self.client.ln()?;
+        if let Some(payment_code) = ln
+            .list_recurring_payment_codes()
+            .await
+            .into_values()
+            .find(|x| x.recurringd_api == recurringd_api)
+        {
+            return Ok(payment_code.code);
+        }
+
+        let payment_code = ln
+            .register_recurring_payment_code(
+                fedimint_ln_client::recurring::RecurringPaymentProtocol::LNURL,
+                recurringd_api,
+                "", // TODO: what do I put in meta?
+            )
+            .await?;
+
+        Ok(payment_code.code)
     }
 }
 

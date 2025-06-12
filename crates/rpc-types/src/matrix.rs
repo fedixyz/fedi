@@ -26,6 +26,7 @@ use crate::error::ErrorCode;
 #[serde(tag = "kind", content = "value")]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+#[allow(clippy::large_enum_variant)]
 pub enum RpcTimelineItem {
     Event(RpcTimelineItemEvent),
     /// A divider between messages of two days.
@@ -101,6 +102,7 @@ pub struct RpcTimelineItemEvent {
 #[serde(tag = "kind", content = "value")]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+#[allow(clippy::large_enum_variant)]
 pub enum RpcTimelineItemContent {
     Message(#[ts(type = "JSONObject")] RoomMessageEventContent),
     Json(#[ts(type = "JSONValue")] serde_json::Value),

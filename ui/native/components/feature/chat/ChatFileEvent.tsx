@@ -21,6 +21,7 @@ import { formatFileSize } from '@fedi/common/utils/media'
 import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import { pathJoin, prefixFileUri } from '../../../utils/media'
+import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
@@ -86,27 +87,27 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
 
     return (
         <Pressable style={style.attachment} onLongPress={handleLongPress}>
-            <View style={style.attachmentContentGutter}>
+            <Flex grow row align="center" gap="sm">
                 <View style={style.attachmentIcon}>
                     <SvgImage name="File" />
                 </View>
-                <View style={style.attachmentContent}>
+                <Flex grow basis={false} gap="sm">
                     <Text medium ellipsizeMode="middle" numberOfLines={1}>
                         {event.content.body}
                     </Text>
-                    <Text style={style.attachmentSize} caption>
+                    <Text color={theme.colors.darkGrey} caption>
                         {formatFileSize(event.content.info.size ?? 0)}
                     </Text>
-                </View>
-            </View>
+                </Flex>
+            </Flex>
             <Pressable onPress={handleDownload}>
-                <View style={style.downloadButton}>
+                <Flex center style={style.downloadButton}>
                     {isLoading ? (
                         <ActivityIndicator />
                     ) : (
                         <SvgImage name="Download" />
                     )}
-                </View>
+                </Flex>
             </Pressable>
         </Pressable>
     )
@@ -114,13 +115,6 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        attachmentContentGutter: {
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-        },
         attachment: {
             padding: theme.spacing.sm,
             borderRadius: 8,
@@ -138,24 +132,12 @@ const styles = (theme: Theme) =>
             backgroundColor: theme.colors.extraLightGrey,
             borderRadius: 8,
         },
-        attachmentContent: {
-            flex: 1,
-            flexDirection: 'column',
-            display: 'flex',
-            gap: theme.spacing.xs,
-        },
-        attachmentSize: {
-            color: theme.colors.darkGrey,
-        },
         downloadButton: {
             width: 40,
             height: 40,
             borderRadius: 60,
             borderWidth: 1,
             borderColor: theme.colors.lightGrey,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
         },
     })
 

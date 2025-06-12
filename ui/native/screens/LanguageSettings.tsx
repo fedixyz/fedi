@@ -23,6 +23,7 @@ const LanguageSettings: React.FC = () => {
         <SafeScrollArea style={style.container} edges="notop">
             {Object.entries(i18nLanguages).map(([lang, display]) => (
                 <CheckBox
+                    testID={lang}
                     key={lang}
                     checkedIcon={<SvgImage name="RadioSelected" />}
                     uncheckedIcon={<SvgImage name="RadioUnselected" />}

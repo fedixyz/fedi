@@ -8,6 +8,9 @@ pub mod matrix_tests;
 pub mod remote;
 pub mod rpc;
 
+#[cfg(test)]
+pub mod test_device;
+
 // nosemgrep: ban-wildcard-imports
 pub use bridge_inner::*;
 #[cfg(not(target_family = "wasm"))]

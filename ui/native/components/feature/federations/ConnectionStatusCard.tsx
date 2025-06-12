@@ -1,10 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useIsInternetUnreachable } from '@fedi/common/hooks/environment'
 import { FederationStatus } from '@fedi/common/types'
 
+import Flex from '../../ui/Flex'
 import { ConnectionTag } from './ConnectionTag'
 
 type Props = {
@@ -20,7 +21,7 @@ const ConnectionStatusCard = ({ status, hideArrow = false }: Props) => {
     const isInternetUnreachable = useIsInternetUnreachable()
 
     return (
-        <View style={style.card}>
+        <Flex center gap="md" style={style.card}>
             {isInternetUnreachable && (
                 <Text caption medium style={style.caption}>
                     {t('feature.federations.last-known-status')}
@@ -45,7 +46,7 @@ const ConnectionStatusCard = ({ status, hideArrow = false }: Props) => {
                     {t('feature.federations.please-reconnect')}
                 </Text>
             )}
-        </View>
+        </Flex>
     )
 }
 
@@ -54,19 +55,8 @@ const styles = (theme: Theme) =>
         card: {
             padding: theme.spacing.lg,
             backgroundColor: theme.colors.offWhite100,
-            justifyContent: 'center',
-            gap: theme.spacing.md,
             borderRadius: 20,
-            display: 'flex',
-            alignItems: 'center',
             alignSelf: 'stretch',
-        },
-        content: {
-            display: 'flex',
-            gap: theme.spacing.sm,
-            flexDirection: 'row',
-            alignItems: 'center',
-            alignSelf: 'center',
         },
         caption: {
             textAlign: 'center',

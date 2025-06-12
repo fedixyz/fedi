@@ -1,8 +1,7 @@
-import { useNavigation } from '@react-navigation/native'
 import { CheckBox, Theme, useTheme, Text, Button } from '@rneui/themed'
 import { Dispatch, SetStateAction, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Alert, Pressable, StyleSheet, View } from 'react-native'
 
 import {
     selectMatrixAuth,
@@ -15,6 +14,7 @@ import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { MatrixEvent } from '../../../types'
+import Flex from '../../ui/Flex'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import SvgImage from '../../ui/SvgImage'
 import { bubbleGradient } from './ChatEvent'
@@ -29,7 +29,6 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const navigation = useNavigation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const isReadOnly = useAppSelector(s =>
         selectMatrixRoomIsReadOnly(s, event.roomId),
@@ -70,6 +69,30 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
         )
     }, [event.roomId, event.eventId, selections])
 
+    const handleEndPoll = useCallback(async () => {
+        Alert.alert(
+            t('feature.chat.end-poll-title'),
+            t('feature.chat.confirm-end-poll'),
+            [
+                {
+                    text: t('words.cancel'),
+                    style: 'cancel',
+                },
+                {
+                    text: t('feature.chat.end-poll-confirmation'),
+                    onPress: async () => {
+                        if (!event.eventId) return
+
+                        await fedimint.matrixEndPoll(
+                            event.roomId,
+                            event.eventId,
+                        )
+                    },
+                },
+            ],
+        )
+    }, [event, t])
+
     const style = styles(theme)
     const headerTextStyle = isMe
         ? style.outgoingHeaderText
@@ -83,7 +106,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                     style.container,
                     isMe ? style.blueBubble : style.greyBubble,
                 ]}>
-                <View style={style.header}>
+                <Flex row align="center" justify="between">
                     <Text style={headerTextStyle} small medium>
                         {t('words.poll')}
                     </Text>
@@ -93,12 +116,9 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                             {t('words.finished')}
                         </Text>
                     ) : isMe ? (
-                        <Pressable
-                            onPress={() =>
-                                navigation.navigate('EditPoll', { event })
-                            }>
+                        <Pressable onPress={handleEndPoll}>
                             <Text style={headerTextStyle} small medium>
-                                {t('words.edit').toUpperCase()}
+                                {t('words.end').toUpperCase()}
                             </Text>
                         </Pressable>
                     ) : hasVoted ? (
@@ -106,7 +126,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                             {t('words.voted')}
                         </Text>
                     ) : null}
-                </View>
+                </Flex>
                 <Text style={isMe ? style.outgoingText : style.incomingText}>
                     {event.content.body}
                 </Text>
@@ -174,7 +194,7 @@ const PollVotes: React.FC<{
     const textStyle = isMe ? style.outgoingText : style.incomingText
 
     return (
-        <View style={style.pollVotes}>
+        <Flex gap="sm">
             {Object.entries(event.content.votes).map(([id, votes]) => {
                 const answer = event.content.answers.find(
                     ans => ans.id === id,
@@ -182,18 +202,19 @@ const PollVotes: React.FC<{
                 const percentage = votePercentage(votes.length)
 
                 return (
-                    <View
-                        key={`vote-${id}-${answer.text}`}
-                        style={style.voteResultContainer}>
-                        <View style={style.voteResultHeader}>
+                    <Flex key={`vote-${id}-${answer.text}`} gap="sm">
+                        <Flex row align="center" justify="between" gap="sm">
                             <Text medium small style={textStyle}>
                                 {answer.text}
                             </Text>
                             <Text small style={textStyle}>
                                 {percentage}
                             </Text>
-                        </View>
-                        <View
+                        </Flex>
+                        <Flex
+                            row
+                            align="center"
+                            gap="sm"
                             style={[
                                 style.voteResultBar,
                                 isMe
@@ -211,11 +232,11 @@ const PollVotes: React.FC<{
                                         : style.incomingResultIndication,
                                 ]}
                             />
-                        </View>
-                    </View>
+                        </Flex>
+                    </Flex>
                 )
             })}
-        </View>
+        </Flex>
     )
 }
 
@@ -259,7 +280,7 @@ const PollAnswers: React.FC<{
     )
 
     return (
-        <View style={style.answers}>
+        <Flex gap="sm">
             {!hasVoted && (
                 <Text tiny style={textStyle}>
                     {isReadOnly
@@ -303,7 +324,7 @@ const PollAnswers: React.FC<{
                     wrapperStyle={style.answerWrapper}
                 />
             ))}
-        </View>
+        </Flex>
     )
 }
 
@@ -315,18 +336,6 @@ const styles = (theme: Theme) =>
             maxWidth: theme.sizes.maxMessageWidth,
             minWidth: 215,
             gap: theme.spacing.md,
-        },
-        header: {
-            justifyContent: 'space-between',
-            flexDirection: 'row',
-            alignItems: 'center',
-        },
-        answers: {
-            gap: theme.spacing.sm,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            justifyContent: 'flex-start',
         },
         answerContainer: {
             backgroundColor: 'transparent',
@@ -354,28 +363,7 @@ const styles = (theme: Theme) =>
         blueBubble: {
             backgroundColor: theme.colors.blue,
         },
-        pollVotes: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.sm,
-        },
-        voteResultContainer: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.xs,
-        },
-        voteResultHeader: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: theme.spacing.sm,
-        },
         voteResultBar: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.md,
             backgroundColor: theme.colors.blue,
             borderRadius: 8,
             height: 4,

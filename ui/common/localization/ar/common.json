@@ -381,7 +381,7 @@
         "onboarding": {
             "by-clicking-i-accept": "عن طريق تحديد ' أوافق ' أنت توافق على شروط الخدمة في {{tos_url}",
             "by-clicking-you-agree-user-agreement": " uraba wemeye <anchor>ukoreshe amasezerano</anchor>,بالضغط على الانضمام الي مجتمع،فإنك توافق علي</anchor> اتفاقية المستخدم</anchor> ,Markaad gujiso 'ku bir xiriirka' waxaad ogolaatay <anchor>barnaamijika isticmalaha</anchor>,Kwa kufinya 'Jiunge na federation' unakubaliana na <anchor>Masharti ya Mtumiaji</anchor>\r",
-            "chat-earn-save-spend": "قم بالدردشه وكسب وحفظ وانفاق الأموال بشكل خاص مع مجتمعك.",
+            "tagline": "قم بالدردشه وكسب وحفظ وانفاق الأموال بشكل خاص مع مجتمعك.",
             "community-first": "المجتمع اولا",
             "continue-to-fedi": "الاستمرار في Fedi",
             "earn-and-save": "كسب وحفظ ",

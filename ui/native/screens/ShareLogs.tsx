@@ -2,11 +2,12 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
+import Flex from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { RootStackParamList } from '../types/navigation'
@@ -83,7 +84,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <SafeScrollArea edges="notop">
-            <View style={style.form}>
+            <Flex grow gap="lg" style={style.form}>
                 <Input
                     {...inputProps}
                     maxFontSizeMultiplier={1.6}
@@ -99,9 +100,9 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                     autoCapitalize="none"
                     errorMessage={errorMessage}
                 />
-            </View>
-            <View style={style.actions}>
-                <View style={style.bugContainer}>
+            </Flex>
+            <Flex align="center" gap="lg" shrink={false}>
+                <Flex align="center">
                     <Pressable style={style.bugButton} onPress={handleBugPress}>
                         <Text>🪲</Text>
                     </Pressable>
@@ -123,20 +124,25 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                             }}
                         />
                     </Text>
-                </View>
+                </Flex>
                 {sendDb && (
-                    <View style={style.dbAttachedIndicator}>
+                    <Flex
+                        row
+                        align="center"
+                        justify="between"
+                        fullWidth
+                        style={style.dbAttachedIndicator}>
                         <Text medium>
                             {t('feature.bug.database-attached')} 🕷️🐞🦟
                         </Text>
                         <SvgImage name="Check" />
-                    </View>
+                    </Flex>
                 )}
                 <Button
                     fullWidth
                     disabled={isSubmitDisabled}
                     title={
-                        <View style={style.submitTitle}>
+                        <Flex row center gap="sm">
                             {isSubmitDisabled && (
                                 <ActivityIndicator
                                     size={18}
@@ -146,11 +152,11 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                             <Text medium caption color={submitTextColor}>
                                 {submitText}
                             </Text>
-                        </View>
+                        </Flex>
                     }
                     onPress={handleSubmit}
                 />
-            </View>
+            </Flex>
         </SafeScrollArea>
     )
 }
@@ -161,8 +167,6 @@ const styles = (theme: Theme) =>
             flex: 1,
         },
         form: {
-            flex: 1,
-            gap: theme.spacing.lg,
             paddingTop: theme.spacing.lg,
         },
         fieldContainerStyle: {
@@ -199,17 +203,6 @@ const styles = (theme: Theme) =>
             marginLeft: theme.spacing.sm,
             color: theme.colors.primary,
         },
-        actions: {
-            flexShrink: 0,
-            alignItems: 'center',
-            gap: theme.spacing.lg,
-        },
-        submitTitle: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.sm,
-        },
         disclaimer: {
             textAlign: 'center',
             maxWidth: 320,
@@ -219,11 +212,6 @@ const styles = (theme: Theme) =>
         disclaimerLink: {
             textDecorationLine: 'underline',
         },
-        bugContainer: {
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-        },
         bugButton: {
             fontSize: 24,
             padding: 16,
@@ -232,12 +220,7 @@ const styles = (theme: Theme) =>
         dbAttachedIndicator: {
             backgroundColor: theme.colors.offWhite,
             padding: 12,
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             borderRadius: 12,
-            width: '100%',
         },
         descriptionInput: {
             textAlignVertical: 'top',

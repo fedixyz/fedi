@@ -8,7 +8,6 @@ import {
     Platform,
     Pressable,
     StyleSheet,
-    View,
 } from 'react-native'
 import { exists } from 'react-native-fs'
 import { PermissionStatus, RESULTS } from 'react-native-permissions'
@@ -17,6 +16,7 @@ import Video from 'react-native-video'
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
+import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -74,7 +74,11 @@ const ChatVideoViewer: React.FC<Props> = ({ route, navigation }: Props) => {
 
     return (
         <SafeAreaContainer style={style.fullScreenContainer} edges="vertical">
-            <View style={style.fullScreenVideoHeader}>
+            <Flex
+                row
+                align="center"
+                justify="between"
+                style={style.fullScreenVideoHeader}>
                 <Pressable
                     onPress={() => {
                         navigation.goBack()
@@ -91,7 +95,7 @@ const ChatVideoViewer: React.FC<Props> = ({ route, navigation }: Props) => {
                         />
                     )}
                 </Pressable>
-            </View>
+            </Flex>
             <Video
                 source={{ uri }}
                 style={style.fullScreenVideo}
@@ -111,9 +115,6 @@ const styles = (theme: Theme) =>
             flex: 1,
         },
         fullScreenVideoHeader: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             paddingHorizontal: theme.spacing.lg,
             paddingVertical: theme.spacing.lg,
         },

@@ -1,13 +1,14 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dimensions, Linking, StyleSheet, View } from 'react-native'
+import { Dimensions, Linking, StyleSheet } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
     useCameraPermission,
     useHasBottomTabsNavigation,
 } from '../../../utils/hooks'
+import Flex from '../../ui/Flex'
 import NightHoloGradient from '../../ui/NightHoloGradient'
 import SvgImage from '../../ui/SvgImage'
 import QrCodeScanner from '../scan/QrCodeScanner'
@@ -59,8 +60,8 @@ export const OmniQrScanner: React.FC<Props> = ({
     }
 
     return (
-        <View style={style.container}>
-            <View style={style.scanner}>
+        <Flex grow gap="lg" basis={false} style={style.container}>
+            <Flex grow fullWidth basis={false} style={style.scanner}>
                 {cameraPermission === 'granted' && (
                     <QrCodeScanner
                         processing={isProcessing}
@@ -71,7 +72,11 @@ export const OmniQrScanner: React.FC<Props> = ({
                     <NightHoloGradient
                         style={style.permissionContainer}
                         gradientStyle={style.permissionGradient}>
-                        <View style={style.permissionContent}>
+                        <Flex
+                            center
+                            gap="lg"
+                            fullWidth
+                            style={style.permissionContent}>
                             <SvgImage name="AllowCameraAccessIcon" size={72} />
                             <Text style={style.permissionText} medium>
                                 {permissionView.title}
@@ -87,21 +92,18 @@ export const OmniQrScanner: React.FC<Props> = ({
                                     </Text>
                                 }
                             />
-                        </View>
+                        </Flex>
                     </NightHoloGradient>
                 )}
-            </View>
+            </Flex>
             <OmniActions actions={actions} />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme, insets: EdgeInsets) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            flexDirection: 'column',
-            gap: theme.spacing.lg,
             paddingTop: theme.spacing.lg,
             paddingLeft: theme.spacing.lg + (insets.left || 0),
             paddingRight: theme.spacing.lg + (insets.right || 0),
@@ -112,8 +114,6 @@ const styles = (theme: Theme, insets: EdgeInsets) =>
             paddingRight: theme.spacing.lg,
         },
         scanner: {
-            flex: 1,
-            width: '100%',
             borderRadius: 20,
             minHeight: height * 0.38, //ensure that on smaller screens we don't get a tiny rectangular window for the scanner.
             overflow: 'hidden',
@@ -129,11 +129,7 @@ const styles = (theme: Theme, insets: EdgeInsets) =>
             alignItems: 'center',
         },
         permissionContent: {
-            width: '100%',
             maxWidth: 260,
-            gap: theme.spacing.lg,
-            justifyContent: 'center',
-            alignItems: 'center',
         },
         permissionText: {
             color: theme.colors.white,

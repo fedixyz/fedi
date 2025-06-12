@@ -1,8 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
+import Flex from '../../ui/Flex'
 import HoloGradient from '../../ui/HoloGradient'
 
 type Props = {
@@ -12,7 +13,7 @@ const WelcomeMessage = ({ message }: Props) => {
     const { theme } = useTheme()
     const style = styles(theme)
     return (
-        <View style={style.container}>
+        <Flex justify="center">
             <HoloGradient
                 level="100"
                 locations={fediTheme.holoGradientLocations.radial}
@@ -21,16 +22,12 @@ const WelcomeMessage = ({ message }: Props) => {
                     {message}
                 </Text>
             </HoloGradient>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            display: 'flex',
-            justifyContent: 'center',
-        },
         content: {
             padding: theme.spacing.lg,
             borderRadius: theme.borders.defaultRadius,

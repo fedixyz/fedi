@@ -16,6 +16,7 @@ use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{apply, async_trait_maybe_send};
 use fedimint_derive_secret::DerivableSecret;
 use matrix_sdk::authentication::matrix::MatrixSession;
+use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::error;
@@ -460,7 +461,7 @@ impl AppState {
         storage: Storage,
         device_identifier_v2: DeviceIdentifier,
     ) -> anyhow::Result<Self> {
-        let root_mnemonic = Bip39RootSecretStrategy::<12>::random(&mut rand::thread_rng());
+        let root_mnemonic = Bip39RootSecretStrategy::<12>::random(&mut OsRng);
         let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(&root_mnemonic);
         let encrypted_device_identifier = device_identifier_v2
             .encrypt_and_hex_encode(&root_secret)

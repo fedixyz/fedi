@@ -1,7 +1,9 @@
+import Link from 'next/link'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
+import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
 import QRIcon from '@fedi/common/assets/svgs/qr.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { selectMatrixChatsList } from '@fedi/common/redux'
@@ -9,7 +11,6 @@ import { selectMatrixChatsList } from '@fedi/common/redux'
 import * as Layout from '../../components/Layout'
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
-import { Button } from '../Button'
 import { ContentBlock } from '../ContentBlock'
 import { Icon } from '../Icon'
 import { IconButton } from '../IconButton'
@@ -51,11 +52,12 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
                                     </ErrorBoundary>
                                 ))}
                             </SidebarList>
-                            <NewChatAction>
-                                <Button href="/chat/new" width="full">
-                                    {t('feature.chat.new-chat')}
-                                </Button>
-                            </NewChatAction>
+
+                            <ButtonWrapper>
+                                <NewChatButton href="/chat/new">
+                                    <Icon icon={PlusIcon} />
+                                </NewChatButton>
+                            </ButtonWrapper>
                         </Layout.Content>
                     </Layout.Root>
                 </Sidebar>
@@ -114,7 +116,7 @@ const Sidebar = styled('div', {
         isHidden: {
             true: {
                 '@sm': {
-                    transform: 'translateX(-100vw)',
+                    display: 'none',
                 },
             },
         },
@@ -152,14 +154,14 @@ const Content = styled('div', {
         right: 0,
         bottom: 0,
         width: '100%',
-        transform: 'translateX(100vw)',
+        display: 'none',
     },
 
     variants: {
         isShowing: {
             true: {
                 '@sm': {
-                    transform: 'translateX(0)',
+                    display: 'flex',
                 },
             },
         },
@@ -177,6 +179,23 @@ const Error = styled('div', {
     color: theme.colors.red,
 })
 
-const NewChatAction = styled('div', {
-    padding: 12,
+const ButtonWrapper = styled('div', {
+    bottom: 12,
+    borderRadius: '50%',
+    boxShadow: '3px 6px 6px hsl(0deg 0% 0% / 0.24)',
+    overflow: 'hidden',
+    position: 'absolute',
+    right: 12,
+    zIndex: 10,
+})
+
+const NewChatButton = styled(Link, {
+    alignItems: 'center',
+    background: theme.colors.blue,
+    color: theme.colors.white,
+    display: 'flex',
+    height: 50,
+    justifyContent: 'center',
+    right: 10,
+    width: 50,
 })

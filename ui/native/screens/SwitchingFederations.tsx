@@ -1,13 +1,14 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useEffect } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import {
     selectActiveFederation,
     setActiveFederationId,
 } from '@fedi/common/redux'
 
+import Flex from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { MainNavigatorDrawerParamList } from '../types/navigation'
@@ -43,18 +44,15 @@ const SwitchingFederations: React.FC<Props> = ({
     }, [dispatch, federationId, navigation, previousActiveFederation])
 
     return (
-        <View style={styles(theme).container}>
+        <Flex grow center style={styles(theme).container}>
             <HoloLoader />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
             padding: theme.spacing.lg,
             marginTop: theme.spacing.xl,
         },

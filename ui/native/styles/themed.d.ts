@@ -93,6 +93,7 @@ declare module '@rneui/themed' {
         small?: boolean
         tiny?: boolean
         color?: string
+        center?: boolean
     }
     export interface ButtonProps {
         fullWidth?: boolean

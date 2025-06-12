@@ -13,6 +13,7 @@ import {
     RpcNostrPubkey,
     RpcNostrSecret,
 } from '../types/bindings'
+import { FediModCacheMode } from '../types/fediInternal'
 import { FedimintBridge } from '../utils/fedimint'
 import { loadFromStorage } from './storage'
 
@@ -22,6 +23,9 @@ const initialState = {
     networkInfo: null as NetInfoState | null,
     developerMode: false,
     fedimodDebugMode: false,
+    fedimodCacheEnabled: true,
+    fedimodShowClearCacheButton: false,
+    fedimodCacheMode: 'LOAD_DEFAULT' as FediModCacheMode,
     onchainDepositsEnabled: false,
     stableBalanceEnabled: false,
     language: null as string | null,
@@ -51,6 +55,15 @@ export const environmentSlice = createSlice({
         },
         setFediModDebugMode(state, action: PayloadAction<boolean>) {
             state.fedimodDebugMode = action.payload
+        },
+        setFediModCacheEnabled(state, action: PayloadAction<boolean>) {
+            state.fedimodCacheEnabled = action.payload
+        },
+        setFediModShowClearCacheButton(state, action: PayloadAction<boolean>) {
+            state.fedimodShowClearCacheButton = action.payload
+        },
+        setFediModCacheMode(state, action: PayloadAction<FediModCacheMode>) {
+            state.fedimodCacheMode = action.payload
         },
         setAmountInputType(
             state,
@@ -129,6 +142,9 @@ export const {
     setNetworkInfo,
     setDeveloperMode,
     setFediModDebugMode,
+    setFediModCacheEnabled,
+    setFediModShowClearCacheButton,
+    setFediModCacheMode,
     setAmountInputType,
     setOnchainDepositsEnabled,
     setStableBalanceEnabled,
@@ -234,6 +250,13 @@ export const selectDeveloperMode = (s: CommonState) =>
 
 export const selectFediModDebugMode = (s: CommonState) =>
     s.environment.fedimodDebugMode
+export const selectFediModCacheEnabled = (s: CommonState) =>
+    s.environment.fedimodCacheEnabled
+export const selectFediModShowClearCacheButton = (s: CommonState) =>
+    s.environment.fedimodShowClearCacheButton
+
+export const selectFediModCacheMode = (s: CommonState) =>
+    s.environment.fedimodCacheMode
 
 export const selectOnchainDepositsEnabled = (s: CommonState) =>
     s.environment.onchainDepositsEnabled

@@ -178,7 +178,7 @@ export const generateAddress = createAsyncThunk<
 )
 
 export const generateEcash = createAsyncThunk<
-    { ecash: string; cancelAt: number },
+    { ecash: string; cancelAt: number; operationId: string },
     {
         fedimint: FedimintBridge
         federationId: string

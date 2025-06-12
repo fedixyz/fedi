@@ -15,11 +15,11 @@ import {
     MatrixPaymentEvent,
     MatrixPaymentStatus,
     MatrixRoom,
+    MatrixRoomMember,
     MatrixRoomPowerLevels,
     MatrixTimelineItem,
     MatrixUser,
     MultispendDepositEvent,
-    MultispendFinalized,
     MultispendListedInvitationEvent,
     MultispendRole,
     MultispendTransactionListEntry,
@@ -36,6 +36,7 @@ import {
     MultispendListedEvent,
 } from '../types/bindings'
 import { makeLog } from './log'
+import { isBolt11 } from './parser'
 
 const log = makeLog('common/utils/matrix')
 
@@ -110,6 +111,7 @@ export const consolidatePaymentEvents = (events: MatrixEvent[]) => {
 export const filterMultispendEvents = (events: MatrixEvent[]) => {
     return events.filter(
         event =>
+            !isMultispendReannounceEvent(event) &&
             !isMultispendInvitationCancelEvent(event) &&
             !isMultispendWithdrawalResponseEvent(event) &&
             !isMultispendInvitationVoteEvent(event),
@@ -170,6 +172,16 @@ const multispendEventSchemas = {
         invitation: z.string(),
     }) satisfies z.ZodType<
         Extract<MultispendEvent, { kind: 'groupInvitationCancel' }>
+    >,
+    groupReannounce: z.object({
+        kind: z.literal('groupReannounce'),
+        invitationId: z.string(),
+        invitation: groupInvitationSchema,
+        proposer: z.string(),
+        pubkeys: z.record(z.string(), z.string().optional()),
+        rejections: z.array(z.string()),
+    }) satisfies z.ZodType<
+        Extract<MultispendEvent, { kind: 'groupReannounce' }>
     >,
     depositNotification: z.object({
         kind: z.literal('depositNotification'),
@@ -345,12 +357,29 @@ const contentSchemas = {
                 multispendEventSchemas.groupInvitation,
                 multispendEventSchemas.groupInvitationVote,
                 multispendEventSchemas.groupInvitationCancel,
+                multispendEventSchemas.groupReannounce,
                 multispendEventSchemas.depositNotification,
                 multispendEventSchemas.withdrawalRequest,
                 multispendEventSchemas.withdrawalResponse,
             ]),
         ),
 }
+
+export const matrixUrlMetadataSchema = z.object({
+    'matrix:image:size': z.number().nullish(),
+    'og:description': z.string().nullish(),
+    'og:image': z.string().nullish(),
+    'og:image:alt': z.string().nullish(),
+    'og:image:height': z.number().nullish(),
+    'og:image:type': z.string().nullish(),
+    'og:image:width': z.number().nullish(),
+    'og:site_name': z.string().nullish(),
+    'og:title': z.string().nullish(),
+    'og:type': z.string().nullish(),
+    'og:url': z.string().nullish(),
+})
+
+export type MatrixUrlMetadata = z.infer<typeof matrixUrlMetadataSchema>
 
 type MatrixEventUnknownContent = {
     msgtype: 'm.unknown'
@@ -520,6 +549,7 @@ export const makeMatrixPaymentText = ({
             recipientId: paymentRecipientId,
             senderId: paymentSenderId,
             amount,
+            bolt11,
         },
     } = event
 
@@ -536,7 +566,11 @@ export const makeMatrixPaymentText = ({
         memo: '',
     }
 
-    if (eventSenderId === paymentRecipientId) {
+    if (bolt11) {
+        return t('feature.chat.lightning-invoice-chat', {
+            amountString: `${formattedPrimaryAmount} (${formattedSecondaryAmount})`,
+        })
+    } else if (eventSenderId === paymentRecipientId) {
         if (eventSenderId === myId) {
             return t('feature.chat.you-requested-payment', previewStringParams)
         } else {
@@ -576,6 +610,15 @@ export function isPaymentEvent(
     event: MatrixEvent,
 ): event is MatrixPaymentEvent {
     return event.content.msgtype === 'xyz.fedi.payment'
+}
+
+export function isBolt11PaymentEvent(
+    event: MatrixEvent,
+): event is MatrixPaymentEvent {
+    return (
+        (isPaymentEvent(event) && !!event.content.bolt11) ||
+        isBolt11(event.content.body)
+    )
 }
 
 export function getReceivablePaymentEvents(
@@ -822,6 +865,15 @@ export function isMultispendInvitationCancelEvent(
     )
 }
 
+export function isMultispendReannounceEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<MultispendEventContentType<'groupReannounce'>> {
+    return (
+        event.content.msgtype === 'xyz.fedi.multispend' &&
+        event.content.kind === 'groupReannounce'
+    )
+}
+
 /**
  * Checks to see if a chat video/image event's content matches the `media` argument
  */
@@ -973,6 +1025,14 @@ export const makeNameWithSuffix = (user: MatrixUser) => {
     return `${user.displayName} ${getUserSuffix(user.id)}`
 }
 
+export const findUserDisplayName = (
+    userId: MatrixUser['id'],
+    roomMembers: MatrixRoomMember[],
+) => {
+    const user = roomMembers.find(m => m.id === userId)
+    return user ? makeNameWithSuffix(user) : userId
+}
+
 export function isMultispendFinancialTransaction(
     event: MultispendTransactionListEntry,
 ): event is MultispendWithdrawalEvent | MultispendDepositEvent {
@@ -1001,27 +1061,6 @@ export function isMultispendInvitation(
     )
 }
 
-export function getMultispendWithdrawalStatus(
-    event: MultispendWithdrawalEvent,
-    multispendStatus: MultispendFinalized,
-) {
-    if (event.event.withdrawalRequest.completed) return 'completed'
-
-    const voterCount = Object.keys(
-        multispendStatus.finalized_group.pubkeys,
-    ).length
-    const voteCount = Object.keys(
-        event.event.withdrawalRequest.signatures,
-    ).length
-    const rejectionCount = event.event.withdrawalRequest.rejections.length
-    const threshold = multispendStatus.finalized_group.invitation.threshold
-
-    if (voteCount >= threshold) return 'approved'
-    if (voterCount - rejectionCount < threshold) return 'rejected'
-
-    return 'pending'
-}
-
 export function getHasUserVotedForWithdrawal(
     event: MultispendWithdrawalEvent,
     userId: string,
@@ -1030,4 +1069,38 @@ export function getHasUserVotedForWithdrawal(
     const signatures = event.event.withdrawalRequest.signatures
 
     return Boolean(rejections.includes(userId) || signatures[userId])
+}
+
+export function isWithdrawalRequestRejected(
+    event: MultispendTransactionListEntry,
+    multispendStatus: RpcMultispendGroupStatus,
+) {
+    const invitation = getMultispendInvite(multispendStatus)
+
+    if (
+        invitation &&
+        isMultispendWithdrawalEvent(event) &&
+        event.event.withdrawalRequest.rejections.length >
+            invitation.signers.length - invitation.threshold
+    )
+        return true
+
+    return false
+}
+
+export function isWithdrawalRequestApproved(
+    event: MultispendTransactionListEntry,
+    multispendStatus: RpcMultispendGroupStatus,
+) {
+    const invitation = getMultispendInvite(multispendStatus)
+
+    if (
+        invitation &&
+        isMultispendWithdrawalEvent(event) &&
+        Object.keys(event.event.withdrawalRequest.signatures).length >=
+            invitation.threshold
+    )
+        return true
+
+    return false
 }

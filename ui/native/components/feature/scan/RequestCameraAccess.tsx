@@ -1,12 +1,13 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, StyleSheet, View } from 'react-native'
+import { Linking, StyleSheet } from 'react-native'
 import { Camera } from 'react-native-vision-camera'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const log = makeLog('RequestCameraAccess')
@@ -94,33 +95,32 @@ const RequestCameraAccess: React.FC<RequestCameraAccessProps> = ({
         setIsRequestingPermission(false)
     }
 
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).container}>
-            <View style={styles(theme).instructions}>
+        <Flex grow align="center" justify="between" style={style.container}>
+            <Flex grow center>
                 <SvgImage name="AllowCameraAccessIcon" size={SvgImageSize.lg} />
-                <Text h2 style={styles(theme).titleText}>
+                <Text h2 style={style.titleText}>
                     {t('phrases.allow-camera-access')}
                 </Text>
-                <Text style={styles(theme).subtitleText}>{message}</Text>
-            </View>
-            <View style={styles(theme).buttonsContainer}>
+                <Text style={style.subtitleText}>{message}</Text>
+            </Flex>
+            <Flex justify="between" fullWidth>
                 {alternativeActionButton}
                 <Button
                     title={t('phrases.allow-camera-access')}
                     onPress={requestPermissions}
                     loading={isRequestingPermission}
                 />
-            </View>
-        </View>
+            </Flex>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'space-between',
             paddingBottom: theme.spacing.xl,
         },
         backIconContainer: {
@@ -129,19 +129,12 @@ const styles = (theme: Theme) =>
             alignSelf: 'flex-start',
         },
         buttonsContainer: {
-            width: '100%',
             paddingHorizontal: theme.spacing.xl,
-            justifyContent: 'space-between',
         },
         image: {
             height: 90,
             width: 90,
             resizeMode: 'contain',
-        },
-        instructions: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
         },
         titleText: {
             fontWeight: '600',

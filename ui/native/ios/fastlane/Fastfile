@@ -27,6 +27,8 @@ platform :ios do
       verbose: true,
       git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
       storage_mode: 'git',
+      keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+      keychain_password: ENV['MATCH_PASSWORD'],
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
     # these steps are the same as standard beta lane
@@ -100,6 +102,8 @@ platform :ios do
       verbose: true,
       git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
       storage_mode: 'git',
+      keychain_name: ENV['MATCH_KEYCHAIN_NAME'],
+      keychain_password: ENV['MATCH_PASSWORD'],
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
 
@@ -172,7 +176,7 @@ platform :ios do
       type: 'appstore',
       app_identifier: 'org.fedi.alpha',
       generate_apple_certs: true,
-      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
       storage_mode: 'git',
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
@@ -184,9 +188,36 @@ platform :ios do
       type: 'appstore',
       app_identifier: 'org.fedi.nightly',
       generate_apple_certs: true,
-      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
       storage_mode: 'git',
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
     )
+  end
+
+  # Full certificate renewal workflows - nuke and regenerate
+  # These are only needed if the certificates have expired
+  # Use with caution!
+  desc "Nuke and regenerate all certificates"
+  lane :nuke_and_regenerate_certs do
+    match_nuke(
+      type: 'appstore',
+      skip_confirmation: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+    renew_appstore_certs
+  end
+
+  desc "Nuke and regenerate all certificates (Nightly)"
+  lane :nuke_and_regenerate_certs_nightly do
+    match_nuke(
+      type: 'appstore',
+      skip_confirmation: true,
+      git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_WRITE_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
+      storage_mode: 'git',
+      api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
+    )
+    renew_appstore_certs_nightly
   end
 end

@@ -2,12 +2,13 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import toUpper from 'lodash/toUpper'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { selectCurrency } from '@fedi/common/redux'
 import { selectActiveFederation } from '@fedi/common/redux/federation'
 
 import { useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const WalletHeader: React.FC = () => {
@@ -21,13 +22,13 @@ const WalletHeader: React.FC = () => {
     if (!activeFederation) return null
 
     return (
-        <View style={style.container}>
+        <Flex row grow align="center" justify="start" gap="sm">
             <SvgImage
                 name="UsdCircle"
                 size={SvgImageSize.md}
                 color={theme.colors.white}
             />
-            <View style={style.labelRow}>
+            <Flex row align="center" shrink style={style.labelRow}>
                 <Text
                     medium
                     style={style.title}
@@ -45,24 +46,14 @@ const WalletHeader: React.FC = () => {
                     dimensions={style.chevronDimensions}
                     svgProps={{ style: style.chevron }}
                 />
-            </View>
-        </View>
+            </Flex>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flexDirection: 'row',
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            gap: theme.spacing.sm,
-        },
         labelRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            flexShrink: 1,
             minWidth: 0,
         },
         title: {

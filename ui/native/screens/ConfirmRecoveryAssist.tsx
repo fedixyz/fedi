@@ -2,9 +2,10 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import CheckBox from '../components/ui/CheckBox'
+import Flex from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -20,16 +21,18 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
     const [surroundingsSafetyConfirmed, setSurroundingsSafetyConfirmed] =
         useState(false)
 
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).container}>
-            <Text h2 style={styles(theme).instructionsText}>
+        <Flex grow align="center" justify="start" style={style.container}>
+            <Text h2 style={style.instructionsText}>
                 {t('phrases.please-confirm')}
             </Text>
             <LineBreak />
-            <View style={styles(theme).confirmationContainer}>
+            <Flex grow align="start" style={style.confirmationContainer}>
                 <CheckBox
                     title={
-                        <Text caption medium style={styles(theme).checkboxText}>
+                        <Text caption medium style={style.checkboxText}>
                             {t(
                                 'feature.recovery.recovery-assist-confirm-check-1',
                             )}
@@ -42,7 +45,7 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
                 />
                 <CheckBox
                     title={
-                        <Text caption medium style={styles(theme).checkboxText}>
+                        <Text caption medium style={style.checkboxText}>
                             {t(
                                 'feature.recovery.recovery-assist-confirm-check-2',
                             )}
@@ -55,7 +58,7 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
                         )
                     }}
                 />
-            </View>
+            </Flex>
 
             <Button
                 title={t('words.continue')}
@@ -65,18 +68,15 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
                 disabled={
                     !surroundingsSafetyConfirmed || !memberSafetyConfirmed
                 }
-                containerStyle={styles(theme).confirmButton}
+                containerStyle={style.confirmButton}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'flex-start',
             paddingVertical: theme.spacing.xl,
         },
         checkboxText: {
@@ -88,8 +88,6 @@ const styles = (theme: Theme) =>
             width: '90%',
         },
         confirmationContainer: {
-            flex: 1,
-            alignItems: 'flex-start',
             paddingHorizontal: theme.spacing.md,
             marginHorizontal: 0,
         },

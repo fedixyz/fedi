@@ -82,6 +82,7 @@ const imageOptions: ImageLibraryOptions = {
     maxHeight: 1024,
     quality: 0.7,
     videoQuality: 'low',
+    formatAsMp4: true,
     selectionLimit: 10,
 }
 

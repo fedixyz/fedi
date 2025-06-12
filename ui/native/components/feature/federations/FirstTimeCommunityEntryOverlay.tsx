@@ -1,9 +1,10 @@
 import { Button, Text, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { View, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import CustomOverlay from '../../ui/CustomOverlay'
+import Flex from '../../ui/Flex'
 import { SvgImageName } from '../../ui/SvgImage'
 import InfoEntryList from '../home/InfoEntryList'
 
@@ -33,7 +34,7 @@ const FirstTimeCommunityEntryOverlay: React.FC<
             onBackdropPress={onDismiss}
             contents={{
                 body: (
-                    <View style={styles.contentWrapper}>
+                    <Flex gap="lg" fullWidth style={styles.contentWrapper}>
                         <Text style={styles.title}>{title}</Text>
                         <InfoEntryList items={overlayItems} theme={theme} />
                         <Button
@@ -41,7 +42,7 @@ const FirstTimeCommunityEntryOverlay: React.FC<
                             onPress={onDismiss}
                             containerStyle={styles.exploreButton}
                         />
-                    </View>
+                    </Flex>
                 ),
             }}
         />
@@ -50,12 +51,8 @@ const FirstTimeCommunityEntryOverlay: React.FC<
 
 const styles = StyleSheet.create({
     contentWrapper: {
-        width: '100%',
-        gap: 16,
-        paddingTop: 12,
-        paddingBottom: 12,
-        paddingLeft: 16,
-        paddingRight: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
     },
     title: {
         marginBottom: 16,

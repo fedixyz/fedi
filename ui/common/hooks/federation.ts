@@ -8,6 +8,7 @@ import {
     selectActiveFederation,
     selectFederationIds,
     selectFederationMetadata,
+    selectFederations,
     selectOnchainDepositsEnabled,
     selectStableBalance,
     selectStableBalanceEnabled,
@@ -302,4 +303,31 @@ export function useFederationPreview(
         handleCode,
         handleJoin,
     }
+}
+
+export function useFederationMembership(
+    t: TFunction,
+    fedimint: FedimintBridge,
+    inviteCode: string,
+) {
+    const { handleCode, ...rest } = useFederationPreview(
+        t,
+        fedimint,
+        inviteCode,
+    )
+    const federations = useCommonSelector(selectFederations)
+
+    const isMember = federations.find(f => {
+        if (f.init_state === 'ready') return f.inviteCode === inviteCode
+
+        return false
+    })
+
+    useEffect(() => {
+        if (isMember) return
+
+        handleCode(inviteCode)
+    }, [isMember, inviteCode, handleCode])
+
+    return { isMember, ...rest }
 }

@@ -1,10 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { MatrixRoom } from '@fedi/common/types'
 
 import { AvatarSize } from '../../ui/Avatar'
+import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import ChatAvatar from './ChatAvatar'
 
@@ -20,7 +21,7 @@ export const ChatSettingsAvatar: React.FC<Props> = ({ room }) => {
     if (!room) return <HoloLoader />
 
     return (
-        <View style={style.container}>
+        <Flex center style={style.container}>
             <ChatAvatar
                 room={room}
                 size={AvatarSize.lg}
@@ -30,7 +31,7 @@ export const ChatSettingsAvatar: React.FC<Props> = ({ room }) => {
             <Text h2 style={style.roomName} numberOfLines={1}>
                 {room?.name || ''}
             </Text>
-        </View>
+        </Flex>
     )
 }
 
@@ -43,8 +44,6 @@ const styles = (theme: Theme) =>
             marginBottom: theme.spacing.md,
         },
         container: {
-            alignItems: 'center',
-            justifyContent: 'center',
             marginBottom: theme.spacing.lg,
         },
     })
