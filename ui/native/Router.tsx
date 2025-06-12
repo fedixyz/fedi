@@ -15,6 +15,7 @@ import ConnectedFederationsDrawer from './components/feature/federations/Connect
 import { OmniLinkHandler } from './components/feature/omni/OmniLinkHandler'
 import Header from './components/ui/Header'
 import SvgImage, { SvgImageSize } from './components/ui/SvgImage'
+import ToastManager from './components/ui/ToastManager'
 import { MainNavigator } from './screens/MainNavigator'
 import SwitchingFederations from './screens/SwitchingFederations'
 import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
@@ -130,6 +131,7 @@ const Router = () => {
                 Only show this when the app is unlocked.
                 It handles state from a context provider so it won't drop the state.
             */}
+            <ToastManager />
             {isAppUnlocked && <OmniLinkHandler />}
         </NavigationContainer>
     )

@@ -1,0 +1,51 @@
+name: Renew Expired iOS Certificates
+on:
+    workflow_dispatch:
+
+# This workflow is used to renew expired iOS certificates
+# It is only meant to be run manually by developers and should run
+# on the same MacOS runner that deploys builds to TestFlight
+
+jobs:
+    renew-ios-certs:
+        name: Renew certificates for Apple App Store Connect
+        timeout-minutes: 90
+        runs-on: [self-hosted, macos, arm64, legacy]
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            - uses: cachix/install-nix-action@v30
+              with:
+                  nix_path: nixpkgs=channel:nixos-22.05
+
+            - uses: cachix/cachix-action@v15
+              with:
+                  name: fedibtc
+                  authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+              continue-on-error: true
+
+            - name: Generate JSON credentials file
+              env:
+                  ASC_API_KEY_JSON_CREDENTIALS_ENCODED: ${{ secrets.ASC_API_KEY_JSON_CREDENTIALS_ENCODED }}
+              run: nix develop -c ./scripts/ci/make-testflight-creds.sh
+
+            # Check & renew nightly first, in case something fails or goes wrong
+            - name: Check iOS certificates for Nightly & renew if expired
+              env:
+                  GH_PAT_FEDI_FETCH_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_FETCH_IOS_CERTS }}
+                  GH_PAT_FEDI_WRITE_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_WRITE_IOS_CERTS }}
+                  MATCH_KEYCHAIN_NAME: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_NAME }}
+                  MATCH_PASSWORD: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_PASSWORD }}
+                  FLAVOR: 'nightly'
+              run: |
+                  nix develop .#xcode -c ./scripts/ci/renew-appstore-certs.sh
+
+            - name: Check iOS certificates & renew if expired
+              env:
+                  GH_PAT_FEDI_FETCH_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_FETCH_IOS_CERTS }}
+                  GH_PAT_FEDI_WRITE_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_WRITE_IOS_CERTS }}
+                  MATCH_KEYCHAIN_NAME: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_NAME }}
+                  MATCH_PASSWORD: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_PASSWORD }}
+              run: |
+                  nix develop .#xcode -c ./scripts/ci/renew-appstore-certs.sh

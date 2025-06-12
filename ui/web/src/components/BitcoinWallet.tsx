@@ -27,7 +27,7 @@ export const BitcoinWallet: React.FC = () => {
     const activeFederation = useAppSelector(selectActiveFederation)
 
     return (
-        <Container>
+        <Container data-testid="bitcoin-wallet">
             <Header>
                 <HeaderLeft>
                     <IconWrapper>

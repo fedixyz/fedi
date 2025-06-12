@@ -13,6 +13,7 @@ import { FirstTimeCommunityEntryItem } from '../components/feature/federations/F
 import InfoEntryList from '../components/feature/home/InfoEntryList'
 import { Switcher } from '../components/feature/home/Switcher'
 import { OmniInput } from '../components/feature/omni/OmniInput'
+import Flex from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -72,9 +73,14 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
     ]
 
     return (
-        <View style={{ flex: 1 }}>
+        <Flex grow>
             {/* HEADER */}
-            <View style={style.titleContainer}>
+            <Flex
+                align="center"
+                justify="evenly"
+                gap="sm"
+                fullWidth
+                style={style.titleContainer}>
                 <Text h2 medium h2Style={style.title}>
                     {t('feature.onboarding.title')}
                 </Text>
@@ -91,7 +97,7 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                     }}>
                     {selectedOption.subText}
                 </Text>
-            </View>
+            </Flex>
 
             <View style={style.switcherContainer}>
                 <Switcher<Tab>
@@ -106,13 +112,22 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                 contentContainerStyle={style.scrollContainer}
                 overScrollMode="auto">
                 {activeTab === 'discover' && (
-                    <View style={style.discoverContainer}>
+                    <Flex
+                        grow
+                        gap="sm"
+                        fullWidth
+                        style={style.discoverContainer}>
                         {publicFederations.map(f => {
                             const hasJoined = joinedFederationIds.includes(f.id)
                             return (
-                                <View key={f.id} style={style.tileContainer}>
+                                <Flex
+                                    row
+                                    align="center"
+                                    gap="md"
+                                    key={f.id}
+                                    style={style.tileContainer}>
                                     <FederationLogo federation={f} size={40} />
-                                    <View style={style.tileTextContainer}>
+                                    <Flex grow gap="xs" basis={false}>
                                         <Text numberOfLines={1} medium>
                                             {f.name}
                                         </Text>
@@ -123,8 +138,11 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                                             medium>
                                             {f.meta.preview_message}
                                         </Text>
-                                    </View>
+                                    </Flex>
                                     <Button
+                                        testID={f.name
+                                            .concat('JoinButton')
+                                            .replaceAll(' ', '')}
                                         size="sm"
                                         disabled={hasJoined}
                                         onPress={() =>
@@ -151,10 +169,10 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                                             </Text>
                                         }
                                     />
-                                </View>
+                                </Flex>
                             )
                         })}
-                    </View>
+                    </Flex>
                 )}
 
                 {activeTab === 'join' && (
@@ -182,7 +200,7 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                                 theme={theme}
                             />
                         </View>
-                        <View style={style.buttonsContainer}>
+                        <Flex fullWidth style={style.buttonsContainer}>
                             <Button
                                 fullWidth
                                 title={'Create My Community'}
@@ -192,13 +210,14 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                                     )
                                 }
                             />
-                        </View>
+                        </Flex>
                     </View>
                 )}
             </ScrollView>
 
             <View style={style.footerContainer}>
                 <Button
+                    testID="MaybeLaterButton"
                     fullWidth
                     type="clear"
                     title={
@@ -209,7 +228,7 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
                     onPress={() => navigation.navigate('TabsNavigator')}
                 />
             </View>
-        </View>
+        </Flex>
     )
 }
 
@@ -222,17 +241,11 @@ const styles = (theme: Theme) =>
             padding: theme.spacing.lg,
         },
         titleContainer: {
-            width: '100%',
-            alignItems: 'center',
-            justifyContent: 'space-evenly',
-            gap: theme.spacing.sm,
             marginBottom: 10,
             paddingLeft: 10,
             paddingRight: 10,
         },
         buttonsContainer: {
-            width: '100%',
-            flexDirection: 'column',
             marginBottom: theme.spacing.sm,
             marginTop: theme.spacing.lg,
         },
@@ -240,23 +253,12 @@ const styles = (theme: Theme) =>
             textAlign: 'center',
         },
         discoverContainer: {
-            flex: 1,
-            width: '100%',
-            gap: 8,
             alignContent: 'flex-start',
         },
         tileContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
             backgroundColor: theme.colors.offWhite,
             padding: theme.spacing.md,
             borderRadius: 16,
-            gap: 12,
-        },
-        tileTextContainer: {
-            flex: 1,
-            flexDirection: 'column',
-            gap: theme.spacing.xs,
         },
         previewMessage: {
             color: theme.colors.primaryLight,

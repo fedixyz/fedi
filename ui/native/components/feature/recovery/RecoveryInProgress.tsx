@@ -1,12 +1,13 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { selectActiveFederationId } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 
 export type Props = {
@@ -43,7 +44,7 @@ const RecoveryInProgress: React.FC<Props> = ({
 
     const style = styles(theme)
     return (
-        <View style={style.container}>
+        <Flex grow center gap="lg" style={style.container}>
             <HoloLoader
                 size={size}
                 label={
@@ -58,18 +59,14 @@ const RecoveryInProgress: React.FC<Props> = ({
                     {label}
                 </Text>
             )}
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
             paddingHorizontal: theme.spacing.lg,
-            gap: theme.spacing.lg,
         },
         label: {
             textAlign: 'center',

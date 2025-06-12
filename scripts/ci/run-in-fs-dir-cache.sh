@@ -10,7 +10,12 @@ if [ -z "$job_name" ]; then
     exit 1
 fi
 
-export FS_DIR_CACHE_ROOT="$HOME/.cache/fs-dir-cache" # directory to hold all cache (sub)directories
+# On our runners we want to use a global shared dir to reuse builds
+if [ -d "/var/cache/fs-dir-cache" ]; then
+    export FS_DIR_CACHE_ROOT=/var/cache/fs-dir-cache
+fi
+
+export FS_DIR_CACHE_ROOT="${FS_DIR_CACHE_ROOT:-$HOME/.cache/fs-dir-cache}" # directory to hold all cache (sub)directories
 export FS_DIR_CACHE_LOCK_ID="pid-$$-rnd-$RANDOM"     # acquire lock based on the current pid and something random (just in case pid gets reused)
 export FS_DIR_CACHE_KEY_NAME="$job_name"             # the base name of our key
 export FS_DIR_CACHE_LOCK_TIMEOUT_SECS="$((60 * 60))" # unlock after timeout in case our job fails misereably

@@ -13,6 +13,7 @@ import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import { MatrixPaymentEvent } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import FederationPreview from '../onboarding/FederationPreview'
@@ -95,7 +96,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
             )
         }
         return (
-            <View style={style.optionsList}>
+            <Flex align="start" gap="lg" fullWidth style={style.optionsList}>
                 {federationPreview && (
                     <Pressable
                         style={style.actionCardContainer}
@@ -106,7 +107,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                 size={32}
                             />
                         </View>
-                        <View style={style.actionCardTextContainer}>
+                        <Flex align="start" gap="xs">
                             <Text medium>
                                 {t('feature.receive.join-new-federation')}
                             </Text>
@@ -128,7 +129,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                     }}
                                 />
                             </Text>
-                        </View>
+                        </Flex>
                         <View style={style.arrowContainer}>
                             <SvgImage
                                 name="ArrowRight"
@@ -185,7 +186,8 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                         <Pressable
                             style={style.actionCardContainer}
                             onPress={() => onRejected()}>
-                            <View
+                            <Flex
+                                center
                                 style={[
                                     style.iconContainer,
                                     style.roundIconContainer,
@@ -198,12 +200,12 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                     size={SvgImageSize.sm}
                                     color={theme.colors.white}
                                 />
-                            </View>
-                            <View style={style.actionCardTextContainer}>
+                            </Flex>
+                            <Flex align="start" gap="xs">
                                 <Text medium>
                                     {t('feature.receive.reject-payment')}
                                 </Text>
-                            </View>
+                            </Flex>
                             <View style={style.arrowContainer}>
                                 <SvgImage
                                     name="ArrowRight"
@@ -214,14 +216,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                     </>
                 )}
                 <Pressable
-                    style={{
-                        width: '100%',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 12,
-                        gap: 8,
-                    }}
+                    style={style.otherMethodsButton}
                     onPress={() => setHideOtherMethods(!hideOtherMethods)}>
                     <Text medium>
                         {hideOtherMethods
@@ -246,7 +241,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                         />
                     </View>
                 </Pressable>
-            </View>
+            </Flex>
         )
     }
 
@@ -266,9 +261,6 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         optionsList: {
             paddingTop: theme.spacing.md,
-            alignItems: 'flex-start',
-            width: '100%',
-            gap: 16,
         },
         actionCardContainer: {
             padding: theme.spacing.md,
@@ -279,10 +271,7 @@ const styles = (theme: Theme) =>
             borderRadius: 16,
             gap: 10,
         },
-        actionCardTextContainer: { alignItems: 'flex-start', gap: 2 },
         iconContainer: {
-            alignItems: 'center',
-            justifyContent: 'center',
             height: 40,
             width: 40,
         },
@@ -291,6 +280,14 @@ const styles = (theme: Theme) =>
         },
         arrowContainer: { marginLeft: 'auto' },
         darkGrey: { color: theme.colors.darkGrey },
+        otherMethodsButton: {
+            width: '100%',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 12,
+            gap: 8,
+        },
     })
 
 export default ReceiveForeignEcashOverlay

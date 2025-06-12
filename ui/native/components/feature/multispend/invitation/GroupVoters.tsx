@@ -12,6 +12,7 @@ import {
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../../state/hooks'
+import Flex from '../../../ui/Flex'
 import OverlaySelect from '../../../ui/OverlaySelect'
 import ChatAvatar from '../../chat/ChatAvatar'
 
@@ -63,8 +64,8 @@ const GroupVoters: React.FC<Props> = ({ roomId }) => {
     }, [filter, multispendStatus, getVoterStatus])
 
     return (
-        <View style={style.container}>
-            <View style={style.header}>
+        <Flex grow gap="md" style={style.container}>
+            <Flex row align="center" justify="between" gap="lg">
                 <Text medium>{t('words.voters')}</Text>
                 <OverlaySelect
                     value={filter}
@@ -79,7 +80,7 @@ const GroupVoters: React.FC<Props> = ({ roomId }) => {
                         { value: 'rejected', label: t('words.rejected') },
                     ]}
                 />
-            </View>
+            </Flex>
             {multispendStatus?.status === 'activeInvitation' && (
                 <View style={style.incompleteNotice}>
                     <Text style={style.greyText} caption>
@@ -99,7 +100,7 @@ const GroupVoters: React.FC<Props> = ({ roomId }) => {
                     />
                 ))}
             </ScrollView>
-        </View>
+        </Flex>
     )
 }
 
@@ -125,26 +126,26 @@ function MultispendVoter({
     if (!member) return null
 
     return (
-        <View style={style.voter}>
-            <View style={style.voterInfo}>
+        <Flex row align="center" justify="between">
+            <Flex row align="center" gap="sm">
                 <ChatAvatar user={member} />
-                <View style={style.voterNameAndRole}>
-                    <View style={style.voterNameAndId}>
+                <Flex gap="xxs">
+                    <Flex row align="center" gap="sm">
                         <Text bold caption>
                             {member.displayName}
                         </Text>
                         <Text small medium style={style.greyText}>
                             {getUserSuffix(member.id)}
                         </Text>
-                    </View>
+                    </Flex>
                     {voterRole === 'proposer' && (
                         <Text small medium style={style.greyText}>
                             {t('words.admin')}
                         </Text>
                     )}
-                </View>
-            </View>
-            <View style={style.voterInfo}>
+                </Flex>
+            </Flex>
+            <Flex row align="center" gap="sm">
                 <Text medium style={style.greyText} small>
                     {t(
                         status === 'approved'
@@ -161,24 +162,15 @@ function MultispendVoter({
                           ? '❌'
                           : '⏳'}
                 </Text>
-            </View>
-        </View>
+            </Flex>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            flexDirection: 'column',
-            gap: theme.spacing.md,
             padding: theme.spacing.md,
-        },
-        header: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: theme.spacing.lg,
         },
         incompleteNotice: {
             backgroundColor: theme.colors.offWhite,
@@ -194,25 +186,6 @@ const styles = (theme: Theme) =>
         voters: {
             flexDirection: 'column',
             gap: theme.spacing.md,
-        },
-        voter: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-        },
-        voterInfo: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-        },
-        voterNameAndRole: {
-            flexDirection: 'column',
-            gap: theme.spacing.xxs,
-        },
-        voterNameAndId: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
         },
     })
 

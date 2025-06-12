@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import InviteMembersIcon from '@fedi/common/assets/svgs/invite-members.svg'
 import LanguageIcon from '@fedi/common/assets/svgs/language.svg'
-import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
+// import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
 import NostrIcon from '@fedi/common/assets/svgs/nostr.svg'
 import NoteIcon from '@fedi/common/assets/svgs/note.svg'
 import ScrollIcon from '@fedi/common/assets/svgs/scroll.svg'
@@ -153,11 +153,13 @@ function AdminPage() {
                             : undefined,
                     disabled: !federation.hasWallet || !!exportingFederationId,
                 },
-                {
-                    label: t('feature.federations.leave-federation'),
-                    icon: LeaveFederationIcon,
-                    onClick: () => setLeavingFederationId(federation.id),
-                },
+                // Hide for now to prevent until issues with recovery on the backend can be investigated further
+                // {
+                //     label: t('feature.federations.leave-federation'),
+                //     icon: LeaveFederationIcon,
+                //     onClick: () => setLeavingFederationId(federation.id),
+
+                // },
             ],
         }
     })

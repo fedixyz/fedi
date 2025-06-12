@@ -5,7 +5,6 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
     useWindowDimensions,
 } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
@@ -13,6 +12,7 @@ import QRCode from 'react-native-qrcode-svg'
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { Images } from '../../assets/images'
+import Flex from './Flex'
 import SvgImage, { SvgImageSize } from './SvgImage'
 
 interface Props {
@@ -40,15 +40,15 @@ const QRCodeContainer = ({
     }
 
     return (
-        <View style={style.container}>
-            <View style={style.qrCodeContainer}>
+        <Flex gap="lg">
+            <Flex row justify="center" style={style.qrCodeContainer}>
                 <QRCode
                     value={qrValue}
                     size={width * 0.7}
                     logo={Images.FediQrLogo} //Should not be replaced with svg
                 />
-            </View>
-            <View style={style.copyInviteLinkContainer}>
+            </Flex>
+            <Flex row align="center" style={style.copyInviteLinkContainer}>
                 <Text
                     style={style.inviteLinkText}
                     numberOfLines={1}
@@ -71,28 +71,21 @@ const QRCodeContainer = ({
                         {t('words.copy')}
                     </Text>
                 </TouchableOpacity>
-            </View>
-        </View>
+            </Flex>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme, width: number, dark?: boolean) =>
     StyleSheet.create({
-        container: {
-            gap: theme.spacing.lg,
-        },
         qrCodeContainer: {
             backgroundColor: dark ? theme.colors.background : undefined,
             borderRadius: theme.borders.defaultRadius,
             borderColor: theme.colors.primaryLight,
             borderWidth: dark ? 0 : 1,
             padding: theme.spacing.md,
-            flexDirection: 'row',
-            justifyContent: 'center',
         },
         copyInviteLinkContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
             width: width * 0.7 + theme.spacing.md * 2,
             borderRadius: theme.borders.defaultRadius,
             borderColor: theme.colors.primaryLight,

@@ -17,7 +17,6 @@ import ChatConversationHeader from '../components/feature/chat/ChatConversationH
 import ConfirmJoinPublicGroupHeader from '../components/feature/chat/ConfirmJoinPublicGroupHeader'
 import CreatePollHeader from '../components/feature/chat/CreatePollHeader'
 import DefaultChatHeader from '../components/feature/chat/DefaultChatHeader'
-import EditPollHeader from '../components/feature/chat/EditPollHeader'
 import FederationDetailsHeader from '../components/feature/federations/FederationDetailsHeader'
 import FederationInviteHeader from '../components/feature/federations/FederationInviteHeader'
 import JoinFederationHeader from '../components/feature/federations/JoinFederationHeader'
@@ -107,7 +106,6 @@ import CreatedPin from './CreatedPin'
 import DeveloperSettings from './DeveloperSettings'
 import EcashSendCancelled from './EcashSendCancelled'
 import EditGroup from './EditGroup'
-import EditPoll from './EditPoll'
 import EditProfileSettings from './EditProfileSettings'
 import EnterDisplayName from './EnterDisplayName'
 import Eula from './Eula'
@@ -557,14 +555,7 @@ export const MainNavigator = () => {
                                             name="MultispendTransactions"
                                             component={MultispendTransactions}
                                             options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'words.transactions',
-                                                        )}
-                                                    />
-                                                ),
+                                                header: () => null,
                                             })}
                                         />
                                         <Stack.Screen
@@ -659,13 +650,6 @@ export const MainNavigator = () => {
                                     component={CreatePoll}
                                     options={() => ({
                                         header: () => <CreatePollHeader />,
-                                    })}
-                                />
-                                <Stack.Screen
-                                    name="EditPoll"
-                                    component={EditPoll}
-                                    options={() => ({
-                                        header: () => <EditPollHeader />,
                                     })}
                                 />
                             </Stack.Group>

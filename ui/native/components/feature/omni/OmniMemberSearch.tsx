@@ -7,7 +7,6 @@ import {
     Platform,
     Pressable,
     StyleSheet,
-    View,
     useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -21,6 +20,7 @@ import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 import { useAppSelector } from '../../../state/hooks'
 import { useHasBottomTabsNavigation } from '../../../utils/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
+import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import SvgImage from '../../ui/SvgImage'
 import { ChatConnectionBadge } from '../chat/ChatConnectionBadge'
@@ -60,9 +60,9 @@ export const OmniMemberSearch: React.FC<Props> = ({
     let content: React.ReactNode
     if (isSearching) {
         content = (
-            <View style={style.loadingContainer}>
+            <Flex align="center" style={style.loadingContainer}>
                 <HoloLoader size={24} />
-            </View>
+            </Flex>
         )
     } else if (searchError) {
         content = (
@@ -91,11 +91,11 @@ export const OmniMemberSearch: React.FC<Props> = ({
                 }
                 style={style.defaultContainer}>
                 {recentRoomMembers.length > 0 && (
-                    <View>
+                    <Flex>
                         <Text small medium style={style.recentMembersLabel}>
                             {t('words.people')}
                         </Text>
-                        <View style={style.recentMembers}>
+                        <Flex row fullWidth>
                             {recentRoomMembers.map(user => (
                                 <Pressable
                                     key={user.id}
@@ -119,8 +119,8 @@ export const OmniMemberSearch: React.FC<Props> = ({
                                     </Text>
                                 </Pressable>
                             ))}
-                        </View>
-                    </View>
+                        </Flex>
+                    </Flex>
                 )}
                 <OmniActions actions={actions} />
             </SafeAreaView>
@@ -173,7 +173,9 @@ export const OmniMemberSearch: React.FC<Props> = ({
                     </Pressable>
                 )}
             </SafeAreaView>
-            <View style={style.content}>{content}</View>
+            <Flex grow fullWidth>
+                {content}
+            </Flex>
             <ChatConnectionBadge hide={!query} offset={80} noSafeArea />
         </KeyboardAvoidingView>
     )
@@ -209,15 +211,10 @@ const styles = (theme: Theme, memberCount: number) =>
             fontSize: fediTheme.fontSizes.body,
         },
         loadingContainer: {
-            alignItems: 'center',
             marginTop: theme.spacing.lg,
         },
         errorText: {
             padding: theme.spacing.lg,
-        },
-        content: {
-            flex: 1,
-            width: '100%',
         },
         searchMembersContainer: {
             flex: 1,
@@ -230,10 +227,6 @@ const styles = (theme: Theme, memberCount: number) =>
             marginBottom: theme.spacing.lg,
             color: theme.colors.grey,
         },
-        recentMembers: {
-            width: '100%',
-            flexDirection: 'row',
-        },
         recentMember: {
             width: `${100 / memberCount}%`,
             alignItems: 'center',
@@ -241,8 +234,5 @@ const styles = (theme: Theme, memberCount: number) =>
         },
         recentMemberDisplayName: {
             paddingHorizontal: theme.spacing.xs,
-        },
-        alignStart: {
-            alignItems: 'flex-start',
         },
     })

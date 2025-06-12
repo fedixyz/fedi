@@ -14,7 +14,7 @@ pub use runtime::event::IEventSink as EventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::storage::IStorage;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use super::logging;
 pub use super::rpc::FedimintError;
@@ -87,17 +87,9 @@ pub async fn fedimint_initialize_inner(
         return fedimint_remote_initialize(event_sink).await;
     }
     if let Some(bridge) = BRIDGE.lock().await.clone() {
-        match init_opts.app_flavor {
-            RpcAppFlavor::Dev => {
-                // reset observables
-                bridge.runtime().observable_pool.reset().await;
-            }
-            RpcAppFlavor::Nightly => {
-                panic!("reinitializing bridge is only allowed during development");
-            }
-            RpcAppFlavor::Bravo => {
-                warn!("reinitializing bridge is only allowed during development, ignoring request");
-            }
+        if let RpcAppFlavor::Dev = init_opts.app_flavor {
+            // reset observables
+            bridge.runtime().observable_pool.reset().await;
         }
         return Ok(());
     }
@@ -200,29 +192,32 @@ pub fn fedimint_get_supported_events() -> Vec<String> {
 }
 
 #[derive(Clone)]
-pub struct PathBasedStorage {
-    data_dir: PathBuf,
+pub struct PathBasedStorage<P> {
+    data_dir: P,
 }
 
-impl PathBasedStorage {
-    pub async fn new(data_dir: PathBuf) -> anyhow::Result<Self> {
+impl<P> PathBasedStorage<P> {
+    pub async fn new(data_dir: P) -> anyhow::Result<Self> {
         Ok(Self { data_dir })
     }
 }
 
 #[async_trait]
-impl IStorage for PathBasedStorage {
+impl<P> IStorage for PathBasedStorage<P>
+where
+    P: AsRef<Path> + Send + Sync + 'static,
+{
     async fn federation_database_v2(
         &self,
         db_name: &str,
     ) -> anyhow::Result<fedimint_core::db::Database> {
-        let db_name = self.data_dir.join(format!("{db_name}.db"));
+        let db_name = self.data_dir.as_ref().join(format!("{db_name}.db"));
         let db = fedimint_rocksdb::RocksDb::open(db_name).await?;
         Ok(db.into())
     }
 
     async fn delete_federation_db(&self, db_name: &str) -> anyhow::Result<()> {
-        let db_name = self.data_dir.join(format!("{db_name}.db"));
+        let db_name = self.data_dir.as_ref().join(format!("{db_name}.db"));
         std::fs::remove_dir_all(db_name).context("delete federation db")?;
         Ok(())
     }
@@ -231,7 +226,7 @@ impl IStorage for PathBasedStorage {
         let path = if path.is_absolute() {
             path.to_path_buf()
         } else {
-            self.data_dir.join(path)
+            self.data_dir.as_ref().join(path)
         };
 
         if !path.exists() {
@@ -279,7 +274,7 @@ impl IStorage for PathBasedStorage {
         if path.is_absolute() {
             path.to_owned()
         } else {
-            self.data_dir.join(path)
+            self.data_dir.as_ref().join(path)
         }
     }
 }

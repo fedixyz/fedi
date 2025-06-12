@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Keyboard, StyleSheet, View } from 'react-native'
+import { Keyboard } from 'react-native'
 
 import { useChatPaymentUtils } from '@fedi/common/hooks/chat'
 import { selectMatrixDirectMessageRoom } from '@fedi/common/redux'
@@ -10,6 +10,7 @@ import { selectMatrixDirectMessageRoom } from '@fedi/common/redux'
 import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
+import Flex from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -66,11 +67,11 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
 
     if (!existingRoom) {
         return (
-            <View style={styles().centeredContainer}>
-                <Text style={styles().centeredText}>
+            <Flex grow center fullWidth>
+                <Text style={{ textAlign: 'center' }}>
                     {t('errors.chat-member-not-found')}
                 </Text>
-            </View>
+            </Flex>
         )
     }
 
@@ -105,19 +106,5 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
         />
     )
 }
-
-const styles = () =>
-    StyleSheet.create({
-        centeredContainer: {
-            flex: 1,
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-        },
-        centeredText: {
-            textAlign: 'center',
-        },
-    })
 
 export default ChatWallet

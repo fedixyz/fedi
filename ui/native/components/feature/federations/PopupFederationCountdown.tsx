@@ -19,6 +19,7 @@ import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
 
 import { FALLBACK_TERMS_URL } from '../../../constants'
 import { useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import { FederationLogo } from './FederationLogo'
 
 export const PopupFederationCountdown: React.FC = () => {
@@ -61,7 +62,7 @@ export const PopupFederationCountdown: React.FC = () => {
         )
 
     return (
-        <View style={style.container}>
+        <Flex align="center">
             <Pressable
                 style={pillStyles}
                 onPress={() => setIsOverlayVisible(true)}>
@@ -71,7 +72,7 @@ export const PopupFederationCountdown: React.FC = () => {
                 isVisible={isOverlayVisible}
                 overlayStyle={style.overlay}
                 onBackdropPress={() => setIsOverlayVisible(false)}>
-                <View style={style.overlayContent}>
+                <Flex align="center" style={style.overlayContent}>
                     <View style={style.overlaySpacing}>
                         <FederationLogo
                             federation={activeFederation}
@@ -111,17 +112,14 @@ export const PopupFederationCountdown: React.FC = () => {
                             {t('feature.onboarding.terms-and-conditions')}
                         </Button>
                     )}
-                </View>
+                </Flex>
             </Overlay>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            alignItems: 'center',
-        },
         pill: {
             paddingVertical: theme.spacing.xxs,
             paddingHorizontal: theme.spacing.sm,
@@ -152,8 +150,6 @@ const styles = (theme: Theme) =>
             paddingTop: theme.spacing.xxl,
         },
         overlayContent: {
-            flexDirection: 'column',
-            alignItems: 'center',
             textAlign: 'center',
             margin: 'auto',
         },

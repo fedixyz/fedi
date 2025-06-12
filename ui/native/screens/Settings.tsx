@@ -2,19 +2,22 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { ScrollView, StyleSheet } from 'react-native'
 
 import {
-    selectAlphabeticallySortedFederations,
+    selectAlphabeticallySortedCommunities,
+    selectAlphabeticallySortedWalletFederations,
     selectDeveloperMode,
     selectHasSetMatrixDisplayName,
     selectMatrixAuth,
 } from '@fedi/common/redux'
 
-import { CommunitySettings } from '../components/feature/settings/CommunitySettings'
+import CommunityMenu from '../components/feature/settings/CommunityMenu'
+import FederationMenu from '../components/feature/settings/FederationMenu'
 import { GeneralSettings } from '../components/feature/settings/GeneralSettings'
 import { UserQr } from '../components/feature/settings/UserQr'
 import { VersionContainer } from '../components/feature/settings/VersionContainer'
+import Flex from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -33,32 +36,58 @@ const Settings: React.FC<Props> = () => {
     const developerMode = useAppSelector(selectDeveloperMode)
     const style = styles(theme)
 
-    const sortedFederations = useAppSelector(
-        selectAlphabeticallySortedFederations,
+    const sortedWalletFederations = useAppSelector(
+        selectAlphabeticallySortedWalletFederations,
+    )
+    const sortedCommunities = useAppSelector(
+        selectAlphabeticallySortedCommunities,
     )
 
     return (
-        <ScrollView contentContainerStyle={style.container}>
-            {hasSetMatrixDisplayName && <UserQr matrixUser={matrixAuth} />}
-            <View style={style.section}>
-                <Text color={theme.colors.night} style={style.sectionTitle}>
-                    {t('words.general')}
-                </Text>
-                <GeneralSettings />
-            </View>
-            {sortedFederations.length > 0 && (
-                <View style={style.section}>
+        <ScrollView
+            testID="UserQrContainer"
+            contentContainerStyle={style.container}>
+            <Flex gap="lg">
+                {hasSetMatrixDisplayName && <UserQr matrixUser={matrixAuth} />}
+                <Flex gap="lg">
                     <Text color={theme.colors.night} style={style.sectionTitle}>
-                        {t('words.federations')}
+                        {t('words.general')}
                     </Text>
-                    {sortedFederations.map(federation => (
-                        <CommunitySettings
-                            key={federation.id}
-                            community={federation}
-                        />
-                    ))}
-                </View>
-            )}
+                    <GeneralSettings />
+                </Flex>
+                {sortedWalletFederations.length > 0 && (
+                    <Flex gap="lg">
+                        <Text
+                            color={theme.colors.night}
+                            style={style.sectionTitle}>
+                            {t('words.federations')}
+                        </Text>
+                        {sortedWalletFederations.map(federation => (
+                            <FederationMenu
+                                testID={federation.name}
+                                key={federation.id}
+                                federation={federation}
+                            />
+                        ))}
+                    </Flex>
+                )}
+                {sortedCommunities.length > 0 && (
+                    <Flex gap="lg">
+                        <Text
+                            color={theme.colors.night}
+                            style={style.sectionTitle}>
+                            {t('words.communities')}
+                        </Text>
+                        {sortedCommunities.map(federation => (
+                            <CommunityMenu
+                                testID={federation.name}
+                                key={federation.id}
+                                community={federation}
+                            />
+                        ))}
+                    </Flex>
+                )}
+            </Flex>
             <VersionContainer
                 unlockDevModeCount={unlockDevModeCount}
                 setUnlockDevModeCount={setUnlockDevModeCount}
@@ -71,13 +100,7 @@ const Settings: React.FC<Props> = () => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            justifyContent: 'space-evenly',
             padding: theme.spacing.lg,
-            paddingTop: 0,
-        },
-        section: {
-            paddingTop: theme.spacing.lg,
-            gap: theme.spacing.lg,
         },
         sectionTitle: {
             color: theme.colors.night,

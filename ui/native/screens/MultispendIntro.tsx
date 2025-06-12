@@ -1,9 +1,10 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { Trans, useTranslation } from 'react-i18next'
-import { Linking, Pressable, StyleSheet, View } from 'react-native'
+import { Linking, Pressable, StyleSheet } from 'react-native'
 
 import CheckList from '../components/ui/CheckList'
+import Flex from '../components/ui/Flex'
 import HoloAlert from '../components/ui/HoloAlert'
 import HoloCircle from '../components/ui/HoloCircle'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -24,8 +25,8 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <SafeAreaContainer edges="notop" style={style.container}>
-            <View style={style.content}>
-                <View style={style.header}>
+            <Flex grow style={style.content}>
+                <Flex align="center" gap="xl" style={style.header}>
                     <HoloCircle
                         size={100}
                         content={<SvgImage name="Wallet" size={32} />}
@@ -37,7 +38,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                             components={{ bold: <Text h2 bold /> }}
                         />
                     </Text>
-                </View>
+                </Flex>
                 <CheckList
                     items={[
                         'feature.multispend.intro-1',
@@ -47,7 +48,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                         'feature.multispend.intro-5',
                     ]}
                 />
-                <View style={style.learnMoreContainer}>
+                <Flex center>
                     <Pressable
                         onPress={() =>
                             Linking.openURL(
@@ -61,8 +62,8 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                             </Text>
                         </HoloAlert>
                     </Pressable>
-                </View>
-            </View>
+                </Flex>
+            </Flex>
             <Button
                 onPress={() =>
                     navigation.navigate('CreateMultispend', {
@@ -81,20 +82,12 @@ const styles = (theme: Theme) =>
             flex: 1,
         },
         content: {
-            flex: 1,
             paddingHorizontal: theme.spacing.md,
         },
         header: {
-            gap: theme.spacing.xl,
             paddingVertical: theme.spacing.xl,
-            alignItems: 'center',
         },
         headerText: { textAlign: 'center' },
-        learnMoreContainer: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
         learnMoreButton: {
             padding: theme.spacing.sm,
             flexDirection: 'row',

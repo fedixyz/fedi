@@ -2,11 +2,12 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { selectNostrNpub, selectNostrNsec } from '@fedi/common/redux'
 
 import { CopyButton } from '../components/ui/CopyButton'
+import Flex from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -27,11 +28,11 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
 
     return (
         <SafeAreaContainer style={style.container} edges="notop">
-            <View style={style.section}>
-                <View style={style.header}>
+            <Flex gap="xs">
+                <Flex row align="center" justify="between" gap="sm">
                     <Text medium>{t('feature.nostr.nostr-public-key')}</Text>
                     {nostrPublic && <CopyButton value={nostrPublic.npub} />}
-                </View>
+                </Flex>
                 {nostrPublic ? (
                     <Text
                         caption
@@ -43,12 +44,12 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
                 ) : (
                     <HoloLoader size={32} />
                 )}
-            </View>
-            <View style={style.section}>
-                <View style={style.header}>
+            </Flex>
+            <Flex gap="xs">
+                <Flex row align="center" justify="between" gap="sm">
                     <Text medium>{t('feature.nostr.nostr-secret-key')}</Text>
                     {nostrSecret && (
-                        <View style={style.iconSpacer}>
+                        <Flex grow row justify="between">
                             <PressableIcon
                                 onPress={() => setShowNsec(!showNsec)}
                                 svgProps={{
@@ -59,9 +60,9 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
                                 containerStyle={style.pressableIcon}
                             />
                             <CopyButton value={nostrSecret.nsec || ''} />
-                        </View>
+                        </Flex>
                     )}
-                </View>
+                </Flex>
                 {nostrSecret ? (
                     <Text
                         caption
@@ -73,7 +74,7 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
                 ) : (
                     <HoloLoader size={32} />
                 )}
-            </View>
+            </Flex>
         </SafeAreaContainer>
     )
 }
@@ -84,72 +85,12 @@ const styles = (theme: Theme) =>
             width: '100%',
             gap: theme.spacing.lg,
         },
-        section: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-        },
-        header: {
-            display: 'flex',
-            gap: 8,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-        },
-        iconSpacer: {
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-        },
-        switchContainer: {
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            gap: 8,
-        },
-        content: {
-            flex: 1,
-            flexDirection: 'column',
-            gap: 16,
-        },
-        textInputInner: {
-            borderBottomWidth: 0,
-            height: '100%',
-        },
-        textInputOuter: {
-            width: '100%',
-            borderColor: theme.colors.primaryVeryLight,
-            borderWidth: 1,
-            borderRadius: 8,
-            height: 36,
-        },
-        input: {
-            fontSize: 14,
-        },
-        card: {
-            borderColor: theme.colors.lightGrey,
-            borderWidth: 1,
-            borderRadius: 12,
-            padding: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-        },
         pressableIcon: {
             width: 'auto',
             flexGrow: 0,
             flexShrink: 0,
             paddingHorizontal: 4,
             paddingVertical: 4,
-        },
-        buttonContainer: {
-            display: 'flex',
-            gap: 8,
-            flexDirection: 'row',
-        },
-        optionButton: {
-            flex: 1,
         },
     })
 

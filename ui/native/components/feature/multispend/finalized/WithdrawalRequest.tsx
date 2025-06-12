@@ -1,4 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
@@ -10,6 +11,7 @@ import { getUserSuffix } from '@fedi/common/utils/matrix'
 import { fedimint } from '../../../../bridge'
 import { MultispendWithdrawalEvent } from '../../../../types'
 import { AvatarSize } from '../../../ui/Avatar'
+import Flex from '../../../ui/Flex'
 import SvgImage from '../../../ui/SvgImage'
 import ChatAvatar from '../../chat/ChatAvatar'
 
@@ -20,11 +22,8 @@ const WithdrawalRequest: React.FC<{
 }> = ({ event, onSelect, roomId }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const {
-        haveIVotedForWithdrawal,
-        getWithdrawalStatus,
-        getWithdrawalRequest,
-    } = useMultispendWithdrawalRequests({ t, fedimint, roomId })
+    const { haveIVotedForWithdrawal, getWithdrawalRequest } =
+        useMultispendWithdrawalRequests({ t, fedimint, roomId })
 
     useObserveMultispendEvent(event.id, roomId)
 
@@ -34,10 +33,31 @@ const WithdrawalRequest: React.FC<{
         rejectionCount,
         formattedFiatAmount,
         selectedFiatCurrency,
+        status,
     } = getWithdrawalRequest(event)
 
-    const withdrawalStatus = getWithdrawalStatus(event)
     const haveIVoted = haveIVotedForWithdrawal(event)
+
+    const badge = useMemo(() => {
+        let color = theme.colors.orange100
+        let text = t('words.pending')
+
+        if (status === 'rejected') {
+            color = theme.colors.red100
+            text = t('words.rejected')
+        } else if (status === 'failed') {
+            color = theme.colors.red100
+            text = t('words.failed')
+        } else if (status === 'completed') {
+            color = theme.colors.green100
+            text = t('words.complete')
+        } else if (status === 'approved') {
+            color = theme.colors.green100
+            text = t('words.approved')
+        }
+
+        return { color, text }
+    }, [theme, status, t])
 
     // don't show the request if sender is not a member of the group
     if (!sender) return null
@@ -46,15 +66,15 @@ const WithdrawalRequest: React.FC<{
 
     return (
         <Pressable onPress={onSelect} style={style.container}>
-            {!haveIVoted && withdrawalStatus === 'pending' && (
+            {!haveIVoted && status === 'pending' && (
                 <View style={style.newBadge} />
             )}
 
             <ChatAvatar user={sender} size={AvatarSize.md} />
 
-            <View style={style.content}>
-                <View style={style.contentRow}>
-                    <View style={style.nameContainer}>
+            <Flex grow gap="sm">
+                <Flex row align="center" justify="between" gap="sm">
+                    <Flex row align="center">
                         <Text
                             medium
                             numberOfLines={1}
@@ -65,55 +85,44 @@ const WithdrawalRequest: React.FC<{
                             {' '}
                             {getUserSuffix(sender.id)}
                         </Text>
-                    </View>
+                    </Flex>
 
-                    <View style={style.amount}>
+                    <Flex row gap="xs" align="center" shrink={false}>
                         <Text medium>{formattedFiatAmount}</Text>
                         <Text bold small>
                             {selectedFiatCurrency}
                         </Text>
-                    </View>
-                </View>
+                    </Flex>
+                </Flex>
 
-                <View style={style.contentRow}>
-                    <View style={style.statusContainer}>
+                <Flex row align="center" justify="between" gap="sm">
+                    <Flex row align="center" gap="sm">
                         <View
                             style={[
                                 style.badge,
                                 {
-                                    backgroundColor:
-                                        withdrawalStatus === 'pending'
-                                            ? theme.colors.orange100
-                                            : withdrawalStatus === 'rejected'
-                                              ? theme.colors.red100
-                                              : theme.colors.green100,
+                                    backgroundColor: badge.color,
                                 },
                             ]}>
                             <Text small medium>
-                                {withdrawalStatus === 'pending'
-                                    ? t('words.pending')
-                                    : withdrawalStatus === 'rejected'
-                                      ? t('words.rejected')
-                                      : withdrawalStatus === 'approved'
-                                        ? t('words.approved')
-                                        : t('words.complete')}
+                                {badge.text}
                             </Text>
                         </View>
-                        <View style={style.voteCount}>
+                        <Flex row align="center" gap="xs">
                             <Text small>✅</Text>
                             <Text bold>{approvalCount}</Text>
-                        </View>
-                        <View style={style.voteCount}>
+                        </Flex>
+                        <Flex row align="center" gap="xs">
                             <Text small>❌</Text>
                             <Text bold>{rejectionCount}</Text>
-                        </View>
-                    </View>
+                        </Flex>
+                    </Flex>
 
                     <Text caption color={theme.colors.grey}>
                         {dateUtils.formatChatTileTimestamp(event.time / 1000)}
                     </Text>
-                </View>
-            </View>
+                </Flex>
+            </Flex>
 
             <SvgImage name="ChevronRight" size={16} color={theme.colors.grey} />
         </Pressable>
@@ -137,34 +146,6 @@ const styles = (theme: Theme) =>
             paddingVertical: theme.spacing.xxs,
             overflow: 'hidden',
         },
-        content: {
-            flexDirection: 'column',
-            flex: 1,
-            gap: theme.spacing.sm,
-        },
-        contentRow: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: theme.spacing.sm,
-        },
-        amount: {
-            flexDirection: 'row',
-            alignItems: 'baseline',
-            gap: theme.spacing.xs,
-            flexShrink: 0,
-        },
-        voteCount: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.xs,
-        },
-        statusContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-        },
         newBadge: {
             position: 'absolute',
             left: 3,
@@ -175,10 +156,6 @@ const styles = (theme: Theme) =>
         },
         displayName: {
             flexShrink: 1,
-        },
-        nameContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
         },
     })
 

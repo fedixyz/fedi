@@ -8,15 +8,23 @@ import {
     StyleSheet,
     TextInput,
     TextStyle,
+    Vibration,
     View,
     useWindowDimensions,
 } from 'react-native'
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSequence,
+    withTiming,
+} from 'react-native-reanimated'
 
 import { useAmountInput } from '@fedi/common/hooks/amount'
 import { Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
+import Flex from './Flex'
 import InvisibleInput from './InvisibleInput'
 import NotesInput from './NotesInput'
 import { NumpadButton } from './NumpadButton'
@@ -38,6 +46,7 @@ export type Props = {
     error?: string | null
     notes?: string
     notesLabel?: string
+    notesOptional?: boolean
     setNotes?: (notes: string) => void
     content?: React.ReactNode | null
 }
@@ -57,6 +66,7 @@ const AmountInput: React.FC<Props> = ({
     notes = '',
     notesLabel,
     setNotes,
+    notesOptional = true,
     content = null,
 }) => {
     const { t } = useTranslation()
@@ -96,7 +106,6 @@ const AmountInput: React.FC<Props> = ({
             keyboardHiddenListener.remove()
         }
     }, [])
-
     // Check validation for errors to render with suggestion for amount.
     let error: React.ReactNode | undefined
     if (
@@ -151,25 +160,42 @@ const AmountInput: React.FC<Props> = ({
         ? `${satsValue} ${t('words.sats').toUpperCase()}`
         : `${fiatValue} ${currency}`
 
+    const shake = useSharedValue(0)
+    const onRejectedPress = () => {
+        Vibration.vibrate(40) // ← added
+        shake.value = withSequence(
+            withTiming(8, { duration: 50 }),
+            withTiming(-8, { duration: 50 }),
+            withTiming(0, { duration: 50 }),
+        )
+    }
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: shake.value }],
+    }))
+
     return (
-        <View style={style.container}>
-            <View style={style.amounts}>
-                <Pressable
-                    style={style.primaryAmount}
-                    disabled={readOnly || hasNumpad || isSubmitting}
-                    onPress={() => inputRef?.current?.focus()}>
-                    <InvisibleInput
-                        inputRef={inputRef}
-                        value={isFiat ? fiatValue : satsValue}
-                        label={
-                            isFiat ? currency : t('words.sats').toUpperCase()
-                        }
-                        onChangeText={
-                            isFiat ? handleChangeFiat : handleChangeSats
-                        }
-                        readOnly={readOnly || hasNumpad || isSubmitting}
-                    />
-                </Pressable>
+        <Flex grow align="center" fullWidth>
+            <Flex center gap="sm" grow style={style.amounts}>
+                <Animated.View style={animatedStyle}>
+                    <Pressable
+                        style={style.primaryAmount}
+                        disabled={readOnly || hasNumpad || isSubmitting}
+                        onPress={() => inputRef?.current?.focus()}>
+                        <InvisibleInput
+                            inputRef={inputRef}
+                            value={isFiat ? fiatValue : satsValue}
+                            label={
+                                isFiat
+                                    ? currency
+                                    : t('words.sats').toUpperCase()
+                            }
+                            onChangeText={
+                                isFiat ? handleChangeFiat : handleChangeSats
+                            }
+                            readOnly={readOnly || hasNumpad || isSubmitting}
+                        />
+                    </Pressable>
+                </Animated.View>
                 {switcherEnabled && (
                     <Pressable
                         style={style.symbolSwitcher}
@@ -191,7 +217,7 @@ const AmountInput: React.FC<Props> = ({
                         )}
                     </Pressable>
                 )}
-                <View style={style.errorContainer}>
+                <Flex center fullWidth>
                     {customError ? (
                         <Text style={style.error} caption>
                             {customError}
@@ -199,9 +225,11 @@ const AmountInput: React.FC<Props> = ({
                     ) : (
                         error
                     )}
-                </View>
+                </Flex>
                 {content && (
-                    <View style={style.contentContainer}>{content}</View>
+                    <Flex align="center" fullWidth style={style.errorContainer}>
+                        {content}
+                    </Flex>
                 )}
                 {setNotes && (
                     <View style={style.notesContainer}>
@@ -209,19 +237,21 @@ const AmountInput: React.FC<Props> = ({
                             label={notesLabel}
                             notes={notes}
                             setNotes={setNotes}
+                            isOptional={notesOptional}
                         />
                     </View>
                 )}
-            </View>
+            </Flex>
             {hasNumpad && (
-                <View style={style.numpad}>
+                <Flex row wrap fullWidth style={style.numpad}>
                     {numpadButtons.map(btn => (
                         <NumpadButton
                             key={btn}
                             btn={btn}
                             onPress={() => {
                                 try {
-                                    handleNumpadPress(btn)
+                                    const rejected = handleNumpadPress(btn)
+                                    if (rejected) onRejectedPress()
                                 } catch (err) {
                                     log.error('handleNumpadPress', err)
                                 }
@@ -229,31 +259,19 @@ const AmountInput: React.FC<Props> = ({
                             disabled={isSubmitting}
                         />
                     ))}
-                </View>
+                </Flex>
             )}
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme, width: number) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-            width: '100%',
-            alignItems: 'center',
-        },
         amounts: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.sm,
             paddingHorizontal: theme.spacing.lg,
         },
         errorContainer: {
-            width: '100%',
             maxHeight: 60,
-            alignItems: 'center',
-            justifyContent: 'center',
             paddingHorizontal: theme.spacing.lg,
         },
         primaryAmount: {
@@ -281,20 +299,11 @@ const styles = (theme: Theme, width: number) =>
             textDecorationLine: 'underline',
         },
         numpad: {
-            width: '100%',
             maxWidth: Math.min(400, width),
             paddingHorizontal: theme.spacing.lg,
-            flexDirection: 'row',
-            flexWrap: 'wrap',
         },
         notesContainer: {
             width: '100%',
-        },
-        contentContainer: {
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
         },
     })
 

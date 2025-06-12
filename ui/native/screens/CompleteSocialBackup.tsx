@@ -56,15 +56,17 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
         setIsCreatingBackup(false)
     }
 
+    const style = styles(theme)
+
     return (
-        <ScrollView contentContainerStyle={styles(theme).container}>
+        <ScrollView contentContainerStyle={style.container}>
             <HoloGuidance
                 iconImage={<SvgImage name="FediFile" size={SvgImageSize.lg} />}
                 title={t('feature.backup.save-your-wallet-backup-file')}
                 titleProps={{ bold: true }}
                 message={t('feature.backup.save-your-wallet-backup-file-where')}
             />
-            <View style={styles(theme).buttonsContainer}>
+            <View style={style.buttonsContainer}>
                 {backupsCompleted > 0 && (
                     <Button
                         fullWidth
@@ -83,7 +85,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                             ? t('feature.backup.save-file')
                             : t('words.complete')
                     }
-                    containerStyle={styles(theme).saveFileButton}
+                    containerStyle={style.saveFileButton}
                     onPress={() => {
                         if (backupsCompleted === 0) {
                             createBackup()

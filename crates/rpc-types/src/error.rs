@@ -54,6 +54,10 @@ pub enum ErrorCode {
     FederationPendingRejoinFromScratch(String),
     #[error("Invalid Multispend event, likely something changed in multispend state")]
     InvalidMsEvent,
+    #[error("Recurringd api not set in federation meta")]
+    RecurringdMetaNotFound,
+    #[error("Unknown federation")]
+    UnknownFederation,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

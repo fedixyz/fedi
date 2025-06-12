@@ -6,6 +6,7 @@ use anyhow::{bail, Context};
 use federation_sm::{FederationState, FederationStateMachine};
 use federation_v2::FederationV2;
 use federations_locker::FederationsLocker;
+use fedimint_core::config::FederationIdPrefix;
 use fedimint_core::invite_code::InviteCode;
 use rpc_types::RpcFederationPreview;
 use runtime::bridge_runtime::Runtime;
@@ -184,6 +185,14 @@ impl Federations {
             .leave(&self.runtime.storage, &self.runtime.global_db)
             .await?;
         Ok(())
+    }
+
+    pub fn find_federation_id_for_prefix(&self, prefix: FederationIdPrefix) -> Option<String> {
+        let prefix = prefix.to_string();
+        self.get_federations_map()
+            .keys()
+            .find(|x| x.starts_with(&prefix))
+            .cloned()
     }
 
     async fn update_fedi_fees_schedule(&self) {

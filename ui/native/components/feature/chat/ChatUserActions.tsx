@@ -20,6 +20,7 @@ import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 
+import Flex from '../../ui/Flex'
 import ChatAction from './ChatAction'
 import { ConfirmBlockOverlay } from './ConfirmBlockOverlay'
 
@@ -112,7 +113,7 @@ const ChatUserActions: React.FC<Props> = ({
             })
         } catch (err) {
             log.error("Failed to update user's power level", err)
-            error(t, 'feature.chat.change-role-failure')
+            error(t, err, 'feature.chat.change-role-failure')
         }
         setLoadingAction(null)
         dismiss()
@@ -263,10 +264,12 @@ const ChatUserActions: React.FC<Props> = ({
     const getColor = (action: RoleChangeAction) =>
         member.powerLevel === action.powerLevel ? theme.colors.blue : undefined
 
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).container}>
-            <View style={styles(theme).sectionContainer}>
-                <Text caption style={styles(theme).sectionTitle}>
+        <View style={style.container}>
+            <Flex align="start">
+                <Text caption style={style.sectionTitle}>
                     {t('words.actions')}
                 </Text>
                 {actions.map(action => (
@@ -290,69 +293,65 @@ const ChatUserActions: React.FC<Props> = ({
                         onPress={() => action.onPress()}
                     />
                 ))}
-            </View>
+            </Flex>
             {/* Only show roles if the user is an admin */}
             {myPowerLevel >= MatrixPowerLevel.Moderator && (
-                <>
-                    <View style={styles(theme).sectionContainer}>
-                        <Text caption style={styles(theme).sectionTitle}>
-                            {t('feature.chat.change-role')}
-                        </Text>
-                        {changeRoles.map(action => (
-                            <ChatAction
-                                key={action.id}
-                                leftIcon={
+                <Flex align="start">
+                    <Text caption style={style.sectionTitle}>
+                        {t('feature.chat.change-role')}
+                    </Text>
+                    {changeRoles.map(action => (
+                        <ChatAction
+                            key={action.id}
+                            leftIcon={
+                                <SvgImage
+                                    name={action.icon}
+                                    color={getColor(action)}
+                                />
+                            }
+                            rightIcon={
+                                member.powerLevel === action.powerLevel && (
                                     <SvgImage
-                                        name={action.icon}
+                                        name={'Check'}
                                         color={getColor(action)}
                                     />
-                                }
-                                rightIcon={
-                                    member.powerLevel === action.powerLevel && (
-                                        <SvgImage
-                                            name={'Check'}
-                                            color={getColor(action)}
-                                        />
-                                    )
-                                }
-                                label={action.label}
-                                onPress={() => action.onPress()}
-                                disabled={getRoleDisabled(
-                                    member,
-                                    action.powerLevel,
-                                )}
-                                active={action.powerLevel === member.powerLevel}
-                                isLoading={loadingAction === action.id}
-                            />
-                        ))}
-                    </View>
-                </>
+                                )
+                            }
+                            label={action.label}
+                            onPress={() => action.onPress()}
+                            disabled={getRoleDisabled(
+                                member,
+                                action.powerLevel,
+                            )}
+                            active={action.powerLevel === member.powerLevel}
+                            isLoading={loadingAction === action.id}
+                        />
+                    ))}
+                </Flex>
             )}
             {/* Only show roles if the user is an admin */}
             {myPowerLevel >= MatrixPowerLevel.Moderator && (
-                <>
-                    <View style={styles(theme).sectionContainer}>
-                        <Text caption style={styles(theme).sectionTitle}>
-                            {t('phrases.moderation-tools')}
-                        </Text>
-                        {moderationActions.map(action => (
-                            <ChatAction
-                                key={action.id}
-                                leftIcon={
-                                    <SvgImage
-                                        name={action.icon}
-                                        color={theme.colors.red}
-                                    />
-                                }
-                                label={action.label}
-                                labelColor={theme.colors.red}
-                                onPress={() => action.onPress()}
-                                disabled={getRoleDisabled(member)}
-                                isLoading={loadingAction === action.id}
-                            />
-                        ))}
-                    </View>
-                </>
+                <Flex align="start">
+                    <Text caption style={style.sectionTitle}>
+                        {t('phrases.moderation-tools')}
+                    </Text>
+                    {moderationActions.map(action => (
+                        <ChatAction
+                            key={action.id}
+                            leftIcon={
+                                <SvgImage
+                                    name={action.icon}
+                                    color={theme.colors.red}
+                                />
+                            }
+                            label={action.label}
+                            labelColor={theme.colors.red}
+                            onPress={() => action.onPress()}
+                            disabled={getRoleDisabled(member)}
+                            isLoading={loadingAction === action.id}
+                        />
+                    ))}
+                </Flex>
             )}
             <ConfirmBlockOverlay
                 show={isConfirmingBlock}
@@ -378,35 +377,9 @@ const styles = (theme: Theme) =>
             padding: theme.spacing.lg,
             paddingTop: 0,
         },
-        profileHeader: {
-            alignItems: 'center',
-            padding: theme.spacing.lg,
-            borderRadius: theme.borders.defaultRadius,
-            borderColor: theme.colors.primaryLight,
-        },
-        actionsContainer: {
-            flexDirection: 'row',
-            justifyContent: 'flex-start',
-            alignSelf: 'flex-start',
-        },
-        sectionContainer: {
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-        },
         sectionTitle: {
             color: theme.colors.primaryLight,
             paddingVertical: theme.spacing.sm,
-        },
-        versionContainer: {
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: theme.colors.offWhite,
-            padding: theme.spacing.md,
-            borderRadius: theme.borders.defaultRadius,
-            marginTop: theme.spacing.md,
-        },
-        logo: {
-            marginBottom: theme.spacing.sm,
         },
     })
 

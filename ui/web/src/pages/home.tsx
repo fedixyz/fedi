@@ -1,15 +1,23 @@
 import Link from 'next/link'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
 import ArrowRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
+import SettingsIcon from '@fedi/common/assets/svgs/cog.svg'
 import userProfile from '@fedi/common/assets/svgs/profile.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useNuxStep } from '@fedi/common/hooks/nux'
-import { selectFederations, selectMatrixAuth } from '@fedi/common/redux'
+import {
+    selectActiveFederation,
+    selectActiveFederationChats,
+    selectMatrixAuth,
+    selectActiveFederationHasWallet,
+} from '@fedi/common/redux'
+import stringUtils from '@fedi/common/utils/StringUtils'
 
 import { BitcoinWallet } from '../components/BitcoinWallet'
 import { ContentBlock } from '../components/ContentBlock'
+import { FederationAvatar } from '../components/FederationAvatar'
 import { FediModTiles } from '../components/FediModTiles'
 import { Icon } from '../components/Icon'
 import * as Layout from '../components/Layout'
@@ -25,53 +33,121 @@ function HomePage() {
         useNuxStep('displayNameModal')
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
-    const federations = useAppSelector(selectFederations)
+    const activeFederation = useAppSelector(selectActiveFederation)
+    const newsItems = useAppSelector(s => selectActiveFederationChats(s))
+
+    // Federations have wallets, communities do not
+    const hasWallet = useAppSelector(selectActiveFederationHasWallet)
+
+    // Get first chat message to use as Federation News for now
+    // Improvement: Show carousel of announcements to show multiple news items
+    const newsItem = newsItems.length > 0 ? newsItems[0] : null
+
+    const showFederation = !activeFederation || hasWallet
 
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header>
-                    <Layout.Title>{t('words.home')}</Layout.Title>
-                </Layout.Header>
                 <Layout.Content>
                     <Content>
-                        <Section>
-                            <BitcoinWallet />
-                        </Section>
-                        {/* Hide community news section for now until designs and endpoints are are ready */}
-                        {federations.length === 0 && (
+                        {showFederation && (
+                            <Section>
+                                <BitcoinWallet />
+                            </Section>
+                        )}
+
+                        {!activeFederation && (
                             <Section>
                                 <Title variant="h2">
-                                    {t('feature.home.federation-news-title')}
+                                    {t(
+                                        showFederation
+                                            ? 'feature.home.federation-news-title'
+                                            : 'feature.home.community-news-title',
+                                    )}
                                 </Title>
-                                <SubTitle variant="body">
-                                    <JoinBlock href="/onboarding">
-                                        <EmptyBlockIcon>
+
+                                <NewsContainer>
+                                    <NewsItem href="/onboarding">
+                                        <NewsItemIcon>
                                             <Icon icon={ChatIcon} />
-                                        </EmptyBlockIcon>
-                                        <EmptyBlockText>
+                                        </NewsItemIcon>
+                                        <NewsItemText>
                                             {t(
                                                 'feature.home.federation-updates',
                                             )}
-                                        </EmptyBlockText>
-                                        <EmptyBlockArrow>
+                                        </NewsItemText>
+                                        <NewsItemArrow>
                                             <Icon icon={ArrowRightIcon} />
-                                        </EmptyBlockArrow>
-                                    </JoinBlock>
-                                </SubTitle>
+                                        </NewsItemArrow>
+                                    </NewsItem>
+                                </NewsContainer>
+                            </Section>
+                        )}
+
+                        {activeFederation && newsItem && (
+                            <Section>
+                                <Title variant="h2">
+                                    {t(
+                                        showFederation
+                                            ? 'feature.home.federation-news-title'
+                                            : 'feature.home.community-news-title',
+                                    )}
+                                </Title>
+
+                                <NewsContainer>
+                                    <NewsItem
+                                        href={`/chat/room/${newsItem.id}`}>
+                                        <NewsItemIcon>
+                                            <FederationAvatar
+                                                federation={activeFederation}
+                                                size="sm"
+                                            />
+                                        </NewsItemIcon>
+                                        <NewsItemText>
+                                            <Text variant="body" weight="bold">
+                                                {stringUtils.truncateString(
+                                                    newsItem.name,
+                                                    25,
+                                                )}
+                                            </Text>
+                                            {newsItem.preview && (
+                                                <Text variant="small">
+                                                    {stringUtils.truncateString(
+                                                        stringUtils.stripNewLines(
+                                                            newsItem.preview
+                                                                .body,
+                                                        ),
+                                                        25,
+                                                    )}
+                                                </Text>
+                                            )}
+                                        </NewsItemText>
+                                        <NewsItemArrow>
+                                            <Icon icon={ArrowRightIcon} />
+                                        </NewsItemArrow>
+                                    </NewsItem>
+                                </NewsContainer>
                             </Section>
                         )}
 
                         <Section>
                             <Title variant="h2">
-                                {t('feature.home.federation-mods-title')}
+                                {t(
+                                    showFederation
+                                        ? 'feature.home.federation-mods-title'
+                                        : 'feature.home.community-mods-title',
+                                )}
                             </Title>
                             <SubTitle variant="body">
-                                {t('feature.home.federation-services-selected')}
+                                {t(
+                                    showFederation
+                                        ? 'feature.home.federation-services-selected'
+                                        : 'feature.home.community-services-selected',
+                                )}
                             </SubTitle>
                             <ErrorBoundary fallback={null}>
                                 <FediModTiles
-                                    isFederation={federations.length > 0}
+                                    isFederation={!!activeFederation}
                                 />
                             </ErrorBoundary>
                         </Section>
@@ -81,8 +157,10 @@ function HomePage() {
 
             <Modal
                 open={!hasSeenDisplayName && !!matrixAuth?.displayName}
-                onClick={completeSeenDisplayName}>
-                <ModalContent>
+                onClick={completeSeenDisplayName}
+                title={t('feature.home.display-name')}
+                description={matrixAuth?.displayName}>
+                <ModalContent aria-label="test">
                     <ModalIconWrapper>
                         <Icon icon={userProfile} size="xl" />
                     </ModalIconWrapper>
@@ -94,6 +172,16 @@ function HomePage() {
                             &quot;{matrixAuth?.displayName}&quot;
                         </Text>
                     </ModalTextWrapper>
+                    <ModalTextWithIcon
+                        variant="body"
+                        css={{ color: theme.colors.darkGrey }}>
+                        <Trans
+                            i18nKey="feature.home.profile-change-icon"
+                            components={{
+                                icon: <ModalIcon icon={SettingsIcon} />,
+                            }}
+                        />
+                    </ModalTextWithIcon>
                 </ModalContent>
             </Modal>
         </ContentBlock>
@@ -116,31 +204,34 @@ const SubTitle = styled(Text, {
     color: theme.colors.darkGrey,
 })
 
-const JoinBlock = styled(Link, {
+const NewsContainer = styled('div', {})
+
+const NewsItem = styled(Link, {
     alignItems: 'center',
-    background: theme.colors.offWhite,
+    background: theme.colors.offWhite100,
     borderRadius: 20,
     boxSizing: 'border-box',
     color: theme.colors.night,
     display: 'flex',
     gap: 10,
-    padding: 20,
+    overflow: 'hidden',
+    padding: 15,
 })
 
-const EmptyBlockIcon = styled('div', {
+const NewsItemIcon = styled('div', {
     alignItems: 'center',
     display: 'flex',
-    width: 30,
+    minWidth: 30,
 })
 
-const EmptyBlockText = styled('div', {
+const NewsItemText = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     flex: 1,
     textAlign: 'left',
 })
 
-const EmptyBlockArrow = styled('div', {
+const NewsItemArrow = styled('div', {
     alignItems: 'center',
     display: 'flex',
     width: 20,
@@ -150,11 +241,22 @@ const ModalContent = styled('div', {
     alignItems: 'center',
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
     justifyContent: 'center',
 })
 
-const ModalTextWrapper = styled('div', {})
+const ModalTextWrapper = styled('div', {
+    marginBottom: 10,
+})
+
+const ModalTextWithIcon = styled(Text, {
+    alignItems: 'center',
+    display: 'flex',
+})
+
+const ModalIcon = styled(Icon, {
+    margin: '0 3px',
+    width: 20,
+})
 
 const ModalIconWrapper = styled('div', {
     alignItems: 'center',

@@ -1,7 +1,6 @@
 import { useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { View } from 'react-native'
 import { RejectionError } from 'webln'
 
 import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
@@ -18,7 +17,9 @@ import { makeLog } from '@fedi/common/utils/log'
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
+import AmountInputDisplay from '../../ui/AmountInputDisplay'
 import CustomOverlay from '../../ui/CustomOverlay'
+import Flex from '../../ui/Flex'
 
 const log = makeLog('MakeInvoiceOverlay')
 
@@ -110,29 +111,32 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
             contents={{
                 title: t('feature.stabilitypool.enter-deposit-amount'),
                 body: (
-                    <View
+                    <Flex
+                        grow
+                        align="center"
+                        gap="lg"
                         style={{
-                            flex: 1,
                             paddingTop: theme.spacing.xl,
-                            alignItems: 'center',
-                            gap: theme.spacing.lg,
                         }}>
-                        <AmountInput
-                            key={amountInputKey}
-                            amount={inputAmount}
-                            isSubmitting={isLoading}
-                            submitAttempts={submitAttempts}
-                            minimumAmount={minimumAmount}
-                            maximumAmount={maximumAmount}
-                            readOnly={!!exactAmount}
-                            verb={t('words.deposit')}
-                            onChangeAmount={amount => {
-                                setSubmitAttempts(0)
-                                setInputAmount(amount)
-                            }}
-                            error={error}
-                        />
-                    </View>
+                        {exactAmount ? (
+                            <AmountInputDisplay amount={inputAmount} />
+                        ) : (
+                            <AmountInput
+                                key={amountInputKey}
+                                amount={inputAmount}
+                                isSubmitting={isLoading}
+                                submitAttempts={submitAttempts}
+                                minimumAmount={minimumAmount}
+                                maximumAmount={maximumAmount}
+                                verb={t('words.deposit')} // or 'request', 'send', …
+                                onChangeAmount={amt => {
+                                    setSubmitAttempts(0)
+                                    setInputAmount(amt)
+                                }}
+                                error={error}
+                            />
+                        )}
+                    </Flex>
                 ),
                 buttons: [
                     {

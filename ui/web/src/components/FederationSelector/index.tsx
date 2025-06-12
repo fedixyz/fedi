@@ -19,7 +19,17 @@ import { Icon } from '../Icon'
 import { Popover } from '../Popover'
 import { Text } from '../Text'
 
-export const FederationSelector: React.FC = () => {
+type Props = {
+    /*
+     * If true and no active federation
+     * then "Join Federation" will be shown
+     * and list item will also be shown at
+     * the bottom of the dropdown list
+     */
+    joinable?: boolean
+}
+
+export const FederationSelector: React.FC<Props> = ({ joinable }) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const activeFederation = useAppSelector(selectActiveFederation)
@@ -36,8 +46,6 @@ export const FederationSelector: React.FC = () => {
         [dispatch],
     )
 
-    if (!activeFederation) return null
-
     const federationList = (
         <FederationList>
             {federations.map(fed => {
@@ -48,7 +56,7 @@ export const FederationSelector: React.FC = () => {
                 return (
                     <li key={fed.id}>
                         <FederationItem
-                            active={fed.id === activeFederation.id}
+                            active={fed.id === activeFederation?.id}
                             onClick={() => handleSelectFederation(fed)}>
                             <FederationAvatar federation={fed} size="sm" />
                             <div>
@@ -65,50 +73,81 @@ export const FederationSelector: React.FC = () => {
                     </li>
                 )
             })}
-            <li>
-                <FederationItem add as={Link} href="/onboarding">
-                    <Icon icon={PlusIcon} size="sm" />
-                    <Text variant="caption" weight="bold">
-                        {t('feature.federations.join-federation')}
-                    </Text>
-                </FederationItem>
-            </li>
+            {joinable && (
+                <li>
+                    <FederationItem add as={Link} href="/onboarding">
+                        <Icon icon={PlusIcon} size="sm" />
+                        <Text variant="caption" weight="bold">
+                            {t('feature.federations.join-federation')}
+                        </Text>
+                    </FederationItem>
+                </li>
+            )}
         </FederationList>
     )
 
     return (
         <Container>
-            <Popover
-                content={federationList}
-                sideOffset={10}
-                open={isSelectorOpen}
-                onOpenChange={setIsSelectorOpen}>
-                <ActiveFederation key={activeFederation?.id}>
-                    <FederationAvatar
-                        federation={activeFederation}
-                        size={isSmall ? 'xs' : 'sm'}
-                    />
-                    <Text variant="caption" weight="bold">
-                        {activeFederation.name}
-                    </Text>
-                    <IconWrapper isOpen={isSelectorOpen}>
-                        <Icon size="xs" icon={ChevronRightIcon} />
-                    </IconWrapper>
-                </ActiveFederation>
-            </Popover>
+            <Wrapper>
+                {activeFederation ? (
+                    <Popover
+                        content={federationList}
+                        sideOffset={10}
+                        open={isSelectorOpen}
+                        onOpenChange={setIsSelectorOpen}>
+                        <Inner key={activeFederation?.id}>
+                            <FederationAvatar
+                                federation={activeFederation}
+                                size={isSmall ? 'xs' : 'sm'}
+                            />
+                            <Text variant="caption" weight="bold">
+                                {activeFederation.name}
+                            </Text>
+                            <IconWrapper isOpen={isSelectorOpen}>
+                                <Icon size="xs" icon={ChevronRightIcon} />
+                            </IconWrapper>
+                        </Inner>
+                    </Popover>
+                ) : joinable ? (
+                    <Link href="/onboarding">
+                        <Inner>
+                            <Text variant="caption" weight="bold">
+                                {t('phrases.join-a-federation')}
+                            </Text>
+                            <IconWrapper isOpen={isSelectorOpen}>
+                                <Icon size="xs" icon={ChevronRightIcon} />
+                            </IconWrapper>
+                        </Inner>
+                    </Link>
+                ) : null}
+            </Wrapper>
         </Container>
     )
 }
 
 const Container = styled('div', {
+    alignItems: 'center',
+    boxSizing: 'border-box',
+    borderRadius: 9999,
+    display: 'flex',
+    holoGradient: '600',
+    justifyContent: 'center',
+    padding: 2,
+    overflow: 'none',
+})
+
+const Wrapper = styled('div', {
+    background: theme.colors.white,
+    borderRadius: 9999,
+    padding: '5px 12px',
     '& > button': {
         display: 'block',
     },
 })
 
-const ActiveFederation = styled('div', {
-    display: 'flex',
+const Inner = styled('div', {
     alignItems: 'center',
+    display: 'flex',
     gap: 8,
 })
 
@@ -116,7 +155,6 @@ const IconWrapper = styled('div', {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: -4,
     transition: 'transform 100ms ease',
 
     variants: {

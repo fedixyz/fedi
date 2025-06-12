@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { selectMatrixRoomMultispendStatus } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import HoloGradient from '../../ui/HoloGradient'
 import SvgImage from '../../ui/SvgImage'
 
@@ -53,15 +54,15 @@ const MultispendChatBanner: React.FC<Props> = ({ roomId }) => {
                 style={style.container}
                 gradientStyle={style.contentContainer}
                 level="m500">
-                <View style={style.content}>
-                    <View style={style.header}>
+                <Flex gap="xs">
+                    <Flex row align="center" gap="xs">
                         <SvgImage name="MultispendGroup" size={16} />
                         <Text caption bold>
                             {t('words.multispend')}
                         </Text>
-                    </View>
+                    </Flex>
                     {statusBadge}
-                </View>
+                </Flex>
                 <SvgImage name="ChevronRight" color={theme.colors.grey} />
             </HoloGradient>
         </Pressable>
@@ -79,17 +80,6 @@ const styles = (theme: Theme) =>
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: theme.spacing.lg,
-        },
-        content: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.xs,
-        },
-        header: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.xs,
         },
         statusBadge: {
             borderRadius: 4,

@@ -57,14 +57,6 @@ const ChatAction = ({
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingVertical: theme.spacing.md,
-            paddingHorizontal: theme.spacing.sm,
-            width: '100%',
-            borderRadius: theme.borders.defaultRadius,
-        },
         image: {
             height: theme.sizes.sm,
             width: theme.sizes.sm,

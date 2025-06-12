@@ -24,25 +24,26 @@ import { FederationLogo } from '../federations/FederationLogo'
 import { BetaBadge } from './BetaBadge'
 import SettingsItem from './SettingsItem'
 
-type CommunityMenuProps = {
-    community: LoadedFederation
+type FederationMenuProps = {
+    federation: LoadedFederation
+    testID: string
 }
 
-export const CommunitySettings = ({ community }: CommunityMenuProps) => {
+const FederationMenu = ({ federation }: FederationMenuProps) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const style = styles(theme)
     const dispatch = useAppDispatch()
     const navigation = useNavigation()
 
-    const { exportTransactionsAsCsv, exportingFederationId } = useNativeExport()
+    const { exportTransactionsAsCsv, isExporting } = useNativeExport()
     const { confirmLeaveFederation } = useNativeLeaveFederation()
 
     const [isExpanded, setIsExpanded] = useState(false)
 
-    const tosUrl = getFederationTosUrl(community.meta)
+    const tosUrl = getFederationTosUrl(federation.meta)
     const runSocialBackup = () => {
-        dispatch(setActiveFederationId(community.id))
+        dispatch(setActiveFederationId(federation.id))
         navigation.navigate('StartSocialBackup')
     }
 
@@ -51,7 +52,7 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
 
     // Get the mods for the federation
     const federationMods = useAppSelector(state =>
-        community.id ? selectFederationFediModsById(state, community.id) : [],
+        federation.id ? selectFederationFediModsById(state, federation.id) : [],
     )
 
     const hasMods = federationMods.length > 0
@@ -75,21 +76,21 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
                 style={{ padding: 0, gap: 0 }}
                 content={
                     <ListItem.Content style={style.accordion}>
-                        <FederationLogo federation={community} size={24} />
+                        <FederationLogo federation={federation} size={24} />
                         <Text medium style={style.sectionTitle}>
-                            {community.name}
+                            {federation.name}
                         </Text>
                     </ListItem.Content>
                 }
                 onPress={() => handlePress()}
                 isExpanded={isExpanded}>
-                <View key={community.id} style={style.container}>
+                <View key={federation.id} style={style.container}>
                     <SettingsItem
                         icon="Federation"
                         label={t('feature.federations.federation-details')}
                         onPress={() => {
                             navigation.navigate('FederationDetails', {
-                                federationId: community.id,
+                                federationId: federation.id,
                             })
                         }}
                     />
@@ -100,7 +101,7 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
                             onPress={() => {
                                 navigation.navigate('FederationModSettings', {
                                     type: 'community',
-                                    federationId: community.id,
+                                    federationId: federation.id,
                                 })
                             }}
                         />
@@ -110,22 +111,22 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
                         label={t('words.currency')}
                         onPress={() => {
                             navigation.navigate('FederationCurrency', {
-                                federationId: community.id,
+                                federationId: federation.id,
                             })
                         }}
                     />
-                    {shouldShowInviteCode(community.meta) && (
+                    {shouldShowInviteCode(federation.meta) && (
                         <SettingsItem
                             icon="Qr"
                             label={t('feature.federations.invite-members')}
                             onPress={() => {
                                 navigation.navigate('FederationInvite', {
-                                    inviteLink: community.inviteCode,
+                                    inviteLink: federation.inviteCode,
                                 })
                             }}
                         />
                     )}
-                    {shouldShowSocialRecovery(community) && (
+                    {shouldShowSocialRecovery(federation) && (
                         <SettingsItem
                             icon="SocialPeople"
                             label={t('feature.backup.social-backup')}
@@ -141,20 +142,20 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
                             onPress={() => Linking.openURL(tosUrl)}
                         />
                     )}
-                    {community.hasWallet && (
+                    {federation.hasWallet && (
                         <SettingsItem
                             icon="TableExport"
                             label={t(
                                 'feature.backup.export-transactions-to-csv',
                             )}
-                            onPress={() => exportTransactionsAsCsv(community)}
-                            disabled={!!exportingFederationId}
+                            onPress={() => exportTransactionsAsCsv(federation)}
+                            disabled={!!isExporting}
                         />
                     )}
                     <SettingsItem
                         icon="LeaveFederation"
                         label={t('feature.federations.leave-federation')}
-                        onPress={() => confirmLeaveFederation(community)}
+                        onPress={() => confirmLeaveFederation(federation)}
                     />
                 </View>
             </ListItem.Accordion>
@@ -162,7 +163,8 @@ export const CommunitySettings = ({ community }: CommunityMenuProps) => {
     )
 }
 
-const styles = (theme: Theme) =>
+// Shared with `./CommunityMenu.tsx`
+export const styles = (theme: Theme) =>
     StyleSheet.create({
         sectionContainer: {
             backgroundColor: theme.colors.offWhite100,
@@ -189,3 +191,5 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.sm,
         },
     })
+
+export default FederationMenu

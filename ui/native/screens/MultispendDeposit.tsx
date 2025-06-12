@@ -14,6 +14,7 @@ import {
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import CustomOverlay from '../components/ui/CustomOverlay'
+import Flex from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector, useStabilityPool } from '../state/hooks'
 import { Sats } from '../types'
@@ -103,14 +104,14 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                 />
                             </View>
                         )}
-                        <View style={style.balanceWidgetInfo}>
+                        <Flex gap="xs">
                             <Text bold caption>
                                 {
                                     multispendStatus.finalized_group.invitation
                                         .federationName
                                 }
                             </Text>
-                            <View style={style.balanceContainer}>
+                            <Flex row align="center" gap="sm">
                                 <Text
                                     medium
                                     caption
@@ -155,12 +156,13 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                     backgroundColor={theme.colors.blue100}>
                                     <SvgImage name="Info" size={12} />
                                 </Tooltip>
-                            </View>
-                        </View>
+                            </Flex>
+                        </Flex>
                     </View>
                 }
                 notes={notes}
                 setNotes={setNotes}
+                notesOptional={false}
                 buttons={[
                     {
                         title: `${t('words.deposit')}`,
@@ -227,17 +229,6 @@ export const styles = (theme: Theme) =>
             alignSelf: 'center',
             borderRadius: 12,
             minWidth: 200,
-        },
-        balanceWidgetInfo: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.xs,
-        },
-        balanceContainer: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
         },
         stableBalanceLink: {
             color: theme.colors.primary,

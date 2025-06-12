@@ -1,6 +1,8 @@
 import { useTheme, Theme } from '@rneui/themed'
-import React, { useMemo } from 'react'
-import { View, TouchableOpacity, StyleSheet, Text } from 'react-native'
+import React from 'react'
+import { TouchableOpacity, StyleSheet, Text } from 'react-native'
+
+import Flex from '../../ui/Flex'
 
 export interface Option<T extends string> {
     label: string
@@ -19,56 +21,51 @@ export function Switcher<T extends string>({
     selected,
 }: Props<T>) {
     const { theme } = useTheme()
-    const styles = useMemo(() => createStyles(theme), [theme])
+    const style = styles(theme)
 
     return (
-        <View style={styles.container}>
+        <Flex row fullWidth style={style.container}>
             {options.map(option => {
                 const isSelected = selected === option.value
                 return (
                     <TouchableOpacity
                         key={option.value}
-                        style={
+                        style={[
+                            style.item,
                             isSelected
-                                ? styles.itemSelected
-                                : styles.itemUnselected
-                        }
+                                ? style.itemSelected
+                                : style.itemUnselected,
+                        ]}
                         onPress={() => onChange(option.value)}>
-                        <Text style={styles.itemText}>{option.label}</Text>
+                        <Text style={style.itemText}>{option.label}</Text>
                     </TouchableOpacity>
                 )
             })}
-        </View>
+        </Flex>
     )
 }
 
-const createStyles = (theme: Theme) =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             borderRadius: 20,
-            flexDirection: 'row',
             height: 40,
             overflow: 'hidden',
-            width: '100%',
             backgroundColor: theme.colors.extraLightGrey,
+        },
+        item: {
+            flex: 1,
+            borderWidth: 2,
+            borderRadius: 20,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderColor: theme.colors.extraLightGrey,
         },
         itemSelected: {
-            flex: 1,
-            borderWidth: 2,
-            borderRadius: 20,
-            justifyContent: 'center',
-            alignItems: 'center',
             backgroundColor: theme.colors.white,
-            borderColor: theme.colors.extraLightGrey,
         },
         itemUnselected: {
-            flex: 1,
-            borderWidth: 2,
-            borderRadius: 20,
-            justifyContent: 'center',
-            alignItems: 'center',
             backgroundColor: theme.colors.extraLightGrey,
-            borderColor: theme.colors.extraLightGrey,
         },
         itemText: {
             fontSize: 14,

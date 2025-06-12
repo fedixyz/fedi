@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FlatList, ListRenderItem, StyleSheet, View } from 'react-native'
+import { FlatList, ListRenderItem, StyleSheet } from 'react-native'
 
 import {
     refetchMatrixRoomMembers,
@@ -14,6 +14,7 @@ import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 
 import { ChatUserActionsOverlay } from '../components/feature/chat/ChatUserActionsOverlay'
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
+import Flex from '../components/ui/Flex'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -101,8 +102,12 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
     const style = styles(theme)
 
     return (
-        <View style={style.container}>
-            <View style={style.titleContainer}>
+        <Flex grow fullWidth style={style.container}>
+            <Flex
+                row
+                align="center"
+                justify="between"
+                style={style.titleContainer}>
                 <Text h2>{t('words.members')}</Text>
                 <PressableIcon
                     onPress={handleInviteMember}
@@ -110,7 +115,7 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                     hitSlop={5}
                     disabled={me?.powerLevel === MatrixPowerLevel.Member}
                 />
-            </View>
+            </Flex>
             <FlatList
                 data={members}
                 renderItem={renderMember}
@@ -128,21 +133,16 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                 selectedUserId={selectedUserId}
                 roomId={roomId}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            width: '100%',
             padding: theme.spacing.lg,
         },
         titleContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
             marginBottom: theme.spacing.sm,
         },
         instructions: {

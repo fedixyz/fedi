@@ -10,6 +10,7 @@ import CogIcon from '@fedi/common/assets/svgs/cog.svg'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import HomeFilledIcon from '@fedi/common/assets/svgs/home-filled.svg'
 import HomeIcon from '@fedi/common/assets/svgs/home.svg'
+import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { selectMatrixHasNotifications } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../hooks'
@@ -50,6 +51,14 @@ export const Navigation: React.FC = () => {
             path: '/settings',
             icon: CogIcon,
             activeIcon: CogFilledIcon,
+            available: true,
+            hasNotification: false,
+        },
+        {
+            name: 'words.scan' as const,
+            path: '/scan',
+            icon: ScanIcon,
+            activeIcon: ScanIcon,
             available: true,
             hasNotification: false,
         },

@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import {
     CommonState,
+    selectActiveFederation,
     selectBtcUsdExchangeRate,
     selectGlobalCommunityMeta,
     selectLoadedFederation,
@@ -554,9 +555,10 @@ export const matrixSlice = createSlice({
             },
         )
 
-        builder.addCase(loadFromStorage.fulfilled, (_state, action) => {
+        builder.addCase(loadFromStorage.fulfilled, (state, action) => {
             if (!action.payload) return
             // state.auth = action.payload.matrixAuth
+            state.drafts = action.payload.chatDrafts
         })
 
         builder.addCase(
@@ -956,10 +958,23 @@ export const setMatrixRoomMemberPowerLevel = createAsyncThunk<
         roomId: MatrixRoom['id']
         userId: MatrixUser['id']
         powerLevel: MatrixPowerLevel
-    }
+    },
+    { state: CommonState }
 >(
     'matrix/setMatrixRoomMemberPowerLevel',
-    async ({ roomId, userId, powerLevel }) => {
+    async ({ roomId, userId, powerLevel }, { getState }) => {
+        const roomMultispendStatus = selectMatrixRoomMultispendStatus(
+            getState(),
+            roomId,
+        )
+
+        if (
+            powerLevel === MatrixPowerLevel.Admin &&
+            roomMultispendStatus?.status === 'activeInvitation'
+        ) {
+            throw new Error('errors.admin-promotion-pending-multispend')
+        }
+
         const client = getMatrixClient()
         return client.setRoomMemberPowerLevel(roomId, userId, powerLevel)
     },
@@ -1260,6 +1275,52 @@ export const rejectMatrixPaymentRequest = createAsyncThunk<
         status: MatrixPaymentStatus.rejected,
     })
 })
+
+export const checkBolt11PaymentResult = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; event: MatrixPaymentEvent },
+    { state: CommonState }
+>(
+    'matrix/checkBolt11PaymentResult',
+    async ({ fedimint, event }, { getState }) => {
+        try {
+            log.info(
+                'calling checkBolt11PaymentResult for',
+                JSON.stringify(event.content),
+            )
+            const matrixAuth = selectMatrixAuth(getState())
+            if (!matrixAuth) throw new Error('Not authenticated')
+
+            const client = getMatrixClient()
+            if (!event.content.bolt11) return
+            // if request is canceled, rejected, or received, we can skip this check
+            if (event.content.status !== MatrixPaymentStatus.requested) return
+            // Only the sender will get a completed result from the RPC
+            if (event.senderId !== matrixAuth?.userId) return
+
+            const activeFederation = selectActiveFederation(getState())
+            if (!activeFederation || !activeFederation.hasWallet) return
+            const result = await fedimint.getPrevPayInvoiceResult(
+                event.content.bolt11,
+                activeFederation.id,
+            )
+            log.info(
+                `bolt11 payment result for ${event.content.bolt11}: `,
+                result,
+            )
+            if (result.completed) {
+                await client.sendMessage(event.roomId, {
+                    ...event.content,
+                    body: `Payment successful.`, // TODO: i18n?
+                    status: MatrixPaymentStatus.received,
+                    senderId: matrixAuth.userId,
+                })
+            }
+        } catch (error) {
+            log.error('checkBolt11PaymentResult', error)
+        }
+    },
+)
 
 export const searchMatrixUsers = createAsyncThunk<MatrixSearchResults, string>(
     'matrix/searchMatrixUsers',
@@ -2115,7 +2176,9 @@ export const selectLatestMultispendTxnInRoom = createSelector(
     },
 )
 
-export const selectMultispendBalanceCents = createSelector(
+// Returns the multispend balance in cents without any rounding
+// so other selectors can round sub-cent values up or down as needed
+export const selectMultispendBalance = createSelector(
     selectMatrixRoomMultispendAccountInfo,
     accountInfo => {
         if (!accountInfo || 'Err' in accountInfo) return 0 as UsdCents
@@ -2123,18 +2186,24 @@ export const selectMultispendBalanceCents = createSelector(
         const { lockedBalance, currCycleStartPrice } = accountInfo.Ok
 
         const balanceMsats = lockedBalance
-        const balanceCents = Number(
-            amountUtils
-                .msatToFiat(balanceMsats, currCycleStartPrice)
-                .toFixed(0),
-        ) as UsdCents
+        const balanceBtc = amountUtils.msatToBtc(balanceMsats)
+        const balanceCentsPrecise = balanceBtc * currCycleStartPrice
 
-        return balanceCents
+        return balanceCentsPrecise
     },
 )
 
-// Converts the multispend balance in cents to the selected currency
-export const selectFormattedMultispendBalance = createSelector(
+export const selectMultispendBalanceCents = createSelector(
+    selectMultispendBalance,
+    balanceCentsPrecise => {
+        if (!balanceCentsPrecise) return 0 as UsdCents
+
+        return Number(balanceCentsPrecise.toFixed(0)) as UsdCents
+    },
+)
+
+// Converts the multispend balance in cents to the selected fiat currency
+export const selectMultispendBalanceFiat = createSelector(
     selectMultispendBalanceCents,
     (s: CommonState) => selectBtcUsdExchangeRate(s),
     (balanceCents, btcUsdExchangeRate) => {

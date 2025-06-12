@@ -11,7 +11,7 @@ concurrency:
 jobs:
     precheck:
         name: 'Check for UI file changes'
-        runs-on: [self-hosted, linux, legacy]
+        runs-on: [self-hosted, linux]
         outputs:
             HAS_UI_CHANGES: ${{ steps.check-ui-changes.outputs.HAS_UI_CHANGES }}
         steps:
@@ -40,7 +40,7 @@ jobs:
         name: Build UI workspace
         needs: precheck
         if: needs.precheck.outputs.HAS_UI_CHANGES == '1'
-        runs-on: [self-hosted, linux, legacy]
+        runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4
@@ -71,7 +71,7 @@ jobs:
         name: UI Status
         needs: [test-ui]
         if: ${{ always() }}
-        runs-on: [self-hosted, linux, legacy]
+        runs-on: [self-hosted, linux]
         steps:
             - name: Check status of UI jobs
               if: >-

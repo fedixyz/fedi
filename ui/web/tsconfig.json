@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
         "target": "es5",
-        "lib": ["dom", "dom.iterable", "esnext"],
+        "lib": ["dom", "dom.iterable", "esnext", "webworker"],
         "skipLibCheck": true,
         "strict": true,
         "forceConsistentCasingInFileNames": true,
@@ -14,7 +14,7 @@
         "jsx": "preserve",
         "incremental": true,
         "allowJs": true,
-        "types": ["node"],
+        "types": ["jest", "node"],
         "typeRoots": [
             "src/typings/",
             "node_modules/@types/",

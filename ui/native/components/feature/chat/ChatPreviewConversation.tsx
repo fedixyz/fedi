@@ -187,7 +187,7 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
                     { bottom: animatedNewMessageBottom },
                 ]}>
                 <Pressable style={style.newMessageButton} onPress={scrollToEnd}>
-                    <Text small bold style={style.newMessageButtonText}>
+                    <Text small bold color={theme.colors.secondary}>
                         {t('feature.chat.new-messages')}
                     </Text>
                 </Pressable>
@@ -217,13 +217,6 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.md,
             backgroundColor: theme.colors.primary,
             borderRadius: 30,
-        },
-        newMessageButtonText: {
-            color: theme.colors.secondary,
-        },
-        center: {
-            flex: 1,
-            justifyContent: 'center',
         },
     })
 

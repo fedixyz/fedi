@@ -10,6 +10,7 @@ import { useDebounce } from '@fedi/common/hooks/util'
 import { setFeatureUnlocked } from '@fedi/common/redux'
 
 import PinDot from '../components/feature/pin/PinDot'
+import Flex from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
@@ -43,7 +44,7 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme, width)
 
     const handleNumpadPress = useCallback(
-        (btn: (typeof numpadButtons)[number]) => {
+        (btn: number | 'backspace') => {
             if (btn === null) return
 
             if (isReEnteringPin) {
@@ -126,9 +127,9 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
     }, [debouncedPin])
 
     return (
-        <View style={style.container}>
-            <View style={style.content}>
-                <View style={style.dots}>
+        <Flex grow center style={style.container}>
+            <Flex grow center style={style.content}>
+                <Flex row center style={style.dots}>
                     {isReEnteringPin &&
                     isConfirmationReady &&
                     !isConfirmationCorrect ? (
@@ -170,18 +171,27 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
                             />
                         </View>
                     )}
-                </View>
-            </View>
-            <View style={style.numpad}>
-                {numpadButtons.map(btn => (
-                    <NumpadButton
-                        key={btn}
-                        btn={btn}
-                        onPress={() => handleNumpadPress(btn)}
-                    />
-                ))}
-            </View>
-        </View>
+                </Flex>
+            </Flex>
+            <Flex row wrap fullWidth style={style.numpad}>
+                {numpadButtons
+                    .filter(
+                        (
+                            btn,
+                        ): btn is Exclude<
+                            (typeof numpadButtons)[number],
+                            '.'
+                        > => btn !== '.',
+                    )
+                    .map(btn => (
+                        <NumpadButton
+                            key={btn}
+                            btn={btn}
+                            onPress={() => handleNumpadPress(btn)}
+                        />
+                    ))}
+            </Flex>
+        </Flex>
     )
 }
 
@@ -192,34 +202,20 @@ const styles = (theme: Theme, width: number) =>
             bottom: 54,
         },
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
             padding: theme.spacing.xl,
         },
         dots: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
             position: 'relative',
         },
         content: {
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             gap: 32,
         },
         numpad: {
-            width: '100%',
             maxWidth: Math.min(400, width),
             paddingHorizontal: theme.spacing.lg,
-            flexDirection: 'row',
-            flexWrap: 'wrap',
         },
         startOver: {
             position: 'absolute',
-            display: 'flex',
             top: 54,
         },
         startOverButtonStyle: {

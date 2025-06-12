@@ -227,14 +227,29 @@ impl_db_lookup!(
     query_prefix = MultispendPendingApprovedWithdrawalRequestKeyPrefix,
 );
 
+/// When a withdrawal request has the required number of votes, the requestor
+/// "queues" it for submission to the federation by writing it with a
+/// [`MultispendPendingApprovedWithdrawalRequestKey`]. From there, a background
+/// service [`super::withdrawal_service::WithdrawalService`] processes these
+/// queued up transactions. Finally, within the federation's subscribe_ function
+/// for spv2 transfers, we read the meta to identify any multispend-group
+/// deposit/withdrawal TXs, and update the final TX status by writing it here.
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub enum MultispendPendingCompletionNotification {
+    /// Withdrawal Tx was successful
     Withdrawal {
         room_id: RpcRoomId,
         request_id: RpcEventId,
         fiat_amount: RpcFiatAmount,
         txid: RpcTransactionId,
     },
+    /// Withdrawal Tx was rejected by the federation
+    FailedWithdrawal {
+        room_id: RpcRoomId,
+        request_id: RpcEventId,
+        error: String,
+    },
+    /// Deposit Tx was successful
     Deposit {
         room_id: RpcRoomId,
         fiat_amount: RpcFiatAmount,
@@ -261,6 +276,7 @@ impl MultispendPendingCompletionNotification {
     pub fn room_id(&self) -> &RpcRoomId {
         match self {
             MultispendPendingCompletionNotification::Withdrawal { room_id, .. } => room_id,
+            MultispendPendingCompletionNotification::FailedWithdrawal { room_id, .. } => room_id,
             MultispendPendingCompletionNotification::Deposit { room_id, .. } => room_id,
         }
     }
@@ -276,6 +292,15 @@ impl MultispendPendingCompletionNotification {
                 response: WithdrawalResponseType::Complete {
                     fiat_amount: *fiat_amount,
                     txid: *txid,
+                },
+            },
+
+            MultispendPendingCompletionNotification::FailedWithdrawal {
+                request_id, error, ..
+            } => MultispendEvent::WithdrawalResponse {
+                request: request_id.clone(),
+                response: WithdrawalResponseType::TxRejected {
+                    error: error.to_string(),
                 },
             },
 

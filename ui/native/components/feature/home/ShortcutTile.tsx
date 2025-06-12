@@ -16,6 +16,7 @@ import { FediModImages } from '../../../assets/images'
 import { useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut, ShortcutType } from '../../../types'
 import { BubbleView } from '../../ui/BubbleView'
+import Flex from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage, {
     SvgImageName,
@@ -149,7 +150,7 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
                     {renderIcon()}
                 </BubbleView>
             </View>
-            <View style={style.title}>
+            <Flex row align="center" justify="start" style={style.title}>
                 <Text
                     caption
                     medium
@@ -157,7 +158,7 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
                     adjustsFontSizeToFit>
                     {shortcut.title}
                 </Text>
-            </View>
+            </Flex>
         </Pressable>
     )
 }
@@ -210,9 +211,6 @@ const styles = (theme: Theme, fontScale: number) => {
             justifyContent: 'center',
         },
         title: {
-            flexDirection: 'row',
-            justifyContent: 'flex-start',
-            alignItems: 'center',
             paddingBottom: theme.spacing.xs,
             paddingHorizontal: theme.spacing.xs,
         },

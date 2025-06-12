@@ -22,6 +22,7 @@ import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import WalletButtons from '../../feature/wallet/WalletButtons'
 import { BubbleCard } from '../../ui/BubbleView'
+import Flex from '../../ui/Flex'
 import StabilityWalletBalance from './StabilityWalletBalance'
 import StabilityWalletTitle from './StabilityWalletTitle'
 
@@ -100,9 +101,14 @@ const StabilityWallet: React.FC = () => {
                     )
                 }>
                 {/* Icon, title, and chevron grouped together */}
-                <View style={style.leftGroup}>
+                <Flex
+                    row
+                    align="center"
+                    gap="sm"
+                    shrink
+                    style={style.leftGroup}>
                     <StabilityWalletTitle />
-                </View>
+                </Flex>
                 {/* Balance on the right */}
                 <StabilityWalletBalance />
             </Pressable>
@@ -139,10 +145,6 @@ const styles = (theme: Theme) =>
         },
         /** Allow the title group to shrink so the balance never gets clipped */
         leftGroup: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-            flexShrink: 1,
             minWidth: 0,
         },
         buttons: {

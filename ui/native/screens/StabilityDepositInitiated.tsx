@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
 
 import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
+import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -30,7 +31,7 @@ const StabilityDepositInitiated: React.FC<Props> = ({ route, navigation }) => {
         <SafeAreaView
             style={style.container}
             edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
-            <View style={style.conversionIndicator}>
+            <Flex row align="center" gap="sm">
                 <SvgImage
                     name="BitcoinCircle"
                     size={SvgImageSize.md}
@@ -38,7 +39,7 @@ const StabilityDepositInitiated: React.FC<Props> = ({ route, navigation }) => {
                 />
                 <SvgImage name="ArrowRight" color={theme.colors.primaryLight} />
                 <CurrencyAvatar />
-            </View>
+            </Flex>
             <View style={style.holoCircleContainer}>
                 <HoloCircle
                     content={
@@ -83,11 +84,6 @@ const styles = (theme: Theme) =>
             flex: 1,
             alignItems: 'center',
             padding: theme.spacing.lg,
-        },
-        conversionIndicator: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
         },
         holoCircleContainer: {
             marginTop: 'auto',

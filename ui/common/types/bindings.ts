@@ -90,7 +90,9 @@ export type ErrorCode =
   | "noLnGatewayAvailable"
   | { moduleNotFound: string }
   | { federationPendingRejoinFromScratch: string }
-  | "invalidMsEvent";
+  | "invalidMsEvent"
+  | "recurringdMetaNotFound"
+  | "unknownFederation";
 
 export type Event =
   | { transaction: TransactionEvent }
@@ -156,6 +158,11 @@ export type FeatureCatalog = {
    * the feature.
    */
   stability_pool_v2: StabilityPoolV2FeatureConfig | null;
+  /**
+   * figure out stable format for account id, that includes the federation id
+   * prefix
+   */
+  spv2_stable_account_id: boolean;
 };
 
 export type FiatFXInfo = {
@@ -479,7 +486,11 @@ export type RpcFeeDetails = {
 
 export type RpcFiatAmount = number;
 
-export type RpcGenerateEcashResponse = { ecash: string; cancelAt: number };
+export type RpcGenerateEcashResponse = {
+  ecash: string;
+  cancelAt: number;
+  operationId: RpcOperationId;
+};
 
 export type RpcInitOpts = {
   dataDir: string | null;
@@ -625,6 +636,8 @@ export type RpcMethods = {
   ];
   approveSocialRecoveryRequest: [approveSocialRecoveryRequest, null];
   signLnurlMessage: [signLnurlMessage, RpcSignedLnurlMessage];
+  supportsRecurringdLnurl: [supportsRecurringdLnurl, boolean];
+  getRecurringdLnurl: [getRecurringdLnurl, string];
   backupStatus: [backupStatus, BackupServiceStatus];
   getNostrPubkey: [getNostrPubkey, RpcNostrPubkey];
   getNostrSecret: [getNostrSecret, RpcNostrSecret];
@@ -652,6 +665,12 @@ export type RpcMethods = {
   spv2WithdrawAll: [spv2WithdrawAll, RpcOperationId];
   spv2AverageFeeRate: [spv2AverageFeeRate, bigint];
   spv2AvailableLiquidity: [spv2AvailableLiquidity, RpcAmount];
+  spv2OurPaymentAddress: [spv2OurPaymentAddress, string];
+  spv2ParsePaymentAddress: [
+    spv2ParsePaymentAddress,
+    RpcSpv2ParsedPaymentAddress,
+  ];
+  spv2Transfer: [spv2Transfer, RpcOperationId];
   getSensitiveLog: [getSensitiveLog, boolean];
   setSensitiveLog: [setSensitiveLog, null];
   setMintModuleFediFeeSchedule: [setMintModuleFediFeeSchedule, null];
@@ -1003,6 +1022,13 @@ export type RpcSignature = string;
 
 export type RpcSignedLnurlMessage = { signature: string; pubkey: RpcPublicKey };
 
+export type RpcSpv2ParsedPaymentAddress = {
+  /**
+   * do we know about the federation
+   */
+  federation_id: RpcFederationId | null;
+};
+
 export type RpcStabilityPoolAccountInfo = {
   idleBalance: RpcAmount;
   stagedSeeks: Array<RpcAmount>;
@@ -1090,6 +1116,7 @@ export type RpcTransaction = {
       state: RpcLnPayState | null;
     }
   | { kind: "lnReceive"; ln_invoice: string; state: RpcLnReceiveState | null }
+  | { kind: "lnRecurringdReceive"; state: RpcLnReceiveState | null }
   | {
       kind: "onchainWithdraw";
       onchain_address: string;
@@ -1125,6 +1152,7 @@ export type RpcTransactionKind =
       state: RpcLnPayState | null;
     }
   | { kind: "lnReceive"; ln_invoice: string; state: RpcLnReceiveState | null }
+  | { kind: "lnRecurringdReceive"; state: RpcLnReceiveState | null }
   | {
       kind: "onchainWithdraw";
       onchain_address: string;
@@ -1167,6 +1195,7 @@ export type RpcTransactionListEntry = {
       state: RpcLnPayState | null;
     }
   | { kind: "lnReceive"; ln_invoice: string; state: RpcLnReceiveState | null }
+  | { kind: "lnRecurringdReceive"; state: RpcLnReceiveState | null }
   | {
       kind: "onchainWithdraw";
       onchain_address: string;
@@ -1380,14 +1409,20 @@ export type WithdrawRequestWithApprovals = {
   description: string;
   signatures: { [key in RpcUserId]?: RpcSignature };
   rejections: Array<RpcUserId>;
-  completed: RpcTransactionId | null;
+  txSubmissionStatus: WithdrawTxSubmissionStatus;
   sender: RpcUserId;
 };
+
+export type WithdrawTxSubmissionStatus =
+  | "unknown"
+  | { accepted: { txid: RpcTransactionId } }
+  | { rejected: { error: string } };
 
 export type WithdrawalResponseType =
   | { kind: "approve"; signature: RpcSignature }
   | { kind: "reject" }
-  | { kind: "complete"; fiatAmount: RpcFiatAmount; txid: RpcTransactionId };
+  | { kind: "complete"; fiatAmount: RpcFiatAmount; txid: RpcTransactionId }
+  | { kind: "txRejected"; error: string };
 
 export type approveSocialRecoveryRequest = {
   federationId: RpcFederationId;
@@ -1475,6 +1510,8 @@ export type getPrevPayInvoiceResult = {
   federationId: RpcFederationId;
   invoice: string;
 };
+
+export type getRecurringdLnurl = { federationId: RpcFederationId };
 
 export type getSensitiveLog = {};
 
@@ -1839,6 +1876,16 @@ export type spv2ObserveAccountInfo = {
   observableId: number;
 };
 
+export type spv2OurPaymentAddress = { federationId: RpcFederationId };
+
+export type spv2ParsePaymentAddress = { address: string };
+
+export type spv2Transfer = {
+  paymentAddress: string;
+  amount: RpcFiatAmount;
+  frontendMeta: FrontendMetadata;
+};
+
 export type spv2Withdraw = {
   federationId: RpcFederationId;
   fiatAmount: number;
@@ -1876,6 +1923,8 @@ export type stabilityPoolWithdraw = {
   unlockedAmount: RpcAmount;
   lockedBps: number;
 };
+
+export type supportsRecurringdLnurl = { federationId: RpcFederationId };
 
 export type supportsSafeOnchainDeposit = { federationId: RpcFederationId };
 

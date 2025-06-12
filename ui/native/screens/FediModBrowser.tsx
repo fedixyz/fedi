@@ -42,6 +42,8 @@ import {
     selectSiteInfo,
     listGateways,
     selectIsInternetUnreachable,
+    selectFediModCacheMode,
+    selectFediModCacheEnabled,
 } from '@fedi/common/redux'
 import { AnyParsedData, Invoice, ParserDataType } from '@fedi/common/types'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
@@ -113,6 +115,8 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         selectHasSetMatrixDisplayName,
     )
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
+    const fediModCacheEnabled = useAppSelector(selectFediModCacheEnabled)
+    const fediModCacheMode = useAppSelector(selectFediModCacheMode)
     const currency = useAppSelector(selectCurrency)
     const language = useAppSelector(selectLanguage)
     const toast = useToast()
@@ -313,6 +317,19 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 dispatch(setNostrUnsignedEvent(evt))
             })
         },
+        [InjectionMessageType.nostr_encrypt]: async ({ pubkey, plaintext }) => {
+            log.info('nostr.encrypt', pubkey, plaintext)
+            const encrypted = await fedimint.nostrEncrypt(pubkey, plaintext)
+            return encrypted
+        },
+        [InjectionMessageType.nostr_decrypt]: async ({
+            pubkey,
+            ciphertext,
+        }) => {
+            log.info('nostr.decrypt', pubkey, ciphertext)
+            const decrypted = await fedimint.nostrDecrypt(pubkey, ciphertext)
+            return decrypted
+        },
         [InjectionMessageType.fedi_generateEcash]: async ecashRequestArgs => {
             log.info('fedi.generateEcash', ecashRequestArgs)
 
@@ -469,6 +486,8 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             <WebView
                 ref={webview}
                 webviewDebuggingEnabled={fediModDebugMode} // required for IOS debugging
+                cacheEnabled={fediModCacheEnabled || true}
+                cacheMode={fediModCacheMode || 'LOAD_DEFAULT'}
                 source={{ uri }}
                 injectedJavaScriptBeforeContentLoaded={generateInjectionJs({
                     webln: true,

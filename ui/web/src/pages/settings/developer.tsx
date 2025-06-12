@@ -13,7 +13,7 @@ import {
     makeCSVFilename,
     makeTransactionHistoryCSV,
 } from '@fedi/common/utils/csv'
-import { exportLogs } from '@fedi/common/utils/log'
+import { exportUiLogs } from '@fedi/common/utils/log'
 
 import { Button } from '../../components/Button'
 import { ContentBlock } from '../../components/ContentBlock'
@@ -47,7 +47,7 @@ function DeveloperPage() {
 
     const handleDownloadLogs = useCallback(async () => {
         try {
-            const logs = await exportLogs()
+            const logs = await exportUiLogs()
             // To download a log file, create a fake link and click it
             const hiddenElement = document.createElement('a')
             hiddenElement.href = `data:text/plain;charset=itf-8,${encodeURIComponent(

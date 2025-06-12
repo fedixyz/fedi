@@ -1,8 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Linking, StyleSheet, View } from 'react-native'
+import { Linking, StyleSheet } from 'react-native'
 
+import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import LineBreak from '../components/ui/LineBreak'
 
@@ -13,13 +14,13 @@ const MigratedDeviceSuccess: React.FC = () => {
     const style = styles(theme)
 
     return (
-        <View style={style.container}>
-            <View style={style.headerContainer}>
+        <Flex grow justify="center" style={style.container}>
+            <Flex align="center" gap="lg" style={style.headerContainer}>
                 <HoloCircle content={<Text>{'✅'}</Text>} size={64} />
                 <Text h2 medium style={style.centeredText}>
                     {t('feature.recovery.migrated-device-success-guidance-1')}
                 </Text>
-            </View>
+            </Flex>
             <LineBreak />
             <Text medium style={style.centeredText}>
                 {t('feature.recovery.migrated-device-success-guidance-2')}
@@ -41,21 +42,17 @@ const MigratedDeviceSuccess: React.FC = () => {
                     }}
                 />
             </Text>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            justifyContent: 'center',
             padding: theme.spacing.xl,
             marginBottom: theme.spacing.xxl,
         },
         headerContainer: {
-            alignItems: 'center',
-            gap: 16,
             paddingBottom: theme.spacing.lg,
         },
         centeredText: {

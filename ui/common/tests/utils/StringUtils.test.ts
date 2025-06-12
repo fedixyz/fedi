@@ -82,4 +82,22 @@ describe('StringUtils', () => {
             expect(initials).toEqual('WA')
         })
     })
+    describe('stripNewLines', () => {
+        it('should replace any new line chars with a space', () => {
+            const result = stringUtils.stripNewLines(
+                'this paragraph\nhas a new line in it',
+            )
+
+            expect(result).toEqual('this paragraph has a new line in it')
+        })
+        it('should not affect strings without any new lines', () => {
+            const result = stringUtils.stripNewLines(
+                'this paragraph does not have a new line in it',
+            )
+
+            expect(result).toEqual(
+                'this paragraph does not have a new line in it',
+            )
+        })
+    })
 })

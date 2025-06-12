@@ -4,17 +4,6 @@ import { styled, theme } from '../../styles'
 import { CircularLoader } from '../CircularLoader'
 import { Text } from '../Text'
 
-const Indicator = styled('div', {
-    backgroundColor: '#FCDDEC', // TODO: Replace with fuschia from theme when new colors are added
-    color: theme.colors.primary,
-    padding: '$xs $sm',
-    borderRadius: 8,
-    display: 'flex',
-    gap: theme.space.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-})
-
 export const ChatOfflineIndicator = () => {
     const { t } = useTranslation()
 
@@ -27,3 +16,17 @@ export const ChatOfflineIndicator = () => {
         </Indicator>
     )
 }
+
+const Indicator = styled('div', {
+    alignItems: 'center',
+    backgroundColor: theme.colors.fuschia,
+    borderRadius: 8,
+    color: theme.colors.primary,
+    display: 'flex',
+    padding: '$xs $sm',
+    gap: theme.space.sm,
+    justifyContent: 'center',
+    position: 'fixed',
+    top: '50px',
+    zIndex: 10,
+})

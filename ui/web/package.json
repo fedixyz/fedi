@@ -10,15 +10,15 @@
         "lint": "yarn lint:next && yarn lint:tsc",
         "lint:next": "next lint",
         "lint:tsc": "tsc --noEmit",
-        "test": "echo 'No tests yet!'",
         "format": "prettier --write .",
-        "format:check": "prettier --check ."
+        "format:check": "prettier --check .",
+        "test": "jest"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.451.0",
         "@aws-sdk/s3-request-presigner": "^3.451.0",
-        "@notionhq/client": "^2.2.14",
         "@ngraveio/bc-ur": "^1.1.13",
+        "@notionhq/client": "^2.2.14",
         "@radix-ui/react-alert-dialog": "^1.0.5",
         "@radix-ui/react-avatar": "^1.0.4",
         "@radix-ui/react-checkbox": "^1.0.4",
@@ -49,12 +49,19 @@
     "devDependencies": {
         "@next/bundle-analyzer": "^13.4.5",
         "@svgr/webpack": "^7.0.0",
+        "@testing-library/dom": "^10.4.0",
+        "@testing-library/jest-dom": "^6.6.3",
+        "@testing-library/react": "^16.3.0",
+        "@testing-library/user-event": "^14.6.1",
         "@trivago/prettier-plugin-sort-imports": "^4.1.1",
+        "@types/jest": "^29.5.14",
+        "@types/node": "^22.15.17",
         "@types/qrcode": "^1.5.0",
         "@typescript-eslint/eslint-plugin": "^5.56.0",
         "@typescript-eslint/parser": "^5.56.0",
         "eslint": "^8.41.0",
         "eslint-config-next": "^13.2.4",
+        "jest-environment-jsdom": "^29.7.0",
         "typescript": "^5.0.2"
     }
 }

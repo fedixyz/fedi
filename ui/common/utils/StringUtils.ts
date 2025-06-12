@@ -37,6 +37,9 @@ class StringUtils {
 
         return seedWordValue
     }
+    stripNewLines = (str: string): string => {
+        return str.replace(/(\r\n|\n|\r)/gm, ' ')
+    }
 }
 
 const stringUtils = new StringUtils()

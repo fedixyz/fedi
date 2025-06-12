@@ -20,6 +20,7 @@ import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useMatrixFile } from '../../../utils/hooks/media'
+import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
@@ -59,12 +60,12 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     return (isLoading && !uri) || isError ? (
         <View style={imageBaseStyle}>
             {isError ? (
-                <View style={style.imageError}>
+                <Flex align="center">
                     <SvgImage name="ImageOff" color={theme.colors.grey} />
-                    <Text caption style={style.errorCaption}>
+                    <Text caption color={theme.colors.darkGrey}>
                         {t('errors.failed-to-load-image')}
                     </Text>
-                </View>
+                </Flex>
             ) : (
                 <ActivityIndicator />
             )}
@@ -96,14 +97,6 @@ const styles = (theme: Theme) =>
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-        },
-        imageError: {
-            flexDirection: 'column',
-            gap: theme.spacing.md,
-            alignItems: 'center',
-        },
-        errorCaption: {
-            color: theme.colors.darkGrey,
         },
     })
 

@@ -2,9 +2,10 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { NavigationHook } from '../../../types/navigation'
+import Flex from '../../ui/Flex'
 
 type Props = {
     roomId: string
@@ -20,7 +21,7 @@ const NoMembersNotice: React.FC<Props> = ({
     const navigation = useNavigation<NavigationHook>()
 
     return (
-        <View style={styles(theme).container}>
+        <Flex grow center>
             {isBroadcast ? (
                 <Text medium style={styles(theme).text}>
                     {t('feature.chat.broadcast-no-message')}
@@ -39,17 +40,12 @@ const NoMembersNotice: React.FC<Props> = ({
                     navigation.navigate('ChatRoomInvite', { roomId })
                 }
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
         icon: {
             height: theme.sizes.lg,
             width: theme.sizes.lg,

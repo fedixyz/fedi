@@ -1,4 +1,4 @@
-import { TFunction } from 'i18next'
+import { ResultAsync } from 'neverthrow'
 
 import type {
     FedimintBridgeEventMap,
@@ -8,14 +8,12 @@ import type {
     bindings,
 } from '../types'
 import {
-    ErrorCode,
     FrontendMetadata,
     GuardianStatus,
     Observable,
     ObservableVec,
     ObservableVecUpdate,
     RpcAmount,
-    RpcError,
     RpcFederationId,
     RpcFeeDetails,
     RpcMediaSource,
@@ -27,8 +25,8 @@ import {
     RpcTransaction,
     RpcTransactionListEntry,
 } from '../types/bindings'
+import { BridgeError, UnexpectedError } from '../utils/errors'
 import { isDev } from './environment'
-import { formatBridgeError } from './error'
 import { makeLog } from './log'
 import { applyObservableUpdates } from './observable'
 
@@ -49,6 +47,19 @@ export class FedimintBridge {
         R extends bindings.RpcResponse<M>,
     >(method: M, payload: bindings.RpcPayload<M>): Promise<R> {
         return await this.rpc(method, payload)
+    }
+
+    rpcResult<
+        M extends bindings.RpcMethodNames,
+        R extends bindings.RpcResponse<M>,
+    >(
+        method: M,
+        payload: bindings.RpcPayload<M>,
+    ): ResultAsync<R, BridgeError | UnexpectedError> {
+        return ResultAsync.fromPromise(
+            this.rpc(method, payload),
+            BridgeError.tryFrom,
+        )
     }
 
     /*** RPC METHODS ***/
@@ -293,6 +304,13 @@ export class FedimintBridge {
         })
     }
 
+    async getPrevPayInvoiceResult(invoice: string, federationId: string) {
+        return this.rpcTyped('getPrevPayInvoiceResult', {
+            invoice,
+            federationId,
+        })
+    }
+
     async generateAddress(
         federationId: string,
         frontendMetadata: FrontendMetadata = {
@@ -339,6 +357,10 @@ export class FedimintBridge {
                 senderMatrixId: null,
             },
         })
+    }
+
+    async supportsSafeOnchainDeposit(federationId: string) {
+        return this.rpcTyped('supportsSafeOnchainDeposit', { federationId })
     }
 
     async generateEcash(
@@ -418,6 +440,20 @@ export class FedimintBridge {
     async signNostrEvent(eventHash: string) {
         return this.rpcTyped('signNostrEvent', {
             eventHash,
+        })
+    }
+
+    async nostrEncrypt(pubkey: string, plaintext: string) {
+        return this.rpcTyped('nostrEncrypt', {
+            pubkey,
+            plaintext,
+        })
+    }
+
+    async nostrDecrypt(pubkey: string, ciphertext: string) {
+        return this.rpcTyped('nostrDecrypt', {
+            pubkey,
+            ciphertext,
         })
     }
 
@@ -1123,22 +1159,5 @@ export class FedimintBridge {
                 subscribedListeners.filter(l => l !== listener),
             )
         }
-    }
-}
-
-export class BridgeError extends Error {
-    public detail: string
-    public error: string
-    public errorCode: ErrorCode | null
-
-    constructor(json: RpcError) {
-        super(json.error)
-        this.error = json.error
-        this.errorCode = json.errorCode
-        this.detail = json.detail
-    }
-
-    public format(t: TFunction) {
-        return formatBridgeError(this, t)
     }
 }

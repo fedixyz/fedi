@@ -3,6 +3,8 @@ import { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import Flex from '../../../ui/Flex'
+
 type Props = {
     heading?: ReactNode
     body?: ReactNode
@@ -26,13 +28,13 @@ const MultispendEventTemplate: React.FC<Props> = ({
     return (
         <View style={[style.bubble, { width: theme.sizes.maxMessageWidth }]}>
             {heading && (
-                <View style={style.header}>
+                <Flex row align="center" justify="between">
                     <Text style={style.headerText} caption bold>
                         {t('feature.multispend.message-header')}
                     </Text>
-                </View>
+                </Flex>
             )}
-            <View style={style.body}>
+            <Flex gap="md" style={style.body}>
                 {typeof body === 'string' ? (
                     <Text caption style={style.incomingText}>
                         {body}
@@ -47,7 +49,7 @@ const MultispendEventTemplate: React.FC<Props> = ({
                 ) : (
                     footer
                 )}
-            </View>
+            </Flex>
             {button && (
                 <Button
                     containerStyle={style.button}
@@ -68,13 +70,8 @@ const MultispendEventTemplate: React.FC<Props> = ({
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        header: {
-            justifyContent: 'space-between',
-            flexDirection: 'row',
-            alignItems: 'center',
-        },
         headerText: { color: theme.colors.night },
-        body: { paddingVertical: theme.spacing.md, gap: theme.spacing.md },
+        body: { paddingVertical: theme.spacing.md },
         bubble: {
             padding: 10,
             width: theme.sizes.maxMessageWidth,

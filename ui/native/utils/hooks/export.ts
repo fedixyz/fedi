@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
+    ExportResult,
+    useExportMultispendTransactions,
     useExportTransactions,
     useTransactionHistory,
 } from '@fedi/common/hooks/transactions'
@@ -16,7 +18,13 @@ import {
     selectNostrNpub,
 } from '@fedi/common/redux'
 import { selectActiveFederation } from '@fedi/common/redux/federation'
-import { LoadedFederation } from '@fedi/common/types'
+import {
+    LoadedFederation,
+    MatrixRoom,
+    MatrixRoomMember,
+    MultispendActiveInvitation,
+    MultispendFinalized,
+} from '@fedi/common/types'
 import {
     submitBugReport,
     uploadBugReportLogs,
@@ -28,48 +36,82 @@ import { useAppDispatch, useAppSelector } from '../../state/hooks'
 import { dumpDB } from '../device-info'
 import { generateLogsExportGzip } from '../log'
 
+const exportLogger = makeLog('native/utils/hooks/export/useNativeExport')
+const shareLogger = makeLog('native/utils/hooks/export/useShareLogs')
+
+/**
+ * for exporting federation and multispend transactions via native share
+ */
 export const useNativeExport = () => {
     const toast = useToast()
     const { t } = useTranslation()
+    const [isExporting, setIsExporting] = useState(false)
     const exportTransactions = useExportTransactions(fedimint, t)
-    const [exportingFederationId, setExportingFederationId] =
-        useState<string>('')
+    const exportMultispendTransactions = useExportMultispendTransactions(t)
 
-    const log = makeLog('Settings/export')
+    const exportData = useCallback(
+        async (exportFunction: () => Promise<ExportResult>) => {
+            setIsExporting(true)
 
-    const exportTransactionsAsCsv = useCallback(
-        async (federation: LoadedFederation) => {
-            setExportingFederationId(federation.id)
+            try {
+                const result = await exportFunction()
 
-            const res = await exportTransactions(federation)
-
-            if (res.success) {
-                try {
-                    await Share.open({
-                        filename:
-                            Platform.OS === 'android'
-                                ? res.fileName.slice(0, -4)
-                                : res.fileName,
-                        type: 'text/csv',
-                        url: res.uri,
+                if (result.success) {
+                    try {
+                        await Share.open({
+                            filename:
+                                Platform.OS === 'android'
+                                    ? result.fileName.slice(0, -4)
+                                    : result.fileName,
+                            type: 'text/csv',
+                            url: result.uri,
+                        })
+                    } catch (error) {
+                        // User cancelled share dialog - not an error
+                        exportLogger.info('Share cancelled by user')
+                    }
+                } else {
+                    exportLogger.error('Share failed', result.message)
+                    toast.show({
+                        content: t('errors.failed-to-fetch-transactions'),
+                        status: 'error',
                     })
-                } catch {
-                    /* no-op */
                 }
-            } else {
-                log.error('error', res.message)
+            } catch (error) {
+                exportLogger.error('Export failed', error)
                 toast.show({
                     content: t('errors.failed-to-fetch-transactions'),
                     status: 'error',
                 })
+            } finally {
+                setIsExporting(false)
             }
-
-            setExportingFederationId('')
         },
-        [exportTransactions, t, toast, log],
+        [t, toast],
     )
 
-    return { exportTransactionsAsCsv, exportingFederationId }
+    const exportTransactionsAsCsv = async (federation: LoadedFederation) => {
+        await exportData(() => exportTransactions(federation))
+    }
+
+    const exportMultispendTransactionsAsCsv = async (
+        room: MatrixRoom,
+        multispendStatus?:
+            | MultispendActiveInvitation
+            | MultispendFinalized
+            | undefined,
+        roomMembers?: MatrixRoomMember[],
+    ) => {
+        await exportData(() =>
+            exportMultispendTransactions(room, multispendStatus, roomMembers),
+        )
+    }
+
+    return {
+        exportTransactionsAsCsv,
+        exportMultispendTransactionsAsCsv,
+        isExporting,
+    }
 }
 
 export type Status =
@@ -92,8 +134,6 @@ export const useShareLogs = () => {
     const fedimintVersion = useAppSelector(selectFedimintVersion)
 
     const { fetchTransactions } = useTransactionHistory(fedimint)
-
-    const log = makeLog('ShareLogs')
 
     const collectAttachmentsAndSubmit = useCallback(
         async (sendDb: boolean, ticketNumber: string) => {
@@ -156,7 +196,7 @@ export const useShareLogs = () => {
 
                 return true // success
             } catch (err) {
-                log.error('Failed to generate attachment files', err)
+                shareLogger.error('Failed to generate attachment files', err)
                 toast.error(t, err)
                 setStatus('idle')
                 return false // failed
@@ -168,7 +208,6 @@ export const useShareLogs = () => {
             fetchTransactions,
             t,
             toast,
-            log,
             npub,
             fedimintVersion,
         ],

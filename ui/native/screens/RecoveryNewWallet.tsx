@@ -2,11 +2,12 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 
 import { fedimint } from '../bridge'
+import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
@@ -35,8 +36,8 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
     }
 
     return (
-        <View style={style.container}>
-            <View style={style.centeredContainer}>
+        <Flex grow center gap="lg" style={style.container}>
+            <Flex align="center" gap="lg" style={style.centeredContainer}>
                 <HoloCircle
                     content={<SvgImage name="Wallet" size={SvgImageSize.md} />}
                     size={64}
@@ -48,7 +49,7 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
                 <Text medium style={style.centeredText}>
                     {t('feature.recovery.create-new-wallet-guidance')}
                 </Text>
-            </View>
+            </Flex>
             <Text caption style={style.subText}>
                 {t('words.enjoy')}
             </Text>
@@ -57,22 +58,16 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
                 title={t('words.continue')}
                 onPress={handleContinue}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
             padding: theme.spacing.lg,
         },
         centeredContainer: {
-            alignItems: 'center',
-            gap: 16,
             marginTop: 'auto',
             paddingHorizontal: theme.spacing.lg,
         },

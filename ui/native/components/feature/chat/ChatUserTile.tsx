@@ -1,11 +1,12 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useMemo } from 'react'
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
+import { StyleProp, StyleSheet, ViewStyle } from 'react-native'
 
 import { MatrixUser } from '@fedi/common/types'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
 import { AvatarSize } from '../../ui/Avatar'
+import Flex from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
@@ -46,14 +47,16 @@ const ChatUserTile: React.FC<UserItemProps> = ({
         displayName: overrideAvatarName || user.displayName,
     }
 
+    const style = styles(theme)
+
     return (
         <Pressable
             containerStyle={containerStyle}
             onPress={disabled ? undefined : () => selectUser(user.id)}
             onLongPress={disabled ? undefined : () => selectUser(user.id)}>
-            <View style={styles(theme).usernameContainer}>
+            <Flex grow row align="center" fullWidth>
                 <ChatAvatar
-                    containerStyle={[styles(theme).avatar]}
+                    containerStyle={[style.avatar]}
                     user={avatarUser}
                     size={AvatarSize.md}
                 />
@@ -61,14 +64,14 @@ const ChatUserTile: React.FC<UserItemProps> = ({
                     <SvgImage
                         size={15}
                         name={'AdminBadge'}
-                        containerStyle={styles(theme).adminBadge}
+                        containerStyle={style.adminBadge}
                     />
                 )}
                 <Text
                     numberOfLines={1}
                     adjustsFontSizeToFit
                     bold
-                    style={[styles(theme).usernameText]}>
+                    style={[style.usernameText]}>
                     {user.displayName}
                 </Text>
                 {showSuffix && (
@@ -76,15 +79,15 @@ const ChatUserTile: React.FC<UserItemProps> = ({
                         numberOfLines={1}
                         bold
                         caption
-                        style={styles(theme).usernameSuffix}>
+                        color={theme.colors.grey}>
                         {suffix}
                     </Text>
                 )}
-                <View style={styles(theme).iconContainer}>
+                <Flex row align="center" style={style.iconContainer}>
                     {rightIcon && rightIcon}
                     {actionIcon && actionIcon}
-                </View>
-            </View>
+                </Flex>
+            </Flex>
         </Pressable>
     )
 }
@@ -97,28 +100,14 @@ const styles = (theme: Theme) =>
         adminBadge: {
             marginRight: theme.spacing.xs,
         },
-        usernameContainer: {
-            flex: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            width: '100%',
-        },
         usernameText: {
             flexShrink: 2,
             paddingRight: theme.spacing.xs,
         },
-        usernameSuffix: {
-            color: theme.colors.grey,
-        },
         iconContainer: {
             marginLeft: 'auto',
-            flexDirection: 'row',
-            alignItems: 'center',
             gap: theme.spacing.xs,
             paddingLeft: theme.spacing.sm,
-        },
-        roleText: {
-            color: theme.colors.grey,
         },
     })
 

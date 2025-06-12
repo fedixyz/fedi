@@ -20,3 +20,6 @@ procs:
         stop: SIGKILL
     remote-bridge:
         shell: bash scripts/bridge/run-remote.sh
+    appium:
+        shell: bash scripts/ui/start-appium.sh
+        stop: SIGKILL

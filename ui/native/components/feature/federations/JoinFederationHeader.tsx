@@ -10,10 +10,9 @@ const JoinFederationHeader: React.FC = () => {
     return (
         <Header
             backButton
-            // onBackButtonPress={}
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
-                    {t('phrases.welcome')}
+                    {t('words.welcome')}
                 </Text>
             }
         />

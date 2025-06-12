@@ -7,6 +7,8 @@ import LinearGradient, {
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
+import Flex from './Flex'
+
 type BubbleViewProps = {
     containerStyle?: StyleProp<ViewStyle>
     topShadowStyle?: StyleProp<ViewStyle>
@@ -105,7 +107,9 @@ export const BubbleCard = ({
     return (
         <BubbleView containerStyle={[style.wrapper, containerStyle]}>
             <LinearGradient {...gradientProps} style={style.gradient}>
-                <View style={[style.wrapper, style.card]}>{children}</View>
+                <Flex gap="md" fullWidth style={[style.wrapper, style.card]}>
+                    {children}
+                </Flex>
             </LinearGradient>
         </BubbleView>
     )
@@ -118,11 +122,9 @@ const styles = (theme: Theme, width: number) =>
         },
         wrapper: {
             borderRadius: theme.borders.defaultRadius,
-            gap: theme.spacing.md,
         },
         card: {
             padding: theme.spacing.lg,
-            width: '100%',
             overflow: 'hidden',
         },
         container: {

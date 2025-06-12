@@ -2,12 +2,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { fedimint } from '../bridge'
 import { FieldInput } from '../components/ui/FieldInput'
+import Flex from '../components/ui/Flex'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
@@ -91,21 +92,21 @@ const CreatePoll: React.FC<Props> = ({
                 value={question}
                 onChangeText={setQuestion}
             />
-            <View style={style.options}>
+            <Flex gap="sm">
                 <Text small style={style.optionsLabel}>
                     {t('words.options')}
                 </Text>
-                <View style={style.optionsContainer}>
+                <Flex gap="sm">
                     {options.map(option => (
-                        <View style={style.option} key={option.id}>
-                            <View style={style.optionInput}>
+                        <Flex row align="center" gap="sm" key={option.id}>
+                            <Flex grow>
                                 <FieldInput
                                     value={option.text}
                                     onChangeText={text =>
                                         handleOptionChange(option, text)
                                     }
                                 />
-                            </View>
+                            </Flex>
                             <PressableIcon
                                 svgName="Trash"
                                 onPress={() => {
@@ -114,40 +115,44 @@ const CreatePoll: React.FC<Props> = ({
                                 containerStyle={style.deleteOptionIcon}
                                 disabled={options.length < 3}
                             />
-                        </View>
+                        </Flex>
                     ))}
-                </View>
-                <View style={style.addOptionContainer}>
+                </Flex>
+                <Flex row>
                     <Pressable onPress={handleAddOption}>
-                        <View style={style.addOptionButton}>
+                        <Flex
+                            row
+                            align="center"
+                            gap="sm"
+                            style={style.addOptionButton}>
                             <Text>{t('words.add')}</Text>
                             <SvgImage name="PlusCircle" />
-                        </View>
+                        </Flex>
                     </Pressable>
-                </View>
-            </View>
-            <View style={style.settings}>
-                <View style={style.setting}>
-                    <View style={style.settingLabel}>
+                </Flex>
+            </Flex>
+            <Flex gap="lg">
+                <Flex row align="center" justify="between" gap="sm">
+                    <Flex row align="center" gap="sm">
                         <SvgImage name="List" />
                         <Text>{t('feature.chat.multiple-choice')}</Text>
-                    </View>
+                    </Flex>
                     <Switch
                         value={isMultipleChoice}
                         onValueChange={setIsMultipleChoice}
                     />
-                </View>
-                <View style={style.setting}>
-                    <View style={style.settingLabel}>
+                </Flex>
+                <Flex row align="center" justify="between" gap="sm">
+                    <Flex row align="center" gap="sm">
                         <SvgImage name="Bolt" />
                         <Text>{t('feature.chat.show-live-results')}</Text>
-                    </View>
+                    </Flex>
                     <Switch
                         value={isDisclosed}
                         onValueChange={setIsDisclosed}
                     />
-                </View>
-            </View>
+                </Flex>
+            </Flex>
             <Button
                 title={t('feature.chat.create-poll')}
                 onPress={handleCreatePoll}
@@ -170,79 +175,20 @@ export const styles = (theme: Theme) =>
             flexDirection: 'column',
             gap: theme.spacing.xl,
         },
-        options: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.sm,
-        },
         optionsLabel: {
             paddingLeft: theme.spacing.xs,
-        },
-        optionsContainer: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.sm,
-        },
-        option: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-        },
-        optionInput: {
-            flex: 1,
         },
         deleteOptionIcon: {
             flexShrink: 0,
         },
-        addOptionContainer: {
-            display: 'flex',
-            flexDirection: 'row',
-        },
         addOptionButton: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
             paddingVertical: 4,
             paddingHorizontal: 8,
             backgroundColor: theme.colors.offWhite,
             borderRadius: 24,
         },
-        settings: {
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.lg,
-        },
-        setting: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: theme.spacing.sm,
-        },
-        settingLabel: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-        },
-        endPollPreview: {
-            alignItems: 'center',
-            gap: theme.spacing.xl,
-        },
-        pollPreview: {
-            backgroundColor: theme.colors.extraLightGrey,
-            width: '100%',
-            borderRadius: 8,
-            padding: theme.spacing.lg,
-            alignItems: 'center',
-        },
         submitButton: {
             marginTop: 'auto',
-        },
-        endButton: {
-            backgroundColor: theme.colors.red,
         },
     })
 

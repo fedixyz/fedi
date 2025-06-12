@@ -3,7 +3,10 @@ import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
-import { useMultispendWithdrawalRequests } from '@fedi/common/hooks/multispend'
+import {
+    useMultispendVoting,
+    useMultispendWithdrawalRequests,
+} from '@fedi/common/hooks/multispend'
 import { selectMatrixRoomMembers } from '@fedi/common/redux'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
@@ -12,6 +15,7 @@ import { useAppSelector } from '../../../../state/hooks'
 import { MatrixRoomMember, MultispendWithdrawalEvent } from '../../../../types'
 import { AvatarSize } from '../../../ui/Avatar'
 import AvatarStack from '../../../ui/AvatarStack'
+import Flex from '../../../ui/Flex'
 import SvgImage from '../../../ui/SvgImage'
 import ChatAvatar from '../../chat/ChatAvatar'
 
@@ -31,6 +35,8 @@ const WithdrawalOverlayContents: React.FC<{
     const { sender, approvals, rejections, formattedFiatAmountWithCurrency } =
         getWithdrawalRequest(selectedWithdrawal)
 
+    const { canVote } = useMultispendVoting({ t, fedimint, roomId })
+
     const haveIVoted = selectedWithdrawal
         ? haveIVotedForWithdrawal(selectedWithdrawal)
         : false
@@ -38,7 +44,7 @@ const WithdrawalOverlayContents: React.FC<{
     const style = styles(theme)
 
     return (
-        <View style={style.container}>
+        <Flex grow gap="md" style={style.container}>
             <Text>
                 <Trans
                     i18nKey="feature.multispend.user-wants-to-withdraw"
@@ -64,14 +70,18 @@ const WithdrawalOverlayContents: React.FC<{
                 userIds={rejections}
                 status="reject"
             />
-            {haveIVoted && (
-                <View style={style.votedContainer}>
+            {(haveIVoted || !canVote) && (
+                <Flex align="center" style={style.votedContainer}>
                     <Text style={style.votedText}>
-                        {t('feature.multispend.already-voted')}
+                        {t(
+                            haveIVoted
+                                ? 'feature.multispend.already-voted'
+                                : 'feature.multispend.no-permission-to-vote',
+                        )}
                     </Text>
-                </View>
+                </Flex>
             )}
-        </View>
+        </Flex>
     )
 }
 
@@ -110,7 +120,7 @@ function VoterDropdown({
                         },
                     )}
                 </Text>
-                <View style={style.dropdownGrouping}>
+                <Flex row align="center" gap="sm">
                     <AvatarStack members={members} />
                     <SvgImage
                         name={
@@ -123,17 +133,17 @@ function VoterDropdown({
                         size={16}
                         color={theme.colors.grey}
                     />
-                </View>
+                </Flex>
             </Pressable>
             {open && (
-                <View style={style.dropdownContent}>
+                <Flex gap="sm" style={style.dropdownContent}>
                     {members.map((member, i) => (
                         <ThinAvatarRow
                             key={`multispend-voter-dropdown-${status}-${i}`}
                             member={member}
                         />
                     ))}
-                </View>
+                </Flex>
             )}
         </View>
     )
@@ -141,10 +151,9 @@ function VoterDropdown({
 
 function ThinAvatarRow({ member }: { member: MatrixRoomMember }) {
     const { theme } = useTheme()
-    const style = styles(theme)
 
     return (
-        <View style={style.voter}>
+        <Flex row align="center" gap="sm">
             <ChatAvatar user={member} size={AvatarSize.sm} />
             <Text caption medium numberOfLines={1}>
                 {member.displayName}{' '}
@@ -152,20 +161,16 @@ function ThinAvatarRow({ member }: { member: MatrixRoomMember }) {
                     {getUserSuffix(member.id)}
                 </Text>
             </Text>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            flexDirection: 'column',
-            gap: theme.spacing.md,
             padding: theme.spacing.md,
         },
         votedContainer: {
-            alignItems: 'center',
             paddingHorizontal: theme.spacing.md,
             paddingTop: theme.spacing.lg,
         },
@@ -180,23 +185,8 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             justifyContent: 'space-between',
         },
-        dropdownGrouping: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-        },
         dropdownContent: {
             paddingVertical: theme.spacing.sm,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: theme.spacing.sm,
-        },
-        voter: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
         },
         votedText: {
             color: theme.colors.grey,

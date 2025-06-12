@@ -4,10 +4,7 @@ import { useTranslation } from 'react-i18next'
 import SwitchLeftIcon from '@fedi/common/assets/svgs/switch-left.svg'
 import SwitchRightIcon from '@fedi/common/assets/svgs/switch-right.svg'
 import { useRequestForm } from '@fedi/common/hooks/amount'
-import {
-    useIsOfflineWalletSupported,
-    useIsOnchainDepositSupported,
-} from '@fedi/common/hooks/federation'
+import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectActiveFederationId } from '@fedi/common/redux'
@@ -64,7 +61,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         useState<Transaction>()
     const containerRef = useRef<HTMLDivElement | null>(null)
     const onOpenChangeRef = useUpdatingRef(onOpenChange)
-    const isOfflineWalletSupported = useIsOfflineWalletSupported()
     const isOnchainSupported = useIsOnchainDepositSupported()
 
     // Reset on close, focus input on desktop open
@@ -219,7 +215,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const qrData = isLightning ? lightningInvoice?.toUpperCase() : bitcoinUrl
     const copyData = isLightning ? lightningInvoice : bitcoinUrl
     const showNote = !!note || !wantsInvoice
-    const showOfflineReceive = isOfflineWalletSupported && !lnurlw
     const amountSats = amountUtils.formatSats(amount)
 
     let content: React.ReactNode
@@ -228,25 +223,27 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     } else {
         content = (
             <>
-                {isOnchainSupported && (
-                    <RequestTypeToggle
-                        onClick={() => setIsLightning(!isLightning)}>
-                        <Text variant="caption" weight="medium">
-                            {t(
-                                isLightning
-                                    ? 'words.lightning'
-                                    : 'words.onchain',
-                            )}
-                        </Text>
-                        <Icon
-                            size={20}
-                            icon={
-                                isLightning ? SwitchLeftIcon : SwitchRightIcon
-                            }
-                        />
-                    </RequestTypeToggle>
-                )}
                 <Center>
+                    {isOnchainSupported && (
+                        <RequestTypeToggle
+                            onClick={() => setIsLightning(!isLightning)}>
+                            <Text variant="caption" weight="medium">
+                                {t(
+                                    isLightning
+                                        ? 'words.lightning'
+                                        : 'words.onchain',
+                                )}
+                            </Text>
+                            <Icon
+                                size={20}
+                                icon={
+                                    isLightning
+                                        ? SwitchLeftIcon
+                                        : SwitchRightIcon
+                                }
+                            />
+                        </RequestTypeToggle>
+                    )}
                     <AmountInput
                         amount={amount}
                         onChangeAmount={handleChangeAmount}
@@ -296,11 +293,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                                       amount: amountSats,
                                   })}
                         </Button>
-                        {showOfflineReceive && (
-                            <Button onClick={() => setIsReceivingOffline(true)}>
-                                {t('feature.receive.receive-bitcoin-offline')}
-                            </Button>
-                        )}
                     </Buttons>
                 )}
                 {receivedTransaction && (
@@ -361,7 +353,7 @@ const Center = styled('div', {
     justifyContent: 'center',
     overflow: 'auto',
     minHeight: 0,
-    gap: 24,
+    gap: 20,
 })
 
 const NoteInput = styled('input', {

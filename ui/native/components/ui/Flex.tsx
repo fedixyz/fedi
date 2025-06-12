@@ -5,36 +5,53 @@ import { ViewProps } from 'react-native-svg/lib/typescript/fabric/utils'
 type Props = {
     /* Determines whether the flex is a row or column. Defaults to `false` (column) */
     row?: boolean
+    /* Column-reverse shorthand */
+    columnReverse?: boolean
+    /* Shorthand for alignItems: center + justifyContent: center */
+    center?: boolean
     /* alignItems */
     align?: 'start' | 'center' | 'end' | 'stretch'
     /* justifyContent */
-    justify?: 'start' | 'center' | 'end' | 'between'
+    justify?: 'start' | 'center' | 'end' | 'between' | 'around' | 'evenly'
     /* Flex gap */
     gap?: keyof ThemeSpacing
     /* Flex basis (set to `false` for flex-basis: 0) */
     basis?: boolean
     grow?: boolean
     shrink?: boolean
+    /* Full width shorthand */
+    fullWidth?: boolean
+    /* Flex wrap */
+    wrap?: boolean
 }
 
 const Flex: React.FC<Props & ViewProps> = ({
     row,
+    center,
     align,
     justify,
     gap,
     grow,
     shrink,
     basis,
+    style,
+    wrap,
+    fullWidth,
+    columnReverse,
     ...props
 }) => {
     const { theme } = useTheme()
 
-    const styleProp: StyleProp<ViewStyle> = [flexStyle.flex]
+    let styleProp: StyleProp<ViewStyle> = [flexStyle.flex]
 
     // Direction
-    styleProp.push(row ? flexStyle.row : flexStyle.col)
+    let direction: StyleProp<ViewStyle> = flexStyle.col
+    if (row) direction = flexStyle.row
+    if (columnReverse) direction = flexStyle.columnReverse
+    styleProp.push(direction)
 
     // Align / Justify
+    if (center) styleProp.push(alignStyle.center, justifyStyle.center)
     if (align) styleProp.push(alignStyle[align])
     if (justify) styleProp.push(justifyStyle[justify])
 
@@ -48,6 +65,15 @@ const Flex: React.FC<Props & ViewProps> = ({
     if (shrink === false) styleProp.push(flexStyle.noShrink)
     if (basis === false) styleProp.push(flexStyle.noBasis)
 
+    // Full width
+    if (fullWidth) styleProp.push(flexStyle.fullWidth)
+
+    // Flex Wrap
+    if (wrap) styleProp.push(flexStyle.wrap)
+
+    // Other view styles
+    if (style) styleProp = styleProp.concat(style)
+
     return <View style={styleProp} {...props} />
 }
 
@@ -55,11 +81,14 @@ const flexStyle = StyleSheet.create({
     flex: { display: 'flex' },
     row: { flexDirection: 'row' },
     col: { flexDirection: 'column' },
+    columnReverse: { flexDirection: 'column-reverse' },
     grow: { flexGrow: 1 },
     noGrow: { flexGrow: 0 },
     shrink: { flexShrink: 1 },
     noShrink: { flexShrink: 0 },
     noBasis: { flexBasis: 0 },
+    fullWidth: { width: '100%' },
+    wrap: { flexWrap: 'wrap' },
 })
 
 const alignStyle = StyleSheet.create({
@@ -74,6 +103,8 @@ const justifyStyle = StyleSheet.create({
     center: { justifyContent: 'center' },
     end: { justifyContent: 'flex-end' },
     between: { justifyContent: 'space-between' },
+    around: { justifyContent: 'space-around' },
+    evenly: { justifyContent: 'space-evenly' },
 })
 
 export default Flex

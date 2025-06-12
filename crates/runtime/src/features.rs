@@ -71,6 +71,9 @@ pub struct FeatureCatalog {
     /// the federation's module availability determines the availability of
     /// the feature.
     pub stability_pool_v2: Option<StabilityPoolV2FeatureConfig>,
+    /// figure out stable format for account id, that includes the federation id
+    /// prefix
+    pub spv2_stable_account_id: bool,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -114,6 +117,7 @@ impl FeatureCatalog {
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
                 state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
+            spv2_stable_account_id: true,
         }
     }
 
@@ -124,6 +128,7 @@ impl FeatureCatalog {
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
                 state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
+            spv2_stable_account_id: false,
         }
     }
 
@@ -132,8 +137,9 @@ impl FeatureCatalog {
             encrypted_sync: None,
             override_localhost: None,
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
-                state: StabilityPoolV2FeatureConfigState::SpV2Only,
+                state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
+            spv2_stable_account_id: false,
         }
     }
 }

@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Button, Card, Switch, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useLayoutEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Linking, ScrollView, StyleSheet, View } from 'react-native'
 import Hyperlink from 'react-native-hyperlink'
@@ -14,6 +14,7 @@ import {
     shouldShowJoinFederation,
 } from '@fedi/common/utils/FederationUtils'
 
+import Flex from '../../ui/Flex'
 import RotatingSvg from '../../ui/RotatingSvg'
 import { SvgImageSize } from '../../ui/SvgImage'
 import EndedFederationPreview from '../federations/EndedPreview'
@@ -42,21 +43,30 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         federation.hasWallet &&
         federation.returningMemberStatus.type === 'returningMember'
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         navigation.setOptions({ headerShown: !isJoining })
-    }, [isJoining, navigation])
+        return () => {
+            navigation.setOptions({ headerShown: true })
+        }
+    }, [navigation, isJoining])
 
     const s = styles(theme)
 
     if (isJoining) {
         return (
-            <View style={s.loadingContainer}>
+            <Flex grow center style={s.loadingContainer}>
                 <RotatingSvg
                     name="FediLogoIcon"
                     size={SvgImageSize.md}
                     containerStyle={s.loadingIcon}
                 />
-            </View>
+                <Text h4 medium style={s.loadingTitle}>
+                    {t('feature.quick-fact.title')}
+                </Text>
+                <Text style={s.loadingFactText}>
+                    {t('feature.quick-fact.fact-1')}
+                </Text>
+            </Flex>
         )
     }
 
@@ -82,20 +92,20 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     if (!isSupported) {
         return (
             <View style={s.container}>
-                <View style={s.unsupportedContainer}>
+                <Flex center gap="sm" style={s.unsupportedContainer}>
                     <FederationLogo federation={federation} size={96} />
                     <Text h2 medium style={s.welcome}>
                         {federation?.name}
                     </Text>
-                    <View style={s.unsupportedBadge}>
+                    <Flex center style={s.unsupportedBadge}>
                         <Text caption bold style={s.unsupportedBadgeLabel}>
                             {t('words.unsupported')}
                         </Text>
-                    </View>
+                    </Flex>
                     <Text caption style={s.welcomeText}>
                         {t('feature.onboarding.unsupported-notice')}
                     </Text>
-                </View>
+                </Flex>
                 <View style={s.buttonsContainer}>
                     <Button
                         fullWidth
@@ -115,6 +125,47 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         } catch {
             setIsJoining(false)
         }
+    }
+
+    const JoinButtons = () => {
+        if (tosUrl) {
+            return (
+                <View style={s.buttonsContainer}>
+                    <Button
+                        fullWidth
+                        title={t('feature.onboarding.i-accept')}
+                        onPress={handleJoin}
+                        containerStyle={s.button}
+                        disabled={isJoining}
+                        loading={isJoining}
+                    />
+                    <Button
+                        fullWidth
+                        type="clear"
+                        title={t('feature.onboarding.i-do-not-accept')}
+                        onPress={navigation.goBack}
+                        containerStyle={s.button}
+                    />
+                </View>
+            )
+        }
+
+        return (
+            <View style={s.buttonsContainer}>
+                <Button
+                    fullWidth
+                    title={
+                        federation.hasWallet
+                            ? t('phrases.join-federation')
+                            : t('phrases.join-community')
+                    }
+                    onPress={handleJoin}
+                    containerStyle={s.button}
+                    disabled={isJoining}
+                    loading={isJoining}
+                />
+            </View>
+        )
     }
 
     const welcomeTitle = federation?.name
@@ -168,8 +219,8 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
 
             <View style={s.bottomSection}>
                 {showJoinFederation && isReturningMember && (
-                    <View style={s.switchWrapper}>
-                        <View style={s.switchLabelContainer}>
+                    <Flex row align="center" gap="sm" style={s.switchWrapper}>
+                        <Flex grow basis={false} gap="md">
                             <Text bold caption>
                                 {t('feature.federations.recover-from-scratch')}
                             </Text>
@@ -178,12 +229,12 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                                     'feature.federations.recover-from-scratch-warning',
                                 )}
                             </Text>
-                        </View>
+                        </Flex>
                         <Switch
                             value={selectedRecoverFromScratch}
                             onValueChange={setSelectedRecoverFromScratch}
                         />
-                    </View>
+                    </Flex>
                 )}
 
                 {showJoinFederation && tosUrl && (
@@ -204,23 +255,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                     </View>
                 )}
 
-                <View style={s.buttonsContainer}>
-                    <Button
-                        fullWidth
-                        title={t('feature.onboarding.i-accept')}
-                        onPress={handleJoin}
-                        containerStyle={s.button}
-                        disabled={isJoining}
-                        loading={isJoining}
-                    />
-                    <Button
-                        fullWidth
-                        type="clear"
-                        title={t('feature.onboarding.i-do-not-accept')}
-                        onPress={navigation.goBack}
-                        containerStyle={s.button}
-                    />
-                </View>
+                <JoinButtons />
             </View>
         </View>
     )
@@ -229,10 +264,9 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         loadingContainer: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
             paddingHorizontal: theme.spacing.lg,
+            paddingTop: 3,
+            paddingBottom: 3,
         },
         loadingIcon: { marginBottom: theme.spacing.md },
         loadingTitle: {
@@ -255,7 +289,6 @@ const styles = (theme: Theme) =>
         linkText: { color: theme.colors.link },
         buttonsContainer: {
             width: '100%',
-            flexDirection: 'column',
             marginBottom: theme.spacing.sm,
         },
         disabledNotice: {
@@ -290,13 +323,8 @@ const styles = (theme: Theme) =>
         unsupportedContainer: {
             maxWidth: 280,
             paddingTop: theme.spacing.xl,
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
         },
         unsupportedBadge: {
-            justifyContent: 'center',
-            alignItems: 'center',
             paddingHorizontal: theme.spacing.sm,
             paddingVertical: theme.spacing.xxs,
             borderRadius: 30,
@@ -307,15 +335,7 @@ const styles = (theme: Theme) =>
             margin: theme.spacing.xl,
             padding: theme.spacing.lg,
             borderRadius: 12,
-            flexDirection: 'row',
-            alignItems: 'center',
             backgroundColor: theme.colors.offWhite,
-            gap: theme.spacing.sm,
-        },
-        switchLabelContainer: {
-            flex: 1,
-            flexDirection: 'column',
-            gap: theme.spacing.md,
         },
     })
 

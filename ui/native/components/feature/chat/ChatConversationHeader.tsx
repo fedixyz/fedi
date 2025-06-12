@@ -2,7 +2,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
 
 import {
     selectGroupPreview,
@@ -15,7 +15,9 @@ import { useAppSelector } from '../../../state/hooks'
 import { resetToChatsScreen } from '../../../state/navigation'
 import { RootStackParamList } from '../../../types/navigation'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
+import Flex from '../../ui/Flex'
 import Header from '../../ui/Header'
+import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
 import { ChatConnectionBadge } from './ChatConnectionBadge'
 
@@ -64,6 +66,12 @@ const ChatConversationHeader: React.FC = () => {
         )
     }, [displayName, name, preview, room, theme, user])
 
+    const navigateToRoom = useCallback(() => {
+        if (room) {
+            navigation.navigate('RoomSettings', { roomId })
+        }
+    }, [navigation, room, roomId])
+
     const handleBackButtonPress = useCallback(() => {
         navigation.dispatch(resetToChatsScreen())
     }, [navigation])
@@ -76,13 +84,11 @@ const ChatConversationHeader: React.FC = () => {
                 hitSlop={10}
                 onPress={() => {
                     // make sure we have joined room and its not just a preview to show admin settings
-                    if (room) {
-                        navigation.navigate('RoomSettings', { roomId })
-                    }
+                    navigateToRoom()
                 }}>
                 <>
                     {isNameEmpty ? null : avatar}
-                    <View style={style.textContainer}>
+                    <Flex row align="center">
                         <Text
                             bold
                             numberOfLines={1}
@@ -107,11 +113,11 @@ const ChatConversationHeader: React.FC = () => {
                                 {getUserSuffix(room.directUserId)}
                             </Text>
                         )}
-                    </View>
+                    </Flex>
                 </>
             </Pressable>
         )
-    }, [avatar, name, navigation, room, roomId, theme, style, t])
+    }, [avatar, name, room, theme, style, navigateToRoom, t])
 
     return (
         <>
@@ -121,6 +127,11 @@ const ChatConversationHeader: React.FC = () => {
                 containerStyle={style.container}
                 centerContainerStyle={style.headerCenterContainer}
                 headerCenter={HeaderCenter}
+                headerRight={
+                    <Pressable onPress={() => navigateToRoom()}>
+                        <SvgImage name="Profile" />
+                    </Pressable>
+                }
             />
             <ChatConnectionBadge offset={40} />
         </>
@@ -147,10 +158,6 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-        },
-        textContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
         },
         shortIdText: {
             marginLeft: theme.spacing.xs,

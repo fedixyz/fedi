@@ -1,11 +1,12 @@
 import { useRouter } from 'next/router'
 import React, { useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
     selectMatrixAuth,
     selectMatrixDirectMessageRoom,
-    selectMatrixUser,
     sendMatrixDirectMessage,
+    selectMatrixUser,
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
 
@@ -17,13 +18,22 @@ interface Props {
 }
 
 export const ChatUserConversation: React.FC<Props> = ({ userId }) => {
-    const { replace } = useRouter()
+    const { t } = useTranslation()
+    const { query, replace } = useRouter()
     const dispatch = useAppDispatch()
-    const matrixAuth = useAppSelector(selectMatrixAuth)
     const user = useAppSelector(s => selectMatrixUser(s, userId))
+    const matrixAuth = useAppSelector(selectMatrixAuth)
     const existingRoom = useAppSelector(s =>
         selectMatrixDirectMessageRoom(s, userId),
     )
+
+    // If there is a user display name then prioritize that
+    // If not then either use the display name in the query or "unknown"
+    const name =
+        user?.displayName ||
+        (query?.displayName
+            ? decodeURIComponent(String(query?.displayName))
+            : t('words.unknown'))
 
     // If this is a chat with ourselves, redirect to main chat screen
     useEffect(() => {
@@ -53,7 +63,7 @@ export const ChatUserConversation: React.FC<Props> = ({ userId }) => {
             <ChatConversation
                 type={ChatType.direct}
                 id={userId}
-                name={user?.displayName || userId}
+                name={name}
                 events={[]}
                 onSendMessage={handleSend}
             />

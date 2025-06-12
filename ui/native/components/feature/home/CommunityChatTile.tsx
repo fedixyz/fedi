@@ -9,6 +9,7 @@ import { useAppSelector } from '../../../state/hooks'
 import { MatrixRoom } from '../../../types'
 import { AvatarSize } from '../../ui/Avatar'
 import { BubbleView } from '../../ui/BubbleView'
+import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from '../chat/ChatAvatar'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -68,7 +69,7 @@ const CommunityChatTile = ({
                         maxFontSizeMultiplier={1.2}
                     />
                 )}
-                <View style={style.textContainer}>
+                <Flex grow basis={false}>
                     <Text style={style.title} numberOfLines={1} bold>
                         {room.name || DEFAULT_GROUP_NAME}
                     </Text>
@@ -80,7 +81,7 @@ const CommunityChatTile = ({
                         medium>
                         {subtitle}
                     </Text>
-                </View>
+                </Flex>
                 <>
                     <SvgImage
                         name="ChevronRightSmall"
@@ -108,10 +109,6 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             alignItems: 'center',
             alignSelf: 'center',
-        },
-        textContainer: {
-            flex: 1,
-            flexDirection: 'column',
         },
         title: {
             letterSpacing: -0.16,

@@ -1,9 +1,10 @@
 import { Text, useTheme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
+import Flex from './Flex'
 import HoloGradient from './HoloGradient'
 
 /*
@@ -49,7 +50,7 @@ const HoloAvatar: React.FC<HoloAvatarProps> = ({
     ]
 
     return (
-        <View style={mergedContainerStyle}>
+        <Flex center style={mergedContainerStyle}>
             <HoloGradient rounded size={customSize} level={level} />
             <Text
                 bold
@@ -58,15 +59,13 @@ const HoloAvatar: React.FC<HoloAvatarProps> = ({
                 style={styles.text}>
                 {title}
             </Text>
-        </View>
+        </Flex>
     )
 }
 
 const styles = StyleSheet.create({
     container: {
         position: 'relative',
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     text: {
         position: 'absolute',

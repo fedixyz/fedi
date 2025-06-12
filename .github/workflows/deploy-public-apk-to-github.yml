@@ -7,7 +7,7 @@ on:
 
 jobs:
     deploy-public-apk:
-        runs-on: [self-hosted, linux, legacy]
+        runs-on: [self-hosted, linux]
         steps:
             - name: Checkout script in repo
               uses: actions/checkout@v4

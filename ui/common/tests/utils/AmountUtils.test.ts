@@ -236,6 +236,145 @@ describe('AmountUtils', () => {
             },
         )
     })
+    describe('formatFiat - minimum/maximumFractionDigits options', () => {
+        it('should allow forcing decimals for a zero-decimal currency (XOF)', () => {
+            const result = amountUtils.formatFiat(
+                1234,
+                'XOF' as SelectableCurrency,
+                {
+                    locale: 'en-US',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                },
+            )
+            expect(result.replace(/\s/g, '\xa0')).toMatch(/^XOF\xa01,234.00$/)
+        })
+
+        it('should allow suppressing decimals for a two-decimal currency (USD)', () => {
+            const result = amountUtils.formatFiat(
+                1234.56,
+                'USD' as SelectableCurrency,
+                {
+                    locale: 'en-US',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                },
+            )
+            expect(result.replace(/\s/g, '\xa0')).toMatch(/^USD\xa01,235$/)
+        })
+        it('should pad USD to FOUR decimals when minimumFractionDigits = 4', () => {
+            const result = amountUtils.formatFiat(
+                1234.56,
+                'USD' as SelectableCurrency,
+                {
+                    locale: 'en-US',
+                    minimumFractionDigits: 4,
+                    maximumFractionDigits: 4,
+                },
+            )
+            expect(result.replace(/\s/g, '\xa0')).toMatch(
+                /^USD\xa01,234\.5600$/,
+            )
+        })
+
+        it('should round EUR to ONE decimal when maximumFractionDigits = 1', () => {
+            const result = amountUtils.formatFiat(
+                1234.56,
+                'EUR' as SelectableCurrency,
+                {
+                    locale: 'de-DE',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 1,
+                },
+            )
+            // example output: "1.234,6 EUR" or "1 234,6 EUR" depending on NBSP-type
+            expect(result.replace(/\s/g, '\xa0')).toMatch(
+                /^1\.234,6[\u00a0\u202f]?EUR$/,
+            )
+        })
+
+        it('should keep XOF integer when maximumFractionDigits > 0 but minimumFractionDigits = 0', () => {
+            const result = amountUtils.formatFiat(
+                1234,
+                'XOF' as SelectableCurrency,
+                {
+                    locale: 'en-US',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                },
+            )
+            expect(result.replace(/\s/g, '\xa0')).toMatch(/^XOF\xa01,234$/)
+        })
+    })
+
+    describe('formatFiat - symbolPosition: end', () => {
+        it('should place the code at the end (USD, en-US)', () => {
+            const result = amountUtils.formatFiat(
+                1234.56,
+                'USD' as SelectableCurrency,
+                {
+                    locale: 'en-US',
+                    symbolPosition: 'end',
+                },
+            )
+            expect(result).toMatch(/^1,234\.56 USD$/)
+        })
+
+        it('should place the code at the end (XOF, en-US)', () => {
+            const result = amountUtils.formatFiat(
+                500,
+                'XOF' as SelectableCurrency,
+                {
+                    locale: 'en-US',
+                    symbolPosition: 'end',
+                },
+            )
+            expect(result).toMatch(/^500 XOF$/)
+        })
+
+        it('should place the code at the end (EUR, de-DE)', () => {
+            const result = amountUtils.formatFiat(
+                789.1,
+                'EUR' as SelectableCurrency,
+                {
+                    locale: 'de-DE',
+                    symbolPosition: 'end',
+                },
+            )
+            // Example: "789,10 EUR"
+            expect(result).toMatch(/^789,10[\s\u202f\u00a0]?EUR$/)
+        })
+    })
+    describe('formatFiat - edge cases', () => {
+        it('should format zero correctly for XOF', () => {
+            const result = amountUtils.formatFiat(
+                0,
+                'XOF' as SelectableCurrency,
+                { locale: 'fr-TG' },
+            )
+            expect(result).toMatch(/^0[\s\u202f\u00a0]?XOF$/)
+        })
+
+        it('should format large numbers correctly', () => {
+            const result = amountUtils.formatFiat(
+                123456789,
+                'USD' as SelectableCurrency,
+                { locale: 'en-US' },
+            )
+            expect(result).toMatch(/^USD\xa0123,456,789\.00$/)
+        })
+    })
+    describe('formatFiat – additional default cases', () => {
+        it('should format XOF with NO decimals by default', () => {
+            const result = amountUtils.formatFiat(
+                1234,
+                'XOF' as SelectableCurrency,
+                { locale: 'en-US' },
+            )
+            // normalise to NBSP to avoid hard-space issues
+            expect(result.replace(/\s/g, '\xa0')).toMatch(/^XOF\xa01,234$/)
+        })
+    })
     describe('getCurrencySymbol', () => {
         const testCases = [
             {

@@ -59,6 +59,27 @@ impl CompletionNotificationService {
         self.trigger();
     }
 
+    pub async fn add_failed_withdrawal_notification(
+        &self,
+        room_id: RpcRoomId,
+        request_id: RpcEventId,
+        error: String,
+    ) {
+        let multispend_db = self.runtime.multispend_db();
+        let mut dbtx = multispend_db.begin_transaction().await;
+        dbtx.insert_entry(
+            &MultispendPendingCompletionNotification::FailedWithdrawal {
+                room_id,
+                request_id,
+                error,
+            },
+            &(),
+        )
+        .await;
+        dbtx.commit_tx().await;
+        self.trigger();
+    }
+
     pub async fn add_deposit_notification(
         &self,
         room_id: RpcRoomId,

@@ -1,4 +1,5 @@
-import { BridgeError, FedimintBridge } from '@fedi/common/utils/fedimint'
+import { BridgeError } from '@fedi/common/utils/errors'
+import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
 const log = makeLog('web/lib/bridge')
@@ -39,8 +40,16 @@ async function fedimintRpc<Type = void>(
     const jsonPayload = JSON.stringify(payload)
     const json = await workerRequest<string>(method, jsonPayload)
     const parsed = JSON.parse(json)
+
     if (parsed.error) {
         log.error(method, parsed)
+
+        // Ignore matrixObservableCancel errors
+        // due to potential race condition
+        if (method === 'matrixObservableCancel') {
+            return parsed
+        }
+
         throw new BridgeError(parsed)
     } else {
         log.info(
@@ -141,7 +150,7 @@ export async function writeBridgeFile(path: string, data: Uint8Array) {
 }
 
 export async function getBridgeLogs() {
-    const response = workerRequest<Blob>('getLogs')
+    const response = workerRequest<FileSystemFileHandle[]>('getLogs')
 
     if (typeof response === 'string') {
         let errMsg: string

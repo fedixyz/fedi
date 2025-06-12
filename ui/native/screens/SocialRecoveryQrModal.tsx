@@ -16,6 +16,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
 import { fedimint } from '../bridge'
+import Flex from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -49,8 +50,10 @@ const SocialRecoveryQrModal: React.FC<Props> = ({ navigation }: Props) => {
         getRecoveryAssistCode()
     }, [navigation, toast, t])
 
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).container}>
+        <Flex grow center style={style.container}>
             <Pressable
                 style={[
                     StyleSheet.absoluteFill,
@@ -58,7 +61,7 @@ const SocialRecoveryQrModal: React.FC<Props> = ({ navigation }: Props) => {
                 ]}
                 onPress={navigation.goBack}
             />
-            <View style={styles(theme).qrCodeContainer}>
+            <Flex row justify="center" style={style.qrCodeContainer}>
                 {recoveryQrCode ? (
                     <QRCode
                         value={recoveryQrCode}
@@ -68,26 +71,23 @@ const SocialRecoveryQrModal: React.FC<Props> = ({ navigation }: Props) => {
                 ) : (
                     <ActivityIndicator />
                 )}
-            </View>
-            <View style={styles(theme).holoCardContainer}>
+            </Flex>
+            <View style={style.holoCardContainer}>
                 <HoloCard
                     body={
-                        <Text bold style={styles(theme).instructionsText}>
+                        <Text bold style={style.instructionsText}>
                             {t('feature.recovery.guardian-qr-instructions')}
                         </Text>
                     }
                 />
             </View>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
         },
         holoCardContainer: {

@@ -386,12 +386,17 @@ export const shouldEnableStabilityPool = (metadata: FederationMetadata) => {
 }
 
 export const hasMultispendEnabled = (metadata: FederationMetadata) => {
-    const multispendDisabled = getMetaField(
+    const multispendDisabledMeta = getMetaField(
         SupportedMetaFields.multispend_disabled,
         metadata,
     )
-    // Disable if and only if it is specified in meta as true, otherwise enabled
-    return multispendDisabled !== 'true'
+    // if multispend_disabled meta field is:
+    // set to false => true (multispend should be ENABLED)
+    if (multispendDisabledMeta === 'false') return true
+    // set to true  => false (multispend should be DISABLED)
+    if (multispendDisabledMeta === 'true') return false
+    // not set      => false (multispend should be DISABLED)
+    return false
 }
 
 export const hasMultispendModule = (federation: LoadedFederation) => {

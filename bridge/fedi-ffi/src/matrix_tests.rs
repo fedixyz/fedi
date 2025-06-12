@@ -32,7 +32,7 @@ use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 use crate::ffi::PathBasedStorage;
-use crate::rpc::tests::MockFediApi;
+use crate::test_device::MockFediApi;
 
 const TEST_HOME_SERVER: &str = "staging.m1.8fa.in";
 const TEST_SLIDING_SYNC: &str = "https://staging.sliding.m1.8fa.in";

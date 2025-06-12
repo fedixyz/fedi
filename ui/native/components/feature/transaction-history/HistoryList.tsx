@@ -6,12 +6,12 @@ import {
     FlatList,
     ListRenderItem,
     StyleSheet,
-    View,
 } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { FeeItem } from '@fedi/common/hooks/transactions'
 
+import Flex from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import { HistoryDetailProps } from './HistoryDetail'
 import HistoryDetailOverlay from './HistoryDetailOverlay'
@@ -24,6 +24,7 @@ interface Props<T extends { id: string }> {
     makeRowProps: (item: T) => Omit<HistoryRowProps, 'icon' | 'onSelect'>
     makeDetailProps: (item: T) => Omit<HistoryDetailProps, 'icon' | 'onClose'>
     makeFeeItems: (item: T) => FeeItem[]
+    makeShowAskFedi: (item: T) => boolean
     makeIcon: (item: T) => React.ReactNode
     onEndReached?: () => void
     onRefresh?: () => void
@@ -35,6 +36,7 @@ export function HistoryList<T extends { id: string }>({
     makeRowProps,
     makeDetailProps,
     makeFeeItems,
+    makeShowAskFedi,
     makeIcon,
     onEndReached,
     onRefresh,
@@ -74,19 +76,19 @@ export function HistoryList<T extends { id: string }>({
 
     if (loading) {
         return (
-            <View style={style.emptyContainer}>
+            <Flex grow center fullWidth>
                 <ActivityIndicator />
-            </View>
+            </Flex>
         )
     }
 
     if (!rows.length) {
         return (
-            <View style={style.emptyContainer}>
+            <Flex grow center fullWidth>
                 <Text style={style.emptyText}>
                     {t('phrases.no-transactions')}
                 </Text>
-            </View>
+            </Flex>
         )
     }
 
@@ -120,6 +122,9 @@ export function HistoryList<T extends { id: string }>({
                     }
                 }
                 feeItems={feeItems}
+                showAskFedi={
+                    selectedItem ? makeShowAskFedi(selectedItem) : false
+                }
             />
         </SafeAreaContainer>
     )
@@ -134,12 +139,6 @@ const styles = (theme: Theme) =>
         },
         content: {
             paddingTop: theme.spacing.xl,
-        },
-        emptyContainer: {
-            flex: 1,
-            width: '100%',
-            justifyContent: 'center',
-            alignItems: 'center',
         },
         emptyText: {
             textAlign: 'center',

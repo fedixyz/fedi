@@ -17,9 +17,9 @@ export const HorizontalLine: React.FC<Props> = ({ text }) => {
 
 const Line = styled(Text, {
     color: theme.colors.grey,
-    fontSize: 14,
     overflow: 'hidden',
     textAlign: 'center',
+    width: '100%',
 
     '&::before,&::after': {
         backgroundColor: theme.colors.extraLightGrey,
@@ -43,5 +43,6 @@ const Line = styled(Text, {
 })
 
 const LineText = styled('span', {
+    fontSize: 13,
     textTransform: 'lowercase',
 })

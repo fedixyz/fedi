@@ -9,8 +9,9 @@ import init, {
     fedimint_read_file,
     fedimint_rpc,
     fedimint_write_file,
-    get_logs,
 } from '@fedi/common/wasm/'
+
+import { getAllBridgeLogFiles, openBridgeLogFile } from './log'
 
 const log = makeLog('web/lib/bridge/wasm.worker')
 
@@ -36,6 +37,7 @@ async function workerInit() {
         },
     }
     const initOptsJson = JSON.stringify(options)
+
     const result = await fedimint_initialize(
         {
             event(event_name: string, data: string) {
@@ -43,6 +45,7 @@ async function workerInit() {
             },
         },
         initOptsJson,
+        await openBridgeLogFile(),
     )
 
     try {
@@ -79,16 +82,13 @@ addEventListener('message', e => {
         return
     }
     if (method == 'getLogs') {
-        try {
-            const file: Blob = get_logs()
-            postMessage({
-                token,
-                // TODO: release data??
-                result: file,
+        getAllBridgeLogFiles()
+            .then(result => {
+                postMessage({ token, result })
             })
-        } catch (err) {
-            postMessage({ token, error: String(err) })
-        }
+            .catch(err => {
+                postMessage({ token, error: String(err) })
+            })
         return
     }
     if (method === 'readFile') {

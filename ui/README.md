@@ -31,6 +31,22 @@ You should do this in every new terminal session where you plan to run our devel
 
 Note: Whenever you see a command that starts with `just`, make sure you've run `nix develop` in the terminal where you're running the command.
 
+#### Bash Aliases
+
+When working inside a Nix shell, your bash aliases or anything inside of ~/.bashrc / ~/.bash_profile will not persist by default.
+
+If you have your own bash aliases you'd like to use, [setup `direnv`](https://direnv.net/#basic-installation) and hook it in according to your preferred shell
+
+```
+# ex: bash on Mac OS
+# Add the following line at the end of the ~/.bashrc file:
+
+eval "$(direnv hook bash)"
+
+# reopen a new terminal and run `nix develop`
+# any bash aliases configured inside of ~/.bashrc should now be available
+```
+
 ### Running the Development UI
 
 We use a command runner called [Just](https://github.com/casey/just) to manage our development tasks. The `run-dev-ui` command is used to start the development UI (both native and PWA).

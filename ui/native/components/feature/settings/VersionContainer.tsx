@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -11,6 +11,7 @@ import {
 
 import { version } from '../../../package.json'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type VersionContainerProps = {
@@ -33,7 +34,7 @@ export const VersionContainer = ({
     const fedimintVersion = useAppSelector(selectFedimintVersion)
 
     return (
-        <View style={style.versionContainer}>
+        <Flex center style={style.versionContainer}>
             <SvgImage name="FediLogoIcon" containerStyle={style.logo} />
             <Pressable
                 onPress={() => {
@@ -83,15 +84,13 @@ export const VersionContainer = ({
                     </Text>
                 </Button>
             </Pressable>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         versionContainer: {
-            alignItems: 'center',
-            justifyContent: 'center',
             backgroundColor: theme.colors.offWhite100,
             padding: theme.spacing.lg,
             borderRadius: theme.borders.defaultRadius,

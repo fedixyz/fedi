@@ -22,11 +22,17 @@ import {
     refreshActiveStabilityPool,
     resetNuxSteps,
     selectActiveFederation,
+    selectFediModShowClearCacheButton,
+    selectFediModCacheEnabled,
+    selectFediModCacheMode,
     selectFediModDebugMode,
     selectOnchainDepositsEnabled,
     selectShowFiatTxnAmounts,
     selectStabilityPoolCycleStartPrice,
     selectStableBalanceEnabled,
+    setFediModShowClearCacheButton,
+    setFediModCacheEnabled,
+    setFediModCacheMode,
     setFediModDebugMode,
     setOnchainDepositsEnabled,
     setShowFiatTxnAmounts,
@@ -34,6 +40,7 @@ import {
 } from '@fedi/common/redux'
 import { selectCurrency } from '@fedi/common/redux/currency'
 import {
+    FediModCacheMode,
     Guardian,
     LightningGateway,
     SupportedCurrency,
@@ -47,6 +54,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import CheckBox from '../components/ui/CheckBox'
+import Flex from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -85,6 +93,11 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     >([])
     const selectedFiatCurrency = useAppSelector(selectCurrency)
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
+    const fediModCacheEnabled = useAppSelector(selectFediModCacheEnabled)
+    const showClearCacheButton = useAppSelector(
+        selectFediModShowClearCacheButton,
+    )
+    const fediModCacheMode = useAppSelector(selectFediModCacheMode)
     const onchainDepositsEnabled = useAppSelector(selectOnchainDepositsEnabled)
     const stabilityPoolSupported = useIsStabilityPoolSupported()
     const stableBalanceEnabled = useAppSelector(selectStableBalanceEnabled)
@@ -364,39 +377,40 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             })
     }
 
+    const style = styles(theme)
+
     return (
-        <ScrollView contentContainerStyle={styles(theme).container}>
+        <ScrollView contentContainerStyle={style.container}>
             <SettingsSection title="App info">
-                <Text
-                    style={styles(theme).version}>{`Version ${version}`}</Text>
+                <Text style={style.version}>{`Version ${version}`}</Text>
                 <Button
                     title={t('feature.developer.share-logs')}
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={handleShareLogs}
                     loading={isSharingLogs}
                 />
                 <Button
                     title={t('feature.developer.share-state')}
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={handleShareStorage}
                     loading={isSharingState}
                 />
                 <Button
                     title={t('feature.developer.log-fcm-token')}
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={logFCMToken}
                 />
                 <Button
                     title={t('feature.developer.show-fcm-token')}
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={fetchAndShowFCMToken}
                 />
-                <View style={styles(theme).switchWrapper}>
-                    <View style={styles(theme).switchLabelContainer}>
-                        <Text caption style={styles(theme).switchLabel}>
+                <View style={style.switchWrapper}>
+                    <View style={style.switchLabelContainer}>
+                        <Text caption style={style.switchLabel}>
                             Enable sensitive logging
                         </Text>
-                        <Text small style={styles(theme).switchLabel}>
+                        <Text small style={style.switchLabel}>
                             This will allow logs to include additional
                             information that could leak private or secure
                             details. Use with caution.
@@ -417,7 +431,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                             <View key={`outstanding-send-fees-${module}`}>
                                 <Text
                                     style={
-                                        styles(theme).version
+                                        style.version
                                     }>{`Outstanding Send Fees for ${module}: ${fee}`}</Text>
                             </View>
                         ),
@@ -431,7 +445,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                             <View key={`outstanding-receive-fees-${module}`}>
                                 <Text
                                     style={
-                                        styles(theme).version
+                                        style.version
                                     }>{`Outstanding Receive Fees for ${module}: ${fee}`}</Text>
                             </View>
                         ),
@@ -445,7 +459,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                             <View key={`pending-send-fees-${module}`}>
                                 <Text
                                     style={
-                                        styles(theme).version
+                                        style.version
                                     }>{`Pending Send Fees for ${module}: ${fee}`}</Text>
                             </View>
                         ),
@@ -459,7 +473,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                             <View key={`pending-receive-fees-${module}`}>
                                 <Text
                                     style={
-                                        styles(theme).version
+                                        style.version
                                     }>{`Pending Receive Fees for ${module}: ${fee}`}</Text>
                             </View>
                         ),
@@ -469,9 +483,9 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 )}
             </SettingsSection>
             <SettingsSection title={t('feature.fedimods.debug-mode')}>
-                <View style={styles(theme).switchWrapper}>
-                    <View style={styles(theme).switchLabelContainer}>
-                        <Text small style={styles(theme).switchLabel}>
+                <View style={style.switchWrapper}>
+                    <View style={style.switchLabelContainer}>
+                        <Text small style={style.switchLabel}>
                             {t('feature.fedimods.debug-mode-info')}
                         </Text>
                     </View>
@@ -483,21 +497,84 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     />
                 </View>
             </SettingsSection>
+            <SettingsSection title={t('feature.fedimods.cache-clear')}>
+                <View style={styles(theme).switchWrapper}>
+                    <View style={styles(theme).switchLabelContainer}>
+                        <Text small style={styles(theme).switchLabel}>
+                            {t('feature.fedimods.cache-clear-info')}
+                        </Text>
+                    </View>
+                    <Switch
+                        value={showClearCacheButton}
+                        onValueChange={value => {
+                            reduxDispatch(setFediModShowClearCacheButton(value))
+                        }}
+                    />
+                </View>
+            </SettingsSection>
+            <SettingsSection title={t('feature.fedimods.cache-enabled')}>
+                <View style={styles(theme).switchWrapper}>
+                    <View style={styles(theme).switchLabelContainer}>
+                        <Text small style={styles(theme).switchLabel}>
+                            {t('feature.fedimods.cache-enabled-info')}
+                        </Text>
+                    </View>
+                    <Switch
+                        value={fediModCacheEnabled}
+                        onValueChange={value => {
+                            reduxDispatch(setFediModCacheEnabled(value))
+                        }}
+                    />
+                </View>
+            </SettingsSection>
+            <SettingsSection title={t('feature.fedimods.cache-mode')}>
+                <View style={styles(theme).switchLabelContainer}>
+                    <Text small style={styles(theme).switchLabel}>
+                        {t('feature.fedimods.cache-mode-info')}
+                    </Text>
+                </View>
+                {[
+                    'LOAD_DEFAULT' as const,
+                    'LOAD_CACHE_ONLY' as const,
+                    'LOAD_CACHE_ELSE_NETWORK' as const,
+                    'LOAD_NO_CACHE' as const,
+                ].map((mode: FediModCacheMode, index: number) => (
+                    <View key={mode}>
+                        <CheckBox
+                            key={index}
+                            checkedIcon={<SvgImage name="RadioSelected" />}
+                            uncheckedIcon={<SvgImage name="RadioUnselected" />}
+                            title={
+                                <Text
+                                    style={styles(theme).checkboxText}
+                                    numberOfLines={1}>
+                                    {mode}
+                                </Text>
+                            }
+                            checked={mode === fediModCacheMode}
+                            onPress={() =>
+                                reduxDispatch(setFediModCacheMode(mode))
+                            }
+                            containerStyle={styles(theme).checkboxContainer}
+                        />
+                    </View>
+                ))}
+            </SettingsSection>
             <SettingsSection title="Exchange rates">
-                <View style={styles(theme).exchangeRate}>
+                <View style={style.exchangeRate}>
                     <Text caption medium>
                         USD/BTC (Stability pool):
                     </Text>
                     <Text caption>{spBtcUsdPrice || 'N/A'}</Text>
                 </View>
-                <View style={styles(theme).exchangeRate}>
+                <View style={style.exchangeRate}>
                     <Text caption medium>
                         USD/BTC (API):
                     </Text>
                     <Text caption>{apiBtcUsdPrice}</Text>
                 </View>
                 {selectedFiatCurrency !== SupportedCurrency.USD && (
-                    <View style={styles(theme).exchangeRate}>
+                    <View style={style.exchangeRate}>
                         <Text caption medium>
                             {selectedFiatCurrency}/USD (API):{' '}
                         </Text>
@@ -517,22 +594,22 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                             uncheckedIcon={<SvgImage name="RadioUnselected" />}
                             title={
                                 <Text
-                                    style={styles(theme).checkboxText}
+                                    style={style.checkboxText}
                                     numberOfLines={1}>
                                     {gw.api}
                                 </Text>
                             }
                             checked={gw.active}
                             onPress={() => handleSelectGateway(gw)}
-                            containerStyle={styles(theme).checkboxContainer}
+                            containerStyle={style.checkboxContainer}
                         />
                     </View>
                 ))}
             </SettingsSection>
             <SettingsSection title={t('words.wallet')}>
-                <View style={styles(theme).switchWrapper}>
-                    <View style={styles(theme).switchLabelContainer}>
-                        <Text caption style={styles(theme).switchLabel}>
+                <View style={style.switchWrapper}>
+                    <View style={style.switchLabelContainer}>
+                        <Text caption style={style.switchLabel}>
                             {t('feature.receive.enable-onchain-deposits')}
                         </Text>
                     </View>
@@ -544,12 +621,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     />
                 </View>
                 {stabilityPoolSupported && (
-                    <View style={styles(theme).switchWrapper}>
-                        <View style={styles(theme).switchLabelContainer}>
-                            <Text caption style={styles(theme).switchLabel}>
+                    <View style={style.switchWrapper}>
+                        <View style={style.switchLabelContainer}>
+                            <Text caption style={style.switchLabel}>
                                 {t('feature.fedimods.stable-balance-enabled')}
                             </Text>
-                            <Text small style={styles(theme).switchLabel}>
+                            <Text small style={style.switchLabel}>
                                 {t(
                                     'feature.fedimods.stable-balance-enabled-info',
                                 )}
@@ -563,12 +640,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         />
                     </View>
                 )}
-                <View style={styles(theme).switchWrapper}>
-                    <View style={styles(theme).switchLabelContainer}>
-                        <Text caption style={styles(theme).switchLabel}>
+                <View style={style.switchWrapper}>
+                    <View style={style.switchLabelContainer}>
+                        <Text caption style={style.switchLabel}>
                             {t('feature.wallet.show-fiat-txn-amounts')}
                         </Text>
-                        <Text small style={styles(theme).switchLabel}>
+                        <Text small style={style.switchLabel}>
                             {t('feature.wallet.show-fiat-txn-amounts-info')}
                         </Text>
                     </View>
@@ -600,7 +677,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     onPress={() => {
                         reduxDispatch(changeAuthenticatedGuardian(null))
                     }}
-                    containerStyle={styles(theme).checkboxContainer}
+                    containerStyle={style.checkboxContainer}
                 />
                 {activeFederation &&
                     activeFederation.hasWallet &&
@@ -630,12 +707,12 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                                         changeAuthenticatedGuardian(guardian),
                                     )
                                 }}
-                                containerStyle={styles(theme).checkboxContainer}
+                                containerStyle={style.checkboxContainer}
                             />
                         )
                     })}
                 {authenticatedGuardian && (
-                    <View style={styles(theme).passwordContainer}>
+                    <Flex fullWidth>
                         <Text small>{'Confirm guardian password'}</Text>
                         <Input
                             onChangeText={input => {
@@ -651,7 +728,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                             autoCapitalize={'none'}
                             autoCorrect={false}
                         />
-                    </View>
+                    </Flex>
                 )}
             </SettingsSection>
 
@@ -662,15 +739,15 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
 
                     if ('online' in n) {
                         statusText = `Guardian ${n.online.guardian}: Online: ${n.online.latency_ms}ms`
-                        statusStyle = styles(theme).onlineStatus
+                        statusStyle = style.onlineStatus
                     }
                     if ('error' in n) {
                         statusText = `Guardian  ${n.error.guardian} Error: ${n.error.error}`
-                        statusStyle = styles(theme).errorStatus
+                        statusStyle = style.errorStatus
                     }
                     if ('timeout' in n) {
                         statusText = `Guardian  ${n.timeout.guardian} Timeout: ${n.timeout.elapsed}`
-                        statusStyle = styles(theme).timeoutStatus
+                        statusStyle = style.timeoutStatus
                     }
 
                     return (
@@ -684,14 +761,14 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             <SettingsSection title="Chat">
                 <Button
                     title={t('feature.developer.create-default-group')}
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={() => {
                         navigation.navigate('CreateGroup', {
                             defaultGroup: true,
                         })
                     }}
                 />
-                <Text small style={styles(theme).switchLabel}>
+                <Text small style={style.switchLabel}>
                     {t('feature.developer.default-groups-info')}
                 </Text>
             </SettingsSection>
@@ -699,7 +776,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             <SettingsSection title="Danger zone">
                 <Button
                     title="Reset new user experience"
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={() => {
                         reduxDispatch(resetNuxSteps())
                         toast.show('NUX reset!')
@@ -707,7 +784,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 />
                 <Button
                     title="Evil Spam Invoices"
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={async () => {
                         if (!activeFederation?.id) return
                         await fedimint.evilSpamInvoices({
@@ -717,7 +794,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 />
                 <Button
                     title="Evil Spam Address"
-                    containerStyle={styles(theme).buttonContainer}
+                    containerStyle={style.buttonContainer}
                     onPress={async () => {
                         if (!activeFederation?.id) return
                         await fedimint.evilSpamAddress({
@@ -731,26 +808,26 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 transparent={true}
                 animationType="slide"
                 onRequestClose={() => setIsModalVisible(false)}>
-                <View style={styles(theme).modalContainer}>
-                    <View style={styles(theme).modalContent}>
-                        <Text style={styles(theme).modalTitle}>FCM Token</Text>
-                        <Text selectable style={styles(theme).tokenText}>
+                <View style={style.modalContainer}>
+                    <View style={style.modalContent}>
+                        <Text style={style.modalTitle}>FCM Token</Text>
+                        <Text selectable style={style.tokenText}>
                             {fcmToken}
                         </Text>
                         <Button
                             title="Copy to Clipboard"
                             onPress={copyToClipboard}
-                            containerStyle={styles(theme).buttonContainer}
+                            containerStyle={style.buttonContainer}
                         />
                         <Button
                             title="Send via Email"
                             onPress={sendTokenViaEmail}
-                            containerStyle={styles(theme).buttonContainer}
+                            containerStyle={style.buttonContainer}
                         />
                         <Button
                             title="Close"
                             onPress={() => setIsModalVisible(false)}
-                            containerStyle={styles(theme).buttonContainer}
+                            containerStyle={style.buttonContainer}
                         />
                     </View>
                 </View>
@@ -764,9 +841,12 @@ const SettingsSection: React.FC<{
     children: React.ReactNode
 }> = ({ title, children }) => {
     const { theme } = useTheme()
+
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).section}>
-            <Text bold style={styles(theme).sectionTitle}>
+        <View style={style.section}>
+            <Text bold style={style.sectionTitle}>
                 {title}
             </Text>
             <View>{children}</View>
@@ -819,23 +899,8 @@ const styles = (theme: Theme) =>
         buttonContainer: {
             marginBottom: theme.spacing.md,
         },
-        guardians: {
-            paddingTop: theme.spacing.lg,
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-        },
-        passwordContainer: {
-            flexDirection: 'column',
-            width: '100%',
-        },
         version: {
             marginBottom: theme.spacing.sm,
-        },
-        fediMod: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: theme.spacing.md,
         },
         switchWrapper: {
             width: '100%',

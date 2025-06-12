@@ -2,10 +2,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dimensions, ImageBackground, StyleSheet, View } from 'react-native'
+import { Dimensions, ImageBackground, StyleSheet } from 'react-native'
 
 import { Images } from '../assets/images'
 import SelectRecoveryFileButton from '../components/feature/recovery/SelectRecoveryFileButton'
+import Flex from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -22,33 +23,33 @@ const SelectRecoveryFileFailure: React.FC<Props> = ({
     const { theme } = useTheme()
     const { fileName } = route.params
 
+    const style = styles(theme)
+
     return (
-        <ImageBackground
-            source={Images.HoloBackground}
-            style={styles(theme).container}>
-            <View style={styles(theme).detailsContainer}>
+        <ImageBackground source={Images.HoloBackground} style={style.container}>
+            <Flex center style={style.detailsContainer}>
                 <SvgImage name="Error" />
-                <Text h2 h2Style={styles(theme).failureMessage}>
+                <Text h2 h2Style={style.failureMessage}>
                     {t('feature.recovery.opening-backup-file-failed')}
                 </Text>
-                <Text style={styles(theme).failureDetails}>
+                <Text style={style.failureDetails}>
                     {t(
                         'feature.recovery.opening-backup-file-failed-instructions',
                         { fileName },
                     )}
                 </Text>
-            </View>
-            <View style={styles(theme).buttonContainer}>
+            </Flex>
+            <Flex justify="end" style={style.buttonContainer}>
                 <Button
                     type="clear"
                     title={t('phrases.back-to-app')}
-                    containerStyle={styles(theme).backToAppButton}
+                    containerStyle={style.backToAppButton}
                     onPress={() => {
                         navigation.replace('TabsNavigator')
                     }}
                 />
                 <SelectRecoveryFileButton />
-            </View>
+            </Flex>
         </ImageBackground>
     )
 }
@@ -64,8 +65,6 @@ const styles = (theme: Theme) =>
             justifyContent: 'center',
         },
         detailsContainer: {
-            alignItems: 'center',
-            justifyContent: 'center',
             marginTop: 'auto',
             paddingHorizontal: theme.spacing.xl,
             backgroundColor: theme.colors.secondary,
@@ -101,8 +100,6 @@ const styles = (theme: Theme) =>
             width: '90%',
             marginTop: 'auto',
             marginBottom: theme.spacing.xl,
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
         },
     })
 

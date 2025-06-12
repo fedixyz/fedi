@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "4JUZY29459.org.fedi.alpha",
+        "paths": [ "/link*" ]
+      },
+      {
+        "appID": "4JUZY29459.org.fedi.nightly",
+        "paths": [ "/link*" ]
+      }
+    ]
+  }
+}

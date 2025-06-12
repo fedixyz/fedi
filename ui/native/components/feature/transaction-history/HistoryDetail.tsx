@@ -1,5 +1,5 @@
 import { Text, Theme, useTheme, Button, Input } from '@rneui/themed'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Keyboard,
@@ -16,11 +16,13 @@ import { hexToRgba } from '@fedi/common/utils/color'
 
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
+import { TransactionListEntry } from '../../../types'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
 
 export type HistoryDetailProps = {
-    id: string
+    txn: TransactionListEntry
     icon: React.ReactNode
     title: React.ReactNode
     amount: string
@@ -33,12 +35,12 @@ export type HistoryDetailProps = {
 }
 
 export const HistoryDetail: React.FC<HistoryDetailProps> = ({
-    id,
     icon,
     title,
     amount,
     items,
     fees,
+    txn: { id, ...txn },
     onPressFees = () => null,
     notes: propsNotes,
     onSaveNotes,
@@ -60,27 +62,6 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
         }
     }, [propsNotes])
 
-    const isOnchain = useMemo(
-        () =>
-            items.some(
-                item =>
-                    item.label === t('words.type') &&
-                    item.value === t('words.onchain'),
-            ),
-        [items, t],
-    )
-
-    const hasReceivedBitcoin = useMemo(
-        () =>
-            isOnchain &&
-            items.some(
-                item =>
-                    item.label === t('words.status') &&
-                    item.value === t('phrases.received-bitcoin'),
-            ),
-        [items, t, isOnchain],
-    )
-
     const handleNotesInputChanged = useCallback(
         (input: string) => {
             setNotes(input)
@@ -100,8 +81,10 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     }, [handleSaveNotes, onClose])
 
     const checkAndToastOnchainReceiveStatus = useCallback(async () => {
+        if (txn.kind !== 'onchainDeposit') return
+
         handleClose()
-        if (hasReceivedBitcoin) {
+        if (txn.state?.type === 'claimed') {
             toast.show({
                 status: 'success',
                 content: t('feature.receive.onchain-funds-received'),
@@ -112,7 +95,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                 content: t('feature.receive.no-incoming-funds-detected'),
             })
         }
-    }, [t, toast, hasReceivedBitcoin, handleClose])
+    }, [t, toast, txn, handleClose])
 
     const handleCheckIncomingFunds = useCallback(async () => {
         if (!activeFederationId) return
@@ -127,7 +110,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
             // Needs to be called in a different callback since `hasReceivedBitcoin` points to the value at the time of the function call
             checkAndToastOnchainReceiveStatus()
             setCheckLoading(false)
-        }, 1000)
+        }, 10000)
     }, [activeFederationId, id, checkAndToastOnchainReceiveStatus])
 
     const style = styles(theme)
@@ -149,7 +132,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                     {amount}
                 </Text>
             )}
-            <View style={style.detailItemsContainer}>
+            <Flex gap="xs" fullWidth style={style.detailItemsContainer}>
                 {items.map((item, idx) => (
                     <HistoryDetailItem
                         key={idx}
@@ -221,8 +204,8 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                         noBorder
                     />
                 )}
-            </View>
-            {isOnchain && !hasReceivedBitcoin && (
+            </Flex>
+            {txn.kind === 'onchainDeposit' && (
                 <View style={style.checkFundsContainer}>
                     <Button
                         title={
@@ -254,8 +237,6 @@ const styles = (theme: Theme) =>
         },
         detailItemsContainer: {
             marginTop: theme.spacing.xl,
-            gap: theme.spacing.xs,
-            width: '100%',
         },
         detailTitle: {
             marginTop: theme.spacing.sm,

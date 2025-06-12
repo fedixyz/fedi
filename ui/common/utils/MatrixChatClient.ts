@@ -945,39 +945,48 @@ export class MatrixChatClient {
 
     // TODO: get type for this from bridge?
     private serializeRoomInfo(room: any): MatrixRoom {
-        const avatarUrl = room.base_info.avatar?.Original?.content?.url
         const directUserId = room.base_info.dm_targets?.[0]
 
+        // Use the Hero avatar for DMs, otherwise use the room avatar
+        const avatarUrl = directUserId
+            ? room.summary?.room_heroes?.[0]?.avatar_url
+            : room.base_info.avatar?.Original?.content?.url
         let preview: MatrixRoom['preview']
         if (room.latest_event) {
             const { event, sender_profile } = room.latest_event
-            if ('kind' in event && 'Decrypted' in event.kind) {
-                const { event: decryptedEvent } = event.kind.Decrypted
-                let timestamp = decryptedEvent.origin_server_ts
+            if (
+                'kind' in event &&
+                ('Decrypted' in event.kind || 'PlainText' in event.kind)
+            ) {
+                const { event: previewEvent } =
+                    'Decrypted' in event.kind
+                        ? event.kind.Decrypted
+                        : event.kind.PlainText
+
+                let timestamp = previewEvent.origin_server_ts
                 let isDeleted = false
                 // Deleted/redacted messages have the redaction timestamp in the unsigned field
                 if (
-                    'unsigned' in decryptedEvent &&
-                    'redacted_because' in decryptedEvent.unsigned &&
-                    !!decryptedEvent.unsigned?.redacted_because
+                    'unsigned' in previewEvent &&
+                    'redacted_because' in previewEvent.unsigned &&
+                    !!previewEvent.unsigned?.redacted_because
                 ) {
                     isDeleted = true
                     timestamp =
-                        decryptedEvent.unsigned.redacted_because
-                            .origin_server_ts
+                        previewEvent.unsigned.redacted_because.origin_server_ts
                 }
 
                 // Guard against missing sender_profile or Original content
                 const senderContent = sender_profile?.Original?.content
                 if (senderContent) {
                     preview = {
-                        eventId: decryptedEvent.event_id,
+                        eventId: previewEvent.event_id,
                         senderId: senderContent.id,
                         displayName: this.ensureDisplayName(
                             senderContent.displayname,
                         ),
                         avatarUrl: senderContent.avatar_url,
-                        body: decryptedEvent.content.body,
+                        body: previewEvent.content.body,
                         isDeleted,
                         timestamp,
                     }
@@ -991,6 +1000,7 @@ export class MatrixChatClient {
         // but since it is a newer field we leave the base_info.name as a fallback temporarily
         const roomName =
             room.cached_display_name?.Calculated ||
+            room.cached_display_name?.EmptyWas ||
             room.base_info.name?.Original?.content?.name
 
         return {

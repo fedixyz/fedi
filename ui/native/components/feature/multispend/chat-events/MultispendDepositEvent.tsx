@@ -1,12 +1,12 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { View } from 'react-native'
 
 import { useMultispendDepositEventContent } from '@fedi/common/hooks/multispend'
 import { MatrixEvent } from '@fedi/common/types'
 import { MultispendEventContentType } from '@fedi/common/utils/matrix'
 
+import Flex from '../../../ui/Flex'
 import MultispendEventTemplate from './MultispendEventTemplate'
 
 type Props = {
@@ -25,7 +25,7 @@ const MultispendDepositEvent: React.FC<Props> = ({ event }) => {
     const navigation = useNavigation()
 
     const body1 = (
-        <View style={{ gap: 4 }}>
+        <Flex gap="xs">
             <Text caption>
                 <Text caption bold>
                     {senderName}{' '}
@@ -38,7 +38,7 @@ const MultispendDepositEvent: React.FC<Props> = ({ event }) => {
                     {formattedFiatAmount}
                 </Text>
             </Text>
-        </View>
+        </Flex>
     )
 
     return (

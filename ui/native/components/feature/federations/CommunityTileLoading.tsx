@@ -1,6 +1,8 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef } from 'react'
-import { Animated, Easing, StyleSheet, View } from 'react-native'
+import { Animated, Easing, StyleSheet } from 'react-native'
+
+import Flex from '../../ui/Flex'
 
 const ShimmerPlaceholder: React.FC<{
     width: number
@@ -49,10 +51,10 @@ const CommunityTileLoading = () => {
     const style = styles(theme)
 
     return (
-        <View style={style.container}>
-            <View style={style.content}>
+        <Flex row align="center" justify="between" style={style.container}>
+            <Flex row align="center" justify="start" gap="md" shrink>
                 <ShimmerPlaceholder width={48} height={48} borderRadius={8} />
-                <View style={style.titleContainer}>
+                <Flex align="start" shrink gap="xs">
                     <ShimmerPlaceholder
                         width={120}
                         height={20}
@@ -63,34 +65,18 @@ const CommunityTileLoading = () => {
                         height={20}
                         borderRadius={0}
                     />
-                </View>
-            </View>
-        </View>
+                </Flex>
+            </Flex>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            justifyContent: 'space-between',
             borderRadius: 0,
             paddingHorizontal: theme.spacing.lg,
-            alignItems: 'center',
-            flexDirection: 'row',
             marginVertical: theme.spacing.md,
-        },
-        content: {
-            gap: theme.spacing.md,
-            justifyContent: 'flex-start',
-            flexDirection: 'row',
-            alignItems: 'center',
-            flexShrink: 1,
-        },
-        titleContainer: {
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            flexShrink: 1,
-            gap: 4,
         },
     })
 

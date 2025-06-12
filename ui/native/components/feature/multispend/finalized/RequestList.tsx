@@ -1,10 +1,12 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
+import { ResourceKey } from 'i18next'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ListRenderItem, StyleSheet, View, FlatList } from 'react-native'
+import { ListRenderItem, StyleSheet, FlatList } from 'react-native'
 
 import {
     useMultispendTransactions,
+    useMultispendVoting,
     useMultispendWithdrawalRequests,
 } from '@fedi/common/hooks/multispend'
 import { makeLog } from '@fedi/common/utils/log'
@@ -15,6 +17,7 @@ import {
     MultispendWithdrawalEvent,
 } from '../../../../types'
 import CustomOverlay from '../../../ui/CustomOverlay'
+import Flex from '../../../ui/Flex'
 import OverlaySelect from '../../../ui/OverlaySelect'
 import SvgImage from '../../../ui/SvgImage'
 import WithdrawalOverlayContents from './WithdrawalOverlayContents'
@@ -41,6 +44,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
         setFilter,
     } = useMultispendWithdrawalRequests({ t, fedimint, roomId })
     const { fetchTransactions } = useMultispendTransactions(t, roomId)
+    const { canVote } = useMultispendVoting({ t, fedimint, roomId })
 
     useEffect(() => {
         setIsLoading(true)
@@ -74,9 +78,22 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
 
     const style = styles(theme)
 
+    const filterMessageMap: Record<MultispendFilterOption, ResourceKey> = {
+        pending: 'feature.multispend.no-pending-withdrawal-requests',
+        approved: 'feature.multispend.no-approved-withdrawal-requests',
+        rejected: 'feature.multispend.no-rejected-withdrawal-requests',
+        failed: 'feature.multispend.no-failed-withdrawal-requests',
+        all: 'feature.multispend.no-withdrawal-requests',
+    }
+
     return (
-        <View style={style.container}>
-            <View style={style.header}>
+        <Flex grow>
+            <Flex
+                row
+                align="center"
+                justify="between"
+                gap="md"
+                style={style.header}>
                 <Text medium>
                     {t('feature.multispend.withdrawal-requests')}
                 </Text>
@@ -87,7 +104,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                     }
                     options={filterOptions}
                 />
-            </View>
+            </Flex>
             <FlatList
                 style={style.requestList}
                 contentContainerStyle={style.requestListContainer}
@@ -99,21 +116,23 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                     `multispend-withdrawal-request-${item.id}`
                 }
                 ListEmptyComponent={() => (
-                    <View style={style.emptyState}>
+                    <Flex center gap="md" grow style={style.emptyState}>
                         <SvgImage
                             color={theme.colors.grey}
                             size={52}
                             name="MultispendGroup"
                         />
                         <Text medium style={style.emptyTitle}>
-                            {t('feature.multispend.no-verb-requests', {
-                                verb: selectedFilterOption?.label,
-                            })}
+                            {t(
+                                filterMessageMap[
+                                    selectedFilterOption?.value ?? 'all'
+                                ],
+                            )}
                         </Text>
                         <Text small style={style.emptyDescription}>
                             {t('feature.multispend.no-requests-notice')}
                         </Text>
-                    </View>
+                    </Flex>
                 )}
             />
             <CustomOverlay
@@ -127,53 +146,35 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                             roomId={roomId}
                         />
                     ),
-                    buttons: haveIVoted
-                        ? undefined
-                        : [
-                              {
-                                  text: t('words.reject'),
-                                  onPress: handleRejectRequest,
-                                  disabled: isVoting,
-                              },
-                              {
-                                  text: t('words.approve'),
-                                  onPress: handleApproveRequest,
-                                  primary: true,
-                                  disabled: isVoting,
-                              },
-                          ],
+                    buttons:
+                        haveIVoted || !canVote
+                            ? undefined
+                            : [
+                                  {
+                                      text: t('words.reject'),
+                                      onPress: handleRejectRequest,
+                                      disabled: isVoting,
+                                  },
+                                  {
+                                      text: t('words.approve'),
+                                      onPress: handleApproveRequest,
+                                      primary: true,
+                                      disabled: isVoting,
+                                  },
+                              ],
                 }}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-            flexDirection: 'column',
-        },
-        loadingContainer: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
         header: {
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
             padding: theme.spacing.md,
         },
         emptyState: {
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.md,
             paddingHorizontal: theme.spacing.lg,
-            flex: 1,
         },
         emptyTitle: {
             textAlign: 'center',
@@ -189,7 +190,6 @@ const styles = (theme: Theme) =>
         },
         requestListContainer: {
             flexDirection: 'column',
-            flex: 1,
         },
     })
 

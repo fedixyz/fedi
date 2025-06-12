@@ -10,6 +10,7 @@ import { useDebounce } from '@fedi/common/hooks/util'
 import { setFeatureUnlocked } from '@fedi/common/redux'
 
 import PinDot from '../components/feature/pin/PinDot'
+import Flex from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
@@ -62,7 +63,7 @@ const LockScreen = ({ navigation, route }: Props) => {
     }, [])
 
     const handleNumpadPress = useCallback(
-        (btn: (typeof numpadButtons)[number]) => {
+        (btn: number | 'backspace') => {
             if (btn === null || pin.status !== 'set') return
 
             if (btn === 'backspace') {
@@ -137,9 +138,9 @@ const LockScreen = ({ navigation, route }: Props) => {
     }, [])
 
     return (
-        <View style={style.container}>
-            <View style={style.content}>
-                <View style={style.dots}>
+        <Flex grow center style={style.container}>
+            <Flex grow center style={style.content}>
+                <Flex row center style={style.dots}>
                     {isEnteredPinIncorrect && (
                         <Text style={style.incorrectPin}>
                             {t('feature.pin.pin-doesnt-match')}
@@ -168,61 +169,49 @@ const LockScreen = ({ navigation, route }: Props) => {
                             />
                         </View>
                     )}
-                </View>
-            </View>
-            <View style={style.numpad}>
-                {numpadButtons.map(btn => (
-                    <NumpadButton
-                        key={btn}
-                        btn={btn}
-                        onPress={() => handleNumpadPress(btn)}
-                        disabled={timeoutSeconds > 0}
-                    />
-                ))}
+                </Flex>
+            </Flex>
+            <Flex row wrap fullWidth style={style.numpad}>
+                {numpadButtons
+                    .filter(btn => btn !== '.')
+                    .map(btn => (
+                        <NumpadButton
+                            key={btn}
+                            btn={btn}
+                            onPress={() => handleNumpadPress(btn)}
+                            disabled={timeoutSeconds > 0}
+                        />
+                    ))}
                 {timeoutSeconds > 0 && (
-                    <View style={style.timeoutOverlay}>
+                    <Flex center style={style.timeoutOverlay}>
                         <Text bold h1>
                             0:{String(timeoutSeconds).padStart(2, '0')}
                         </Text>
-                    </View>
+                    </Flex>
                 )}
-            </View>
-        </View>
+            </Flex>
+        </Flex>
     )
 }
 
 export const styles = (theme: Theme, width: number) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
             padding: theme.spacing.xl,
         },
         dots: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
             position: 'relative',
         },
         content: {
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             gap: 32,
         },
         numpad: {
-            width: '100%',
             maxWidth: Math.min(400, width),
             paddingHorizontal: theme.spacing.lg,
-            flexDirection: 'row',
-            flexWrap: 'wrap',
             position: 'relative',
         },
         forgotPinButtonContainer: {
             position: 'absolute',
-            display: 'flex',
             top: 54,
         },
         incorrectPin: {
@@ -242,10 +231,6 @@ export const styles = (theme: Theme, width: number) =>
             right: 0,
             bottom: 0,
             backgroundColor: '#fffc',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
         },
     })
 

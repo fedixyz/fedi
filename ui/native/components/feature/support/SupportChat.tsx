@@ -10,6 +10,7 @@ import SvgImage from '@fedi/native/components/ui/SvgImage'
 import { HELP_URL, PRIVACY_POLICY_URL } from '../../../constants'
 import { useAppDispatch } from '../../../state/hooks'
 import { useLaunchZendesk } from '../../../utils/hooks/support'
+import Flex from '../../ui/Flex'
 import HoloGuidance from '../../ui/HoloGuidance'
 
 const SupportChat: React.FC = () => {
@@ -37,12 +38,8 @@ const SupportChat: React.FC = () => {
     }
 
     return (
-        <View
-            style={[
-                style.container,
-                { backgroundColor: theme.colors.background },
-            ]}>
-            <View style={style.content}>
+        <Flex grow style={[{ backgroundColor: theme.colors.background }]}>
+            <Flex center grow style={style.content}>
                 <HoloGuidance
                     iconImage={<SvgImage name="Bulb" size={86} />}
                     title={t('feature.support.friendly-request')}
@@ -69,7 +66,7 @@ const SupportChat: React.FC = () => {
                         <Text>{t('feature.support.effective-support-2b')}</Text>
                     </Text>
                 </View>
-            </View>
+            </Flex>
             <View style={style.overlayButtonsContainer}>
                 <Button
                     fullWidth
@@ -77,24 +74,18 @@ const SupportChat: React.FC = () => {
                     title={t('phrases.i-understand')}
                 />
             </View>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-        },
         message: {
             textAlign: 'center',
             paddingHorizontal: theme.spacing.xl,
             fontWeight: '400',
         },
         content: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
             paddingHorizontal: 20,
             paddingLeft: '3%',
             paddingRight: '3%',

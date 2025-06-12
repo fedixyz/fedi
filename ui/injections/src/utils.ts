@@ -39,3 +39,28 @@ export async function sendInjectorMessage<T extends InjectionMessageType>(
         window.addEventListener('fedi:message', messageHandler)
     })
 }
+
+export async function encrypt(
+    pubkey: string,
+    plaintext: string,
+): Promise<string> {
+    return sendInjectorMessage({
+        id: 0,
+        type: InjectionMessageType.nostr_encrypt,
+        data: {
+            pubkey,
+            plaintext,
+        },
+    })
+}
+
+export async function decrypt(
+    pubkey: string,
+    ciphertext: string,
+): Promise<string> {
+    return sendInjectorMessage({
+        id: 0,
+        type: InjectionMessageType.nostr_decrypt,
+        data: { pubkey, ciphertext },
+    })
+}

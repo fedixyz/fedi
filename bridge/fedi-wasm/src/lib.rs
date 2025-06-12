@@ -18,6 +18,7 @@ use storage::WasmStorage;
 use tracing::{error, warn};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsError;
+use web_sys::FileSystemSyncAccessHandle;
 
 mod db;
 mod logging;
@@ -43,10 +44,18 @@ thread_local! {
 }
 
 #[wasm_bindgen]
-pub async fn fedimint_initialize(event_sink: EventSink, init_opts_json: String) -> String {
-    let value = AssertUnwindSafe(fedimint_initialize_inner(event_sink, init_opts_json))
-        .catch_unwind()
-        .await;
+pub async fn fedimint_initialize(
+    event_sink: EventSink,
+    init_opts_json: String,
+    log_file_handle: FileSystemSyncAccessHandle,
+) -> String {
+    let value = AssertUnwindSafe(fedimint_initialize_inner(
+        event_sink,
+        init_opts_json,
+        log_file_handle,
+    ))
+    .catch_unwind()
+    .await;
     match value {
         Ok(Ok(())) => String::from("{}"),
         Ok(Err(e)) => rpc_error_json(&e),
@@ -57,6 +66,7 @@ pub async fn fedimint_initialize(event_sink: EventSink, init_opts_json: String) 
 pub async fn fedimint_initialize_inner(
     event_sink: EventSink,
     init_opts_json: String,
+    log_file_handle: FileSystemSyncAccessHandle,
 ) -> anyhow::Result<()> {
     let init_opts: RpcInitOpts = match serde_json::from_str(&init_opts_json) {
         Ok(init_opts) => init_opts,
@@ -66,7 +76,7 @@ pub async fn fedimint_initialize_inner(
         }
     };
     let event_sink = Arc::new(event_sink);
-    logging::init(event_sink.clone());
+    logging::init(event_sink.clone(), log_file_handle).await;
     if BRIDGE.with(|b| b.borrow().is_some()) {
         warn!("bridge is already initialized");
         return Ok(());

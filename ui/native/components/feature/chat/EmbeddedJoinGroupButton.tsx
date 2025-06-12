@@ -3,12 +3,13 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 
 import { NavigationHook } from '../../../types/navigation'
+import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
@@ -30,11 +31,12 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
         })
     }
 
+    const style = styles(theme)
+
     return (
         <Button
             size="sm"
             color={theme.colors.secondary}
-            containerStyle={styles(theme).container}
             onPress={() =>
                 navigation.navigate('ConfirmJoinPublicGroup', {
                     groupId,
@@ -42,9 +44,9 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
             }
             onLongPress={copyToClipboard}
             title={
-                <View style={styles(theme).contents}>
+                <Flex row center style={style.contents}>
                     <SvgImage
-                        containerStyle={styles(theme).icon}
+                        containerStyle={style.icon}
                         size={SvgImageSize.xs}
                         name={'SocialPeople'}
                         // TODO: Implement room preview to show group type
@@ -62,10 +64,10 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
                         bold
                         caption
                         numberOfLines={1}
-                        style={styles(theme).groupNameText}>
+                        style={style.groupNameText}>
                         {`${groupConfig.name}`}
                     </Text> */}
-                </View>
+                </Flex>
             }
         />
     )
@@ -73,11 +75,7 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {},
         contents: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
             minWidth: '100%',
         },
         icon: {

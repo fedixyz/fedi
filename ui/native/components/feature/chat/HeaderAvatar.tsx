@@ -12,6 +12,7 @@ import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
     onPress: () => void
+    testID?: string
 }
 
 const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
@@ -25,7 +26,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
                 level="900"
                 style={style.gradientContainer}
                 gradientStyle={style.gradient}>
-                <Pressable hitSlop={10} onPress={onPress}>
+                <Pressable testID="AvatarButton" hitSlop={10} onPress={onPress}>
                     <SvgImage
                         name="ProfileThicker"
                         size={SvgImageSize.sm}
@@ -40,7 +41,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
     }
 
     return (
-        <Pressable hitSlop={10} onPress={onPress}>
+        <Pressable testID="AvatarButton" hitSlop={10} onPress={onPress}>
             <BubbleView containerStyle={style.bubbleContainer}>
                 <View style={style.avatarContainer}>
                     <Avatar

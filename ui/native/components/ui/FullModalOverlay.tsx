@@ -10,10 +10,10 @@ import {
     ScrollView,
     StyleSheet,
     useWindowDimensions,
-    View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import Flex from './Flex'
 import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
 
 type OverlayButton = {
@@ -187,9 +187,9 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
                 )}
                 <ScrollView style={style.bodyContainer}>{body}</ScrollView>
                 {buttons?.length > 0 && (
-                    <View style={style.overlayButtonView}>
+                    <Flex row justify="between" style={style.overlayButtonView}>
                         {renderButtons()}
-                    </View>
+                    </Flex>
                 )}
             </Animated.View>
         </Overlay>
@@ -254,8 +254,6 @@ const styles = (theme: Theme, insets: Insets) =>
             textAlign: 'center',
         },
         overlayButtonView: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
             marginTop: theme.spacing.xl,
         },
         buttonContainer: {

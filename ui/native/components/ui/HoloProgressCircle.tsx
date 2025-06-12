@@ -4,6 +4,7 @@ import { ImageBackground, StyleSheet, View } from 'react-native'
 import * as Progress from 'react-native-progress'
 
 import { Images } from '../../assets/images'
+import Flex from './Flex'
 
 export type Props = {
     percentComplete: number
@@ -12,8 +13,10 @@ export type Props = {
 const HoloProgressCircle: React.FC<Props> = ({ percentComplete }: Props) => {
     const { theme } = useTheme()
 
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).container}>
+        <Flex center style={style.container}>
             {/*
                 Since we cannot provide a color gradient to the Progress.Circle
                 component, we work around this:
@@ -30,11 +33,11 @@ const HoloProgressCircle: React.FC<Props> = ({ percentComplete }: Props) => {
             */}
             <ImageBackground
                 source={Images.HoloBackgroundStrong}
-                style={styles(theme).holoCircle}
-                imageStyle={styles(theme).holoCircleImage}
+                style={style.holoCircle}
+                imageStyle={style.holoCircleImage}
             />
-            <View style={styles(theme).whiteCircle} />
-            <View style={styles(theme).progressCircleContainer}>
+            <View style={style.whiteCircle} />
+            <View style={style.progressCircleContainer}>
                 <Progress.Circle
                     // Here we invert the percentComplete so that the animated
                     // white ring starts at 100% and progressively uncovers the
@@ -48,10 +51,10 @@ const HoloProgressCircle: React.FC<Props> = ({ percentComplete }: Props) => {
                     borderWidth={1}
                 />
             </View>
-            <View style={styles(theme).percentLabelContainer}>
+            <View style={style.percentLabelContainer}>
                 <Text medium>{`${percentComplete}%`}</Text>
             </View>
-        </View>
+        </Flex>
     )
 }
 
@@ -59,8 +62,6 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             position: 'relative',
-            alignItems: 'center',
-            justifyContent: 'center',
             height: theme.sizes.progressCircle,
             width: theme.sizes.progressCircle,
         },

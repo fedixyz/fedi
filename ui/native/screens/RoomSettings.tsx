@@ -4,18 +4,19 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, ScrollView, StyleSheet, View } from 'react-native'
 
+import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     ignoreUser,
     leaveMatrixRoom,
     selectIsDefaultGroup,
-    selectIsMultispendFeatureEnabled,
     selectMatrixRoom,
     selectMatrixRoomMembersCount,
     selectMatrixRoomMultispendStatus,
     selectMatrixRoomSelfPowerLevel,
     selectMyMultispendRole,
+    selectShouldShowMultispend,
     setMatrixRoomBroadcastOnly,
     unignoreUser,
 } from '@fedi/common/redux'
@@ -27,10 +28,12 @@ import { ConfirmBlockOverlay } from '../components/feature/chat/ConfirmBlockOver
 import SettingsItem, {
     SettingsItemProps,
 } from '../components/feature/settings/SettingsItem'
+import Flex from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToChatsScreen } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
+import { useLaunchZendesk } from '../utils/hooks/support'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'RoomSettings'>
 
@@ -39,6 +42,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { show } = useToast()
+    const { launchZendesk } = useLaunchZendesk()
     const toast = useToast()
     const { roomId } = route.params
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
@@ -49,13 +53,14 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         selectMatrixRoomSelfPowerLevel(s, roomId || ''),
     )
     const isAdmin = myPowerLevel >= MatrixPowerLevel.Admin
+    const { shouldBlockLeaveRoom } = useMultispendDisplayUtils(t, roomId)
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
     const myMultispendRole = useAppSelector(s =>
         selectMyMultispendRole(s, roomId),
     )
-    const isMultispendEnabled = useAppSelector(selectIsMultispendFeatureEnabled)
+    const shouldShowMultispend = useAppSelector(selectShouldShowMultispend)
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, roomId))
     const isGroupChat = room?.directUserId === undefined
     const [isTogglingBroadcastOnly, setIsTogglingBroadcastOnly] =
@@ -84,6 +89,15 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     }, [dispatch, navigation, roomId, t, toast])
 
     const handleLeaveChat = useCallback(() => {
+        if (shouldBlockLeaveRoom) {
+            toast.show({
+                content: t('feature.multispend.leave-group-message'),
+                status: 'error',
+            })
+
+            return
+        }
+
         Alert.alert(
             isGroupChat
                 ? t('feature.chat.leave-group')
@@ -101,7 +115,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                 },
             ],
         )
-    }, [isGroupChat, leaveChat, t])
+    }, [isGroupChat, leaveChat, t, shouldBlockLeaveRoom, toast])
 
     const handleChangeGroupName = useCallback(() => {
         navigation.navigate('EditGroup', { roomId })
@@ -155,6 +169,10 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             toast.error(t, 'errors.default-groups-must-be-broadcast')
             return
         }
+        if (multispendStatus) {
+            toast.error(t, 'errors.multispend-cannot-be-broadcast')
+            return
+        }
         setIsTogglingBroadcastOnly(true)
         try {
             await dispatch(
@@ -167,7 +185,15 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             toast.error(t, 'errors.unknown-error')
         }
         setIsTogglingBroadcastOnly(false)
-    }, [isDefaultGroup, isTogglingBroadcastOnly, room, dispatch, toast, t])
+    }, [
+        isDefaultGroup,
+        isTogglingBroadcastOnly,
+        room,
+        dispatch,
+        toast,
+        t,
+        multispendStatus,
+    ])
 
     const handleNavigateToMultispend = useCallback(() => {
         if (!multispendStatus && isAdmin) {
@@ -245,7 +271,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             )
 
             if (
-                isMultispendEnabled &&
+                shouldShowMultispend &&
                 isGroupChat &&
                 !room?.isPublic &&
                 !room?.broadcastOnly
@@ -280,6 +306,11 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                 },
             )
         }
+        items.push({
+            icon: 'SmileMessage',
+            label: t('feature.support.title'),
+            onPress: () => launchZendesk(),
+        })
         return items
     }, [
         handleNavigateToMultispend,
@@ -288,6 +319,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         handleLeaveChat,
         handleToggleBroadcastOnly,
         handleViewMembers,
+        launchZendesk,
         isAdmin,
         isDefaultGroup,
         isGroupChat,
@@ -300,7 +332,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         theme.colors.red,
         isIgnored,
         multispendStatus,
-        isMultispendEnabled,
+        shouldShowMultispend,
         myMultispendRole,
     ])
 
@@ -313,7 +345,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                 <ScrollView
                     bounces={false}
                     contentContainerStyle={style.content}>
-                    <View style={style.sectionContainer}>
+                    <Flex gap="lg">
                         <Text color={theme.colors.primaryLight}>
                             {t('feature.chat.chat-settings')}
                         </Text>
@@ -322,7 +354,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                                 <SettingsItem key={`si-${index}`} {...item} />
                             ))}
                         </View>
-                    </View>
+                    </Flex>
                 </ScrollView>
             </View>
             <ConfirmBlockOverlay
@@ -346,9 +378,6 @@ const styles = (theme: Theme) =>
         container: {
             justifyContent: 'space-evenly',
             padding: theme.spacing.lg,
-        },
-        sectionContainer: {
-            gap: theme.spacing.lg,
         },
         settingsItems: {
             backgroundColor: theme.colors.offWhite100,

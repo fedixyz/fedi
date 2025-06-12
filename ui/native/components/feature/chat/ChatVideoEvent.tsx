@@ -26,6 +26,7 @@ import { scaleAttachment } from '@fedi/common/utils/media'
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { pathJoin, prefixFileUri } from '../../../utils/media'
+import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatVideoEventProps = {
@@ -104,12 +105,12 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     return (isLoading && !uri) || isError ? (
         <View style={videoBaseStyle}>
             {isError ? (
-                <View style={style.videoStyle}>
+                <Flex align="center" gap="md">
                     <SvgImage name="VideoOff" color={theme.colors.grey} />
                     <Text caption style={style.errorCaption}>
                         {t('errors.failed-to-load-video')}
                     </Text>
-                </View>
+                </Flex>
             ) : (
                 <ActivityIndicator />
             )}
@@ -132,6 +133,9 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
                     videoRef.current?.seek(0)
                     dispatch(matchAndRemovePreviewMedia(event.content))
                 }}
+                resizeMode="cover"
+                // Prevents videos from being layered over each other
+                useTextureView
             />
             <TouchableOpacity
                 style={style.overlay}
@@ -162,11 +166,6 @@ const styles = (theme: Theme) =>
             padding: 16,
             display: 'flex',
             justifyContent: 'center',
-            alignItems: 'center',
-        },
-        videoStyle: {
-            flexDirection: 'column',
-            gap: theme.spacing.md,
             alignItems: 'center',
         },
         errorCaption: {

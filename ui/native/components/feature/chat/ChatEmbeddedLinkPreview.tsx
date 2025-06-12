@@ -6,14 +6,14 @@ import {
     Linking,
     Pressable,
     StyleSheet,
-    View,
 } from 'react-native'
 
 import { useMatrixUrlPreview } from '@fedi/common/hooks/matrix'
+import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
 import { useMatrixFile } from '../../../utils/hooks/media'
-import { scaleAttachment } from '../../../utils/media'
+import Flex from '../../ui/Flex'
 
 type Props = {
     url: string
@@ -102,12 +102,16 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
                     width={dimensions.width}
                 />
             ) : mediaDimensions && isLoading ? (
-                <View style={[style.imageLoadingPlaceholder, dimensions]}>
+                <Flex
+                    center
+                    style={[style.imageLoadingPlaceholder, dimensions]}>
                     <ActivityIndicator />
-                </View>
+                </Flex>
             ) : null}
             {urlPreview?.['og:title'] && (
-                <View
+                <Flex
+                    row
+                    gap="md"
                     style={[
                         style.siteContent,
                         {
@@ -116,12 +120,12 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
                                 : theme.colors.extraLightGrey,
                         },
                     ]}>
-                    <View style={style.siteInfo}>
-                        <View style={style.siteHeader}>
+                    <Flex gap="sm">
+                        <Flex row gap="sm">
                             <Text medium caption numberOfLines={2}>
                                 {urlPreview['og:title']}
                             </Text>
-                        </View>
+                        </Flex>
                         {urlPreview['og:description'] && (
                             <Text
                                 small
@@ -130,8 +134,8 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
                                 {urlPreview['og:description']}
                             </Text>
                         )}
-                    </View>
-                </View>
+                    </Flex>
+                </Flex>
             )}
         </Pressable>
     )
@@ -146,19 +150,8 @@ const styles = (theme: Theme) =>
             overflow: 'hidden',
             backgroundColor: theme.colors.lightGrey,
         },
-        siteHeader: {
-            display: 'flex',
-            flexDirection: 'row',
-            gap: theme.spacing.sm,
-        },
         siteContent: {
-            flexDirection: 'row',
             padding: 8,
-            gap: theme.spacing.md,
-        },
-        siteInfo: {
-            flexDirection: 'column',
-            gap: theme.spacing.sm,
         },
         urlDescription: {
             color: theme.colors.darkGrey,
@@ -172,9 +165,6 @@ const styles = (theme: Theme) =>
             maxHeight: 400,
             backgroundColor: theme.colors.extraLightGrey,
             padding: 16,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
         },
     })
 

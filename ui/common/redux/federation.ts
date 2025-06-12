@@ -309,6 +309,21 @@ export const {
 
 /*** Async thunk actions */
 
+export const supportsSafeOnchainDeposit = createAsyncThunk<
+    boolean,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>(
+    'federation/supportsSafeOnchainDeposit',
+    async ({ fedimint }, { getState }) => {
+        const paymentFederation = selectPaymentFederation(getState())
+
+        if (!paymentFederation) return false
+
+        return await fedimint.supportsSafeOnchainDeposit(paymentFederation.id)
+    },
+)
+
 export const refreshFederations = createAsyncThunk<
     FederationListItem[],
     FedimintBridge,
@@ -604,12 +619,39 @@ export const selectFederations = createSelector(
             .filter(f => f.init_state !== 'failed'),
 )
 
+export const selectCommunities = createSelector(
+    selectFederations,
+    federations => federations.filter(f => !f.hasWallet),
+)
+
 export const selectAlphabeticallySortedFederations = createSelector(
     selectLoadedFederations,
     federations => {
         return orderBy(
             federations,
             federation => federation.name?.toLowerCase() || '',
+            'asc',
+        )
+    },
+)
+
+export const selectAlphabeticallySortedWalletFederations = createSelector(
+    selectWalletFederations,
+    federations => {
+        return orderBy(
+            federations,
+            federation => federation.name?.toLowerCase() || '',
+            'asc',
+        )
+    },
+)
+
+export const selectAlphabeticallySortedCommunities = createSelector(
+    selectCommunities,
+    communities => {
+        return orderBy(
+            communities,
+            community => community.name?.toLowerCase() || '',
             'asc',
         )
     },
@@ -673,7 +715,11 @@ export const selectPaymentFederation = createSelector(
         payFromFederationId,
     ): LoadedFederation | undefined => {
         if (!payFromFederationId) {
-            return activeFederation?.hasWallet ? activeFederation : undefined
+            if (activeFederation?.hasWallet) return activeFederation
+
+            if (federations.length > 0) return federations[0]
+
+            return undefined
         }
 
         return federations.find(f => f.id === payFromFederationId)
@@ -830,16 +876,18 @@ export const selectActiveFederationCustomFediMods = (s: CommonState) => {
         : []
 }
 
-export const selectActiveFederationChats = (s: CommonState) => {
-    const activeFederation = selectActiveFederation(s)
-    return activeFederation
-        ? s.federation.defaultCommunityChats[activeFederation.id] || []
-        : []
-}
+export const selectActiveFederationChats = createSelector(
+    selectActiveFederation,
+    (s: CommonState) => s.federation.defaultCommunityChats,
+    (activeFederation, defaultCommunityChats) =>
+        activeFederation
+            ? defaultCommunityChats[activeFederation.id] || []
+            : [],
+)
 
 export const selectMaxStableBalanceSats = createSelector(
     selectFederationMetadata,
-    (metadata): Sats => {
+    (metadata): Sats | undefined => {
         const maxStableBalanceMsats =
             metadata && getFederationMaxStableBalanceMsats(metadata)
 
@@ -847,7 +895,7 @@ export const selectMaxStableBalanceSats = createSelector(
 
         return maxStableBalanceMsats
             ? amountUtils.msatToSat(maxStableBalanceMsats)
-            : (0 as Sats)
+            : undefined
     },
 )
 
@@ -978,7 +1026,8 @@ export const selectDoesFederationHaveMultispend = (
 
 export const selectShouldShowMultispend = createSelector(
     (s: CommonState) => selectIsMultispendFeatureEnabled(s),
-    isMultispendEnabled => {
-        return isMultispendEnabled
+    (s: CommonState) => selectDoesAnyFederationHaveMultispend(s),
+    (isMultispendEnabled, doesAnyFederationHaveMultispend) => {
+        return isMultispendEnabled && doesAnyFederationHaveMultispend
     },
 )

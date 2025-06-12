@@ -12,11 +12,15 @@ import {
     makeTxnTypeText as makeTxnTypeTextUtil,
     makeTxnDetailTitleText as makeTxnDetailTitleTextUtil,
     makeStabilityTxnDetailTitleText as makeStabilityTxnDetailTitleTextUtil,
+    makeMultispendTxnStatusText as makeMultispendTxnStatusTextUtil,
     makeMultispendTxnDetailItems as makeMultispendTxnDetailItemsUtil,
     makeTransactionAmountState,
+    shouldShowAskFedi,
+    makeTxnStatusBadge,
 } from '@fedi/common/utils/wallet'
 
 import {
+    fetchMultispendTransactions,
     selectActiveFederationId,
     selectCurrency,
     selectEcashFeeSchedule,
@@ -34,7 +38,11 @@ import {
 } from '../redux/transactions'
 import {
     LoadedFederation,
+    MatrixRoom,
+    MatrixRoomMember,
     MSats,
+    MultispendActiveInvitation,
+    MultispendFinalized,
     MultispendTransactionListEntry,
     Sats,
     SupportedCurrency,
@@ -47,9 +55,13 @@ import {
     makeBase64CSVUri,
     makeCSVFilename,
     makeTransactionHistoryCSV,
+    makeMultispendTransactionHistoryCSV,
 } from '../utils/csv'
 import { FedimintBridge } from '../utils/fedimint'
-import { getMultispendInvite } from '../utils/matrix'
+import {
+    coerceMultispendTxn,
+    isWithdrawalRequestRejected,
+} from '../utils/matrix'
 import { useAmountFormatter, useBtcFiatPrice } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
@@ -98,6 +110,11 @@ export function useTxnDisplayUtils(t: TFunction, isStabilityPool = false) {
         ? selectedCurrency
         : t('words.sats').toUpperCase()
 
+    const getShowAskFedi = useCallback(
+        (txn: TransactionListEntry): boolean => shouldShowAskFedi(txn),
+        [],
+    )
+
     const getCurrencyText = useCallback(
         (txn: TransactionListEntry): string =>
             showFiatTxnAmounts && txn.txDateFiatInfo
@@ -135,29 +152,16 @@ export function useTxnDisplayUtils(t: TFunction, isStabilityPool = false) {
 
     const makeTxnAmountText = useCallback(
         (txn: TransactionListEntry, includeCurrency = false) => {
-            if (showFiatTxnAmounts && txn.txDateFiatInfo) {
-                const sats = amountUtils.msatToSat(txn.amount)
-                // Use the historical exchange rate from txDateFiatInfo:
-                const formattedFiat = convertSatsToFormattedFiat(
-                    sats,
-                    'none', // or another symbolPosition if desired
-                    txn.txDateFiatInfo,
-                )
-                // Optionally include the currency code from the transaction's historical info.
-                const result = includeCurrency
-                    ? `${formattedFiat} ${txn.txDateFiatInfo.fiatCode}`
-                    : formattedFiat.split(' ')[0]
-                return result
-            } else {
-                // Fallback to the existing conversion that uses the MSats-based helper.
-                return `${makeTxnAmountTextUtil(
-                    txn,
-                    showFiatTxnAmounts,
-                    isStabilityPool,
-                    makeFormattedAmountsFromMSats, // Use the helper that expects an amount in MSats
-                    convertCentsToFormattedFiat,
-                )}${includeCurrency ? ` ${preferredCurrency}` : ''}`
-            }
+            return makeTxnAmountTextUtil(
+                txn,
+                showFiatTxnAmounts,
+                isStabilityPool,
+                includeCurrency,
+                preferredCurrency,
+                makeFormattedAmountsFromMSats, // Use the helper that expects an amount in MSats
+                convertCentsToFormattedFiat,
+                convertSatsToFormattedFiat,
+            )
         },
         [
             convertCentsToFormattedFiat,
@@ -226,6 +230,7 @@ export function useTxnDisplayUtils(t: TFunction, isStabilityPool = false) {
     return {
         preferredCurrency,
         getCurrencyText,
+        getShowAskFedi,
         makeTxnDetailItems,
         makeTxnFeeDetailItems,
         makeTxnAmountText,
@@ -255,32 +260,8 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     )
 
     const makeMultispendTxnStatusText = useCallback(
-        (txn: MultispendTransactionListEntry) => {
-            if (txn.state === 'invalid') return t('words.unknown')
-            // group should always be finalized at this point
-            if (!multispendStatus || multispendStatus.status !== 'finalized')
-                return t('words.unknown')
-
-            if ('depositNotification' in txn.event) return t('words.deposit')
-            if ('withdrawalRequest' in txn.event) {
-                const withdrawalRequest = txn.event.withdrawalRequest
-                const invitation = getMultispendInvite(multispendStatus)
-                // finalized multispends should always have an invitation
-                if (!invitation) return t('words.unknown')
-
-                if (withdrawalRequest.completed) {
-                    return t('words.withdrawal')
-                } else if (
-                    withdrawalRequest.rejections.length >
-                    invitation.signers.length - Number(invitation.threshold)
-                ) {
-                    return t('words.failed')
-                } else {
-                    return t('words.pending')
-                }
-            }
-            return t('words.unknown')
-        },
+        (txn: MultispendTransactionListEntry) =>
+            makeMultispendTxnStatusTextUtil(t, txn, multispendStatus),
         [multispendStatus, t],
     )
 
@@ -331,9 +312,15 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
 
     const makeMultispendTxnAmountStateText = useCallback(
         (txn: MultispendTransactionListEntry) => {
+            if (
+                multispendStatus &&
+                isWithdrawalRequestRejected(txn, multispendStatus)
+            )
+                return 'failed'
+
             return makeTransactionAmountState(txn)
         },
-        [],
+        [multispendStatus],
     )
 
     const makeMultispendTxnDetailItems = useCallback(
@@ -348,6 +335,19 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
         [convertCentsToFormattedFiat, roomMembers, t],
     )
 
+    const makeMultispendTxnStatusBadge = useCallback(
+        (txn: MultispendTransactionListEntry) => {
+            if (
+                multispendStatus &&
+                isWithdrawalRequestRejected(txn, multispendStatus)
+            )
+                return 'failed'
+
+            return makeTxnStatusBadge(txn)
+        },
+        [multispendStatus],
+    )
+
     return {
         preferredCurrency,
         makeMultispendTxnStatusText,
@@ -357,20 +357,27 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
         makeMultispendTxnTimestampText,
         makeMultispendTxnAmountStateText,
         makeMultispendTxnDetailItems,
+        makeMultispendTxnStatusBadge,
     }
 }
+
+export type ExportResult =
+    | {
+          success: true
+          uri: string
+          fileName: string
+      }
+    | {
+          success: false
+          message: string
+      }
 
 export function useExportTransactions(fedimint: FedimintBridge, t: TFunction) {
     const { fetchTransactions } = useTransactionHistory(fedimint)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
     const exportTransactions = useCallback(
-        async (
-            federation: LoadedFederation,
-        ): Promise<
-            | { success: true; uri: string; fileName: string }
-            | { success: false; message: string }
-        > => {
+        async (federation: LoadedFederation): Promise<ExportResult> => {
             try {
                 const transactions = await fetchTransactions({
                     // TODO: find a better way than a hardcoded value
@@ -408,6 +415,72 @@ export function useExportTransactions(fedimint: FedimintBridge, t: TFunction) {
 
     return exportTransactions
 }
+
+export function useExportMultispendTransactions(t: TFunction) {
+    const preferredCurrency = useCommonSelector(selectCurrency)
+    const { convertCentsToFormattedFiat } = useBtcFiatPrice()
+    const dispatch = useCommonDispatch()
+
+    const exportMultispendTransactions = useCallback(
+        async (
+            room: MatrixRoom,
+            multispendStatus?:
+                | MultispendActiveInvitation
+                | MultispendFinalized
+                | undefined,
+            roomMembers?: MatrixRoomMember[],
+        ): Promise<ExportResult> => {
+            try {
+                // Fetch all transactions with high limit for full export
+                const transactions =
+                    (await dispatch(
+                        fetchMultispendTransactions({
+                            roomId: room.id,
+                            limit: 10000,
+                        }),
+                    ).unwrap()) || []
+
+                const coercedTxns = transactions.map(coerceMultispendTxn)
+
+                // convert room name to filename-friendly string
+                const roomName = room.name
+                    ? room.name.toLowerCase().replace(/ /g, '-')
+                    : undefined
+
+                const fileName = makeCSVFilename(
+                    roomName
+                        ? `multispend-transactions-${roomName}`
+                        : 'multispend-transactions',
+                )
+                const uri = makeBase64CSVUri(
+                    makeMultispendTransactionHistoryCSV(
+                        coercedTxns,
+                        convertCentsToFormattedFiat,
+                        t,
+                        preferredCurrency,
+                        multispendStatus,
+                        roomMembers,
+                    ),
+                )
+
+                return {
+                    success: true,
+                    uri,
+                    fileName,
+                }
+            } catch (e) {
+                return {
+                    success: false,
+                    message: (e as Error).message,
+                }
+            }
+        },
+        [convertCentsToFormattedFiat, dispatch, t, preferredCurrency],
+    )
+
+    return exportMultispendTransactions
+}
+
 export type FeeDetails = {
     items: FeeItem[]
     totalFee: MSats

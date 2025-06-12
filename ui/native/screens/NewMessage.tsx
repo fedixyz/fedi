@@ -1,11 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { OmniInput } from '../components/feature/omni/OmniInput'
+import Flex from '../components/ui/Flex'
 import { useOmniLinkContext } from '../state/contexts/OmniLinkContext'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -18,7 +18,7 @@ const NewMessage: React.FC<Props> = ({ navigation }: Props) => {
     const { setParsedLink } = useOmniLinkContext()
 
     return (
-        <View style={styles().container}>
+        <Flex grow fullWidth>
             <OmniInput
                 expectedInputTypes={[
                     ParserDataType.LegacyFediChatMember,
@@ -61,17 +61,8 @@ const NewMessage: React.FC<Props> = ({ navigation }: Props) => {
                     },
                 ]}
             />
-        </View>
+        </Flex>
     )
 }
-
-const styles = () =>
-    StyleSheet.create({
-        container: {
-            flex: 1,
-            width: '100%',
-            flexDirection: 'column',
-        },
-    })
 
 export default NewMessage

@@ -1,22 +1,20 @@
 import { styled } from '@stitches/react'
-import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import EditIcon from '@fedi/common/assets/svgs/edit.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectHasSetMatrixDisplayName,
     selectMatrixAuth,
     setMatrixDisplayName,
     uploadAndSetMatrixAvatarUrl,
 } from '@fedi/common/redux'
 
 import { Avatar } from '../../components/Avatar'
+import { Button } from '../../components/Button'
 import { CircularLoader } from '../../components/CircularLoader'
 import { ContentBlock } from '../../components/ContentBlock'
 import { Icon } from '../../components/Icon'
-import { IconButton } from '../../components/IconButton'
 import * as Layout from '../../components/Layout'
 import { Text } from '../../components/Text'
 import { useAppDispatch, useAppSelector } from '../../hooks'
@@ -28,21 +26,27 @@ const EditProfile = () => {
     const dispatch = useAppDispatch()
     const toast = useToast()
 
-    const { replace } = useRouter()
-
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const hasSetMatrixDisplayName = useAppSelector(
-        selectHasSetMatrixDisplayName,
-    )
-
-    useEffect(() => {
-        if (!hasSetMatrixDisplayName) {
-            replace('/onboarding/username')
-        }
-    }, [hasSetMatrixDisplayName, replace])
 
     const [isChangingAvatar, setIsChangingAvatar] = useState<boolean>(false)
-    const [isChangingName, setIsChangingName] = useState<boolean>(false)
+    const [isChangingDisplayName, setIsChangingDisplayName] =
+        useState<boolean>(false)
+    const [displayName, setDisplayName] = useState<string>(
+        matrixAuth?.displayName || '',
+    )
+    const [isDisabled, setIsDisabled] = useState<boolean>(true)
+
+    useEffect(() => {
+        if (
+            isChangingDisplayName ||
+            displayName.trim().length === 0 ||
+            displayName.trim() === matrixAuth?.displayName
+        ) {
+            setIsDisabled(true)
+        } else {
+            setIsDisabled(false)
+        }
+    }, [displayName, isChangingDisplayName, matrixAuth?.displayName])
 
     const handleAvatarChange = useCallback(
         async (ev: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,20 +79,20 @@ const EditProfile = () => {
         [dispatch, t, toast],
     )
 
-    const handleDisplayNameChange = useCallback(async () => {
+    const handleOnDisplayNameChange = (
+        ev: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+        const value = ev.currentTarget.value
+        setDisplayName(value)
+    }
+
+    const handleOnDisplayNameSave = async () => {
         try {
-            setIsChangingName(true)
+            setIsChangingDisplayName(true)
 
-            const displayName = prompt(
-                t('feature.onboarding.enter-username'),
-                matrixAuth?.displayName,
-            )
-
-            if (!displayName) return
-            if (displayName === matrixAuth?.displayName) return
-
-            await dispatch(setMatrixDisplayName({ displayName })).unwrap()
-
+            await dispatch(
+                setMatrixDisplayName({ displayName: displayName.trim() }),
+            ).unwrap()
             toast.show({
                 content: t('phrases.changes-saved'),
                 status: 'success',
@@ -96,9 +100,9 @@ const EditProfile = () => {
         } catch (err) {
             toast.error(t, 'errors.unknown-error')
         } finally {
-            setIsChangingName(false)
+            setIsChangingDisplayName(false)
         }
-    }, [dispatch, matrixAuth?.displayName, t, toast])
+    }
 
     return (
         <ContentBlock>
@@ -108,7 +112,7 @@ const EditProfile = () => {
                         {t('phrases.edit-profile')}
                     </Layout.Title>
                 </Layout.Header>
-                <Layout.Content>
+                <Layout.Content centered>
                     <ChatIdentity>
                         <ChatAvatarContainer>
                             <Avatar
@@ -134,24 +138,31 @@ const EditProfile = () => {
                                 )}
                             </AvatarEdit>
                         </ChatAvatarContainer>
+                        <Text
+                            variant="small"
+                            css={{ color: theme.colors.grey }}>
+                            {t('feature.chat.change-avatar')}
+                        </Text>
                         <ChatIdentityName>
-                            <Text variant="h2" weight="medium">
-                                {matrixAuth?.displayName || ''}
-                            </Text>
-                            {isChangingName ? (
-                                <EditNameLoading>
-                                    <CircularLoader size="xs" />
-                                </EditNameLoading>
-                            ) : (
-                                <IconButton
-                                    icon={EditIcon}
-                                    size="md"
-                                    onClick={handleDisplayNameChange}
-                                />
-                            )}
+                            <Input
+                                type="text"
+                                aria-label="Display name"
+                                maxLength={20}
+                                value={displayName}
+                                onChange={handleOnDisplayNameChange}
+                            />
                         </ChatIdentityName>
                     </ChatIdentity>
                 </Layout.Content>
+                <Layout.Actions>
+                    <Button
+                        width="full"
+                        loading={isChangingDisplayName}
+                        disabled={isDisabled}
+                        onClick={handleOnDisplayNameSave}>
+                        {t('words.save')}
+                    </Button>
+                </Layout.Actions>
             </Layout.Root>
         </ContentBlock>
     )
@@ -169,7 +180,10 @@ const ChatIdentity = styled('div', {
 })
 
 const ChatAvatarContainer = styled('div', {
+    alignItems: 'center',
     display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
     position: 'relative',
 })
 
@@ -213,13 +227,18 @@ const AvatarEditFileInput = styled('input', {
     height: 1,
 })
 
+const Input = styled('input', {
+    border: `1px solid ${theme.colors.extraLightGrey}`,
+    borderRadius: '5px',
+    padding: '5px',
+    textAlign: 'center',
+})
+
 const ChatIdentityName = styled('div', {
-    display: 'flex',
     alignItems: 'center',
+    display: 'flex',
+    flexDirection: 'column',
     gap: 4,
 })
 
-const EditNameLoading = styled('div', {
-    width: 32,
-})
 export default EditProfile

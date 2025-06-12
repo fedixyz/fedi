@@ -7,5 +7,7 @@ $REPO_ROOT/scripts/enforce-nix.sh
 
 echo "ui: starting react-native metro bundler"
 
-cd $REPO_ROOT/ui/native
+pushd $REPO_ROOT/ui/native
 yarn start
+
+popd

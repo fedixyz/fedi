@@ -1,4 +1,5 @@
 import * as RadixAlertDialog from '@radix-ui/react-alert-dialog'
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,9 +10,17 @@ interface Props {
     open: boolean
     children: React.ReactElement
     onClick(): void
+    title?: string
+    description?: string
 }
 
-export const Modal: React.FC<Props> = ({ open, children, onClick }) => {
+export const Modal: React.FC<Props> = ({
+    open,
+    children,
+    onClick,
+    title,
+    description,
+}) => {
     const { t } = useTranslation()
 
     return (
@@ -19,6 +28,15 @@ export const Modal: React.FC<Props> = ({ open, children, onClick }) => {
             <RadixAlertDialog.Portal>
                 <Overlay>
                     <Content>
+                        <VisuallyHidden>
+                            <RadixAlertDialog.Title>
+                                {title}
+                            </RadixAlertDialog.Title>
+                            <RadixAlertDialog.Description>
+                                {description}
+                            </RadixAlertDialog.Description>
+                        </VisuallyHidden>
+
                         <Children>{children}</Children>
                         <Actions>
                             <Button
@@ -70,10 +88,11 @@ const Content = styled(RadixAlertDialog.Content, {
     display: 'flex',
     flexDirection: 'column',
     gap: 30,
+    maxWidth: '400px',
     overflow: 'hidden',
     padding: 20,
     position: 'relative',
-    width: '90vw',
+    width: '90%',
 })
 
 const Children = styled('div', {})

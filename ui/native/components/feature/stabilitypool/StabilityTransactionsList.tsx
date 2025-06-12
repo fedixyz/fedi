@@ -32,6 +32,7 @@ const StabilityTransactionsList = ({
     const {
         makeStabilityTxnDetailItems,
         getCurrencyText,
+        getShowAskFedi,
         makeStabilityTxnFeeDetailItems,
         makeTxnAmountText,
         makeTxnTypeText,
@@ -45,6 +46,7 @@ const StabilityTransactionsList = ({
             rows={transactions}
             loading={loading}
             makeIcon={txn => <TransactionIcon txn={txn} />}
+            makeShowAskFedi={txn => getShowAskFedi(txn)}
             makeRowProps={txn => ({
                 status: makeTxnStatusText(txn),
                 notes: makeTxnNotesText(txn),
@@ -55,11 +57,11 @@ const StabilityTransactionsList = ({
                 amountState: makeTransactionAmountState(txn),
             })}
             makeDetailProps={txn => ({
-                id: txn.id,
                 title: makeStabilityTxnDetailTitleText(txn),
                 items: makeStabilityTxnDetailItems(txn),
                 amount: makeTxnAmountText(txn, true),
                 notes: txn.txnNotes,
+                txn,
                 onSaveNotes: async (notes: string) => {
                     if (isUpdating) return // Prevent multiple simultaneous updates
 

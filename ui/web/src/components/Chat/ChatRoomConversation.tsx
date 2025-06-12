@@ -8,6 +8,7 @@ import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     paginateMatrixRoomTimeline,
+    selectGroupPreview,
     selectMatrixRoom,
     selectMatrixRoomEvents,
     sendMatrixMessage,
@@ -24,6 +25,7 @@ import { Text } from '../Text'
 import { ChatConversation } from './ChatConversation'
 import { ChatEmptyState } from './ChatEmptyState'
 import { ChatPaymentDialog } from './ChatPaymentDialog'
+import { ChatPreviewConversation } from './ChatPreviewConversation'
 import { ChatRoomSettingsDialog } from './ChatRoomSettingsDialog'
 
 interface Props {
@@ -36,6 +38,7 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     const dispatch = useAppDispatch()
     const { error } = useToast()
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
+    const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
     const events = useAppSelector(s => selectMatrixRoomEvents(s, roomId))
     const [isLoading, setIsLoading] = useState(!room)
     const [isPaymentOpen, setIsPaymentOpen] = useState(false)
@@ -75,6 +78,12 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
             </LoadingContainer>
         )
     } else if (!room) {
+        if (groupPreview) {
+            return (
+                <ChatPreviewConversation id={roomId} preview={groupPreview} />
+            )
+        }
+
         return (
             <ChatEmptyState>
                 <Text>

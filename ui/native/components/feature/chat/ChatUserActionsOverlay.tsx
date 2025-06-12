@@ -1,6 +1,6 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import {
     addMatrixUser,
@@ -12,6 +12,7 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { MatrixPowerLevel } from '../../../types'
 import { AvatarSize } from '../../ui/Avatar'
 import CustomOverlay from '../../ui/CustomOverlay'
+import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
@@ -63,9 +64,9 @@ export const ChatUserActionsOverlay: React.FC<Props> = ({
             onBackdropPress={() => onDismiss()}
             contents={{
                 title: (
-                    <View style={style.displayInline}>
+                    <Flex row gap="xs" align="center">
                         <ChatAvatar
-                            containerStyle={[style.avatar]}
+                            containerStyle={style.avatar}
                             user={member}
                             size={AvatarSize.sm}
                         />
@@ -73,7 +74,7 @@ export const ChatUserActionsOverlay: React.FC<Props> = ({
                             {member?.displayName ?? ''}
                         </Text>
                         {isAdmin && <SvgImage size={15} name={'AdminBadge'} />}
-                    </View>
+                    </Flex>
                 ),
                 body: !member ? (
                     <HoloLoader size={48} />
@@ -91,11 +92,6 @@ export const ChatUserActionsOverlay: React.FC<Props> = ({
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        displayInline: {
-            flexDirection: 'row',
-            gap: theme.spacing.xs,
-            alignItems: 'center',
-        },
         title: {
             textAlign: 'center',
         },

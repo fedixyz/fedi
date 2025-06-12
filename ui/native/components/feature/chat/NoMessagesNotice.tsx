@@ -1,8 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
+import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type Props = {
@@ -14,7 +15,7 @@ const NoMessagesNotice: React.FC<Props> = ({ isBroadcast = false }: Props) => {
     const { theme } = useTheme()
 
     return (
-        <View style={styles(theme).container}>
+        <Flex grow center gap="lg">
             <SvgImage name="ChatThin" size={70} color={theme.colors.grey} />
             {isBroadcast ? (
                 <Text medium style={styles(theme).text}>
@@ -27,18 +28,12 @@ const NoMessagesNotice: React.FC<Props> = ({ isBroadcast = false }: Props) => {
                     {t('feature.chat.start-the-conversation')}
                 </Text>
             )}
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.lg,
-        },
         icon: {
             height: theme.sizes.lg,
             width: theme.sizes.lg,

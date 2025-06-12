@@ -348,6 +348,7 @@ pub struct RpcGenerateEcashResponse {
     pub ecash: String,
     #[ts(type = "number")]
     pub cancel_at: u64,
+    pub operation_id: RpcOperationId,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -523,6 +524,9 @@ pub enum RpcTransactionKind {
     },
     LnReceive {
         ln_invoice: String,
+        state: Option<RpcLnReceiveState>,
+    },
+    LnRecurringdReceive {
         state: Option<RpcLnReceiveState>,
     },
     OnchainWithdraw {

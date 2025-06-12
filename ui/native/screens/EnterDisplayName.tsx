@@ -106,10 +106,14 @@ const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
                             event.nativeEvent.layout.y,
                     )
                 }}>
-                <Text caption style={style.inputLabel}>
+                <Text
+                    caption
+                    style={style.inputLabel}
+                    testID="DisplayNameLabel">
                     {t('feature.chat.display-name')}
                 </Text>
                 <Input
+                    testID="DisplayNameInput"
                     onChangeText={input => {
                         handleChangeUsername(input)
                     }}
@@ -139,6 +143,7 @@ const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
                     setButtonYPosition(event.nativeEvent.layout.y)
                 }}>
                 <Button
+                    testID="ContinueButton"
                     fullWidth
                     title={t('words.continue')}
                     onPress={handleSubmit}
@@ -161,13 +166,6 @@ const styles = (theme: Theme) =>
         buttonContainer: {
             marginTop: 'auto',
             width: '100%',
-        },
-        instructionsText: {
-            marginVertical: theme.spacing.md,
-            textAlign: 'center',
-        },
-        titleText: {
-            textAlign: 'center',
         },
         inputWrapper: {
             width: '100%',
@@ -198,11 +196,6 @@ const styles = (theme: Theme) =>
             textAlign: 'left',
             marginTop: theme.spacing.xs,
             color: theme.colors.grey,
-        },
-        loadingContainer: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
         },
     })
 

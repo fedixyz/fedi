@@ -381,7 +381,7 @@
         "onboarding": {
             "by-clicking-i-accept": "እቀበላለሁ' የሚለውን ጠቅ በማድረግ በአገልግሎት ውሉ ተስማምተዋል። {{tos_url}}",
             "by-clicking-you-agree-user-agreement": "ፌዴሬሽኑን ተቀላቀል' የሚለውን ጠቅ በማድረግ<anchor> በተጠቃሚ ስምምነት ተስማምተዋል</anchor>።",
-            "chat-earn-save-spend": "ከማህበረሰብዎ ጋር በግል ይወያዩ፣ ያግኙ፣ ያስቀምጡ እና ገንዘብ ያወጡ",
+            "tagline": "ከማህበረሰብዎ ጋር በግል ይወያዩ፣ ያግኙ፣ ያስቀምጡ እና ገንዘብ ያወጡ",
             "community-first": "ማህበረሰብ መጀመሪያ",
             "continue-to-fedi": "ወደ Fedi ይቀጥሉ",
             "earn-and-save": "ያግኙ እና ያስቀምጡ",

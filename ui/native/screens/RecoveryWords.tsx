@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { ScrollView, StyleSheet } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
@@ -12,6 +12,7 @@ import {
 import type { SeedWords } from '@fedi/common/types'
 
 import { fedimint } from '../bridge'
+import Flex from '../components/ui/Flex'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -24,16 +25,16 @@ type SeedWordProps = {
 
 const SeedWord = ({ number, word }: SeedWordProps) => {
     const { theme } = useTheme()
+
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).wordContainer}>
-            <Text style={styles(theme).wordNumber}>{`${number}`}</Text>
-            <Text
-                style={styles(theme).wordText}
-                numberOfLines={1}
-                adjustsFontSizeToFit>
+        <Flex row justify="between" style={style.wordContainer}>
+            <Text style={style.wordNumber}>{`${number}`}</Text>
+            <Text style={style.wordText} numberOfLines={1} adjustsFontSizeToFit>
                 {word}
             </Text>
-        </View>
+        </Flex>
     )
 }
 
@@ -93,40 +94,40 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
         navigation.navigate('TabsNavigator')
     }
 
+    const style = styles(theme)
+
     return (
-        <View style={styles(theme).container}>
-            <ScrollView contentContainerStyle={styles(theme).scrollView}>
-                <Text h2 h2Style={styles(theme).label}>
+        <Flex grow align="start" style={style.container}>
+            <ScrollView contentContainerStyle={style.scrollView}>
+                <Text h2 h2Style={style.label}>
                     {t('feature.backup.recovery-words')}
                 </Text>
-                <Text style={styles(theme).instructionsText}>
+                <Text style={style.instructionsText}>
                     {t('feature.backup.recovery-words-instructions')}
                 </Text>
-                <Card containerStyle={styles(theme).roundedCardContainer}>
-                    <View style={styles(theme).twoColumnContainer}>
-                        <View style={styles(theme).seedWordsContainer}>
+                <Card containerStyle={style.roundedCardContainer}>
+                    <Flex row>
+                        <Flex grow basis={false} align="start">
                             {renderFirstSixSeedWords()}
-                        </View>
-                        <View style={styles(theme).seedWordsContainer}>
+                        </Flex>
+                        <Flex grow basis={false} align="start">
                             {renderLastSixSeedWords()}
-                        </View>
-                    </View>
+                        </Flex>
+                    </Flex>
                 </Card>
             </ScrollView>
             <Button
                 title={t('words.done')}
-                containerStyle={styles(theme).continueButton}
+                containerStyle={style.continueButton}
                 onPress={handleContinueOrDone}
             />
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
-            alignItems: 'flex-start',
             padding: theme.spacing.xl,
         },
         scrollView: {
@@ -150,16 +151,7 @@ const styles = (theme: Theme) =>
             marginHorizontal: 0,
             padding: theme.spacing.xl,
         },
-        seedWordsContainer: {
-            flex: 1,
-            alignItems: 'flex-start',
-        },
-        twoColumnContainer: {
-            flexDirection: 'row',
-        },
         wordContainer: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
             marginVertical: theme.spacing.sm,
         },
         wordNumber: {

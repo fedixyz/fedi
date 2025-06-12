@@ -13,6 +13,7 @@ use bitcoin::Amount;
 use bridge::{Bridge, BridgeFull, RpcBridgeStatus, RuntimeExt as _};
 use bridge_inner::federation::federation_sm::FederationState;
 use bridge_inner::federation::federation_v2::client::ClientExt;
+use bridge_inner::federation::federation_v2::spv2_pay_address::Spv2PaymentAddress;
 use bridge_inner::federation::federation_v2::{BackupServiceStatus, FederationV2};
 use bridge_inner::federation::Federations;
 use bridge_inner::matrix::multispend::db::RpcMultispendGroupStatus;
@@ -63,7 +64,7 @@ use runtime::observable::{Observable, ObservableVec};
 use runtime::storage::{DeviceIdentifier, FiatFXInfo, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use stability_pool_client::common::{FiatAmount, FiatOrAll};
+use stability_pool_client::common::{AccountType, FiatAmount, FiatOrAll};
 pub use tokio;
 use tracing::{error, info, instrument, Level};
 
@@ -126,7 +127,8 @@ impl<'a> TryGet<&'a Bridge> for &'a Bridge {
 
 impl<'a> TryGet<&'a BridgeFull> for &'a Bridge {
     fn try_get(self) -> anyhow::Result<&'a BridgeFull> {
-        self.full()
+        let full = self.full()?;
+        Ok(full)
     }
 }
 
@@ -282,7 +284,7 @@ async fn getGuardianStatus(federation: Arc<FederationV2>) -> anyhow::Result<Vec<
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn joinFederation(
+pub(crate) async fn joinFederation(
     federations: &Federations,
     invite_code: String,
     recover_from_scratch: bool,
@@ -648,6 +650,23 @@ async fn signLnurlMessage(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
+async fn supportsRecurringdLnurl(federation: Arc<FederationV2>) -> anyhow::Result<bool> {
+    Ok(federation.get_recurringd_api().await.is_some())
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn getRecurringdLnurl(federation: Arc<FederationV2>) -> anyhow::Result<String> {
+    federation
+        .get_recurringd_lnurl(
+            federation
+                .get_recurringd_api()
+                .await
+                .context(ErrorCode::RecurringdMetaNotFound)?,
+        )
+        .await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
 async fn backupNow(federation: Arc<FederationV2>) -> anyhow::Result<()> {
     federation.backup().await?;
     Ok(())
@@ -821,6 +840,69 @@ async fn spv2WithdrawAll(
 ) -> anyhow::Result<RpcOperationId> {
     federation
         .spv2_withdraw(FiatOrAll::All, frontend_meta)
+        .await
+        .map(Into::into)
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn spv2OurPaymentAddress(federation: Arc<FederationV2>) -> anyhow::Result<String> {
+    let address = Spv2PaymentAddress {
+        account_id: federation
+            .client
+            .spv2()?
+            .our_account(AccountType::Seeker)
+            .id(),
+        federation_id_prefix: federation.federation_id().to_prefix(),
+    };
+    Ok(address.to_string())
+}
+
+#[derive(TS, Serialize, Deserialize)]
+#[ts(export)]
+struct RpcSpv2ParsedPaymentAddress {
+    /// do we know about the federation
+    federation_id: Option<RpcFederationId>,
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn spv2ParsePaymentAddress(
+    federations: &Federations,
+    address: String,
+) -> anyhow::Result<RpcSpv2ParsedPaymentAddress> {
+    let payment_address = address.parse::<Spv2PaymentAddress>()?;
+    anyhow::ensure!(
+        payment_address.account_id.acc_type() == AccountType::Seeker,
+        "invalid account type"
+    );
+    let federation_id = federations
+        .find_federation_id_for_prefix(payment_address.federation_id_prefix)
+        .map(RpcFederationId);
+
+    Ok(RpcSpv2ParsedPaymentAddress { federation_id })
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn spv2Transfer(
+    federations: &Federations,
+    payment_address: String,
+    amount: RpcFiatAmount,
+    frontend_meta: FrontendMetadata,
+) -> anyhow::Result<RpcOperationId> {
+    let payment_address = payment_address.parse::<Spv2PaymentAddress>()?;
+    let federation_id = federations
+        .find_federation_id_for_prefix(payment_address.federation_id_prefix)
+        .context(ErrorCode::UnknownFederation)?;
+    let federation = federations
+        .get_federation(&federation_id)
+        .context(ErrorCode::UnknownFederation)?;
+    federation
+        .spv2_simple_transfer(
+            payment_address.account_id,
+            FiatAmount(amount.0),
+            rpc_types::SPv2TransferMetadata::StableBalance {
+                frontend_metadata: Some(frontend_meta),
+            },
+        )
         .await
         .map(Into::into)
 }
@@ -1986,6 +2068,8 @@ rpc_methods!(RpcMethods {
     approveSocialRecoveryRequest,
     // LNURL
     signLnurlMessage,
+    supportsRecurringdLnurl,
+    getRecurringdLnurl,
     // backup
     backupStatus,
     // Nostr
@@ -2011,6 +2095,9 @@ rpc_methods!(RpcMethods {
     spv2WithdrawAll,
     spv2AverageFeeRate,
     spv2AvailableLiquidity,
+    spv2OurPaymentAddress,
+    spv2ParsePaymentAddress,
+    spv2Transfer,
     // Developer
     getSensitiveLog,
     setSensitiveLog,
@@ -2152,13 +2239,12 @@ pub mod tests {
     use std::ops::ControlFlow;
     use std::path::Path;
     use std::str::{self, FromStr};
-    use std::sync::{Once, RwLock};
-    use std::time::{Duration, SystemTime};
+    use std::sync::Once;
+    use std::thread::available_parallelism;
+    use std::time::Duration;
 
     use anyhow::{anyhow, bail};
     use bech32::{self, Bech32m};
-    use bitcoin::secp256k1::PublicKey;
-    use bitcoin::Network;
     use bridge::RuntimeExt as _;
     use bridge_inner::federation::federation_sm::FederationState;
     use bridge_inner::federation::federation_v2::FederationV2;
@@ -2170,14 +2256,11 @@ pub mod tests {
     use devimint::{cmd, DevFed};
     use env::envs::FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV;
     use fedi_social_client::common::VerificationDocument;
-    use fedimint_bip39::Bip39RootSecretStrategy;
-    use fedimint_client::secret::RootSecretStrategy;
-    use fedimint_core::core::ModuleKind;
     use fedimint_core::encoding::Encodable;
     use fedimint_core::task::{sleep_in_test, TaskGroup};
     use fedimint_core::util::backoff_util::aggressive_backoff;
     use fedimint_core::util::retry;
-    use fedimint_core::{apply, async_trait_maybe_send, Amount};
+    use fedimint_core::Amount;
     use fedimint_logging::{TracingSetup, LOG_DEVIMINT};
     use nostr::nips::nip44;
     use rand::distributions::Alphanumeric;
@@ -2187,187 +2270,19 @@ pub mod tests {
         RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState, RpcReturningMemberStatus,
         RpcTransactionDirection, RpcTransactionKind,
     };
-    use runtime::api::{RegisterDeviceError, RegisteredDevice, TransactionDirection};
     use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_FILE_PATH, MILLION};
     use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
-    use runtime::features::RuntimeEnvironment;
-    use runtime::storage::{DeviceIdentifier, FediFeeSchedule, IStorage};
-    use tokio::sync::Mutex;
+    use tokio::sync::Semaphore;
     use tokio::task::JoinSet;
     use tracing::{debug, info, trace};
 
     use super::*;
-    use crate::ffi::PathBasedStorage;
-
-    struct FakeEventSink {
-        pub events: Arc<RwLock<Vec<(String, String)>>>,
-    }
+    use crate::test_device::{use_lnd_gateway, MockFediApi, TestDevice};
 
     static INIT_TRACING: Once = Once::new();
 
-    impl FakeEventSink {
-        fn new() -> Self {
-            Self {
-                events: Arc::new(RwLock::new(vec![])),
-            }
-        }
-    }
-
-    impl IEventSink for FakeEventSink {
-        fn event(&self, event_type: String, body: String) {
-            let mut events = self
-                .events
-                .write()
-                .expect("couldn't acquire FakeEventSink lock");
-            events.push((event_type, body));
-        }
-        fn events(&self) -> Vec<(String, String)> {
-            self.events
-                .read()
-                .expect("FakeEventSink could not acquire read lock")
-                .clone()
-        }
-        fn num_events_of_type(&self, event_type: String) -> usize {
-            self.events().iter().filter(|e| e.0 == event_type).count()
-        }
-    }
-
-    pub struct MockFediApi {
-        // (seed, index) => (encrypted device identifier, last registration timestamp)
-        registry: Mutex<HashMap<(bip39::Mnemonic, u8), (String, SystemTime)>>,
-
-        // Invoice that will be returned whenever fetch_fedi_invoice is called
-        fedi_fee_invoice: Option<Bolt11Invoice>,
-    }
-
-    impl Default for MockFediApi {
-        fn default() -> Self {
-            Self {
-                registry: Mutex::new(HashMap::new()),
-                fedi_fee_invoice: None,
-            }
-        }
-    }
-
-    impl MockFediApi {
-        fn set_fedi_fee_invoice(&mut self, invoice: Bolt11Invoice) {
-            self.fedi_fee_invoice = Some(invoice);
-        }
-    }
-
-    #[apply(async_trait_maybe_send!)]
-    impl IFediApi for MockFediApi {
-        async fn fetch_fedi_fee_schedule(
-            &self,
-            _network: Network,
-        ) -> anyhow::Result<FediFeeSchedule> {
-            Ok(FediFeeSchedule::default())
-        }
-
-        async fn fetch_fedi_fee_invoice(
-            &self,
-            _amount: Amount,
-            _network: Network,
-            _module: ModuleKind,
-            _tx_direction: TransactionDirection,
-        ) -> anyhow::Result<Bolt11Invoice> {
-            self.fedi_fee_invoice
-                .clone()
-                .ok_or(anyhow!("Invoice not set"))
-        }
-
-        async fn fetch_registered_devices_for_seed(
-            &self,
-            seed: bip39::Mnemonic,
-        ) -> anyhow::Result<Vec<RegisteredDevice>> {
-            let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(&seed);
-            let mut devices = self
-                .registry
-                .lock()
-                .await
-                .iter()
-                .filter_map(|(k, v)| {
-                    if k.0 == seed {
-                        Some(
-                            match DeviceIdentifier::from_encrypted_string(&v.0, &root_secret) {
-                                Ok(identifier) => Ok(RegisteredDevice {
-                                    index: k.1,
-                                    identifier,
-                                    last_renewed: v.1,
-                                }),
-                                Err(e) => Err(e),
-                            },
-                        )
-                    } else {
-                        None
-                    }
-                })
-                .collect::<anyhow::Result<Vec<_>>>()?;
-
-            devices.sort_by_key(|r| r.index);
-            Ok(devices)
-        }
-
-        async fn register_device_for_seed(
-            &self,
-            seed: bip39::Mnemonic,
-            device_index: u8,
-            encrypted_device_identifier: String,
-            force_overwrite: bool,
-        ) -> anyhow::Result<(), RegisterDeviceError> {
-            let mut registry = self.registry.lock().await;
-            if let Some(value) = registry.get_mut(&(seed.clone(), device_index)) {
-                if force_overwrite || encrypted_device_identifier == value.0 {
-                    value.0 = encrypted_device_identifier;
-                    value.1 = fedimint_core::time::now();
-                    Ok(())
-                } else {
-                    Err(RegisterDeviceError::AnotherDeviceOwnsIndex(format!(
-                        "{} already owned by {}, not overwriting",
-                        device_index, value.0
-                    )))
-                }
-            } else {
-                registry.insert(
-                    (seed, device_index),
-                    (encrypted_device_identifier, fedimint_core::time::now()),
-                );
-                Ok(())
-            }
-        }
-    }
-
-    // note: logging doesn't work yet at this point
-    fn create_data_dir() -> PathBuf {
-        tempfile::tempdir().unwrap().into_path()
-    }
-
     fn get_fixture_dir() -> PathBuf {
         std::env::current_dir().unwrap().join("../fixtures")
-    }
-
-    /// Get LND pubkey using lncli, then have `federation` switch to using
-    /// whatever gateway is using that node pubkey
-    async fn use_lnd_gateway(federation: &FederationV2) -> anyhow::Result<()> {
-        let lnd_node_pubkey: PublicKey = cmd!(LnCli, "getinfo").out_json().await?
-            ["identity_pubkey"]
-            .as_str()
-            .map(|s| s.to_owned())
-            .unwrap()
-            .parse()
-            .unwrap();
-        let mut gateways = federation.list_gateways().await?;
-        if gateways.is_empty() {
-            federation.select_gateway().await?;
-            gateways = federation.list_gateways().await?;
-        }
-        for gateway in gateways {
-            if gateway.node_pub_key.0 == lnd_node_pubkey {
-                federation.switch_gateway(&gateway.gateway_id.0).await?;
-                return Ok(());
-            }
-        }
-        bail!("No gateway is using LND's node pubkey")
     }
 
     async fn amount_from_ecash(ecash_string: String) -> anyhow::Result<fedimint_core::Amount> {
@@ -2406,31 +2321,6 @@ pub mod tests {
 
     async fn cli_receive_ecash(ecash: String) -> anyhow::Result<()> {
         cmd!(FedimintCli, "reissue", ecash).run().await?;
-        Ok(())
-    }
-    async fn copy_recursively(
-        source: impl AsRef<Path>,
-        destination: impl AsRef<Path>,
-    ) -> anyhow::Result<()> {
-        let source = source.as_ref().to_path_buf();
-        let destination = destination.as_ref().to_path_buf();
-        tokio::task::spawn_blocking(move || copy_recursively_inner(source, destination)).await??;
-        Ok(())
-    }
-    pub fn copy_recursively_inner<A: AsRef<Path>>(
-        source: impl AsRef<Path>,
-        destination: A,
-    ) -> std::io::Result<()> {
-        std::fs::create_dir_all(&destination)?;
-        for entry in std::fs::read_dir(source)? {
-            let entry = entry?;
-            let filetype = entry.file_type()?;
-            if filetype.is_dir() {
-                copy_recursively_inner(entry.path(), destination.as_ref().join(entry.file_name()))?;
-            } else {
-                std::fs::copy(entry.path(), destination.as_ref().join(entry.file_name()))?;
-            }
-        }
         Ok(())
     }
 
@@ -2487,82 +2377,6 @@ pub mod tests {
         Ok(())
     }
 
-    async fn setup() -> anyhow::Result<(Arc<BridgeFull>, Arc<FederationV2>)> {
-        let bridge = setup_bridge().await?;
-
-        let federation = join_test_fed(&bridge).await?;
-        Ok((bridge, federation))
-    }
-
-    async fn setup_custom(
-        device_identifier: String,
-        mock_fedi_api: Arc<dyn IFediApi>,
-        feature_catalog: Arc<FeatureCatalog>,
-    ) -> anyhow::Result<(Arc<BridgeFull>, Arc<FederationV2>)> {
-        let bridge = setup_bridge_custom(device_identifier, mock_fedi_api, feature_catalog).await?;
-
-        let federation = join_test_fed(&bridge).await?;
-        Ok((bridge, federation))
-    }
-
-    async fn setup_bridge() -> anyhow::Result<Arc<BridgeFull>> {
-        setup_bridge_custom(
-            "default_bridge:test:d4d743a7-b343-48e3-a5f9-90d032af3e98".to_owned(),
-            Arc::new(MockFediApi::default()),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await
-    }
-
-    async fn setup_bridge_custom(
-        device_identifier: String,
-        fedi_api: Arc<dyn IFediApi>,
-        feature_catalog: Arc<FeatureCatalog>,
-    ) -> anyhow::Result<Arc<BridgeFull>> {
-        setup_bridge_custom_with_data_dir(
-            device_identifier,
-            fedi_api,
-            feature_catalog,
-            create_data_dir(),
-        )
-        .await
-    }
-
-    async fn setup_bridge_custom_with_data_dir(
-        device_identifier: String,
-        fedi_api: Arc<dyn IFediApi>,
-        feature_catalog: Arc<FeatureCatalog>,
-        data_dir: PathBuf,
-    ) -> anyhow::Result<Arc<BridgeFull>> {
-        let event_sink = Arc::new(FakeEventSink::new());
-        let storage = Arc::new(PathBasedStorage::new(data_dir).await?);
-        let device_identifier = DeviceIdentifier::from_str(&device_identifier)?;
-        let runtime = Runtime::new(
-            storage,
-            event_sink,
-            fedi_api,
-            device_identifier.clone(),
-            feature_catalog,
-        )
-        .await
-        .context("Failed to create runtime for bridge")?;
-
-        let bridge = BridgeFull::new(runtime.into(), device_identifier)
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-        Ok(bridge.into())
-    }
-
-    async fn join_test_fed(bridge: &BridgeFull) -> Result<Arc<FederationV2>, anyhow::Error> {
-        let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
-        let fedimint_federation = joinFederation(&bridge.federations, invite_code, false).await?;
-        let federation = bridge
-            .federations
-            .get_federation_maybe_recovering(&fedimint_federation.id.0)?;
-        use_lnd_gateway(&federation).await?;
-        Ok(federation)
-    }
-
     async fn join_test_fed_recovery(
         bridge: &BridgeFull,
         recover_from_scratch: bool,
@@ -2586,8 +2400,17 @@ pub mod tests {
     }
 
     macro_rules! spawn_and_attach_name {
-        ($dev_fed:ident, $tests_set:expr, $tests_names:expr, $test_name:ident) => {
-            let id = $tests_set.spawn($test_name($dev_fed.clone())).id();
+        ($dev_fed:ident, $tests_set:expr, $sem:ident, $tests_names:expr, $test_name:ident) => {
+            let id = $tests_set
+                .spawn({
+                    let sem = $sem.clone();
+                    let dev_fed = $dev_fed.clone();
+                    async move {
+                        let _permit = sem.acquire().await.unwrap();
+                        $test_name(dev_fed).await
+                    }
+                })
+                .id();
             $tests_names.insert(id, stringify!($test_name).to_owned());
         };
     }
@@ -2596,69 +2419,97 @@ pub mod tests {
     async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         let dev_fed = dev_fed().await?;
         let mut tests_set = JoinSet::new();
+        let sem = Arc::new(Semaphore::new(available_parallelism()?.into()));
         let mut tests_names: HashMap<tokio::task::Id, String> = HashMap::new();
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
             tests_names,
             test_join_and_leave_and_join
         );
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_join_concurrent);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_join_concurrent);
         // TODO: re-enable
         // spawn_and_attach_name!(tests_set, tests_names,
         // test_lightning_send_and_receive);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_ecash);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_ecash_overissue);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_on_chain);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_ecash_cancel);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_backup_and_recovery);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_ecash);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_ecash_overissue);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_on_chain);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_ecash_cancel);
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
+            tests_names,
+            test_backup_and_recovery
+        );
+        spawn_and_attach_name!(
+            dev_fed,
+            tests_set,
+            sem,
             tests_names,
             test_backup_and_recovery_from_scratch
         );
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_validate_ecash);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_validate_ecash);
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
             tests_names,
             test_social_backup_and_recovery
         );
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_stability_pool);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_spv2);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_lnurl_sign_message);
-        spawn_and_attach_name!(dev_fed, tests_set, tests_names, test_federation_preview);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_stability_pool);
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_spv2);
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
+            tests_names,
+            test_lnurl_sign_message
+        );
+        spawn_and_attach_name!(
+            dev_fed,
+            tests_set,
+            sem,
+            tests_names,
+            test_federation_preview
+        );
+        spawn_and_attach_name!(
+            dev_fed,
+            tests_set,
+            sem,
             tests_names,
             test_join_fails_post_recovery_index_unassigned
         );
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
             tests_names,
             test_transfer_device_registration_post_recovery
         );
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
             tests_names,
             test_new_device_registration_post_recovery
         );
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
             tests_names,
             test_fee_remittance_on_startup
         );
         spawn_and_attach_name!(
             dev_fed,
             tests_set,
+            sem,
             tests_names,
             test_fee_remittance_post_successful_tx
         );
+        spawn_and_attach_name!(dev_fed, tests_set, sem, tests_names, test_recurring_lnurl);
 
         while let Some(res) = tests_set.join_next_with_id().await {
             match res {
@@ -2784,25 +2635,17 @@ pub mod tests {
                 .init()
                 .expect("Failed to initialize tracing");
         });
-        let event_sink = Arc::new(FakeEventSink::new());
-        let data_dir = create_data_dir();
-        let storage = Arc::new(PathBasedStorage::new(data_dir).await?);
-        let fedi_api = Arc::new(MockFediApi::default());
+        let td = TestDevice::new();
         let invalid_fedi_file = String::from(r#"{"format_version": 0, "root_seed": "abcd"}"#);
-        storage
+        td.storage()
+            .await?
             .write_file(FEDI_FILE_PATH.as_ref(), invalid_fedi_file.clone().into())
             .await?;
-        assert!(fedimint_initialize_async(
-            storage.clone(),
-            event_sink,
-            fedi_api,
-            "Unknown (bridge tests)".to_owned(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await
-        .is_err());
+        // start bridge with unknown data
+        assert!(td.bridge().await.is_err());
         assert_eq!(
-            storage
+            td.storage()
+                .await?
                 .read_file(FEDI_FILE_PATH.as_ref())
                 .await?
                 .expect("fedi file not found"),
@@ -2811,39 +2654,11 @@ pub mod tests {
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_multi_bridge_compatibility_and_global_db_migration() -> anyhow::Result<()> {
-        INIT_TRACING.call_once(|| {
-            TracingSetup::default()
-                .init()
-                .expect("Failed to initialize tracing");
-        });
-
-        let event_sink = Arc::new(FakeEventSink::new());
-        // This fixture contains a "datadir" with 1 global database and one federations
-        // database (fedi alpha mutinynet v0)
-        let data_dir = create_data_dir();
-        let fixture_dir = get_fixture_dir().join("v0_db");
-        copy_recursively(fixture_dir, &data_dir).await?;
-        let storage = Arc::new(PathBasedStorage::new(data_dir).await?);
-        let fedi_api = Arc::new(MockFediApi::default());
-        let bridge = fedimint_initialize_async(
-            storage,
-            event_sink,
-            fedi_api,
-            "default_bridge:test:d4d743a7-b343-48e3-a5f9-90d032af3e98".to_owned(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        let federations = listFederations(bridge.try_get()?).await?;
-        // old federations are ignored
-        assert_eq!(federations.len(), 0);
-        Ok(())
-    }
-
     async fn test_join_and_leave_and_join(_dev_fed: DevFed) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
         let env_invite_code = std::env::var("FM_INVITE_CODE").unwrap();
+        joinFederation(&bridge.federations, env_invite_code.clone(), false).await?;
 
         // Can't re-join a federation we're already a member of
         assert!(
@@ -2860,10 +2675,8 @@ pub mod tests {
         };
         assert_eq!(env_invite_code.clone(), rpc_federation.invite_code);
 
-        let id = federation.rpc_federation_id();
-        drop(federation);
         // leaveFederation works
-        leaveFederation(&bridge.federations, id).await?;
+        leaveFederation(&bridge.federations, rpc_federation.id.clone()).await?;
         assert_eq!(listFederations(&bridge.federations).await?.len(), 0);
 
         // rejoin without any rocksdb locking problems
@@ -2874,21 +2687,12 @@ pub mod tests {
     }
 
     async fn test_join_concurrent(_dev_fed: DevFed) -> anyhow::Result<()> {
-        let device_identifier = "bridge:test:70c2ad23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
-
-        let mock_fedi_api = Arc::new(MockFediApi::default());
-        let data_dir = create_data_dir();
+        let mut tb = TestDevice::new();
         let federation_id;
         let amount;
         // first app launch
         {
-            let bridge = setup_bridge_custom_with_data_dir(
-                device_identifier.clone(),
-                mock_fedi_api.clone(),
-                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-                data_dir.clone(),
-            )
-            .await?;
+            let bridge = tb.bridge().await?.full()?;
             let env_invite_code = std::env::var("FM_INVITE_CODE").unwrap();
 
             // Can't re-join a federation we're already a member of
@@ -2908,24 +2712,13 @@ pub mod tests {
                 .0
                  .0;
             wait_for_ecash_reissue(&federation).await?;
-            bridge
-                .runtime
-                .task_group
-                .clone()
-                .shutdown_join_all(Duration::from_secs(5))
-                .await?;
+            tb.shutdown().await?;
         }
 
         // second app launch
         {
-            let bridge = setup_bridge_custom_with_data_dir(
-                device_identifier,
-                mock_fedi_api.clone(),
-                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-                data_dir.clone(),
-            )
-            .await?;
-            let federation = wait_for_federation_loading(&bridge, &federation_id).await?;
+            let bridge = tb.bridge().await?.full()?;
+            let federation = wait_for_federation_loading(bridge, &federation_id).await?;
             assert_eq!(federation.get_balance().await, amount);
         }
         Ok(())
@@ -2961,9 +2754,10 @@ pub mod tests {
         fedi_fees_send_ppm: u64,
         fedi_fees_receive_ppm: u64,
     ) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let (bridge, federation) = (td.bridge().await?.full()?, td.join_default_fed().await?);
         setLightningModuleFediFeeSchedule(
-            &bridge,
+            bridge,
             federation.rpc_federation_id(),
             fedi_fees_send_ppm,
             fedi_fees_receive_ppm,
@@ -3051,9 +2845,10 @@ pub mod tests {
         fedi_fees_send_ppm: u64,
         fedi_fees_receive_ppm: u64,
     ) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let (bridge, federation) = (td.bridge().await?.full()?, td.join_default_fed().await?);
         setMintModuleFediFeeSchedule(
-            &bridge,
+            bridge,
             federation.rpc_federation_id(),
             fedi_fees_send_ppm,
             fedi_fees_receive_ppm,
@@ -3068,7 +2863,7 @@ pub mod tests {
             (ecash_receive_amount.msats * fedi_fees_receive_ppm).div_ceil(MILLION),
         );
         receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
 
         // check balance (sometimes fedimint-cli gives more than we ask for)
         assert_eq!(
@@ -3145,7 +2940,8 @@ pub mod tests {
     }
 
     async fn test_ecash_overissue(_dev_fed: DevFed) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let (bridge, federation) = (td.bridge().await?.full()?, td.join_default_fed().await?);
 
         // receive ecash
         let ecash_requested_amount = fedimint_core::Amount::from_msats(10000);
@@ -3208,9 +3004,10 @@ pub mod tests {
         fedi_fees_send_ppm: u64,
         fedi_fees_receive_ppm: u64,
     ) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let (bridge, federation) = (td.bridge().await?.full()?, td.join_default_fed().await?);
         setWalletModuleFediFeeSchedule(
-            &bridge,
+            bridge,
             federation.rpc_federation_id(),
             fedi_fees_send_ppm,
             fedi_fees_receive_ppm,
@@ -3284,18 +3081,14 @@ pub mod tests {
         fedi_fees_send_ppm: u64,
         fedi_fees_receive_ppm: u64,
     ) -> anyhow::Result<()> {
-        let device_identifier = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
-        let (address, federation_id, data_dir);
+        let (address, federation_id);
+        let mut td = TestDevice::new();
+        // setup, generate address, shutdown
         {
-            // setup, generate address, shutdown
-            let (bridge, federation) = setup_custom(
-                device_identifier.clone(),
-                Arc::new(MockFediApi::default()),
-                FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            )
-            .await?;
+            let bridge = td.bridge().await?.full()?;
+            let federation = td.join_default_fed().await?;
             setWalletModuleFediFeeSchedule(
-                &bridge,
+                bridge,
                 federation.rpc_federation_id(),
                 fedi_fees_send_ppm,
                 fedi_fees_receive_ppm,
@@ -3304,25 +3097,13 @@ pub mod tests {
 
             address = generateAddress(federation.clone(), FrontendMetadata::default()).await?;
             federation_id = federation.federation_id();
-            data_dir = bridge.runtime.storage.platform_path(Path::new(""));
-            bridge
-                .runtime
-                .task_group
-                .clone()
-                .shutdown_join_all(Duration::from_secs(5))
-                .await?;
+            td.shutdown().await?;
         }
         bitcoin_cli_send_to_address(&address, "0.1").await?;
 
         // restart bridge using same data dir
-        let bridge = setup_bridge_custom_with_data_dir(
-            device_identifier,
-            Arc::new(MockFediApi::default()),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir,
-        )
-        .await?;
-        let federation = wait_for_federation_loading(&bridge, &federation_id.to_string()).await?;
+        let bridge = td.bridge().await?.full()?;
+        let federation = wait_for_federation_loading(bridge, &federation_id.to_string()).await?;
 
         assert!(matches!(
             listTransactions(federation.clone(), None, None).await?[0]
@@ -3385,7 +3166,8 @@ pub mod tests {
     }
 
     async fn test_ecash_cancel(_dev_fed: DevFed) -> anyhow::Result<()> {
-        let (_bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let federation = td.join_default_fed().await?;
 
         // receive ecash
         let ecash_receive_amount = fedimint_core::Amount::from_msats(100);
@@ -3427,52 +3209,57 @@ pub mod tests {
     }
 
     async fn test_backup_and_recovery_inner(from_scratch: bool) -> anyhow::Result<()> {
-        let (backup_bridge, federation) = setup().await?;
+        let (mnemonic, ecash_balance_before, expected_fedi_fee);
+        let sp_amount_to_deposit = Amount::from_msats(110_000);
+        // create a backup on device 1
+        {
+            let mut td = TestDevice::new();
+            let bridge = td.bridge().await?.full()?;
+            let federation = td.join_default_fed().await?;
+            // receive ecash
+            let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
+            let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
+            federation
+                .receive_ecash(ecash, FrontendMetadata::default())
+                .await?;
+            wait_for_ecash_reissue(federation).await?;
+            assert_eq!(ecash_receive_amount, federation.get_balance().await);
 
-        // receive ecash
-        let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
-        let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
-        federation
-            .receive_ecash(ecash, FrontendMetadata::default())
-            .await?;
-        wait_for_ecash_reissue(&federation).await?;
-        assert_eq!(ecash_receive_amount, federation.get_balance().await);
+            // Interact with stability pool
+            let fedi_fee_ppm = bridge
+                .federations
+                .fedi_fee_helper
+                .get_fedi_fee_ppm(
+                    federation.rpc_federation_id().0,
+                    stability_pool_client_old::common::KIND,
+                    RpcTransactionDirection::Send,
+                )
+                .await?;
+            expected_fedi_fee =
+                Amount::from_msats((fedi_fee_ppm * sp_amount_to_deposit.msats).div_ceil(MILLION));
+            stabilityPoolDepositToSeek(federation.clone(), RpcAmount(sp_amount_to_deposit)).await?;
 
-        // Interact with stability pool
-        let amount_to_deposit = Amount::from_msats(110_000);
-        let fedi_fee_ppm = backup_bridge
-            .federations
-            .fedi_fee_helper
-            .get_fedi_fee_ppm(
-                federation.rpc_federation_id().0,
-                stability_pool_client_old::common::KIND,
-                RpcTransactionDirection::Send,
-            )
-            .await?;
-        let expected_fedi_fee =
-            Amount::from_msats((fedi_fee_ppm * amount_to_deposit.msats).div_ceil(MILLION));
-        stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
+            ecash_balance_before = federation.get_balance().await;
 
-        let ecash_balance_before = federation.get_balance().await;
+            backupNow(federation.clone()).await?;
+            // give some time for backup to complete before shutting down the bridge
+            fedimint_core::task::sleep(Duration::from_secs(1)).await;
 
-        backupNow(federation.clone()).await?;
-        // give some time for backup to complete before shutting down the bridge
-        fedimint_core::task::sleep(Duration::from_secs(1)).await;
-
-        // get mnemonic and drop old federation / bridge so no background stuff runs
-        let mnemonic = getMnemonic(backup_bridge.runtime.clone()).await?;
-        drop(federation);
-        drop(backup_bridge);
+            // get mnemonic and drop old federation / bridge so no background stuff runs
+            mnemonic = getMnemonic(bridge.runtime.clone()).await?;
+            td.shutdown().await?;
+        }
 
         // create new bridge which hasn't joined federation yet and recover mnemnonic
-        let recovery_bridge = setup_bridge().await?;
-        recoverFromMnemonic(&recovery_bridge, mnemonic).await?;
+        let td = TestDevice::new();
+        let recovery_bridge = td.bridge().await?.full()?;
+        recoverFromMnemonic(recovery_bridge, mnemonic).await?;
 
         // Re-register device as index 0 since it's the same device
-        transferExistingDeviceRegistration(&recovery_bridge, 0).await?;
+        transferExistingDeviceRegistration(recovery_bridge, 0).await?;
 
         // Rejoin federation and assert that balances are correct
-        let recovery_federation = join_test_fed_recovery(&recovery_bridge, from_scratch).await?;
+        let recovery_federation = join_test_fed_recovery(recovery_bridge, from_scratch).await?;
         assert!(recovery_federation.recovering());
         let id = recovery_federation.rpc_federation_id();
         drop(recovery_federation);
@@ -3505,16 +3292,17 @@ pub mod tests {
 
         let account_info = stabilityPoolAccountInfo(recovery_federation.clone(), true).await?;
         assert_eq!(account_info.idle_balance.0, Amount::ZERO);
-        assert_eq!(account_info.staged_seeks[0].0, amount_to_deposit);
+        assert_eq!(account_info.staged_seeks[0].0, sp_amount_to_deposit);
         assert!(account_info.staged_cancellation.is_none());
         assert!(account_info.locked_seeks.is_empty());
         Ok(())
     }
 
     async fn test_validate_ecash(_dev_fed: DevFed) -> anyhow::Result<()> {
-        let (bridge, _) = setup().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
         let v2_ecash = "AgEEsuFO5gD3AwQBmW/h68gy6W5cgnl93aTdduN1OnnFofSCqjth03Q6CA+fXnKlVXQSIVSLqcHzsbhozAuo2q5jPMsO6XMZZZXaYvZyIdXzCUIuDNhdCHkGJWAgAa9M5zsSPPVWDVeCWgkerg0Z+Xv8IQGMh7rsgpLh77NCSVRKA2i4fBYNwPglSbkGs42Yllmz6HJtgmmtl/tdjcyVSR30Nc2cfkZYTJcEEnRjQAGC8ZX5eLYQB8rCAZiX5/gQX2QtjasZMy+BJ67kJ0klVqsS9G1IVWhea6ILISOd9H1MJElma8aHBiWBaWeGjrCXru8Ns7Lz4J18CbxFdHyWEQ==";
-        validateEcash(&bridge, v2_ecash.into()).await?;
+        validateEcash(bridge, v2_ecash.into()).await?;
         Ok(())
     }
 
@@ -3525,9 +3313,9 @@ pub mod tests {
 
         std::env::set_var(FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV, "1");
 
-        let (original_bridge, federation) = setup().await?;
-        let recovery_bridge = setup_bridge().await?;
-        let (guardian_bridge, _) = setup().await?;
+        let mut td1 = TestDevice::new();
+        let original_bridge = td1.bridge().await?.full()?;
+        let federation = td1.join_default_fed().await?;
 
         // receive ecash
         let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
@@ -3535,7 +3323,7 @@ pub mod tests {
         federation
             .receive_ecash(ecash, FrontendMetadata::default())
             .await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
         assert_eq!(ecash_receive_amount, federation.get_balance().await);
 
         // Interact with stability pool
@@ -3567,24 +3355,33 @@ pub mod tests {
         let video_file_path = get_fixture_dir().join("backup.fedi");
         let video_file_contents = tokio::fs::read(&video_file_path).await?;
         let recovery_file_path =
-            uploadBackupFile(&original_bridge, federation_id.clone(), video_file_path).await?;
+            uploadBackupFile(original_bridge, federation_id.clone(), video_file_path).await?;
         let locate_recovery_file_path = locateRecoveryFile(original_bridge.runtime.clone()).await?;
         assert_eq!(recovery_file_path, locate_recovery_file_path);
 
+        // original device is down
+        td1.shutdown().await?;
+
         // use new bridge from here (simulating a new app install)
+        let td2 = TestDevice::new();
+        let recovery_bridge = td2.bridge().await?.full()?;
+
+        let td3 = TestDevice::new();
+        let guardian_bridge = td3.bridge().await?.full()?;
+        td3.join_default_fed().await?;
 
         // Validate recovery file
-        validateRecoveryFile(&recovery_bridge, recovery_file_path).await?;
+        validateRecoveryFile(recovery_bridge, recovery_file_path).await?;
 
         // Generate recovery QR
-        let qr = recoveryQr(&recovery_bridge)
+        let qr = recoveryQr(recovery_bridge)
             .await?
             .expect("recovery must be started started");
         let recovery_id = qr.recovery_id;
 
         // Guardian downloads verification document
         let verification_doc_path = socialRecoveryDownloadVerificationDoc(
-            &guardian_bridge,
+            guardian_bridge,
             federation_id.clone(),
             recovery_id,
             RpcPeerId(fedimint_core::PeerId::from(1)),
@@ -3599,7 +3396,7 @@ pub mod tests {
         for i in 0..3 {
             let password = "p";
             approveSocialRecoveryRequest(
-                &guardian_bridge,
+                guardian_bridge,
                 federation_id.clone(),
                 recovery_id,
                 RpcPeerId(fedimint_core::PeerId::from(i)),
@@ -3609,7 +3406,7 @@ pub mod tests {
         }
 
         // Member checks approval status
-        let social_recovery_event = socialRecoveryApprovals(&recovery_bridge).await?;
+        let social_recovery_event = socialRecoveryApprovals(recovery_bridge).await?;
         assert_eq!(0, social_recovery_event.remaining);
         assert_eq!(
             3,
@@ -3622,13 +3419,13 @@ pub mod tests {
 
         // Member combines decryption shares, loading recovered mnemonic back into their
         // db
-        completeSocialRecovery(&recovery_bridge).await?;
+        completeSocialRecovery(recovery_bridge).await?;
 
         // Re-register device as index 0 since it's the same device
-        transferExistingDeviceRegistration(&recovery_bridge, 0).await?;
+        transferExistingDeviceRegistration(recovery_bridge, 0).await?;
 
-        // Check backups match (TODO: how can I make sure that they're equal b/c nothing
-        // happened?)
+        // Check backups match (TODO: how can I make sure that they're equal td/c
+        // nothing happened?)
         let final_words: Vec<String> = getMnemonic(recovery_bridge.runtime.clone()).await?;
         assert_eq!(initial_words, final_words);
 
@@ -3686,9 +3483,11 @@ pub mod tests {
         fedi_fees_send_ppm: u64,
         fedi_fees_receive_ppm: u64,
     ) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
+        let federation = td.join_default_fed().await?;
         setStabilityPoolModuleFediFeeSchedule(
-            &bridge,
+            bridge,
             federation.rpc_federation_id(),
             fedi_fees_send_ppm,
             fedi_fees_receive_ppm,
@@ -3708,7 +3507,7 @@ pub mod tests {
         let (receive_amount, _) = federation
             .receive_ecash(ecash, FrontendMetadata::default())
             .await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
 
         // Deposit to seek and verify account info
         let amount_to_deposit = Amount::from_msats(receive_amount.msats / 2);
@@ -3811,9 +3610,11 @@ pub mod tests {
         fedi_fees_send_ppm: u64,
         fedi_fees_receive_ppm: u64,
     ) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
+        let federation = td.join_default_fed().await?;
         setSPv2ModuleFediFeeSchedule(
-            &bridge,
+            bridge,
             federation.rpc_federation_id(),
             fedi_fees_send_ppm,
             fedi_fees_receive_ppm,
@@ -3834,7 +3635,7 @@ pub mod tests {
         let (receive_amount, _) = federation
             .receive_ecash(ecash, FrontendMetadata::default())
             .await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
 
         // Deposit to seek and verify account info
         let amount_to_deposit = Amount::from_msats(receive_amount.msats / 2);
@@ -3932,7 +3733,8 @@ pub mod tests {
     }
 
     async fn test_lnurl_sign_message(_dev_fed: DevFed) -> anyhow::Result<()> {
-        let (bridge, _federation) = setup().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
         let k1 = String::from("cfcb7616d615252180e392f509207e1f610f8d6106588c61c3e7bbe8577e4c4c");
         let message = Message::from_digest_slice(&hex::decode(k1)?)?;
         let domain1 = String::from("fedi.xyz");
@@ -3973,13 +3775,9 @@ pub mod tests {
     }
 
     async fn test_federation_preview(_dev_fed: DevFed) -> anyhow::Result<()> {
-        let (bridge, federation) = setup().await?;
         let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
-
-        drop(federation);
-        drop(bridge);
-
-        let bridge = setup_bridge().await?;
+        let mut td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
         assert!(matches!(
             federationPreview(&bridge.federations, invite_code.clone())
                 .await?
@@ -4008,15 +3806,16 @@ pub mod tests {
         // extract mnemonic, leave federation and drop bridge
         let mnemonic = getMnemonic(bridge.runtime.clone()).await?;
         leaveFederation(&bridge.federations, federation_id.clone()).await?;
-        drop(bridge);
+        td.shutdown().await?;
 
         // query preview again w/ new bridge (recovered using mnemonic), it should be
         // "returning"
-        let bridge = setup_bridge().await?;
-        recoverFromMnemonic(&bridge, mnemonic).await?;
+        let td2 = TestDevice::new();
+        let bridge = td2.bridge().await?.full()?;
+        recoverFromMnemonic(bridge, mnemonic).await?;
 
         // Re-register device as index 0 since it's the same device
-        transferExistingDeviceRegistration(&bridge, 0).await?;
+        transferExistingDeviceRegistration(bridge, 0).await?;
 
         assert!(matches!(
             federationPreview(&bridge.federations, invite_code.clone())
@@ -4031,14 +3830,11 @@ pub mod tests {
     async fn test_join_fails_post_recovery_index_unassigned(
         _dev_fed: DevFed,
     ) -> anyhow::Result<()> {
-        let device_identifier = "bridge:test:fd3e4705-f453-45ee-9e84-4bd4fdc6c22a".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::default());
-        let (backup_bridge, federation) = setup_custom(
-            device_identifier.clone(),
-            mock_fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
+        let mut td = TestDevice::new();
+        td.with_fedi_api(mock_fedi_api.clone());
+        let backup_bridge = td.bridge().await?.full()?;
+        let federation = td.join_default_fed().await?;
 
         // Device index should be 0 since it's a fresh seed
         assert!(matches!(
@@ -4052,17 +3848,13 @@ pub mod tests {
 
         // get mnemonic and drop old federation / bridge so no background stuff runs
         let mnemonic = getMnemonic(backup_bridge.runtime.clone()).await?;
-        drop(federation);
-        drop(backup_bridge);
+        td.shutdown().await?;
 
         // create new bridge which hasn't joined federation yet and recover mnemnonic
-        let recovery_bridge = setup_bridge_custom(
-            device_identifier,
-            mock_fedi_api,
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        recoverFromMnemonic(&recovery_bridge, mnemonic).await?;
+        let mut td2 = TestDevice::new();
+        td2.with_fedi_api(mock_fedi_api);
+        let recovery_bridge = td2.bridge().await?.full()?;
+        recoverFromMnemonic(recovery_bridge, mnemonic).await?;
 
         // Device index should be unassigned since it's a recovery
         assert!(matches!(
@@ -4071,7 +3863,7 @@ pub mod tests {
         ));
 
         // Rejoining federation should fail since device index wasn't assigned
-        assert!(join_test_fed_recovery(&recovery_bridge, false)
+        assert!(join_test_fed_recovery(recovery_bridge, false)
             .await
             .is_err());
         Ok(())
@@ -4083,14 +3875,10 @@ pub mod tests {
             return Ok(());
         }
 
-        let device_identifier_1 = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::default());
-        let bridge_1 = setup_bridge_custom(
-            device_identifier_1,
-            mock_fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
+        let mut td1 = TestDevice::new();
+        td1.with_fedi_api(mock_fedi_api.clone());
+        let bridge_1 = td1.bridge().await?.full()?;
 
         // give some time for backup to complete before shutting down the bridge
         fedimint_core::task::sleep(Duration::from_secs(1)).await;
@@ -4100,17 +3888,13 @@ pub mod tests {
         let mnemonic = getMnemonic(bridge_1.runtime.clone()).await?;
 
         // create new bridge which hasn't joined federation yet and recover mnemnonic
-        let device_identifier_2 = "bridge_2:test:70c25d23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
-        let bridge_2 = setup_bridge_custom(
-            device_identifier_2,
-            mock_fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        recoverFromMnemonic(&bridge_2, mnemonic.clone()).await?;
+        let mut td2 = TestDevice::new();
+        td2.with_fedi_api(mock_fedi_api.clone());
+        let bridge_2 = td2.bridge().await?.full()?;
+        recoverFromMnemonic(bridge_2, mnemonic.clone()).await?;
 
         // Register device as index 0 since it's a transfer
-        transferExistingDeviceRegistration(&bridge_2, 0).await?;
+        transferExistingDeviceRegistration(bridge_2, 0).await?;
 
         // Verify that original device would see the conflict whenever its background
         // service would try to renew registration. The conflict event is what the
@@ -4134,20 +3918,16 @@ pub mod tests {
             .iter()
             .any(|(ev_type, ev_body)| ev_type == "deviceRegistration"
                 && *ev_body == registration_conflict_body));
-        drop(bridge_1);
+        td1.shutdown().await?;
 
         // Create 3rd bridge which hasn't joined federation yet and recover mnemnonic
-        let device_identifier_3 = "bridge_3:test:ed086973-98c7-4ad0-8f03-52ba7280b9c0".to_string();
-        let bridge_3 = setup_bridge_custom(
-            device_identifier_3,
-            mock_fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        recoverFromMnemonic(&bridge_3, mnemonic.clone()).await?;
+        let mut td3 = TestDevice::new();
+        td3.with_fedi_api(mock_fedi_api);
+        let bridge_3 = td3.bridge().await?.full()?;
+        recoverFromMnemonic(bridge_3, mnemonic.clone()).await?;
 
         // Register device as index 0 since it's a transfer
-        transferExistingDeviceRegistration(&bridge_3, 0).await?;
+        transferExistingDeviceRegistration(bridge_3, 0).await?;
 
         // Verify that 2nd device would see the conflict whenever its background
         // service would try to renew registration.
@@ -4163,14 +3943,11 @@ pub mod tests {
             return Ok(());
         }
 
-        let device_identifier_1 = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::default());
-        let (backup_bridge, federation) = setup_custom(
-            device_identifier_1,
-            mock_fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
+        let mut td1 = TestDevice::new();
+        td1.with_fedi_api(mock_fedi_api.clone());
+        let backup_bridge = td1.bridge().await?.full()?;
+        let federation = td1.join_default_fed().await?;
 
         // receive ecash
         let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
@@ -4178,7 +3955,7 @@ pub mod tests {
         federation
             .receive_ecash(ecash, FrontendMetadata::default())
             .await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
         assert_eq!(ecash_receive_amount, federation.get_balance().await);
 
         // Interact with stability pool
@@ -4205,23 +3982,18 @@ pub mod tests {
         // get mnemonic (not dropping old bridge so we can assert device
         // index being stolen)
         let mnemonic = getMnemonic(backup_bridge.runtime.clone()).await?;
-        drop(federation);
 
         // create new bridge which hasn't joined federation yet and recover mnemnonic
-        let device_identifier_2 = "bridge_2:test:70c25d23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
-        let recovery_bridge = setup_bridge_custom(
-            device_identifier_2,
-            mock_fedi_api,
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        recoverFromMnemonic(&recovery_bridge, mnemonic).await?;
+        let mut td2 = TestDevice::new();
+        td2.with_fedi_api(mock_fedi_api.clone());
+        let recovery_bridge = td2.bridge().await?.full()?;
+        recoverFromMnemonic(recovery_bridge, mnemonic).await?;
 
         // Register device as index 0 since it's a transfer
-        transferExistingDeviceRegistration(&recovery_bridge, 0).await?;
+        transferExistingDeviceRegistration(recovery_bridge, 0).await?;
 
         // Rejoin federation and assert that balances are correct
-        let recovery_federation = join_test_fed_recovery(&recovery_bridge, false).await?;
+        let recovery_federation = join_test_fed_recovery(recovery_bridge, false).await?;
         assert!(recovery_federation.recovering());
         let id = recovery_federation.rpc_federation_id();
         drop(recovery_federation);
@@ -4284,14 +4056,11 @@ pub mod tests {
             return Ok(());
         }
 
-        let device_identifier_1 = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
         let mock_fedi_api = Arc::new(MockFediApi::default());
-        let (backup_bridge, federation) = setup_custom(
-            device_identifier_1,
-            mock_fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
+        let mut td1 = TestDevice::new();
+        td1.with_fedi_api(mock_fedi_api.clone());
+        let backup_bridge = td1.bridge().await?.full()?;
+        let federation = td1.join_default_fed().await?;
 
         // receive ecash
         let ecash = cli_generate_ecash(Amount::from_msats(200_000)).await?;
@@ -4299,7 +4068,7 @@ pub mod tests {
         federation
             .receive_ecash(ecash, FrontendMetadata::default())
             .await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
         assert_eq!(ecash_receive_amount, federation.get_balance().await);
 
         // Interact with stability pool
@@ -4312,25 +4081,20 @@ pub mod tests {
 
         // get mnemonic and drop old federation / bridge so no background stuff runs
         let mnemonic = getMnemonic(backup_bridge.runtime.clone()).await?;
-        drop(federation);
-        drop(backup_bridge);
+        td1.shutdown().await?;
 
         // create new bridge which hasn't joined federation yet and recover mnemnonic
-        let device_identifier_2 = "bridge_2:test:70c25d23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
-        let recovery_bridge = setup_bridge_custom(
-            device_identifier_2,
-            mock_fedi_api,
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        recoverFromMnemonic(&recovery_bridge, mnemonic).await?;
+        let mut td2 = TestDevice::new();
+        td2.with_fedi_api(mock_fedi_api.clone());
+        let recovery_bridge = td2.bridge().await?.full()?;
+        recoverFromMnemonic(recovery_bridge, mnemonic).await?;
 
         // Register device as index 1 since it's a new device
-        registerAsNewDevice(&recovery_bridge).await?;
+        registerAsNewDevice(recovery_bridge).await?;
 
         // Rejoin federation and assert that balances don't carry over (and there is no
         // backup)
-        let recovery_federation = join_test_fed_recovery(&recovery_bridge, false).await?;
+        let recovery_federation = join_test_fed_recovery(recovery_bridge, false).await?;
         assert!(!recovery_federation.recovering());
         assert_eq!(Amount::ZERO, recovery_federation.get_balance().await);
 
@@ -4369,7 +4133,8 @@ pub mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_preview_and_join_community() -> anyhow::Result<()> {
-        let bridge = setup_bridge().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
 
         let mut server = mockito::Server::new_async().await;
         let url = server.url();
@@ -4390,7 +4155,7 @@ pub mod tests {
             .create_async()
             .await;
 
-        communityPreview(&bridge, invite_code.clone()).await?;
+        communityPreview(bridge, invite_code.clone()).await?;
         mock.assert();
 
         // Calling preview() does not join
@@ -4403,7 +4168,7 @@ pub mod tests {
             .is_empty());
 
         // Calling join() actually joins
-        joinCommunity(&bridge, invite_code.clone()).await?;
+        joinCommunity(bridge, invite_code.clone()).await?;
         let memory_community = bridge
             .communities
             .communities
@@ -4427,7 +4192,8 @@ pub mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_list_and_leave_community() -> anyhow::Result<()> {
-        let bridge = setup_bridge().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
 
         let mut server = mockito::Server::new_async().await;
         let url = server.url();
@@ -4465,52 +4231,51 @@ pub mod tests {
             .await;
 
         // Initially no joined communities
-        assert!(listCommunities(&bridge).await?.is_empty());
+        assert!(listCommunities(bridge).await?.is_empty());
 
         // Leaving throws error
-        assert!(leaveCommunity(&bridge, invite_code_0.clone())
-            .await
-            .is_err());
+        assert!(leaveCommunity(bridge, invite_code_0.clone()).await.is_err());
 
         // Join community 0
-        joinCommunity(&bridge, invite_code_0.clone()).await?;
+        joinCommunity(bridge, invite_code_0.clone()).await?;
 
         // List contains community 0
         assert!(matches!(
-                &listCommunities(&bridge).await?[..],
+                &listCommunities(bridge).await?[..],
                 [RpcCommunity { invite_code, .. }] if *invite_code == invite_code_0));
 
         // Join community 1
-        joinCommunity(&bridge, invite_code_1.clone()).await?;
+        joinCommunity(bridge, invite_code_1.clone()).await?;
 
         // List contains community 0 + community 1
         assert!(matches!(
-                &listCommunities(&bridge).await?[..], [
+                &listCommunities(bridge).await?[..], [
                     RpcCommunity { invite_code: invite_0, .. },
                     RpcCommunity { invite_code: invite_1, .. }
                 ] if (*invite_0 == invite_code_0 && *invite_1 == invite_code_1) ||
                 (*invite_0 == invite_code_1 && *invite_1 == invite_code_0)));
 
         // Leave community 0
-        leaveCommunity(&bridge, invite_code_0.clone()).await?;
+        leaveCommunity(bridge, invite_code_0.clone()).await?;
 
         // List contains only community 1
         assert!(matches!(
-                &listCommunities(&bridge).await?[..],
+                &listCommunities(bridge).await?[..],
                 [RpcCommunity { invite_code, .. }] if *invite_code == invite_code_1));
 
         // Leave community 1
-        leaveCommunity(&bridge, invite_code_1).await?;
+        leaveCommunity(bridge, invite_code_1).await?;
 
         // No joined communities
-        assert!(listCommunities(&bridge).await?.is_empty());
+        assert!(listCommunities(bridge).await?.is_empty());
 
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_community_meta_bg_refresh() -> anyhow::Result<()> {
-        let bridge = setup_bridge().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
 
         let mut server = mockito::Server::new_async().await;
         let url = server.url();
@@ -4532,7 +4297,7 @@ pub mod tests {
             .await;
 
         // Calling join() actually joins
-        joinCommunity(&bridge, invite_code.clone()).await?;
+        joinCommunity(bridge, invite_code.clone()).await?;
         let memory_community = bridge
             .communities
             .communities
@@ -4606,15 +4371,10 @@ pub mod tests {
             return Ok(());
         }
 
-        // Setup bridge, join test federation, set SP send fee ppm
-        let device_identifier = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
-        let (bridge, federation) = setup_custom(
-            device_identifier.clone(),
-            Arc::new(MockFediApi::default()),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        setStabilityPoolModuleFediFeeSchedule(&bridge, federation.rpc_federation_id(), 210_000, 0)
+        let mut td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
+        let federation = td.join_default_fed().await?;
+        setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 210_000, 0)
             .await?;
 
         // Receive ecash, verify no pending or outstanding fees
@@ -4623,7 +4383,7 @@ pub mod tests {
         federation
             .receive_ecash(ecash, FrontendMetadata::default())
             .await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
         assert_eq!(ecash_receive_amount, federation.get_balance().await);
         assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
         assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
@@ -4662,29 +4422,14 @@ pub mod tests {
 
         // Extract data dir and drop bridge
         let federation_id = federation.federation_id();
-        let data_dir = bridge.runtime.storage.platform_path(Path::new(""));
-        drop(federation);
-        bridge
-            .runtime
-            .task_group
-            .clone()
-            .shutdown_join_all(Duration::from_secs(5))
-            .await?;
-        drop(bridge);
+        td.shutdown().await?;
 
         // Mock fee remittance endpoint
         let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(210_000).await?;
         let mut mock_fedi_api = MockFediApi::default();
         mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
-
-        // Create new bridge using same data dir
-        let new_bridge = setup_bridge_custom_with_data_dir(
-            device_identifier,
-            Arc::new(mock_fedi_api),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir,
-        )
-        .await?;
+        td.with_fedi_api(mock_fedi_api.into());
+        let new_bridge = td.bridge().await?.full()?;
 
         // Wait for fedi fee to be remitted
         retry("fedi fee remitting", aggressive_backoff(), || {
@@ -4695,9 +4440,8 @@ pub mod tests {
         .await?;
 
         // Ensure outstanding fee has been cleared
-        let federation = new_bridge
-            .federations
-            .get_federation(&federation_id.to_string())?;
+        let federation =
+            wait_for_federation_loading(new_bridge, &federation_id.to_string()).await?;
         assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
         assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
 
@@ -4713,16 +4457,13 @@ pub mod tests {
         let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(210_000).await?;
         let mut mock_fedi_api = MockFediApi::default();
         mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
+        let mut td = TestDevice::new();
+        td.with_fedi_api(Arc::new(mock_fedi_api));
 
         // Setup bridge, join test federation, set SP send fee ppm
-        let device_identifier = "bridge_1:test:add59709-395e-4563-9cbd-b34ab20dea75".to_string();
-        let (bridge, federation) = setup_custom(
-            device_identifier.clone(),
-            Arc::new(mock_fedi_api),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-        )
-        .await?;
-        setStabilityPoolModuleFediFeeSchedule(&bridge, federation.rpc_federation_id(), 210_000, 0)
+        let bridge = td.bridge().await?.full()?;
+        let federation = td.join_default_fed().await?;
+        setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 210_000, 0)
             .await?;
 
         // Receive ecash, verify no pending or outstanding fees
@@ -4731,7 +4472,7 @@ pub mod tests {
         federation
             .receive_ecash(ecash, FrontendMetadata::default())
             .await?;
-        wait_for_ecash_reissue(&federation).await?;
+        wait_for_ecash_reissue(federation).await?;
         assert_eq!(ecash_receive_amount, federation.get_balance().await);
         assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
         assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
@@ -4775,93 +4516,90 @@ pub mod tests {
         Ok(())
     }
 
+    async fn test_recurring_lnurl(dev_fed: DevFed) -> anyhow::Result<()> {
+        let td = TestDevice::new();
+        let federation = td.join_default_fed().await?;
+        let lnurl1 = federation
+            .get_recurringd_lnurl(dev_fed.recurringd.api_url.clone())
+            .await?;
+        assert!(lnurl1.starts_with("lnurl"));
+        let lnurl2 = federation
+            .get_recurringd_lnurl(dev_fed.recurringd.api_url.clone())
+            .await?;
+        // lnurl must stay same if safe url is same
+        assert_eq!(lnurl1, lnurl2);
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
         let mut dev_fed = dev_fed().await?;
         let invite_code = dev_fed.fed.invite_code()?;
 
-        // Create data directory and initialize bridge
-        let device_identifier = "bridge:test:d4d743a7-b343-48e3-a5f9-90d032af3e98".to_owned();
-        let fedi_api = Arc::new(MockFediApi::default());
-        let data_dir = create_data_dir();
-        let bridge = setup_bridge_custom_with_data_dir(
-            device_identifier.clone(),
-            fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir.clone(),
-        )
-        .await?;
+        let mut td = TestDevice::new();
+        let original_balance;
 
-        // Join federation
-        let rpc_federation =
-            joinFederation(&bridge.federations, invite_code.clone(), false).await?;
-        let federation = bridge
-            .federations
-            .get_federation_maybe_recovering(&rpc_federation.id.0)?;
-        use_lnd_gateway(&federation).await?;
+        // join federation while federation is running
+        {
+            let bridge = td.bridge().await?.full()?;
+            let rpc_federation =
+                joinFederation(&bridge.federations, invite_code.clone(), false).await?;
+            let federation = bridge
+                .federations
+                .get_federation_maybe_recovering(&rpc_federation.id.0)?;
+            use_lnd_gateway(&federation).await?;
 
-        // receive ecash
-        let ecash_receive_amount = fedimint_core::Amount::from_msats(10000);
-        let ecash = cli_generate_ecash(ecash_receive_amount).await?;
-        receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
-        wait_for_ecash_reissue(&federation).await?;
-        let original_balance = federation.get_balance().await;
-        assert!(original_balance.msats != 0);
+            // receive ecash
+            let ecash_receive_amount = fedimint_core::Amount::from_msats(10000);
+            let ecash = cli_generate_ecash(ecash_receive_amount).await?;
+            receiveEcash(federation.clone(), ecash, FrontendMetadata::default()).await?;
+            wait_for_ecash_reissue(&federation).await?;
+            original_balance = federation.get_balance().await;
+            assert!(original_balance.msats != 0);
 
-        // Clean shutdown of bridge
-        drop(federation);
-        bridge
-            .runtime
-            .task_group
-            .clone()
-            .shutdown_join_all(None)
-            .await?;
-        drop(bridge);
+            drop(federation);
+            td.shutdown().await?;
+        }
 
         // Stop federation
         dev_fed.fed.terminate_all_servers().await?;
 
-        // Initialize new bridge with same data dir
-        let bridge = setup_bridge_custom_with_data_dir(
-            device_identifier,
-            fedi_api,
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir,
-        )
-        .await?;
-
         // Bridge should initialize successfully even though federation is down
-        assert!(bridge.federations.get_federations_map().len() == 1);
+        {
+            let bridge = td.bridge().await?.full()?;
+            assert!(bridge.federations.get_federations_map().len() == 1);
 
-        // Wait for federation ready event for a max of 2s
-        let rpc_federation = fedimint_core::task::timeout(Duration::from_secs(2), async move {
-            'check: loop {
-                let events = bridge.runtime.event_sink.events();
-                for (_, ev_body) in events.iter().rev().filter(|(kind, _)| kind == "federation") {
-                    let ev_body =
-                        serde_json::from_str::<RpcFederationMaybeLoading>(ev_body).unwrap();
-                    match ev_body {
-                        RpcFederationMaybeLoading::Loading { .. } => (),
-                        RpcFederationMaybeLoading::Failed { error, id } => {
-                            bail!("federation {:?} loading failed: {}", id, error.detail)
-                        }
-                        RpcFederationMaybeLoading::Ready(rpc_federation) => {
-                            assert!(rpc_federation.invite_code == invite_code);
-                            break 'check Ok::<_, anyhow::Error>(rpc_federation);
+            // Wait for federation ready event for a max of 2s
+            let rpc_federation = fedimint_core::task::timeout(Duration::from_secs(2), async move {
+                'check: loop {
+                    let events = bridge.runtime.event_sink.events();
+                    for (_, ev_body) in events.iter().rev().filter(|(kind, _)| kind == "federation")
+                    {
+                        let ev_body =
+                            serde_json::from_str::<RpcFederationMaybeLoading>(ev_body).unwrap();
+                        match ev_body {
+                            RpcFederationMaybeLoading::Loading { .. } => (),
+                            RpcFederationMaybeLoading::Failed { error, id } => {
+                                bail!("federation {:?} loading failed: {}", id, error.detail)
+                            }
+                            RpcFederationMaybeLoading::Ready(rpc_federation) => {
+                                assert!(rpc_federation.invite_code == invite_code);
+                                break 'check Ok::<_, anyhow::Error>(rpc_federation);
+                            }
                         }
                     }
+                    fedimint_core::task::sleep_in_test(
+                        "waiting for federation ready event",
+                        Duration::from_millis(100),
+                    )
+                    .await;
                 }
-                fedimint_core::task::sleep_in_test(
-                    "waiting for federation ready event",
-                    Duration::from_millis(100),
-                )
-                .await;
-            }
-        })
-        .await??;
+            })
+            .await??;
 
-        // Ensure balance is still the same
-        assert!(rpc_federation.balance.0 == original_balance);
+            // Ensure balance is still the same
+            assert_eq!(rpc_federation.balance.0, original_balance);
+        }
         Ok(())
     }
 
@@ -4883,125 +4621,89 @@ pub mod tests {
         //         recreate bridge with different ID, borked
 
         // Create data directory and initialize bridge
-        let device_identifier_v1 = "bridge:test:d4d743a7-b343-48e3-a5f9-90d032af3e98".to_owned();
-        let fedi_api = Arc::new(MockFediApi::default());
-        let data_dir = create_data_dir();
-        let bridge = setup_bridge_custom_with_data_dir(
-            device_identifier_v1.clone(),
-            fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir.clone(),
-        )
-        .await?;
+        let mut td = TestDevice::new();
+        {
+            td.with_device_identifier("bridge:test:d4d743a7-b343-48e3-a5f9-90d032af3e98");
+            let bridge = td.bridge().await?.full()?;
 
-        // Tweak AppState to simulate existing install with only v1 identifier.
-        // Transforms a freshly-created AppStateRaw that only has an
-        // encrypted_device_identifier_v2 to look like an existing AppStateRaw
-        // that only has an encrypted_device_identifier_v1.
-        let app_state_raw_clone = bridge
-            .runtime
-            .app_state
-            .with_read_lock(|state| state.clone())
-            .await;
-        let mut app_state_raw_json = serde_json::to_value(app_state_raw_clone)?;
-        let app_state_raw_object = app_state_raw_json
-            .as_object_mut()
-            .ok_or(anyhow!("App state must be valid JSON object"))?;
-        app_state_raw_object.insert(
-            "encrypted_device_identifier_v1".to_string(),
-            serde_json::Value::String(bridge.runtime.app_state.encrypted_device_identifier().await),
-        );
-        app_state_raw_object.insert(
-            "encrypted_device_identifier_v2".to_string(),
-            serde_json::Value::Null,
-        );
+            // Tweak AppState to simulate existing install with only v1 identifier.
+            // Transforms a freshly-created AppStateRaw that only has an
+            // encrypted_device_identifier_v2 to look like an existing AppStateRaw
+            // that only has an encrypted_device_identifier_v1.
+            let app_state_raw_clone = bridge
+                .runtime
+                .app_state
+                .with_read_lock(|state| state.clone())
+                .await;
+            let mut app_state_raw_json = serde_json::to_value(app_state_raw_clone)?;
+            let app_state_raw_object = app_state_raw_json
+                .as_object_mut()
+                .ok_or(anyhow!("App state must be valid JSON object"))?;
+            app_state_raw_object.insert(
+                "encrypted_device_identifier_v1".to_string(),
+                serde_json::Value::String(
+                    bridge.runtime.app_state.encrypted_device_identifier().await,
+                ),
+            );
+            app_state_raw_object.insert(
+                "encrypted_device_identifier_v2".to_string(),
+                serde_json::Value::Null,
+            );
 
-        // Write tweaked AppStateRaw
-        let storage = bridge.runtime.storage.clone();
-        bridge
-            .runtime
-            .task_group
-            .clone()
-            .shutdown_join_all(Duration::from_secs(5))
-            .await?;
-        drop(bridge);
-        tokio::task::spawn_blocking(move || {
-            storage.write_file_sync(
-                Path::new(FEDI_FILE_PATH),
-                serde_json::to_vec(&app_state_raw_json)?,
-            )?;
-            Ok::<(), anyhow::Error>(())
-        })
-        .await??;
+            td.shutdown().await?;
+            td.storage()
+                .await?
+                .write_file(
+                    Path::new(FEDI_FILE_PATH),
+                    serde_json::to_vec(&app_state_raw_json)?,
+                )
+                .await?;
+        }
 
         // Set up bridge again using same data_dir but now pass in v2 identifier
-        let device_identifier_v2 = "bridge_2:test:70c25d23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
-        let bridge = setup_bridge_custom_with_data_dir(
-            device_identifier_v2.clone(),
-            fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir.clone(),
-        )
-        .await?;
-
-        // Verify ownership transfer to v2 identifier is successful (v1 must be None)
-        fedimint_core::task::timeout(Duration::from_secs(2), async {
-            loop {
-                #[allow(deprecated)]
-                if bridge
-                    .runtime
-                    .app_state
-                    .encrypted_device_identifier_v1()
-                    .await
-                    .is_none()
-                {
-                    break Ok::<_, anyhow::Error>(());
+        {
+            td.with_device_identifier("bridge_2:test:70c25d23-bfac-4aa2-81c3-d6f5e79ae724");
+            let bridge = td.bridge().await?.full()?;
+            // Verify ownership transfer to v2 identifier is successful (v1 must be None)
+            fedimint_core::task::timeout(Duration::from_secs(2), async {
+                loop {
+                    #[allow(deprecated)]
+                    if bridge
+                        .runtime
+                        .app_state
+                        .encrypted_device_identifier_v1()
+                        .await
+                        .is_none()
+                    {
+                        break Ok::<_, anyhow::Error>(());
+                    }
                 }
-            }
-        })
-        .await??;
-        bridge
-            .runtime
-            .task_group
-            .clone()
-            .shutdown_join_all(Duration::from_secs(5))
-            .await?;
-        drop(bridge);
+            })
+            .await??;
+            td.shutdown().await?;
+        }
 
         // Recreate bridge with same v2 ID, full bridge init should be successful
-        let bridge = setup_bridge_custom_with_data_dir(
-            device_identifier_v2.clone(),
-            fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir.clone(),
-        )
-        .await?;
-        bridge
-            .runtime
-            .task_group
-            .clone()
-            .shutdown_join_all(Duration::from_secs(5))
-            .await?;
-        drop(bridge);
+        {
+            let _bridge = td.bridge().await?.full()?;
+            td.shutdown().await?;
+        }
 
         // Try to recreate bridge with different v2 ID, full bridge init should fail
-        let device_identifier_v2_2 =
-            "bridge_3:test:70c25d23-bfac-4aa2-81c3-d6f5e79ae724".to_string();
-        assert!(setup_bridge_custom_with_data_dir(
-            device_identifier_v2_2,
-            fedi_api.clone(),
-            FeatureCatalog::new(RuntimeEnvironment::Dev).into(),
-            data_dir.clone(),
-        )
-        .await
-        .is_err());
+        {
+            td.with_device_identifier("bridge_3:test:70c25d23-bfac-4aa2-81c3-d6f5e79ae724");
+            let bridge = td.bridge().await?;
+            assert!(bridge.full().is_err());
+            td.shutdown().await?;
+        }
 
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_nip44_encrypt_and_decrypt() -> anyhow::Result<()> {
-        let bridge = setup_bridge().await?;
+        let td = TestDevice::new();
+        let bridge = td.bridge().await?.full()?;
 
         let other_nsec = "nsec1u66skyesf45vd9w0u63q7qhfj2wnhjplxkympvh5t2q28h0lvz8qgglls9";
         let other_npub = "npub1e9uht8sv5msnz7gwartsntt0w2v8tzxyrzemk793lzs0ulegr4es0fafdx";

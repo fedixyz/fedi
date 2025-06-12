@@ -1,9 +1,10 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { FederationStatus } from '@fedi/common/types'
 
+import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import { ConnectionIcon } from './ConnectionIcon'
 
@@ -31,7 +32,9 @@ export const ConnectionTag = ({
     const style = styles(theme)
     const iconSize = size === 'small' ? 12 : 16
     return (
-        <View
+        <Flex
+            row
+            center
             style={[
                 style.container,
                 size === 'small' ? style.smallContainer : style.largeContainer,
@@ -48,7 +51,7 @@ export const ConnectionTag = ({
                 {localeStatus}
             </Text>
             {!hideArrow && <SvgImage size={12} name={'ChevronRight'} />}
-        </View>
+        </Flex>
     )
 }
 
@@ -56,10 +59,7 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             borderRadius: 10,
-            flexDirection: 'row',
             backgroundColor: theme.colors.white,
-            justifyContent: 'center',
-            alignItems: 'center',
         },
         smallContainer: {
             paddingHorizontal: theme.spacing.xs,

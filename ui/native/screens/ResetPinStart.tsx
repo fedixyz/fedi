@@ -2,11 +2,12 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, StyleSheet, View } from 'react-native'
+import { Image, StyleSheet } from 'react-native'
 
 import { setIsBackingUpBeforePin } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
+import Flex from '../components/ui/Flex'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -20,8 +21,8 @@ const ResetPinStart: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     return (
-        <View style={style.container}>
-            <View style={style.content}>
+        <Flex grow style={style.container}>
+            <Flex grow center gap="sm">
                 <Image
                     resizeMode="contain"
                     source={Images.IllustrationPin}
@@ -31,7 +32,7 @@ const ResetPinStart: React.FC<Props> = ({ navigation }: Props) => {
                 <Text style={style.backupNotice}>
                     {t('feature.pin.recovery-notice')}
                 </Text>
-            </View>
+            </Flex>
             <Button
                 style={style.containerButton}
                 onPress={() => {
@@ -40,21 +41,14 @@ const ResetPinStart: React.FC<Props> = ({ navigation }: Props) => {
                 }}>
                 {t('words.continue')}
             </Button>
-        </View>
+        </Flex>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             padding: theme.spacing.xl,
-        },
-        content: {
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: theme.spacing.sm,
         },
         emptyImage: {
             width: 200,

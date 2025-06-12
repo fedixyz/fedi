@@ -1,5 +1,7 @@
+import Clipboard from '@react-native-clipboard/clipboard'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { ReactNode } from 'react'
+import React, { ReactNode, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
     Linking,
     StyleProp,
@@ -10,6 +12,7 @@ import {
 } from 'react-native'
 import Hyperlink from 'react-native-hyperlink'
 
+import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 import { decodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 
@@ -29,6 +32,24 @@ const MessageContents: React.FC<MessageContentsProps> = ({
     textStyles,
 }: MessageContentsProps) => {
     const { theme } = useTheme()
+    const toast = useToast()
+    const { t } = useTranslation()
+
+    const handleLinkPress = useCallback((url: string) => {
+        log.debug('url', url)
+        Linking.openURL(url)
+    }, [])
+
+    const handleLinkLongPress = useCallback(
+        (url: string) => {
+            Clipboard.setString(url)
+            toast.show({
+                content: t('phrases.copied-to-clipboard'),
+                status: 'success',
+            })
+        },
+        [toast, t],
+    )
 
     let text: ReactNode = null
     // Check if there are any group invite codes in the message like this
@@ -69,6 +90,7 @@ const MessageContents: React.FC<MessageContentsProps> = ({
         text = (
             <View>
                 {messageElements.map((m: string, i: number) => {
+                    if (!m) return null
                     const isMatrixChatGroupCode = m.startsWith('fedi:room:')
                     if (isMatrixChatGroupCode) {
                         const groupId = decodeFediMatrixRoomUri(m)
@@ -78,10 +100,18 @@ const MessageContents: React.FC<MessageContentsProps> = ({
                                 groupId={groupId}
                             />
                         )
-                    } else if (m) {
-                        return (
+                    }
+                    return (
+                        <Hyperlink
+                            key={`mi-t-${i}`}
+                            linkStyle={
+                                sentByMe
+                                    ? styles(theme).outgoingLinkedText
+                                    : styles(theme).incomingLinkedText
+                            }
+                            onPress={handleLinkPress}
+                            onLongPress={handleLinkLongPress}>
                             <Text
-                                key={`mi-t-${i}`}
                                 caption
                                 style={[
                                     ...textStyles,
@@ -92,10 +122,8 @@ const MessageContents: React.FC<MessageContentsProps> = ({
                                 ]}>
                                 {m.trim()}
                             </Text>
-                        )
-                    } else {
-                        return null
-                    }
+                        </Hyperlink>
+                    )
                 })}
             </View>
         )
@@ -115,10 +143,8 @@ const MessageContents: React.FC<MessageContentsProps> = ({
                     ? styles(theme).outgoingLinkedText
                     : styles(theme).incomingLinkedText
             }
-            onPress={url => {
-                log.debug('url', url)
-                Linking.openURL(url)
-            }}>
+            onPress={handleLinkPress}
+            onLongPress={handleLinkLongPress}>
             {text}
         </Hyperlink>
     )

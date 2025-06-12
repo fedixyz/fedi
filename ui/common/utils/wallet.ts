@@ -14,6 +14,9 @@ import {
     SelectableCurrency,
     MultispendTransactionListEntry,
     MatrixRoomMember,
+    Sats,
+    MultispendActiveInvitation,
+    MultispendFinalized,
 } from '../types'
 import {
     StabilityPoolWithdrawalEvent,
@@ -22,14 +25,19 @@ import {
     RpcStabilityPoolAccountInfo,
     RpcLockedSeek,
     SPv2WithdrawalEvent,
+    FiatFXInfo,
 } from '../types/bindings'
 import { StabilityPoolState } from '../types/wallet'
-import amountUtils, { FIAT_MAX_DECIMAL_PLACES } from './AmountUtils'
+import amountUtils from './AmountUtils'
 import dateUtils from './DateUtils'
 import { getCurrencyCode } from './currency'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
-import { makeNameWithSuffix } from './matrix'
+import {
+    getMultispendInvite,
+    isWithdrawalRequestRejected,
+    makeNameWithSuffix,
+} from './matrix'
 
 const log = makeLog('common/utils/wallet')
 
@@ -48,15 +56,31 @@ export const getTxnDirection = (txn: TransactionListEntry): string => {
         case 'oobSend':
         case 'spDeposit':
         case 'sPV2Deposit':
+        case 'sPV2TransferOut':
             return TransactionDirection.send
         case 'lnReceive':
         case 'onchainDeposit':
         case 'oobReceive':
         case 'spWithdraw':
         case 'sPV2Withdrawal':
+        case 'sPV2TransferIn':
             return TransactionDirection.receive
         default:
             return TransactionDirection.send
+    }
+}
+
+export const makeMultispendTxnTypeText = (
+    txn: MultispendTransactionListEntry,
+    t: TFunction,
+): string => {
+    switch (txn.state) {
+        case 'withdrawal':
+            return t('phrases.multispend-withdrawal')
+        case 'deposit':
+            return t('phrases.multispend-deposit')
+        default:
+            return t('words.unknown')
     }
 }
 
@@ -76,6 +100,9 @@ export const makeTxnTypeText = (
         case 'sPV2Deposit':
         case 'sPV2Withdrawal':
             return t('feature.stabilitypool.stable-balance')
+        case 'sPV2TransferIn':
+        case 'sPV2TransferOut':
+            return t('words.multispend')
         case 'oobSend':
         case 'oobReceive':
             return t('words.ecash')
@@ -109,7 +136,11 @@ export const makeTxnDetailTitleText = (
 
     const direction = getTxnDirection(txn)
     if (direction === TransactionDirection.send) {
-        return t('feature.send.you-sent')
+        if (txn.kind === 'sPV2TransferOut') {
+            return t('feature.stabilitypool.you-deposited')
+        } else {
+            return t('feature.send.you-sent')
+        }
     }
     if (txn.kind === 'lnReceive') {
         switch (txn.state?.type) {
@@ -141,6 +172,8 @@ export const makeTxnDetailTitleText = (
             default:
                 return t('phrases.receive-pending')
         }
+    } else if (txn.kind === 'sPV2TransferIn') {
+        return t('feature.stabilitypool.you-withdrew')
     } else {
         return t('feature.receive.you-received')
     }
@@ -158,6 +191,8 @@ export const makeTxnAmountText = (
     showFiatTxnAmounts: boolean,
     // we use the opposite signs on the stabilitypool txn list
     flipSign: boolean,
+    includeCurrency: boolean,
+    preferredCurrency: string,
     makeFormattedAmountsFromMSats: (
         amt: MSats,
         symbolPosition?: AmountSymbolPosition,
@@ -166,23 +201,35 @@ export const makeTxnAmountText = (
         amt: UsdCents,
         symbolPosition?: AmountSymbolPosition,
     ) => string,
+    convertSatsToFormattedFiat: (
+        amt: Sats,
+        symbolPosition?: AmountSymbolPosition,
+        txDateFiatInfo?: FiatFXInfo,
+    ) => string,
 ): string => {
     const { amount } = txn
     const direction = getTxnDirection(txn)
-    const isPlus = !flipSign ? direction === 'receive' : direction === 'send'
+    const isTransfer =
+        txn.kind === 'sPV2TransferIn' || txn.kind === 'sPV2TransferOut'
+
+    // Don't flip the sign for transfers
+    const isPlus = !(flipSign && !isTransfer)
+        ? direction === 'receive'
+        : direction === 'send'
     let sign = direction ? (isPlus ? `+` : `-`) : ''
     let formattedAmount: string
-    // amount may be zero for onchain pending receives or for pending stabilitypool withdrawals
+    let currency = preferredCurrency
+
     // If fiat amounts should be shown and historical info is present, use it:
     if (showFiatTxnAmounts && txn.txDateFiatInfo) {
-        const historicalRate = txn.txDateFiatInfo.btcToFiatHundredths / 100
-        const btc = amountUtils.msatToBtc(amount)
-        // Format the fiat value using the historical rate
-        formattedAmount =
-            amountUtils
-                .btcToFiat(btc, historicalRate)
-                .toFixed(FIAT_MAX_DECIMAL_PLACES) +
-            ` ${txn.txDateFiatInfo.fiatCode}`
+        const sats = amountUtils.msatToSat(txn.amount)
+        // Use the historical exchange rate from txDateFiatInfo:
+        formattedAmount = convertSatsToFormattedFiat(
+            sats,
+            'none',
+            txn.txDateFiatInfo,
+        ).split(' ')[0]
+        currency = txn.txDateFiatInfo.fiatCode
     } else {
         // Fallback: use the default conversion based on MSats
         const { formattedPrimaryAmount } = makeFormattedAmountsFromMSats(
@@ -238,6 +285,17 @@ export const makeTxnAmountText = (
                     fiatAmount,
                     'none',
                 )
+            } else if (
+                (txn.kind === 'sPV2TransferIn' ||
+                    txn.kind === 'sPV2TransferOut') &&
+                txn.state &&
+                'fiat_amount' in txn.state
+            ) {
+                const fiatAmount = Number(txn.state.fiat_amount) as UsdCents
+                formattedAmount = convertCentsToFormattedFiat(
+                    fiatAmount,
+                    'none',
+                )
             }
         }
     }
@@ -258,7 +316,125 @@ export const makeTxnAmountText = (
         sign = ''
     }
 
-    return `${sign}${formattedAmount}`
+    return `${sign}${formattedAmount}${includeCurrency ? ` ${currency}` : ''}`
+}
+
+export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
+    const direction = getTxnDirection(txn)
+
+    switch (direction) {
+        /* ------------------------------------------------------------------
+         *  SEND-side flows
+         * ------------------------------------------------------------------ */
+        case TransactionDirection.send: {
+            if (txn.kind === 'lnPay') {
+                switch (txn.state?.type) {
+                    case 'created':
+                    case 'funded':
+                    case 'awaitingChange':
+                    case 'waitingForRefund':
+                    case 'canceled':
+                    case 'failed':
+                    case 'refunded':
+                        return true
+                    default:
+                        return false
+                }
+            }
+
+            if (txn.kind === 'onchainWithdraw') {
+                switch (txn.state?.type) {
+                    case 'succeeded':
+                        return false
+                    case 'failed':
+                    default:
+                        return true
+                }
+            }
+
+            if (txn.kind === 'oobSend') {
+                switch (txn.state?.type) {
+                    case 'userCanceledSuccess':
+                    case 'userCanceledProcessing':
+                    case 'refunded':
+                        return true
+                    default:
+                        return false
+                }
+            }
+
+            if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
+                switch (txn.state?.type) {
+                    case 'pendingDeposit':
+                    case 'failedDeposit':
+                        return true
+                    default:
+                        return false
+                }
+            }
+
+            return false
+        }
+
+        /* ------------------------------------------------------------------
+         *  RECEIVE-side flows
+         * ------------------------------------------------------------------ */
+        case TransactionDirection.receive: {
+            if (txn.kind === 'lnReceive') {
+                switch (txn.state?.type) {
+                    case 'canceled':
+                    case 'waitingForPayment':
+                    case 'created':
+                    case 'funded':
+                    case 'awaitingFunds':
+                        return true
+                    default:
+                        return false
+                }
+            }
+
+            if (txn.kind === 'onchainDeposit') {
+                switch (txn.state?.type) {
+                    case 'waitingForConfirmation':
+                    case 'waitingForTransaction':
+                    case 'confirmed':
+                    case 'failed':
+                        return true
+                    default:
+                        return false
+                }
+            }
+
+            if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
+                switch (txn.state?.type) {
+                    case 'dataNotInCache':
+                    case 'pendingWithdrawal':
+                    case 'failedWithdrawal':
+                        return true
+                    default:
+                        return false
+                }
+            }
+
+            if (txn.kind === 'oobReceive') {
+                switch (txn.state?.type) {
+                    case 'created':
+                    case 'issuing':
+                    case 'failed':
+                        return true
+                    default:
+                        return false
+                }
+            }
+
+            // Fallback – any other receive kind
+            return false
+        }
+
+        //  Unknown / unexpected direction
+        default:
+            return false
+    }
 }
 
 export const makeTxnStatusText = (
@@ -326,6 +502,8 @@ export const makeTxnStatusText = (
                     default:
                         return t('words.deposit')
                 }
+            } else if (txn.kind === 'sPV2TransferOut') {
+                return t('words.deposit')
             } else {
                 return t('words.sent')
             }
@@ -385,6 +563,8 @@ export const makeTxnStatusText = (
                     default:
                         return ''
                 }
+            } else if (txn.kind === 'sPV2TransferIn') {
+                return t('words.withdrawal')
             } else {
                 return t('words.received')
             }
@@ -460,6 +640,9 @@ export const makeTxnStatusBadge = (
                     default:
                         break
                 }
+            } else if (txn.kind === 'sPV2TransferOut') {
+                badge = 'outgoing'
+                break
             }
             break
         case TransactionDirection.receive:
@@ -509,6 +692,9 @@ export const makeTxnStatusBadge = (
                         badge = 'pending'
                         break
                 }
+            } else if (txn.kind === 'sPV2TransferIn') {
+                badge = 'incoming'
+                break
             } else if (txn.kind === 'oobReceive') {
                 switch (txn.state?.type) {
                     case 'done':
@@ -530,14 +716,20 @@ export const makeTxnStatusBadge = (
         default:
             badge = 'incoming'
     }
+
     if (txn.kind === 'multispend') {
         if (txn.state === 'invalid') return 'failed'
+
         if ('depositNotification' in txn.event) {
             badge = 'incoming'
         } else if ('withdrawalRequest' in txn.event) {
-            const withdrawalRequest = txn.event.withdrawalRequest
-            if (withdrawalRequest.completed) {
+            const txStatus = txn.event.withdrawalRequest.txSubmissionStatus
+            if (txStatus === 'unknown') {
+                badge = 'pending'
+            } else if ('accepted' in txStatus) {
                 badge = 'outgoing'
+            } else if ('rejected' in txStatus) {
+                badge = 'failed'
             } else {
                 badge = 'pending'
             }
@@ -766,9 +958,15 @@ export const makeStabilityTxnDetailTitleText = (
     t: TFunction,
     txn: TransactionListEntry,
 ) => {
-    return txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit'
+    return txn.kind === 'spDeposit' ||
+        txn.kind === 'sPV2Deposit' ||
+        txn.kind === 'sPV2TransferOut'
         ? t('feature.stabilitypool.you-deposited')
-        : t('feature.stabilitypool.you-withdrew')
+        : txn.kind === 'sPV2Withdrawal' ||
+            txn.kind === 'spWithdraw' ||
+            txn.kind === 'sPV2TransferIn'
+          ? t('feature.stabilitypool.you-withdrew')
+          : ''
 }
 
 export const makeStabilityTxnDetailItems = (
@@ -783,9 +981,15 @@ export const makeStabilityTxnDetailItems = (
     if (txn.amount !== 0) {
         items.push({
             label:
-                txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit'
+                txn.kind === 'spDeposit' ||
+                txn.kind === 'sPV2Deposit' ||
+                txn.kind === 'sPV2TransferIn'
                     ? t('feature.stabilitypool.deposit-amount')
-                    : t('feature.stabilitypool.withdrawal-amount'),
+                    : txn.kind === 'spWithdraw' ||
+                        txn.kind === 'sPV2Withdrawal' ||
+                        txn.kind === 'sPV2TransferOut'
+                      ? t('feature.stabilitypool.withdrawal-amount')
+                      : '',
             value: formattedSats,
         })
     }
@@ -855,6 +1059,50 @@ export const makeStabilityTxnFeeDetails = (
     items.push(totalFees)
 
     return items
+}
+
+export const makeMultispendTxnStatusText = (
+    t: TFunction,
+    txn: MultispendTransactionListEntry,
+    multispendStatus:
+        | MultispendActiveInvitation
+        | MultispendFinalized
+        | undefined,
+    // allows for minor tweaks to txn status when exporting to CSV
+    // for major changes, please create a new makeMultispendTxnCsvStatusText function
+    csvExport?: boolean,
+): string => {
+    if (
+        // there should always be a state, but return unknown just in case
+        !txn.state ||
+        txn.state === 'invalid' ||
+        // group should always be finalized at this point
+        !multispendStatus ||
+        multispendStatus.status !== 'finalized'
+    )
+        return t('words.unknown')
+
+    if ('depositNotification' in txn.event)
+        return csvExport ? t('words.complete') : t('words.deposit')
+    if ('withdrawalRequest' in txn.event) {
+        const txStatus = txn.event.withdrawalRequest.txSubmissionStatus
+
+        if (txStatus === 'unknown') return t('words.pending')
+        if ('accepted' in txStatus)
+            return csvExport ? t('words.complete') : t('words.withdrawal')
+        if ('rejected' in txStatus) return t('words.failed')
+
+        const invitation = getMultispendInvite(multispendStatus)
+
+        // finalized multispends should always have an invitation
+        if (!invitation) return t('words.unknown')
+
+        if (isWithdrawalRequestRejected(txn, multispendStatus))
+            return t('words.failed')
+
+        return t('words.pending')
+    }
+    return t('words.unknown')
 }
 
 export const makeMultispendTxnDetailItems = (

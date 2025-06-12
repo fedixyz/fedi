@@ -9,7 +9,10 @@ import {
     changeOverrideCurrency,
     selectOverrideCurrency,
 } from '@fedi/common/redux/currency'
-import { getSelectableCurrencies } from '@fedi/common/utils/currency'
+import {
+    getSelectableCurrencies,
+    sortCurrenciesByName,
+} from '@fedi/common/utils/currency'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 
 import { SafeScrollArea } from '../components/ui/SafeArea'
@@ -29,12 +32,10 @@ const GlobalCurrency: React.FC<Props> = () => {
 
     const style = styles(theme)
 
-    const currencies: SelectableCurrency[] = [
-        SupportedCurrency.USD,
-        ...Object.values(allCurrencies).filter(
-            currency => currency !== SupportedCurrency.USD,
-        ),
-    ]
+    const nonUsdCurrencies: SelectableCurrency[] = Object.values(
+        allCurrencies,
+    ).filter(currency => currency !== SupportedCurrency.USD)
+    const currencies = sortCurrenciesByName(t, nonUsdCurrencies)
 
     const isSelected = overrideCurrency === null
 
@@ -59,12 +60,11 @@ const GlobalCurrency: React.FC<Props> = () => {
                         </Text>
                         {isSelected && <SvgImage name="Check" />}
                     </Pressable>
-                    {
-                        // Put USD first
-                        currencies.map(currency => (
-                            <CurrencyItem currency={currency} key={currency} />
-                        ))
-                    }
+                    {/* Put USD first */}
+                    <CurrencyItem currency={SupportedCurrency.USD} />
+                    {currencies.map(currency => (
+                        <CurrencyItem currency={currency} key={currency} />
+                    ))}
                 </View>
             </View>
         </SafeScrollArea>
@@ -83,6 +83,7 @@ function CurrencyItem({ currency }: { currency: SelectableCurrency }) {
 
     return (
         <Pressable
+            testID={currency}
             key={currency}
             onPress={() => dispatch(changeOverrideCurrency(currency))}
             style={style.currencyItem}>

@@ -44,6 +44,7 @@ impl StabilityPoolSyncService {
     ///
     /// Caller should run this method in a task.
     pub async fn update_continuously(&self, client_config: &StabilityPoolClientConfig) -> ! {
+        let mut first = true;
         loop {
             let last_sync_time = self
                 .sync_response
@@ -55,7 +56,12 @@ impl StabilityPoolSyncService {
                     .next_cycle_start_time(last_sync_time)
                     .duration_since(fedimint_core::time::now())
                     .map(|x| x + Duration::from_secs(5)) // give server some time
-                    .unwrap_or(Duration::ZERO);
+                    .unwrap_or(if first {
+                        Duration::ZERO
+                    } else {
+                        // don't keep spamming
+                        Duration::from_secs(2)
+                    });
                 fedimint_core::task::sleep(sleep_time).await;
             }
             retry("sp sync", backoff_util::background_backoff(), || {
@@ -63,6 +69,7 @@ impl StabilityPoolSyncService {
             })
             .await
             .expect("inifinite retries");
+            first = false;
         }
     }
 
