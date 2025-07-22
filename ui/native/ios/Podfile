@@ -60,7 +60,7 @@ target 'FediReactNative' do
   pod 'react-native-worklets-core', :path => '../../node_modules/react-native-worklets-core', :modular_headers => true
   pod 'ZendeskSDKMessaging'
   $RNFirebaseAsStaticFramework = true
-  $ZendeskSDKVersion = '2.27.0'
+  $ZendeskSDKVersion = '2.32.0'
 
   # For encrypted messaging
   pod 'OpenSSL-Universal', '1.1.2200', :modular_headers => true, :configurations => ['Release', 'Debug']

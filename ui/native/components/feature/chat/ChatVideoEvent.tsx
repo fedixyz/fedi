@@ -21,11 +21,11 @@ import { MatrixEvent } from '@fedi/common/types'
 import { JSONObject } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
-import { scaleAttachment } from '@fedi/common/utils/media'
+import { pathJoin, scaleAttachment } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { pathJoin, prefixFileUri } from '../../../utils/media'
+import { prefixFileUri } from '../../../utils/media'
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 

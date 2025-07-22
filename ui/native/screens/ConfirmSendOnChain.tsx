@@ -4,7 +4,6 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
@@ -18,6 +17,7 @@ import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import NotesInput from '../components/ui/NotesInput'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
@@ -148,9 +148,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
     const style = styles(theme)
 
     return (
-        <SafeAreaView
-            style={style.container}
-            edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
+        <SafeAreaContainer style={style.container} edges="notop">
             {/*
               You already have the chance to select the payFromFederation in SendOnchainAmount.
               Since we no-op any feeDetails errors in useOmniPaymentState, this has the potential to crash the app with bridge errors.
@@ -196,17 +194,15 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
                     }
                 />
             </View>
-        </SafeAreaView>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flexDirection: 'column',
-            flex: 1,
             alignItems: 'center',
-            padding: theme.spacing.lg,
+            paddingTop: theme.spacing.lg,
         },
         amountContainer: {
             marginTop: 'auto',

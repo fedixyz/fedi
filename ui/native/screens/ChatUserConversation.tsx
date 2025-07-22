@@ -8,7 +8,6 @@ import {
     selectMatrixDirectMessageRoom,
     sendMatrixDirectMessage,
 } from '@fedi/common/redux'
-import { ChatType } from '@fedi/common/types'
 
 import MessageInput from '../components/feature/chat/MessageInput'
 import NoMessagesNotice from '../components/feature/chat/NoMessagesNotice'
@@ -53,16 +52,9 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
     const handleSend = useCallback(
         async (body: string) => {
             setIsSending(true)
-            const res = await dispatch(
-                sendMatrixDirectMessage({ userId, body }),
-            ).unwrap()
-            navigationReplace('ChatRoomConversation', {
-                roomId: res.roomId,
-                chatType: ChatType.direct,
-            })
-            setIsSending(false)
+            dispatch(sendMatrixDirectMessage({ userId, body }))
         },
-        [dispatch, navigationReplace, userId, setIsSending],
+        [dispatch, userId],
     )
 
     return (

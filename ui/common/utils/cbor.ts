@@ -1,5 +1,6 @@
 // ref: https://github.com/hildjj/node-cbor/blob/1967cd4540e9aab60093fcd711cd97edee542043/packages/cbor/lib/cbor.js
 if (typeof TextDecoder === 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('fast-text-encoding')
 }
 

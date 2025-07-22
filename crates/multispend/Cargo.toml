@@ -1,0 +1,23 @@
+[package]
+name = "multispend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+bitcoin = { workspace = true }
+fedimint-core = { workspace = true }
+futures = { workspace = true }
+matrix-sdk = { workspace = true }
+rand = { workspace = true }
+rpc-types = { path = "../rpc-types" }
+runtime = { path = "../runtime" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+stability-pool-client = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+ts-rs = "10"

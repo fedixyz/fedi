@@ -105,7 +105,11 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                             </View>
                         )}
                         <Flex gap="xs">
-                            <Text bold caption>
+                            <Text
+                                bold
+                                caption
+                                maxFontSizeMultiplier={1.5}
+                                numberOfLines={1}>
                                 {
                                     multispendStatus.finalized_group.invitation
                                         .federationName
@@ -115,6 +119,8 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                 <Text
                                     medium
                                     caption
+                                    maxFontSizeMultiplier={1.5}
+                                    numberOfLines={1}
                                     color={theme.colors.darkGrey}>
                                     {formattedStableBalance}
                                 </Text>
@@ -126,6 +132,7 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                         <View style={style.tooltipContent}>
                                             <Text
                                                 caption
+                                                maxFontSizeMultiplier={1}
                                                 style={style.tooltipText}>
                                                 <Trans
                                                     i18nKey="feature.multispend.stable-balance-info"
@@ -151,8 +158,11 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                     closeOnlyOnBackdropPress
                                     withOverlay
                                     overlayColor={theme.colors.overlay}
-                                    width={178}
-                                    height={52}
+                                    // This size handles 2-3 lines of text
+                                    // which covers all languages, assuming
+                                    // scaling is disabled via maxFontSizeMultiplier
+                                    width={200}
+                                    height={75}
                                     backgroundColor={theme.colors.blue100}>
                                     <SvgImage name="Info" size={12} />
                                 </Tooltip>
@@ -176,7 +186,9 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                 contents={{
                     icon: 'Info',
                     title: (
-                        <Text bold>{t('phrases.insufficient-balance')}</Text>
+                        <Text bold maxFontSizeMultiplier={1}>
+                            {t('phrases.insufficient-balance')}
+                        </Text>
                     ),
                     description: t('feature.multispend.topup-stable-balance'),
                     buttons: [
@@ -211,7 +223,12 @@ function StableBalanceLink({
     const style = styles(theme)
 
     return (
-        <Text bold caption style={style.stableBalanceLink} onPress={onPress}>
+        <Text
+            bold
+            caption
+            style={style.stableBalanceLink}
+            onPress={onPress}
+            maxFontSizeMultiplier={1}>
             {children}
         </Text>
     )
@@ -229,6 +246,7 @@ export const styles = (theme: Theme) =>
             alignSelf: 'center',
             borderRadius: 12,
             minWidth: 200,
+            height: '100%',
         },
         stableBalanceLink: {
             color: theme.colors.primary,
@@ -244,6 +262,7 @@ export const styles = (theme: Theme) =>
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'center',
         },
         tooltipText: {
             textAlign: 'center',

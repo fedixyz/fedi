@@ -1,5 +1,7 @@
 import { ThemeProvider } from '@rneui/themed'
 import { useEffect } from 'react'
+import { StyleSheet } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { Provider as ReduxProvider } from 'react-redux'
 
@@ -45,27 +47,36 @@ const App = () => {
     }, [])
 
     return (
-        <SafeAreaProvider>
-            <ThemeProvider theme={theme}>
-                <ErrorBoundary fallback={props => <ErrorScreen {...props} />}>
-                    <ReduxProvider store={store}>
-                        <FediBridgeInitializer>
-                            <ProviderComposer
-                                providers={[
-                                    BackupRecoveryProvider,
-                                    OmniLinkContextProvider,
-                                    PinContextProvider,
-                                    NotificationContextProvider,
-                                ]}>
-                                {<Router />}
-                                <InternetIsUnreachableBadge />
-                            </ProviderComposer>
-                        </FediBridgeInitializer>
-                    </ReduxProvider>
-                </ErrorBoundary>
-            </ThemeProvider>
-        </SafeAreaProvider>
+        <GestureHandlerRootView style={styles.container}>
+            <SafeAreaProvider>
+                <ThemeProvider theme={theme}>
+                    <ErrorBoundary
+                        fallback={props => <ErrorScreen {...props} />}>
+                        <ReduxProvider store={store}>
+                            <FediBridgeInitializer>
+                                <ProviderComposer
+                                    providers={[
+                                        BackupRecoveryProvider,
+                                        OmniLinkContextProvider,
+                                        PinContextProvider,
+                                        NotificationContextProvider,
+                                    ]}>
+                                    {<Router />}
+                                    <InternetIsUnreachableBadge />
+                                </ProviderComposer>
+                            </FediBridgeInitializer>
+                        </ReduxProvider>
+                    </ErrorBoundary>
+                </ThemeProvider>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
     )
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+})
 
 export default App

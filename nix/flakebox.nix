@@ -6,6 +6,7 @@
   replaceGitHash,
   profiles,
   craneMultiBuild,
+  androidSdk,
 }:
 let
   system = pkgs.system;
@@ -126,7 +127,6 @@ in
         nativeBuildInputs =
           (builtins.attrValues {
             inherit (pkgs)
-              mold
               pkg-config
               parallel
               time
@@ -135,6 +135,9 @@ in
             inherit (pkgs) perl;
             inherit moreutils-ts;
           })
+          ++ lib.optionals pkgs.stdenv.isLinux [
+            pkgs.mold
+          ]
           ++ [
             (lib.hiPrio pkgs.cargo-deluxe)
 
@@ -336,6 +339,69 @@ in
       ];
     };
 
+    fedi-android-bridge-libs-depsOnly = toolchains."all".craneLib.buildDepsOnly {
+      pname = "fedi-android-bridge-libs-deps";
+      version = "0.1.0";
+
+      src = rustSrc;
+
+      nativeBuildInputs = commonArgs.nativeBuildInputs;
+
+      # Set up Android environment variables
+      ANDROID_SDK_ROOT = "${androidSdk}/share/android-sdk";
+      FEDIMINT_BUILD_FORCE_GIT_HASH = gitHashPlaceholderValue;
+
+      buildPhaseCargoCommand = ''
+
+        mkdir -p scripts/bridge
+        cp ${../scripts/bridge/build-bridge-android-libs.sh} ./scripts/bridge/build-bridge-android-libs.sh
+        cp ${../scripts/common.sh} ./scripts/common.sh
+        patchShebangs ./scripts
+
+        export REPO_ROOT=$(pwd)
+        export HOME=$(pwd)
+
+        env FM_BUILD_BRIDGE_ANDROID_LIBS_DEPS_ONLY=1 \
+          ./scripts/bridge/build-bridge-android-libs.sh
+      '';
+    };
+
+    fedi-android-bridge-libs-raw = toolchains."all".craneLib.mkCargoDerivation (
+      {
+        pname = "fedi-android-bridge-libs";
+        version = "0.1.0";
+        cargoArtifacts = fedi-android-bridge-libs-depsOnly;
+        doInstallCargoArtifacts = false;
+
+        src = rustSrc;
+
+        nativeBuildInputs = commonArgs.nativeBuildInputs;
+
+        # Set up Android environment variables
+        ANDROID_SDK_ROOT = "${androidSdk}/share/android-sdk";
+        FEDIMINT_BUILD_FORCE_GIT_HASH = gitHashPlaceholderValue;
+
+        buildPhaseCargoCommand = ''
+          mkdir -p scripts/bridge
+          cp ${../scripts/bridge/build-bridge-android-libs.sh} ./scripts/bridge/build-bridge-android-libs.sh
+          cp ${../scripts/common.sh} ./scripts/common.sh
+          patchShebangs ./scripts
+
+          export REPO_ROOT=$(pwd)
+          export HOME=$(pwd)
+
+          env FM_BUILD_BRIDGE_ANDROID_LIBS_OUT=$out/share/fedi-android/ \
+            ./scripts/bridge/build-bridge-android-libs.sh
+        '';
+      }
+      // commonEnvsShell
+    );
+
+    fedi-android-bridge-libs = replaceGitHash {
+      name = "fedi-android-bridge-libs";
+      package = fedi-android-bridge-libs-raw;
+    };
+
     testStabilityPool = craneLib.buildCommand (
       commonTestArgs
       // {
@@ -421,6 +487,8 @@ in
             pkgs.bash
             pkgs.coreutils
             pkgs.busybox
+            pkgs.cacert
+            (pkgs.lib.hiPrio pkgs.gnutar)
             pkgs.curl
             pkgs.rsync
           ];
@@ -450,6 +518,8 @@ in
             pkgs.bash
             pkgs.coreutils
             pkgs.busybox
+            pkgs.cacert
+            (pkgs.lib.hiPrio pkgs.gnutar)
             pkgs.curl
             pkgs.rsync
           ];

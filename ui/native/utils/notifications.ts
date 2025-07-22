@@ -4,12 +4,14 @@ import notifee, {
     NotificationAndroid,
     type NotificationIOS,
     AndroidGroupAlertBehavior,
+    Notification,
 } from '@notifee/react-native'
 import messaging, {
     FirebaseMessagingTypes,
 } from '@react-native-firebase/messaging'
 import { TFunction } from 'i18next'
-import { Appearance, Linking } from 'react-native'
+import { ResultAsync } from 'neverthrow'
+import { Appearance, Linking, Platform } from 'react-native'
 import DeviceInfo from 'react-native-device-info'
 import * as Zendesk from 'react-native-zendesk-messaging'
 import { v4 as uuidv4 } from 'uuid'
@@ -20,6 +22,7 @@ import {
     configureMatrixPushNotifications,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { makeError } from '@fedi/common/utils/errors'
 import { makeLog } from '@fedi/common/utils/log'
 import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 import { getTxnDirection } from '@fedi/common/utils/wallet'
@@ -217,10 +220,11 @@ export const displayPaymentReceivedNotification = async (
 }
 
 export const displayMessageReceivedNotification = async (
-    data: any,
+    // TODO: make stronger type for this
+    data: FirebaseMessagingTypes.RemoteMessage['data'],
     t: TFunction,
 ) => {
-    if (!data.room_id) return null
+    if (!data?.room_id) return null
 
     /*
      * TODO:
@@ -234,7 +238,7 @@ export const displayMessageReceivedNotification = async (
     // sent messages so it is just confusing to show "You have 1 new message"
     // when really there could be more. Just make it generic for now
     const body = t('feature.notifications.new-messages')
-    const link = encodeFediMatrixRoomUri(data.room_id, true)
+    const link = encodeFediMatrixRoomUri(data.room_id as string, true)
 
     const uniqueId = `chat-${uuidv4()}`
 
@@ -274,7 +278,7 @@ type NotificationData = {
     type?: NOTIFICATION_TYPE
 
     // todo: type inner data?
-    data?: any
+    data?: Record<string, unknown>
 }
 export const getNotificationBackgroundColor = () => {
     const colorScheme = Appearance.getColorScheme() // 'light' | 'dark' | null
@@ -330,6 +334,7 @@ export const displayAnnouncement = async (
         },
     )
 }
+
 export const dispatchNotification = async (
     id: string,
     channelId: string,
@@ -337,84 +342,119 @@ export const dispatchNotification = async (
     body: string,
     data: NotificationData,
     params: { android?: NotificationAndroid; ios?: NotificationIOS } = {},
-) => {
-    try {
-        log.debug('dispatchNotification', { id, channelId, type: data.type })
-
-        await notifee.incrementBadgeCount()
-        const currentBadgeCount = await notifee.getBadgeCount()
-        log.debug('notification badge-count', currentBadgeCount)
-
-        const androidParams: NotificationAndroid = {
-            channelId,
-            badgeCount: currentBadgeCount,
-            pressAction: {
+): Promise<void> => {
+    const result = await ResultAsync.fromPromise(
+        (async () => {
+            log.debug('dispatchNotification', {
                 id,
-                launchActivity: 'default',
-                ...params.android?.pressAction,
-            },
-            autoCancel: true,
-            onlyAlertOnce: false,
-            smallIcon: 'ic_stat_notification',
-            color: getNotificationBackgroundColor(),
-            ...params.android,
-        }
+                channelId,
+                type: data.type,
+            })
 
-        const groupId = data.type ? GROUP_IDS[data.type] : undefined
-        if (groupId) {
-            androidParams.groupId = groupId
-            androidParams.groupAlertBehavior = AndroidGroupAlertBehavior.SUMMARY
-            log.debug('notification groupId', groupId)
-        }
+            await notifee.incrementBadgeCount()
+            const currentBadgeCount = await notifee.getBadgeCount()
+            log.debug('notification badge-count', currentBadgeCount)
 
-        await notifee.displayNotification({
-            id,
-            title,
-            body,
-            data,
-            android: androidParams,
-            ios: {
-                ...params.ios,
-                badgeCount: currentBadgeCount,
-                sound: 'default',
-                foregroundPresentationOptions: {
-                    alert: true,
-                    badge: true,
-                    sound: true,
-                },
-            },
-        })
-        log.info('displayed notification child', id)
+            // optional group id (android only)
+            const groupId = data.type ? GROUP_IDS[data.type] : undefined
 
-        if (groupId) {
-            await notifee.displayNotification({
-                id: `${groupId}-summary`,
-                title,
-                body,
-                android: {
+            if (Platform.OS === 'android') {
+                const androidParams: NotificationAndroid = {
                     channelId,
-                    groupId,
-                    groupSummary: true,
+                    badgeCount: currentBadgeCount,
+                    pressAction: {
+                        id,
+                        launchActivity: 'default',
+                        ...params.android?.pressAction,
+                    },
+                    autoCancel: true,
+                    onlyAlertOnce: false,
                     smallIcon: 'ic_stat_notification',
                     color: getNotificationBackgroundColor(),
-                    groupAlertBehavior: AndroidGroupAlertBehavior.SUMMARY,
-                    pressAction: { id: 'default', launchActivity: 'default' },
-                },
-            })
-            log.info('updated notification summary', `${groupId}-summary`)
-        }
+                    ...(groupId
+                        ? {
+                              groupId,
+                              groupAlertBehavior:
+                                  AndroidGroupAlertBehavior.SUMMARY,
+                          }
+                        : {}),
+                    ...params.android,
+                }
 
-        log.info(`badge count ${currentBadgeCount}`)
-    } catch (e) {
-        log.error('Failed to display notification', e)
+                // child notification
+                await notifee.displayNotification({
+                    id,
+                    title,
+                    body,
+                    data,
+                    android: androidParams,
+                })
+                log.info('displayed notification (android child)', id)
+
+                // summary notification
+                if (groupId) {
+                    await notifee.displayNotification({
+                        id: `${groupId}-summary`,
+                        title,
+                        body,
+                        android: {
+                            channelId,
+                            groupId,
+                            groupSummary: true,
+                            smallIcon: 'ic_stat_notification',
+                            color: getNotificationBackgroundColor(),
+                            groupAlertBehavior:
+                                AndroidGroupAlertBehavior.SUMMARY,
+                            pressAction: {
+                                id: 'default',
+                                launchActivity: 'default',
+                            },
+                        },
+                    })
+                    log.info(
+                        'updated notification summary',
+                        `${groupId}-summary`,
+                    )
+                }
+            } else {
+                await notifee.displayNotification({
+                    id,
+                    title,
+                    body,
+                    data,
+                    ios: {
+                        ...params.ios,
+                        badgeCount: currentBadgeCount,
+                        sound: 'default',
+                        foregroundPresentationOptions: {
+                            alert: true,
+                            badge: true,
+                            sound: true,
+                        },
+                    },
+                })
+                log.info('displayed notification (ios)', id)
+            }
+
+            log.info(`badge count ${currentBadgeCount}`)
+        })(),
+        e => {
+            log.error('Failed to display notification', e)
+            return makeError(e, 'GenericError')
+        },
+    )
+
+    if (result.isErr()) {
+        return
     }
 }
 
 /**
- * A replacement for the unreliable 'Zendesk.handleNotification(data' that detects whether a notification payload is from zendesk or not, that has stopped working since
- * we bumped zendeskSdkVersion = "2.18.0" as there was a bug affecting the back button, explained in isssue: #6519 - in build.gradle. 'handleNotification' no longer works in this older version
+ * A replacement for the unreliable 'Zendesk.handleNotification(data' that detects whether a notification payload is from zendesk or not
  **/
-export async function isZendeskNotification(data: any): Promise<boolean> {
+export async function isZendeskNotification(
+    data: Notification['data'],
+): Promise<boolean> {
     if (!data) return false
 
     try {

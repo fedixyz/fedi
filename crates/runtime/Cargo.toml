@@ -26,7 +26,7 @@ serde_json = { workspace = true }
 rand = { workspace = true }
 bech32 = { workspace = true }
 bitcoin = { workspace = true }
-lightning-invoice = "0.32.0"
+lightning-invoice = "0.33.0"
 futures = "0.3"
 tracing = { workspace = true }
 thiserror = "2.0.8"
@@ -41,7 +41,8 @@ matrix-sdk = { workspace = true, default-features = false, features = [
   "rustls-tls",
   "e2e-encryption",
 ] }
-imbl = { version = "4", features = ["serde"] }
+imbl = { version = "5", features = ["serde"] }
 serde_with = "3.12.0"
-eyeball-im = "0.6"
+eyeball-im = "0.7"
 eyeball = "0.8.7"
+either = "1.15.0"

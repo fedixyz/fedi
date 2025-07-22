@@ -26,12 +26,8 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     const handleContinue = () => {
-        handleNewWallet(hasSetDisplayName => {
-            if (hasSetDisplayName) {
-                navigation.dispatch(reset('TabsNavigator'))
-            } else {
-                navigation.dispatch(reset('EnterDisplayName'))
-            }
+        handleNewWallet(() => {
+            navigation.dispatch(reset('TabsNavigator'))
         })
     }
 

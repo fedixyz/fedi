@@ -9,11 +9,13 @@ on:
 
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
+    schedule: # runs every day at 2 UTC
+        - cron: '0 2 * * *'
 
 jobs:
     build-run-e2e-tests:
         name: 'Build & run end-to-end tests (React Native: iOS + Android)'
-        runs-on: [self-hosted, macos, arm64]
+        runs-on: [self-hosted, macos, arm64, legacy]
         timeout-minutes: 200
         env:
             BUILD_ANDROID: 1
@@ -37,7 +39,7 @@ jobs:
               run: nix develop -L .#xcode --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/build-bridge-ios.sh
 
             - name: Build Android bridge artifacts
-              run: nix develop --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
+              run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci ./scripts/bridge/build-bridge-android.sh
 
             - name: Build UI dependencies
               run: nix develop -c ./scripts/ui/build-deps.sh
@@ -99,9 +101,9 @@ jobs:
                   appium driver install xcuitest
                 fi
                 if grep -q "uiautomator2" "$DRIVER_LIST_FILE"; then
-                  appium driver update uiautomator2 || echo "No updates available for uiautomator2 driver"
+                  appium driver uninstall uiautomator2 && appium driver install uiautomator2@4.0.0 || echo "Reinstalled uiautomator2@4.0.0"
                 else
-                  appium driver install uiautomator2
+                  appium driver install uiautomator2@4.0.0
                 fi
                 rm "$DRIVER_LIST_FILE"
                 echo "Final installed drivers:"
@@ -121,9 +123,9 @@ jobs:
                 echo $ANDROID_HOME
                 echo "Starting Android emulators..."
                 ANDROID_DEVICES=("emulator-5554" "emulator-5556")
-                ANDROID_VERSIONS=("7.1" "15")
+                ANDROID_VERSIONS=("7.1" "16")
                 $ANDROID_HOME/emulator/emulator -avd "android-7.1" -no-audio -no-boot-anim -no-window > emulator71.log 2>&1 & echo $! >> android_emulator_pids.txt
-                $ANDROID_HOME/emulator/emulator -avd "android-15" -no-audio -no-boot-anim -no-window > emulator15.log 2>&1 & echo $! >> android_emulator_pids.txt
+                $ANDROID_HOME/emulator/emulator -avd "android-16" -no-audio -no-boot-anim -no-window > emulator16.log 2>&1 & echo $! >> android_emulator_pids.txt
                 sleep 10
                 echo "Emulator processes:"
                 ps aux | grep emulator
@@ -149,7 +151,7 @@ jobs:
                 echo "All Android emulators started (or timed out)"
                 adb devices
                 echo "Checking logs"
-                cat emulator15.log
+                cat emulator16.log
                 cat emulator71.log
                 cat android_emulator_pids.txt
 
@@ -179,7 +181,6 @@ jobs:
                 cat metro.log
 
             - name: Run Android 7.1 tests
-              continue-on-error: true
               run: |
                 export ANDROID_HOME=~/Library/Android/sdk
                 export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools
@@ -195,10 +196,9 @@ jobs:
                 echo "status=$?" >> $GITHUB_OUTPUT
                 popd
 
-            - name: Run Android 15 tests
-              continue-on-error: true
+            - name: Run Android 16 tests
               run: |
-                echo "Running tests on Android 15 (Device ID: emulator-5556)"
+                echo "Running tests on Android 16 (Device ID: emulator-5556)"
                 pushd ui
                 if adb -s emulator-5556 shell pm list packages | grep -q "package:com.fedi"; then
                   adb -s emulator-5556 uninstall com.fedi
@@ -211,7 +211,6 @@ jobs:
                 popd
 
             - name: Run iOS 15 tests
-              continue-on-error: true
               run: |
                 echo "Running tests on iOS 15 (Device ID: $IOS_15_UDID)"
                 pushd ui
@@ -222,7 +221,6 @@ jobs:
                 popd
 
             - name: Run iOS 18 tests
-              continue-on-error: true
               run: |
                 echo "Running tests on iOS 18 (Device ID: $IOS_18_UDID)"
                 pushd ui
@@ -232,49 +230,54 @@ jobs:
                 echo "status=$?" >> $GITHUB_OUTPUT
                 popd
 
-    cleanup-environment:
-        needs: [build-run-e2e-tests]
-        runs-on: [self-hosted, macos, arm64]
-        if: always()
-        steps:
-          - name: Stop Android emulators
-            continue-on-error: true
-            run: |
-              if [ -f "android_emulator_pids.txt" ]; then
-                while IFS=: read -r device_id pid; do
-                  echo "Stopping Android emulator $device_id (PID: $pid)"
-                  kill -9 $pid || true
-                done < "android_emulator_pids.txt"
-              fi
+            - name: Upload logs & screenshots
+              uses: actions/upload-artifact@v4
+              if: ${{ always() }}
+              with:
+                name: logs
+                path: |
+                  ./*.log
+                  ./**/screenshots/*.png
 
-              pkill -9 qemu-system-x86_64 || true
-              adb devices
+            - name: Stop Android emulators
+              continue-on-error: true
+              if: ${{ always() }}
+              run: |
+                if [ -f "android_emulator_pids.txt" ]; then
+                  while IFS=: read -r device_id pid; do
+                    echo "Stopping Android emulator $device_id (PID: $pid)"
+                    kill -9 $pid || true
+                  done < "android_emulator_pids.txt"
+                fi
+                pkill -9 qemu-system-x86_64 || true
+                adb devices
 
-          - name: Stop iOS simulators
-            continue-on-error: true
-            run: |
-              echo "Shutting down all iOS simulators"
-              xcrun simctl shutdown all
+            - name: Stop iOS simulators
+              continue-on-error: true
+              if: ${{ always() }}
+              run: |
+                echo "Shutting down all iOS simulators"
+                xcrun simctl shutdown all
+                pkill -9 Simulator || true
+                xcrun simctl list devices | grep "Booted" || echo "No simulators running"
 
-              pkill -9 Simulator || true
-              xcrun simctl list devices | grep "Booted" || echo "No simulators running"
+            - name: Stop Appium server
+              continue-on-error: true
+              if: ${{ always() }}
+              run: |
+                if [ -f "appium_pid.txt" ]; then
+                  APPIUM_PID=$(cat appium_pid.txt)
+                  echo "Stopping Appium server (PID: $APPIUM_PID)"
+                  kill -9 $APPIUM_PID || true
+                fi
+                pkill -9 -f appium || true
 
-          - name: Stop Appium server
-            continue-on-error: true
-            run: |
-              if [ -f "appium_pid.txt" ]; then
-                APPIUM_PID=$(cat appium_pid.txt)
-                echo "Stopping Appium server (PID: $APPIUM_PID)"
-                kill -9 $APPIUM_PID || true
-              fi
-
-              pkill -9 -f appium || true
-
-          - name: Stop Metro server
-            run: |
-              if [ -f "metro_pid.txt" ]; then
-                METRO_PID=$(cat metro_pid.txt)
-                echo "Stopping Metro server (PID: $METRO_PID)"
-                kill -9 $METRO_PID || true
-              fi
-              pkill -9 -f node || true
+            - name: Stop Metro server
+              if: ${{ always() }}
+              run: |
+                if [ -f "metro_pid.txt" ]; then
+                  METRO_PID=$(cat metro_pid.txt)
+                  echo "Stopping Metro server (PID: $METRO_PID)"
+                  kill -9 $METRO_PID || true
+                fi
+                pkill -9 -f node || true

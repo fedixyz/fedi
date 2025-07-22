@@ -2,9 +2,10 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import { useIsInternetUnreachable } from '@fedi/common/hooks/environment'
+import { selectIsInternetUnreachable } from '@fedi/common/redux'
 import { FederationStatus } from '@fedi/common/types'
 
+import { useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 import { ConnectionTag } from './ConnectionTag'
 
@@ -18,32 +19,31 @@ const ConnectionStatusCard = ({ status, hideArrow = false }: Props) => {
     const style = styles(theme)
     const { t } = useTranslation()
     const caption = t(`feature.federations.connection-status-${status}`)
-    const isInternetUnreachable = useIsInternetUnreachable()
+    const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     return (
         <Flex center gap="md" style={style.card}>
-            {isInternetUnreachable && (
+            {isOffline && (
                 <Text caption medium style={style.caption}>
                     {t('feature.federations.last-known-status')}
                 </Text>
             )}
             <ConnectionTag status={status} size="large" hideArrow={hideArrow} />
-            {!isInternetUnreachable && (
-                <Text
-                    caption
-                    medium
-                    style={style.caption}
-                    maxFontSizeMultiplier={1.2}>
-                    {caption}
-                </Text>
-            )}
-            {isInternetUnreachable && (
+            {isOffline ? (
                 <Text
                     caption
                     medium
                     style={style.lastKnownStatus}
                     maxFontSizeMultiplier={1.2}>
                     {t('feature.federations.please-reconnect')}
+                </Text>
+            ) : (
+                <Text
+                    caption
+                    medium
+                    style={style.caption}
+                    maxFontSizeMultiplier={1.2}>
+                    {caption}
                 </Text>
             )}
         </Flex>

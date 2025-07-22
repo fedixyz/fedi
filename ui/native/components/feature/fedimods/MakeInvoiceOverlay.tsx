@@ -94,6 +94,12 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                       lnurlWithdrawal,
                       msats,
                       memo,
+                  ).match(
+                      ok => ok,
+                      e => {
+                          // TODO: do not throw
+                          throw e
+                      },
                   )
                 : await dispatch(
                       generateInvoice({

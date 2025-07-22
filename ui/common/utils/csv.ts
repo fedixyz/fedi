@@ -14,6 +14,7 @@ import {
     MatrixRoomMember,
     MatrixUser,
 } from '../types'
+import { RpcTransactionListEntry } from '../types/bindings'
 import amountUtils, { FIAT_MAX_DECIMAL_PLACES } from './AmountUtils'
 import { findUserDisplayName } from './matrix'
 import {
@@ -39,8 +40,11 @@ export function makeTransactionHistoryCSV(
     ) => FormattedAmounts,
     t: TFunction,
 ): string {
+    // Create a separate line item for the deposit for refunded ecash payments
+    const separatedTxns = extractDepositsFromRefunds(txs)
+
     // Sort transactions by createdAt ascending
-    const sortedTxs = txs.sort((a, b) => a.createdAt - b.createdAt)
+    const sortedTxs = separatedTxns.sort((a, b) => a.createdAt - b.createdAt)
 
     return makeCSV(sortedTxs, [
         {
@@ -92,6 +96,38 @@ export function makeTransactionHistoryCSV(
             getValue: tx => makeTxnStatusText(t, tx),
         },
     ])
+}
+
+function extractDepositsFromRefunds(txs: TransactionListEntry[]) {
+    return txs.flatMap(tx => {
+        // Separate the refunded ecash payment from the ecash send
+        if (
+            tx.kind === 'oobSend' &&
+            (tx.state?.type === 'refunded' ||
+                tx.state?.type === 'userCanceledSuccess')
+        ) {
+            return [
+                {
+                    ...tx,
+                    kind: 'oobSend',
+                    state: {
+                        type: 'success',
+                    },
+                },
+                {
+                    ...tx,
+                    kind: 'oobSend',
+                    // Outcome time tells us when the payment was refunded
+                    createdAt: tx.outcomeTime ?? tx.createdAt,
+                    state: {
+                        type: 'refunded',
+                    },
+                },
+            ] satisfies RpcTransactionListEntry[]
+        } else {
+            return [tx]
+        }
+    })
 }
 
 /**

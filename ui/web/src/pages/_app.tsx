@@ -12,7 +12,9 @@ import { FediBridgeInitializer } from '../components/FediBridgeInitializer'
 import { PWAMetaTags } from '../components/PWAMetaTags'
 import { Template } from '../components/Template'
 import { ToastManager } from '../components/ToastManager'
+import { InstallPromptProvider } from '../context/InstallPromptContext'
 import { RouteStateProvider } from '../context/RouteStateContext'
+import { useInstallPrompt } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { initializeWebStore, store } from '../state/store'
 import { globalStyles } from '../styles'
@@ -20,6 +22,9 @@ import { logFileApi } from '../utils/logfile'
 
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
     globalStyles()
+
+    // Need to listen to beforeinstallpromptevent at this level or it will be missed
+    const deferredPrompt = useInstallPrompt()
 
     // Initialize redux store behavior
     useEffect(() => {
@@ -49,12 +54,14 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
             <PWAMetaTags />
             <ReduxProvider store={store}>
                 <RouteStateProvider>
-                    <FediBridgeInitializer>
-                        <Template>
-                            <Component {...pageProps} />
-                        </Template>
-                        <ToastManager />
-                    </FediBridgeInitializer>
+                    <InstallPromptProvider value={deferredPrompt}>
+                        <FediBridgeInitializer>
+                            <Template>
+                                <Component {...pageProps} />
+                            </Template>
+                            <ToastManager />
+                        </FediBridgeInitializer>
+                    </InstallPromptProvider>
                 </RouteStateProvider>
             </ReduxProvider>
         </>

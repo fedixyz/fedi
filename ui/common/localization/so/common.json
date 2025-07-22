@@ -41,7 +41,7 @@
         "depositor": "Dhigaaliyaha",
         "details": "Faahfaahin ",
         "discover": "Soo ogow",
-        "done": "La sameeyay ",
+        "done": "Dhamaaday",
         "download": "Download",
         "ecash": "eCash",
         "edit": "Tafatir tan",
@@ -118,7 +118,7 @@
         "skip": "Ka Bod",
         "status": "Darajo",
         "stay": "Joog",
-        "submit": "Soo Dir",
+        "submit": "Gudbi",
         "time": "Waqti",
         "title": "Cinwaanka",
         "to": "Ila",
@@ -176,7 +176,7 @@
         "federation-default": "Dejinta caadiga ah ee Federaalka",
         "federation-fee": "Kharashka uu qaato Federaalku",
         "fedi-app-terms-of-service": "Shuruudaha Adeegga ee Fedi App",
-        "fedi-fee": "Faahfaahinta Fedi",
+        "fedi-fee": "Faahfaahinta Fedi iyo Fedareeshinka",
         "fee-details": "Faahfaahinta khidmadda",
         "filter-by": "Ku shaandhee: {{label}}",
         "go-back": "Ku noqo",
@@ -359,11 +359,11 @@
             "info-label": "U dir Ururka iyo Magaca isticmaalaha oo wata warbixinta bug",
             "report-a-bug": "Ka warbixi cilad",
             "screenshot-label": "Soo rar sawir-qaadista ama duubista",
-            "submit-generating-data": "Soo saarista xogta warbixinta...",
-            "submit-submitting-report": "Gudbinta warbixinta...",
-            "submit-uploading-data": "Soo dejinta xogta warbixinta...",
-            "success-subtitle": "Waxaan aadi doonaa shaqada 🤝",
-            "success-title": "Waad ku mahadsan tahay wadaagida diiwaankaaga!"
+            "submit-generating-data": "Soo saaraya xogta warbixinta...",
+            "submit-submitting-report": "Warbixinta ayaa la gudbinayaa...",
+            "submit-uploading-data": "Xogta warbixinta ayaa la gelinayaa...",
+            "success-subtitle": "Waxaan bilaabi doonaa shaqada 🤝",
+            "success-title": "Waad ku mahadsan tahay inaad la wadaagtay logs!"
         },
         "chat": {
             "add-a-photo": "Ku dar sawir",
@@ -1090,7 +1090,7 @@
             "you-withdrew": "Waad ka baxsatay"
         },
         "support": {
-            "effective-support-1a": "Markaad sii waddo, waxaad oggolaatay in Fedi ururin karto xog gaar ah ",
+            "effective-support-1a": "Markaad sii waddo, waxaad oggolaatay in Fedi ururin karto gaar ah ",
             "effective-support-1b": " si aan ku siino taageerada ugu wanaagsan ee aan awoodno.",
             "effective-support-2a": " Ma dooneysaa inaadan la wadaagin? Dhib malahan! Had iyo jeer waad booqan kartaa ",
             "effective-support-2b": " si aad wax badan uga barato Fedi.",
@@ -1104,7 +1104,7 @@
             "open-chat": "Fur sheekada",
             "permssion-granted": "Xarunta Caawinta",
             "privacy-policy": "Siyaasadda Qarsoonnimada",
-            "support-ticket-number": "Lambarkaaga Tigidhka Taageerada",
+            "support-ticket-number": "Lambarkaaga Tigidhka ee Taageerada",
             "title": "Weydii Fedi",
             "zendesk-initialization-failed": "Ma aanan awoodeyn in aan la xiriiro Weydii Fedi. Fadlan hubi internet-kaaga oo mar kale isku day."
         },

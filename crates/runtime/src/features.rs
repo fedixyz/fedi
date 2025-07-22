@@ -1,3 +1,4 @@
+use reqwest::Url;
 use serde::Serialize;
 use ts_rs::TS;
 
@@ -18,7 +19,7 @@ use ts_rs::TS;
 /// be turned on for the "Staging" environment so that internally it can be
 /// tested. Finally, when the feature is considered stable, it will also be
 /// turned on for the "Prod" environment.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TS, Serialize)]
 pub enum RuntimeEnvironment {
     Dev,
     Staging,
@@ -42,6 +43,9 @@ pub enum RuntimeEnvironment {
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
 pub struct FeatureCatalog {
+    #[serde(skip)]
+    pub runtime_env: RuntimeEnvironment,
+
     /// "Encrypted sync" feature is the Fedi app using a remote server to store,
     /// retrieve, and manipulate data that's necessary for a smooth user
     /// experience. This data can be seed-level, such as matrix server URL,
@@ -71,6 +75,12 @@ pub struct FeatureCatalog {
     /// the federation's module availability determines the availability of
     /// the feature.
     pub stability_pool_v2: Option<StabilityPoolV2FeatureConfig>,
+
+    /// Enable Nostr client for Rate federation feature.
+    ///
+    /// This allows relays to be configured using a remote feature flag service
+    /// in future.
+    pub nostr_client: Option<NostrClientFeatureCatalog>,
     /// figure out stable format for account id, that includes the federation id
     /// prefix
     pub spv2_stable_account_id: bool,
@@ -92,6 +102,13 @@ pub struct StabilityPoolV2FeatureConfig {
     pub state: StabilityPoolV2FeatureConfigState,
 }
 
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct NostrClientFeatureCatalog {
+    #[ts(type = "Array<string>")]
+    pub relays: Vec<Url>,
+}
+
 #[derive(Debug, Clone, TS, Serialize, PartialEq, Eq)]
 #[ts(export)]
 pub enum StabilityPoolV2FeatureConfigState {
@@ -110,6 +127,7 @@ impl FeatureCatalog {
 
     fn new_dev() -> Self {
         Self {
+            runtime_env: RuntimeEnvironment::Dev,
             encrypted_sync: Some(EncryptedSyncFeatureConfig {
                 server_url: "https://prod-kv-store.dev.fedibtc.com/".to_string(),
             }),
@@ -117,28 +135,35 @@ impl FeatureCatalog {
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
                 state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
+            nostr_client: Some(NostrClientFeatureCatalog {
+                relays: vec![Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap()],
+            }),
             spv2_stable_account_id: true,
         }
     }
 
     fn new_staging() -> Self {
         Self {
+            runtime_env: RuntimeEnvironment::Staging,
             encrypted_sync: None,
             override_localhost: None,
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
                 state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
+            nostr_client: None,
             spv2_stable_account_id: false,
         }
     }
 
     fn new_prod() -> Self {
         Self {
+            runtime_env: RuntimeEnvironment::Prod,
             encrypted_sync: None,
             override_localhost: None,
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
                 state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
+            nostr_client: None,
             spv2_stable_account_id: false,
         }
     }

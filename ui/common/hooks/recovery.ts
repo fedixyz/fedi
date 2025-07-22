@@ -4,19 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
     createNewWallet,
-    initializeNostrKeys,
-    recoverFromMnemonic,
+    restoreMnemonic,
     cancelSocialRecovery as reduxCancelSocialRecovery,
     completeSocialRecovery as reduxCompleteSocialRecovery,
     fetchSocialRecovery as reduxFetchSocialRecovery,
     refreshSocialRecoveryState,
     selectHasCheckedForSocialRecovery,
-    selectHasSetMatrixDisplayName,
     selectRegisteredDevices,
     selectSocialRecoveryQr,
     selectSocialRecoveryState,
-    startMatrixClient,
     transferExistingWallet,
+    refreshOnboardingStatus,
+    setDeviceIndexRequired,
 } from '../redux'
 import { SeedWords } from '../types'
 import { RpcRegisteredDevice } from '../types/bindings'
@@ -94,22 +93,12 @@ export function usePersonalRecovery(t: TFunction, fedimint: FedimintBridge) {
             setRecoveryInProgress(true)
             try {
                 await dispatch(
-                    recoverFromMnemonic({
+                    restoreMnemonic({
                         fedimint,
                         mnemonic: seedWords,
                     }),
                 ).unwrap()
-
-                // this should be the first time we start the matrix client
-                // for an initial registration if this is the 1st time using global chat
-                // or an initial login if the user has already set their display name
-                await dispatch(startMatrixClient({ fedimint })).unwrap()
-                // this is called already on initial app load with a fresh seed
-                // but after recovery the nostr keys will be different so we need
-                // to force a refresh of the new keys
-                await dispatch(
-                    initializeNostrKeys({ fedimint, forceRefresh: true }),
-                ).unwrap()
+                await dispatch(refreshOnboardingStatus(fedimint))
 
                 onSuccess()
             } catch (err) {
@@ -130,12 +119,12 @@ export function usePersonalRecovery(t: TFunction, fedimint: FedimintBridge) {
 export function useDeviceRegistration(t: TFunction, fedimint: FedimintBridge) {
     const toast = useToast()
     const dispatch = useCommonDispatch()
-    const hasSetDisplayName = useCommonSelector(selectHasSetMatrixDisplayName)
     const registeredDevices = useCommonSelector(selectRegisteredDevices)
     const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
+    // Feature is currently DISABLED in the UI.
     const handleNewWallet = useCallback(
-        async (onSuccess: (_: boolean) => void) => {
+        async (onSuccess: () => void) => {
             setIsProcessing(true)
             try {
                 const federation = await dispatch(
@@ -147,21 +136,18 @@ export function useDeviceRegistration(t: TFunction, fedimint: FedimintBridge) {
                 if (federation) {
                     // TODO: go to federation preview? or auto-join
                 }
-                onSuccess(hasSetDisplayName)
+                onSuccess()
             } catch (error) {
                 log.error('handleNewWallet', error)
                 toast.error(t, error)
             }
             setIsProcessing(false)
         },
-        [dispatch, fedimint, hasSetDisplayName, t, toast],
+        [dispatch, fedimint, t, toast],
     )
 
     const handleTransfer = useCallback(
-        async (
-            device: RpcRegisteredDevice,
-            onSuccess: (_: boolean) => void,
-        ) => {
+        async (device: RpcRegisteredDevice, onSuccess: () => void) => {
             setIsProcessing(true)
             try {
                 const federation = await dispatch(
@@ -173,15 +159,20 @@ export function useDeviceRegistration(t: TFunction, fedimint: FedimintBridge) {
                 if (federation) {
                     // TODO: go to federation preview? or auto-join
                 }
+                await dispatch(refreshOnboardingStatus(fedimint))
 
-                onSuccess(hasSetDisplayName)
+                // device transfer is complete, so we reset this state
+                await dispatch(setDeviceIndexRequired(false))
+
+                onSuccess()
             } catch (error) {
                 log.error('transferExistingWallet', error)
                 toast.error(t, error)
+            } finally {
+                setIsProcessing(false)
             }
-            setIsProcessing(false)
         },
-        [dispatch, fedimint, hasSetDisplayName, t, toast],
+        [dispatch, fedimint, t, toast],
     )
 
     const devicesSortedByTimestamp = useMemo(() => {

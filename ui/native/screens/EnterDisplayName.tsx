@@ -12,7 +12,6 @@ import {
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 
-import { fedimint } from '../bridge'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -35,7 +34,7 @@ const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
         errorMessage,
         handleChangeUsername,
         handleSubmitDisplayName,
-    } = useDisplayNameForm(t, fedimint)
+    } = useDisplayNameForm(t)
 
     // when the keyboard is opened and content layouts change, this effect
     // determines whether the Create username button is overlapping with

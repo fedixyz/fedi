@@ -23,7 +23,6 @@ import {
     selectActiveFederation,
     selectCurrency,
     selectFediModDebugMode,
-    selectHasSetMatrixDisplayName,
     selectIsActiveFederationRecovering,
     selectLanguage,
     selectMatrixAuth,
@@ -111,9 +110,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const nostrPublic = useAppSelector(selectNostrNpub)
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const member = useAppSelector(selectMatrixAuth)
-    const hasSetMatrixDisplayName = useAppSelector(
-        selectHasSetMatrixDisplayName,
-    )
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
     const fediModCacheEnabled = useAppSelector(selectFediModCacheEnabled)
     const fediModCacheMode = useAppSelector(selectFediModCacheMode)
@@ -369,9 +365,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
 
             return {
                 id: member.userId,
-                username: hasSetMatrixDisplayName
-                    ? member.displayName
-                    : 'member',
+                username: member.displayName,
             }
         },
         [InjectionMessageType.fedi_getActiveFederation]: async () => {

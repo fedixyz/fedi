@@ -141,6 +141,7 @@ import PopupFederationEnded from './PopupFederationEnded'
 import PublicFederations from './PublicFederations'
 import Receive from './Receive'
 import ReceiveLightning from './ReceiveLightning'
+import ReceiveLnurl from './ReceiveLnurl'
 import ReceiveSuccess from './ReceiveSuccess'
 import RecordBackupVideo from './RecordBackupVideo'
 import RecoverFromNonceReuse from './RecoverFromNonceReuse'
@@ -150,6 +151,7 @@ import RecoveryNewWallet from './RecoveryNewWallet'
 import RecoveryWalletOptions from './RecoveryWalletOptions'
 import RecoveryWalletTransfer from './RecoveryWalletTransfer'
 import RecoveryWords from './RecoveryWords'
+import RedeemLnurlWithdraw from './RedeemLnurlWithdraw'
 import ResetPin from './ResetPin'
 import ResetPinStart from './ResetPinStart'
 import RoomSettings from './RoomSettings'
@@ -741,6 +743,33 @@ export const MainNavigator = () => {
                                 component={ReceiveLightning}
                                 options={() => ({
                                     header: () => <ReceiveLightningHeader />,
+                                })}
+                            />
+                            <Stack.Screen
+                                name="ReceiveLnurl"
+                                component={ReceiveLnurl}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            closeButton
+                                            title={t('words.lnurl')}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="RedeemLnurlWithdraw"
+                                component={RedeemLnurlWithdraw}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.receive.redeem-lnurl-withdraw',
+                                            )}
+                                        />
+                                    ),
                                 })}
                             />
                             <Stack.Screen

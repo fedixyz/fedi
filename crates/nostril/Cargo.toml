@@ -1,0 +1,18 @@
+[package]
+name = "nostril"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bech32 = { workspace = true }
+futures = "0.3"
+tracing = { workspace = true }
+ts-rs = "10"
+tokio = { workspace = true, features = ["time", "macros"] }
+reqwest = { workspace = true }
+runtime = { workspace = true }
+rpc-types = { workspace = true }
+nostr-sdk = { version = "0.41", features = ["nip44", "nip04"]}

@@ -1,8 +1,10 @@
 import React from 'react'
 
+import FediQrLogo from '@fedi/common/assets/svgs/fedi-qr-logo.svg'
 import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import SpeakerphoneIcon from '@fedi/common/assets/svgs/speakerphone.svg'
 import UserIcon from '@fedi/common/assets/svgs/user.svg'
+import { GUARDIANITO_BOT_DISPLAY_NAME } from '@fedi/common/constants/matrix'
 import { MatrixRoom, MatrixRoomMember, MatrixUser } from '@fedi/common/types'
 import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 
@@ -32,18 +34,26 @@ export const ChatAvatar: React.FC<Props> = props => {
         const { room, ...rest } = props
         id = room.directUserId || room.id
         name = room.name
-        icon = room.directUserId
-            ? undefined
-            : room.broadcastOnly
-              ? SpeakerphoneIcon
-              : SocialPeopleIcon
+        icon =
+            room.name === GUARDIANITO_BOT_DISPLAY_NAME
+                ? FediQrLogo
+                : room.directUserId
+                  ? undefined
+                  : room.broadcastOnly
+                    ? SpeakerphoneIcon
+                    : SocialPeopleIcon
         src = room.avatarUrl
         avatarProps = rest
     } else {
         const { user, ...rest } = props
         id = user.id
         name = user.displayName || matrixIdToUsername(user.id)
-        icon = user.membership === 'join' ? undefined : UserIcon
+        icon =
+            user.displayName === GUARDIANITO_BOT_DISPLAY_NAME
+                ? FediQrLogo
+                : user.membership === 'join'
+                  ? undefined
+                  : UserIcon
         avatarProps = rest
     }
 

@@ -9,6 +9,7 @@ fedi.kt
 local.properties
 .DS_Store
 artifacts
+kotlinLibDeps
 
 # swift related
 /.build

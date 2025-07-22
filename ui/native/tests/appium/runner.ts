@@ -1,6 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /* eslint-disable no-console */
+import fs from 'fs'
+import path from 'path'
+
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
 import { OnboardingTest } from './common/onboarding.test'
@@ -50,8 +51,11 @@ async function waitForMetroBundleComplete(): Promise<void> {
                     clearInterval(checkInterval)
                     reject(new Error('Timed out waiting for Metro bundle'))
                 }
-            } catch (error: any) {
-                console.log('Metro status check failed:', error.message)
+            } catch (error: unknown) {
+                console.log(
+                    'Metro status check failed:',
+                    (error as Error).message,
+                )
 
                 if (Date.now() - startTime > timeout) {
                     clearInterval(checkInterval)
@@ -91,7 +95,8 @@ async function runTests(testNames: string[]): Promise<void> {
 
         console.log(`Running the following tests: ${validTestNames.join(', ')}`)
 
-        const results: Record<string, { success: boolean; error?: any }> = {}
+        const results: Record<string, { success: boolean; error?: unknown }> =
+            {}
 
         for (const testName of validTestNames) {
             console.log(`\n=== Starting test: ${testName} ===`)
@@ -106,21 +111,19 @@ async function runTests(testNames: string[]): Promise<void> {
 
                 results[testName] = { success: true }
                 console.log(`=== Test ${testName} completed successfully ===\n`)
-            } catch (error: any) {
+            } catch (error: unknown) {
                 results[testName] = { success: false, error }
                 console.error(
-                    `=== Test ${testName} failed: ${error.message} ===\n`,
+                    `=== Test ${testName} failed: ${(error as Error).message} ===\n`,
                 )
 
                 anyTestFailed = true
 
-                /* take a screenshot on failure
+                /* take a screenshot on failure */
                 try {
                     if (appiumManager.driver) {
                         const screenshot =
                             await appiumManager.driver.takeScreenshot()
-                        const fs = require('fs')
-                        const path = require('path')
                         const screenshotPath = path.join(
                             process.cwd(),
                             'screenshots',
@@ -140,7 +143,7 @@ async function runTests(testNames: string[]): Promise<void> {
                         'Failed to capture screenshot:',
                         screenshotError,
                     )
-                }*/
+                }
             }
         }
 
@@ -148,7 +151,7 @@ async function runTests(testNames: string[]): Promise<void> {
         for (const [testName, result] of Object.entries(results)) {
             console.log(`${testName}: ${result.success ? 'PASSED' : 'FAILED'}`)
             if (!result.success) {
-                console.log(`  Error: ${result.error.message}`)
+                console.log(`  Error: ${(result.error as Error).message}`)
             }
         }
 

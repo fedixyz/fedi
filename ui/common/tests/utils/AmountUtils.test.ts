@@ -579,4 +579,34 @@ describe('AmountUtils', () => {
             expect(amountUtils.stripTrailingZerosWithSuffix('0')).toEqual('0')
         })
     })
+
+    describe('clampSats', () => {
+        it('should return 0 for non-numbers', () => {
+            // typecast to trick the type checker
+            expect(amountUtils.clampSats('0' as unknown as number)).toEqual(0)
+        })
+        it('should return 0 for negative numbers', () => {
+            expect(amountUtils.clampSats(-1 as Sats)).toEqual(0)
+        })
+        it('should return the value if it is a valid sats value', () => {
+            expect(amountUtils.clampSats(1 as Sats)).toEqual(1)
+        })
+        it('should round to the nearest integer', () => {
+            expect(amountUtils.clampSats(1.5 as Sats)).toEqual(2)
+        })
+    })
+    describe('stripSatsValue', () => {
+        it('should return correctly stripped values for numpad string inputs', () => {
+            expect(amountUtils.stripSatsValue('0', 'en-US')).toEqual(0)
+            expect(amountUtils.stripSatsValue('1', 'en-US')).toEqual(1)
+            expect(amountUtils.stripSatsValue('1,000', 'en-US')).toEqual(1000)
+            expect(amountUtils.stripSatsValue('1,000.00', 'en-US')).toEqual(
+                1000,
+            )
+            expect(amountUtils.stripSatsValue('1.000', 'de-DE')).toEqual(1000)
+            expect(amountUtils.stripSatsValue('1.000,00', 'de-DE')).toEqual(
+                1000,
+            )
+        })
+    })
 })

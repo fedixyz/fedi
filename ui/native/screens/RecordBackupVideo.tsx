@@ -34,8 +34,7 @@ const RecordBackupVideo: React.FC<Props> = () => {
                         <ActivityIndicator size="large" />
                     </Flex>
                 ) : (
-                    //@ts-ignore
-                    <BackupVideoRecorder device={device} />
+                    <BackupVideoRecorder />
                 )}
             </ScrollView>
         </CameraPermissionsRequired>

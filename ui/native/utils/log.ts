@@ -16,7 +16,6 @@ import { getAllDeviceInfo } from './device-info'
 import { storage } from './storage'
 
 const log = makeLog('native/utils/logs-export')
-const MAX_BRIDGE_LOG_SIZE = 1024 * 1024 * 10
 
 export async function generateLogsExportGzip(extraFiles: File[] = []) {
     // Parallelize all information gathering.
@@ -84,17 +83,14 @@ export async function attachmentsToFiles(
 }
 
 async function exportBridgeLogs() {
-    // Ensure we get as many logs as limited. Logs are split across multiple files
-    // on a rolling basis, so it's possible that `fedi.log` is nearly empty but
+    // Ensure we get all logs. Logs are split across multiple files on a
+    // rolling basis, so it's possible that `fedi.log` is nearly empty but
     // `fedi.log.1` has a lot of logs from before.
     const LOGS_DIR = RNFB.fs.dirs.DocumentDir
     let files = ['fedi.log']
     const secondLogExists = await RNFB.fs.exists(`${LOGS_DIR}/fedi.log.1`)
     if (secondLogExists) {
-        const logStat = await RNFB.fs.stat(`${LOGS_DIR}/fedi.log`)
-        if (logStat.size < MAX_BRIDGE_LOG_SIZE) {
-            files = ['fedi.log.1', 'fedi.log']
-        }
+        files = ['fedi.log.1', 'fedi.log']
     }
 
     // Iterate over files and append to string. Starting oldest first, append
@@ -112,11 +108,6 @@ async function exportBridgeLogs() {
             })
         }
     }
-
-    // Trim logs to 2mb reduce upload size / increase gzip performance. RNFB
-    // doesn't allow us to seek before streaming, but it's so much faster than
-    // RNFS with seeking that we still save time overall by doing this in JS.
-    bridgeLogs = bridgeLogs.slice(-MAX_BRIDGE_LOG_SIZE)
 
     // Take the first line from the logs and try to JSON parse it. If it fails,
     // cut off the first line since it's fragmented from the slice above. Only

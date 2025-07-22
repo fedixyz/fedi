@@ -38,6 +38,13 @@ async function workerInit() {
     }
     const initOptsJson = JSON.stringify(options)
 
+    // Open database file
+    const root = await navigator.storage.getDirectory()
+    const dbFileHandle = await root.getFileHandle('bridge.db', {
+        create: true,
+    })
+    const dbSyncHandle = await dbFileHandle.createSyncAccessHandle()
+
     const result = await fedimint_initialize(
         {
             event(event_name: string, data: string) {
@@ -46,6 +53,7 @@ async function workerInit() {
         },
         initOptsJson,
         await openBridgeLogFile(),
+        dbSyncHandle,
     )
 
     try {
@@ -83,9 +91,11 @@ addEventListener('message', e => {
     }
     if (method == 'getLogs') {
         getAllBridgeLogFiles()
-            .then(result => {
-                postMessage({ token, result })
-            })
+            .then(result => Promise.allSettled(result.map(x => x.getFile())))
+            .then(result =>
+                result.filter(x => x.status === 'fulfilled').map(x => x.value),
+            )
+            .then(result => postMessage({ token, result }))
             .catch(err => {
                 postMessage({ token, error: String(err) })
             })

@@ -24,6 +24,7 @@ import {
 } from '../types'
 import {
     JSONObject,
+    MatrixInitializeStatus,
     MsEventData,
     MultispendListedEvent,
     NetworkError,
@@ -39,7 +40,13 @@ import {
     RpcSyncIndicator,
     RpcTimelineItem,
 } from '../types/bindings'
-import { DisplayNameValidatorType, getDisplayNameValidator } from './chat'
+import {
+    DisplayNameValidatorType,
+    SetDisplayNameValidatorType,
+    generateRandomDisplayName,
+    getDisplayNameValidator,
+    setDisplayNameValidator,
+} from './chat'
 import { FedimintBridge, UnsubscribeFn } from './fedimint'
 import { makeLog } from './log'
 import {
@@ -142,7 +149,8 @@ export class MatrixChatClient {
     > = {}
     private roomListUnsubscribe: UnsubscribeFn | undefined = undefined
     private syncStatusUnsubscribe: UnsubscribeFn | undefined = undefined
-    private displayNameValidator: DisplayNameValidatorType | undefined
+    private getDisplayNameValidator: DisplayNameValidatorType | undefined
+    private setDisplayNameValidator: SetDisplayNameValidatorType | undefined
 
     /*** Public methods ***/
 
@@ -152,30 +160,48 @@ export class MatrixChatClient {
         }
         this.hasStarted = true
         this.fedimint = fedimint
-        if (!this.displayNameValidator) {
-            this.displayNameValidator = getDisplayNameValidator()
+        if (!this.getDisplayNameValidator) {
+            this.getDisplayNameValidator = getDisplayNameValidator()
+        }
+        if (!this.setDisplayNameValidator) {
+            this.setDisplayNameValidator = setDisplayNameValidator()
         }
 
         this.startPromise = new Promise((resolve, reject) => {
-            fedimint
-                .matrixInit()
-                .then(() => this.getInitialAuth())
-                .then(auth => {
-                    // resolve cached auth before fetching anything
-                    // to support offline UX
-                    resolve(auth)
+            const unsubscribe =
+                this.fedimint.subscribeObservableSimple<MatrixInitializeStatus>(
+                    id => {
+                        return this.fedimint.matrixInitializeStatus({
+                            observableId: id,
+                        })
+                    },
+                    status => {
+                        if (status.type === 'success') {
+                            unsubscribe()
+                            this.getInitialAuth()
+                                .then(auth => {
+                                    // resolve cached auth before fetching anything
+                                    // to support offline UX
+                                    resolve(auth)
+                                    this.emit('auth', auth)
 
-                    // try to refetch auth in the background to
-                    // asynchronously get the user's avatarUrl
-                    this.refetchAuth()
+                                    // try to refetch auth in the background to
+                                    // asynchronously get the user's avatarUrl
+                                    this.refetchAuth()
 
-                    this.listIgnoredUsers()
-                    this.observeRoomList().catch(reject)
-                })
-                .catch(err => {
-                    log.error('matrixInit', err)
-                    reject(err)
-                })
+                                    // get initial list of ignored users
+                                    this.listIgnoredUsers()
+                                    // these should always be observing
+                                    this.observeSyncStatus()
+                                    this.observeRoomList().catch(reject)
+                                })
+                                .catch(err => {
+                                    log.error('matrixInit', err)
+                                    reject(err)
+                                })
+                        }
+                    },
+                )
         })
 
         return this.startPromise
@@ -184,17 +210,34 @@ export class MatrixChatClient {
     async getInitialAuth() {
         // Don't emit cached auth to make sure the startPromise
         // resolves before matrixAuth is set
-        return this.getAccountSession()
+        const session = await this.getAccountSession()
+        log.debug('getInitialAuth', session)
+        // if the display name is set to the npub in the user ID,
+        // we haven't set a display name yet, so generate a random one
+        if (
+            session.displayName &&
+            session.userId.includes(session.displayName)
+        ) {
+            const name = generateRandomDisplayName()
+            log.debug('setting random display name:', name)
+            await this.setDisplayName(name)
+        } else {
+            log.debug('no need to set random display name')
+        }
+        return this.serializeAuth(session)
     }
 
     async refetchAuth() {
-        const auth = await this.getAccountSession(false)
+        const session = await this.getAccountSession(false)
+        log.debug('refetchAuth session', session)
+        const auth = this.serializeAuth(session)
+        log.debug('refetchAuth emitting auth', auth)
         this.emit('auth', auth)
+        return auth
     }
 
     private async getAccountSession(cached = true) {
-        const session = await this.fedimint.matrixGetAccountSession({ cached })
-        return this.serializeAuth(session)
+        return this.fedimint.matrixGetAccountSession({ cached })
     }
 
     // arrow function notation is important here! otherwise this.fedimint is
@@ -399,11 +442,8 @@ export class MatrixChatClient {
      */
     async sendDirectMessage(userId: string, content: MatrixEventContent) {
         const roomId = await this.fedimint.matrixRoomCreateOrGetDm({ userId })
-        // TODO: Remove timeouts, creating rooms is kinda racey.
-        await new Promise(resolve => setTimeout(resolve, 500))
-        await this.observeRoomInfo(roomId)
-        await new Promise(resolve => setTimeout(resolve, 500))
         await this.sendMessage(roomId, content)
+        await this.observeRoomInfo(roomId)
         await this.observeRoomTimeline(roomId)
         await this.observeRoomPowerLevels(roomId)
         return { roomId }
@@ -427,7 +467,8 @@ export class MatrixChatClient {
 
     async setDisplayName(displayName: string) {
         await this.fedimint.matrixSetDisplayName({
-            displayName: this.ensureDisplayName(displayName) ?? displayName,
+            displayName:
+                this.ensureDisplayName(displayName, 'set') ?? displayName,
         })
     }
 
@@ -923,6 +964,7 @@ export class MatrixChatClient {
     }
 
     // TODO: get type for this from bridge?
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private serializePublicRoomInfo(room: any): MatrixRoom {
         return {
             id: room.room_id,
@@ -944,6 +986,7 @@ export class MatrixChatClient {
     }
 
     // TODO: get type for this from bridge?
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private serializeRoomInfo(room: any): MatrixRoom {
         const directUserId = room.base_info.dm_targets?.[0]
 
@@ -993,7 +1036,6 @@ export class MatrixChatClient {
                 }
             }
         }
-
         // TODO (cleanup): Remove base_info.name fallback
         // cached_display_name seems to be the best source of truth for the room name
         // for both groups and DMS assuming matrix-rust-sdk handles computing it correctly
@@ -1071,6 +1113,7 @@ export class MatrixChatClient {
 
     // TODO: get type for this from bridge?
     private serializeTimelineItem(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         item: any,
         roomId: string,
     ): MatrixTimelineItem {
@@ -1164,10 +1207,17 @@ export class MatrixChatClient {
     }
 
     // Ref: https://github.com/fedibtc/fedi/issues/1184#issuecomment-2137529842
-    private ensureDisplayName = (name: string | null) => {
+    private ensureDisplayName = (
+        name: string | null,
+        mode: 'get' | 'set' = 'get',
+    ) => {
         if (!name) return ''
-        if (!this.displayNameValidator) return name
-        const res = this.displayNameValidator.safeParse(name)
+        const validator =
+            mode === 'get'
+                ? this.getDisplayNameValidator
+                : this.setDisplayNameValidator
+        if (!validator) return name
+        const res = validator.safeParse(name)
         if (res.success) return name
         // TODO: figure out efficient way to localize this.
         // What's a place this can live such that locales are accessible?

@@ -2,7 +2,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import {
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    View,
+} from 'react-native'
 
 import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
@@ -23,20 +29,14 @@ export type Props = NativeStackScreenProps<
 const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { registeredDevices, handleTransfer } = useDeviceRegistration(
-        t,
-        fedimint,
-    )
+    const { isProcessing, registeredDevices, handleTransfer } =
+        useDeviceRegistration(t, fedimint)
 
     const style = styles(theme)
 
     const selectDevice = (device: RpcRegisteredDevice) => {
-        handleTransfer(device, hasSetDisplayName => {
-            if (hasSetDisplayName) {
-                navigation.dispatch(reset('TabsNavigator'))
-            } else {
-                navigation.dispatch(reset('EnterDisplayName'))
-            }
+        handleTransfer(device, () => {
+            navigation.dispatch(reset('TabsNavigator'))
         })
     }
 
@@ -49,6 +49,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
             <Pressable
                 key={`di-${index}`}
                 style={style.actionCardContainer}
+                disabled={isProcessing}
                 onPress={() => selectDevice(device)}>
                 <Flex center style={style.roundIconContainer}>
                     <SvgImage name={iconName} size={SvgImageSize.sm} />
@@ -68,7 +69,11 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                     </Text>
                 </Flex>
                 <View style={style.arrowContainer}>
-                    <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                    {isProcessing ? (
+                        <ActivityIndicator />
+                    ) : (
+                        <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                    )}
                 </View>
             </Pressable>
         )

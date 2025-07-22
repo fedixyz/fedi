@@ -1,19 +1,29 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
+import RNFS from 'react-native-fs'
+import Share from 'react-native-share'
 
+import { useToast } from '@fedi/common/hooks/toast'
+
+import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import LineBreak from '../components/ui/LineBreak'
 import type { RootStackParamList } from '../types/navigation'
+import { prefixFileUri } from '../utils/media'
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MigratedDevice'>
 
 const MigratedDevice: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const toast = useToast()
+    const [exportBridgeStateTapCount, setExportBridgeStateTapCount] =
+        useState(0)
+    useState(0)
 
     const style = styles(theme)
 
@@ -23,10 +33,37 @@ const MigratedDevice: React.FC<Props> = ({ navigation }: Props) => {
         })
     }
 
+    const handleExportBridgeStateTap = async () => {
+        const newTapCount = exportBridgeStateTapCount + 1
+        setExportBridgeStateTapCount(newTapCount)
+
+        if (newTapCount > 21) {
+            setExportBridgeStateTapCount(0)
+            try {
+                const timestamp = Date.now()
+                const path = `${RNFS.TemporaryDirectoryPath}/bridge-state-${timestamp}.zip`
+
+                await fedimint.internalExportBridgeState(path)
+
+                await Share.open({
+                    title: 'Export Bridge State',
+                    url: prefixFileUri(path),
+                })
+            } catch (error) {
+                toast.show({
+                    content: 'Failed to export bridge state',
+                    status: 'error',
+                })
+            }
+        }
+    }
+
     return (
         <Flex grow justify="center" style={style.container}>
             <Flex align="center" gap="lg" style={style.headerContainer}>
-                <HoloCircle content={<Text>{'📲'}</Text>} size={64} />
+                <Pressable onPress={handleExportBridgeStateTap}>
+                    <HoloCircle content={<Text>{'📲'}</Text>} size={64} />
+                </Pressable>
                 <Text h2 medium style={style.centeredText}>
                     {t('feature.recovery.device-migration-detected')}
                 </Text>

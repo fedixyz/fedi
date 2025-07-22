@@ -237,17 +237,21 @@ export function OmniInput<
             </View>
         )
 
-        const dividerAction: OmniInputAction = {
-            label: <OrDivider />,
-            onPress: noop,
+        const mergedActions: OmniInputAction[] = contextual
+
+        if (mergedActions.length > 0) {
+            mergedActions.push({
+                label: <OrDivider />,
+                onPress: noop,
+            })
         }
 
-        const mergedAction: OmniInputAction = {
+        mergedActions.push({
             label: mergedLabel,
             onPress: noop,
-        }
+        })
 
-        return [...contextual, dividerAction, mergedAction]
+        return mergedActions
     }, [
         customActions,
         inputMethod,

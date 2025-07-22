@@ -129,9 +129,8 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flexDirection: 'column',
-            flex: 1,
             alignItems: 'center',
+            paddingTop: theme.spacing.lg,
         },
         darkGrey: {
             color: theme.colors.darkGrey,

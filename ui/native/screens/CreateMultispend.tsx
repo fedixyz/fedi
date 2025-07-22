@@ -14,6 +14,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
+import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -189,7 +190,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
                     <Pressable
                         style={style.assignVoters}
                         onPress={handleAssignVoters}>
-                        <View style={style.fieldInfo}>
+                        <View style={[style.fieldInfo, style.assignVotersInfo]}>
                             <View style={style.votersTitle}>
                                 <Text caption medium>
                                     {t('feature.multispend.assign-voters')}
@@ -245,9 +246,18 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
                     )}
                 </View>
             </KeyboardAwareWrapper>
-            <Button onPress={handleSubmit} disabled={!canSubmit || isLoading}>
-                {t('words.submit')}
-            </Button>
+            <Flex gap="md">
+                {!areVotersSufficient(voters) && (
+                    <Text caption color={theme.colors.grey} center>
+                        {t('feature.multispend.two-voters-required')}
+                    </Text>
+                )}
+                <Button
+                    onPress={handleSubmit}
+                    disabled={!canSubmit || isLoading}>
+                    {t('words.submit')}
+                </Button>
+            </Flex>
         </SafeAreaContainer>
     )
 }
@@ -272,6 +282,10 @@ const styles = (theme: Theme) =>
         fieldInfo: {
             gap: theme.spacing.xs,
             paddingHorizontal: theme.spacing.sm,
+        },
+        assignVotersInfo: {
+            flexGrow: 1,
+            flexShrink: 1,
         },
         fieldDescription: {
             color: theme.colors.darkGrey,

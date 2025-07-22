@@ -28,7 +28,7 @@ import { MSats } from '.'
 declare global {
     // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace ReactNavigation {
-        // eslint-disable-next-line @typescript-eslint/no-empty-interface
+        // eslint-disable-next-line @typescript-eslint/no-empty-object-type
         interface RootParamList extends RootStackParamList {}
     }
 }
@@ -56,7 +56,7 @@ export type TabsNavigatorParamList = {
 }
 export type RootStackParamList = {
     AddFediMod: undefined
-    BitcoinRequest: { uri: string; lockRequestType?: boolean }
+    BitcoinRequest: { invoice: string }
     BugReportSuccess: undefined
     CameraPermission: { nextScreen: keyof RootStackParamList } | undefined
     ChatImageViewer: { uri: string }
@@ -135,10 +135,11 @@ export type RootStackParamList = {
     PersonalRecovery: undefined
     PersonalRecoverySuccess: undefined
     PopupFederationEnded: undefined
-    PublicFederations: undefined
+    PublicFederations: { from?: string } | undefined
     LocateSocialRecovery: undefined
     Receive: undefined
-    ReceiveLightning: { parsedData?: ParsedLnurlWithdraw } | undefined
+    ReceiveLightning: undefined
+    ReceiveLnurl: undefined
     ReceiveSuccess: {
         tx: ReceiveSuccessData
         status?: ReceiveSuccessStatus
@@ -154,6 +155,7 @@ export type RootStackParamList = {
     RecoveryWalletTransfer: undefined
     RecoveryNewWallet: undefined
     RecoveryDeviceSelection: undefined
+    RedeemLnurlWithdraw: { parsedData: ParsedLnurlWithdraw }
     LegacyChat: undefined
     LockedDevice: undefined
     RecordBackupVideo: undefined

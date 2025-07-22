@@ -170,13 +170,15 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                 ).unwrap()
                 onAcceptRef.current(res)
             } else if (lnurlPayment) {
-                const res = await lnurlPay(
+                await lnurlPay(
                     fedimint,
                     paymentFederation.id,
                     lnurlPayment,
                     amountUtils.satToMsat(inputAmount),
-                )
-                onAcceptRef.current(res)
+                ).match(onAcceptRef.current, e => {
+                    // TODO: do not throw
+                    throw e
+                })
             }
         } catch (err) {
             log.error('Failed to pay invoice', invoice, err)

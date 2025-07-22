@@ -4,5 +4,12 @@
 <dict>
 	<key>aps-environment</key>
 	<string>production</string>
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>applinks:app.fedi.xyz</string>
+        <string>applinks:www.app.fedi.xyz</string>
+        <string>applinks:fedi-ashen.vercel.app</string>
+        <string>applinks:www.fedi-ashen.vercel.app</string>
+    </array>
 </dict>
 </plist>

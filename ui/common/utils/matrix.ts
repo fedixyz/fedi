@@ -1,8 +1,8 @@
-import { TFunction } from 'i18next'
+import { TFunction, type ResourceKey } from 'i18next'
 import orderBy from 'lodash/orderBy'
 import { z } from 'zod'
 
-import EncryptionUtils from '@fedi/common/utils/EncryptionUtils'
+import { toSha256EncHex } from '@fedi/common/utils/EncryptionUtils'
 
 import { GLOBAL_MATRIX_SERVER } from '../constants/matrix'
 import { FormattedAmounts } from '../hooks/amount'
@@ -11,6 +11,7 @@ import {
     LoadedFederation,
     MSats,
     MatrixEvent,
+    MatrixFormEvent,
     MatrixGroupPreview,
     MatrixPaymentEvent,
     MatrixPaymentStatus,
@@ -34,11 +35,29 @@ import {
     RpcTimelineEventItemId,
     RpcUserId,
     MultispendListedEvent,
+    RpcTransaction,
 } from '../types/bindings'
 import { makeLog } from './log'
+import { constructUrl } from './neverthrow'
 import { isBolt11 } from './parser'
 
 const log = makeLog('common/utils/matrix')
+
+/**
+ * Gets a localized text using i18n key if available, otherwise falls back to default text
+ */
+export const getLocalizedTextWithFallback = (
+    t: TFunction,
+    i18nKey?: string | null,
+    fallbackText?: string | null,
+): string => {
+    if (!i18nKey) return fallbackText || ''
+
+    const localizedText = t(i18nKey as ResourceKey)
+
+    // If the translation function returns the same key, it means no translation was found
+    return localizedText !== i18nKey ? localizedText : fallbackText || ''
+}
 
 export const matrixIdToUsername = (id: string | null | undefined) =>
     id ? id.split(':')[0].replace('@', '') : '?'
@@ -59,6 +78,23 @@ export const mxcUrlToHttpUrl = (
     return url.toString()
 }
 
+// Converts a thumbnail mxc URL generated with `mxcUrlToHttpUrl`
+// To the full-quality matrix download URL
+export const mxcHttpUrlToDownloadUrl = (url: string) => {
+    return constructUrl(url)
+        .map(u => {
+            u.searchParams.delete('width')
+            u.searchParams.delete('height')
+            u.searchParams.delete('method')
+            u.pathname = u.pathname.replace('thumbnail', 'download')
+            return u
+        })
+        .match(
+            u => u.toString(),
+            () => url,
+        )
+}
+
 const encryptedFileSchema = z
     .object({
         hashes: z.object({
@@ -69,19 +105,21 @@ const encryptedFileSchema = z
     })
     // Don't strip off additional decryption keys from the file object
     .passthrough()
-
 /**
  * Filter out payment events that aren't the initial push or request
  * since we only render the original event. Keep track of the latest
  * payment for each payment ID, and replace the initial event's content
  * with the latest content.
- *
  */
 export const consolidatePaymentEvents = (events: MatrixEvent[]) => {
     const latestPayments: Record<string, MatrixPaymentEvent> = {}
+    // events are already sorted from oldest to newest
     const filteredEvents = events.filter(event => {
+        // Return non-payment events as-is
         if (!isPaymentEvent(event)) return true
+        // Always set the newest event to the payment ID record map
         latestPayments[event.content.paymentId] = event
+        // Only return the payment events that are the initial push or request
         return [
             MatrixPaymentStatus.pushed,
             MatrixPaymentStatus.requested,
@@ -208,6 +246,22 @@ const multispendEventSchemas = {
     >,
 }
 
+const formTypeSchema = z.enum(['text', 'radio', 'button'])
+const formOptionSchema = z.object({
+    value: z.string(),
+    label: z.string().optional(),
+    i18nKeyLabel: z.string().nullable().optional(),
+})
+const formResponseSchema = z.object({
+    responseType: formTypeSchema.optional(),
+    responseValue: z.union([z.boolean(), z.string(), z.number()]),
+    responseBody: z.string().optional(),
+    responseI18nKey: z.string().optional(),
+    respondingToEventId: z.string().optional(),
+})
+export type MatrixFormOption = z.infer<typeof formOptionSchema>
+export type MatrixFormResponse = z.infer<typeof formResponseSchema>
+
 const contentSchemas = {
     /* Matrix standard events, not an exhaustive list */
     'm.text': z.object({
@@ -295,6 +349,17 @@ const contentSchemas = {
          */
         recipientId: z.string().optional(),
         /**
+         * The operation ID returned by the federation when minting ecash for the sender.
+         * Present on 'pushed' events from NEW clients for transaction history.
+         * Optional for backward compatibility with OLD clients.
+         */
+        senderOperationId: z.string().optional(),
+        /**
+         * The operation ID returned by the federation when the receiver redeems ecash.
+         * Added when the payment is received.
+         */
+        receiverOperationId: z.string().optional(),
+        /**
          * The amount of the payment, either requested or sent.
          */
         amount: z.number(),
@@ -319,14 +384,28 @@ const contentSchemas = {
          * federation they have in common, or via bolt11 (see more below.)
          */
         federationId: z.string().optional(),
-
         // TODO: Attach bolt11 to payment requests, and allow to pay that way
         // if no federations in common?
         bolt11: z.string().optional(),
-
         // TODO: Attach invite code for federations you belong to that have
         // invites enabled, and allow people to join to accept ecash?
         inviteCode: z.string().optional(),
+    }),
+    'xyz.fedi.form': z.object({
+        msgtype: z.literal('xyz.fedi.form'),
+
+        // Fallback text for clients that don't support this msgtype
+        body: z.string(),
+        // text the user sees, translated to their selected language
+        i18nKeyLabel: z.string().optional(),
+        // HTML-like form inputs
+        type: formTypeSchema.optional(),
+        // single-select options
+        options: z.array(formOptionSchema).optional(),
+        // this is what the chatbot expects to be sent as a response
+        value: z.string().optional(),
+        // This is for the user to send response messages back to guardianito
+        formResponse: formResponseSchema.optional(),
     }),
     'xyz.fedi.deleted': z.object({
         msgtype: z.literal('xyz.fedi.deleted'),
@@ -412,6 +491,7 @@ export function formatMatrixEventContent(
     try {
         const msgType = (content as { msgtype: keyof typeof contentSchemas })
             .msgtype
+
         const schema = contentSchemas[msgType]
         if (!schema) throw new Error('Unknown message type')
         return schema.parse(content)
@@ -534,6 +614,8 @@ export const makeMatrixPaymentText = ({
     paymentSender,
     paymentRecipient,
     makeFormattedAmountsFromMSats,
+    transaction,
+    makeFormattedAmountsFromTxn,
 }: {
     t: TFunction
     event: MatrixPaymentEvent
@@ -541,7 +623,9 @@ export const makeMatrixPaymentText = ({
     eventSender: MatrixUser | null | undefined
     paymentSender: MatrixUser | null | undefined
     paymentRecipient: MatrixUser | null | undefined
+    transaction: RpcTransaction | null | undefined
     makeFormattedAmountsFromMSats: (amt: MSats) => FormattedAmounts
+    makeFormattedAmountsFromTxn: (txn: RpcTransaction) => FormattedAmounts
 }): string => {
     const {
         senderId: eventSenderId,
@@ -553,8 +637,9 @@ export const makeMatrixPaymentText = ({
         },
     } = event
 
-    const { formattedPrimaryAmount, formattedSecondaryAmount } =
-        makeFormattedAmountsFromMSats(amount as MSats)
+    const { formattedPrimaryAmount, formattedSecondaryAmount } = transaction
+        ? makeFormattedAmountsFromTxn(transaction)
+        : makeFormattedAmountsFromMSats(amount as MSats)
 
     const previewStringParams = {
         name: eventSender?.displayName || matrixIdToUsername(eventSenderId),
@@ -602,7 +687,7 @@ const SUFFIX_LENGTH = 4 as const
  * It includes the display name so the suffix will change if the displayname changes.
  */
 export function getUserSuffix(id: MatrixUser['id']) {
-    const hash = EncryptionUtils.toSha256EncHex(id)
+    const hash = toSha256EncHex(id)
     return `#${hash.substring(hash.length - SUFFIX_LENGTH)}`
 }
 
@@ -610,6 +695,10 @@ export function isPaymentEvent(
     event: MatrixEvent,
 ): event is MatrixPaymentEvent {
     return event.content.msgtype === 'xyz.fedi.payment'
+}
+
+export function isFormEvent(event: MatrixEvent): event is MatrixFormEvent {
+    return event.content.msgtype === 'xyz.fedi.form'
 }
 
 export function isBolt11PaymentEvent(

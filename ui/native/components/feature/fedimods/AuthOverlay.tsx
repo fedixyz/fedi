@@ -29,18 +29,17 @@ export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const [error, setError] = useState<string | null>(null)
 
     // Overlay components for LNURL-Auth UX
-    const handleAccept = async () => {
-        setIsLoading(true)
-        try {
-            if (!lnurlAuthRequest) throw new Error()
-            await lnurlAuth(fedimint, lnurlAuthRequest)
-            onAccept()
-        } catch (e) {
-            log.error('Failed to LNURL auth', e)
+    const handleAccept = () => {
+        if (!lnurlAuthRequest) return
 
-            setError(formatErrorMessage(t, e, 'errors.unknown-error'))
-        }
-        setIsLoading(false)
+        setIsLoading(true)
+        lnurlAuth(fedimint, lnurlAuthRequest)
+            .match(onAccept, e => {
+                log.error('Failed to LNURL auth', e)
+
+                setError(formatErrorMessage(t, e, 'errors.unknown-error'))
+            })
+            .finally(() => setIsLoading(false))
     }
 
     const handleReject = () => {

@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import type { Theme } from '@rneui/themed'
-import { Tooltip, useTheme } from '@rneui/themed'
+import { Tooltip, useTheme, type Theme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -14,6 +13,7 @@ import {
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
+import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
 import FirstTimeCommunityEntryOverlay, {
     FirstTimeCommunityEntryItem,
@@ -27,7 +27,7 @@ import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
 import { NavigationHook } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
-import { handleFediModNavigation } from '../utils/linking'
+import { handleFediModNavigation, openURL } from '../utils/linking'
 
 const Mods: React.FC = () => {
     const { theme } = useTheme()
@@ -48,14 +48,19 @@ const Mods: React.FC = () => {
         { icon: 'Apps', text: t('feature.fedimods.first-entry-option-1') },
     ]
 
-    const onSelectFediMod = (shortcut: Shortcut) => {
+    const onSelectFediMod = async (shortcut: Shortcut) => {
         setActionsMod(undefined)
         const fediMod = shortcut as FediMod
 
         if (fediMod.title.toLowerCase().includes('ask fedi')) {
             launchZendesk()
+            return
+        }
+
+        if (isFediDeeplinkType(fediMod.url)) {
+            openURL(fediMod.url)
         } else {
-            handleFediModNavigation(fediMod, navigation)
+            await handleFediModNavigation(fediMod, navigation)
         }
     }
 

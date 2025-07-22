@@ -53,6 +53,7 @@ const KeyboardAwareWrapper: React.FC<KeyboardAwareWrapperProps> = ({
             keyboardVerticalOffset={insets.bottom + additionalVerticalOffset}
             behavior={behavior}>
             <Pressable
+                accessible={false}
                 disabled={dismissableArea === false}
                 style={mergedDismissableAreaStyles}
                 onPress={() => Keyboard.dismiss()}>

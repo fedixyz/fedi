@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
 import { Input, Theme, useTheme } from '@rneui/themed'
-import { ResourceKey } from 'i18next'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -17,24 +16,10 @@ import {
     TextInputContentSizeChangeEventData,
     View,
 } from 'react-native'
-import DocumentPicker, {
-    DocumentPickerResponse,
-    types,
-} from 'react-native-document-picker'
-import {
-    TemporaryDirectoryPath,
-    copyFile,
-    downloadFile,
-    mkdir,
-} from 'react-native-fs'
-import {
-    Asset,
-    ImageLibraryOptions,
-    launchImageLibrary,
-} from 'react-native-image-picker'
+import { DocumentPickerResponse, types } from 'react-native-document-picker'
+import { Asset, ImageLibraryOptions } from 'react-native-image-picker'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { MAX_FILE_SIZE, MAX_IMAGE_SIZE } from '@fedi/common/constants/matrix'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
@@ -55,9 +40,11 @@ import { formatFileSize } from '@fedi/common/utils/media'
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import {
-    getUriFromAttachment,
-    pathJoin,
-    prefixFileUri,
+    copyDocumentToTempUri,
+    copyAssetToTempUri,
+    tryPickAssets,
+    tryPickDocuments,
+    mapMixedMediaToMatrixInput,
 } from '../../../utils/media'
 import { Attachments } from '../../ui/Attachments'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
@@ -128,140 +115,41 @@ const MessageInput: React.FC<MessageInputProps> = ({
         [messageText, dispatch],
         500,
     )
-    const [attachments, setAttachments] = useState<DocumentPickerResponse[]>([])
-    const [images, setImages] = useState<Asset[]>([])
+    const [documents, setDocuments] = useState<DocumentPickerResponse[]>([])
+    const [media, setMedia] = useState<Asset[]>([])
 
-    const anyAssetExceedsSize = useCallback(
-        (assets: Asset[] | DocumentPickerResponse[], size: number) => {
-            const formattedSize = formatFileSize(size)
-            let exceeds = false
-            let message: ResourceKey = t('errors.files-may-not-exceed-size', {
-                size: formattedSize,
-            })
-
-            for (const asset of assets) {
-                if ('size' in asset && asset.size && asset.size > size) {
-                    exceeds = true
-                }
-                if (
-                    'fileSize' in asset &&
-                    asset.fileSize &&
-                    asset.fileSize > size
-                ) {
-                    if (asset.type?.includes('image'))
-                        message = t('errors.images-may-not-exceed-size', {
-                            size: formattedSize,
-                        })
-                    else if (asset.type?.includes('video'))
-                        message = t('errors.videos-may-not-exceed-size', {
-                            size: formattedSize,
-                        })
-
-                    exceeds = true
-                }
-            }
-
-            if (exceeds) {
-                toast.show({
-                    content: message,
-                    status: 'error',
-                })
-            }
-
-            return exceeds
-        },
-        [t, toast],
+    const combinedUploads = useMemo(
+        () => mapMixedMediaToMatrixInput({ documents, assets: media }),
+        [documents, media],
     )
 
-    const handleUploadImage = useCallback(async () => {
-        try {
-            const res = await launchImageLibrary(imageOptions)
-
-            if (res.assets) {
-                const assetImages = res.assets.filter(asset =>
-                    asset.type?.includes('image'),
-                )
-                const assetVideos = res.assets.filter(asset =>
-                    asset.type?.includes('video'),
-                )
-
-                if (
-                    anyAssetExceedsSize(assetImages, MAX_IMAGE_SIZE) ||
-                    anyAssetExceedsSize(assetVideos, MAX_FILE_SIZE)
-                )
-                    return
-
-                const assets: Array<Asset> = []
+    const handleUploadMedia = useCallback(async () => {
+        tryPickAssets(imageOptions, t).match(
+            async assets => {
+                const assetsToUpload: Array<Asset> = []
 
                 await Promise.all(
-                    res.assets.map(async asset => {
-                        if (!asset.uri || !asset.fileName) return
-
-                        const uniqueDirName = `${Date.now()}-${Math.random()
-                            .toString(16)
-                            .slice(2)}`
-                        const uniqueDirPath = pathJoin(
-                            TemporaryDirectoryPath,
-                            uniqueDirName,
-                        )
-                        const resolvedUri = prefixFileUri(
-                            pathJoin(uniqueDirPath, asset.fileName),
-                        )
-                        const assetUri = prefixFileUri(asset.uri)
-
-                        try {
-                            await mkdir(uniqueDirPath)
-
-                            // Videos don't get copied correctly on iOS
-                            if (
-                                Platform.OS === 'ios' &&
-                                asset.type?.includes('video/')
-                            ) {
-                                await downloadFile({
-                                    fromUrl: assetUri,
-                                    toFile: resolvedUri,
-                                }).promise
-                            } else if (
-                                // On Android, the react-native-image-picker library is breaking the gif animation
-                                // somehow when it produces the file URI, so we copy the gif from the original path.
-                                // https://github.com/react-native-image-picker/react-native-image-picker/issues/2064#issuecomment-2460501473
-                                // TODO: Check if this is fixed upstream (perhaps in the turbo module) and remove this workaround
-                                Platform.OS === 'android' &&
-                                asset.originalPath &&
-                                // sometimes animated pics are webp files so we include webp in this workaround
-                                // even though some webp files are not animated and wouldn't be broken
-                                // but using the original path works either way, perhaps a small perf hit
-                                // if rn image-picker is optimizing when producing the file URI
-                                (asset.type?.includes('gif') ||
-                                    asset.type?.includes('webp'))
-                            ) {
-                                const gifUri = prefixFileUri(asset.originalPath)
-                                await copyFile(gifUri, resolvedUri)
-                            } else {
-                                await copyFile(assetUri, resolvedUri)
-                            }
-
-                            assets.push({ ...asset, uri: resolvedUri })
-                        } catch (downloadError) {
-                            log.error(
-                                'Download error for:',
-                                assetUri,
-                                downloadError,
-                            )
-                        }
-                    }),
+                    assets.map(asset =>
+                        copyAssetToTempUri(asset).map(uri =>
+                            assetsToUpload.push({ ...asset, uri }),
+                        ),
+                    ),
                 )
 
-                setImages([...images, ...assets])
-            }
-        } catch (err) {
-            toast.error(t, err)
-        }
-    }, [t, toast, images, anyAssetExceedsSize])
+                setMedia(imgs => [...imgs, ...assetsToUpload])
+            },
+            e => {
+                log.error('launchImageLibrary Error: ', e)
 
-    const handleUploadAttachment = useCallback(async () => {
-        try {
-            const response = await DocumentPicker.pick({
+                // Only show a toast if the error is the user's fault
+                if (e._tag === 'UserError') toast.error(t, e)
+            },
+        )
+    }, [t, toast])
+
+    const handleUploadDocument = useCallback(() => {
+        tryPickDocuments(
+            {
                 // Allow all supported file extensions except for images, audio, and video
                 type: [
                     types.csv,
@@ -276,26 +164,30 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     types.zip,
                 ],
                 allowMultiSelection: true,
-            })
+            },
+            t,
+        ).match(
+            async files => {
+                const documentsToUpload: Array<DocumentPickerResponse> = []
 
-            if (response) {
-                if (anyAssetExceedsSize(response, MAX_FILE_SIZE)) return
-
-                // Exclude duplicates
-                setAttachments(
-                    [...attachments, ...response].filter(
-                        (a, i, arr) =>
-                            arr.findIndex(b => b.uri === a.uri) === i,
+                await Promise.all(
+                    files.map(file =>
+                        copyDocumentToTempUri(file).map(uri =>
+                            documentsToUpload.push({ ...file, uri }),
+                        ),
                     ),
                 )
-            }
-        } catch (error) {
-            const typedError = error as Error
-            log.error('DocumentPicker Error: ', typedError)
-            // Hiding this because it shows the toast when user closes the dialogue ...
-            // toast?.show(typedError?.message, 3000)
-        }
-    }, [attachments, anyAssetExceedsSize])
+
+                setDocuments(att => [...att, ...documentsToUpload])
+            },
+            e => {
+                log.error('DocumentPicker Error: ', e)
+
+                // Only show a toast if the error is the user's fault
+                if (e._tag === 'UserError') toast.error(t, e)
+            },
+        )
+    }, [t, toast])
 
     const handleEdit = useCallback(async () => {
         if (!isEditingMessage || !messageText || !editingMessage.eventId) return
@@ -309,8 +201,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
             )
             setMessageText('')
             dispatch(setMessageToEdit(null))
-        } catch (err) {
-            toast.error(t, err, 'errors.chat-unavailable')
+        } catch (e) {
+            toast.error(t, e, 'errors.chat-unavailable')
         }
     }, [editingMessage, isEditingMessage, messageText, t, toast, dispatch])
 
@@ -347,7 +239,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const handleSend = useCallback(async () => {
         if (
-            (!trimmedMessageText && !images.length && !attachments.length) ||
+            (!trimmedMessageText && !combinedUploads.length) ||
             isSending ||
             isSendingMessage
         )
@@ -356,54 +248,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
         setIsSendingMessage(true)
 
         try {
-            const allAttachments: Array<InputMedia | InputAttachment> = []
-
-            for (const att of attachments) {
-                if (!att.name || !att.type) continue
-                const uri = await getUriFromAttachment(att)
-                allAttachments.push({
-                    fileName: att.name,
-                    mimeType: att.type,
-                    uri,
-                })
-            }
-
-            for (const att of images) {
-                if (
-                    !att.fileName ||
-                    !att.type ||
-                    !att.uri ||
-                    !att.width ||
-                    !att.height
-                )
-                    continue
-
-                allAttachments.push({
-                    fileName: att.fileName,
-                    mimeType: att.type,
-                    uri: att.uri,
-                    width: att.width,
-                    height: att.height,
-                })
-            }
-
-            await onMessageSubmitted(trimmedMessageText, allAttachments)
+            await onMessageSubmitted(trimmedMessageText, combinedUploads)
             setMessageText('')
-            setImages([])
-            setAttachments([])
-        } catch (err) {
-            toast.error(t, err, 'errors.chat-unavailable')
+            setMedia([])
+            setDocuments([])
+        } catch (e) {
+            toast.error(t, e, 'errors.chat-unavailable')
         } finally {
             setIsSendingMessage(false)
         }
     }, [
+        combinedUploads,
         isSending,
         trimmedMessageText,
         onMessageSubmitted,
         toast,
         t,
-        images,
-        attachments,
         isSendingMessage,
     ])
 
@@ -455,9 +315,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     : { paddingBottom: theme.spacing.lg + insets.bottom },
                 isReadOnly ? { borderTopWidth: 0 } : {},
             ]}>
-            {attachments.length > 0 && (
+            {documents.length > 0 && (
                 <View style={style.attachmentContainer}>
-                    {attachments.map((att, i) => (
+                    {documents.map((att, i) => (
                         <View key={i} style={style.attachment}>
                             <View style={style.attachmentIcon}>
                                 <SvgImage name="File" />
@@ -471,7 +331,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             <Pressable
                                 style={style.removeButton}
                                 onPress={() =>
-                                    setAttachments(prev =>
+                                    setDocuments(prev =>
                                         prev.filter(a => a.uri !== att.uri),
                                     )
                                 }>
@@ -485,10 +345,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     ))}
                 </View>
             )}
-            {images.length > 0 && (
+            {media.length > 0 && (
                 <Attachments
-                    attachments={images}
-                    setAttachments={setImages}
+                    attachments={media}
+                    setAttachments={setMedia}
                     uploadButton={false}
                     options={imageOptions}
                 />
@@ -558,12 +418,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         {!isPublic && !isReadOnly && (
                             <>
                                 <Pressable
-                                    onPress={handleUploadImage}
+                                    onPress={handleUploadMedia}
                                     hitSlop={10}>
                                     <SvgImage name="Image" />
                                 </Pressable>
                                 <Pressable
-                                    onPress={handleUploadAttachment}
+                                    onPress={handleUploadDocument}
                                     hitSlop={10}>
                                     <SvgImage name="Plus" />
                                 </Pressable>

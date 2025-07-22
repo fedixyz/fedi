@@ -9,6 +9,7 @@ export interface TextProps {
     children: React.ReactNode
     className?: string
     css?: CSSProp
+    center?: boolean
 }
 
 export const Text: React.FC<TextProps> = ({
@@ -66,6 +67,11 @@ const TextElement = styled('div', {
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
+            },
+        },
+        center: {
+            true: {
+                textAlign: 'center',
             },
         },
     },

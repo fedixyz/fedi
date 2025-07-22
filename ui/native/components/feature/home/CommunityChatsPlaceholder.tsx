@@ -74,6 +74,7 @@ const styles = (theme: Theme) =>
         },
         textContainer: {
             marginLeft: 4,
+            flexShrink: 1,
         },
         text: {
             color: theme.colors.night,

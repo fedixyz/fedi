@@ -84,7 +84,7 @@ const SendPreviewDetails: React.FC<Props> = ({
                 buttonStyle={[style.detailsButton]}
                 onPress={() => setShowDetails(!showDetails)}
                 title={
-                    <Text medium caption>
+                    <Text medium>
                         {showDetails
                             ? t('phrases.hide-details')
                             : t('feature.stabilitypool.details-and-fee')}
@@ -99,7 +99,7 @@ const SendPreviewDetails: React.FC<Props> = ({
                     disabled={isLoading}
                     loading={isLoading}
                     title={
-                        <Text medium caption style={style.buttonText}>
+                        <Text medium style={style.buttonText}>
                             {sendButtonText ?? t('words.send')}
                         </Text>
                     }

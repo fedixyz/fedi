@@ -77,15 +77,9 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 onPress={handleLeft}
                 icon={<SvgImage name="ArrowDown" />}
                 title={
-                    leftDisabled ? (
-                        <Text caption numberOfLines={1}>
-                            {left.label ?? t('words.receive')}
-                        </Text>
-                    ) : (
-                        <Text bold caption numberOfLines={1}>
-                            {left.label ?? t('words.receive')}
-                        </Text>
-                    )
+                    <Text bold caption numberOfLines={1}>
+                        {left.label ?? t('words.receive')}
+                    </Text>
                 }
                 titleStyle={style.buttonTitle}
                 containerStyle={style.buttonContainer}
@@ -95,13 +89,11 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 bubble
                 disabled={rightDisabled}
                 onPress={handleRight}
+                icon={<SvgImage name="ArrowUpRight" />}
                 title={
-                    <Flex row center gap="sm">
-                        <SvgImage name="ArrowUpRight" />
-                        <Text bold caption numberOfLines={1}>
-                            {right.label ?? t('words.send')}
-                        </Text>
-                    </Flex>
+                    <Text bold caption numberOfLines={1}>
+                        {right.label ?? t('words.send')}
+                    </Text>
                 }
                 containerStyle={style.buttonContainer}
                 buttonStyle={style.button}

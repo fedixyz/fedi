@@ -1,9 +1,11 @@
+import { TFunction } from 'i18next'
+
 import { TagToErrorConstructorMap } from '../constants/errors'
 import { ErrorCode, RpcError } from '../types/bindings'
 import { ErrorTag, TaggedError } from '../types/errors'
 
 /**
- * Used when a fedimint bridge rpc call fails
+ * Specific error type used when a fedimint bridge rpc call fails
  */
 export class BridgeError extends Error {
     public _tag = 'BridgeError' as const
@@ -26,33 +28,59 @@ export class BridgeError extends Error {
 }
 
 /**
- * Used when a TaggedError fails to be be constructed from an unknown value
+ * Specific error type used when a TaggedError fails to be be constructed from an unknown value
  */
 export class UnexpectedError extends Error {
     public _tag = 'UnexpectedError' as const
     unexpectedError: unknown
 
     constructor(_unexpectedError: unknown, attemptedTag: string) {
-        super(`Failed to construct ${attemptedTag} from unknown value`)
+        let unknownValue = 'unknown value'
+
+        // If the unexpected error is a result of an already-tagged error,
+        // display the original error tag instead of 'unknown value'
+        if (
+            _unexpectedError instanceof Error &&
+            '_tag' in _unexpectedError &&
+            typeof _unexpectedError._tag === 'string'
+        ) {
+            unknownValue = _unexpectedError._tag
+        }
+
+        super(`Failed to construct ${attemptedTag} from ${unknownValue}`)
         this.unexpectedError = _unexpectedError
     }
 }
 
-function isErrorInstance<T extends ErrorTag>(
+export function isErrorInstance<T extends ErrorTag>(
     e: unknown,
     tag: T,
-): e is (typeof TagToErrorConstructorMap)[T] {
+): e is InstanceType<(typeof TagToErrorConstructorMap)[T]> {
     const cstr = TagToErrorConstructorMap[tag]
     return e instanceof cstr
 }
 
+function hasTag(e: unknown): e is TaggedError<ErrorTag> {
+    if (typeof e !== 'object' || e === null) return false
+    return '_tag' in e
+}
+
 export function makeError<T extends ErrorTag>(e: unknown, tag: T) {
-    if (isErrorInstance(e, tag)) {
+    if (isErrorInstance(e, tag) && !hasTag(e)) {
         return Object.assign(e, {
             _tag: tag,
         }) satisfies TaggedError<T>
     }
+
     return new UnexpectedError(e, tag)
+}
+
+export function makeLocalizedError<T extends ErrorTag>(
+    t: TFunction,
+    tag: T,
+    ...params: Parameters<typeof t>
+) {
+    return makeError(new Error(t(...params)), tag)
 }
 
 /**
@@ -65,8 +93,8 @@ export function makeError<T extends ErrorTag>(e: unknown, tag: T) {
  * ```typescript
  * ResultAsync.fromPromise(
  *   promise,
- *   // URLParseError | UnexpectedError
- *   tryTag('UrlParseError')
+ *   // UrlConstructError | UnexpectedError
+ *   tryTag('UrlConstructError')
  * )
  * ```
  */

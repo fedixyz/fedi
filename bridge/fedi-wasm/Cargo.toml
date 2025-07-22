@@ -17,8 +17,8 @@ runtime = { workspace = true }
 rpc-types = { workspace = true }
 futures = { workspace = true }
 gloo-utils = "0.2"
-gloo-file = "0.2.3"
-imbl = "4"
+gloo-file = "0.3"
+imbl = "5"
 js-sys = "0.3.77"
 rexie = "0.4.2"
 serde = { workspace = true, features = ["derive"] }
@@ -33,3 +33,4 @@ wasm-bindgen-futures = "0.4.34"
 wasm-bindgen-test = "0.3.49"
 
 fedimint-core = { workspace = true }
+fedimint-cursed-redb = { workspace = true }

@@ -1,6 +1,7 @@
 import { useTheme } from '@rneui/themed'
 import React from 'react'
 
+import { GUARDIANITO_BOT_DISPLAY_NAME } from '@fedi/common/constants/matrix'
 import {
     MatrixAuth,
     MatrixRoom,
@@ -53,11 +54,14 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
         const { room, ...rest } = props
         id = room.directUserId || room.id
         name = room.name
-        icon = room.directUserId
-            ? undefined
-            : room.broadcastOnly
-              ? 'SpeakerPhone'
-              : 'SocialPeople'
+        icon =
+            room.name === GUARDIANITO_BOT_DISPLAY_NAME
+                ? 'FediQrLogo'
+                : room.directUserId
+                  ? undefined
+                  : room.broadcastOnly
+                    ? 'SpeakerPhone'
+                    : 'SocialPeople'
         src = room.avatarUrl
         avatarProps = rest
         isBlocked = room.isBlocked
@@ -66,7 +70,12 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
         id = user.id
         name = user.displayName || matrixIdToUsername(user.id)
         if (user.membership) {
-            icon = user.membership === 'join' ? undefined : 'User'
+            icon =
+                user.displayName === GUARDIANITO_BOT_DISPLAY_NAME
+                    ? 'FediQrLogo'
+                    : user.membership === 'join'
+                      ? undefined
+                      : 'User'
         }
         src = user.avatarUrl
         avatarProps = rest

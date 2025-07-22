@@ -12,22 +12,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    selectIsMatrixReady,
-    selectHasSetMatrixDisplayName,
-    startMatrixClient,
-    setMatrixDisplayName,
-} from '@fedi/common/redux'
-//import { flagUserCreatedOnThisDevice } from '@fedi/common/redux/support'
-import { generateRandomDisplayName } from '@fedi/common/utils/chat'
+import { refreshOnboardingStatus } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
-import { fedimint } from '../bridge'
+import { fedimint } from '../bridge/native'
 import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { useAppDispatch } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
 
@@ -40,38 +33,26 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { fontScale } = useWindowDimensions()
     const pin = usePinContext()
-
-    const dispatch = useAppDispatch()
     const toast = useToast()
-    const isMatrixReady = useAppSelector(selectIsMatrixReady)
-    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
+    const dispatch = useAppDispatch()
+    const [loading, setLoading] = useState<boolean>(false)
 
     const [hasNavigatedToHelpCentre, setHasNavigatedToHelpCentre] =
         useState<boolean>(false)
     const { launchZendesk } = useLaunchZendesk()
 
-    const generateAndSetUsername = async () => {
-        try {
-            if (!isMatrixReady) {
-                await dispatch(startMatrixClient({ fedimint })).unwrap()
-            }
-
-            if (!hasSetDisplayName) {
-                const name = generateRandomDisplayName(2)
-                await dispatch(
-                    setMatrixDisplayName({ displayName: name }),
-                ).unwrap()
-            }
-            return true
-        } catch (error) {
-            toast.show(t('feature.onboarding.network-error'))
-            return false
-        }
-    }
-
     const handleContinue = async () => {
-        navigation.navigate('PublicFederations')
-        await generateAndSetUsername()
+        try {
+            setLoading(true)
+            await fedimint.completeOnboardingNewSeed()
+            await dispatch(refreshOnboardingStatus(fedimint)).unwrap()
+            navigation.navigate('PublicFederations', { from: 'Splash' })
+        } catch (err) {
+            log.error('handleContinue', err)
+            toast.error(t, err, 'errors.unknown-error')
+        } finally {
+            setLoading(false)
+        }
     }
     const handleReturningUser = async () => {
         navigation.navigate('ChooseRecoveryMethod')
@@ -146,9 +127,9 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                     </Text>
                     <Button
                         fullWidth
-                        testID="JoinFederationButton"
                         title={t('feature.onboarding.get-a-wallet')}
                         onPress={handleContinue}
+                        loading={loading}
                     />
                     <Button
                         fullWidth

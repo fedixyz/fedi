@@ -7,6 +7,7 @@ import {
 import { TFunction } from 'i18next'
 
 import {
+    CommonDispatch,
     CommonState,
     refreshHistoricalCurrencyRates,
     selectActiveFederation,
@@ -55,12 +56,18 @@ type FederationWalletState = {
     stabilityPoolAvailableLiquidity: MSats | null
     /** Unit - BTC per USD */
     averageFeeRate: number | null
+    /** Whether the federation supports recurringdLnurl */
+    supportsRecurringdLnurl: boolean | null
+    /** The lnurl for the federation */
+    lnurlReceiveCode: string | null
 }
 
 const initialFederationWalletState = {
     stabilityPoolState: null,
     stabilityPoolAvailableLiquidity: null,
     averageFeeRate: null,
+    supportsRecurringdLnurl: null,
+    lnurlReceiveCode: null,
 } satisfies FederationWalletState
 
 // All wallet state is keyed by federation id to keep federation wallets separate, so it starts as an empty object.
@@ -115,6 +122,30 @@ export const walletSlice = createSlice({
         resetWalletState() {
             return { ...initialState }
         },
+        setLnurlReceiveCode(
+            state,
+            action: FederationPayloadAction<{
+                lnurlReceiveCode: string
+            }>,
+        ) {
+            const { federationId, lnurlReceiveCode } = action.payload
+            state[federationId] = {
+                ...getFederationWalletState(state, federationId),
+                lnurlReceiveCode,
+            }
+        },
+        setSupportsRecurringdLnurl(
+            state,
+            action: FederationPayloadAction<{
+                supportsRecurringdLnurl: boolean
+            }>,
+        ) {
+            const { federationId, supportsRecurringdLnurl } = action.payload
+            state[federationId] = {
+                ...getFederationWalletState(state, federationId),
+                supportsRecurringdLnurl,
+            }
+        },
     },
     extraReducers: builder => {
         builder.addCase(fetchStabilityPoolState.fulfilled, (state, action) => {
@@ -158,6 +189,8 @@ export const {
     setStabilityPoolAvailableLiquidity,
     resetFederationWalletState,
     resetWalletState,
+    setLnurlReceiveCode,
+    setSupportsRecurringdLnurl,
 } = walletSlice.actions
 
 /*** Async thunk actions ***/
@@ -246,6 +279,32 @@ export const payInvoice = createAsyncThunk<
 >('wallet/payInvoice', async ({ fedimint, federationId, invoice, notes }) => {
     return fedimint.payInvoice(invoice, federationId, notes)
 })
+
+export const refreshLnurlReceive = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; federationId: string },
+    { state: CommonState; dispatch: CommonDispatch }
+>(
+    'wallet/getRecurringdLnurl',
+    async ({ fedimint, federationId }, { dispatch }) => {
+        // Check if we support it
+        const supportsRecurringdLnurl =
+            await fedimint.supportsRecurringdLnurl(federationId)
+
+        dispatch(
+            setSupportsRecurringdLnurl({
+                federationId,
+                supportsRecurringdLnurl,
+            }),
+        )
+
+        // If it's unsupported, don't try to fetch it
+        if (!supportsRecurringdLnurl) return
+
+        const lnurl = await fedimint.getRecurringdLnurl(federationId)
+        dispatch(setLnurlReceiveCode({ federationId, lnurlReceiveCode: lnurl }))
+    },
+)
 
 /**
  * Tries to redeem ecash. Returns a Promise that resolves
@@ -927,3 +986,23 @@ export const selectStabilityPoolAvailableLiquidity = (
 
 export const selectStabilityPoolVersion = (s: CommonState) =>
     selectFederationStabilityPoolConfig(s)?.version
+
+export const selectSupportsRecurringdLnurl = (
+    s: CommonState,
+    federationId?: Federation['id'],
+) => {
+    if (!federationId) {
+        federationId = selectActiveFederationId(s)
+    }
+    return selectFederationWalletState(s, federationId).supportsRecurringdLnurl
+}
+
+export const selectLnurlReceiveCode = (
+    s: CommonState,
+    federationId?: Federation['id'],
+) => {
+    if (!federationId) {
+        federationId = selectActiveFederationId(s)
+    }
+    return selectFederationWalletState(s, federationId).lnurlReceiveCode
+}

@@ -14,12 +14,14 @@ import {
     selectStableBalanceEnabled,
     setActiveFederationId,
     setPublicFederations,
+    supportsSafeOnchainDeposit,
 } from '../redux'
-import { FederationMetadata, JoinPreview } from '../types'
+import { FederationMetadata, JoinPreview, SupportedMetaFields } from '../types'
 import dateUtils from '../utils/DateUtils'
 import {
     fetchPublicFederations,
     getFederationPopupInfo,
+    getMetaField,
     previewInvite,
     shouldEnableOnchainDeposits,
     shouldEnableStabilityPool,
@@ -94,18 +96,65 @@ export function useIsOfflineWalletSupported() {
     return shouldShowOfflineWallet(activeFederation.meta)
 }
 
-// Onchain deposits can be enabled via Developer Settings
-// and ignores federation metadata if enabled (v1+ feds only)
-export function useIsOnchainDepositSupported() {
+// Onchain deposits can be enabled/disabled via federation metadata
+// Even if enabled in federation metadata, if the federation doesn't support
+// safe onchain deposits, it will be disabled
+// Onchain deposits can also be enabled via Developer Settings which will
+// override all of the above
+export function useIsOnchainDepositSupported(fedimint: FedimintBridge) {
     const activeFederation = useCommonSelector(selectActiveFederation)
     const userEnabledOnchainDeposits = useCommonSelector(
         selectOnchainDepositsEnabled,
     )
+    const [hasSafeOnchainDeposits, setHasSafeOnchainDeposits] = useState(false)
+    const dispatch = useCommonDispatch()
+
+    useEffect(() => {
+        const checkOnchainSupport = async () => {
+            if (!activeFederation) return
+
+            try {
+                const result = await dispatch(
+                    supportsSafeOnchainDeposit({ fedimint }),
+                ).unwrap()
+                log.debug('supportsSafeOnchainDeposits result', result)
+                setHasSafeOnchainDeposits(result)
+            } catch (error) {
+                log.error(
+                    `supportsSafeOnchainDeposit failed for ${activeFederation.name}`,
+                    error,
+                )
+                setHasSafeOnchainDeposits(false)
+            }
+        }
+
+        // Reset to false since federation could have changed
+        setHasSafeOnchainDeposits(false)
+        checkOnchainSupport()
+    }, [activeFederation, dispatch, fedimint])
+
     if (!activeFederation) return false
+
+    // Check if onchain deposits are explicitly enabled in metadata
+    const onchainDepositsDisabled = getMetaField(
+        SupportedMetaFields.onchain_deposits_disabled,
+        activeFederation.meta,
+    )
+    const isExplicitlyEnabledInMeta = onchainDepositsDisabled === 'false'
+
+    log.debug(
+        `checking onchain deposit support for ${activeFederation.name}\n`,
+        `dev setting enabled: ${userEnabledOnchainDeposits}\n`,
+        `metadata explicitly enabled: ${isExplicitlyEnabledInMeta}\n`,
+        `metadata enabled: ${shouldEnableOnchainDeposits(activeFederation.meta)}\n`,
+        `supports safe onchain deposits: ${hasSafeOnchainDeposits}`,
+    )
 
     return (
         userEnabledOnchainDeposits ||
-        shouldEnableOnchainDeposits(activeFederation.meta)
+        isExplicitlyEnabledInMeta ||
+        (shouldEnableOnchainDeposits(activeFederation.meta) &&
+            hasSafeOnchainDeposits)
     )
 }
 

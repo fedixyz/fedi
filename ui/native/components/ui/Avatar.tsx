@@ -1,5 +1,5 @@
 import { Image, Text, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
     StyleProp,
     StyleSheet,
@@ -78,6 +78,10 @@ const Avatar: React.FC<AvatarProps> = ({
     ]
     const mergedTextStyle = [styles.text, { color: textColor }]
     const imageStyle = [styles.image, { borderRadius: pxSize * 0.5 }]
+
+    useEffect(() => {
+        setIsFallback(false)
+    }, [url])
 
     return (
         <Flex center style={mergedContainerStyle}>

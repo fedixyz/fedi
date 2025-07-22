@@ -11,7 +11,7 @@ import {
 import { UnsignedNostrEvent } from '@fedi/injections/src/injectables/nostr/types'
 
 import { CommonState } from '.'
-import { fetchMetadataFromUrl } from '../utils/fedimods'
+import { tryFetchUrlMetadata } from '../utils/fedimods'
 
 type SiteInfo = {
     icon: string
@@ -97,15 +97,9 @@ export const refetchSiteInfo = createAsyncThunk<
     { state: CommonState }
 >('browser/navigateToUrl', async ({ url }, { dispatch }) => {
     const resolvedUrl = new URL(url)
-    const { fetchedIcon, fetchedTitle } = await fetchMetadataFromUrl(url)
-
-    // Prefer the shorter of title or hostname
-    const resolvedTitle =
-        resolvedUrl.hostname.length > fetchedTitle.length
-            ? fetchedTitle
-            : resolvedUrl.hostname
-
-    dispatch(setSiteInfo({ icon: fetchedIcon, title: resolvedTitle, url }))
+    tryFetchUrlMetadata(resolvedUrl).map(({ icon, title }) => {
+        dispatch(setSiteInfo({ icon, title, url: resolvedUrl.toString() }))
+    })
 })
 
 /*** Selectors ***/

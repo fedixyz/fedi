@@ -21,8 +21,8 @@
         "dev:native": "turbo run dev --parallel --filter=native...",
         "knip": "knip",
         "lint": "turbo run lint",
-        "format": "turbo run format",
-        "format:check": "turbo run format:check --parallel",
+        "format": "prettier --write '*.{js,json,md,ts}' && turbo run format",
+        "format:check": "prettier --check '*.{js,json,md,ts}' && turbo run format:check --parallel",
         "test": "turbo run test",
         "postinstall": "patch-package"
     },
@@ -30,7 +30,7 @@
         "@types/node": "^22.9.0",
         "knip": "^5.36.5",
         "patch-package": "^8.0.0",
-        "prettier": "^3.3.3",
+        "prettier": "3.3.3",
         "syncpack": "^9.8.4",
         "turbo": "^1.10.7"
     }

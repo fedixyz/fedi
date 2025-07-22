@@ -51,6 +51,7 @@ import {
 import {
     FrontendMetadata,
     GroupInvitation,
+    JSONObject,
     MsEventData,
     MultispendListedEvent,
     NetworkError,
@@ -84,6 +85,7 @@ import {
     mxcUrlToHttpUrl,
     shouldShowUnreadIndicator,
     isMultispendFinancialTransaction,
+    MatrixFormResponse,
 } from '../utils/matrix'
 import { applyObservableUpdates } from '../utils/observable'
 import { isBolt11 } from '../utils/parser'
@@ -480,8 +482,7 @@ export const matrixSlice = createSlice({
             log.debug('startMatrixClient.pending')
             state.status = MatrixSyncStatus.initialSync
         })
-        builder.addCase(startMatrixClient.fulfilled, (state, action) => {
-            state.auth = action.payload
+        builder.addCase(startMatrixClient.fulfilled, state => {
             state.started = true
         })
         builder.addCase(startMatrixClient.rejected, state => {
@@ -594,44 +595,44 @@ export const matrixSlice = createSlice({
                     },
                 )
             },
-        ),
-            builder.addMatcher(
-                isAnyOf(
-                    previewGlobalDefaultChats.fulfilled,
-                    previewCommunityDefaultChats.fulfilled,
-                    previewAllDefaultChats.fulfilled,
-                ),
-                (state, action) => {
-                    let hasUpdates = false
-                    const updatedDefaultGroups = action.payload.reduce(
-                        (
-                            result: Record<RpcRoomId, MatrixGroupPreview>,
-                            preview: MatrixGroupPreview,
-                        ) => {
-                            const existingPreview = result[preview.info.id]
-                            const updatedPreview = {
-                                ...preview,
-                                isDefaultGroup: true,
-                            }
+        )
+        builder.addMatcher(
+            isAnyOf(
+                previewGlobalDefaultChats.fulfilled,
+                previewCommunityDefaultChats.fulfilled,
+                previewAllDefaultChats.fulfilled,
+            ),
+            (state, action) => {
+                let hasUpdates = false
+                const updatedDefaultGroups = action.payload.reduce(
+                    (
+                        result: Record<RpcRoomId, MatrixGroupPreview>,
+                        preview: MatrixGroupPreview,
+                    ) => {
+                        const existingPreview = result[preview.info.id]
+                        const updatedPreview = {
+                            ...preview,
+                            isDefaultGroup: true,
+                        }
 
-                            if (
-                                !existingPreview ||
-                                !isEqual(existingPreview, updatedPreview)
-                            ) {
-                                hasUpdates = true
-                                result[preview.info.id] = updatedPreview
-                            }
+                        if (
+                            !existingPreview ||
+                            !isEqual(existingPreview, updatedPreview)
+                        ) {
+                            hasUpdates = true
+                            result[preview.info.id] = updatedPreview
+                        }
 
-                            return result
-                        },
-                        { ...state.groupPreviews },
-                    )
+                        return result
+                    },
+                    { ...state.groupPreviews },
+                )
 
-                    if (hasUpdates) {
-                        state.groupPreviews = updatedDefaultGroups
-                    }
-                },
-            )
+                if (hasUpdates) {
+                    state.groupPreviews = updatedDefaultGroups
+                }
+            },
+        )
     },
 })
 
@@ -734,18 +735,18 @@ export const unobserveMultispendEvent = createAsyncThunk<
 })
 
 export const startMatrixClient = createAsyncThunk<
-    MatrixAuth,
+    void,
     { fedimint: FedimintBridge },
     { state: CommonState }
->('matrix/startMatrix', ({ fedimint }, { getState, dispatch }) => {
+>('matrix/startMatrix', async ({ fedimint }, { getState, dispatch }) => {
     // Create or grab existing client, bail out if we've already started.
     // TODO: when short circuiting on hasStarted, we should try to return
     // the same promise as the existing start call. Otherwise we may show
     // success on a second call, but failure on the first one.
     const client = getMatrixClient()
     if (client.hasStarted) {
-        log.warn('Matrix client already started')
-        throw new Error('Matrix client already started')
+        log.info('Matrix client already started')
+        return
     }
 
     // Bind all the listeners we need to dispatch actions
@@ -823,7 +824,9 @@ export const startMatrixClient = createAsyncThunk<
     })
 
     // Start the client
-    return client.start(fedimint)
+    await client.start(fedimint)
+    // preview default chats after matrix is ready
+    dispatch(previewAllDefaultChats())
 })
 
 export const setMatrixDisplayName = createAsyncThunk<
@@ -1011,20 +1014,28 @@ export const sendMatrixMessage = createAsyncThunk<
                     // TODO: support amount-less invoices
                     if (decoded.amount) {
                         const sats = amountUtils.msatToSat(decoded.amount)
+                        const paymentId = uuidv4()
+                        // bolt11 there's no operation ID - cannot get historical value
+                        // returned from external invoices - forces current rate fallback
+                        const senderOperationId = undefined
                         return client.sendMessage(roomId, {
                             msgtype: 'xyz.fedi.payment',
-                            body: `Requested payment of ${amountUtils.formatSats(
-                                sats,
-                            )} SATS. Use the Fedi app to complete this request.`, // TODO: i18n?
-                            paymentId: uuidv4(),
+                            body: `Requested payment of ${amountUtils.formatSats(sats)} SATS. Use the Fedi app to complete this request.`, // TODO: i18n?
+                            paymentId,
                             status: MatrixPaymentStatus.requested,
                             amount: decoded.amount,
                             bolt11: decoded.invoice,
+                            senderOperationId,
+                            receiverOperationId: undefined,
                         })
                     }
                 }
             } catch (error) {
-                log.info('not a bolt11 invoice... send as m.text')
+                log.info(
+                    'Not a valid bolt11 invoice or failed to decode... sending as regular text message',
+                    error,
+                )
+                // fall through to send as regular text message
             }
         }
         await client.sendMessage(roomId, {
@@ -1045,8 +1056,38 @@ export const sendMatrixDirectMessage = createAsyncThunk<
     })
 })
 
-export const sendMatrixPaymentPush = createAsyncThunk<
+export const sendMatrixFormResponse = createAsyncThunk<
     void,
+    {
+        roomId: MatrixRoom['id']
+        formResponse: MatrixFormResponse
+    },
+    { state: CommonState }
+>(
+    'matrix/sendMatrixFormResponse',
+    async ({ roomId, formResponse }, { getState }) => {
+        const state = getState()
+        const matrixAuth = selectMatrixAuth(state)
+        if (!matrixAuth) throw new Error('Not authenticated')
+
+        // body MUST contain the exact string value guardianito expects or it will be ignored
+        const { responseValue } = formResponse
+        const body = responseValue.toString()
+        log.debug(
+            `sendMatrixFormResponse to room ${roomId} with body ${body} and formResponse ${JSON.stringify(formResponse)}`,
+        )
+
+        const client = getMatrixClient()
+        await client.sendMessage(roomId, {
+            msgtype: 'xyz.fedi.form',
+            body,
+            formResponse,
+        })
+    },
+)
+
+export const sendMatrixPaymentPush = createAsyncThunk<
+    string,
     {
         fedimint: FedimintBridge
         federationId: string
@@ -1067,9 +1108,10 @@ export const sendMatrixPaymentPush = createAsyncThunk<
         const matrixAuth = selectMatrixAuth(state)
         if (!matrixAuth) throw new Error('Not authenticated')
         if (!federation) throw new Error('Federation not found')
-        log.info('sendMatrixPaymentPush', amount, 'sats')
-        const msats = amountUtils.satToMsat(amount)
 
+        log.info('sendMatrixPaymentPush', amount, 'sats')
+
+        const msats = amountUtils.satToMsat(amount)
         const client = getMatrixClient()
 
         const frontendMetadata = {
@@ -1078,29 +1120,33 @@ export const sendMatrixPaymentPush = createAsyncThunk<
             initialNotes: notes,
         } satisfies FrontendMetadata
 
-        const { ecash } = await fedimint.generateEcash(
+        const { ecash, operationId } = await fedimint.generateEcash(
             msats,
             federationId,
             true,
             frontendMetadata,
         )
 
+        const senderOperationId = operationId
+        const paymentId = uuidv4()
+
         await client.sendMessage(roomId, {
             msgtype: 'xyz.fedi.payment',
-            body: `Sent payment of ${amountUtils.formatSats(
-                amount,
-            )} SATS. Use the Fedi app to accept this payment.`, // TODO: i18n? this only shows to matrix clients, not Fedi users
+            body: `Sent payment of ${amountUtils.formatSats(amount)} SATS. Use the Fedi app to accept this payment.`, // TODO: i18n? this only shows to matrix clients, not Fedi users
             status: MatrixPaymentStatus.pushed,
-            paymentId: uuidv4(),
+            paymentId,
+            senderOperationId,
+            receiverOperationId: undefined,
             senderId: matrixAuth.userId,
-            amount: msats,
             recipientId,
+            amount: msats,
             ecash,
             federationId: federation.id,
         })
+
+        return senderOperationId
     },
 )
-
 export const sendMatrixPaymentRequest = createAsyncThunk<
     void,
     {
@@ -1115,45 +1161,67 @@ export const sendMatrixPaymentRequest = createAsyncThunk<
     async ({ federationId, roomId, amount }, { getState }) => {
         const matrixAuth = selectMatrixAuth(getState())
         if (!matrixAuth) throw new Error('Not authenticated')
-        log.info('sendMatrixPaymentRequest', amount, 'sats')
-        const msats = amountUtils.satToMsat(amount)
 
+        log.info('sendMatrixPaymentRequest', amount, 'sats')
+
+        const msats = amountUtils.satToMsat(amount)
         const client = getMatrixClient()
+
+        const paymentId = uuidv4()
+        const senderOperationId = undefined
 
         await client.sendMessage(roomId, {
             msgtype: 'xyz.fedi.payment',
-            body: `Requested payment of ${amountUtils.formatSats(
-                amount,
-            )} SATS. Use the Fedi app to complete this request.`, // TODO: i18n?
-            paymentId: uuidv4(),
+            body: `Requested payment of ${amountUtils.formatSats(amount)} SATS. Use the Fedi app to complete this request.`, // TODO: i18n?
+            paymentId,
             status: MatrixPaymentStatus.requested,
             recipientId: matrixAuth.userId,
             amount: msats,
             federationId,
+            senderOperationId,
+            receiverOperationId: undefined,
         })
     },
 )
 
 export const claimMatrixPayment = createAsyncThunk<
     void,
-    { fedimint: FedimintBridge; event: MatrixPaymentEvent }
->('matrix/claimMatrixPayment', async ({ fedimint, event }) => {
+    { fedimint: FedimintBridge; event: MatrixPaymentEvent },
+    { state: CommonState }
+>('matrix/claimMatrixPayment', async ({ fedimint, event }, { getState }) => {
     const client = getMatrixClient()
+    const matrixAuth = selectMatrixAuth(getState())
+    if (!matrixAuth) throw new Error('Not authenticated')
 
     const { ecash, federationId } = event.content
     if (!ecash) throw new Error('Payment message is missing ecash token')
     if (!federationId)
         throw new Error('Payment message is missing federationId')
 
-    await fedimint.receiveEcash(ecash, federationId)
+    const frontendMetadata = {
+        recipientMatrixId: matrixAuth.userId,
+        senderMatrixId: event.content.senderId || null,
+        initialNotes: null,
+    } satisfies FrontendMetadata
+
+    // receive the ecash and get the receiver operation ID
+    const [, receiverOperationId] = await fedimint.receiveEcash(
+        ecash,
+        federationId,
+        frontendMetadata,
+    )
+
+    // send back the same payment event with updated status
+    // old clients will ignore receiverOperationId, new clients will use it
     await client.sendMessage(event.roomId, {
         ...event.content,
         body: 'Payment received.', // TODO: i18n?
         status: MatrixPaymentStatus.received,
+        receiverOperationId, // will be undefined for old clients, which is fine
     })
+
     await client.markRoomAsUnread(event.roomId, true)
 })
-
 export const checkForReceivablePayments = createAsyncThunk<
     void,
     {
@@ -1167,6 +1235,8 @@ export const checkForReceivablePayments = createAsyncThunk<
     async ({ fedimint, roomId, receivedPayments }, { getState, dispatch }) => {
         const state = getState()
         const myId = state.matrix.auth?.userId
+        if (!myId) return
+
         // if we have a roomId, check only that room's timeline
         // otherwise check all loaded timelines for receivable payments
         // note: timelines are only loaded when clicking into a chat so this
@@ -1180,8 +1250,10 @@ export const checkForReceivablePayments = createAsyncThunk<
                   if (!t) return result
                   return [...result, ...t]
               }, [])
-        if (!myId || !timeline) return
-        const walletFederations = selectWalletFederations(getState())
+
+        if (!timeline) return
+
+        const walletFederations = selectWalletFederations(state)
         log.info('Looking for receivable payment events...')
 
         const receivablePayments = getReceivablePaymentEvents(
@@ -1190,13 +1262,16 @@ export const checkForReceivablePayments = createAsyncThunk<
             walletFederations,
         )
         log.info(`Found ${receivablePayments.length} receivable payments`)
+
         receivablePayments.forEach(event => {
             if (receivedPayments.has(event.content.paymentId)) return
             receivedPayments.add(event.content.paymentId)
+
             log.info(
                 'Unclaimed matrix payment event detected, attempting to claim',
                 event,
             )
+
             dispatch(claimMatrixPayment({ fedimint, event }))
                 .unwrap()
                 .then(() => {
@@ -1207,6 +1282,7 @@ export const checkForReceivablePayments = createAsyncThunk<
                         'Failed to claim matrix payment, will try again later',
                         err,
                     )
+                    // if claim fails, free up this payment ID to retry later
                     receivedPayments.delete(event.content.paymentId)
                 })
         })
@@ -1243,22 +1319,41 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
         const matrixAuth = selectMatrixAuth(getState())
         if (!matrixAuth) throw new Error('Not authenticated')
 
+        if (event.content.status !== MatrixPaymentStatus.requested) {
+            throw new Error('Can only accept payment requests')
+        }
+
+        const { amount, federationId, recipientId } = event.content
+        if (!federationId) throw new Error('Payment missing federationId')
+        if (!amount) throw new Error('Payment request missing amount')
+
+        const msats = amount as MSats
+
+        const frontendMetadata = {
+            recipientMatrixId: recipientId || null,
+            senderMatrixId: matrixAuth.userId,
+            initialNotes: '',
+        } satisfies FrontendMetadata
+
+        const { ecash, operationId: senderOperationId } =
+            await fedimint.generateEcash(
+                msats,
+                federationId,
+                true,
+                frontendMetadata,
+            )
+
         const client = getMatrixClient()
-        const { federationId, amount } = event.content
-        if (!federationId)
-            throw new Error('Need federation id to generate ecash')
-        const { ecash } = await fedimint.generateEcash(
-            amount as MSats,
-            federationId,
-            true,
-        )
+
+        // send the payment as accepted (not pushed)
         await client.sendMessage(event.roomId, {
             ...event.content,
             body: `Sent payment of ${amountUtils.formatSats(
-                amountUtils.msatToSat(amount as MSats),
-            )} SATS. Use the Fedi app to accept this payment.`, // TODO: i18n?
+                amountUtils.msatToSat(msats),
+            )} SATS.`, // TODO: i18n?
             status: MatrixPaymentStatus.accepted,
             senderId: matrixAuth.userId,
+            senderOperationId,
             ecash,
         })
     },
@@ -1330,7 +1425,7 @@ export const searchMatrixUsers = createAsyncThunk<MatrixSearchResults, string>(
     },
 )
 
-export const fetchMatrixProfile = createAsyncThunk<any, string>(
+export const fetchMatrixProfile = createAsyncThunk<JSONObject, string>(
     'matrix/fetchMatrixProfile',
     async userId => {
         const client = getMatrixClient()
@@ -1363,7 +1458,7 @@ export const refetchMatrixRoomList = createAsyncThunk<void, void>(
 )
 
 export const paginateMatrixRoomTimeline = createAsyncThunk<
-    void,
+    null,
     { roomId: MatrixRoom['id']; limit?: number },
     { state: CommonState }
 >(
@@ -1371,7 +1466,7 @@ export const paginateMatrixRoomTimeline = createAsyncThunk<
     ({ roomId, limit = 30 }, { getState }) => {
         const numEvents = getState().matrix.roomTimelines[roomId]?.length || 0
         const client = getMatrixClient()
-        client.paginateTimeline(roomId, numEvents + limit)
+        return client.paginateTimeline(roomId, numEvents + limit)
     },
 )
 
@@ -1538,6 +1633,7 @@ export const previewGlobalDefaultChats = createAsyncThunk<
     void,
     { state: CommonState }
 >('matrix/previewGlobalDefaultChats', async (_, { getState }) => {
+    log.debug('previewGlobalDefaultChats')
     const client = getMatrixClient()
     // can't fetch preview until after matrix init + registration
     if (!selectMatrixAuth(getState())) return []
@@ -1589,13 +1685,14 @@ export const previewCommunityDefaultChats = createAsyncThunk<
 
 /**
  * Fetches the room previews for any default chats configured in the meta
- * of any federations that have been loaded
+ * of any federations that have been loaded AND the global default chats
  */
 export const previewAllDefaultChats = createAsyncThunk<
     MatrixGroupPreview[],
     void,
     { state: CommonState }
 >('matrix/previewAllDefaultChats', async (_, { getState, dispatch }) => {
+    dispatch(previewGlobalDefaultChats())
     const federations = selectLoadedFederations(getState())
     // Previews default chats for each federation
     const federationDefaultChatResults = await Promise.allSettled(
@@ -1684,6 +1781,41 @@ export const selectGroupPreviews = createSelector(
     groupPreviews => groupPreviews,
 )
 
+// Returns a processed & sorted list of default chats for
+// use in the chats list
+const selectDefaultChatsForChatList = createSelector(
+    selectMatrixRooms,
+    selectGroupPreviews,
+    (roomsList, defaultGroupPreviews) => {
+        // Here we add preview rooms from the default groups list to be
+        // displayed alongside the user's joined rooms to make it seem like
+        // the user has joined these rooms when really they are just public previews
+        // TODO: These should be moved to the Community screen and only shown
+        // when the user switches to view that community
+        const defaultGroupsList = Object.entries(defaultGroupPreviews).reduce<
+            MatrixRoom[]
+        >((result, [_, preview]: [RpcRoomId, MatrixGroupPreview]) => {
+            const { info, timeline } = preview
+            // don't include previews if we dont have info and timeline
+            if (!info || !timeline) return result
+            // don't include previews unless they are default groups
+            if (!preview.isDefaultGroup) return result
+            // don't include previews that have no messages in the timeline
+            if (timeline.filter(t => t !== null).length === 0) return result
+            // don't include previews for rooms we are already joined to
+            if (roomsList.find(r => r.id === info.id)) return result
+            result.push(makeChatFromPreview(preview))
+            return result
+        }, [])
+        // Sorts so merging with the joined rooms list is more efficient
+        return orderBy(
+            defaultGroupsList,
+            room => room.preview?.timestamp ?? 0,
+            'desc',
+        )
+    },
+)
+
 export const selectMatrixAuth = createSelector(
     (s: CommonState) => s.matrix.auth,
     auth => {
@@ -1736,36 +1868,47 @@ export const selectMatrixChatsWithoutDefaultGroupPreviewsList = createSelector(
 
 export const selectMatrixChatsList = createSelector(
     selectMatrixRooms,
-    selectGroupPreviews,
-    (roomsList, defaultGroupPreviews): MatrixRoom[] => {
-        // Here we add preview rooms from the default groups list to be
-        // displayed alongside the user's joined rooms to make it seem like
-        // the user has joined these rooms when really they are just public previews
-        // TODO: These should be moved to the Community screen and only shown
-        // when the user switches to view that community
-        const defaultGroupsList = Object.entries(defaultGroupPreviews).reduce<
-            MatrixRoom[]
-        >((result, [_, preview]: [RpcRoomId, MatrixGroupPreview]) => {
-            const { info, timeline } = preview
-            // don't include previews if we dont have info and timeline
-            if (!info || !timeline) return result
-            // don't include previews unless they are default groups
-            if (!preview.isDefaultGroup) return result
-            // don't include previews that have no messages in the timeline
-            if (timeline.filter(t => t !== null).length === 0) return result
-            // don't include previews for rooms we are already joined to
-            if (roomsList.find(r => r.id === info.id)) return result
-            result.push(makeChatFromPreview(preview))
-            return result
-        }, [])
+    selectDefaultChatsForChatList,
+    (roomsList, defaultGroupsList): MatrixRoom[] => {
         // don't include rooms that we have not joined yet this should happen
         // automatically but we filter here anyway in case the join fails for some reason
         const joinedRoomsList = roomsList.filter(r => r.roomState === 'Joined')
-        const chatList: MatrixRoom[] = [
-            ...joinedRoomsList,
-            ...defaultGroupsList,
-        ]
-        return orderBy(chatList, item => item.preview?.timestamp || 0, 'desc')
+
+        const chatList: MatrixRoom[] = []
+        let i = 0 // joinedRoomsList index
+        let j = 0 // defaultGroupsList index
+
+        // Merge the two sorted lists in linear time
+        while (i < joinedRoomsList.length && j < defaultGroupsList.length) {
+            const joinedRoom = joinedRoomsList[i]
+            const defaultRoom = defaultGroupsList[j]
+
+            // If a joined room doesn't have a timestamp, (such as
+            // newly created rooms) always order it before the default group
+            const joinedTimestamp =
+                joinedRoom.preview?.timestamp ?? Number.MAX_SAFE_INTEGER
+            const defaultTimestamp = defaultRoom.preview?.timestamp ?? 0
+
+            // insert each default room just before the first room with
+            // a newer (larger) timestamp
+            if (joinedTimestamp >= defaultTimestamp) {
+                chatList.push(joinedRoom)
+                i++
+            } else {
+                chatList.push(defaultRoom)
+                j++
+            }
+        }
+
+        // Add remaining items from either list
+        while (i < joinedRoomsList.length) {
+            chatList.push(joinedRoomsList[i++])
+        }
+        while (j < defaultGroupsList.length) {
+            chatList.push(defaultGroupsList[j++])
+        }
+
+        return chatList
     },
 )
 
@@ -2199,19 +2342,6 @@ export const selectMultispendBalanceCents = createSelector(
         if (!balanceCentsPrecise) return 0 as UsdCents
 
         return Number(balanceCentsPrecise.toFixed(0)) as UsdCents
-    },
-)
-
-// Converts the multispend balance in cents to the selected fiat currency
-export const selectMultispendBalanceFiat = createSelector(
-    selectMultispendBalanceCents,
-    (s: CommonState) => selectBtcUsdExchangeRate(s),
-    (balanceCents, btcUsdExchangeRate) => {
-        return amountUtils.convertCentsToOtherFiat(
-            balanceCents,
-            btcUsdExchangeRate,
-            btcUsdExchangeRate,
-        )
     },
 )
 

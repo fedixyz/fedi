@@ -249,14 +249,14 @@ export const JoinFederation: React.FC = () => {
                             />
                         </Text>
 
+                        <Button variant="tertiary" onClick={() => back()}>
+                            {t('feature.onboarding.i-do-not-accept')}
+                        </Button>
                         <Button
                             width="full"
                             onClick={handleJoin}
                             loading={isJoining}>
                             {t('feature.onboarding.i-accept')}
-                        </Button>
-                        <Button variant="tertiary" onClick={() => back()}>
-                            {t('feature.onboarding.i-do-not-accept')}
                         </Button>
                     </>
                 ) : (

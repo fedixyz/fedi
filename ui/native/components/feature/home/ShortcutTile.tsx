@@ -10,7 +10,9 @@ import {
 import { SvgUri } from 'react-native-svg'
 
 import { selectIsActiveFederationRecovering } from '@fedi/common/redux'
-import { fetchMetadataFromUrl } from '@fedi/common/utils/fedimods'
+import { tryFetchUrlMetadata } from '@fedi/common/utils/fedimods'
+import { makeLog } from '@fedi/common/utils/log'
+import { constructUrl } from '@fedi/common/utils/neverthrow'
 
 import { FediModImages } from '../../../assets/images'
 import { useAppSelector } from '../../../state/hooks'
@@ -30,6 +32,8 @@ type ShortcutTileProps = {
     onSelect: (fediMod: FediMod) => void
 }
 
+const log = makeLog('ShortcutTile')
+
 function isMod(shortcut: Shortcut | FediMod): shortcut is FediMod {
     return shortcut.type === ShortcutType.fediMod
 }
@@ -37,8 +41,8 @@ function isMod(shortcut: Shortcut | FediMod): shortcut is FediMod {
 const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
-    const [imageSrc, setImageSrc] = useState<ImageSourcePropType | undefined>(
-        undefined,
+    const [imageSrc, setImageSrc] = useState<ImageSourcePropType>(
+        FediModImages.default,
     )
 
     useEffect(() => {
@@ -48,16 +52,18 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
                 setImageSrc(FediModImages[shortcut.id])
             } else if (shortcut.imageUrl) {
                 // then try image url
-                setImageSrc({ uri: shortcut.imageUrl })
+                setImageSrc({ uri: shortcut.imageUrl, cache: 'force-cache' })
             } else {
-                // fallback to default, but try fetching an icon from the URL in the background
-                setImageSrc(FediModImages.default)
-
-                fetchMetadataFromUrl(shortcut.url).then(({ fetchedIcon }) => {
-                    if (fetchedIcon) {
-                        setImageSrc({ uri: fetchedIcon })
-                    }
-                })
+                constructUrl(shortcut.url)
+                    .asyncAndThen(tryFetchUrlMetadata)
+                    .match(
+                        ({ icon }) => {
+                            setImageSrc({ uri: icon, cache: 'force-cache' })
+                        },
+                        e => {
+                            log.error('Failed to fetch fedi mod metadata', e)
+                        },
+                    )
             }
         }
     }, [shortcut])

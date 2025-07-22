@@ -1,181 +1,237 @@
-import { makeLog } from './log'
+import orderBy from 'lodash/orderBy'
+import { err, errAsync, ok, Result, ResultAsync } from 'neverthrow'
+import { z } from 'zod'
 
-const log = makeLog('common/utils/fedimods')
+import {
+    FetchError,
+    MalformedDataError,
+    MissingDataError,
+    SchemaValidationError,
+    UrlConstructError,
+} from '../types/errors'
+import { makeError, tryTag, UnexpectedError } from './errors'
+import {
+    constructUrl,
+    fetchResult,
+    thenJson,
+    throughZodSchema,
+} from './neverthrow'
 
-const parseHtmlForIcon = async (
+/**
+ * Attempts to find the application name from meta tags
+ * Falls back to the first title tag
+ * If nothing is found, returns a `MissingDataError`
+ */
+const tryGetHtmlTitle = (
     html: string,
-    urlOrigin: string,
-): Promise<string> => {
-    // Match all <link> tags
-    const linkTagRegex = /<link[^>]*>/g
-    const linkTags = html.match(linkTagRegex) || []
+): Result<string, MissingDataError | UnexpectedError> => {
+    const titleMetaTags = html.match(
+        /<meta[^>]*name="(application-name|apple-mobile-web-app-title)"[^>]*>/gi,
+    )
+    const titleMetaContents =
+        titleMetaTags
+            ?.map(tag => tag.match(/content="([^"]*)"/i)?.[1])
+            .filter(content => content !== undefined) ?? []
+    const titleText = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]
+    const resolvedTitle = titleMetaContents?.[0] ?? titleText
 
-    // Define the rel values we're interested in, in priority order
-    const relValues = ['apple-touch-icon', 'icon', 'shortcut icon']
+    if (resolvedTitle === undefined)
+        return err(makeError(new Error('expected title'), 'MissingDataError'))
 
-    for (const rel of relValues) {
-        for (const tag of linkTags) {
-            const relMatch = tag.match(new RegExp(`rel="${rel}"`))
-            const hrefMatch = tag.match(/href="([^"]*)"/)
-
-            if (relMatch && hrefMatch) {
-                let linkedIconUrl = new URL(hrefMatch[1], urlOrigin).href
-                linkedIconUrl = linkedIconUrl.replace(/\/+$/, '') // Trim trailing slashes
-
-                const linkedIconResponse = await fetch(linkedIconUrl)
-                if (linkedIconResponse.ok) {
-                    return linkedIconUrl
-                }
-            }
-        }
-    }
-
-    return ''
-}
-
-const parseHtmlForTitle = (html: string): string => {
-    // The order of these tags matches the order of priority given in the instructions
-    const titleTags = [
-        /<meta name="application-name" content="([^"]*)"/,
-        /<meta name="apple-mobile-web-app-title" content="([^"]*)"/,
-        /<title>([^<]*)<\/title>/,
-    ]
-
-    for (const tag of titleTags) {
-        const match = tag.exec(html)
-        if (match && match[1]) {
-            return match[1]
-        }
-    }
-
-    return ''
-}
-
-type ManifestIcon = {
-    src: string
-    sizes: string
-}
-
-const fetchTitleAndIconFromManifest = async (
-    manifestUrl: string,
-): Promise<{ title: string; icon: string }> => {
-    const trimmed = manifestUrl.replace(/\/+$/, '') // Trim trailing slashes
-    const response = await fetch(trimmed)
-    if (response.ok) {
-        const manifest = await response.json()
-
-        // Get the name from the manifest
-        const title = manifest.name || ''
-
-        // Find the largest icon using sizes in expected format
-        // 48x48, 72x72, etc
-        let largestIcon: ManifestIcon | null = null
-        if (manifest.icons && manifest.icons.length > 0) {
-            largestIcon = manifest.icons.reduce(
-                (prev: ManifestIcon, current: ManifestIcon) => {
-                    const prevSize = Math.max(
-                        ...prev.sizes.split('x').map(Number),
-                    )
-                    const currentSize = Math.max(
-                        ...current.sizes.split('x').map(Number),
-                    )
-                    return prevSize < currentSize ? current : prev
-                },
-            )
-        }
-
-        return { title, icon: largestIcon?.src || '' }
-    } else {
-        throw new Error(`Failed to fetch manifest from ${manifestUrl}`)
-    }
-}
-
-const parseHtmlForWebAppManifest = (
-    html: string,
-    urlOrigin: string,
-): string => {
-    // Match all <link> tags
-    const linkTagRegex = /<link[^>]*>/g
-    const linkTags = html.match(linkTagRegex) || []
-
-    // Define the rel value we're interested in
-    const relValue = 'manifest'
-
-    for (const tag of linkTags) {
-        const relMatch = tag.match(new RegExp(`rel="${relValue}"`))
-        const hrefMatch = tag.match(/href="([^"]*)"/)
-
-        if (relMatch && hrefMatch) {
-            return new URL(hrefMatch[1], urlOrigin).href
-        }
-    }
-
-    return ''
+    return ok(resolvedTitle)
 }
 
 /**
- * Submit a fetch request to Fedimod URL to try and find metadata to use
- * as a default icon and title
+ * Attempts to find and construct a manifest url from an html string
+ * If no manifest URL is found, returns a `MissingDataError`
  */
-export async function fetchMetadataFromUrl(
-    url: URL | string,
-): Promise<{ fetchedIcon: string; fetchedTitle: string }> {
-    let fetchedTitle = '',
-        fetchedIcon = ''
+const tryGetManifestUrl = (
+    html: string,
+    urlOrigin: string,
+): Result<URL, MissingDataError | UrlConstructError | UnexpectedError> => {
+    const manifestLink = html
+        .match(/<link[^>]*rel="manifest"[^>]*>/gi)?.[0]
+        ?.match(/href="([^"]*)"/i)?.[1]
 
-    try {
-        // Seems not all web servers handle trailing slashes
-        // so we trim them to make fetches more reliable
-        // ex: https://example.com/image.png/ fails to return
-        const trimmedUrl = url.toString().replace(/\/+$/, '')
-        const htmlResponse = await fetch(trimmedUrl)
-        if (htmlResponse.ok) {
-            const html = await htmlResponse.text()
-            const urlOrigin = new URL(trimmedUrl).origin
+    if (manifestLink === undefined)
+        return err(
+            makeError(new Error('expected manifest url'), 'MissingDataError'),
+        )
 
-            // Attempt to parse and fetch both title and favicon
-            // from Web App Manifest first if <link> is found in DOM
-            const manifestUrl = parseHtmlForWebAppManifest(html, urlOrigin)
-            if (manifestUrl) {
-                const manifestData =
-                    await fetchTitleAndIconFromManifest(manifestUrl)
-                fetchedTitle = manifestData.title
-                fetchedIcon = manifestData.icon
-                    ? new URL(manifestData.icon, urlOrigin).href
-                    : ''
+    return constructUrl(manifestLink ?? '', urlOrigin)
+}
+
+/**
+ * Returns an array of all valid icon URLs in an html string
+ */
+const getHtmlIconUrls = (html: string, urlOrigin: string): URL[] => {
+    const iconLinks = html.match(
+        /<link[^>]*rel="(icon|shortcut\sicon|apple-touch-icon)"[^>]*>/gi,
+    )
+    const iconUrls =
+        iconLinks
+            ?.map(tag => tag.match(/href="([^"]*)"/i)?.[1])
+            .filter(href => href !== undefined) ?? []
+
+    iconUrls.push('/favicon.ico')
+
+    return iconUrls
+        .map(url => constructUrl(url, urlOrigin))
+        .filter(url => url.isOk())
+        .map(url => url.value)
+}
+
+/**
+ * Finds all possible icons from an HTML string and returns the first one that returns an ok http response
+ */
+const tryFetchFirstHtmlIcon = (
+    html: string,
+    urlOrigin: string,
+): ResultAsync<
+    URL,
+    UnexpectedError | UrlConstructError | FetchError | MissingDataError
+> => {
+    const iconUrls = getHtmlIconUrls(html, urlOrigin)
+
+    // Ensures that the http response of an icon, given its URL, is ok
+    const isUrlOk = (url: URL) =>
+        fetchResult(url.toString()).andThen(res => {
+            if (!res.ok) {
+                return err(
+                    makeError(new Error('failed to fetch icon'), 'FetchError'),
+                )
             }
 
-            // If title is missing, parse for other tags
-            if (!fetchedTitle) {
-                fetchedTitle = parseHtmlForTitle(html)
-                // Use hostname is no tags are found
-                if (!fetchedTitle) {
-                    fetchedTitle = new URL(trimmedUrl).hostname
-                }
+            return ok(url)
+        })
+
+    // Attempts to fetch icon URLs until one is valid
+    return iconUrls.reduce(
+        (prev, curr) => prev.orElse(() => isUrlOk(curr)),
+        errAsync<
+            URL,
+            UnexpectedError | UrlConstructError | MissingDataError | FetchError
+        >(
+            makeError(
+                new Error('expected at least one icon'),
+                'MissingDataError',
+            ),
+        ),
+    )
+}
+
+const manifestIconSchema = z
+    .object({
+        src: z.string(),
+        sizes: z.string(),
+        purpose: z.enum(['any', 'maskable', 'monochrome']).optional(),
+    })
+    .passthrough()
+
+type ManifestIcon = z.infer<typeof manifestIconSchema>
+
+const manifestSchema = z
+    .object({
+        name: z.string().min(1),
+        icons: z.array(manifestIconSchema).optional(),
+    })
+    .passthrough()
+
+/**
+ * Attempts to find the title and largest valid icon from a manifest url
+ * If the manifest is malformed, returns a `SchemaValidationError`
+ */
+const tryFetchManifestMetadata = (
+    manifestUrl: URL,
+): ResultAsync<
+    { title: string; icon: string },
+    | SchemaValidationError
+    | UrlConstructError
+    | MalformedDataError
+    | UnexpectedError
+    | FetchError
+> => {
+    return fetchResult(manifestUrl.toString())
+        .andThen(thenJson)
+        .andThen(throughZodSchema(manifestSchema))
+        .map(manifest => {
+            let icon: ManifestIcon | null = null
+
+            if (manifest.icons && manifest.icons.length > 0) {
+                icon = orderBy(
+                    manifest.icons,
+                    [
+                        // Prefer maskable icons
+                        (ic: ManifestIcon) =>
+                            ic.purpose?.includes('maskable') ? 1 : 0,
+                        // Sort by largest size
+                        (ic: ManifestIcon) =>
+                            Math.max(...ic.sizes.split('x').map(Number)),
+                    ],
+                    ['desc', 'desc'],
+                )[0]
             }
 
-            if (!fetchedIcon) {
-                fetchedIcon = await parseHtmlForIcon(html, urlOrigin)
-
-                // Fallback to favicon.ico from the root if favicon is still missing
-                if (!fetchedIcon) {
-                    const faviconUrl = new URL('/favicon.ico', trimmedUrl).href
-                    const rootFaviconResponse = await fetch(faviconUrl)
-
-                    if (rootFaviconResponse.ok) {
-                        fetchedIcon = faviconUrl
-                    }
-                }
+            return {
+                title: manifest.name,
+                icon: constructUrl(icon?.src ?? '', manifestUrl.origin)
+                    .unwrapOr('')
+                    .toString(),
             }
-        }
-    } catch (error) {
-        log.error('fetchMetadataFromUrl', error)
-    }
+        })
+}
 
-    return {
-        fetchedIcon,
-        fetchedTitle,
-    }
+/**
+ * Submit a fetch request to URL and find the best possible title and icon
+ * If the initial http response is not of status 200, returns a `FetchError`
+ * If a title cannot be found, falls back to the hostname
+ * If an icon cannot be found, falls back to an empty string
+ */
+export function tryFetchUrlMetadata(
+    url: URL,
+): ResultAsync<
+    { icon: string; title: string },
+    UrlConstructError | FetchError | MalformedDataError | UnexpectedError
+> {
+    return fetchResult(url.toString())
+        .andThrough(res =>
+            res.status === 200
+                ? ok()
+                : err(
+                      makeError(
+                          new Error(
+                              `failed to fetch ${url.toString()}, got status code ${res.status}`,
+                          ),
+                          'FetchError',
+                      ),
+                  ),
+        )
+        .andThen(res =>
+            ResultAsync.fromPromise(res.text(), tryTag('MalformedDataError')),
+        )
+        .map(async html => {
+            let title = '',
+                icon = ''
+
+            const manifestUrl = tryGetManifestUrl(html, url.origin)
+
+            if (manifestUrl.isOk())
+                await tryFetchManifestMetadata(manifestUrl.value).map(
+                    manifest => {
+                        title = manifest.title
+                        icon = manifest.icon
+                    },
+                )
+
+            if (!title) tryGetHtmlTitle(html).map(t => (title = t))
+
+            if (!icon)
+                await tryFetchFirstHtmlIcon(html, url.origin).map(
+                    ic => (icon = ic.toString()),
+                )
+
+            return { title: title || url.hostname, icon }
+        })
 }
 
 /**

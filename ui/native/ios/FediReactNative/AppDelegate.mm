@@ -91,5 +91,27 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
             options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
   return [RCTLinkingManager application:application openURL:url options:options];
 }
+// Handle universal links when app is in foreground
+- (BOOL)application:(UIApplication *)application
+continueUserActivity:(NSUserActivity *)userActivity
+  restorationHandler:(void(^)(NSArray<id<UIUserActivityRestoring>> * __nullable restorableObjects))restorationHandler {
+  
+  // Handle universal links when app is in foreground
+  if ([userActivity.activityType isEqualToString:NSUserActivityTypeBrowsingWeb]) {
+    NSURL *url = userActivity.webpageURL;
+    if (url) {
+      NSLog(@"📲 Universal link received in foreground: %@", url.absoluteString);
+      
+      // Force handle the URL even when app is in foreground
+      dispatch_async(dispatch_get_main_queue(), ^{
+        [RCTLinkingManager application:application openURL:url options:@{}];
+      });
+      
+      return YES; // Tell iOS we handled it
+    }
+  }
+  
+  return NO;
+}
 
 @end

@@ -174,22 +174,17 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
                 </Flex>
             </Flex>
             <Flex row wrap fullWidth style={style.numpad}>
-                {numpadButtons
-                    .filter(
-                        (
-                            btn,
-                        ): btn is Exclude<
-                            (typeof numpadButtons)[number],
-                            '.'
-                        > => btn !== '.',
-                    )
-                    .map(btn => (
+                {numpadButtons.map(btn =>
+                    btn === '.' ? (
+                        <View key="empty" style={style.numpadBtnWidth} />
+                    ) : (
                         <NumpadButton
                             key={btn}
                             btn={btn}
                             onPress={() => handleNumpadPress(btn)}
                         />
-                    ))}
+                    ),
+                )}
             </Flex>
         </Flex>
     )
@@ -225,6 +220,9 @@ const styles = (theme: Theme, width: number) =>
         },
         incorrectPin: {
             color: theme.colors.red,
+        },
+        numpadBtnWidth: {
+            width: '33.33%',
         },
     })
 

@@ -1,10 +1,12 @@
 import fetchMock from 'jest-fetch-mock'
 import { rest } from 'msw'
 import { setupServer } from 'msw/node'
+import { ok } from 'neverthrow'
 import { z } from 'zod'
 
 import {
     constructUrl,
+    ensureNonNullish,
     fetchResult,
     thenJson,
     throughZodSchema,
@@ -14,6 +16,7 @@ fetchMock.enableMocks()
 
 const validDataUrl = 'https://validjson.com'
 const responseHtmlUrl = 'https://html.com'
+const eNotFound = 'https://enotfound.com'
 const invalidUrl = '$invalid\\url'
 
 const testSchema = z.object({
@@ -24,7 +27,7 @@ const testSchema = z.object({
 const sampleValidData = { foo: 'bar', baz: 1 }
 const sampleInvalidData = { foo: 1, baz: 'qux' }
 
-describe('fedimods', () => {
+describe('neverthrow', () => {
     // --- Mock API for LNURLs ---
     const server = setupServer(
         rest.get(validDataUrl, (_req, res, ctx) => {
@@ -41,6 +44,9 @@ describe('fedimods', () => {
                 ctx.body('<html>hi</html>'),
             )
         }),
+        rest.get(eNotFound, (_req, res, _ctx) => {
+            return res.networkError('getaddrinfo ENOTFOUND')
+        }),
     )
 
     beforeEach(() => server.listen())
@@ -48,70 +54,108 @@ describe('fedimods', () => {
     afterAll(() => server.close())
 
     describe('constructUrl', () => {
-        it('should return an Ok() for a valid URL', () => {
-            const url = constructUrl('https://example.com')
+        it('should return a valid URL object for a valid URL', () => {
+            const url = constructUrl(validDataUrl)
 
             expect(url.isOk()).toBe(true)
             expect(url.isErr()).toBe(false)
+            expect(url._unsafeUnwrap()).toBeInstanceOf(URL)
+            expect(url._unsafeUnwrap().href).toContain(validDataUrl)
         })
 
-        it('should return an Err() for an invalid URL', () => {
+        it('should return a UrlConstructError error for an invalid URL', () => {
             const url = constructUrl(invalidUrl)
 
             expect(url.isOk()).toBe(false)
             expect(url.isErr()).toBe(true)
+            expect(url._unsafeUnwrapErr()._tag).toBe('UrlConstructError')
         })
     })
 
     describe('throughZodSchema', () => {
-        it('should return an Ok() for valid data', () => {
+        it('should return the validated data if it matches the schema', () => {
             const parser = throughZodSchema(testSchema)
             const result = parser(sampleValidData)
 
             expect(result.isOk()).toBe(true)
             expect(result.isErr()).toBe(false)
+            expect(result._unsafeUnwrap()).toEqual(sampleValidData)
         })
 
-        it('should return an Err() for invalid data', () => {
+        it('should return a SchemaValidationError for invalid data', () => {
             const parser = throughZodSchema(testSchema)
             const result = parser(sampleInvalidData)
 
             expect(result.isOk()).toBe(false)
             expect(result.isErr()).toBe(true)
+            expect(result._unsafeUnwrapErr()._tag).toBe('SchemaValidationError')
         })
     })
 
     describe('fetchResult', () => {
-        it('should return an Ok() if the fetch is successful', async () => {
+        it('should return a Response object if the fetch is successful', async () => {
             const result = await fetchResult(validDataUrl)
 
             expect(result.isOk()).toBe(true)
             expect(result.isErr()).toBe(false)
+
+            const response = result._unsafeUnwrap()
+
+            expect(response).toBeInstanceOf(Response)
+            expect(response.status).toBe(200)
+            expect(response.ok).toBe(true)
         })
 
-        it('should return an Err() if the fetch fails', async () => {
+        it('should return a Response object regardless of a non-ok status code', async () => {
+            server.use(
+                rest.get(validDataUrl, (_req, res, ctx) =>
+                    res(ctx.status(404), ctx.body('Not found')),
+                ),
+            )
+
+            const result = await fetchResult(validDataUrl)
+
+            expect(result.isOk()).toBe(true)
+
+            const response = result._unsafeUnwrap()
+
+            expect(response).toBeInstanceOf(Response)
+            expect(response.status).toBe(404)
+            expect(response.ok).toBe(false)
+        })
+
+        it('should return a UrlConstructError if an invalid URL is passed', async () => {
             const result = await fetchResult(invalidUrl)
 
             expect(result.isOk()).toBe(false)
             expect(result.isErr()).toBe(true)
+            expect(result._unsafeUnwrapErr()._tag).toBe('UrlConstructError')
+        })
+
+        it('should return a FetchError if the fetch results in a network error', async () => {
+            const result = await fetchResult(eNotFound)
+
+            expect(result.isOk()).toBe(false)
+            expect(result.isErr()).toBe(true)
+            expect(result._unsafeUnwrapErr()._tag).toBe('FetchError')
         })
     })
 
     describe('thenJson', () => {
-        it('should return an Ok() if the response is successfully parsed as JSON', async () => {
+        it('should return the parsed response body if the response is successfully parsed as JSON', async () => {
             const result = await fetchResult(validDataUrl).andThen(thenJson)
 
             expect(result.isOk()).toBe(true)
             expect(result.isErr()).toBe(false)
-            expect(result.unwrapOr(null)).toEqual(sampleValidData)
+            expect(result._unsafeUnwrap()).toEqual(sampleValidData)
         })
 
-        it('should return an Err() if the response fails to be parsed as JSON', async () => {
+        it('should return a MalformedDataError if the response fails to be parsed as JSON', async () => {
             const result = await fetchResult(responseHtmlUrl).andThen(thenJson)
 
             expect(result.isOk()).toBe(false)
             expect(result.isErr()).toBe(true)
-            expect(result.unwrapOr(null)).toBe(null)
+            expect(result._unsafeUnwrapErr()._tag).toBe('MalformedDataError')
         })
     })
 
@@ -123,57 +167,10 @@ describe('fedimods', () => {
 
             expect(result.isOk()).toBe(true)
             expect(result.isErr()).toBe(false)
-            expect(result.unwrapOr(null)).toEqual(sampleValidData)
-        })
-    })
-
-    describe('additional edge-case tests', () => {
-        it('should accept a URL instance in constructUrl', () => {
-            const input = new URL(validDataUrl)
-            constructUrl(input).match(
-                ok => expect(ok.href).toBe(input.href),
-                () => fail('Expected Ok'),
-            )
+            expect(result._unsafeUnwrap()).toEqual(sampleValidData)
         })
 
-        it('should return Ok(Response) with status 404 (fetch doesn’t reject)', async () => {
-            server.use(
-                rest.get(validDataUrl, (_req, res, ctx) =>
-                    res(ctx.status(404), ctx.body('Not found')),
-                ),
-            )
-
-            const result = await fetchResult(validDataUrl)
-            expect(result.isOk()).toBe(true)
-
-            result.match(
-                ok => {
-                    expect(ok.status).toBe(404)
-                    expect(ok.ok).toBe(false)
-                },
-                () => fail('Expected Ok'),
-            )
-        })
-
-        it('should return Err<MalformedDataError> when thenJson hits non-JSON on 404', async () => {
-            server.use(
-                rest.get(validDataUrl, (_req, res, ctx) =>
-                    res(ctx.status(404), ctx.body('Not JSON')),
-                ),
-            )
-
-            const result = await fetchResult(validDataUrl).andThen(thenJson)
-            expect(result.isErr()).toBe(true)
-
-            result.match(
-                () => fail('Expected Err'),
-                err => {
-                    expect(err._tag).toBe('MalformedDataError')
-                },
-            )
-        })
-
-        it('should short-circuit to a SchemaValidationError when JSON shape is wrong', async () => {
+        it('should short-circuit to a SchemaValidationError when JSON response does not match the zod schema', async () => {
             server.use(
                 rest.get(validDataUrl, (_req, res, ctx) =>
                     res(
@@ -189,11 +186,28 @@ describe('fedimods', () => {
                 .andThen(throughZodSchema(testSchema))
 
             expect(result.isErr()).toBe(true)
-            result.match(
-                () => fail('Expected Err'),
-                err => {
-                    expect(err._tag).toBe('SchemaValidationError')
-                },
+            expect(result._unsafeUnwrapErr()._tag).toBe('SchemaValidationError')
+        })
+    })
+
+    describe('ensureNonNullish', () => {
+        it('should let the value pass through if it is not null or undefined', () => {
+            const result = ok(1).andThen(ensureNonNullish)
+
+            expect(result.isOk()).toBe(true)
+            expect(result._unsafeUnwrap()).toBe(1)
+        })
+
+        it('should return a MissingDataError if the value is null or undefined', () => {
+            const nullRes = ok(null).andThen(ensureNonNullish)
+            const undefinedRes = ok(undefined).andThen(ensureNonNullish)
+
+            expect(nullRes.isErr()).toBe(true)
+            expect(nullRes._unsafeUnwrapErr()._tag).toBe('MissingDataError')
+
+            expect(undefinedRes.isErr()).toBe(true)
+            expect(undefinedRes._unsafeUnwrapErr()._tag).toBe(
+                'MissingDataError',
             )
         })
     })

@@ -12,6 +12,7 @@ bug-report = { workspace = true }
 fedimint-derive-secret = { workspace = true }
 
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 bip39 = { version = "2.0.0", features = ["rand"] }
 serde = { workspace = true }
 bech32 = { workspace = true }
@@ -22,8 +23,17 @@ hex = { workspace = true }
 nostr = { workspace = true }
 ts-rs = "10"
 tokio = { workspace = true, features = ["time", "macros"] }
-bridge-inner = { workspace = true }
+tokio-stream = { version = "0.1.17", features = ["sync"] }
+federations = { workspace = true }
 communities = { workspace = true }
+matrix = { workspace = true }
+multispend = { path = "../multispend" }
 runtime = { workspace = true }
+nostril = { workspace = true }
 rpc-types = { workspace = true }
+stability-pool-client = { workspace = true }
 device-registration = { workspace = true }
+either = "1.15.0"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+zip = { version = "4", default-features = false, features = ["deflate", "time"] }

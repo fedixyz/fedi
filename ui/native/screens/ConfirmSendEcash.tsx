@@ -3,7 +3,6 @@ import { Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Keyboard, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 
 import {
     useAmountFormatter,
@@ -22,6 +21,7 @@ import FederationWalletSelector from '../components/feature/send/FederationWalle
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -102,9 +102,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const style = styles(theme)
 
     return (
-        <SafeAreaView
-            style={style.container}
-            edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
+        <SafeAreaContainer style={style.container} edges="notop">
             <FederationWalletSelector />
             <SendAmounts
                 balanceDisplay={balanceDisplay}
@@ -125,17 +123,15 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
                 feeItems={feeItemsBreakdown}
                 description={ecashFeesGuidanceText}
             />
-        </SafeAreaView>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flexDirection: 'column',
-            flex: 1,
             alignItems: 'center',
-            padding: theme.spacing.lg,
+            paddingTop: theme.spacing.lg,
         },
         amountContainer: {
             marginTop: 'auto',

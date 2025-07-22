@@ -14,7 +14,6 @@ import Flex from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
-import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'LockScreen'>
@@ -24,7 +23,7 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'LockScreen'>
  * Includes the "Forgot PIN" flow and is specific to unlocking the app.
  * Also takes an optional `routeParams` prop to navigate to a specific screen after unlocking (e.g. deeplinks)
  */
-const LockScreen = ({ navigation, route }: Props) => {
+const LockScreen = ({ navigation }: Props) => {
     const [pinDigits, setPinDigits] = useState<Array<number>>([])
     const [timeoutSeconds, setTimeoutSeconds] = useState(0)
     const [, setAttempts] = useState(0)
@@ -124,12 +123,9 @@ const LockScreen = ({ navigation, route }: Props) => {
             }),
         )
 
-        if (route.params && 'routeParams' in route.params) {
-            navigation.navigate(...route.params.routeParams)
-        } else {
-            navigation.dispatch(reset('TabsNavigator'))
-        }
-    }, [debouncedPin, navigation, dispatch, pin, route.params])
+        // Navigation will be handled automatically by MainNavigator
+        // when isAppUnlocked becomes true
+    }, [debouncedPin, dispatch, pin])
 
     useEffect(() => {
         return () => {
@@ -172,16 +168,18 @@ const LockScreen = ({ navigation, route }: Props) => {
                 </Flex>
             </Flex>
             <Flex row wrap fullWidth style={style.numpad}>
-                {numpadButtons
-                    .filter(btn => btn !== '.')
-                    .map(btn => (
+                {numpadButtons.map(btn =>
+                    btn === '.' ? (
+                        <View key="empty" style={style.numpadBtnWidth} />
+                    ) : (
                         <NumpadButton
                             key={btn}
                             btn={btn}
                             onPress={() => handleNumpadPress(btn)}
                             disabled={timeoutSeconds > 0}
                         />
-                    ))}
+                    ),
+                )}
                 {timeoutSeconds > 0 && (
                     <Flex center style={style.timeoutOverlay}>
                         <Text bold h1>
@@ -231,6 +229,9 @@ export const styles = (theme: Theme, width: number) =>
             right: 0,
             bottom: 0,
             backgroundColor: '#fffc',
+        },
+        numpadBtnWidth: {
+            width: '33.33%',
         },
     })
 

@@ -66,7 +66,7 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
     }, [groupPreviews, groupId, dispatch])
 
     return previewGroup === undefined ? null : (
-        <SafeAreaContainer padding="xl" edges="notop">
+        <SafeAreaContainer edges="notop">
             <Flex center grow gap="md">
                 <HoloGradient level="400" gradientStyle={style.icon}>
                     <Text style={style.iconText}>👋</Text>

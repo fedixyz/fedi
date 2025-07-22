@@ -26,24 +26,36 @@ const MultispendChatBanner: React.FC<Props> = ({ roomId }) => {
     const style = styles(theme)
 
     const statusBadge = useMemo(() => {
-        switch (multispendStatus?.status) {
-            case 'activeInvitation':
+        if (multispendStatus?.status === 'activeInvitation') {
+            if (multispendStatus.state.rejections.length > 0) {
                 return (
-                    <View style={[style.statusBadge, style.pendingStatusBadge]}>
-                        <Text small bold style={style.pendingStatusBadgeText}>
-                            {t('feature.multispend.waiting-for-approval')}
+                    <View style={[style.statusBadge, style.failedStatusBadge]}>
+                        <Text small bold style={style.failedStatusBadgeText}>
+                            {t('words.failed')}
                         </Text>
                     </View>
                 )
-            case 'finalized':
-                return (
-                    <View style={[style.statusBadge, style.activeStatusBadge]}>
-                        <Text small bold style={style.activeStatusBadgeText}>
-                            {t('words.active')}
-                        </Text>
-                    </View>
-                )
+            }
+
+            return (
+                <View style={[style.statusBadge, style.pendingStatusBadge]}>
+                    <Text small bold style={style.pendingStatusBadgeText}>
+                        {t('feature.multispend.waiting-for-approval')}
+                    </Text>
+                </View>
+            )
         }
+
+        if (multispendStatus?.status === 'finalized') {
+            return (
+                <View style={[style.statusBadge, style.activeStatusBadge]}>
+                    <Text small bold style={style.activeStatusBadgeText}>
+                        {t('words.active')}
+                    </Text>
+                </View>
+            )
+        }
+
         return null
     }, [multispendStatus, t, style])
 
@@ -88,18 +100,22 @@ const styles = (theme: Theme) =>
             alignSelf: 'flex-start',
         },
         pendingStatusBadge: {
-            color: theme.colors.primary,
             backgroundColor: theme.colors.orange100,
         },
         pendingStatusBadgeText: {
             color: theme.colors.orange,
         },
         activeStatusBadge: {
-            color: theme.colors.primary,
             backgroundColor: theme.colors.green,
         },
         activeStatusBadgeText: {
             color: theme.colors.white,
+        },
+        failedStatusBadge: {
+            backgroundColor: theme.colors.red100,
+        },
+        failedStatusBadgeText: {
+            color: theme.colors.red,
         },
     })
 

@@ -1,10 +1,9 @@
 import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { GestureResponderEvent, StyleSheet, View } from 'react-native'
-import RNFS from 'react-native-fs'
-import { launchImageLibrary } from 'react-native-image-picker'
 import { RESULTS } from 'react-native-permissions'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -13,194 +12,166 @@ import {
     uploadAndSetMatrixAvatarUrl,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { ensureNonNullish } from '@fedi/common/utils/neverthrow'
 
 import { fedimint } from '../bridge'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import Flex from '../components/ui/Flex'
+import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { Pressable } from '../components/ui/Pressable'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { useStoragePermission } from '../utils/hooks'
+import {
+    copyAssetToTempUri,
+    stripFileUriPrefix,
+    tryPickAssets,
+} from '../utils/media'
 
 const log = makeLog('EditProfile')
 
 const EditProfileSettings: React.FC = () => {
+    const [profileImageUri, setProfileImageUri] = useState<string | null>(null)
+    const [profileImageMimeType, setProfileImageMimeType] = useState('')
+    const [isLoading, setIsLoading] = useState(false)
+
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const toast = useToast()
-    const dispatch = useAppDispatch()
-
-    const matrixAuth = useAppSelector(selectMatrixAuth)
     const { storagePermission, requestStoragePermission } =
         useStoragePermission()
-
-    const style = styles(theme)
-
-    const [buttonIsOverlapping, setButtonIsOverlapping] = useState<boolean>()
-    const [keyboardHeight] = useState<number>(0)
-    const [buttonYPosition, setButtonYPosition] = useState<number>(0)
-    const [overlapThreshold] = useState<number>(0)
-
     const {
-        isSubmitting,
         username,
         errorMessage,
         handleChangeUsername,
         handleSubmitDisplayName,
     } = useDisplayNameForm(t)
 
-    // when the keyboard is opened and content layouts change, this effect
-    // determines whether the Create username button is overlapping with
-    // the input wrapper.
-    useEffect(() => {
-        if (
-            keyboardHeight > 0 &&
-            buttonYPosition > 0 &&
-            overlapThreshold > 0 &&
-            buttonYPosition < overlapThreshold
-        ) {
-            setButtonIsOverlapping(true)
-        }
-        // when keyboard closes be sure to reset buttonIsOverlapping
-        // state so the button remains flexed to the bottom of the view
-        if (keyboardHeight === 0 && buttonIsOverlapping === true) {
-            setButtonIsOverlapping(false)
-        }
-    }, [buttonIsOverlapping, buttonYPosition, overlapThreshold, keyboardHeight])
+    const toast = useToast()
+    const dispatch = useAppDispatch()
+    const matrixAuth = useAppSelector(selectMatrixAuth)
+    const insets = useSafeAreaInsets()
 
-    const handleAvatarPress = async (_: GestureResponderEvent) => {
-        if (storagePermission !== RESULTS.GRANTED) {
-            await requestStoragePermission()
-        }
-
-        try {
-            const res = await launchImageLibrary({
-                selectionLimit: 1,
-                mediaType: 'photo',
-            })
-
-            if (res.assets && res.assets.length > 0) {
-                const file = res.assets[0]
-                const mimeType = file.type || ''
-
-                if (!file.uri) {
-                    return
-                }
-
-                const fileDestination = `${RNFS.TemporaryDirectoryPath}/avatar_image`
-
-                try {
-                    const fileExists = await RNFS.exists(fileDestination)
-
-                    if (fileExists) {
-                        await RNFS.unlink(fileDestination)
-                    }
-                } catch (e) {
-                    log.error('no existing file to remove')
-                }
-
-                await RNFS.copyFile(file.uri, fileDestination)
-                await dispatch(
-                    uploadAndSetMatrixAvatarUrl({
-                        fedimint,
-                        mimeType,
-                        path: fileDestination,
-                    }),
-                ).unwrap()
-
-                toast.show({
-                    content: t('phrases.changes-saved'),
-                    status: 'success',
-                })
+    const handleAvatarPress = useCallback(
+        async (_: GestureResponderEvent) => {
+            if (storagePermission !== RESULTS.GRANTED) {
+                await requestStoragePermission()
             }
-        } catch (err) {
-            log.error('Failed to launch image library', err)
-            toast.error(t, err)
+
+            tryPickAssets(
+                {
+                    selectionLimit: 1,
+                    mediaType: 'photo',
+                    maxWidth: 1024,
+                    maxHeight: 1024,
+                    quality: 0.7,
+                },
+                t,
+            )
+                .map(assets => assets[0])
+                .andThen(ensureNonNullish)
+                .andTee(({ type }) => setProfileImageMimeType(type ?? ''))
+                .andThen(copyAssetToTempUri)
+                .match(setProfileImageUri, e => {
+                    log.error('Failed to launch image library', e)
+
+                    if (e._tag === 'UserError') toast.error(t, e)
+                })
+        },
+        [storagePermission, requestStoragePermission, t, toast],
+    )
+
+    const handleNameSubmit = useCallback(async () => {
+        setIsLoading(true)
+        await handleSubmitDisplayName()
+
+        if (profileImageUri) {
+            await dispatch(
+                uploadAndSetMatrixAvatarUrl({
+                    fedimint,
+                    mimeType: profileImageMimeType,
+                    path: stripFileUriPrefix(profileImageUri),
+                }),
+            ).unwrap()
+            setProfileImageUri(null)
+            setProfileImageMimeType('')
         }
-    }
 
-    const handleNameSubmit = useCallback(() => {
-        handleSubmitDisplayName(() => {
-            toast.show({
-                content: t('phrases.changes-saved'),
-                status: 'success',
-            })
+        setIsLoading(false)
+        toast.show({
+            content: t('phrases.changes-saved'),
+            status: 'success',
         })
-    }, [handleSubmitDisplayName, t, toast])
+    }, [
+        handleSubmitDisplayName,
+        t,
+        toast,
+        dispatch,
+        profileImageUri,
+        profileImageMimeType,
+    ])
 
-    let avatarName = matrixAuth?.displayName
+    const style = styles(theme)
 
-    // don't use name if we have an avatar image
-    if (matrixAuth?.avatarUrl) {
-        avatarName = ''
-    }
+    const hasChanged =
+        username.trim() !== matrixAuth?.displayName || profileImageUri !== null
 
-    const saveButtonDisabled =
-        username === matrixAuth?.displayName ||
-        !username ||
-        isSubmitting ||
-        errorMessage !== null
+    const saveButtonDisabled = !hasChanged || isLoading || errorMessage !== null
 
     return (
-        <SafeAreaContainer style={style.container} edges="notop">
-            <View>
+        <KeyboardAwareWrapper
+            behavior="padding"
+            additionalVerticalOffset={insets.top}>
+            <SafeAreaContainer style={style.container} edges="notop">
                 <Pressable
                     onPress={handleAvatarPress}
                     containerStyle={style.avatar}>
                     <Avatar
                         id={matrixAuth?.userId || ''}
-                        url={matrixAuth?.avatarUrl}
+                        url={profileImageUri ?? matrixAuth?.avatarUrl}
                         size={AvatarSize.lg}
-                        name={avatarName}
+                        name={matrixAuth?.displayName}
                     />
                     <Text caption>{t('feature.chat.change-avatar')}</Text>
                 </Pressable>
-            </View>
-
-            <Flex grow style={style.content}>
-                <Text
-                    testID="DisplayNameLabel"
-                    caption
-                    style={style.inputLabel}>
-                    {t('feature.chat.display-name')}
-                </Text>
-                <Input
-                    testID="DisplayNameInput"
-                    onChangeText={input => {
-                        handleChangeUsername(input)
-                    }}
-                    value={username}
-                    returnKeyType="done"
-                    containerStyle={style.textInputOuter}
-                    inputContainerStyle={style.textInputInner}
-                    autoCapitalize={'none'}
-                    autoCorrect={false}
-                    disabled={isSubmitting}
-                />
-                {errorMessage && (
-                    <Text caption style={style.errorLabel}>
-                        {errorMessage}
+                <Flex grow style={style.content}>
+                    <Text
+                        testID="DisplayNameLabel"
+                        caption
+                        style={style.inputLabel}>
+                        {t('feature.chat.display-name')}
                     </Text>
-                )}
-            </Flex>
+                    <Input
+                        testID="DisplayNameInput"
+                        onChangeText={input => {
+                            handleChangeUsername(input)
+                        }}
+                        value={username}
+                        returnKeyType="done"
+                        keyboardType="visible-password"
+                        containerStyle={style.textInputOuter}
+                        inputContainerStyle={style.textInputInner}
+                        autoCapitalize={'none'}
+                        autoCorrect={false}
+                        disabled={isLoading}
+                    />
+                    {errorMessage && (
+                        <Text caption style={style.errorLabel}>
+                            {errorMessage}
+                        </Text>
+                    )}
+                </Flex>
 
-            <View
-                style={[
-                    style.buttonContainer,
-                    buttonIsOverlapping ? { marginTop: theme.sizes.md } : {},
-                ]}
-                onLayout={event => {
-                    setButtonYPosition(event.nativeEvent.layout.y)
-                }}>
-                <Button
-                    fullWidth
-                    title={t('words.save')}
-                    onPress={handleNameSubmit}
-                    disabled={saveButtonDisabled}
-                    loading={isSubmitting}
-                />
-            </View>
-        </SafeAreaContainer>
+                <View style={[style.buttonContainer]}>
+                    <Button
+                        fullWidth
+                        title={t('words.save')}
+                        onPress={handleNameSubmit}
+                        disabled={saveButtonDisabled}
+                        loading={isLoading}
+                    />
+                </View>
+            </SafeAreaContainer>
+        </KeyboardAwareWrapper>
     )
 }
 
@@ -217,6 +188,7 @@ const styles = (theme: Theme) =>
         },
         container: {
             gap: theme.spacing.md,
+            width: '100%',
         },
         content: {
             marginTop: theme.spacing.md,

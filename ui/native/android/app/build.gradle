@@ -122,7 +122,11 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 240051929
-        versionName "25.6.3"
+        versionName "25.7.4"
+    }
+
+     compileOptions {
+        coreLibraryDesugaringEnabled true
     }
 
     packagingOptions {
@@ -203,9 +207,12 @@ android {
         nightly {
             dimension "env"
             applicationIdSuffix ".nightly"
+            // Force domain verification on install
+            manifestPlaceholders = [autoVerify: "true"]
         }
         production {
             dimension "env"
+            manifestPlaceholders = [autoVerify: "true"]
         }
     }
 }
@@ -225,6 +232,7 @@ afterEvaluate {
 }
 
 dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     // Configuration for Detox e2e testing framework
     androidTestImplementation('com.wix:detox:+')
     implementation 'androidx.appcompat:appcompat:1.1.0'

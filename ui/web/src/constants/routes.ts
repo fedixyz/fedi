@@ -4,6 +4,7 @@ export const welcomeRoute = '/'
 // Core pages
 export const chatRoute = '/chat'
 export const homeRoute = '/home'
+export const modsRoute = '/mods'
 export const scanRoute = '/scan'
 export const settingsRoute = '/settings'
 

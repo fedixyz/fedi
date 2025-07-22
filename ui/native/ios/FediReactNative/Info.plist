@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>25.6.3</string>
+	<string>25.7.4</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -76,13 +76,13 @@
 		<false/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>internet.fedi.xyz</key>
+			<key>connect.fedi.xyz</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
 			</dict>
-			<!-- This is a backup domain for the same purpose as internet.fedi.xyz -->
-			<key>connect.fedi.xyz</key>
+			<!-- This is an alternate domain for the same purpose as connect.fedi.xyz -->
+			<key>connect.satenet.org</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

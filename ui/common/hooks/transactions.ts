@@ -260,8 +260,15 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     )
 
     const makeMultispendTxnStatusText = useCallback(
-        (txn: MultispendTransactionListEntry) =>
-            makeMultispendTxnStatusTextUtil(t, txn, multispendStatus),
+        (txn: MultispendTransactionListEntry) => {
+            if (
+                multispendStatus &&
+                isWithdrawalRequestRejected(txn, multispendStatus)
+            )
+                return t('words.failed')
+
+            return makeMultispendTxnStatusTextUtil(t, txn, multispendStatus)
+        },
         [multispendStatus, t],
     )
 
@@ -287,16 +294,24 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
             if (txn.state === 'deposit') {
                 const fiatAmount = txn.event.depositNotification
                     .fiatAmount as UsdCents
-                return `${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
+                return `+${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
             }
             if (txn.state === 'withdrawal') {
+                const isRejected = multispendStatus
+                    ? isWithdrawalRequestRejected(txn, multispendStatus)
+                    : true
+                const hasFailed =
+                    txn.event.withdrawalRequest.txSubmissionStatus !==
+                        'unknown' &&
+                    'rejected' in txn.event.withdrawalRequest.txSubmissionStatus
+
                 const fiatAmount = txn.event.withdrawalRequest.request
                     .transfer_amount as UsdCents
-                return `${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
+                return `${isRejected || hasFailed ? '' : '-'}${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
             }
             return '-'
         },
-        [convertCentsToFormattedFiat, preferredCurrency],
+        [convertCentsToFormattedFiat, preferredCurrency, multispendStatus],
     )
 
     const makeMultispendTxnCurrencyText = useCallback(() => {

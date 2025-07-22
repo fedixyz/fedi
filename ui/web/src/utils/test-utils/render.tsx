@@ -1,12 +1,10 @@
-import { render } from '@testing-library/react'
-import type { RenderOptions } from '@testing-library/react'
+import { render, type RenderOptions } from '@testing-library/react'
 import React, { PropsWithChildren } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { Provider } from 'react-redux'
 
 import i18n from '../../localization/i18n'
-import { setupStore } from '../../state/store'
-import type { RootState } from '../../state/store'
+import { setupStore, type RootState } from '../../state/store'
 
 // This type interface extends the default options for render from RTL, as well
 // as allows the user to specify other things such as initialState, store.

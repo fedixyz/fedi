@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,6 +26,7 @@ const AcceptTermsOfService: React.FC<Props> = ({
     const [isAccepting, setIsAccepting] = useState(false)
     const [isRejecting, setIsRejecting] = useState(false)
     const tosUrl = getFederationTosUrl(federation.meta)
+    const navigation = useNavigation()
 
     const style = styles(theme)
 
@@ -70,6 +72,12 @@ const AcceptTermsOfService: React.FC<Props> = ({
                         setIsRejecting(true)
                         await onReject()
                         setIsRejecting(false)
+                        ;(navigation.getState()?.routes?.length || 0) > 1
+                            ? navigation.goBack()
+                            : navigation.reset({
+                                  index: 0,
+                                  routes: [{ name: 'TabsNavigator' }],
+                              })
                     }}
                     containerStyle={style.button}
                     loading={isRejecting}

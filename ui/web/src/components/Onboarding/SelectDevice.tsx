@@ -7,11 +7,9 @@ import WebDeviceIcon from '@fedi/common/assets/svgs/device-browser.svg'
 import IosDeviceIcon from '@fedi/common/assets/svgs/device-ios.svg'
 import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
-import { setDeviceIndexRequired } from '@fedi/common/redux'
 import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
-import { useAppDispatch } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
@@ -58,7 +56,6 @@ const renderDevice = (
 export const SelectDevice: React.FC = () => {
     const { t } = useTranslation()
     const router = useRouter()
-    const dispatch = useAppDispatch()
 
     const { registeredDevices, handleTransfer } = useDeviceRegistration(
         t,
@@ -66,14 +63,8 @@ export const SelectDevice: React.FC = () => {
     )
 
     const onDeviceSelect = (device: RpcRegisteredDevice) => {
-        handleTransfer(device, hasSetDisplayName => {
-            dispatch(setDeviceIndexRequired(false))
-
-            if (hasSetDisplayName) {
-                router.push('/home')
-            } else {
-                router.push('/onboarding')
-            }
+        handleTransfer(device, () => {
+            router.push('/home')
         })
     }
 

@@ -1,17 +1,21 @@
 module.exports = {
     rules: {
-        'curly': 'off',
+        curly: 'off',
         'no-shadow': 'off',
         'no-undef': 'off',
-        'semi': 'off',
+        semi: 'off',
         'react/react-in-jsx-scope': 'off',
         'react-native/no-inline-styles': 'off',
         'no-console': ['error'],
         '@typescript-eslint/no-unused-vars': [
             'error',
-            { argsIgnorePattern: '^_' },
+            { argsIgnorePattern: '^_', caughtErrors: 'none' },
         ],
         '@typescript-eslint/no-non-null-assertion': 'error',
+        '@typescript-eslint/no-unused-expressions': [
+            'error',
+            { allowShortCircuit: true, allowTernary: true },
+        ],
         'no-restricted-imports': [
             'error',
             {
@@ -24,8 +28,7 @@ module.exports = {
                 ],
             },
         ],
-        'no-duplicate-imports': 'off',
-        '@typescript-eslint/no-duplicate-imports': ['error'],
+        'no-duplicate-imports': 'error',
     },
     extends: [
         'eslint:recommended',
@@ -37,6 +40,17 @@ module.exports = {
             files: ['*.ts', '*.tsx'],
             rules: {
                 '@typescript-eslint/no-shadow': ['error'],
+            },
+        },
+        {
+            files: [
+                '**/tests/**/*.ts',
+                '**/tests/**/*.tsx',
+                '*.test.ts',
+                '*.test.tsx',
+            ],
+            rules: {
+                '@typescript-eslint/no-explicit-any': 'off',
             },
         },
     ],

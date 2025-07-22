@@ -14,6 +14,7 @@ import {
 const initialState = {
     hasLoaded: false,
     lastSavedAt: 0,
+    readyToSave: false,
 }
 
 export type EnvironmentState = typeof initialState
@@ -23,7 +24,11 @@ export type EnvironmentState = typeof initialState
 export const storageSlice = createSlice({
     name: 'storage',
     initialState,
-    reducers: {},
+    reducers: {
+        setReadyToSave: (state, action) => {
+            state.readyToSave = action.payload
+        },
+    },
     extraReducers: builder => {
         builder.addCase(loadFromStorage.fulfilled, state => {
             state.hasLoaded = true
@@ -36,7 +41,7 @@ export const storageSlice = createSlice({
 
 /*** Basic actions ***/
 
-// export const {} = storageSlice.actions
+export const { setReadyToSave } = storageSlice.actions
 
 /*** Async thunk actions ***/
 
@@ -76,5 +81,5 @@ export const saveToStorage = createAsyncThunk<
 
 /*** Selectors ***/
 
-export const selectHasLoadedFromStorage = (s: CommonState) =>
-    s.storage.hasLoaded
+export const selectStorageIsReady = (s: CommonState) =>
+    s.storage.hasLoaded && s.storage.readyToSave

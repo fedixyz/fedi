@@ -59,6 +59,7 @@ export const getTxnDirection = (txn: TransactionListEntry): string => {
         case 'sPV2TransferOut':
             return TransactionDirection.send
         case 'lnReceive':
+        case 'lnRecurringdReceive':
         case 'onchainDeposit':
         case 'oobReceive':
         case 'spWithdraw':
@@ -95,6 +96,8 @@ export const makeTxnTypeText = (
         case 'lnPay':
         case 'lnReceive':
             return t('words.lightning')
+        case 'lnRecurringdReceive':
+            return t('words.lnurl')
         case 'spDeposit':
         case 'spWithdraw':
         case 'sPV2Deposit':
@@ -147,6 +150,18 @@ export const makeTxnDetailTitleText = (
             case 'waitingForPayment':
                 return t('phrases.receive-pending')
             case 'claimed':
+                return t('feature.receive.you-received')
+            case 'canceled':
+                return t('words.expired')
+            default:
+                return t('phrases.receive-pending')
+        }
+    } else if (txn.kind === 'lnRecurringdReceive') {
+        switch (txn.state?.type) {
+            case 'waitingForPayment':
+                return t('phrases.receive-pending')
+            case 'claimed':
+            case 'created': // Remove this once bug is fixed
                 return t('feature.receive.you-received')
             case 'canceled':
                 return t('words.expired')
@@ -310,7 +325,9 @@ export const makeTxnAmountText = (
     }
     // LN pay and receive states can be canceled and should not show a sign
     if (
-        (txn.kind === 'lnPay' || txn.kind === 'lnReceive') &&
+        (txn.kind === 'lnPay' ||
+            txn.kind === 'lnReceive' ||
+            txn.kind === 'lnRecurringdReceive') &&
         txn.state?.type === 'canceled'
     ) {
         sign = ''
@@ -387,6 +404,19 @@ export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
                     case 'created':
                     case 'funded':
                     case 'awaitingFunds':
+                        return true
+                    default:
+                        return false
+                }
+            } else if (txn.kind === 'lnRecurringdReceive') {
+                switch (txn.state?.type) {
+                    case 'canceled':
+                    case 'waitingForPayment':
+                    case 'funded':
+                    case 'awaitingFunds':
+                        // case 'created':
+                        // TODO: fix bug in fedimint where payments get stuck
+                        // in the created state despite being settled.
                         return true
                     default:
                         return false
@@ -517,6 +547,23 @@ export const makeTxnStatusText = (
                         return t('words.pending')
                     case 'canceled':
                         return t('words.expired')
+                    case 'claimed':
+                        return t('words.received')
+                    default:
+                        return t('words.pending')
+                }
+            } else if (txn.kind === 'lnRecurringdReceive') {
+                switch (txn.state?.type) {
+                    case 'waitingForPayment':
+                    case 'funded':
+                    case 'awaitingFunds':
+                        // TODO: fix bug in fedimint where payments get stuck
+                        // in the created state despite being settled.
+                        // case 'created':
+                        return t('words.pending')
+                    case 'canceled':
+                        return t('words.expired')
+                    case 'created': // Remove this once bug is fixed
                     case 'claimed':
                         return t('words.received')
                     default:
@@ -656,6 +703,25 @@ export const makeTxnStatusBadge = (
                         badge = 'expired'
                         break
                     case 'created':
+                    case 'waitingForPayment':
+                    case 'funded':
+                    case 'awaitingFunds':
+                    default:
+                        badge = 'pending'
+                        break
+                }
+            } else if (txn.kind === 'lnRecurringdReceive') {
+                switch (txn.state?.type) {
+                    case 'claimed':
+                    case 'created': // Remove this once bug is fixed
+                        badge = 'incoming'
+                        break
+                    case 'canceled':
+                        badge = 'expired'
+                        break
+                    // TODO: fix bug in fedimint where payments get stuck
+                    // in the created state despite being settled.
+                    // case 'created':
                     case 'waitingForPayment':
                     case 'funded':
                     case 'awaitingFunds':
@@ -872,7 +938,9 @@ export const makeTxnDetailItems = (
     }
 
     if (
-        (txn.kind === 'lnReceive' || txn.kind === 'lnPay') &&
+        (txn.kind === 'lnReceive' ||
+            txn.kind === 'lnPay' ||
+            txn.kind === 'lnRecurringdReceive') &&
         'ln_invoice' in txn
     ) {
         items.push({

@@ -1,4 +1,9 @@
-import {
+import type { LogFileApi } from '../../utils/log'
+
+// Import actual implementation for testing log functionality
+// since it is mocked in jest.setup.ts
+const actualLogUtils = jest.requireActual('../../utils/log')
+const {
     configureLogging,
     makeLog,
     exportUiLogs,
@@ -6,8 +11,7 @@ import {
     DEBOUNCE_DELAY,
     QUICK_SAVE_THRESHOLD,
     QUICK_SAVE_DELAY,
-} from '../../utils/log'
-import type { LogFileApi } from '../../utils/log'
+} = actualLogUtils
 
 // Mock isDev to control console logging behavior
 jest.mock('../../utils/environment', () => ({
@@ -103,12 +107,17 @@ describe('log utilities', () => {
             }),
         }
 
-        // Configure logging with our mock
-        configureLogging(mockLogFileApi)
-
-        // Clear all timers and mocks
+        // Clear all timers and mocks first
         jest.clearAllTimers()
         jest.clearAllMocks()
+
+        // Reset logging state to ensure clean state
+        // resetLogging()
+
+        // Configure logging with our test-specific mock (overrides global setup)
+        configureLogging(mockLogFileApi)
+
+        // Use fake timers for precise timer control
         jest.useFakeTimers()
     })
 
