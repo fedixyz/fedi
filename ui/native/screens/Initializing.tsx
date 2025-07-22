@@ -2,8 +2,8 @@ import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useEffect } from 'react'
 
-import { selectHasSetMatrixDisplayName } from '@fedi/common/redux'
-import { selectHasLoadedFromStorage } from '@fedi/common/redux/storage'
+import { selectOnboardingCompleted } from '@fedi/common/redux'
+import { selectStorageIsReady } from '@fedi/common/redux/storage'
 
 import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -17,11 +17,10 @@ import { useIsFeatureUnlocked } from '../utils/hooks/security'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Initializing'>
 
-// TODO: Replace this entire screen with FediBridgeInitializer
 const Initializing: React.FC<Props> = () => {
     const navigation = useNavigation<NavigationHook>()
-    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
-    const hasStorageLoaded = useAppSelector(selectHasLoadedFromStorage || false)
+    const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
+    const hasStorageLoaded = useAppSelector(selectStorageIsReady || false)
     const isAppUnlocked = useIsFeatureUnlocked('app')
     const shouldMigrateSeed = useAppSelector(s => s.recovery.shouldMigrateSeed)
     const hasLoaded = hasStorageLoaded
@@ -39,11 +38,7 @@ const Initializing: React.FC<Props> = () => {
             return navigation.replace(...destination)
         }
 
-        // make sure we have a display name before proceeding.
-        // return early here to avoid navigating anywhere else
-        // if the Splash screen is where we need to be, especially
-        // because the PIN reset logic happens on the Splash screen
-        if (!hasSetDisplayName) {
+        if (onboardingCompleted === false) {
             destination = ['Splash']
             return navigation.replace(...destination)
         }
@@ -58,7 +53,7 @@ const Initializing: React.FC<Props> = () => {
         navigation.replace(...destination)
     }, [
         hasLoaded,
-        hasSetDisplayName,
+        onboardingCompleted,
         navigation,
         isAppUnlocked,
         shouldMigrateSeed,

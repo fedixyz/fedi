@@ -1,12 +1,8 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 
-import { CommonState, refreshFederations } from '.'
+import { CommonState, refreshOnboardingStatus } from '.'
 import { SeedWords, SocialRecoveryEvent } from '../types'
-import {
-    RpcDeviceIndexAssignmentStatus,
-    RpcFederation,
-    RpcRegisteredDevice,
-} from '../types/bindings'
+import { RpcFederation, RpcRegisteredDevice } from '../types/bindings'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 
@@ -77,8 +73,7 @@ export const recoverySlice = createSlice({
             state.socialRecoveryState = null
         })
 
-        builder.addCase(recoverFromMnemonic.fulfilled, (state, action) => {
-            state.registeredDevices = action.payload
+        builder.addCase(restoreMnemonic.fulfilled, state => {
             // TODO: remove this for privacy reasons after we know seed reuse is stable... will be useful for debugging any problems
             log.debug(
                 'recoverFromMnemonic registeredDevices',
@@ -108,6 +103,17 @@ export const {
 
 /*** Async thunk actions ***/
 
+export const initializeDeviceRegistration = createAsyncThunk<
+    void,
+    FedimintBridge,
+    { state: CommonState }
+>('recovery/initializeDeviceRegistration', async (fedimint, { dispatch }) => {
+    dispatch(setDeviceIndexRequired(true))
+
+    // TODO: make sure this is offline-friendly? should it be?
+    await dispatch(fetchRegisteredDevices(fedimint)).unwrap()
+})
+
 export const fetchSocialRecovery = createAsyncThunk<
     { qr: string; state: SocialRecoveryEvent } | void,
     FedimintBridge
@@ -131,7 +137,7 @@ export const completeSocialRecovery = createAsyncThunk<
     { state: CommonState }
 >('recovery/completeSocialRecovery', async ({ fedimint }, { dispatch }) => {
     await fedimint.completeSocialRecovery()
-    await dispatch(refreshFederations(fedimint))
+    await dispatch(refreshOnboardingStatus(fedimint))
 })
 
 export const cancelSocialRecovery = createAsyncThunk<void, FedimintBridge>(
@@ -141,36 +147,35 @@ export const cancelSocialRecovery = createAsyncThunk<void, FedimintBridge>(
     },
 )
 
-export const recoverFromMnemonic = createAsyncThunk<
-    RpcRegisteredDevice[],
+export const restoreMnemonic = createAsyncThunk<
+    null,
     { fedimint: FedimintBridge; mnemonic: SeedWords },
     { state: CommonState }
->('recovery/recoverFromMnemonic', async ({ fedimint, mnemonic }) => {
-    return fedimint.recoverFromMnemonic(mnemonic)
+>('recovery/restoreMnemonic', async ({ fedimint, mnemonic }) => {
+    return fedimint.restoreMnemonic(mnemonic)
 })
 
+// Adds a new device for an existing user.
+// Leaving the old device in-tact/working
+// Currently DISABLED in the UI.
 export const createNewWallet = createAsyncThunk<
     RpcFederation | null,
     { fedimint: FedimintBridge },
     { state: CommonState }
 >('recovery/createNewWallet', async ({ fedimint }) => {
-    return fedimint.registerAsNewDevice()
+    return fedimint.onboardRegisterAsNewDevice()
 })
 
+// Transfers a wallet from one device to another.
+// This bricks the old device.
 export const transferExistingWallet = createAsyncThunk<
     RpcFederation | null,
     { fedimint: FedimintBridge; device: RpcRegisteredDevice },
     { state: CommonState }
 >('recovery/transferExistingWallet', async ({ fedimint, device }) => {
-    return fedimint.transferExistingDeviceRegistration(device.deviceIndex)
-})
-
-// TODO: consider removing since it is no longer used anywhere?
-export const fetchDeviceIndexAssignmentStatus = createAsyncThunk<
-    RpcDeviceIndexAssignmentStatus,
-    FedimintBridge
->('recovery/checkDeviceAssignmentStatus', async fedimint => {
-    return fedimint.deviceIndexAssignmentStatus()
+    return fedimint.onboardTransferExistingDeviceRegistration(
+        device.deviceIndex,
+    )
 })
 
 export const fetchRegisteredDevices = createAsyncThunk<

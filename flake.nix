@@ -1,11 +1,11 @@
 {
   inputs = {
-    nixpkgs = {
-      # Pineed due to fastelan issues
-      # See https://github.com/fedibtc/fedi/pull/6903
-      # url = "github:NixOS/nixpkgs/nixos-24.11";
-      url = "github:NixOS/nixpkgs?rev=bffc22eb12172e6db3c5dde9e3e5628f8e3e7912";
-    };
+
+    # Pineed due to fastelan issues
+    # See https://github.com/fedibtc/fedi/pull/6903
+    # url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
@@ -17,13 +17,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flakebox = {
-      url = "github:dpc/flakebox?rev=77a60a6b8912d780ddba27987fdde8ef8ca5aefd";
+      url = "github:dpc/flakebox?rev=f96cbeafded56bc6f5c27fbd96e4fcc78b8a8861";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
 
     fs-dir-cache = {
-      url = "github:fedibtc/fs-dir-cache?rev=e9752d00ee16778c9d3d0b93a09c49c44013ac17";
+      url = "github:fedibtc/fs-dir-cache?rev=906f5557941f07630dcbd8f615b0ac1e173a5d68";
     };
 
     cargo-deluxe = {
@@ -159,10 +159,12 @@
             build-tools-32-0-0
             build-tools-33-0-0
             build-tools-34-0-0
+            build-tools-35-0-0
             platform-tools
             platforms-android-31
             platforms-android-33
             platforms-android-34
+            platforms-android-35
             emulator
             ndk-26-1-10909125
             cmake-3-22-1
@@ -305,12 +307,14 @@
             pkgs
             flakeboxLib
             fedimint-pkgs
+            androidSdk
             replaceGitHash
             craneMultiBuild
             ;
           toolchains = stdToolchains // {
             "default" = toolchainDefault;
             "wasm32-unknown-unkown" = toolchainWasm;
+            "all" = toolchainAll;
           };
           profiles = [
             "dev"

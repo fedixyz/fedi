@@ -14,7 +14,7 @@ type Props = {
     /* justifyContent */
     justify?: 'start' | 'center' | 'end' | 'between' | 'around' | 'evenly'
     /* Flex gap */
-    gap?: keyof ThemeSpacing
+    gap?: keyof ThemeSpacing | number
     /* Flex basis (set to `false` for flex-basis: 0) */
     basis?: boolean
     grow?: boolean
@@ -56,7 +56,13 @@ const Flex: React.FC<Props & ViewProps> = ({
     if (justify) styleProp.push(justifyStyle[justify])
 
     // Gap
-    if (gap) styleProp.push({ gap: theme.spacing[gap] })
+    if (gap) {
+        if (typeof gap === 'number') {
+            styleProp.push({ gap })
+        } else {
+            styleProp.push({ gap: theme.spacing[gap] })
+        }
+    }
 
     // Grow / Shrink / Basis
     if (grow) styleProp.push(flexStyle.grow)

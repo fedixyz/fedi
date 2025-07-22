@@ -2,11 +2,21 @@ import React from 'react'
 
 import { selectMatrixAuth } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { isPaymentEvent } from '@fedi/common/utils/matrix'
+import {
+    isFormEvent,
+    isImageEvent,
+    isPaymentEvent,
+    isTextEvent,
+    isVideoEvent,
+} from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
+import { ChatFormEvent } from './ChatFormEvent'
+import { ChatImageEvent } from './ChatImageEvent'
 import { ChatPaymentEvent } from './ChatPaymentEvent'
+import { ChatTextEvent } from './ChatTextEvent'
+import { ChatVideoEvent } from './ChatVideoEvent'
 
 interface Props {
     event: MatrixEvent
@@ -16,61 +26,74 @@ export const ChatEvent: React.FC<Props> = ({ event }) => {
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
     const isMe = event.senderId === matrixAuth?.userId
-    const isQueued = false
-    let isPayment = false
 
-    // Default to using the body as the content
-    let content: React.ReactNode =
-        typeof event.content.body === 'string'
-            ? event.content.body.split(/\r?\n/).map((part, index, array) => (
-                  <React.Fragment key={index}>
-                      {part}
-                      {index !== array.length - 1 && <br />}
-                  </React.Fragment>
-              ))
-            : event.content.body
-
-    // For certain message types, use custom components
-    if (isPaymentEvent(event)) {
-        isPayment = true
-        content = <ChatPaymentEvent event={event} />
-    }
+    const content = isImageEvent(event) ? (
+        <ChatImageEvent event={event} />
+    ) : isVideoEvent(event) ? (
+        <ChatVideoEvent event={event} />
+    ) : isPaymentEvent(event) ? (
+        <ChatPaymentEvent event={event} />
+    ) : isFormEvent(event) ? (
+        <ChatFormEvent event={event} />
+    ) : isTextEvent(event) ? (
+        <ChatTextEvent event={event} />
+    ) : (
+        event.content.body
+    )
 
     return (
-        <MessageContent isMe={isMe} isPayment={isPayment} isQueued={isQueued}>
+        <MessageContent
+            isMe={isMe}
+            isMedia={isImageEvent(event) || isVideoEvent(event)}
+            isPayment={isPaymentEvent(event)}
+            isForm={isFormEvent(event)}>
             {content}
         </MessageContent>
     )
 }
 
 const MessageContent = styled('div', {
-    width: 'fit-content',
-    maxWidth: '90%',
-    padding: 8,
+    background: theme.colors.blue,
+    borderRadius: theme.sizes.xxs,
+    color: theme.colors.white,
     fontSize: theme.fontSizes.caption,
     fontWeight: theme.fontWeights.medium,
     lineHeight: '20px',
-    wordWrap: 'break-word',
-    borderRadius: 12,
+    maxWidth: '90%',
+    padding: 8,
+    overflow: 'hidden',
     transition: 'opacity 100ms ease',
+    width: 'fit-content',
+    wordWrap: 'break-word',
 
     variants: {
-        isMe: {
-            true: {
-                background: theme.colors.blue,
-                color: theme.colors.white,
-            },
-            false: {
-                background: theme.colors.extraLightGrey,
-                color: theme.colors.primary,
-            },
+        isForm: {
+            true: {},
         },
         isPayment: {
             true: {},
         },
-        isQueued: {
+        isMe: {
+            false: {
+                background: theme.colors.extraLightGrey,
+                color: theme.colors.primary,
+
+                // Style links for messages from others
+                '& a': {
+                    color: theme.colors.blue,
+                },
+            },
             true: {
-                opacity: 0.5,
+                // Style links for messages from me
+                '& a': {
+                    color: theme.colors.secondary,
+                },
+            },
+        },
+        isMedia: {
+            true: {
+                padding: 0,
+                width: '90%',
             },
         },
     },
@@ -90,6 +113,14 @@ const MessageContent = styled('div', {
             css: {
                 background: theme.colors.orange,
                 color: theme.colors.white,
+            },
+        },
+        {
+            isMe: true,
+            isForm: true,
+            css: {
+                background: theme.colors.extraLightGrey,
+                color: theme.colors.darkGrey,
             },
         },
     ],

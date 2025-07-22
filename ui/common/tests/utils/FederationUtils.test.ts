@@ -57,8 +57,8 @@ const fedWithFediPrefixedFields: Federation = {
 const fedWithBothFields: Federation = {
     ...baseFed,
     meta: {
-        'default_currency': SupportedCurrency.EUR,
-        'chat_server_domain': SAMPLE_CHAT_SERVER_DOMAIN,
+        default_currency: SupportedCurrency.EUR,
+        chat_server_domain: SAMPLE_CHAT_SERVER_DOMAIN,
         'fedi:default_currency': SupportedCurrency.EUR,
         'fedi:chat_server_domain': SAMPLE_CHAT_SERVER_DOMAIN,
     },

@@ -1,5 +1,4 @@
-import type { Theme } from '@rneui/themed'
-import { useTheme } from '@rneui/themed'
+import { useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 import { LinearGradientProps } from 'react-native-linear-gradient'

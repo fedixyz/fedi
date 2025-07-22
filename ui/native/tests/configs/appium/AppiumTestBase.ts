@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import AppiumManager, { Platform, currentPlatform } from './AppiumManager'
 
-export const DEFAULT_TIMEOUT = 10000
+export const DEFAULT_TIMEOUT = 20000
 
 export abstract class AppiumTestBase {
     protected driver: WebdriverIO.Browser
@@ -22,12 +22,18 @@ export abstract class AppiumTestBase {
                 `android=new UiSelector().resourceId("${key}")`,
             ]
         } else {
-            return [`accessibility id:${key}`, `id:${key}`]
+            return [
+                `accessibility id:${key}`,
+                `id:${key}`,
+                // `label == "${key}" OR name == "${key}" OR value == "${key}"`,
+                // `label CONTAINS "${key}" OR name CONTAINS "${key}" OR value CONTAINS "${key}"`, test to see how this works
+            ]
         }
     }
 
     async findElementByKey(key: string) {
         const strategies = this.getLocatorStrategies(key)
+        const primaryStrategy = strategies[0]
 
         for (const strategy of strategies) {
             try {
@@ -39,8 +45,22 @@ export abstract class AppiumTestBase {
                     console.log(`Element found with strategy: ${strategy}`)
                     return element
                 }
-            } catch (error: any) {
-                console.log(`Strategy ${strategy} failed: ${error.message}`)
+            } catch (error: unknown) {
+                console.log(
+                    `Strategy ${strategy} failed: ${(error as Error).message}. Trying the first strategy once again just to be sure.`,
+                )
+                const element = await this.driver.$(primaryStrategy)
+                const exists = await element.isExisting()
+                if (exists) {
+                    console.log(
+                        `Element found with primary strategy ${primaryStrategy} after the strategy failed the first time.`,
+                    )
+                    return element
+                } else {
+                    console.log(
+                        `A repeat atttempt with primary strategy ${primaryStrategy} failed: ${(error as Error).message}. Element most likely does not exist in XML tree. Try dumping it.`,
+                    )
+                }
             }
         }
 
@@ -50,7 +70,7 @@ export abstract class AppiumTestBase {
     async findElementsByText(
         text: string,
         exactMatch = false,
-        timeout = 10000,
+        timeout = DEFAULT_TIMEOUT,
     ) {
         const startTime = Date.now()
         const platform = process.env.PLATFORM?.toLowerCase() || ''
@@ -171,7 +191,7 @@ export abstract class AppiumTestBase {
         text: string,
         instanceNum: number,
         exactMatch = false,
-        timeout = 10000,
+        timeout = DEFAULT_TIMEOUT,
     ) {
         const elements = await this.findElementsByText(
             text,
@@ -201,7 +221,7 @@ export abstract class AppiumTestBase {
     async isTextPresent(
         text: string,
         exactMatch = false,
-        timeout = 10000,
+        timeout = DEFAULT_TIMEOUT,
     ): Promise<boolean> {
         const elements = await this.findElementsByText(
             text,
@@ -215,7 +235,7 @@ export abstract class AppiumTestBase {
         text: string,
         instanceNum: number,
         exactMatch = false,
-        timeout = 10000,
+        timeout = DEFAULT_TIMEOUT,
     ): Promise<WebdriverIO.Element> {
         const element = await this.findElementByText(
             text,
@@ -235,7 +255,7 @@ export abstract class AppiumTestBase {
         text: string,
         instanceNum: number,
         exactMatch = false,
-        timeout = 10000,
+        timeout = DEFAULT_TIMEOUT,
     ): Promise<void> {
         const element = await this.waitForText(
             text,
@@ -249,7 +269,7 @@ export abstract class AppiumTestBase {
     async getTextInstanceCount(
         text: string,
         exactMatch = false,
-        timeout = 10000,
+        timeout = DEFAULT_TIMEOUT,
     ): Promise<number> {
         const elements = await this.findElementsByText(
             text,
@@ -286,7 +306,13 @@ export abstract class AppiumTestBase {
 
             await new Promise(resolve => setTimeout(resolve, 500))
         }
-
+        if (currentPlatform === Platform.IOS) {
+            // Android doesn't have this yet
+            console.log('Dumping XML tree')
+            await this.driver.executeScript('mobile: source', [
+                { format: 'xml' },
+            ])
+        }
         throw new Error(
             `Element with key "${key}" not displayed after ${timeout}ms. Tried strategies: ${strategies.join(', ')}. Errors: ${errors.map(e => e.message).join('; ')}`,
         )
@@ -320,8 +346,10 @@ export abstract class AppiumTestBase {
         try {
             await this.waitForElementDisplayed(key, timeout)
             return true
-        } catch (error: any) {
-            console.log(`Element ${key} is not displayed: ${error.message}`)
+        } catch (error: unknown) {
+            console.log(
+                `Element ${key} is not displayed: ${(error as Error).message}`,
+            )
             return false
         }
     }
@@ -332,8 +360,10 @@ export abstract class AppiumTestBase {
             await this.driver.executeScript('mobile: hideKeyboard', [
                 { keys: ['done', 'gotowe'] },
             ])
-        } catch (error: any) {
-            console.log(`Unable to hide keyboard. Reason: ${error.message}`)
+        } catch (error: unknown) {
+            console.log(
+                `Unable to hide keyboard. Reason: ${(error as Error).message}`,
+            )
         }
     }
 
@@ -341,9 +371,9 @@ export abstract class AppiumTestBase {
         if (currentPlatform === Platform.ANDROID) {
             try {
                 await this.driver.executeScript('mobile: acceptAlert', [])
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.log(
-                    `Unable to accept alert on Android. Reason: ${error.message}`,
+                    `Unable to accept alert on Android. Reason: ${(error as Error).message}`,
                 )
             }
         } else {
@@ -351,9 +381,9 @@ export abstract class AppiumTestBase {
                 await this.driver.executeScript('mobile: alert', [
                     { action: 'accept', button: `${button}` },
                 ])
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.log(
-                    `Unable to accept alert on iOS. Got error ${error.message}`,
+                    `Unable to accept alert on iOS. Got error ${(error as Error).message}`,
                 )
             }
         }

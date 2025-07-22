@@ -4,10 +4,12 @@ import { ZodError } from 'zod'
  * Maps our custom error kinds to the base constructor for that error type
  */
 export const TagToErrorConstructorMap = {
-    UrlParseError: URIError,
+    UrlConstructError: TypeError,
     GenericError: Error,
     MissingDataError: Error,
     MalformedDataError: Error,
     FetchError: Error,
     SchemaValidationError: ZodError,
+    TimeoutError: Error,
+    UserError: Error,
 }

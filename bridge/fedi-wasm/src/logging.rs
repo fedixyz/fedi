@@ -18,7 +18,11 @@ fn set_panic_hook() {
     }));
 }
 
-pub async fn init(_event_sink: Arc<dyn IEventSink>, sync_handle: FileSystemSyncAccessHandle) {
+pub async fn init(
+    _event_sink: Arc<dyn IEventSink>,
+    sync_handle: FileSystemSyncAccessHandle,
+    log_level: Option<String>,
+) {
     set_panic_hook();
     let log_buffer_layer = tracing_subscriber::fmt::layer()
         .json()
@@ -26,7 +30,11 @@ pub async fn init(_event_sink: Arc<dyn IEventSink>, sync_handle: FileSystemSyncA
         .without_time();
     tracing_subscriber::registry()
         .with(log_buffer_layer)
-        .with(EnvFilter::new("info,fedimint_client=debug,fediffi=trace"))
+        .with(EnvFilter::new(
+            log_level
+                .as_deref()
+                .unwrap_or("info,fedimint_client=debug,fediffi=trace"),
+        ))
         .with(tracing_wasm::WASMLayer::default())
         .init();
 }

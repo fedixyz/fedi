@@ -300,6 +300,27 @@ class AmountUtils {
             cleanedNum + (suffixParts.length ? ` ${suffixParts.join(' ')}` : '')
         )
     }
+
+    // forces a number to be a valid sats value
+    clampSats(value: number): Sats {
+        if (Number.isNaN(value)) return 0 as Sats
+        return Math.round(Math.max(0, value)) as Sats
+    }
+
+    // Returns a valid sats value stripping out any thousands separators
+    // ex: 1,000 or 1.000 or 1 000 -> 1000
+    stripSatsValue(value: string, currencyLocale: string | undefined): Sats {
+        const thousandsSeparator = this.getThousandsSeparator({
+            locale: currencyLocale,
+        })
+        // replacing periods requires a special regex
+        let escapeSeparator = thousandsSeparator
+        if (thousandsSeparator === '.') {
+            escapeSeparator = '\\.'
+        }
+        const regex = new RegExp(escapeSeparator, 'g')
+        return this.clampSats(parseInt(value.replace(regex, ''), 10))
+    }
 }
 
 const amountUtils = new AmountUtils()

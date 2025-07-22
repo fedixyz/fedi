@@ -17,8 +17,8 @@ export const shouldHideNavigation = (
 
     // hide nav for some routes on small devices
     if (isSmallDevice) {
-        // If settings/* then hide
-        if (path.includes(`${routes.settingsRoute}/`)) return true
+        // If any settings page (including root) then hide
+        if (path.includes(`${routes.settingsRoute}`)) return true
 
         // If chat/* then hide
         if (path.includes(`${routes.chatRoute}/`)) return true

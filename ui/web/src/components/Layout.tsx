@@ -1,24 +1,26 @@
 import { useRouter } from 'next/router'
 
 import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
+import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 
+import { homeRoute } from '../constants/routes'
 import { useMediaQuery } from '../hooks'
 import { config, keyframes, styled, theme } from '../styles'
+import { Icon } from './Icon'
 import { IconButton } from './IconButton'
 import { ShadowScroller } from './ShadowScroller'
 
-export const Root = styled('div', {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    minHeight: 0,
-})
+type Props = {
+    back?: string | boolean
+    showCloseButton?: boolean
+}
 
 export function Header({
     children,
     back,
+    showCloseButton,
     ...props
-}: React.ComponentProps<typeof HeaderContainer> & { back?: string | boolean }) {
+}: React.ComponentProps<typeof HeaderContainer> & Props) {
     const isSm = useMediaQuery(config.media.sm)
     const router = useRouter()
 
@@ -38,10 +40,25 @@ export function Header({
                     }
                 />
             ) : null}
-            <HeaderContent>{children}</HeaderContent>
+            <HeaderContent>
+                {children}
+                {showCloseButton && (
+                    <Icon
+                        icon={CloseIcon}
+                        onClick={() => router.replace(homeRoute)}
+                    />
+                )}
+            </HeaderContent>
         </HeaderContainer>
     )
 }
+
+export const Root = styled('div', {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+})
 
 export const HeaderContainer = styled('div', {
     display: 'flex',

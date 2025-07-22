@@ -247,7 +247,7 @@ impl Display for AccountId {
             AccountType::BtcDepositor => BTC_DEPOSITOR_HRP,
         };
         let encoded = bech32::encode::<Bech32m>(hrp, self.hash.as_ref()).map_err(|_| fmt::Error)?;
-        write!(f, "{}", encoded)
+        write!(f, "{encoded}")
     }
 }
 

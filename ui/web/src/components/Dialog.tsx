@@ -1,5 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
 import { useCallback } from 'react'
+import { Drawer } from 'vaul'
 
 import ChevronLeftIcon from '@fedi/common/assets/svgs/chevron-left.svg'
 import CloseIcon from '@fedi/common/assets/svgs/close.svg'
@@ -22,7 +23,9 @@ interface Props {
      * Behaves like a normal dialog when the view is greater than the `sm` breakpoint.
      * If specified, behaves like an overlay on mobile, showing a Back button and a centered header instead of a Close button.
      */
-    mobileDismiss?: 'back' | 'close'
+    mobileDismiss?: 'back' | 'close' | 'overlay'
+    disableOverlayHandle?: boolean
+    disablePadding?: boolean
 }
 
 export const Dialog: React.FC<Props> = ({
@@ -34,6 +37,8 @@ export const Dialog: React.FC<Props> = ({
     size,
     disableClose,
     mobileDismiss = 'close',
+    disableOverlayHandle = false,
+    disablePadding = false,
 }) => {
     const isSm = useMediaQuery(config.media.sm)
 
@@ -46,61 +51,103 @@ export const Dialog: React.FC<Props> = ({
         [disableClose],
     )
 
+    const isMobileOverlay = isSm && mobileDismiss === 'overlay'
+
+    const renderContents = useCallback(() => {
+        return (
+            <>
+                {isMobileOverlay && !disableOverlayHandle && <Drawer.Handle />}
+                {(title || description) && (
+                    <Header>
+                        {title && (
+                            <>
+                                <Title
+                                    as={
+                                        isMobileOverlay
+                                            ? Drawer.Title
+                                            : undefined
+                                    }>
+                                    {!disableClose && mobileDismissBack && (
+                                        <BackButtonContainer>
+                                            <IconButton
+                                                icon={ChevronLeftIcon}
+                                                size="md"
+                                                onClick={() =>
+                                                    onOpenChange(false)
+                                                }
+                                            />
+                                        </BackButtonContainer>
+                                    )}
+                                    <TitleText
+                                        variant="body"
+                                        weight="bold"
+                                        center={isSm}>
+                                        {title}
+                                    </TitleText>
+                                </Title>
+                            </>
+                        )}
+                        {description && (
+                            <Description
+                                asChild
+                                as={
+                                    isMobileOverlay
+                                        ? Drawer.Description
+                                        : undefined
+                                }>
+                                <Text variant="caption" weight="medium">
+                                    {description}
+                                </Text>
+                            </Description>
+                        )}
+                    </Header>
+                )}
+                <Main>{children}</Main>
+                {!disableClose && !mobileDismissBack && (
+                    <CloseButton
+                        as={isMobileOverlay ? Drawer.Close : undefined}>
+                        <Icon icon={CloseIcon} />
+                    </CloseButton>
+                )}
+            </>
+        )
+    }, [
+        children,
+        description,
+        disableClose,
+        isSm,
+        mobileDismissBack,
+        onOpenChange,
+        title,
+        isMobileOverlay,
+        disableOverlayHandle,
+    ])
+
+    if (isMobileOverlay) {
+        return (
+            <Drawer.Root open={open} onOpenChange={onOpenChange}>
+                <Drawer.Portal>
+                    <DrawerOverlay as={Drawer.Overlay} />
+                    <OverlayContent disablePadding={disablePadding}>
+                        {renderContents()}
+                    </OverlayContent>
+                </Drawer.Portal>
+            </Drawer.Root>
+        )
+    }
+
     return (
         <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
             <RadixDialog.Portal>
                 <Overlay>
                     <Content
                         size={size}
+                        disablePadding={disablePadding}
                         onOpenAutoFocus={ev => ev.preventDefault()}
                         onEscapeKeyDown={handleCloseTrigger}
                         onPointerDownOutside={handleCloseTrigger}
                         onInteractOutside={handleCloseTrigger}>
-                        {(title || description) && (
-                            <Header>
-                                {title && (
-                                    <>
-                                        <Title>
-                                            {!disableClose &&
-                                                mobileDismissBack && (
-                                                    <BackButtonContainer>
-                                                        <IconButton
-                                                            icon={
-                                                                ChevronLeftIcon
-                                                            }
-                                                            size="md"
-                                                            onClick={() =>
-                                                                onOpenChange(
-                                                                    false,
-                                                                )
-                                                            }
-                                                        />
-                                                    </BackButtonContainer>
-                                                )}
-                                            <TitleText
-                                                variant="body"
-                                                weight="bold"
-                                                center={isSm}>
-                                                {title}
-                                            </TitleText>
-                                        </Title>
-                                    </>
-                                )}
-                                {description && (
-                                    <Description asChild>
-                                        <Text variant="caption" weight="medium">
-                                            {description}
-                                        </Text>
-                                    </Description>
-                                )}
-                            </Header>
-                        )}
-                        <Main>{children}</Main>
-                        {!disableClose && !mobileDismissBack && (
-                            <CloseButton>
-                                <Icon icon={CloseIcon} />
-                            </CloseButton>
-                        )}
+                        {renderContents()}
                     </Content>
                 </Overlay>
             </RadixDialog.Portal>
@@ -129,6 +176,12 @@ const Overlay = styled(RadixDialog.Overlay, {
     },
 })
 
+const DrawerOverlay = styled(Drawer.Overlay, {
+    position: 'fixed !important',
+    inset: 0,
+    background: theme.colors.primary80,
+})
+
 const contentShow = keyframes({
     '0%': {
         opacity: 0,
@@ -137,6 +190,26 @@ const contentShow = keyframes({
     '100%': {
         opacity: 1,
         transform: 'translateY(0) scale(1)',
+    },
+})
+
+const OverlayContent = styled(Drawer.Content, {
+    position: 'absolute',
+    bottom: 0,
+    width: '100vw',
+    maxHeight: '90vh',
+    background: theme.colors.white,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    padding: 24,
+    overflow: 'hidden',
+
+    variants: {
+        disablePadding: {
+            true: {
+                padding: 0,
+            },
+        },
     },
 })
 
@@ -182,6 +255,11 @@ const Content = styled(RadixDialog.Content, {
             },
             lg: {
                 maxWidth: 640,
+            },
+        },
+        disablePadding: {
+            true: {
+                padding: 0,
             },
         },
     },

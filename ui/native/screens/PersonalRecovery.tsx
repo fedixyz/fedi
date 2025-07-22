@@ -13,7 +13,7 @@ import {
 
 import { usePersonalRecovery } from '@fedi/common/hooks/recovery'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectNetworkInfo } from '@fedi/common/redux'
+import { selectIsInternetUnreachable } from '@fedi/common/redux'
 import type { SeedWords } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
@@ -44,7 +44,7 @@ const PersonalRecovery: React.FC<Props> = ({ navigation }: Props) => {
         t,
         fedimint,
     )
-    const networkInfo = useAppSelector(selectNetworkInfo)
+    const isOffline = useAppSelector(selectIsInternetUnreachable)
     const [seedWords, setSeedWords] = useState<SeedWords>(
         new Array(12).fill(''),
     )
@@ -72,7 +72,7 @@ const PersonalRecovery: React.FC<Props> = ({ navigation }: Props) => {
     }, [])
 
     const handleRecovery = useCallback(() => {
-        if (!networkInfo || !networkInfo.isInternetReachable) {
+        if (isOffline) {
             toast.error(t, t('errors.recovery-failed-connection'))
             return
         }
@@ -81,7 +81,7 @@ const PersonalRecovery: React.FC<Props> = ({ navigation }: Props) => {
             if (pin.status === 'set') pin.unset()
             navigation.dispatch(resetAfterPersonalRecovery())
         })
-    }, [attemptRecovery, navigation, seedWords, pin, networkInfo, t, toast])
+    }, [attemptRecovery, navigation, seedWords, pin, isOffline, t, toast])
 
     const handleInputUpdate = (inputValue: string, index: number) => {
         const validatedInput = stringUtils.keepOnlyLowercaseLetters(inputValue)

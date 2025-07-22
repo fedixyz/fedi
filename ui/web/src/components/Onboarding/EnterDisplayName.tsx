@@ -3,10 +3,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
-import { selectHasSetMatrixDisplayName } from '@fedi/common/redux'
 
-import { useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 import { Button } from '../Button'
 import { Input } from '../Input'
@@ -21,13 +18,12 @@ import {
 export const EnterDisplayName: React.FC = () => {
     const { t } = useTranslation()
     const { push } = useRouter()
-    const hasSetDisplayName = useAppSelector(selectHasSetMatrixDisplayName)
     const {
         username,
         isSubmitting,
         handleChangeUsername,
         handleSubmitDisplayName,
-    } = useDisplayNameForm(t, fedimint)
+    } = useDisplayNameForm(t)
     const [hasSubmitted, setHasSubmitted] = useState(false)
 
     const handleSubmit = useCallback(
@@ -43,7 +39,7 @@ export const EnterDisplayName: React.FC = () => {
 
     // Make sure to only redirect if the user hasn't submitted a profile image.
     // This would override the push('/onboarding/image')
-    if (hasSetDisplayName && !isSubmitting && !hasSubmitted) {
+    if (!isSubmitting && !hasSubmitted) {
         return <Redirect path="/onboarding/complete" />
     }
 

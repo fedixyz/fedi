@@ -26,6 +26,7 @@ bug-report = { workspace = true }
 fedimint-derive-secret = { workspace = true }
 fedimint-logging = { workspace = true }
 fedimint-bip39 = { workspace = true }
+multispend = { path = "../../crates/multispend" }
 
 anyhow = { workspace = true }
 bip39 = { version = "2.0.0", features = ["rand"] }
@@ -35,10 +36,10 @@ rand = { workspace = true }
 bech32 = { workspace = true }
 bitcoin = { workspace = true }
 lazy_static = "1.4.0"
-lightning-invoice = "0.32.0"
+lightning-invoice = "0.33.0"
 futures = "0.3"
 tracing = { workspace = true }
-tracing-serde = "0.1.3"
+tracing-serde = "0.2"
 thiserror = "2.0.8"
 hex = { workspace = true }
 macro_rules_attribute = "0.1.3"
@@ -56,11 +57,14 @@ matrix-sdk = { workspace = true, default-features = false, features = [
   "e2e-encryption",
 ] }
 tempfile = "3.17.1"
-bridge-inner = { workspace = true }
+federations = { workspace = true }
+matrix = { workspace = true }
 runtime = { workspace = true }
 bridge = { workspace = true }
 communities = { workspace = true }
 rpc-types = { workspace = true }
+either = "1.15.0"
+nostril = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }
@@ -88,7 +92,7 @@ fedimint-build = { workspace = true }
 tempfile = "3.17.1"
 mockito = "1.4.0"
 clap = { workspace = true }
-bridge-inner = { workspace = true, features = ["test-support"] }
+federations = { workspace = true, features = ["test-support"] }
 
 # FIXME: just put these above? or dev-dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -18,6 +18,7 @@ import {
     SelectableCurrency,
 } from '../types'
 import { GuardianStatus, RpcCommunity, RpcFederation } from '../types/bindings'
+import { isDev } from './environment'
 import { FedimintBridge } from './fedimint'
 import { makeLog } from './log'
 
@@ -205,10 +206,12 @@ export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
             // Note these are not techincally supported meta fields... just the quickest
             // hack to be able to display public federations using the meta.json
             if (
-                value.public &&
-                value.public === 'true' &&
-                value.invite_code &&
-                value.preview_message
+                (value.public &&
+                    value.public === 'true' &&
+                    value.invite_code &&
+                    value.preview_message) ||
+                // in development only, always show Fedi Testnet in public federations for easier testing
+                (isDev() && value.federation_name === 'Fedi Testnet')
             ) {
                 publicFederations.push({
                     id: key,
@@ -227,7 +230,7 @@ export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
     return publicFederations
 }
 
-const getMetaField = (
+export const getMetaField = (
     field: SupportedMetaFields | 'sites' | 'fedimods' | 'default_group_chats',
     metadata: FederationMetadata,
 ): string | null => {
@@ -368,9 +371,9 @@ export const shouldEnableOnchainDeposits = (metadata: FederationMetadata) => {
         SupportedMetaFields.onchain_deposits_disabled,
         metadata,
     )
-    // Disable onchain deposits by default if not specified in meta
+    // Enable onchain deposits by default if not specified in meta
     return onchainDepositsDisabled === null
-        ? false
+        ? true
         : onchainDepositsDisabled !== 'true'
 }
 
@@ -583,43 +586,10 @@ async function getFederationPreview(
     inviteCode: string,
     fedimint: FedimintBridge,
 ): Promise<JoinPreview> {
-    let externalMeta: FederationMetadata = {}
-    // The federation preview may have an external URL where the meta
-    // fields need to be fetched from... otherwise we won't know about chat
-    // servers after joining which will break onboarding
-    // TODO: Refactor this to the bridge...?
-    // const preview = await previewInvite(fedimint, inviteCode)
     const preview = await fedimint.federationPreview(inviteCode)
-    try {
-        const metaUrl = getMetaUrl(preview.meta)
-        if (metaUrl) {
-            log.info(
-                `Found metaUrl in preview for federation ${preview.id}, fetching...`,
-            )
-            const response = await fetch(metaUrl, {
-                cache: 'no-cache',
-            })
-            const metaJson = await response.json()
-            if (metaJson[preview.id]) {
-                externalMeta = metaJson[preview.id]
-            }
-            log.info(`Found external meta for federation ${preview.id}`)
-        }
-    } catch (error) {
-        log.error(
-            `Failed to fetch external meta for federation preview ${preview.id}`,
-        )
-    }
     return {
         ...preview,
-        name:
-            externalMeta.federation_name ||
-            preview.meta.federation_name ||
-            preview.name,
-        meta: {
-            ...preview.meta,
-            ...externalMeta,
-        },
+        name: preview.meta.federation_name || preview.name,
         hasWallet: true,
     }
 }

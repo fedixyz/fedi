@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { StyleSheet, View, Linking } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { isUniversalLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from './bridge'
@@ -19,12 +20,20 @@ import ToastManager from './components/ui/ToastManager'
 import { MainNavigator } from './screens/MainNavigator'
 import SwitchingFederations from './screens/SwitchingFederations'
 import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
+import { usePinContext } from './state/contexts/PinContext'
 import {
     DRAWER_NAVIGATION_ID,
     MainNavigatorDrawerParamList,
 } from './types/navigation'
 import { useIsFeatureUnlocked } from './utils/hooks/security'
-import { getLinkingConfig, parseLink } from './utils/linking'
+import {
+    getLinkingConfig,
+    parseLink,
+    setNavigationRef,
+    setNavigationReady,
+    handleInternalDeepLink,
+    setAppUnlocked,
+} from './utils/linking'
 
 const log = makeLog('NavigationRouter')
 
@@ -34,26 +43,79 @@ const Router = () => {
     const { theme } = useTheme()
     const navigation = useNavigationContainerRef()
     const isAppUnlocked = useIsFeatureUnlocked('app')
+    const pin = usePinContext()
     const { parseUrl } = useOmniLinkContext()
 
-    // TEMPORARY DEEPLINK SHIM for app.fedi.xyz universal-links
+    useEffect(() => setNavigationRef(navigation), [navigation])
+
+    useEffect(() => {
+        // Only consider app unlocked when both feature is unlocked AND PIN allows it
+        const isPinReady =
+            pin.status === 'unset' ||
+            (pin.status === 'set' && Boolean(isAppUnlocked))
+
+        log.info('PIN state changed', {
+            pinStatus: pin.status,
+            isAppUnlocked,
+            isPinReady,
+        })
+
+        setAppUnlocked(isPinReady)
+    }, [pin.status, isAppUnlocked])
+
+    // DEEPLINK SHIM for app.fedi.xyz universal-links (to allow links clicked inside the app to work)
     useEffect(() => {
         const originalOpenURL = Linking.openURL.bind(Linking)
 
-        // override globally
-        Linking.openURL = (rawUrl: string) => {
-            // only handle the /link endpoint
-            if (
-                rawUrl.startsWith('https://app.fedi.xyz/link') ||
-                rawUrl.startsWith('https://www.app.fedi.xyz/link')
-            ) {
-                // try to decode to fedi://…; if that fails, opens rawUrl
-                const deep = parseLink(rawUrl, originalOpenURL)
-                return originalOpenURL(deep || rawUrl)
+        Linking.openURL = async (raw: string): Promise<void> => {
+            log.info('[shim] openURL called with:', raw)
+
+            if (isUniversalLink(raw)) {
+                log.info(
+                    '[shim] Detected universal link, attempting direct handling',
+                )
+
+                // Try to handle it directly first
+                const handled = handleInternalDeepLink(raw)
+                if (handled) {
+                    log.info('[shim] Successfully handled internally')
+                    return Promise.resolve()
+                }
+
+                log.info('[shim] Not handled internally, trying parseLink')
+                // Only try parseLink if direct handling failed
+                const deep = parseLink(raw, () => {
+                    log.info(
+                        '[shim] parseLink fallback called - would treat as web URL',
+                    )
+                    // Don't actually call originalOpenURL here - just log
+                })
+
+                if (deep) {
+                    log.info(
+                        '[shim] parseLink successful, trying handleInternalDeepLink again with:',
+                        deep,
+                    )
+                    const deepHandled = handleInternalDeepLink(deep)
+                    if (deepHandled) {
+                        log.info(
+                            '[shim] Successfully handled converted deep link',
+                        )
+                        return Promise.resolve()
+                    }
+                }
+
+                log.info(
+                    '[shim] All internal handling failed, falling back to browser',
+                )
             }
 
-            // everything else: open as normal
-            return originalOpenURL(rawUrl)
+            log.info('[shim] Calling original openURL with:', raw)
+            return originalOpenURL(raw)
+        }
+
+        return () => {
+            Linking.openURL = originalOpenURL
         }
     }, [])
 
@@ -99,6 +161,9 @@ const Router = () => {
                 log.info('Navigation is ready', {
                     route: routeRef.current,
                 })
+
+                // Mark navigation as ready and process any pending deep links
+                setNavigationReady()
             }}
             fallback={
                 <View style={style.container}>

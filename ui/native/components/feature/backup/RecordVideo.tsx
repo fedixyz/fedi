@@ -2,8 +2,11 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
-import type { CameraDeviceFormat } from 'react-native-vision-camera'
-import { Camera, useCameraDevice } from 'react-native-vision-camera'
+import {
+    Camera,
+    useCameraDevice,
+    type CameraDeviceFormat,
+} from 'react-native-vision-camera'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'

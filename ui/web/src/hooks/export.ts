@@ -6,6 +6,7 @@ import {
     generateReusedEcashProofs,
     selectFedimintVersion,
     selectNostrNpub,
+    selectPwaVersion,
 } from '@fedi/common/redux'
 import { selectActiveFederation } from '@fedi/common/redux/federation'
 import {
@@ -28,6 +29,7 @@ export const useShareLogs = () => {
     const [status, setStatus] = useState<Status>('idle')
 
     const fedimintVersion = useAppSelector(selectFedimintVersion)
+    const pwaVersion = useAppSelector(selectPwaVersion)
 
     const { fetchTransactions } = useTransactionHistory(fedimint)
 
@@ -104,17 +106,18 @@ export const useShareLogs = () => {
 
                 // Bridge logs
                 const bridgeLogFiles = await getBridgeLogs()
+                const bridgeLogs = await Promise.allSettled(
+                    bridgeLogFiles.map(x => x.text()),
+                ).then(result =>
+                    result
+                        .filter(x => x.status === 'fulfilled')
+                        .map(x => x.value)
+                        .join(),
+                )
+
                 attachmentFiles.push({
                     name: 'bridge.log',
-                    content: await Promise.allSettled(
-                        bridgeLogFiles.map(
-                            async x => await (await x.getFile()).text(),
-                        ),
-                    ).then(results =>
-                        results
-                            .map(x => (x.status == 'fulfilled' ? x.value : ''))
-                            .join(''),
-                    ),
+                    content: bridgeLogs,
                 })
 
                 // Add device info
@@ -137,11 +140,7 @@ export const useShareLogs = () => {
                     id,
                     ticketNumber: ticket,
                     platform: 'pwa',
-                    appVersion:
-                        process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(
-                            0,
-                            6,
-                        ) || 'unknown',
+                    appVersion: pwaVersion,
                     fedimintVersion,
                 })
 
@@ -158,6 +157,7 @@ export const useShareLogs = () => {
             fetchTransactions,
             log,
             npub,
+            pwaVersion,
         ],
     )
 

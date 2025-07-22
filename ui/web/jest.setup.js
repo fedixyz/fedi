@@ -23,6 +23,9 @@ jest.mock('next/router', () => ({
     },
 }))
 
+global.URL.createObjectURL = jest.fn().mockImplementation(() => '/test-url')
+global.URL.revokeObjectURL = jest.fn()
+
 global.ResizeObserver = jest.fn().mockImplementation(() => ({
     observe: jest.fn(),
     unobserve: jest.fn(),

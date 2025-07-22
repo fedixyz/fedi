@@ -40,6 +40,7 @@ type CustomOverlayProps = {
     show?: boolean
     contents: CustomOverlayContents
     loading?: boolean
+    noHeaderPadding?: boolean
 }
 
 const CustomOverlay: React.FC<CustomOverlayProps> = ({
@@ -47,6 +48,7 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
     show = false,
     contents,
     loading,
+    noHeaderPadding = false,
 }) => {
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
@@ -147,17 +149,23 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
             overlayStyle={style.overlayContainer}>
             <Animated.View
                 onLayout={handleOverlayLayout}
-                style={{
-                    ...style.overlayContents,
-                    opacity: animatedOpacity,
-                    transform: [{ translateY: animatedTranslateY }],
-                    // Ensure there is double the size of theme.spacing.xl to click on the backdrop to dismiss the overlay
-                    maxHeight:
-                        viewportHeight -
-                        insets.top -
-                        insets.bottom -
-                        theme.spacing.xl * 2,
-                }}>
+                style={[
+                    style.overlayContents,
+                    {
+                        opacity: animatedOpacity,
+                        transform: [{ translateY: animatedTranslateY }],
+                        // Ensure there is double the size of theme.spacing.xl to click on the backdrop to dismiss the overlay
+                        maxHeight:
+                            viewportHeight -
+                            insets.top -
+                            insets.bottom -
+                            theme.spacing.xl * 2,
+                    },
+                    noHeaderPadding && {
+                        paddingTop: 0,
+                        paddingHorizontal: 0,
+                    },
+                ]}>
                 {icon && <SvgImage size={SvgImageSize.md} name={icon} />}
                 {headerElement}
                 {url && (

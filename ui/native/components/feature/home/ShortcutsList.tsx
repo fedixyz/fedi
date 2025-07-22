@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import type { Theme } from '@rneui/themed'
-import { useTheme, Text } from '@rneui/themed'
+import { useTheme, Text, type Theme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -20,11 +19,12 @@ import {
     selectVisibleCommunityMods,
     setModVisibility,
 } from '@fedi/common/redux/mod'
+import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut } from '../../../types'
 import { NavigationHook } from '../../../types/navigation'
-import { handleFediModNavigation } from '../../../utils/linking'
+import { handleFediModNavigation, openURL } from '../../../utils/linking'
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import { Tooltip } from '../../ui/Tooltip'
@@ -45,8 +45,14 @@ const ShortcutsList: React.FC = () => {
 
     const isFederation = useAppSelector(selectActiveFederationHasWallet)
 
-    const onSelectFediMod = (shortcut: Shortcut) => {
-        handleFediModNavigation(shortcut, navigation)
+    const onSelectFediMod = async (shortcut: Shortcut) => {
+        setActionsMod(undefined)
+        const fediMod = shortcut as FediMod
+        if (isFediDeeplinkType(fediMod.url)) {
+            openURL(fediMod.url)
+        } else {
+            await handleFediModNavigation(fediMod, navigation)
+        }
     }
 
     const handleModHold = (fediMod: FediMod) => {

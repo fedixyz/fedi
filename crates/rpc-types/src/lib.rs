@@ -15,7 +15,7 @@ use fedimint_mint_client::{ReissueExternalNotesState, SpendOOBState};
 use fedimint_wallet_client::{DepositStateV2, WithdrawState};
 use matrix::RpcRoomId;
 use runtime::api::RegisteredDevice;
-use runtime::storage::{FediFeeSchedule, FiatFXInfo};
+use runtime::storage::state::{FediFeeSchedule, FiatFXInfo};
 use runtime::utils::to_unix_time;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -40,7 +40,7 @@ pub struct RpcInitOpts {
     pub app_flavor: RpcAppFlavor,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, TS)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 #[ts(export)]
@@ -311,8 +311,8 @@ impl TryFrom<lightning_invoice::Bolt11Invoice> for RpcInvoice {
 
         // We might get no description
         let description = match invoice.description() {
-            lightning_invoice::Bolt11InvoiceDescription::Direct(desc) => desc.to_string(),
-            lightning_invoice::Bolt11InvoiceDescription::Hash(_) => "".to_string(),
+            lightning_invoice::Bolt11InvoiceDescriptionRef::Direct(desc) => desc.to_string(),
+            lightning_invoice::Bolt11InvoiceDescriptionRef::Hash(_) => "".to_string(),
         };
 
         Ok(RpcInvoice {
@@ -440,22 +440,6 @@ impl fmt::Display for RpcPeerId {
 )]
 #[ts(export)]
 pub struct RpcPublicKey(#[ts(type = "string")] pub bitcoin::secp256k1::PublicKey);
-
-#[derive(Debug, Serialize, Deserialize, Clone, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct RpcNostrSecret {
-    pub hex: String,
-    pub nsec: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct RpcNostrPubkey {
-    pub hex: String,
-    pub npub: String,
-}
 
 #[derive(Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]

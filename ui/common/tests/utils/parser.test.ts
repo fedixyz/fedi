@@ -7,7 +7,6 @@ import { Invoice, MSats } from '../../types'
 import { RpcAmount } from '../../types/bindings'
 import { ParserDataType } from '../../types/parser'
 import { FedimintBridge } from '../../utils/fedimint'
-import { configureLogging } from '../../utils/log'
 import { parseUserInput } from '../../utils/parser'
 
 // Constants
@@ -120,18 +119,12 @@ describe('parseUserInput', () => {
     beforeAll(() => {
         server.listen({ onUnhandledRequest: 'warn' })
 
-        const logFileApi = {
-            saveLogs: jest.fn().mockResolvedValue(undefined),
-            readLogs: jest.fn().mockResolvedValue(''),
-        }
-
         // Mock network request to return a 404 for "www.fedi.xyz"
         server.use(
             rest.get('https://www.fedi.xyz', (_req, res, ctx) => {
                 return res.once(ctx.status(404), ctx.delay(1)) // Return fast response
             }),
         )
-        configureLogging(logFileApi)
     })
     afterEach(() => server.resetHandlers())
     afterAll(() => server.close())
@@ -202,6 +195,10 @@ describe('parseUserInput', () => {
     })
     testCases.push({
         input: `lightning:${encodeLnurl(lnurlPayUrl)}`,
+        type: ParserDataType.LnurlPay,
+    })
+    testCases.push({
+        input: `lnurl:${encodeLnurl(lnurlPayUrl)}`,
         type: ParserDataType.LnurlPay,
     })
     testCases.push({

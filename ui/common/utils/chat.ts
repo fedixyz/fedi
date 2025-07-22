@@ -4,8 +4,11 @@ import { z } from 'zod'
 
 import { Chat, ChatMessage, ChatType } from '@fedi/common/types'
 
-import { BIP39_WORD_LIST } from '../constants/bip39'
-import { BANNED_DISPLAY_NAME_TERMS } from '../constants/matrix'
+import {
+    BANNED_DISPLAY_NAME_TERMS,
+    GUARDIANITO_BOT_DISPLAY_NAME,
+} from '../constants/matrix'
+import { wordListFirst, wordListLast } from '../constants/words'
 
 /**
  * Given a message, return its chat ID and the type of chat (direct or group).
@@ -121,29 +124,63 @@ export const getLatestPaymentUpdateIdsForChats = (
  *  - must be lowercase
  *  - must not include any banned term
  */
-export const getDisplayNameValidator = () =>
-    z
-        .string()
-        // Removes leading/trailing whitespace
-        .trim()
-        // Validates length
-        // Using z.string().refine() instead of z.string().max()
-        // to keep return types consistent
-        .refine(username => username.length <= 21)
-        // Validates all lowercase
-        .refine(username => !/[A-Z]/.test(username))
-        // Validates No banned words
-        .refine(
-            username => {
-                const lowerUsername = username.toLowerCase()
-                const foundWord = BANNED_DISPLAY_NAME_TERMS.find(word =>
-                    lowerUsername.includes(word),
-                )
-                return !foundWord
-            },
-            { message: 'banned' },
-        )
+const createDisplayNameValidator = (
+    options: {
+        allowBot?: boolean
+    } = {},
+) => {
+    const { allowBot = false } = options
 
+    return (
+        z
+            .string()
+            // Removes leading/trailing whitespace
+            .trim()
+            // Validates length
+            // Using z.string().refine() instead of z.string().max()
+            // to keep return types consistent
+            .refine(username => username.length > 0)
+            .refine(username => username.length <= 21)
+            // Validates all lowercase
+            .refine(username => {
+                // Allow "G-Bot" as an exception if specified
+                if (allowBot && username === GUARDIANITO_BOT_DISPLAY_NAME)
+                    return true
+                return !/[A-Z]/.test(username)
+            })
+            // Validates No banned words
+            .refine(
+                username => {
+                    // Allow "G-Bot" as an exception if specified
+                    if (allowBot && username === GUARDIANITO_BOT_DISPLAY_NAME)
+                        return true
+                    const lowerUsername = username.toLowerCase()
+
+                    const foundWord = BANNED_DISPLAY_NAME_TERMS.find(word =>
+                        lowerUsername.includes(word),
+                    )
+                    return !foundWord
+                },
+                { message: 'banned' },
+            )
+    )
+}
+
+/**
+ * Validator for displaying/getting display names
+ */
+export const getDisplayNameValidator = () =>
+    createDisplayNameValidator({ allowBot: true })
+
+/**
+ * Validator for setting display names
+ */
+export const setDisplayNameValidator = () =>
+    createDisplayNameValidator({ allowBot: false })
+
+export type SetDisplayNameValidatorType = ReturnType<
+    typeof setDisplayNameValidator
+>
 export type DisplayNameValidatorType = ReturnType<
     typeof getDisplayNameValidator
 >
@@ -177,33 +214,72 @@ export const parseData = <T extends z.ZodTypeAny>(
     return { success: false, errorMessage: t('errors.invalid-username') }
 }
 
-export const deriveUrlsFromText = (text: string) => {
-    // The "\b" before "https" prevents the regex from matching uwanted content at the beginning (e.g. "asdfhttps://link")
-    return (
-        text.match(/\bhttps?:\/\/[^\s]+/gi)?.filter(url => {
-            try {
-                // There is an eslint rule preventing you from calling `new Class()` without using it
-                return Boolean(new URL(url))
-            } catch {
-                return false
-            }
-        }) ?? []
-    )
+/**
+ * Parse message text into segments for rendering
+ * one or more URLs even when they are embedded in text
+ */
+export type MessageSegment = {
+    type: 'text' | 'url'
+    content: string
 }
 
-export const generateRandomDisplayName = (length: number) => {
-    const words = []
+// The "\b" before "https" prevents the regex from matching unwanted content at the beginning (e.g. "asdfhttps://link")
+const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi
 
-    // Remove banned words from list (currently only "security")
-    const filteredWordsList = BIP39_WORD_LIST.filter(
-        word => !BANNED_DISPLAY_NAME_TERMS.includes(word),
-    )
+export function parseMessageText(text: string): MessageSegment[] {
+    const segments: MessageSegment[] = []
+    let currentIndex = 0
 
-    for (let i = 0; i < length; i++) {
-        const randomIndex = Math.floor(Math.random() * filteredWordsList.length)
+    let match
 
-        words.push(filteredWordsList[randomIndex])
+    while ((match = URL_REGEX.exec(text)) !== null) {
+        // Add text before the URL if there is any
+        // Validate the URL
+        try {
+            new URL(match[0])
+        } catch {
+            // If URL is invalid, treat it as text
+            continue
+        }
+
+        // Add text before the URL if there is any
+        if (match.index > currentIndex) {
+            segments.push({
+                type: 'text',
+                content: text.slice(currentIndex, match.index),
+            })
+        }
+        segments.push({
+            type: 'url',
+            content: match[0],
+        })
+
+        currentIndex = match.index + match[0].length
     }
 
-    return words.join(' ')
+    // slice off and add the remaining text
+    if (currentIndex < text.length) {
+        segments.push({
+            type: 'text',
+            content: text.slice(currentIndex),
+        })
+    }
+
+    return segments
+}
+
+export const deriveUrlsFromText = (text: string) => {
+    return parseMessageText(text)
+        .filter(segment => segment.type === 'url')
+        .map(segment => segment.content)
+}
+
+export const generateRandomDisplayName = () => {
+    const randomIndexFirst = Math.floor(Math.random() * wordListFirst.length)
+    const randomIndexLast = Math.floor(Math.random() * wordListLast.length)
+
+    const firstWord = wordListFirst[randomIndexFirst]
+    const lastWord = wordListLast[randomIndexLast]
+
+    return `${firstWord} ${lastWord}`
 }

@@ -6,20 +6,26 @@ import {
     Text,
     TouchableOpacity,
     useWindowDimensions,
+    Share,
 } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../../assets/images'
 import Flex from './Flex'
 import SvgImage, { SvgImageSize } from './SvgImage'
+
+const log = makeLog('QRCodeContainer')
 
 interface Props {
     copyMessage: string
     copyValue?: string
     dark?: boolean
     qrValue: string
+    useShare?: boolean
+    shareValue?: string
 }
 
 const QRCodeContainer = ({
@@ -27,6 +33,8 @@ const QRCodeContainer = ({
     qrValue,
     copyValue = qrValue,
     dark,
+    useShare = false,
+    shareValue,
 }: Props) => {
     const toast = useToast()
     const { theme } = useTheme()
@@ -37,6 +45,16 @@ const QRCodeContainer = ({
     const copyToClipboard = () => {
         Clipboard.setString(copyValue)
         toast.show({ content: copyMessage, status: 'success' })
+    }
+
+    const shareLink = async () => {
+        try {
+            await Share.share({
+                message: shareValue || copyValue,
+            })
+        } catch (error) {
+            log.error('Error sharing:', error)
+        }
     }
 
     return (
@@ -53,13 +71,13 @@ const QRCodeContainer = ({
                     style={style.inviteLinkText}
                     numberOfLines={1}
                     maxFontSizeMultiplier={1.4}>
-                    {copyValue}
+                    {useShare ? shareValue || copyValue : copyValue}
                 </Text>
                 <TouchableOpacity
                     style={style.copyButtonContainer}
-                    onPress={copyToClipboard}>
+                    onPress={useShare ? shareLink : copyToClipboard}>
                     <SvgImage
-                        name="Copy"
+                        name={useShare ? 'Share' : 'Copy'}
                         color={theme.colors.primary}
                         size={SvgImageSize.xs}
                     />
@@ -68,7 +86,7 @@ const QRCodeContainer = ({
                         numberOfLines={1}
                         adjustsFontSizeToFit
                         maxFontSizeMultiplier={1.4}>
-                        {t('words.copy')}
+                        {useShare ? t('words.share') : t('words.copy')}
                     </Text>
                 </TouchableOpacity>
             </Flex>

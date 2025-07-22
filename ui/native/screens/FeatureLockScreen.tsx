@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, useTheme } from '@rneui/themed'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useWindowDimensions } from 'react-native'
+import { useWindowDimensions, View } from 'react-native'
 
 import { maxPinLength, pinNumbers } from '@fedi/common/constants/security'
 import { numpadButtons } from '@fedi/common/hooks/amount'
@@ -145,9 +145,10 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
                 </Flex>
             </Flex>
             <Flex row wrap style={style.numpad}>
-                {numpadButtons
-                    .filter(btn => btn !== '.')
-                    .map(btn => (
+                {numpadButtons.map(btn =>
+                    btn === '.' ? (
+                        <View key="empty" style={style.numpadBtnWidth} />
+                    ) : (
                         <NumpadButton
                             key={btn}
                             btn={btn}
@@ -156,7 +157,8 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
                             }
                             disabled={timeoutSeconds > 0}
                         />
-                    ))}
+                    ),
+                )}
                 {timeoutSeconds > 0 && (
                     <Flex center style={style.timeoutOverlay}>
                         <Text bold h1>

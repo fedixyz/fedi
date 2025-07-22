@@ -15,8 +15,7 @@ import {
     selectMultispendInvitationEvent,
     selectMatrixRoomMember,
     selectMatrixRoomMultispendEvent,
-    selectCurrencyLocale,
-    selectMultispendBalanceFiat,
+    selectMultispendBalanceCents,
 } from '../redux'
 import {
     MatrixEvent,
@@ -27,7 +26,6 @@ import {
     MultispendListedInvitationEvent,
 } from '../types'
 import { RpcMultispendGroupStatus, RpcRoomId } from '../types/bindings'
-import amountUtils from '../utils/AmountUtils'
 import { FedimintBridge } from '../utils/fedimint'
 import {
     getMultispendInvite,
@@ -78,21 +76,13 @@ export function useMultispendVoting({
             myId &&
             multispendStatus.state.rejections.includes(myId),
     )
+    const hasApproved = Boolean(
+        multispendStatus?.status === 'activeInvitation' &&
+            myId &&
+            Object.keys(multispendStatus.state.pubkeys).includes(myId),
+    )
 
-    const canAccept = useMemo(() => {
-        if (
-            multispendStatus?.status !== 'activeInvitation' ||
-            !myId ||
-            myMultispendRole !== 'voter'
-        )
-            return false
-
-        const hasApproved = Object.keys(
-            multispendStatus.state.pubkeys,
-        ).includes(myId)
-
-        return !hasRejected && !hasApproved
-    }, [multispendStatus, myId, myMultispendRole, hasRejected])
+    const canVote = !hasApproved && !hasRejected && myMultispendRole === 'voter'
 
     const handleAbortMultispend = async () => {
         if (!isProposer) return
@@ -216,16 +206,13 @@ export function useMultispendVoting({
     }, [multispendStatus, onMultispendAborted])
 
     return {
-        hasRejected,
         isActive: multispendStatus?.status === 'activeInvitation',
         isFinalized: multispendStatus?.status === 'finalized',
-        canVote:
-            myMultispendRole === 'proposer' || myMultispendRole === 'voter',
         isProposer,
         isLoading,
         isConfirmingAbort,
         setIsConfirmingAbort,
-        canAccept,
+        canVote,
         needsToJoin,
         handleAcceptMultispend,
         handleAbortMultispend,
@@ -238,20 +225,19 @@ export function useMultispendVoting({
 
 export function useMultispendDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const selectedCurrency = useCommonSelector(selectCurrency)
-    const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const multispendStatus = useCommonSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
     const myMultispendRole = useCommonSelector(s =>
         selectMyMultispendRole(s, roomId),
     )
-    const multispendBalanceFiat = useCommonSelector(s =>
-        selectMultispendBalanceFiat(s, roomId),
+    const { convertCentsToFormattedFiat } = useBtcFiatPrice()
+    const multispendBalanceCents = useCommonSelector(s =>
+        selectMultispendBalanceCents(s, roomId),
     )
-    const formattedMultispendBalance = amountUtils.formatFiat(
-        multispendBalanceFiat,
-        selectedCurrency,
-        { symbolPosition: 'none', locale: currencyLocale },
+    const formattedMultispendBalance = convertCentsToFormattedFiat(
+        multispendBalanceCents,
+        'none',
     )
 
     const isActiveInvitation = multispendStatus?.status === 'activeInvitation'
@@ -364,6 +350,11 @@ export function useMultispendWithdrawalRequests({
     const roomMembers = useCommonSelector(s =>
         selectMatrixRoomMembers(s, roomId),
     )
+    const myMultispendRole = useCommonSelector(s =>
+        selectMyMultispendRole(s, roomId),
+    )
+    const canVoteOnWithdrawals =
+        myMultispendRole === 'voter' || myMultispendRole === 'proposer'
 
     const withdrawalRequests = transactions.filter(
         (txn): txn is MultispendWithdrawalEvent => txn.state === 'withdrawal',
@@ -550,6 +541,7 @@ export function useMultispendWithdrawalRequests({
         getWithdrawalRequest,
         handleRejectRequest,
         handleApproveRequest,
+        canVoteOnWithdrawals,
     }
 }
 

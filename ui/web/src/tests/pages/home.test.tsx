@@ -1,42 +1,22 @@
 import '@testing-library/jest-dom'
 import { screen } from '@testing-library/react'
 
-import { MSats, FederationListItem } from '@fedi/common/types'
+import {
+    mockFederation1,
+    mockCommunity,
+} from '@fedi/common/tests/mock-data/federation'
 
 import HomePage from '../../pages/home'
 import { AppState, setupStore } from '../../state/store'
 import { renderWithProviders } from '../../utils/test-utils/render'
 
-const mockFederation: FederationListItem = {
-    status: 'online',
-    init_state: 'ready',
-    hasWallet: true,
-    balance: 0 as MSats,
-    id: '1',
-    network: 'bitcoin',
-    name: 'test',
-    inviteCode: 'test',
-    meta: {},
-    recovering: false,
-    nodes: {},
-    clientConfig: null,
-    fediFeeSchedule: {
-        modules: {},
-        remittanceThresholdMsat: 10000,
-    },
-    hadReusedEcash: false,
-}
-
-const mockCommunity: FederationListItem = {
-    id: '1',
-    status: 'online',
-    network: undefined,
-    hasWallet: false,
-    init_state: 'ready',
-    inviteCode: 'test',
-    name: 'name',
-    meta: {},
-}
+jest.mock('../../hooks/util.ts', () => ({
+    ...jest.requireActual('../../hooks/util'),
+    useShowInstallPromptBanner: () => ({
+        showInstallBanner: true,
+        handleOnDismiss: jest.fn(),
+    }),
+}))
 
 describe('/pages/home', () => {
     let store
@@ -48,22 +28,31 @@ describe('/pages/home', () => {
     })
 
     describe('when the page loads for the first time', () => {
-        it('should render the display name modal', async () => {
+        it('should render the install banner component', async () => {
             renderWithProviders(<HomePage />, {
                 preloadedState: {
                     nux: {
                         steps: {
                             ...state.nux.steps,
-                            displayNameModal: false,
+                            pwaHasDismissedInstallPrompt: false,
                         },
                     },
-                    matrix: {
-                        ...state.matrix,
-                        auth: {
-                            userId: 'user-id',
-                            deviceId: 'device-id',
-                            displayName: 'test user',
-                        },
+                },
+            })
+
+            const component = screen.getByLabelText('Install Banner')
+            expect(component).toBeInTheDocument()
+        })
+    })
+
+    describe("when the user hasn't already backed up their seed and they have a balance above minimum level", () => {
+        it('should render the backup wallet modal', () => {
+            renderWithProviders(<HomePage />, {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1],
+                        activeFederationId: '1',
                     },
                 },
             })
@@ -94,7 +83,7 @@ describe('/pages/home', () => {
                     preloadedState: {
                         federation: {
                             ...state.federation,
-                            federations: [mockFederation],
+                            federations: [mockFederation1],
                             activeFederationId: '1',
                             defaultCommunityChats: {
                                 '1': [

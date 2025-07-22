@@ -1,10 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, View, Pressable } from 'react-native'
 
 import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
-import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 import { OmniInputAction } from './OmniInput'
 
@@ -34,7 +33,7 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
                 <Pressable
                     key={idx}
                     onPress={() => handlePress(onPress, idx)}
-                    containerStyle={style.action}>
+                    style={style.action}>
                     {typeof label === 'string' && icon && (
                         <SvgImage name={icon} />
                     )}

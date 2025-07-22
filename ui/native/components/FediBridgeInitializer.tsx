@@ -5,23 +5,12 @@ import { Platform } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import SplashScreen from 'react-native-splash-screen'
 
-import { useObserveMatrixSyncStatus } from '@fedi/common/hooks/matrix'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
-    fetchRegisteredDevices,
-    fetchSocialRecovery,
-    initializeFeatureFlags,
-    initializeFedimintVersion,
-    initializeNostrKeys,
-    previewAllDefaultChats,
-    refreshFederations,
-    selectMatrixStarted,
-    setDeviceIndexRequired,
+    refreshOnboardingStatus,
     setShouldLockDevice,
-    setShouldMigrateSeed,
-    startMatrixClient,
 } from '@fedi/common/redux'
-import { selectHasLoadedFromStorage } from '@fedi/common/redux/storage'
+import { selectStorageIsReady } from '@fedi/common/redux/storage'
 import { TransactionEvent } from '@fedi/common/types'
 import {
     DeviceRegistrationEvent,
@@ -50,13 +39,10 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const [bridgeIsReady, setBridgeIsReady] = useState<boolean>(false)
-    const started = useAppSelector(selectMatrixStarted)
     const [bridgeError, setBridgeError] = useState<unknown>()
-    const hasLoadedStorage = useAppSelector(selectHasLoadedFromStorage)
+    const hasLoadedStorage = useAppSelector(selectStorageIsReady)
     const dispatchRef = useUpdatingRef(dispatch)
     const isForeground = useAppIsInForeground()
-
-    useObserveMatrixSyncStatus(started)
 
     // Initialize redux store and bridge
     useEffect(() => {
@@ -72,56 +58,10 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
 
                 const stop = Date.now()
                 log.info('initialized:', stop - start, 'ms OS:', Platform.OS)
-
-                const status = await fedimint.bridgeStatus()
-                log.info('bridgeStatus', status)
-
-                // These all happen in parallel after bridge is initialized
-                await Promise.all([
-                    dispatchRef.current(initializeFeatureFlags({ fedimint })),
-                    dispatchRef.current(fetchSocialRecovery(fedimint)),
-                    dispatchRef.current(initializeNostrKeys({ fedimint })),
-                    // this happens when the user entered seed words but quit the app
-                    // before completing device index selection so we fetch devices
-                    // again since that typically gets fetched from recoverFromMnemonic
-                    ...(status?.deviceIndexAssignmentStatus === 'unassigned'
-                        ? [
-                              dispatchRef.current(setDeviceIndexRequired(true)),
-                              dispatchRef.current(
-                                  // TODO: make sure this is offline-friendly? should it be?
-                                  fetchRegisteredDevices(fedimint),
-                              ),
-                          ]
-                        : []),
-                    // if there is no matrix session yet we will start the matrix
-                    // client either during recovery or during onboarding after a
-                    // display name is entered
-                    ...(status?.matrixSetup
-                        ? [dispatchRef.current(startMatrixClient({ fedimint }))]
-                        : []),
-                ])
-
-                // This means the user has migrated their seed to a new device via device/app
-                // cloning so we need to prompt them to reinstall and do a device transfer
-                // so exit early without proceeding with further initialization
-                if (
-                    status?.bridgeFullInitError &&
-                    status.bridgeFullInitError.type === 'v2IdentifierMismatch'
-                ) {
-                    dispatchRef.current(setShouldMigrateSeed(true))
-                    setBridgeIsReady(true)
-                    return
-                }
-
-                // wait until after the matrix client is started to refresh federations because
-                // the latest metadata may include new default chats that require
-                // matrix to fetch the room previews
-                await dispatchRef.current(refreshFederations(fedimint)).unwrap()
-
+                await dispatchRef
+                    .current(refreshOnboardingStatus(fedimint))
+                    .unwrap()
                 setBridgeIsReady(true)
-                // preview chats after matrix client has finished initializing
-                dispatchRef.current(previewAllDefaultChats())
-                dispatchRef.current(initializeFedimintVersion({ fedimint }))
             } catch (err) {
                 log.error(
                     `bridge failed to initialize after ${Date.now() - start}ms`,

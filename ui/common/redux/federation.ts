@@ -71,6 +71,8 @@ const initialState = {
     customFediMods: {} as Record<Federation['id'], FediMod[] | undefined>,
     defaultCommunityChats: {} as Record<Federation['id'], MatrixRoom[]>,
     gatewaysByFederation: {} as Record<Federation['id'], RpcLightningGateway[]>,
+    // A list of federation IDs that we should not show the Federation Rating Overlay in again
+    seenFederationRatings: [] as Array<Federation['id']>,
 }
 
 export type FederationState = typeof initialState
@@ -242,6 +244,21 @@ export const federationSlice = createSlice({
             state.gatewaysByFederation[action.payload.federationId] =
                 action.payload.gateways
         },
+        setSeenFederationRating(
+            state,
+            action: PayloadAction<{ federationId: string }>,
+        ) {
+            if (
+                !state.seenFederationRatings.includes(
+                    action.payload.federationId,
+                )
+            ) {
+                state.seenFederationRatings = [
+                    ...state.seenFederationRatings,
+                    action.payload.federationId,
+                ]
+            }
+        },
     },
     extraReducers: builder => {
         builder.addCase(leaveFederation.fulfilled, (state, action) => {
@@ -270,6 +287,7 @@ export const federationSlice = createSlice({
             state.authenticatedGuardian = action.payload.authenticatedGuardian
             state.externalMeta = action.payload.externalMeta
             state.customFediMods = action.payload.customFediMods || {}
+            state.seenFederationRatings = action.payload.seenFederationRatings
         })
 
         builder.addCase(
@@ -305,24 +323,54 @@ export const {
     changeAuthenticatedGuardian,
     removeCustomFediMod,
     addFederationGateways,
+    setSeenFederationRating,
 } = federationSlice.actions
 
 /*** Async thunk actions */
+
+export const rateFederation = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; rating: number },
+    { state: CommonState }
+>(
+    'federation/rateFederation',
+    async ({ fedimint, rating }, { getState, dispatch }) => {
+        const federationId = selectActiveFederationId(getState())
+
+        if (!federationId) return
+
+        await fedimint
+            .rpcResult('nostrRateFederation', {
+                federationId,
+                rating,
+                includeInviteCode: false,
+            })
+            .match(
+                () => {
+                    dispatch(
+                        setSeenFederationRating({
+                            federationId,
+                        }),
+                    )
+                },
+                e => {
+                    log.error(`nostrRateFederation failed`, e)
+                },
+            )
+    },
+)
 
 export const supportsSafeOnchainDeposit = createAsyncThunk<
     boolean,
     { fedimint: FedimintBridge },
     { state: CommonState }
->(
-    'federation/supportsSafeOnchainDeposit',
-    async ({ fedimint }, { getState }) => {
-        const paymentFederation = selectPaymentFederation(getState())
+>('federation/supportsSafeOnchainDeposit', ({ fedimint }, { getState }) => {
+    const activeFederation = selectActiveFederation(getState())
 
-        if (!paymentFederation) return false
+    if (!activeFederation) return false
 
-        return await fedimint.supportsSafeOnchainDeposit(paymentFederation.id)
-    },
-)
+    return fedimint.supportsSafeOnchainDeposit(activeFederation.id)
+})
 
 export const refreshFederations = createAsyncThunk<
     FederationListItem[],
@@ -1031,3 +1079,8 @@ export const selectShouldShowMultispend = createSelector(
         return isMultispendEnabled && doesAnyFederationHaveMultispend
     },
 )
+
+export const selectHasSeenFederationRating = (
+    state: CommonState,
+    federationId: string,
+) => state.federation.seenFederationRatings.includes(federationId)

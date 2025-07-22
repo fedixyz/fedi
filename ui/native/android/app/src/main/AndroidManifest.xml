@@ -56,6 +56,24 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="fedi" />
             </intent-filter>
+            <!-- this intent filter handles app.fedi.xyz deeplinks -->
+            <intent-filter android:autoVerify="${autoVerify}">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                    android:host="app.fedi.xyz"
+                    android:pathPrefix="/link" />
+            </intent-filter>
+            <!-- this intent filter handles fedi-ashen.vercel.app deeplinks -->
+            <intent-filter android:autoVerify="${autoVerify}">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                    android:host="fedi-ashen.vercel.app"
+                    android:pathPrefix="/link" />
+            </intent-filter>
              <!-- this intent filter handles lightning:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

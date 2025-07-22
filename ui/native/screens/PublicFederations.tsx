@@ -1,8 +1,14 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme, Image } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, ScrollView, StyleSheet, View } from 'react-native'
+import {
+    BackHandler,
+    Linking,
+    ScrollView,
+    StyleSheet,
+    View,
+} from 'react-native'
 
 import { useLatestPublicFederations } from '@fedi/common/hooks/federation'
 import { selectFederationIds } from '@fedi/common/redux'
@@ -21,7 +27,7 @@ export type Props = NativeStackScreenProps<
     RootStackParamList,
     'PublicFederations'
 >
-const PublicFederations: React.FC<Props> = ({ navigation }) => {
+const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
@@ -58,6 +64,20 @@ const PublicFederations: React.FC<Props> = ({ navigation }) => {
         //     subText: t('feature.onboarding.description-create'),
         // },
     ]
+
+    const cameFromSplash = route?.params?.from === 'Splash'
+
+    useEffect(() => {
+        if (cameFromSplash) {
+            const backHandler = BackHandler.addEventListener(
+                'hardwareBackPress',
+                () => {
+                    return true // prevent default back action
+                },
+            )
+            return () => backHandler.remove()
+        }
+    }, [cameFromSplash])
 
     const selectedOption =
         switcherOptions.find(opt => opt.value === activeTab) ??

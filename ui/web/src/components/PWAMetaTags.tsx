@@ -3,11 +3,7 @@ import React from 'react'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
-const origin =
-    typeof window !== 'undefined' && window.location.host
-        ? window.location.host
-        : ''
-const metaAppName = origin === 'app.fedi.xyz' ? 'Fedi' : 'Fedi Nightly'
+const metaAppName = 'Fedi'
 const metaDescription = 'Fedi in your browser'
 
 export const PWAMetaTags: React.FC = () => {

@@ -5,7 +5,11 @@ import OfflineIcon from '@fedi/common/assets/svgs/offline.svg'
 import { useBalanceDisplay } from '@fedi/common/hooks/amount'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
-import { selectActiveFederation } from '@fedi/common/redux'
+import {
+    selectActiveFederation,
+    selectHasSeenFederationRating,
+    selectIsNostrClientEnabled,
+} from '@fedi/common/redux'
 import { ParserDataType, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { formatErrorMessage } from '@fedi/common/utils/format'
@@ -19,6 +23,7 @@ import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { DialogStatus, DialogStatusProps } from './DialogStatus'
 import { OmniInput } from './OmniInput'
+import RateFederationDialog from './Onboarding/RateFederationDialog'
 import { SendOffline } from './SendOffline'
 import { Text } from './Text'
 
@@ -54,7 +59,12 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         handleOmniSend,
         resetOmniPaymentState,
     } = useOmniPaymentState(fedimint, activeFederationId, false, t)
+    const hasRatedFederation = useAppSelector(s =>
+        selectHasSeenFederationRating(s, activeFederationId ?? ''),
+    )
+    const isNostrClientEnabled = useAppSelector(selectIsNostrClientEnabled)
 
+    const [showRateFederation, setShowRateFederation] = useState(false)
     const [isSendingOffline, setIsSendingOffline] = useState(false)
     const [isCloseDisabled, setIsCloseDisabled] = useState(false)
     const [isSending, setIsSending] = useState(false)
@@ -66,6 +76,8 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const isOfflineWalletSupported = useIsOfflineWalletSupported()
     const isSmall = useMediaQuery(config.media.sm)
     const balanceDisplay = useBalanceDisplay(t)
+
+    const willShowRateFederation = !hasRatedFederation && isNostrClientEnabled
 
     // Reset modal on close and open
     useEffect(() => {
@@ -90,6 +102,17 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         handleOmniInput(sendRouteState)
     }, [open, sendRouteState, handleOmniInput])
 
+    const handleOpenChange = useCallback(
+        (change: boolean) => {
+            if (willShowRateFederation && !change) {
+                setShowRateFederation(true)
+            }
+
+            onOpenChange(change)
+        },
+        [willShowRateFederation, onOpenChange],
+    )
+
     const handleChangeAmount = useCallback(
         (amount: Sats) => {
             setSubmitAttempts(0)
@@ -104,12 +127,12 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         try {
             await handleOmniSend(inputAmount)
             setHasSent(true)
-            setTimeout(() => onOpenChange(false), 2500)
+            setTimeout(() => handleOpenChange(false), 2500)
         } catch (err) {
             setSendError(formatErrorMessage(t, err, 'errors.unknown-error'))
         }
         setIsSending(false)
-    }, [handleOmniSend, inputAmount, onOpenChange, t])
+    }, [handleOmniSend, inputAmount, handleOpenChange, t])
 
     if (typeof balance !== 'number') return null
 
@@ -177,7 +200,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         content = (
             <SendOffline
                 onEcashGenerated={() => setIsCloseDisabled(true)}
-                onPaymentSent={() => onOpenChange(false)}
+                onPaymentSent={() => handleOpenChange(false)}
             />
         )
     } else {
@@ -186,7 +209,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                 <OmniInput
                     expectedInputTypes={expectedInputTypes}
                     onExpectedInput={handleOmniInput}
-                    onUnexpectedSuccess={() => onOpenChange(false)}
+                    onUnexpectedSuccess={() => handleOpenChange(false)}
                     customActions={
                         isOfflineWalletSupported
                             ? [
@@ -203,22 +226,34 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     }
 
     return (
-        <Dialog
-            title={t(
-                isSendingOffline
-                    ? 'feature.send.send-bitcoin-offline'
-                    : 'feature.send.send-bitcoin',
+        <>
+            <Dialog
+                title={t(
+                    isSendingOffline
+                        ? 'feature.send.send-bitcoin-offline'
+                        : 'feature.send.send-bitcoin',
+                )}
+                description={balanceDisplay}
+                open={open}
+                disableClose={isCloseDisabled}
+                mobileDismiss="back"
+                onOpenChange={handleOpenChange}>
+                <Container ref={containerRef}>
+                    {content}
+                    {dialogStatusProps && (
+                        <DialogStatus {...dialogStatusProps} />
+                    )}
+                </Container>
+            </Dialog>
+            {isNostrClientEnabled && (
+                <RateFederationDialog
+                    show={showRateFederation}
+                    onDismiss={() => {
+                        setShowRateFederation(false)
+                    }}
+                />
             )}
-            description={balanceDisplay}
-            open={open}
-            disableClose={isCloseDisabled}
-            mobileDismiss="back"
-            onOpenChange={onOpenChange}>
-            <Container ref={containerRef}>
-                {content}
-                {dialogStatusProps && <DialogStatus {...dialogStatusProps} />}
-            </Container>
-        </Dialog>
+        </>
     )
 }
 

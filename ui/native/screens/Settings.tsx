@@ -8,7 +8,6 @@ import {
     selectAlphabeticallySortedCommunities,
     selectAlphabeticallySortedWalletFederations,
     selectDeveloperMode,
-    selectHasSetMatrixDisplayName,
     selectMatrixAuth,
 } from '@fedi/common/redux'
 
@@ -26,9 +25,6 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>
 const Settings: React.FC<Props> = () => {
     const { theme } = useTheme()
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const hasSetMatrixDisplayName = useAppSelector(
-        selectHasSetMatrixDisplayName,
-    )
 
     const { t } = useTranslation()
     const [unlockDevModeCount, setUnlockDevModeCount] = useState<number>(0)
@@ -48,7 +44,7 @@ const Settings: React.FC<Props> = () => {
             testID="UserQrContainer"
             contentContainerStyle={style.container}>
             <Flex gap="lg">
-                {hasSetMatrixDisplayName && <UserQr matrixUser={matrixAuth} />}
+                {matrixAuth && <UserQr matrixUser={matrixAuth} />}
                 <Flex gap="lg">
                     <Text color={theme.colors.night} style={style.sectionTitle}>
                         {t('words.general')}

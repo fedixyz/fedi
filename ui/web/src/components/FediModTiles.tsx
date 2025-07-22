@@ -3,10 +3,8 @@ import Link from 'next/link'
 import React, { useState } from 'react'
 
 import DefaultFediModIcon from '@fedi/common/assets/images/fedimods/default.png'
-import {
-    selectCoreMods,
-    selectVisibleCommunityMods,
-} from '@fedi/common/redux/mod'
+import { selectAllVisibleMods } from '@fedi/common/redux/mod'
+import { FediMod } from '@fedi/common/types'
 
 import { FEDIMOD_IMAGES } from '../constants/fedimodimages'
 import { useAppSelector } from '../hooks'
@@ -14,13 +12,13 @@ import { styled } from '../styles'
 import { Text } from './Text'
 
 type Props = {
-    isFederation?: boolean
+    mods?: FediMod[]
 }
 
-export const FediModTiles: React.FC<Props> = ({ isFederation }) => {
-    const fediMods = useAppSelector(
-        isFederation ? selectVisibleCommunityMods : selectCoreMods,
-    )
+export const FediModTiles: React.FC<Props> = ({ mods }) => {
+    const defaultMods = useAppSelector(selectAllVisibleMods)
+
+    const fediMods = mods || defaultMods
 
     return (
         <Container>
@@ -79,10 +77,11 @@ const FediModTile = ({
 }
 
 const Container = styled('div', {
+    alignItems: 'end',
     display: 'grid',
     gridTemplateColumns: 'repeat(4, 1fr)',
-    alignItems: 'end',
     justifyContent: 'space-between',
+    width: '100%',
 
     '@sm': {
         gridTemplateColumns: 'repeat(3, 1fr)',

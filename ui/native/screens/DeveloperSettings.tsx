@@ -802,6 +802,18 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         })
                     }}
                 />
+                <Button
+                    title="Mark Bridge for Export"
+                    containerStyle={style.buttonContainer}
+                    onPress={async () => {
+                        await fedimint.internalMarkBridgeExport()
+                        toast.show({
+                            content:
+                                'Bridge marked for export, Please restart the app',
+                            status: 'success',
+                        })
+                    }}
+                />
             </SettingsSection>
             <Modal
                 visible={isModalVisible}

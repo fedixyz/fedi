@@ -1,11 +1,16 @@
-import { Result, ResultAsync } from 'neverthrow'
+import { err, ok, Result, ResultAsync } from 'neverthrow'
 import { ZodSchema, z } from 'zod'
 
-import { FetchError, MalformedDataError } from '../types/errors'
-import { tryTag, UnexpectedError } from './errors'
+import {
+    FetchError,
+    MalformedDataError,
+    MissingDataError,
+    UrlConstructError,
+} from '../types/errors'
+import { isErrorInstance, makeError, tryTag, UnexpectedError } from './errors'
 
 /**
- * Attempts to pass data through a zod schema
+ * Attempts to pass unknown data through a zod schema
  * If parsing fails, bubbles up a `MalformedDataError`
  * Otherwise, casts the result to the inferred type of the schema
  *
@@ -16,14 +21,6 @@ import { tryTag, UnexpectedError } from './errors'
  *
  * result
  *   .andThen(throughSchema(zodSchema))
- *   .match(
- *     ok => { // `{ foo: string }`
- *       console.log('parsed data', ok)
- *     },
- *     err => { // `SchemaValidationError`
- *       console.log('failed to parse data', err.message)
- *     }
- *   )
  * ```
  */
 export const throughZodSchema = <T extends ZodSchema>(schema: T) => {
@@ -33,23 +30,23 @@ export const throughZodSchema = <T extends ZodSchema>(schema: T) => {
 
 /**
  * Attempts to perform a safe `fetch()` call
+ * If an invalid URL is passed, bubbles up a `UrlConstructError`
  * If the fetch fails, bubbles up a `FetchError`
- *
- * @example
- * ```typescript
- * await fetchResult(url)
- *   .match(
- *     res => console.log('request is', res.ok ? 'ok' : 'not ok'),
- *     err => { // `FetchError`
- *       console.log('request failed', err.message)
- *     }
- *   )
- * ```
+ * A non-ok status code does **not** result in a `FetchError`
  */
 export const fetchResult = (
     ...args: Parameters<typeof fetch>
-): ResultAsync<Response, FetchError | UnexpectedError> =>
-    ResultAsync.fromPromise(fetch(...args), tryTag('FetchError'))
+): ResultAsync<Response, UrlConstructError | FetchError | UnexpectedError> =>
+    ResultAsync.fromPromise(fetch(...args), e => {
+        if (
+            isErrorInstance(e, 'UrlConstructError') &&
+            e.message.includes('URL')
+        ) {
+            return makeError(e, 'UrlConstructError')
+        }
+
+        return makeError(e, 'FetchError')
+    })
 
 /**
  * Attempts to parse a `Response` as JSON
@@ -59,12 +56,6 @@ export const fetchResult = (
  * ```typescript
  * await fetchResult(lnurl)
  *   .andThen(thenJson)
- *   .match(
- *     ok => console.log(ok),
- *     err => { // `MalformedDataError | FetchError`
- *       console.log('lnurl request failed', err.message)
- *     }
- *   )
  * ```
  */
 export const thenJson = (
@@ -73,21 +64,37 @@ export const thenJson = (
     ResultAsync.fromPromise(res.json(), tryTag('MalformedDataError'))
 
 /**
- * Attempts to construct a `URL` from a string or a `URL`
- * If the URL fails to be constructed, bubbles up a `UrlParseError`
- *
- * @example
- * ```typescript
- * constructUrl('https://example.com')
- *   .match(
- *     ok => console.log('constructed url', ok),
- *     err => { // `UrlParseError`
- *       console.log('failed to parse url', err.message)
- *     }
- *   )
- * ```
+ * Attempts to construct a `URL` from a string or a `URL` object
+ * If an invalid URL is passed, bubbles up a `UrlConstructError`
  */
 export const constructUrl = Result.fromThrowable(
     (...args: ConstructorParameters<typeof URL>) => new URL(...args),
-    tryTag('UrlParseError'),
+    tryTag('UrlConstructError'),
 )
+
+/**
+ * Ensures that a value is not null or undefined
+ * If the value is null or undefined, returns a `MissingDataError`
+ *
+ * @example
+ * ```typescript
+ * result
+ *   .andThen(ensureNonNullish)
+ *   .andThen(value => {
+ *     // value is not null or undefined
+ *   })
+ * ```
+ */
+export const ensureNonNullish = <T>(
+    value: T,
+): Result<NonNullable<T>, MissingDataError | UnexpectedError> => {
+    if (value === null || value === undefined)
+        return err(
+            makeError(
+                new Error(`expected non-nullish value, got ${value}`),
+                'MissingDataError',
+            ),
+        )
+
+    return ok(value as NonNullable<T>)
+}

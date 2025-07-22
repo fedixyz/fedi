@@ -203,7 +203,10 @@ jobs:
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
             - name: Build Android bridge artifacts
-              run: nix develop --ignore-environment --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
+              run: nix build -L .#ci.fedi-android-bridge-libs
+
+            - name: Install Android bridge Kotlin artifacts
+              run: nix develop -c env FM_BUILD_BRIDGE_ANDROID_LIBS_OUT=./result/share/fedi-android ./scripts/bridge/install-bridge-android.sh
 
             - name: Build fedi-ffi
               run: nix build -L .#aarch64-android.ci.fedi-ffi
@@ -214,7 +217,7 @@ jobs:
         if: >
             needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
             needs.precheck.outputs.IS_PUSH_TO_MASTER == '1'
-        runs-on: [self-hosted, macos, arm64, legacy]
+        runs-on: [self-hosted, macos, arm64]
         timeout-minutes: 60
         steps:
             - uses: actions/checkout@v4
@@ -244,7 +247,7 @@ jobs:
                       timeout: 30
                       system: x86_64-linux
                     - host: macos-arm64
-                      runs-on: [self-hosted, macos, arm64, legacy]
+                      runs-on: [self-hosted, macos, arm64]
                       os: macOS
                       build-in-pr: true
                       timeout: 45

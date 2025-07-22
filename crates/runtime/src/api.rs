@@ -22,7 +22,7 @@ use crate::constants::{
     FEDI_DEVICE_REGISTRATION_URL, FEDI_FEE_API_URL_MAINNET, FEDI_FEE_API_URL_MUTINYNET,
     FEDI_INVOICE_API_URL_MAINNET, FEDI_INVOICE_API_URL_MUTINYNET,
 };
-use crate::storage::{DeviceIdentifier, FediFeeSchedule, ModuleFediFeeSchedule};
+use crate::storage::state::{DeviceIdentifier, FediFeeSchedule, ModuleFediFeeSchedule};
 
 /// Represents registration information of a device using our root seed as
 /// recorded with Fedi's servers.

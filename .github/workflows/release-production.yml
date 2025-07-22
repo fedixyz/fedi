@@ -37,7 +37,7 @@ jobs:
               run: nix develop -c ./scripts/ci/make-android-release-creds.sh
 
             - name: Build bridge
-              run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-android ./scripts/bridge/build-bridge-android.sh
+              run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release ./scripts/bridge/build-bridge-android.sh
 
             - name: Build UI dependencies
               run: nix develop -c ./scripts/ui/build-deps.sh
@@ -62,7 +62,7 @@ jobs:
                   bash ./scripts/ci/verify-bridge-hash.sh "$APK_PATH" "${{ github.sha }}"
 
             - name: Create draft GitHub release with APK
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v2.2.2
               with:
                   tag_name: ${{ steps.prep-apk.outputs.APK_VERSION }}
                   name: 'Fedi ${{ steps.prep-apk.outputs.APK_VERSION }}'

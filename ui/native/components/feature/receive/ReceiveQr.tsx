@@ -3,11 +3,14 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dimensions, Share, StyleSheet } from 'react-native'
+import { Dimensions, Share, StyleSheet, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import {
+    selectActiveFederation,
+    selectActiveFederationId,
+} from '@fedi/common/redux'
 import { updateTransactionNotes } from '@fedi/common/redux/transactions'
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { makeLog } from '@fedi/common/utils/log'
@@ -19,6 +22,7 @@ import { reset } from '../../../state/navigation'
 import { BitcoinOrLightning, BtcLnUri, TransactionEvent } from '../../../types'
 import Flex from '../../ui/Flex'
 import NotesInput from '../../ui/NotesInput'
+import { FederationLogo } from '../federations/FederationLogo'
 import OnchainDepositInfo from './OnchainDepositInfo'
 
 const log = makeLog('ReceiveQr')
@@ -43,6 +47,7 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
     const [notes, setNotes] = useState('')
     const dispatch = useAppDispatch()
     const activeFederationId = useAppSelector(selectActiveFederationId)
+    const activeFederation = useAppSelector(selectActiveFederation)
 
     const onSaveNotes = useCallback(async () => {
         if (!transactionId || !activeFederationId) return
@@ -144,18 +149,41 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
                 )}
                 {type === BitcoinOrLightning.bitcoin && <OnchainDepositInfo />}
             </Flex>
-            <Flex row justify="between" fullWidth>
-                <Button
-                    title={t('words.share')}
-                    onPress={openShareDialog}
-                    containerStyle={style.button}
-                />
-                <Button
-                    title={t('words.copy')}
-                    onPress={copyToClipboard}
-                    containerStyle={style.button}
-                />
-            </Flex>
+            <View>
+                {type === BitcoinOrLightning.lnurl && activeFederation && (
+                    <View style={style.detailItem}>
+                        <Text caption bold color={theme.colors.night}>{`${t(
+                            'feature.receive.receive-to',
+                        )}`}</Text>
+                        <Flex row align="center" gap="xs">
+                            <FederationLogo
+                                federation={activeFederation}
+                                size={24}
+                            />
+
+                            <Text
+                                caption
+                                medium
+                                numberOfLines={1}
+                                color={theme.colors.night}>
+                                {activeFederation?.name || ''}
+                            </Text>
+                        </Flex>
+                    </View>
+                )}
+                <Flex row justify="between" fullWidth>
+                    <Button
+                        title={t('words.share')}
+                        onPress={openShareDialog}
+                        containerStyle={style.button}
+                    />
+                    <Button
+                        title={t('words.copy')}
+                        onPress={copyToClipboard}
+                        containerStyle={style.button}
+                    />
+                </Flex>
+            </View>
         </Flex>
     )
 }
@@ -181,6 +209,14 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.xl,
             paddingTop: theme.spacing.xl,
             paddingBottom: theme.spacing.xs,
+        },
+        detailItem: {
+            marginBottom: theme.spacing.xl,
+            width: '100%',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: 52,
         },
     })
 

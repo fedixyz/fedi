@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { BIP39_WORD_LIST } from '@fedi/common/constants/bip39'
 import { useToast } from '@fedi/common/hooks/toast'
-import { recoverFromMnemonic } from '@fedi/common/redux'
+import { restoreMnemonic } from '@fedi/common/redux'
 import { SeedWords } from '@fedi/common/types'
 
 import { Button } from '../../../components/Button'
@@ -31,7 +31,7 @@ function PersonalRecoverPage() {
         setIsRecovering(true)
         try {
             await dispatch(
-                recoverFromMnemonic({
+                restoreMnemonic({
                     fedimint,
                     mnemonic: words,
                 }),

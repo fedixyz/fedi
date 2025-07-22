@@ -5,10 +5,15 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import { useObserveMultispendEvent } from '@fedi/common/hooks/matrix'
 import { useMultispendWithdrawalRequests } from '@fedi/common/hooks/multispend'
+import { selectMatrixRoomMultispendStatus } from '@fedi/common/redux'
 import dateUtils from '@fedi/common/utils/DateUtils'
-import { getUserSuffix } from '@fedi/common/utils/matrix'
+import {
+    getUserSuffix,
+    isWithdrawalRequestRejected,
+} from '@fedi/common/utils/matrix'
 
 import { fedimint } from '../../../../bridge'
+import { useAppSelector } from '../../../../state/hooks'
 import { MultispendWithdrawalEvent } from '../../../../types'
 import { AvatarSize } from '../../../ui/Avatar'
 import Flex from '../../../ui/Flex'
@@ -24,6 +29,9 @@ const WithdrawalRequest: React.FC<{
     const { t } = useTranslation()
     const { haveIVotedForWithdrawal, getWithdrawalRequest } =
         useMultispendWithdrawalRequests({ t, fedimint, roomId })
+    const multispendStatus = useAppSelector(s =>
+        selectMatrixRoomMultispendStatus(s, roomId),
+    )
 
     useObserveMultispendEvent(event.id, roomId)
 
@@ -45,7 +53,11 @@ const WithdrawalRequest: React.FC<{
         if (status === 'rejected') {
             color = theme.colors.red100
             text = t('words.rejected')
-        } else if (status === 'failed') {
+        } else if (
+            status === 'failed' ||
+            (multispendStatus &&
+                isWithdrawalRequestRejected(event, multispendStatus))
+        ) {
             color = theme.colors.red100
             text = t('words.failed')
         } else if (status === 'completed') {
@@ -57,7 +69,7 @@ const WithdrawalRequest: React.FC<{
         }
 
         return { color, text }
-    }, [theme, status, t])
+    }, [theme, status, t, event, multispendStatus])
 
     // don't show the request if sender is not a member of the group
     if (!sender) return null

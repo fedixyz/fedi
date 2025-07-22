@@ -8,10 +8,14 @@ import { ActivityIndicator } from 'react-native'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectPaymentFederation } from '@fedi/common/redux'
+import {
+    selectIsInternetUnreachable,
+    selectPaymentFederation,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { fedimint } from '../bridge'
+import InternetUnreachableBanner from '../components/feature/environment/InternetUnreachableBanner'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
@@ -20,6 +24,7 @@ import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import { NavigationHook, RootStackParamList } from '../types/navigation'
+import { useRecheckInternet } from '../utils/hooks/environment'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -35,6 +40,8 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
     const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
     const [notes, setNotes] = useState<string>('')
     const { parsedData } = route.params
+    const isOffline = useAppSelector(selectIsInternetUnreachable)
+    const recheckConnection = useRecheckInternet()
     const {
         isReadyToPay,
         exactAmount,
@@ -70,6 +77,13 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         setSubmitAttempts(attempts => attempts + 1)
         if (inputAmount > maximumAmount || inputAmount < minimumAmount) return
 
+        const conn = await recheckConnection()
+
+        if (conn.isOffline) {
+            toast.error(t, t('errors.actions-require-internet'))
+            return
+        }
+
         setIsPayingInvoice(true)
         try {
             await handleOmniSend(inputAmount, notes || undefined)
@@ -82,6 +96,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         }
         setIsPayingInvoice(false)
     }, [
+        recheckConnection,
         handleOmniSend,
         inputAmount,
         minimumAmount,
@@ -137,6 +152,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <>
+            {isOffline && <InternetUnreachableBanner />}
             <AmountScreen
                 subHeader={<FederationWalletSelector />}
                 amount={inputAmount}
@@ -162,7 +178,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
                                   ),
                                   onPress: handleSend,
                                   loading: isPayingInvoice,
-                                  disabled: isPayingInvoice,
+                                  disabled: isPayingInvoice || isOffline,
                               },
                           ]
                         : []

@@ -41,7 +41,12 @@ import { modSlice } from './mod'
 import { nuxSlice } from './nux'
 import { recoverySlice } from './recovery'
 import { securitySlice } from './security'
-import { loadFromStorage, saveToStorage, storageSlice } from './storage'
+import {
+    loadFromStorage,
+    saveToStorage,
+    setReadyToSave,
+    storageSlice,
+} from './storage'
 import { supportSlice } from './support'
 import { toastSlice } from './toast'
 import { transactionsSlice, updateTransaction } from './transactions'
@@ -254,6 +259,7 @@ export function initializeCommonStore({
                 dispatch(saveToStorage({ storage }))
             },
         })
+        dispatch(setReadyToSave(true))
     })
 
     // Listen for incoming payment events, and claim any we haven't attempted

@@ -1,4 +1,5 @@
 import type { KnipConfig } from 'knip'
+
 const config: KnipConfig = {
     ignoreDependencies: ['@fedi/common'],
     ignoreExportsUsedInFile: true,

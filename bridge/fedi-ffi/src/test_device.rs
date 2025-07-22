@@ -6,10 +6,11 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context};
 use bitcoin::Network;
-use bridge::Bridge;
-use bridge_inner::federation::federation_v2::FederationV2;
+use bridge::onboarding::{BridgeOnboarding, RpcOnboardingStage};
+use bridge::{Bridge, BridgeFull};
 use devimint::cmd;
 use devimint::util::LnCli;
+use federations::federation_v2::FederationV2;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::secret::RootSecretStrategy as _;
 use fedimint_client::ModuleKind;
@@ -17,16 +18,17 @@ use fedimint_core::{apply, async_trait_maybe_send, Amount};
 use lightning_invoice::Bolt11Invoice;
 use nostr::secp256k1::PublicKey;
 use runtime::api::{IFediApi, RegisterDeviceError, RegisteredDevice, TransactionDirection};
-use runtime::bridge_runtime::Runtime;
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
-use runtime::storage::{DeviceIdentifier, FediFeeSchedule, Storage};
+use runtime::storage::state::{DeviceIdentifier, FediFeeSchedule};
+use runtime::storage::{OnboardingCompletionMethod, Storage};
 use tempfile::TempDir;
 use tokio::sync::{Mutex, OnceCell};
 
 use crate::ffi::PathBasedStorage;
-use crate::rpc;
+use crate::rpc::{self, TryGet};
 
+/// A device for running the bridge, restarting the bridge, read from storage.
 #[derive(Default)]
 pub struct TestDevice {
     // once{cell,lock} is for laziness of computing (the default) values
@@ -36,8 +38,8 @@ pub struct TestDevice {
     fedi_api: OnceLock<Arc<MockFediApi>>,
     feature_catalog: OnceLock<Arc<FeatureCatalog>>,
     event_sink: OnceLock<Arc<dyn IEventSink>>,
-    runtime: OnceCell<Arc<Runtime>>,
-    bridge: OnceCell<Arc<Bridge>>,
+    bridge_uncommited: OnceCell<Arc<Bridge>>,
+    bridge_full: OnceCell<Arc<BridgeFull>>,
     default_client: OnceCell<Arc<FederationV2>>,
 }
 
@@ -121,35 +123,36 @@ impl TestDevice {
             .clone()
     }
 
-    async fn runtime(&self) -> anyhow::Result<Arc<Runtime>> {
-        self.runtime
+    pub async fn bridge_maybe_onboarding(&self) -> anyhow::Result<&Arc<Bridge>> {
+        self.bridge_uncommited
             .get_or_try_init(|| async {
-                let storage = self.storage().await?;
-                let event_sink = self.event_sink();
-                let runtime = Runtime::new(
-                    storage.clone(),
-                    event_sink,
-                    self.fedi_api(),
-                    self.device_identifier(),
-                    self.feature_catalog(),
-                )
-                .await
-                .context("Failed to create runtime for bridge")?;
-
-                Ok(Arc::new(runtime))
+                Ok(Arc::new(
+                    Bridge::new(
+                        self.storage().await?.clone(),
+                        self.event_sink(),
+                        self.fedi_api(),
+                        self.feature_catalog(),
+                        self.device_identifier(),
+                    )
+                    .await?,
+                ))
             })
             .await
-            .cloned()
     }
 
-    pub async fn bridge(&self) -> anyhow::Result<&Arc<Bridge>> {
-        self.bridge
+    /// Auto completes onboarding if needed
+    pub async fn bridge_full(&self) -> anyhow::Result<&Arc<BridgeFull>> {
+        self.bridge_full
             .get_or_try_init(|| async {
-                let runtime = self.runtime().await?;
-                let device_identifier = self.device_identifier();
-
-                let bridge = Bridge::new(runtime, device_identifier).await;
-                Ok(bridge)
+                let bridge = self.bridge_maybe_onboarding().await?;
+                if let Ok(b) = TryGet::<Arc<BridgeOnboarding>>::try_get(&**bridge) {
+                    if let RpcOnboardingStage::Init = b.stage().await? {
+                        bridge
+                            .complete_onboarding(OnboardingCompletionMethod::NewSeed)
+                            .await?;
+                    }
+                }
+                Ok(bridge.full()?.clone())
             })
             .await
     }
@@ -157,12 +160,11 @@ impl TestDevice {
     pub async fn join_default_fed(&self) -> anyhow::Result<&Arc<FederationV2>> {
         self.default_client
             .get_or_try_init(|| async {
-                let bridge = self.bridge().await?;
-                let full = bridge.full()?;
+                let bridge = self.bridge_full().await?;
                 let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
                 let fedimint_federation =
-                    rpc::joinFederation(&full.federations, invite_code, false).await?;
-                let federation = full
+                    rpc::joinFederation(&bridge.federations, invite_code, false).await?;
+                let federation = bridge
                     .federations
                     .get_federation_maybe_recovering(&fedimint_federation.id.0)?;
                 use_lnd_gateway(&federation).await?;
@@ -178,16 +180,18 @@ impl TestDevice {
 
     pub async fn shutdown(&mut self) -> anyhow::Result<()> {
         self.default_client.take();
-        self.bridge.take();
+        self.bridge_full.take();
+        if let Some(bridge) = self.bridge_uncommited.take() {
+            if let Ok(runtime) = bridge.runtime() {
+                runtime
+                    .task_group
+                    .clone()
+                    .shutdown_join_all(Duration::from_secs(5))
+                    .await?;
+            }
+        }
         // also reset the event sink
         self.event_sink.take();
-        if let Some(runtime) = self.runtime.take() {
-            runtime
-                .task_group
-                .clone()
-                .shutdown_join_all(Duration::from_secs(5))
-                .await?;
-        }
         Ok(())
     }
 }
@@ -196,10 +200,14 @@ impl TestDevice {
 impl Drop for TestDevice {
     fn drop(&mut self) {
         self.default_client.take();
-        self.bridge.take();
-        if let Some(runtime) = self.runtime.take() {
-            runtime.task_group.shutdown();
+        self.bridge_full.take();
+        if let Some(bridge) = self.bridge_uncommited.take() {
+            if let Ok(runtime) = bridge.runtime() {
+                runtime.task_group.shutdown();
+            }
         }
+        // also reset the event sink
+        self.event_sink.take();
     }
 }
 

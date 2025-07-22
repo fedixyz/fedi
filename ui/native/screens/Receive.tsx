@@ -38,7 +38,9 @@ const Receive: React.FC<Props> = () => {
                 ]}
                 onExpectedInput={parsedData => {
                     if (parsedData.type === ParserDataType.LnurlWithdraw) {
-                        navigation.navigate('ReceiveLightning', { parsedData })
+                        navigation.navigate('RedeemLnurlWithdraw', {
+                            parsedData,
+                        })
                     } else if (
                         parsedData.type === ParserDataType.FedimintEcash
                     ) {

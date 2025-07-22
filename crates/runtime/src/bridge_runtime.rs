@@ -9,7 +9,7 @@ use crate::api::IFediApi;
 use crate::db::BridgeDbPrefix;
 use crate::features::FeatureCatalog;
 use crate::observable::ObservablePool;
-use crate::storage::{AppState, DeviceIdentifier, BRIDGE_DB_PREFIX};
+use crate::storage::{AppState, BRIDGE_DB_PREFIX};
 
 // FIXME: federation-specific filename
 pub const RECOVERY_FILENAME: &str = "backup.fedi";
@@ -32,14 +32,13 @@ pub struct Runtime {
 impl Runtime {
     pub async fn new(
         storage: Storage,
+        global_db: Database,
         event_sink: EventSink,
         fedi_api: Arc<dyn IFediApi>,
-        device_identifier: DeviceIdentifier,
+        app_state: AppState,
         feature_catalog: Arc<FeatureCatalog>,
     ) -> anyhow::Result<Self> {
         let task_group = TaskGroup::new();
-        let app_state = AppState::load(storage.clone(), device_identifier).await?;
-        let global_db = storage.federation_database_v2("global").await?;
         let observable_pool = ObservablePool::new(event_sink.clone(), task_group.clone());
 
         Ok(Self {

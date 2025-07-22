@@ -12,6 +12,7 @@ export const BANNED_DISPLAY_NAME_TERMS = [
     'security',
 ]
 
+export const GUARDIANITO_BOT_DISPLAY_NAME = 'G-Bot'
 export const INVALID_NAME_PLACEHOLDER = 'Invalid Name'
 
 export const ONE_KB = 1024

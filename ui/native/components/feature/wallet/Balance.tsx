@@ -1,5 +1,4 @@
-import type { Theme } from '@rneui/themed'
-import { Text, useTheme } from '@rneui/themed'
+import { Text, useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 

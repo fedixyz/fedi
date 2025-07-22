@@ -3,13 +3,20 @@
     "apps": [],
     "details": [
       {
-        "appID": "4JUZY29459.org.fedi.alpha",
-        "paths": [ "/link*" ]
-      },
-      {
-        "appID": "4JUZY29459.org.fedi.nightly",
-        "paths": [ "/link*" ]
+        "appIDs": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly"],
+        "components": [
+          {
+            "/": "/link*",
+            "comment": "Matches any URL with path starting with /link"
+          }
+        ]
       }
     ]
+  },
+  "activitycontinuation": {
+    "apps": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly"]
+  },
+  "webcredentials": {
+    "apps": ["4JUZY29459.org.fedi.alpha", "4JUZY29459.org.fedi.nightly"]
   }
 }

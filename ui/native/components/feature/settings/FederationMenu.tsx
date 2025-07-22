@@ -60,7 +60,13 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
     return (
         <View style={style.sectionContainer}>
             <ListItem.Accordion
+                testID={federation.name
+                    .concat('AccordionButton')
+                    .replaceAll(' ', '')}
                 containerStyle={style.accordionContainer}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={federation.name.concat(' Accordion Button')}
                 icon={
                     <SvgImage
                         name="ChevronRight"

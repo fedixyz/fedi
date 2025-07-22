@@ -32,10 +32,9 @@ const ChatBolt11PaymentEvent: React.FC<Props> = ({ event }: Props) => {
             fedimint,
             t,
             onError: (err: unknown) => toast.error(t, err),
-            onViewBolt11: (bolt11: string) => {
+            onViewBolt11: (invoice: string) => {
                 navigation.navigate('BitcoinRequest', {
-                    uri: `lightning:${bolt11}`,
-                    lockRequestType: true,
+                    invoice,
                 })
             },
         })

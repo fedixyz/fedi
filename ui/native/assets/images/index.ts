@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { ImageSourcePropType } from 'react-native'
 
 // TODO: Improve this typing, this allows people to access keys that haven't been defined.
@@ -20,31 +21,32 @@ export const Images: ImagesMap = {
     CommunityCreate: require('@fedi/common/assets/images/community-create-graphic.png'),
     WelcomeBackground: require('@fedi/common/assets/images/welcome-bg.png'),
     Red: require('@fedi/common/assets/images/red.png'),
+    RateFederationBackground: require('@fedi/common/assets/images/rate-federation-bg.png'),
 }
 
 export const FediModImages: ImagesMap = {
     'ai-beta': require('@fedi/common/assets/images/fedimods/ai-beta.png'),
-    'bitcoinco': require('@fedi/common/assets/images/fedimods/bitcoinco.png'),
-    'bitrefill': require('@fedi/common/assets/images/fedimods/bitrefill.png'),
-    'btcmap': require('@fedi/common/assets/images/fedimods/btcmap.png'),
+    bitcoinco: require('@fedi/common/assets/images/fedimods/bitcoinco.png'),
+    bitrefill: require('@fedi/common/assets/images/fedimods/bitrefill.png'),
+    btcmap: require('@fedi/common/assets/images/fedimods/btcmap.png'),
     'btcprague-program': require('@fedi/common/assets/images/fedimods/btcprague-program.png'),
     'btcprague-useful': require('@fedi/common/assets/images/fedimods/btcprague-useful.png'),
     'btcprague-speakers': require('@fedi/common/assets/images/fedimods/btcprague-speakers.png'),
     'btcprague-side-events': require('@fedi/common/assets/images/fedimods/btcprague-side-events.png'),
     'bug-report': require('@fedi/common/assets/images/fedimods/bug-report.png'),
-    'default': require('@fedi/common/assets/images/fedimods/default.png'),
+    default: require('@fedi/common/assets/images/fedimods/default.png'),
     'fedi-community': require('@fedi/common/assets/images/fedimods/fedi-community.png'),
-    'fedifeedback': require('@fedi/common/assets/images/fedimods/fedifeedback.png'),
-    'geyser': require('@fedi/common/assets/images/fedimods/geyser.png'),
-    'hrf': require('@fedi/common/assets/images/fedimods/hrf.png'),
-    'ibex': require('@fedi/common/assets/images/fedimods/ibex.png'),
-    'kollider': require('@fedi/common/assets/images/fedimods/kollider.png'),
-    'lookingglass': require('@fedi/common/assets/images/fedimods/lookingglass.png'),
+    fedifeedback: require('@fedi/common/assets/images/fedimods/fedifeedback.png'),
+    geyser: require('@fedi/common/assets/images/fedimods/geyser.png'),
+    hrf: require('@fedi/common/assets/images/fedimods/hrf.png'),
+    ibex: require('@fedi/common/assets/images/fedimods/ibex.png'),
+    kollider: require('@fedi/common/assets/images/fedimods/kollider.png'),
+    lookingglass: require('@fedi/common/assets/images/fedimods/lookingglass.png'),
     'mutinynet-faucet': require('@fedi/common/assets/images/fedimods/mutinynet-faucet.png'),
     'product-feedback': require('@fedi/common/assets/images/fedimods/product-feedback.png'),
-    'satscard': require('@fedi/common/assets/images/fedimods/satscard.png'),
-    'stackernews': require('@fedi/common/assets/images/fedimods/stackernews.png'),
-    'stakwork': require('@fedi/common/assets/images/fedimods/stakwork.png'),
-    'wavlake': require('@fedi/common/assets/images/fedimods/wavlake.png'),
-    'support': require('@fedi/common/assets/images/fedimods/support.png'),
+    satscard: require('@fedi/common/assets/images/fedimods/satscard.png'),
+    stackernews: require('@fedi/common/assets/images/fedimods/stackernews.png'),
+    stakwork: require('@fedi/common/assets/images/fedimods/stakwork.png'),
+    wavlake: require('@fedi/common/assets/images/fedimods/wavlake.png'),
+    support: require('@fedi/common/assets/images/fedimods/support.png'),
 }

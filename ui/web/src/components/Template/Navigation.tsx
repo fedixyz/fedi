@@ -3,16 +3,20 @@ import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ModsIcon from '@fedi/common/assets/svgs/apps.svg'
 import ChatFilledIcon from '@fedi/common/assets/svgs/chat-filled.svg'
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
-import CogFilledIcon from '@fedi/common/assets/svgs/cog-filled.svg'
-import CogIcon from '@fedi/common/assets/svgs/cog.svg'
+import HomeIcon from '@fedi/common/assets/svgs/community.svg'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
-import HomeFilledIcon from '@fedi/common/assets/svgs/home-filled.svg'
-import HomeIcon from '@fedi/common/assets/svgs/home.svg'
 import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { selectMatrixHasNotifications } from '@fedi/common/redux'
 
+import {
+    chatRoute,
+    homeRoute,
+    modsRoute,
+    scanRoute,
+} from '../../constants/routes'
 import { useAppSelector } from '../../hooks'
 import { keyframes, styled, theme } from '../../styles'
 import { Icon } from '../Icon'
@@ -32,31 +36,31 @@ export const Navigation: React.FC = () => {
     const navLinks = [
         {
             name: 'words.home' as const,
-            path: '/home',
+            path: homeRoute,
             icon: HomeIcon,
-            activeIcon: HomeFilledIcon,
+            activeIcon: HomeIcon,
             available: true,
             hasNotification: false,
         },
         {
             name: 'words.chat' as const,
-            path: '/chat',
+            path: chatRoute,
             icon: ChatIcon,
             activeIcon: ChatFilledIcon,
             available: true,
             hasNotification: hasChatNotifications,
         },
         {
-            name: 'words.account' as const,
-            path: '/settings',
-            icon: CogIcon,
-            activeIcon: CogFilledIcon,
+            name: 'words.mods' as const,
+            path: modsRoute,
+            icon: ModsIcon,
+            activeIcon: ModsIcon,
             available: true,
             hasNotification: false,
         },
         {
             name: 'words.scan' as const,
-            path: '/scan',
+            path: scanRoute,
             icon: ScanIcon,
             activeIcon: ScanIcon,
             available: true,
@@ -68,7 +72,7 @@ export const Navigation: React.FC = () => {
         <Container>
             <Inner>
                 <Logo>
-                    <Link href="/home">
+                    <Link href={homeRoute}>
                         <FediLogo />
                     </Link>
                 </Logo>

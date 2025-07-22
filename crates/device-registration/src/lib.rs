@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::util::backoff_util::custom_backoff;
 use fedimint_core::util::retry;
@@ -26,45 +26,18 @@ impl DeviceRegistrationService {
             active_task_subgroup: None,
         };
 
-        if let Some(device_index) = service.app_state.device_index().await {
-            service
-                .start_periodic_registration_inner(
-                    device_index,
-                    &runtime.task_group,
-                    runtime.event_sink.clone(),
-                )
-                .await;
-        }
+        service
+            .start_periodic_registration(
+                service.app_state.device_index().await,
+                &runtime.task_group,
+                runtime.event_sink.clone(),
+            )
+            .await;
 
         service
     }
 
-    pub async fn stop_ongoing_periodic_registration(&mut self) -> anyhow::Result<()> {
-        if let Some(subgroup) = self.active_task_subgroup.take() {
-            subgroup
-                .shutdown_join_all(Some(Duration::from_secs(20)))
-                .await?;
-        }
-        Ok(())
-    }
-
-    pub async fn start_ongoing_periodic_registration(
-        &mut self,
-        device_index: u8,
-        task_group: &TaskGroup,
-        event_sink: EventSink,
-    ) -> anyhow::Result<()> {
-        if self.active_task_subgroup.is_some() {
-            bail!("Stop currently ongoing device registration task first");
-        }
-
-        self.start_periodic_registration_inner(device_index, task_group, event_sink)
-            .await;
-
-        Ok(())
-    }
-
-    async fn start_periodic_registration_inner(
+    async fn start_periodic_registration(
         &mut self,
         device_index: u8,
         task_group: &TaskGroup,

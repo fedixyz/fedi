@@ -4,7 +4,7 @@
     <base-config cleartextTrafficPermitted="false"></base-config>
     <!-- TODO: Replace with <domain-config> once we know what specific domains we need to allow -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">internet.fedi.xyz</domain>
         <domain includeSubdomains="true">connect.fedi.xyz</domain>
+        <domain includeSubdomains="true">connect.satenet.org</domain>
     </domain-config>
 </network-security-config>

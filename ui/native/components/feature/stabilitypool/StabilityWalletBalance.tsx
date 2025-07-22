@@ -1,5 +1,4 @@
-import type { Theme } from '@rneui/themed'
-import { Text, useTheme } from '@rneui/themed'
+import { Text, useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'

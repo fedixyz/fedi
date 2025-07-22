@@ -69,6 +69,7 @@ export type MatrixRoom = {
     isBlocked?: boolean
     inviteCode: string
     roomState: MatrixRoomState
+    recencyStamp?: number
 }
 
 export type MatrixRoomState = 'Joined' | 'Left' | 'Invited'
@@ -165,6 +166,13 @@ export type MatrixPaymentEventContent = PickEventContentType<
 >
 
 export type MatrixPaymentEvent = MatrixEvent<MatrixPaymentEventContent>
+
+export type MatrixFormEventContent = PickEventContentType<
+    MatrixEventContent,
+    'xyz.fedi.form'
+>
+
+export type MatrixFormEvent = MatrixEvent<MatrixFormEventContent>
 
 export type StateEvent = {
     content: JSONObject

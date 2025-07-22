@@ -4,9 +4,10 @@ import { exists, TemporaryDirectoryPath } from 'react-native-fs'
 
 import { JSONObject } from '@fedi/common/types/bindings'
 import { MatrixEncryptedFile } from '@fedi/common/utils/matrix'
+import { pathJoin } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../bridge'
-import { pathJoin, prefixFileUri } from '../media'
+import { prefixFileUri } from '../media'
 
 /**
  * Loads an encrypted matrix file / unencrypted matrix url

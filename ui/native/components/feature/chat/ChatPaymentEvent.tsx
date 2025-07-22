@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -128,6 +128,7 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
         isHandlingForeignEcash,
         setIsHandlingForeignEcash,
         handleRejectRequest,
+        isLoadingTransaction,
     } = useMatrixPaymentEvent({
         event,
         fedimint,
@@ -164,7 +165,24 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
 
     return (
         <PaymentEventContainer>
-            <Text color={theme.colors.secondary}>{messageText}</Text>
+            <>
+                <Text color={theme.colors.secondary}>{messageText}</Text>
+                {isLoadingTransaction && (
+                    <Flex row align="center" gap="xs" style={{ marginTop: 4 }}>
+                        <ActivityIndicator
+                            size="small"
+                            color={theme.colors.secondary}
+                        />
+                        <Text
+                            style={{
+                                fontSize: 12,
+                                color: theme.colors.secondary,
+                            }}>
+                            {t('words.loading')}
+                        </Text>
+                    </Flex>
+                )}
+            </>
             {extra || null}
             {isHandlingForeignEcash && (
                 <ReceiveForeignEcashOverlay

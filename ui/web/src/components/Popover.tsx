@@ -42,11 +42,12 @@ const popoverFadeIn = keyframes({
 })
 
 const Content = styled(RadixPopover.Content, {
-    padding: 20,
+    animation: `${popoverFadeIn} 300ms ease`,
     background: theme.colors.white,
     borderRadius: 12,
     boxShadow: `0px 7px 11px rgba(1, 153, 176, 0.06), 0px 16px 40px rgba(112, 153, 176, 0.16)`,
-    animation: `${popoverFadeIn} 300ms ease`,
+    padding: 20,
+    minWidth: `var(--radix-popover-trigger-width)`,
 
     '&[data-state="open"][data-side="top"]': {
         '--start-transform': 'translate(0, 4px)',

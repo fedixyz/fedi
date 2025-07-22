@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { ActivityIndicator } from 'react-native'
 
 import { selectRegisteredDevices } from '@fedi/common/redux'
 
@@ -17,15 +18,15 @@ const PersonalRecoverySuccess: React.FC<Props> = () => {
     const { t } = useTranslation()
     const registeredDevices = useAppSelector(selectRegisteredDevices)
 
+    if (registeredDevices.length === 0) {
+        return <ActivityIndicator />
+    }
+
     return (
         <Success
             messageText={t('feature.recovery.you-completed-personal-recovery')}
             buttonText={t('words.okay')}
-            nextScreen={
-                registeredDevices.length > 0
-                    ? 'RecoveryWalletOptions'
-                    : 'RecoveryNewWallet'
-            }
+            nextScreen={'RecoveryWalletOptions'}
         />
     )
 }

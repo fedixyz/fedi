@@ -177,7 +177,7 @@
         "federation-default": "Default na setting sa pederasyon na ito",
         "federation-fee": "Bayad sa pederasyon",
         "fedi-app-terms-of-service": "Mga Tuntunin ng Serbisyo ng Fedi App",
-        "fedi-fee": "Bayad sa Fedi",
+        "fedi-fee": "Bayad sa Fedi at Federation",
         "fedimint-version": "Fedimint {{version}}",
         "fee-details": "Mga detalye ng bayad",
         "filter-by": "I-filter ayon sa: {{label}}",
@@ -361,11 +361,11 @@
             "info-label": "Ipadala ang pederasyon at Username kasama ang bug report",
             "report-a-bug": "Iulat ang bug",
             "screenshot-label": "Mag-upload ng mga screenshot o recording",
-            "submit-generating-data": "Lumilikha ng data ng ulat...",
-            "submit-submitting-report": "Isinusumite ang ulat...",
-            "submit-uploading-data": "Ina-upload ang data ng ulat...",
-            "success-subtitle": "Kami ay magsisimula na sa trabaho 🤝",
-            "success-title": "Salamat sa iyong bug report!"
+            "submit-generating-data": "Gumagawa ng report data...",
+            "submit-submitting-report": "Isinusumite ang report...",
+            "submit-uploading-data": "Ina-upload ang report data...",
+            "success-subtitle": "Aasikasuhin na namin ito 🤝",
+            "success-title": "Salamat sa pagbabahagi ng iyong mga log!"
         },
         "chat": {
             "add-a-photo": "Magdagdag ng larawan",
@@ -1094,7 +1094,7 @@
             "you-withdrew": "Nag-withdraw ka"
         },
         "support": {
-            "effective-support-1a": "Sa pagpapatuloy, pumapayag kang mangolekta si Fedi ng ilang impormasyon ",
+            "effective-support-1a": "Sa pagpapatuloy, pumapayag kang mangolekta si Fedi ng ilang ",
             "effective-support-1b": " para maibigay sa iyo ang pinakamahusay na suporta.",
             "effective-support-2a": " Ayaw mong magbahagi? Walang problema! Pwede mo pa ring i-explore ang aming ",
             "effective-support-2b": " para sa mas maraming kaalaman tungkol kay Fedi.",

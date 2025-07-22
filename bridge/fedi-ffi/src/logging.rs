@@ -11,6 +11,7 @@ use anyhow::Context;
 use fedimint_logging::{LOG_CLIENT, LOG_CLIENT_MODULE_WALLET, LOG_CLIENT_REACTOR};
 use rolling_file::{BasicRollingFileAppender, RollingConditionBasic};
 use rpc_types::event::{Event, EventSink, TypedEventExt};
+use rpc_types::RpcAppFlavor;
 use tracing::metadata::LevelFilter;
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_serde::AsSerde;
@@ -45,6 +46,7 @@ pub fn init_logging(
     data_dir: &Path,
     event_sink: EventSink,
     log_filter: &str,
+    app_flavor: RpcAppFlavor,
 ) -> anyhow::Result<()> {
     // running tests on a mac
     #[cfg(test)]
@@ -54,9 +56,13 @@ pub fn init_logging(
     let log_file = data_dir.join("fedi.log");
     const MB: u64 = 1024 * 1024;
     const MAX_FILE_COUNT: usize = 2;
+    let max_log_size = match app_flavor {
+        RpcAppFlavor::Dev | RpcAppFlavor::Nightly => 50 * MB,
+        RpcAppFlavor::Bravo => 5 * MB,
+    };
     let log_file_writer = BasicRollingFileAppender::new(
         log_file,
-        RollingConditionBasic::new().max_size(5 * MB),
+        RollingConditionBasic::new().max_size(max_log_size),
         MAX_FILE_COUNT,
     )
     .context("failed to open log file")?;

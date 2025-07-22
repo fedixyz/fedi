@@ -42,12 +42,13 @@ export const usePrevious = <T = unknown>(value: T): T | undefined => {
     return ref.current
 }
 
+const notificationLog = makeLog('useMatrixPushNotifications')
+
 // This hook gets the device's FCM token and publishes it
 // to the Matrix Sygnal server
 export const useMatrixPushNotifications = () => {
     const { notificationsPermission: permissionGranted } =
         useNotificationsPermission()
-    const log = makeLog('useMatrixPushNotifications')
     const pushNotificationToken = usePushNotificationToken()
     const supportPermissionGranted = useSelector(selectSupportPermissionGranted)
 
@@ -63,11 +64,13 @@ export const useMatrixPushNotifications = () => {
                     ) {
                         const errorMsgNotGranted =
                             'Notification permission were not granted.'
-                        log.warn(errorMsgNotGranted)
+                        notificationLog.warn(errorMsgNotGranted)
                         throw new Error(errorMsgNotGranted)
                     }
                 } else {
-                    log.info('Notification permissions already granted')
+                    notificationLog.info(
+                        'Notification permissions already granted',
+                    )
                 }
 
                 if (!messaging().isDeviceRegisteredForRemoteMessages) {
@@ -78,9 +81,9 @@ export const useMatrixPushNotifications = () => {
                 if (Platform.OS === 'ios') {
                     const apnsToken = await messaging().getAPNSToken()
                     if (apnsToken) {
-                        log.debug(`APNs Token: ${apnsToken}`)
+                        notificationLog.debug(`APNs Token: ${apnsToken}`)
                     } else {
-                        log.warn('APNs Token not available.')
+                        notificationLog.warn('APNs Token not available.')
                     }
                 }
 
@@ -89,19 +92,19 @@ export const useMatrixPushNotifications = () => {
                 if (!fcmToken) {
                     const errorMsgTokenNotFetched =
                         "FCM Token couldn't be fetched."
-                    log.warn(errorMsgTokenNotFetched)
+                    notificationLog.warn(errorMsgTokenNotFetched)
                     throw new Error(errorMsgTokenNotFetched)
                 }
 
                 return fcmToken
             } catch (error) {
-                log.error(
+                notificationLog.error(
                     `Error fetching device tokens: ${JSON.stringify(error)}`,
                 )
                 throw error
             }
         }
-    }, [permissionGranted, log])
+    }, [permissionGranted])
 
     usePublishNotificationToken(
         getDeviceToken,

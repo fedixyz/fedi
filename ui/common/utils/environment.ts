@@ -11,8 +11,8 @@ const isReactNativeDevMode = () => {
 export const isDev = () => {
     try {
         return (
-            isReactNativeDevMode() ||
-            (!!process && process.env.NODE_ENV === 'development')
+            (!!process && process.env.NODE_ENV === 'development') ||
+            isReactNativeDevMode()
         )
     } catch (_) {
         return false

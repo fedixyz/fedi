@@ -22,75 +22,83 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
     const toast = useToast()
 
-    const { messageText, statusIcon, statusText, buttons } =
-        useMatrixPaymentEvent({
-            event,
-            fedimint,
-            t,
-            onError: _ => toast.error(t, 'errors.chat-payment-failed'),
-            onCopyBolt11: (bolt11: string) => {
-                try {
-                    navigator.clipboard.writeText(bolt11)
-                    toast.show({
-                        content: t('feature.receive.copied-payment-code'),
-                        status: 'success',
-                    })
-                } catch (error) {
-                    toast.error(t, error, 'errors.unknown-error')
-                }
-            },
-        })
+    const {
+        messageText,
+        statusIcon,
+        statusText,
+        buttons,
+        isLoadingTransaction,
+    } = useMatrixPaymentEvent({
+        event,
+        fedimint,
+        t,
+        onError: _ => toast.error(t, 'errors.chat-payment-failed'),
+        onCopyBolt11: (bolt11: string) => {
+            try {
+                navigator.clipboard.writeText(bolt11)
+                toast.show({
+                    content: t('feature.receive.copied-payment-code'),
+                    status: 'success',
+                })
+            } catch (error) {
+                toast.error(t, error, 'errors.unknown-error')
+            }
+        },
+    })
 
-    let extra: React.ReactNode = null
-    if (statusText || statusIcon || buttons.length > 0) {
-        const icon =
-            statusIcon === 'x' ? (
-                <Icon size="xs" icon={CloseIcon} />
-            ) : statusIcon === 'check' ? (
-                <Icon size="xs" icon={CheckIcon} />
-            ) : statusIcon === 'error' ? (
-                <Icon size="xs" icon={ErrorIcon} />
-            ) : statusIcon === 'loading' ? (
-                <CircularLoader size="xs" />
-            ) : null
-        extra = (
-            <>
-                {statusText && (
-                    <PaymentResult>
-                        {icon}
-                        <div>{statusText}</div>
-                    </PaymentResult>
-                )}
-                {buttons.length > 0 && (
-                    <PaymentButtons>
-                        {buttons.map(button => (
-                            <Button
-                                key={button.label}
-                                variant="secondary"
-                                size="sm"
-                                onClick={button.handler}
-                                loading={button.loading}
-                                disabled={button.disabled}>
-                                {button.label}
-                            </Button>
-                        ))}
-                    </PaymentButtons>
-                )}
-            </>
-        )
-    }
+    const hasExtra = statusText || statusIcon || buttons.length > 0
 
-    if (extra) {
-        return (
-            <>
-                <div>{messageText}</div>
-                {extra}
-            </>
-        )
-    } else {
-        return <>{messageText}</>
-    }
+    const icon =
+        statusIcon === 'x' ? (
+            <Icon size="xs" icon={CloseIcon} />
+        ) : statusIcon === 'check' ? (
+            <Icon size="xs" icon={CheckIcon} />
+        ) : statusIcon === 'error' ? (
+            <Icon size="xs" icon={ErrorIcon} />
+        ) : statusIcon === 'loading' ? (
+            <CircularLoader size="xs" />
+        ) : null
+
+    return (
+        <>
+            <MessageContainer>
+                {messageText}
+                {isLoadingTransaction && <CircularLoader size="xs" />}
+            </MessageContainer>
+            {hasExtra && (
+                <>
+                    {statusText && (
+                        <PaymentResult>
+                            {icon}
+                            <div>{statusText}</div>
+                        </PaymentResult>
+                    )}
+                    {buttons.length > 0 && (
+                        <PaymentButtons>
+                            {buttons.map(button => (
+                                <Button
+                                    key={button.label}
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={button.handler}
+                                    loading={button.loading}
+                                    disabled={button.disabled}>
+                                    {button.label}
+                                </Button>
+                            ))}
+                        </PaymentButtons>
+                    )}
+                </>
+            )}
+        </>
+    )
 }
+
+const MessageContainer = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+})
 
 const PaymentResult = styled('div', {
     display: 'flex',

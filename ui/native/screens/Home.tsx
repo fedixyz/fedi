@@ -1,7 +1,6 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { useIsFocused } from '@react-navigation/native'
-import type { Theme } from '@rneui/themed'
-import { useTheme } from '@rneui/themed'
+import { useTheme, type Theme } from '@rneui/themed'
 import React, { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'

@@ -289,11 +289,13 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             }
         } else {
             items.push(
-                {
-                    icon: 'LeaveRoom',
-                    label: t('feature.chat.leave-chat'),
-                    onPress: handleLeaveChat,
-                },
+                // Prevents users from leaving DMs due to duplicate DM rooms being created
+                // https://github.com/fedibtc/fedi/issues/6530
+                // {
+                //     icon: 'LeaveRoom',
+                //     label: t('feature.chat.leave-chat'),
+                //     onPress: handleLeaveChat,
+                // },
                 {
                     icon: 'BlockMember',
                     label: isIgnored

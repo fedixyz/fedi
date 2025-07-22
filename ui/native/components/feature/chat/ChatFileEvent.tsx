@@ -16,11 +16,11 @@ import { setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import { JSONObject } from '@fedi/common/types/bindings'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
-import { formatFileSize } from '@fedi/common/utils/media'
+import { formatFileSize, pathJoin } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
-import { pathJoin, prefixFileUri } from '../../../utils/media'
+import { prefixFileUri } from '../../../utils/media'
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 

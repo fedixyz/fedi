@@ -61,7 +61,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         useState<Transaction>()
     const containerRef = useRef<HTMLDivElement | null>(null)
     const onOpenChangeRef = useUpdatingRef(onOpenChange)
-    const isOnchainSupported = useIsOnchainDepositSupported()
+    const isOnchainSupported = useIsOnchainDepositSupported(fedimint)
 
     // Reset on close, focus input on desktop open
     useEffect(() => {
@@ -174,21 +174,20 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     }, [lightningInvoice, bitcoinUrl, onOpenChangeRef])
 
     const handleLnurlWithdraw = async () => {
+        if (!activeFederationId || !lnurlw) return
+
         setIsWithdrawing(true)
-        try {
-            if (!activeFederationId || !lnurlw) throw new Error()
-            const invoice = await lnurlWithdraw(
-                fedimint,
-                activeFederationId,
-                lnurlw['data'],
-                amountUtils.satToMsat(amount),
-                note,
+        lnurlWithdraw(
+            fedimint,
+            activeFederationId,
+            lnurlw['data'],
+            amountUtils.satToMsat(amount),
+            note,
+        )
+            .match(setLightningInvoice, e =>
+                toast.error(t, e, 'error.unknown-error'),
             )
-            setLightningInvoice(invoice)
-        } catch (err) {
-            toast.error(t, err, 'error.unknown-error')
-            setIsWithdrawing(false)
-        }
+            .finally(() => setIsWithdrawing(false))
     }
 
     const handleChangeAmount = useCallback(

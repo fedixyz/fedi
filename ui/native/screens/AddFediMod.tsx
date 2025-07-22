@@ -9,8 +9,9 @@ import { useDispatch } from 'react-redux'
 
 import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import { addCustomMod } from '@fedi/common/redux/mod'
-import { fetchMetadataFromUrl } from '@fedi/common/utils/fedimods'
+import { tryFetchUrlMetadata } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
+import { constructUrl } from '@fedi/common/utils/neverthrow'
 
 import { FediModImages } from '../assets/images'
 import {
@@ -76,25 +77,27 @@ const AddFediMod: React.FC = () => {
 
     useDebouncedEffect(
         () => {
-            const populateFieldsWithMetadata = async (validUrl: string) => {
-                setIsFetching(true)
-                const { fetchedTitle, fetchedIcon } =
-                    await fetchMetadataFromUrl(validUrl)
-                setTitle(fetchedTitle)
-                setImageUrl(fetchedIcon)
-                setIsFetching(false)
-            }
             if (url) {
-                try {
-                    const validUrl = new URL(
-                        /^https?:\/\//.test(url) ? url : `https://${url}`,
-                    ).toString()
-
-                    setIsValidUrl(true)
-                    populateFieldsWithMetadata(validUrl)
-                } catch {
-                    setIsValidUrl(false)
-                }
+                constructUrl(/^https?:\/\//.test(url) ? url : `https://${url}`)
+                    // If URL construction fails, setIsValidUrl to false
+                    .orTee(() => setIsValidUrl(false))
+                    // Otherwise, set valid url and start fetching
+                    .andTee(() => {
+                        setIsValidUrl(true)
+                        setIsFetching(true)
+                    })
+                    .asyncAndThen(tryFetchUrlMetadata)
+                    .match(
+                        metadata => {
+                            setTitle(metadata.title)
+                            setImageUrl(metadata.icon)
+                            setIsFetching(false)
+                        },
+                        e => {
+                            log.error('Failed to fetch fedi mod metadata', e)
+                            setIsFetching(false)
+                        },
+                    )
             }
         },
         [url],
@@ -147,6 +150,7 @@ const AddFediMod: React.FC = () => {
                         value={title}
                         onChangeText={setTitle}
                         placeholder={t('feature.fedimods.mod-title')}
+                        numberOfLines={1}
                         label={
                             <Flex row align="center" justify="between">
                                 <Text small>{t('words.title')}</Text>

@@ -6,7 +6,6 @@ import {
     cancelMatrixPayment,
     joinMatrixRoom,
     observeMatrixRoom,
-    observeMatrixSyncStatus,
     paginateMatrixRoomTimeline,
     rejectMatrixPaymentRequest,
     searchMatrixUsers,
@@ -14,45 +13,55 @@ import {
     selectCanPayFromOtherFeds,
     selectCanSendPayment,
     selectIsInternetUnreachable,
-    selectIsMatrixReady,
     selectLatestMatrixRoomEventId,
     selectMatrixAuth,
     selectMatrixPushNotificationToken,
     selectMatrixRoom,
     selectMatrixRoomMember,
     selectMatrixRoomPaginationStatus,
+    selectMatrixStarted,
     selectMatrixUser,
     sendMatrixReadReceipt,
     unobserveMatrixRoom,
-    unsubscribeMatrixSyncStatus,
     selectMatrixContactsList,
     observeMultispendEvent,
     unobserveMultispendEvent,
     observeMultispendAccountInfo,
     unobserveMultispendAccountInfo,
     checkBolt11PaymentResult,
+    sendMatrixFormResponse,
 } from '../redux'
 import {
+    MatrixFormEvent,
     MatrixPaymentEvent,
     MatrixPaymentStatus,
     MatrixRoom,
     MatrixUser,
 } from '../types'
+import {
+    RpcFederationId,
+    RpcOperationId,
+    RpcTransaction,
+} from '../types/bindings'
 import { FedimintBridge } from '../utils/fedimint'
 import { formatErrorMessage } from '../utils/format'
+import { makeLog } from '../utils/log'
 import {
     decodeFediMatrixUserUri,
     isValidMatrixUserId,
     makeMatrixPaymentText,
+    MatrixFormOption,
     matrixIdToUsername,
     MatrixUrlMetadata,
     matrixUrlMetadataSchema,
+    getLocalizedTextWithFallback,
 } from '../utils/matrix'
 import { useAmountFormatter } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
 import { useUpdatingRef } from './util'
 
+const log = makeLog('common/hooks/matrix')
 /**
  * Hook to retrieve the push notification token from the Redux store.
  * @returns The latest push notification token, or null if not set.
@@ -155,20 +164,18 @@ export function useMatrixUserSearch() {
  * status has been observed and is defined
  *
  */
-export function useObserveMatrixRoom(roomId: MatrixRoom['id'], paused = false) {
+export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
     const [hasPaginated, setHasPaginated] = useState(false)
     const dispatch = useCommonDispatch()
     // latestEventId is used for sending read receipts
     const latestEventId = useCommonSelector(s =>
-        roomId ? selectLatestMatrixRoomEventId(s, roomId) : undefined,
+        selectLatestMatrixRoomEventId(s, roomId),
     )
     const paginationStatus = useCommonSelector(s =>
-        roomId ? selectMatrixRoomPaginationStatus(s, roomId) : undefined,
+        selectMatrixRoomPaginationStatus(s, roomId),
     )
-    const room = useCommonSelector(s =>
-        roomId ? selectMatrixRoom(s, roomId) : undefined,
-    )
-    const isReady = useCommonSelector(s => selectIsMatrixReady(s))
+    const room = useCommonSelector(s => selectMatrixRoom(s, roomId))
+    const matrixStarted = useCommonSelector(s => selectMatrixStarted(s))
 
     const isPaginating = useMemo(() => {
         return paginationStatus === 'paginating'
@@ -177,7 +184,7 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id'], paused = false) {
     // observeMatrixRoom establishes all of the relevant observables
     // when unmounting we unobserve the room, but only for groupchats
     useEffect(() => {
-        if (!isReady || !roomId || paused) return
+        if (!matrixStarted) return
         dispatch(observeMatrixRoom({ roomId }))
         return () => {
             // Don't unobserve DMs so ecash gets claimed in the
@@ -188,12 +195,12 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id'], paused = false) {
             if (room?.directUserId) return
             dispatch(unobserveMatrixRoom({ roomId }))
         }
-    }, [isReady, roomId, paused, dispatch, room?.directUserId])
+    }, [matrixStarted, roomId, dispatch, room?.directUserId])
 
     useEffect(() => {
-        if (!isReady || !roomId || paused || !latestEventId) return
+        if (!matrixStarted || !latestEventId) return
         dispatch(sendMatrixReadReceipt({ roomId, eventId: latestEventId }))
-    }, [isReady, roomId, paused, latestEventId, dispatch])
+    }, [matrixStarted, roomId, latestEventId, dispatch])
 
     const handlePaginate = useCallback(async () => {
         // don't paginate if we don't know the pagination status yet
@@ -212,10 +219,10 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id'], paused = false) {
     // a hasPaginated flag is used to make sure this only runs once
     // subsequent fetches trigger via handlePaginate by whatever component is using this hook
     useEffect(() => {
-        if (!isReady || paused || hasPaginated || !paginationStatus) return
+        if (!matrixStarted || hasPaginated || !paginationStatus) return
         setHasPaginated(true)
         handlePaginate()
-    }, [isReady, paused, handlePaginate, hasPaginated, paginationStatus])
+    }, [matrixStarted, handlePaginate, hasPaginated, paginationStatus])
 
     return {
         paginationStatus,
@@ -225,6 +232,12 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id'], paused = false) {
     }
 }
 
+export type ChatEventAction = {
+    label: string
+    handler: () => void
+    loading?: boolean
+    disabled?: boolean
+}
 type PaymentThunkAction = ReturnType<
     | typeof cancelMatrixPayment
     | typeof acceptMatrixPaymentRequest
@@ -265,6 +278,15 @@ export function useMatrixPaymentEvent({
 }) {
     const dispatch = useCommonDispatch()
     const isOffline = useCommonSelector(selectIsInternetUnreachable)
+    const toast = useToast()
+
+    const matrixAuth = useCommonSelector(s => s.matrix.auth)
+
+    // determine which operation ID to use based on user role
+    const isSentByMe = event.content.senderId === matrixAuth?.userId
+    const isRecipient = event.content.recipientId === matrixAuth?.userId
+
+    // drive all our selectors off of the consolidated object
     const canClaimPayment = useCommonSelector(s =>
         selectCanClaimPayment(s, event),
     )
@@ -274,7 +296,6 @@ export function useMatrixPaymentEvent({
     const canPayFromOtherFeds = useCommonSelector(s =>
         selectCanPayFromOtherFeds(s, event),
     )
-    const matrixAuth = useCommonSelector(selectMatrixAuth)
     const eventSender = useCommonSelector(s =>
         selectMatrixRoomMember(s, event.roomId, event.senderId || ''),
     )
@@ -292,7 +313,9 @@ export function useMatrixPaymentEvent({
     const isDm = useCommonSelector(
         s => !!selectMatrixRoom(s, event.roomId)?.directUserId,
     )
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromMSats, makeFormattedAmountsFromTxn } =
+        useAmountFormatter()
+
     const [isCanceling, setIsCanceling] = useState(false)
     const [isAccepting, setIsAccepting] = useState(false)
     const [isRejecting, setIsRejecting] = useState(false)
@@ -325,7 +348,10 @@ export function useMatrixPaymentEvent({
     const handleAcceptRequest = useCallback(async () => {
         if (canSendPayment) {
             handleDispatchPaymentUpdate(
-                acceptMatrixPaymentRequest({ fedimint, event }),
+                acceptMatrixPaymentRequest({
+                    fedimint,
+                    event,
+                }),
                 setIsAccepting,
             )
         } else if (onPayWithForeignEcash && canPayFromOtherFeds) {
@@ -366,9 +392,21 @@ export function useMatrixPaymentEvent({
         )
     }, [event, handleDispatchPaymentUpdate])
 
-    const handleAcceptForeignEcash = useCallback(async () => {
+    const handleAcceptForeignEcash = useCallback(() => {
+        if (isOffline) {
+            toast.error(t, null, t('errors.internet-offline-foreign-ecash'))
+            return
+        }
+
         setIsHandlingForeignEcash(true)
-    }, [])
+    }, [isOffline, toast, t])
+
+    // add transaction fetching with the appropriate operation ID
+    const { transaction, isLoading: isLoadingTransaction } =
+        useMatrixPaymentTransaction({
+            event,
+            fedimint,
+        })
 
     const messageText = makeMatrixPaymentText({
         t,
@@ -377,21 +415,20 @@ export function useMatrixPaymentEvent({
         eventSender,
         paymentSender,
         paymentRecipient,
+        // if the txn is fetched, check it for amount + historical rate,
+        // otherwise falls back to the amount in the event body content
+        transaction,
         makeFormattedAmountsFromMSats,
+        makeFormattedAmountsFromTxn,
     })
+
     const paymentStatus = event.content.status
-    const isSentByMe = event.content.senderId === matrixAuth?.userId
-    const isRecipient = event.content.recipientId === matrixAuth?.userId
     const isBolt11 = !!event.content.bolt11
 
     let statusIcon: 'x' | 'reject' | 'check' | 'error' | 'loading' | undefined
     let statusText: string | undefined
-    let buttons: {
-        label: string
-        handler: () => void
-        loading?: boolean
-        disabled?: boolean
-    }[] = []
+    let buttons: ChatEventAction[] = []
+
     if (isBolt11) {
         if (onViewBolt11) {
             buttons.push({
@@ -406,6 +443,7 @@ export function useMatrixPaymentEvent({
             })
         }
     }
+
     if (paymentStatus === MatrixPaymentStatus.received) {
         statusIcon = 'check'
         statusText = isBolt11
@@ -438,7 +476,6 @@ export function useMatrixPaymentEvent({
                     disabled: isAccepting,
                 },
             ]
-            buttons.push()
         } else if (isRecipient) {
             statusIcon = 'loading'
             statusText = `${t('words.receiving')}...`
@@ -531,6 +568,130 @@ export function useMatrixPaymentEvent({
         federationInviteCode,
         paymentSender,
         handleRejectRequest,
+        isLoadingTransaction,
+    }
+}
+
+export function useMatrixFormEvent(
+    event: MatrixFormEvent,
+    t: TFunction,
+): {
+    isSentByMe: boolean
+    messageText: string
+    actionButton: ChatEventAction | undefined
+    options: ChatEventAction[]
+} {
+    const dispatch = useCommonDispatch()
+    const matrixAuth = useCommonSelector(selectMatrixAuth)
+    const isSentByMe = event.senderId === matrixAuth?.userId
+
+    let actionButton: ChatEventAction | undefined = undefined
+    const options: ChatEventAction[] = []
+    const {
+        options: formOptions,
+        i18nKeyLabel,
+        body,
+        value,
+        type,
+        formResponse,
+    } = event.content
+
+    // if we have the string for the i18n key, use it, otherwise use the body
+    let messageText = getLocalizedTextWithFallback(t, i18nKeyLabel, body)
+
+    const onSelectOption = async (option: MatrixFormOption) => {
+        try {
+            await dispatch(
+                sendMatrixFormResponse({
+                    roomId: event.roomId,
+                    formResponse: {
+                        responseType: type,
+                        responseValue: option.value,
+                        responseBody: option.label || option.value || '',
+                        responseI18nKey: option.i18nKeyLabel || '',
+                        respondingToEventId: event.eventId,
+                    },
+                }),
+            ).unwrap()
+        } catch (error) {
+            log.error('Failed to send form response', error)
+        }
+    }
+    const onButtonPressed = async () => {
+        try {
+            await dispatch(
+                sendMatrixFormResponse({
+                    roomId: event.roomId,
+                    formResponse: {
+                        responseType: type,
+                        responseValue: value || '',
+                        responseBody: body,
+                        responseI18nKey: i18nKeyLabel,
+                        respondingToEventId: event.eventId,
+                    },
+                }),
+            ).unwrap()
+        } catch (error) {
+            log.error('Failed to send form response', error)
+        }
+    }
+
+    // if we're the sender, just show a message that we responded, no special action UI
+    // otherwise, render buttons / options for the user to interact with the form
+    if (isSentByMe) {
+        // if this is a response we sent, use the formResponse to get the text to display
+        if (formResponse) {
+            // if we have the i18n key, use it, otherwise use the body
+            const { responseBody, responseI18nKey } = formResponse
+            const responseText = getLocalizedTextWithFallback(
+                t,
+                responseI18nKey,
+                responseBody,
+            )
+            messageText = t('feature.communities.you-responded', {
+                response: responseText,
+            })
+        } else {
+            messageText = t('feature.communities.you-responded', {
+                response: messageText,
+            })
+        }
+    } else {
+        // show options with localized strings if we have them
+        if (type === 'radio' && formOptions && formOptions.length > 0) {
+            formOptions.forEach(option => {
+                if (option.value) {
+                    const label = getLocalizedTextWithFallback(
+                        t,
+                        option.i18nKeyLabel,
+                        option.label,
+                    )
+                    options.push({
+                        label,
+                        handler: () => onSelectOption(option),
+                    })
+                }
+            })
+        } else if (type === 'button') {
+            // show a single button to return the body as the value, no additional text
+            messageText = ''
+            const label = getLocalizedTextWithFallback(t, i18nKeyLabel, body)
+            actionButton = {
+                label,
+                handler: () => onButtonPressed(),
+            }
+        } else if (type === 'text') {
+            // no-op, for now we just let the user respond with text via the normal chat input
+        }
+    }
+
+    // TODO: FederationSetupComplete text, invite code with copy button, join button, guardian UI link + password
+
+    return {
+        isSentByMe,
+        messageText,
+        actionButton,
+        options,
     }
 }
 
@@ -564,18 +725,6 @@ export function useMatrixChatInvites(t: TFunction) {
     return {
         joinPublicGroup,
     }
-}
-
-export function useObserveMatrixSyncStatus(isMatrixStarted: boolean) {
-    const dispatch = useCommonDispatch()
-    useEffect(() => {
-        if (!isMatrixStarted) return
-        dispatch(observeMatrixSyncStatus())
-
-        return () => {
-            dispatch(unsubscribeMatrixSyncStatus())
-        }
-    }, [isMatrixStarted, dispatch])
 }
 
 export function useObserveMultispendEvent(
@@ -613,4 +762,126 @@ export function useMatrixUrlPreview({
     }, [url, fedimint])
 
     return urlPreview
+}
+
+/**
+ * Hook for managing Matrix payment transactions with historical exchange rates
+ * @param event - The payment event to fetch transaction data for
+ * @param fedimint - The Fedimint bridge instance
+ * @returns Transaction state including loading, error, and transaction data
+ */
+export function useMatrixPaymentTransaction({
+    event,
+    fedimint,
+}: {
+    event: MatrixPaymentEvent
+    fedimint: FedimintBridge
+}) {
+    // undefined = not yet tried (or loading), null = tried & got nothing, object = got a transaction
+    const [transaction, setTransaction] = useState<
+        RpcTransaction | null | undefined
+    >(undefined)
+    const [hasTriedFetch, setHasTriedFetch] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState<unknown>(null)
+
+    const matrixAuth = useCommonSelector(selectMatrixAuth)
+    const currentUserId = matrixAuth?.userId
+
+    useEffect(() => {
+        // skip if we've already tried
+        if (hasTriedFetch) return
+
+        const { senderOperationId, receiverOperationId, federationId } =
+            event.content
+
+        const isSentByMe = event.content.senderId === currentUserId
+
+        // for legacy payments without senderOperationId (from old clients),
+        // we can't fetch transaction history, so just mark as tried and return null
+        if (isSentByMe && !senderOperationId) {
+            log.debug(
+                'Legacy payment detected (no senderOperationId), skipping transaction fetch',
+            )
+            setHasTriedFetch(true)
+            setTransaction(null)
+            setIsLoading(false)
+            return
+        }
+
+        const operationId = isSentByMe ? senderOperationId : receiverOperationId
+
+        if (!operationId || !federationId) {
+            log.debug(
+                'Waiting for operationId & federationId to fetch transaction',
+            )
+            // for receiver of legacy payment, mark as tried if there's no receiverOperationId
+            if (!isSentByMe && !receiverOperationId && federationId) {
+                log.debug(
+                    'Receiver of legacy payment (no receiverOperationId yet), marking as tried',
+                )
+                setHasTriedFetch(true)
+                setTransaction(null)
+                setIsLoading(false)
+            }
+            return
+        }
+
+        const fetchTransaction = async () => {
+            let chosenOp: string | undefined
+            if (isSentByMe && senderOperationId) {
+                chosenOp = senderOperationId
+            } else if (!isSentByMe && receiverOperationId) {
+                chosenOp = receiverOperationId
+            } else {
+                log.warn(
+                    `Missing ${
+                        isSentByMe ? 'sender' : 'receiver'
+                    }OperationId for payment ${event.content.paymentId}`,
+                )
+                setHasTriedFetch(true)
+                setTransaction(null)
+                return
+            }
+
+            setHasTriedFetch(true)
+            setIsLoading(true)
+            setError(null)
+
+            log.debug(
+                `Fetching transaction for ${
+                    isSentByMe ? 'sender' : 'receiver'
+                } operation: ${chosenOp}`,
+            )
+
+            try {
+                const result = await fedimint.getTransaction(
+                    federationId as RpcFederationId,
+                    chosenOp as RpcOperationId,
+                )
+                setTransaction(result ?? null)
+
+                if (result) {
+                    log.debug(
+                        `Successfully fetched transaction for operation ${chosenOp}`,
+                    )
+                } else {
+                    log.debug(`No transaction found for operation ${chosenOp}`)
+                }
+            } catch (err) {
+                log.error(
+                    `Failed to fetch transaction for operation ${chosenOp}:`,
+                    err,
+                )
+                setError(err)
+                setTransaction(null)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        fetchTransaction()
+    }, [event.content, fedimint, currentUserId, hasTriedFetch])
+
+    return { transaction, hasTriedFetch, isLoading, error }
 }

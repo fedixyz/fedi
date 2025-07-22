@@ -114,15 +114,19 @@ const MultispendInvitationEvent: React.FC<Props> = ({ event }) => {
             heading={t('feature.multispend.chat-events.message-header')}
             body={body1}
             footer={body2}
-            button={{
-                title: buttonText,
-                onPress: () => {
-                    // TODO: target specific event on screen when it's finished
-                    navigation.navigate('GroupMultispend', {
-                        roomId: event.roomId,
-                    })
-                },
-            }}
+            button={
+                status === 'inactive'
+                    ? undefined
+                    : {
+                          title: buttonText,
+                          onPress: () => {
+                              // TODO: target specific event on screen when it's finished
+                              navigation.navigate('GroupMultispend', {
+                                  roomId: event.roomId,
+                              })
+                          },
+                      }
+            }
         />
     )
 }

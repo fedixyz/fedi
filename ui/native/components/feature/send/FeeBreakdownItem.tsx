@@ -22,10 +22,12 @@ export const FeeBreakdownItem: React.FC<FeeBreakdownItemProps> = props => {
 
     return (
         <Flex row align="center" justify="between" style={containerStyle}>
-            <Text caption bold style={style.labelText}>
+            <Text caption bold style={style.labelText} numberOfLines={2}>
                 {props.label}
             </Text>
-            <Text caption>{props.value}</Text>
+            <Text caption style={style.valueText} numberOfLines={2}>
+                {props.value}
+            </Text>
         </Flex>
     )
 }
@@ -42,6 +44,12 @@ const styles = (theme: Theme) =>
             borderBottomColor: theme.colors.extraLightGrey,
         },
         labelText: {
+            maxWidth: '50%',
+            marginRight: theme.spacing.sm,
             color: theme.colors.darkGrey,
+        },
+        valueText: {
+            maxWidth: '50%',
+            textAlign: 'right',
         },
     })

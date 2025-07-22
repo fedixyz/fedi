@@ -60,12 +60,6 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                     size={SvgImageSize.md}
                     containerStyle={s.loadingIcon}
                 />
-                <Text h4 medium style={s.loadingTitle}>
-                    {t('feature.quick-fact.title')}
-                </Text>
-                <Text style={s.loadingFactText}>
-                    {t('feature.quick-fact.fact-1')}
-                </Text>
             </Flex>
         )
     }
@@ -127,46 +121,48 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         }
     }
 
-    const JoinButtons = () => {
-        if (tosUrl) {
-            return (
-                <View style={s.buttonsContainer}>
-                    <Button
-                        fullWidth
-                        title={t('feature.onboarding.i-accept')}
-                        onPress={handleJoin}
-                        containerStyle={s.button}
-                        disabled={isJoining}
-                        loading={isJoining}
-                    />
-                    <Button
-                        fullWidth
-                        type="clear"
-                        title={t('feature.onboarding.i-do-not-accept')}
-                        onPress={navigation.goBack}
-                        containerStyle={s.button}
-                    />
-                </View>
-            )
-        }
-
-        return (
-            <View style={s.buttonsContainer}>
-                <Button
-                    fullWidth
-                    title={
-                        federation.hasWallet
-                            ? t('phrases.join-federation')
-                            : t('phrases.join-community')
-                    }
-                    onPress={handleJoin}
-                    containerStyle={s.button}
-                    disabled={isJoining}
-                    loading={isJoining}
-                />
-            </View>
-        )
-    }
+    const joinButtons = tosUrl ? (
+        <View style={s.buttonsContainer}>
+            <Button
+                fullWidth
+                type="clear"
+                title={t('feature.onboarding.i-do-not-accept')}
+                onPress={() =>
+                    (navigation.getState()?.routes?.length || 0) > 1
+                        ? navigation.goBack()
+                        : navigation.reset({
+                              index: 0,
+                              routes: [{ name: 'TabsNavigator' }],
+                          })
+                }
+                containerStyle={s.button}
+            />
+            <Button
+                fullWidth
+                title={t('feature.onboarding.i-accept')}
+                onPress={handleJoin}
+                containerStyle={s.button}
+                disabled={isJoining}
+                loading={isJoining}
+            />
+        </View>
+    ) : (
+        <View accessible={false} style={s.buttonsContainer}>
+            <Button
+                testID="JoinFederationButton"
+                fullWidth
+                title={
+                    federation.hasWallet
+                        ? t('phrases.join-federation')
+                        : t('phrases.join-community')
+                }
+                onPress={handleJoin}
+                containerStyle={s.button}
+                disabled={isJoining}
+                loading={isJoining}
+            />
+        </View>
+    )
 
     const welcomeTitle = federation?.name
     const welcomeInstructions =
@@ -188,52 +184,46 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
 
             <Card containerStyle={s.roundedCardContainer}>
                 <View style={s.cardContent}>
-                    {welcomeMessage ? (
-                        <ScrollView
-                            style={s.scrollTos}
-                            contentContainerStyle={{
-                                padding: theme.spacing.md,
-                            }}>
-                            <Text caption style={s.welcomeText}>
-                                <Trans
-                                    components={{
-                                        bold: (
-                                            <Text
-                                                caption
-                                                bold
-                                                style={s.welcomeText}
-                                            />
-                                        ),
-                                    }}>
-                                    {welcomeMessage}
-                                </Trans>
-                            </Text>
-                        </ScrollView>
-                    ) : (
+                    <ScrollView
+                        style={s.scrollTos}
+                        contentContainerStyle={{
+                            padding: theme.spacing.lg,
+                        }}>
                         <Text caption style={s.welcomeText}>
-                            {welcomeInstructions}
+                            <Trans
+                                components={{
+                                    bold: (
+                                        <Text
+                                            caption
+                                            bold
+                                            style={s.welcomeText}
+                                        />
+                                    ),
+                                }}>
+                                {welcomeMessage ?? welcomeInstructions}
+                            </Trans>
                         </Text>
-                    )}
+                    </ScrollView>
                 </View>
             </Card>
 
             <View style={s.bottomSection}>
                 {showJoinFederation && isReturningMember && (
-                    <Flex row align="center" gap="sm" style={s.switchWrapper}>
-                        <Flex grow basis={false} gap="md">
+                    <Flex gap="sm" style={s.switchWrapper}>
+                        <Flex row align="center" justify="between" gap="md">
                             <Text bold caption>
                                 {t('feature.federations.recover-from-scratch')}
                             </Text>
-                            <Text small>
-                                {t(
-                                    'feature.federations.recover-from-scratch-warning',
-                                )}
-                            </Text>
+                            <Switch
+                                value={selectedRecoverFromScratch}
+                                onValueChange={setSelectedRecoverFromScratch}
+                            />
                         </Flex>
-                        <Switch
-                            value={selectedRecoverFromScratch}
-                            onValueChange={setSelectedRecoverFromScratch}
-                        />
+                        <Text small>
+                            {t(
+                                'feature.federations.recover-from-scratch-warning',
+                            )}
+                        </Text>
                     </Flex>
                 )}
 
@@ -255,7 +245,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                     </View>
                 )}
 
-                <JoinButtons />
+                {joinButtons}
             </View>
         </View>
     )
@@ -302,7 +292,7 @@ const styles = (theme: Theme) =>
             marginTop: 10,
             borderRadius: theme.borders.defaultRadius,
             marginHorizontal: 0,
-            padding: theme.spacing.md,
+            padding: 0,
             borderWidth: 0,
             borderColor: 'transparent',
         },

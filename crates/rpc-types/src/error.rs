@@ -60,7 +60,7 @@ pub enum ErrorCode {
     UnknownFederation,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Serialize, Deserialize, TS, Clone)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcError {

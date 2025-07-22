@@ -3,7 +3,10 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import FediIcon from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
-import { selectFedimintVersion } from '@fedi/common/redux/environment'
+import {
+    selectFedimintVersion,
+    selectPwaVersion,
+} from '@fedi/common/redux/environment'
 
 import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
@@ -12,12 +15,16 @@ import { Text } from './Text'
 export const VersionContainer = () => {
     const { t } = useTranslation()
     const fedimintVersion = useAppSelector(selectFedimintVersion)
+    const pwaVersion = useAppSelector(selectPwaVersion)
 
     return (
         <Menu>
             <FediIcon width={24} />
 
             <VersionsWrapper>
+                <Text variant="small" css={{ color: theme.colors.darkGrey }}>
+                    {t('phrases.app-version', { version: pwaVersion })}
+                </Text>
                 <Text variant="small" css={{ color: theme.colors.darkGrey }}>
                     {t('phrases.fedimint-version', {
                         version: fedimintVersion,
@@ -46,6 +53,7 @@ const Menu = styled('div', {
 const VersionsWrapper = styled('div', {
     display: 'flex',
     flexDirection: 'column',
+    textAlign: 'center',
 })
 
 const StyledLink = styled(Link, {

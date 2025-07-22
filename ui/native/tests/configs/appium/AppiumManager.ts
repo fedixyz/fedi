@@ -14,7 +14,6 @@ interface AppiumConfig {
     'appium:app'?: string
     'appium:appActivity'?: string
     'appium:autoGrantPermissions'?: boolean
-    'appium:deviceName'?: string // Android Device or emulator ID as it appears in `adb devices`. Optional if there's only one device shows up
     // iOS-specific caps
     'appium:autoAcceptAlerts'?: boolean
     'appium:platformVersion'?: string
@@ -39,7 +38,7 @@ const getCapabilities = (): AppiumConfig => {
             ...commonCaps,
             'appium:platformName': 'Android',
             'appium:automationName': 'UiAutomator2',
-            'appium:deviceName': process.env.DEVICE_ID || '',
+            'appium:udid': process.env.DEVICE_ID || '',
             'appium:appPackage': process.env.APP_PACKAGE || 'com.fedi',
             'appium:app': process.env.BUNDLE_PATH || '',
             'appium:appActivity':
@@ -48,7 +47,6 @@ const getCapabilities = (): AppiumConfig => {
     } else {
         return {
             ...commonCaps,
-            'appium:udid': process.env.DEVICE_ID || '',
             'appium:platformName': 'iOS',
             'appium:automationName': 'XCUITest',
             'appium:autoAcceptAlerts': true,

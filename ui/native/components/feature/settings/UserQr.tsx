@@ -2,6 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
+import { DEEPLINK_HOSTS, LINK_PATH } from '@fedi/common/constants/linking'
 import { selectMatrixDisplayNameSuffix } from '@fedi/common/redux/matrix'
 import { MatrixAuth } from '@fedi/common/types'
 import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
@@ -15,20 +16,27 @@ type UserQrProps = {
     testID?: string
 }
 
+const generateUniversalLink = (userId: string): string => {
+    if (!userId) return ''
+    return `https://${DEEPLINK_HOSTS[0]}${LINK_PATH}?screen=user&id=${userId}`
+}
+
 export const UserQr = ({ matrixUser }: UserQrProps) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const style = styles(theme)
 
     const qrValue = encodeFediMatrixUserUri(matrixUser?.userId || '')
+    const universalLink = generateUniversalLink(matrixUser?.userId || '')
     const displayNameSuffix = useAppSelector(selectMatrixDisplayNameSuffix)
 
     return (
         <Flex align="center" gap="lg">
             <QRCodeContainer
                 copyMessage={t('phrases.copied-member-code')}
-                copyValue={qrValue}
                 qrValue={qrValue}
+                useShare={true}
+                shareValue={universalLink}
             />
             <Flex row center gap="xs" fullWidth>
                 <Text

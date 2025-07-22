@@ -12,6 +12,10 @@ pub enum BridgeDbPrefix {
     // scratch. This will guarantee that they don't lose money. We auto-leave, and store the
     // invite code here to later recall.
     FederationPendingRejoinFromScratch = 0x02,
+
+    AppState = 0x03,
+    // Prefix for file storage in WASM environment
+    WasmFileStorage = 0x04,
 }
 
 #[derive(Debug, Decodable, Encodable)]

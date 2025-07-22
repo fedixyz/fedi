@@ -49,8 +49,7 @@ export const AmountScreen: React.FC<Props> = ({
             behavior="position">
             <SafeAreaContainer
                 style={style.container}
-                edges={isIndependent ? 'notop' : 'none'}
-                padding="xl">
+                edges={isIndependent ? 'notop' : 'none'}>
                 <View style={style.subHeader}>
                     {subHeader}
                     {showBalance && typeof balance === 'number' && (
@@ -89,7 +88,7 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.sm,
         },
         subHeader: {
-            // paddingTop: height >= 500 ? theme.spacing.xl : theme.spacing.sm,
+            paddingTop: theme.spacing.lg,
         },
         balance: {
             color: hexToRgba(theme.colors.primary, 0.6),

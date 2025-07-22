@@ -1,13 +1,14 @@
-import { NetInfoState } from '@react-native-community/netinfo'
-import {
-    createAsyncThunk,
-    createSelector,
-    createSlice,
-    PayloadAction,
-} from '@reduxjs/toolkit'
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import type { i18n } from 'i18next'
 
-import { CommonState } from '.'
+import {
+    CommonState,
+    fetchSocialRecovery,
+    initializeDeviceRegistration,
+    refreshFederations,
+    setShouldMigrateSeed,
+    startMatrixClient,
+} from '.'
 import {
     FeatureCatalog,
     RpcNostrPubkey,
@@ -15,12 +16,15 @@ import {
 } from '../types/bindings'
 import { FediModCacheMode } from '../types/fediInternal'
 import { FedimintBridge } from '../utils/fedimint'
+import { makeLog } from '../utils/log'
 import { loadFromStorage } from './storage'
+
+const log = makeLog('redux/environment')
 
 /*** Initial State ***/
 
 const initialState = {
-    networkInfo: null as NetInfoState | null,
+    isInternetUnreachable: false,
     developerMode: false,
     fedimodDebugMode: false,
     fedimodCacheEnabled: true,
@@ -35,8 +39,10 @@ const initialState = {
     nostrNpub: undefined as RpcNostrPubkey | undefined,
     nostrNsec: undefined as RpcNostrSecret | undefined,
     fedimintVersion: undefined as string | undefined,
+    pwaVersion: undefined as string | undefined,
     featureFlags: undefined as FeatureCatalog | undefined,
     internetUnreachableBadgeShown: false,
+    onboardingCompleted: false,
 }
 
 export type EnvironmentState = typeof initialState
@@ -47,8 +53,8 @@ export const environmentSlice = createSlice({
     name: 'environment',
     initialState,
     reducers: {
-        setNetworkInfo(state, action: PayloadAction<NetInfoState>) {
-            state.networkInfo = action.payload
+        setIsInternetUnreachable(state, action: PayloadAction<boolean>) {
+            state.isInternetUnreachable = action.payload
         },
         setDeveloperMode(state, action: PayloadAction<boolean>) {
             state.developerMode = action.payload
@@ -92,6 +98,9 @@ export const environmentSlice = createSlice({
         setFedimintVersion(state, action: PayloadAction<string>) {
             state.fedimintVersion = action.payload
         },
+        setPwaVersion(state, action: PayloadAction<string>) {
+            state.pwaVersion = action.payload
+        },
         setFeatureFlags(state, action: PayloadAction<FeatureCatalog>) {
             state.featureFlags = action.payload
         },
@@ -103,6 +112,9 @@ export const environmentSlice = createSlice({
             if (action.payload) {
                 state.internetUnreachableBadgeShown = true
             }
+        },
+        setOnboardingCompleted(state, action: PayloadAction<boolean>) {
+            state.onboardingCompleted = action.payload
         },
     },
     extraReducers: builder => {
@@ -139,7 +151,7 @@ export const environmentSlice = createSlice({
 /*** Basic actions ***/
 
 export const {
-    setNetworkInfo,
+    setIsInternetUnreachable,
     setDeveloperMode,
     setFediModDebugMode,
     setFediModCacheEnabled,
@@ -153,11 +165,85 @@ export const {
     setNostrNpub,
     setNostrNsec,
     setFedimintVersion,
+    setPwaVersion,
     setFeatureFlags,
     setInternetUnreachableBadgeVisibility,
+    setOnboardingCompleted,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
+
+export const refreshOnboardingStatus = createAsyncThunk<
+    void,
+    FedimintBridge,
+    { state: CommonState }
+>('environment/refreshOnboardingStatus', async (fedimint, { dispatch }) => {
+    const status = await fedimint.bridgeStatus()
+    log.info('bridgeStatus', status)
+
+    if (status.type === 'onboarded') {
+        // generate a random display name after matrix client is resolved
+        // but only if matrix_setup
+        await dispatch(startMatrixClient({ fedimint }))
+        dispatch(getBridgeInfo(fedimint))
+
+        // wait until after the matrix client is started to refresh federations because
+        // the latest metadata may include new default chats that require
+        // matrix to fetch the room previews
+        await dispatch(refreshFederations(fedimint)).unwrap()
+
+        // navigate to home
+        await dispatch(setOnboardingCompleted(true))
+        return
+    } else if (status.type === 'onboarding') {
+        switch (status.stage.type) {
+            case 'deviceIndexSelection': // Transfer device flow
+                await dispatch(initializeDeviceRegistration(fedimint))
+                // navigate to RecoveryWalletOptions (/onboarding/recover/wallet-transfer)
+                break
+            case 'socialRecovery':
+                dispatch(fetchSocialRecovery(fedimint))
+                // navigate to CompleteSocialRecovery (/onboarding/recover/social)
+                break
+            case 'init':
+                // navigate to splash
+                await dispatch(setOnboardingCompleted(false))
+                break
+            default:
+                throw new Error('Unknown onboarding stage')
+        }
+    } else if (status.type === 'offboarding') {
+        const { reason } = status
+        switch (reason.type) {
+            // This means the user has migrated their seed to a new device via device/app
+            // cloning so we need to prompt them to reinstall and do a device transfer
+            // so exit early without proceeding with further initialization
+            case 'deviceIdentifierMismatch':
+                await dispatch(setShouldMigrateSeed(true))
+                break
+            case 'internalBridgeExport':
+                // Bridge is ready for export, show migration screen
+                await dispatch(setShouldMigrateSeed(true))
+                break
+            default:
+        }
+        return
+    } else {
+        throw new Error('Unknown bridge status type')
+    }
+})
+
+export const getBridgeInfo = createAsyncThunk<
+    void,
+    FedimintBridge,
+    { state: CommonState }
+>('environment/getBridgeInfo', async (fedimint, { dispatch }) => {
+    await Promise.all([
+        dispatch(initializeFeatureFlags({ fedimint })),
+        dispatch(initializeFedimintVersion({ fedimint })),
+        dispatch(initializeNostrKeys({ fedimint })),
+    ])
+})
 
 export const changeLanguage = createAsyncThunk<
     void,
@@ -165,6 +251,16 @@ export const changeLanguage = createAsyncThunk<
 >('environment/changeLanguage', ({ language, i18n }) => {
     i18n.changeLanguage(language)
 })
+
+/**
+ * PWA uses a similar but separate versioning system to the native app.
+ */
+export const initializePwaVersion = createAsyncThunk<void, { version: string }>(
+    'environment/initializePwaVersion',
+    async ({ version }, { dispatch }) => {
+        dispatch(setPwaVersion(version))
+    },
+)
 
 /**
  * Used only by the PWA.
@@ -183,6 +279,7 @@ export const initializeDeviceIdWeb = createAsyncThunk<
     async ({ deviceId }, { getState, dispatch }) => {
         const cachedDeviceId = getState().environment.deviceId
         if (!cachedDeviceId) {
+            log.debug(`no cachedDeviceId found, setting to ${deviceId}`)
             dispatch(setDeviceId(deviceId))
         }
         return cachedDeviceId || deviceId
@@ -227,23 +324,8 @@ export const initializeFeatureFlags = createAsyncThunk<
 
 /*** Selectors ***/
 
-export const selectNetworkInfo = (s: CommonState) => s.environment.networkInfo
-
-/*
- * This seemingly complex selector is necessary because we want certainty that
- * either there is no network connection or the internet is definitely unreachable.
- */
-export const selectIsInternetUnreachable = createSelector(
-    selectNetworkInfo,
-    networkInfo => {
-        if (!networkInfo) return false
-        if (networkInfo.isConnected === false) return true
-        // sometimes isInternetReachable is null which does not definitively
-        // mean the internet is unreachable so explicitly check for false
-        if (networkInfo.isInternetReachable === false) return true
-        else return false
-    },
-)
+export const selectIsInternetUnreachable = (s: CommonState) =>
+    s.environment.isInternetUnreachable
 
 export const selectDeveloperMode = (s: CommonState) =>
     s.environment.developerMode
@@ -281,6 +363,8 @@ export const selectNostrNsec = (s: CommonState) => s.environment.nostrNsec
 export const selectFedimintVersion = (s: CommonState) =>
     s.environment.fedimintVersion
 
+export const selectPwaVersion = (s: CommonState) => s.environment.pwaVersion
+
 export const selectFeatureFlags = (s: CommonState) => s.environment.featureFlags
 
 export const selectIsMultispendFeatureEnabled = ({
@@ -291,5 +375,16 @@ export const selectIsMultispendFeatureEnabled = ({
     )
 }
 
+export const selectIsNostrClientEnabled = ({
+    environment: { featureFlags },
+}: CommonState) => {
+    return Boolean(
+        featureFlags && Array.isArray(featureFlags.nostr_client?.relays),
+    )
+}
+
 export const selectInternetUnreachableBadgeShown = (s: CommonState) =>
     s.environment.internetUnreachableBadgeShown
+
+export const selectOnboardingCompleted = (s: CommonState) =>
+    s.environment.onboardingCompleted

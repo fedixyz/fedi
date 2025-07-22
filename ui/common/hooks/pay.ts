@@ -2,6 +2,11 @@ import { TFunction } from 'i18next'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+    refreshLnurlReceive,
+    selectLnurlReceiveCode,
+    selectSupportsRecurringdLnurl,
+} from '../redux'
+import {
     AnyParsedData,
     Invoice,
     MSats,
@@ -23,6 +28,7 @@ import {
 import { FedimintBridge } from '../utils/fedimint'
 import { lnurlPay } from '../utils/lnurl'
 import { useSendForm } from './amount'
+import { useCommonDispatch, useCommonSelector } from './redux'
 
 const expectedOmniInputTypes = [
     ParserDataType.BitcoinAddress,
@@ -200,6 +206,13 @@ export function useOmniPaymentState(
                     lnurlPayment,
                     amountUtils.satToMsat(amount),
                     notes,
+                ).match(
+                    ok => ok,
+                    e => {
+                        // TODO: refactor handleOmniSend to return a ResultAsync
+                        // and don't throw
+                        throw e
+                    },
                 )
             } else if (bip21Payment) {
                 return fedimint.payAddress(
@@ -263,5 +276,33 @@ export function useOmniPaymentState(
         expectedOmniInputTypes,
         handleOmniInput,
         resetOmniPaymentState,
+    }
+}
+
+export function useLnurlReceiveCode(
+    fedimint: FedimintBridge,
+    federationId: string,
+) {
+    const supportsLnurl = useCommonSelector(selectSupportsRecurringdLnurl)
+    const lnurlReceiveCode = useCommonSelector(selectLnurlReceiveCode)
+    const dispatch = useCommonDispatch()
+    const [isFetching, setIsFetching] = useState(false)
+
+    useEffect(() => {
+        const refreshCode = async () => {
+            setIsFetching(true)
+            await dispatch(refreshLnurlReceive({ fedimint, federationId }))
+            setIsFetching(false)
+        }
+        // Only runs once. supportsLnurl is null on first load.
+        if (!isFetching && supportsLnurl === null) {
+            refreshCode()
+        }
+    }, [fedimint, federationId, supportsLnurl, dispatch, isFetching])
+
+    return {
+        isLoading: isFetching || supportsLnurl === null,
+        lnurlReceiveCode,
+        supportsLnurl,
     }
 }

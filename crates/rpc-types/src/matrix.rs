@@ -3,24 +3,36 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use fedimint_core::encoding::{Decodable, Encodable};
+use matrix_sdk::event_cache::RoomPaginationStatus;
 use matrix_sdk::notification_settings::RoomNotificationMode;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::api::client::user_directory::search_users::v3 as search_user_directory;
 use matrix_sdk::ruma::events::poll::start::PollKind;
 use matrix_sdk::ruma::events::room::member::MembershipState;
-use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk::ruma::events::room::message::MessageType;
 use matrix_sdk::ruma::events::AnyTimelineEvent;
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedTransactionId};
 use matrix_sdk_ui::room_list_service::SyncIndicator;
 use matrix_sdk_ui::timeline::{
-    EventSendState, LiveBackPaginationStatus, PollResult, TimelineEventItemId, TimelineItem,
+    EventSendState, MsgLikeKind, PollResult, TimelineEventItemId, TimelineItem,
     TimelineItemContent, TimelineItemKind, VirtualTimelineItem,
 };
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::error::ErrorCode;
+use crate::error::{ErrorCode, RpcError};
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+#[ts(export)]
+pub enum MatrixInitializeStatus {
+    Starting,
+    LoggingIn,
+    Success,
+    Error { error: RpcError },
+}
 
 #[derive(Debug, Serialize, Clone, ts_rs::TS)]
 #[serde(tag = "kind", content = "value")]
@@ -37,6 +49,7 @@ pub enum RpcTimelineItem {
     /// The user's own read marker.
     ReadMarker,
     Unknown,
+    TimelineStart,
 }
 
 #[derive(Debug, Deserialize, Clone, ts_rs::TS)]
@@ -104,7 +117,7 @@ pub struct RpcTimelineItemEvent {
 #[ts(export)]
 #[allow(clippy::large_enum_variant)]
 pub enum RpcTimelineItemContent {
-    Message(#[ts(type = "JSONObject")] RoomMessageEventContent),
+    Message(#[ts(type = "JSONObject")] MessageType),
     Json(#[ts(type = "JSONValue")] serde_json::Value),
     RedactedMessage,
     Poll(RpcPollResult),
@@ -149,6 +162,17 @@ pub struct RpcPollResult {
     pub end_time: Option<u64>,
     pub has_been_edited: bool,
     pub msgtype: String,
+}
+
+impl RpcPollResult {
+    fn from_timeline_item(content: &TimelineItemContent) -> Option<Self> {
+        if let TimelineItemContent::MsgLike(msg) = content {
+            if let MsgLikeKind::Poll(poll_state) = &msg.kind {
+                return Some(RpcPollResult::from(poll_state.results()));
+            }
+        }
+        None
+    }
 }
 
 impl From<PollResult> for RpcPollResult {
@@ -230,16 +254,16 @@ impl RpcMatrixUserDirectorySearchResponse {
     }
 }
 
-impl From<LiveBackPaginationStatus> for RpcBackPaginationStatus {
-    fn from(value: LiveBackPaginationStatus) -> Self {
+impl From<RoomPaginationStatus> for RpcBackPaginationStatus {
+    fn from(value: RoomPaginationStatus) -> Self {
         match value {
-            LiveBackPaginationStatus::Idle {
-                hit_start_of_timeline: false,
+            RoomPaginationStatus::Idle {
+                hit_timeline_start: false,
             } => Self::Idle,
-            LiveBackPaginationStatus::Idle {
-                hit_start_of_timeline: true,
+            RoomPaginationStatus::Idle {
+                hit_timeline_start: true,
             } => Self::TimelineStartReached,
-            LiveBackPaginationStatus::Paginating => Self::Paginating,
+            RoomPaginationStatus::Paginating => Self::Paginating,
         }
     }
 }
@@ -249,23 +273,23 @@ impl From<Arc<TimelineItem>> for RpcTimelineItem {
         match **item {
             TimelineItemKind::Event(ref e) => {
                 let content = e.content();
-                let content = if let TimelineItemContent::Poll(m) = content {
-                    RpcTimelineItemContent::Poll(RpcPollResult::from(m.results()))
+                let content = if let Some(poll) = RpcPollResult::from_timeline_item(content) {
+                    RpcTimelineItemContent::Poll(poll)
                 } else if let Some(json) = e.latest_json() {
                     RpcTimelineItemContent::Json(
                         json.deserialize_as::<serde_json::Value>()
                             .expect("failed to deserialize event"),
                     )
-                } else {
-                    match content {
-                        TimelineItemContent::Message(m) => RpcTimelineItemContent::Message(
-                            RoomMessageEventContent::from(m.clone()),
-                        ),
-                        TimelineItemContent::RedactedMessage => {
-                            RpcTimelineItemContent::RedactedMessage
+                } else if let TimelineItemContent::MsgLike(msg) = content {
+                    match &msg.kind {
+                        MsgLikeKind::Message(m) => {
+                            RpcTimelineItemContent::Message(m.msgtype().clone())
                         }
+                        MsgLikeKind::Redacted => RpcTimelineItemContent::RedactedMessage,
                         _ => RpcTimelineItemContent::Unknown,
                     }
+                } else {
+                    RpcTimelineItemContent::Unknown
                 };
                 let send_state = e.send_state().map(|s| match s {
                     EventSendState::NotSentYet => RpcTimelineEventSendState::NotSentYet,
@@ -294,6 +318,7 @@ impl From<Arc<TimelineItem>> for RpcTimelineItem {
             TimelineItemKind::Virtual(ref v) => match v {
                 VirtualTimelineItem::DateDivider(t) => Self::DateDivider(*t),
                 VirtualTimelineItem::ReadMarker => Self::ReadMarker,
+                VirtualTimelineItem::TimelineStart => Self::TimelineStart,
             },
         }
     }

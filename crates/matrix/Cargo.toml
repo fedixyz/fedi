@@ -1,0 +1,41 @@
+[package]
+name = "matrix"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+fedimint-core = { workspace = true }
+fedimint-derive-secret = { workspace = true }
+rpc-types = { workspace = true }
+runtime = { workspace = true }
+
+anyhow = { workspace = true }
+futures = "0.3"
+tracing = { workspace = true }
+hex = { workspace = true }
+serde_json = { workspace = true }
+mime = "0.3.17"
+tokio = { workspace = true, features = ["time", "macros"] }
+tokio-stream = { version = "0.1.17", features = ["sync"] }
+matrix-sdk-ui = { workspace = true, default-features = false }
+matrix-sdk = { workspace = true, default-features = false, features = [
+  "js",
+  "indexeddb",
+  "rustls-tls",
+  "e2e-encryption",
+] }
+imbl = { version = "5", features = ["serde"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+matrix-sdk = { workspace = true, default-features = false, features = [
+  "sqlite",
+] }
+rusqlite = { version = "*" }
+
+# we don't have an easy way to get static sqlite for android targets
+# so we enable bundled feature when compiling for it
+[target.'cfg(target_os = "android")'.dependencies]
+rusqlite = { version = "*", features = ["bundled"] }

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
-use std::fmt;
+use std::fmt::{self, Display};
+use std::str::FromStr;
 
 use anyhow::format_err;
 use bitcoin::secp256k1;
@@ -12,7 +13,7 @@ use fedimint_core::module::ApiRequestErased;
 use fedimint_core::PeerId;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use secp256k1::Secp256k1;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::api::FediSocialFederationApi as _;
 use crate::common::{
@@ -191,7 +192,7 @@ impl SocialBackup {
 }
 
 /// The state of recovery, that can be serialized and stored
-#[derive(Encodable, Decodable, Clone, Serialize, Deserialize)]
+#[derive(Encodable, Decodable, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SocialRecoveryState {
     signing_sk: SerdeEncodable<secp256k1::SecretKey>,
     encryption_key: [u8; 32],
@@ -199,8 +200,28 @@ pub struct SocialRecoveryState {
     recovery_session_decryption_key: SerdeEncodable<
         fedimint_threshold_crypto::serde_impl::SerdeSecret<fedimint_threshold_crypto::SecretKey>,
     >,
+    #[serde(deserialize_with = "de_int_key")]
     shares: BTreeMap<PeerId, SerdeEncodable<fedimint_threshold_crypto::DecryptionShare>>,
     pub client_config: String,
+}
+
+// FIXME: workaround for https://github.com/serde-rs/json/issues/989
+fn de_int_key<'de, D, K, V>(deserializer: D) -> Result<BTreeMap<K, V>, D::Error>
+where
+    D: Deserializer<'de>,
+    K: Eq + Ord + FromStr,
+    K::Err: Display,
+    V: Deserialize<'de>,
+{
+    let string_map = <BTreeMap<String, V>>::deserialize(deserializer)?;
+    let map = string_map
+        .into_iter()
+        .map(|(key_str, value)| {
+            let key = K::from_str(&key_str).map_err(serde::de::Error::custom)?;
+            Ok((key, value))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
+    Ok(map)
 }
 
 // Implement Debug manually to ignore sensitive fields

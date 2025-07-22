@@ -1,12 +1,12 @@
 import { styled } from '@stitches/react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import EditIcon from '@fedi/common/assets/svgs/edit.svg'
+import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectMatrixAuth,
-    setMatrixDisplayName,
     uploadAndSetMatrixAvatarUrl,
 } from '@fedi/common/redux'
 
@@ -26,27 +26,17 @@ const EditProfile = () => {
     const dispatch = useAppDispatch()
     const toast = useToast()
 
+    const {
+        username,
+        isSubmitting,
+        errorMessage,
+        handleChangeUsername,
+        handleSubmitDisplayName,
+    } = useDisplayNameForm(t)
+
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
     const [isChangingAvatar, setIsChangingAvatar] = useState<boolean>(false)
-    const [isChangingDisplayName, setIsChangingDisplayName] =
-        useState<boolean>(false)
-    const [displayName, setDisplayName] = useState<string>(
-        matrixAuth?.displayName || '',
-    )
-    const [isDisabled, setIsDisabled] = useState<boolean>(true)
-
-    useEffect(() => {
-        if (
-            isChangingDisplayName ||
-            displayName.trim().length === 0 ||
-            displayName.trim() === matrixAuth?.displayName
-        ) {
-            setIsDisabled(true)
-        } else {
-            setIsDisabled(false)
-        }
-    }, [displayName, isChangingDisplayName, matrixAuth?.displayName])
 
     const handleAvatarChange = useCallback(
         async (ev: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,29 +69,13 @@ const EditProfile = () => {
         [dispatch, t, toast],
     )
 
-    const handleOnDisplayNameChange = (
-        ev: React.ChangeEvent<HTMLInputElement>,
-    ) => {
-        const value = ev.currentTarget.value
-        setDisplayName(value)
-    }
-
     const handleOnDisplayNameSave = async () => {
-        try {
-            setIsChangingDisplayName(true)
-
-            await dispatch(
-                setMatrixDisplayName({ displayName: displayName.trim() }),
-            ).unwrap()
+        handleSubmitDisplayName(() => {
             toast.show({
                 content: t('phrases.changes-saved'),
                 status: 'success',
             })
-        } catch (err) {
-            toast.error(t, 'errors.unknown-error')
-        } finally {
-            setIsChangingDisplayName(false)
-        }
+        })
     }
 
     return (
@@ -112,8 +86,9 @@ const EditProfile = () => {
                         {t('phrases.edit-profile')}
                     </Layout.Title>
                 </Layout.Header>
-                <Layout.Content centered>
-                    <ChatIdentity>
+
+                <Layout.Content>
+                    <Container>
                         <ChatAvatarContainer>
                             <Avatar
                                 id={matrixAuth?.userId || ''}
@@ -140,25 +115,41 @@ const EditProfile = () => {
                         </ChatAvatarContainer>
                         <Text
                             variant="small"
-                            css={{ color: theme.colors.grey }}>
+                            css={{ color: theme.colors.grey, marginTop: 10 }}>
                             {t('feature.chat.change-avatar')}
                         </Text>
                         <ChatIdentityName>
+                            <InputLabel>
+                                {t('feature.chat.display-name')}
+                            </InputLabel>
                             <Input
                                 type="text"
                                 aria-label="Display name"
-                                maxLength={20}
-                                value={displayName}
-                                onChange={handleOnDisplayNameChange}
+                                value={username}
+                                onChange={e =>
+                                    handleChangeUsername(e.currentTarget.value)
+                                }
                             />
+                            {errorMessage && (
+                                <WarningText
+                                    variant="small"
+                                    css={{ color: theme.colors.red }}>
+                                    {errorMessage}
+                                </WarningText>
+                            )}
                         </ChatIdentityName>
-                    </ChatIdentity>
+                    </Container>
                 </Layout.Content>
+
                 <Layout.Actions>
                     <Button
                         width="full"
-                        loading={isChangingDisplayName}
-                        disabled={isDisabled}
+                        loading={isSubmitting}
+                        disabled={
+                            isSubmitting ||
+                            errorMessage !== null ||
+                            username.trim() === matrixAuth?.displayName
+                        }
                         onClick={handleOnDisplayNameSave}>
                         {t('words.save')}
                     </Button>
@@ -168,12 +159,10 @@ const EditProfile = () => {
     )
 }
 
-const ChatIdentity = styled('div', {
+const Container = styled('div', {
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
     padding: '24px 16px',
     borderRadius: 16,
     holoGradient: '400',
@@ -183,7 +172,6 @@ const ChatAvatarContainer = styled('div', {
     alignItems: 'center',
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
     position: 'relative',
 })
 
@@ -227,18 +215,26 @@ const AvatarEditFileInput = styled('input', {
     height: 1,
 })
 
+const ChatIdentityName = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    marginTop: 30,
+    width: '100%',
+})
+
+const InputLabel = styled('label', {
+    color: theme.colors.grey,
+    fontSize: theme.fontSizes.small,
+})
+
 const Input = styled('input', {
     border: `1px solid ${theme.colors.extraLightGrey}`,
     borderRadius: '5px',
     padding: '5px',
-    textAlign: 'center',
+    width: '100%',
 })
 
-const ChatIdentityName = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-})
+const WarningText = styled(Text, {})
 
 export default EditProfile

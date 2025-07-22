@@ -86,7 +86,7 @@ export const theme = {
         '100': makeHoloGradientRgbas(0.13),
 
         // holo gradients using the minimal gradient rgba sequence
-        'm500': makeMinimalGradientRgbas(0.5),
+        m500: makeMinimalGradientRgbas(0.5),
     },
     holoGradientLocations: {
         // Used to mimic the radial gradient in figma

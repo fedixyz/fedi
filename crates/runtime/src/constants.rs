@@ -11,7 +11,7 @@ pub const LNURL_CHILD_ID: u64 = 11;
 pub const XMPP_CHILD_ID: u64 = 10;
 pub const XMPP_PASSWORD: u64 = 0;
 pub const XMPP_KEYPAIR_SEED: u64 = 1;
-pub const NOSTR_CHILD_ID: u64 = 12;
+pub const NOSTR_CHILD_ID: ChildId = ChildId(12);
 pub const MILLION: u64 = 1_000_000;
 pub const MATRIX_CHILD_ID: u64 = 13;
 pub const DEVICE_REGISTRATION_CHILD_ID: ChildId = ChildId(14);
@@ -32,7 +32,7 @@ pub const DEVICE_REGISTRATION_FREQUENCY: Duration = Duration::from_secs(15 * 60)
 pub const DEVICE_REGISTRATION_OVERDUE: Duration = Duration::from_secs(12 * 60 * 60);
 
 // Fedi file path
-pub const FEDI_FILE_PATH: &str = "./fedi_file.json";
+pub const FEDI_FILE_V0_PATH: &str = "./fedi_file.json";
 
 // Operation types in fedimint client
 pub const LIGHTNING_OPERATION_TYPE: &str = "ln";

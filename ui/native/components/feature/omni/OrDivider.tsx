@@ -9,7 +9,7 @@ export const OrDivider: React.FC = () => {
     const style = styles(theme)
 
     return (
-        <Flex row align="center" gap="lg" fullWidth>
+        <Flex row align="center" gap="lg" fullWidth style={style.divider}>
             <Flex grow style={style.line} />
             <Text style={style.text}>or</Text>
             <Flex grow style={style.line} />
@@ -19,6 +19,10 @@ export const OrDivider: React.FC = () => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        divider: {
+            paddingVertical: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.sm,
+        },
         line: {
             height: 1,
             backgroundColor: theme.colors.extraLightGrey,

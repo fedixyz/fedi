@@ -5,11 +5,11 @@ import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 export class OnboardingTest extends AppiumTestBase {
     async execute(): Promise<void> {
         console.log('Starting Onboarding Test')
+        await new Promise(resolve => setTimeout(resolve, 10000)) // waiting for 10 seconds for the username to generate
         await this.clickElementByKey('Get a Wallet')
         await this.clickElementByKey('FediTestnetJoinButton')
-        await this.clickElementByKey('Join Federation')
+        await this.clickElementByKey('JoinFederationButton')
         await new Promise(resolve => setTimeout(resolve, 5000))
-        await this.clickElementByKey('Continue')
         await this.clickElementByKey('Explore Now')
         await this.clickElementByKey('Chat')
         await this.clickElementByKey('Explore Now')
@@ -25,6 +25,7 @@ export class OnboardingTest extends AppiumTestBase {
             }
         }
         await this.clickElementByKey('Home')
+        await this.clickElementByKey('Continue')
         await this.clickElementByKey('AvatarButton')
         await this.waitForElementDisplayed('UserQrContainer')
         // TODO: copy the fedi user address and validate it
@@ -134,10 +135,8 @@ export class OnboardingTest extends AppiumTestBase {
                 .move({ duration: 100, x: 13, y: 47 })
                 .up({ button: 0 })
                 .perform()
-            await this.clickElementByKey('Fedi Testnet')
-        } else {
-            await this.clickOnText('Fedi Testnet', -2)
         }
+        await this.clickElementByKey('FediTestnetAccordionButton')
         await this.driver
             .action('pointer')
             .move({ duration: 0, x: 13, y: 360 })
@@ -173,7 +172,7 @@ export class OnboardingTest extends AppiumTestBase {
         }
         // TODO: go through the rest of federation settings
     }
-    catch(error: any) {
+    catch(error: unknown) {
         console.error('Onboarding test failed:', error)
     }
 }

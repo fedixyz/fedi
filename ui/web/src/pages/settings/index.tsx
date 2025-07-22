@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import InviteMembersIcon from '@fedi/common/assets/svgs/invite-members.svg'
 import LanguageIcon from '@fedi/common/assets/svgs/language.svg'
-// import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
+import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
 import NostrIcon from '@fedi/common/assets/svgs/nostr.svg'
 import NoteIcon from '@fedi/common/assets/svgs/note.svg'
 import ScrollIcon from '@fedi/common/assets/svgs/scroll.svg'
@@ -18,7 +18,6 @@ import {
     leaveFederation,
     selectAlphabeticallySortedFederations,
     selectFederation,
-    selectHasSetMatrixDisplayName,
     selectMatrixAuth,
     setActiveFederationId,
 } from '@fedi/common/redux'
@@ -57,9 +56,6 @@ function AdminPage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const hasSetMatrixDisplayName = useAppSelector(
-        selectHasSetMatrixDisplayName,
-    )
 
     const isInviteSupported = useIsInviteSupported()
     const exportTransactions = useExportTransactions(fedimint, t)
@@ -153,13 +149,11 @@ function AdminPage() {
                             : undefined,
                     disabled: !federation.hasWallet || !!exportingFederationId,
                 },
-                // Hide for now to prevent until issues with recovery on the backend can be investigated further
-                // {
-                //     label: t('feature.federations.leave-federation'),
-                //     icon: LeaveFederationIcon,
-                //     onClick: () => setLeavingFederationId(federation.id),
-
-                // },
+                {
+                    label: t('feature.federations.leave-federation'),
+                    icon: LeaveFederationIcon,
+                    onClick: () => setLeavingFederationId(federation.id),
+                },
             ],
         }
     })
@@ -172,7 +166,7 @@ function AdminPage() {
                     label: t('phrases.edit-profile'),
                     icon: UserIcon,
                     href: '/settings/edit-profile',
-                    hidden: !hasSetMatrixDisplayName,
+                    hidden: !matrixAuth,
                 },
                 {
                     label: t('words.language'),
@@ -214,12 +208,12 @@ function AdminPage() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header>
+                <Layout.Header showCloseButton>
                     <Layout.Title>{t('words.account')}</Layout.Title>
                 </Layout.Header>
                 <Layout.Content>
                     <div>
-                        {hasSetMatrixDisplayName && (
+                        {matrixAuth && (
                             <Content>
                                 <QRContainer>
                                     <QRCode

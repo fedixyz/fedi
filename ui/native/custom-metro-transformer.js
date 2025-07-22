@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const upstreamTransformer = require('metro-react-native-babel-transformer')
 const svgTransformer = require('react-native-svg-transformer')
 

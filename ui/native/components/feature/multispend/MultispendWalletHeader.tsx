@@ -39,7 +39,6 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
         setIsConfirmingAbort,
         abortConfirmationContents,
         rejectConfirmationContents,
-        hasRejected,
     } = useMultispendVoting({
         t,
         fedimint,
@@ -74,7 +73,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
 
     const actionButtons = (
         <>
-            {isActive && !hasRejected && canVote ? (
+            {isActive && (canVote || isProposer) ? (
                 <Pressable onPress={() => setIsConfirmingAbort(true)}>
                     <Text color={theme.colors.red} medium>
                         {t(isProposer ? 'words.abort' : 'words.reject')}
