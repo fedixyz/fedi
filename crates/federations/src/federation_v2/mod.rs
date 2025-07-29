@@ -4432,7 +4432,8 @@ impl FederationV2 {
             .register_recurring_payment_code(
                 fedimint_ln_client::recurring::RecurringPaymentProtocol::LNURL,
                 recurringd_api,
-                "", // TODO: what do I put in meta?
+                "[[\"text/plain\", \"\"]]", /* TODO: set it to
+                                             * something better */
             )
             .await?;
 

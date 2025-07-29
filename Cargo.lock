@@ -1508,7 +1508,7 @@ dependencies = [
  "hex",
  "matrix",
  "multispend",
- "nostr 0.42.1",
+ "nostr",
  "nostril",
  "rpc-types",
  "runtime",
@@ -3208,7 +3208,7 @@ dependencies = [
  "mime",
  "mockito",
  "multispend",
- "nostr 0.42.1",
+ "nostr",
  "nostril",
  "rand 0.8.5",
  "ring 0.17.14",
@@ -6608,6 +6608,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lru"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f8cc7106155f10bdf99a6f379688f543ad6596a415375b36a59a054ceda1198"
+
+[[package]]
 name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6828,8 +6834,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "anymap2",
  "aquamarine 0.6.0",
@@ -6882,8 +6888,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-base"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "as_variant",
  "async-trait",
@@ -6909,8 +6915,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-common"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "eyeball-im",
  "futures-core",
@@ -6932,8 +6938,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-crypto"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "aes",
  "aquamarine 0.6.0",
@@ -6972,8 +6978,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-indexeddb"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7002,8 +7008,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-sqlite"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "as_variant",
  "async-trait",
@@ -7018,6 +7024,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
@@ -7026,8 +7033,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-store-encryption"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -7046,8 +7053,8 @@ dependencies = [
 
 [[package]]
 name = "matrix-sdk-ui"
-version = "0.12.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=fedi%2Fmatrix-sdk-ffi%2F20250611#155d2f06f703cd9102337f10bbc538089bd202ac"
+version = "0.13.0"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
 dependencies = [
  "as_variant",
  "async-rx",
@@ -7328,12 +7335,6 @@ dependencies = [
 
 [[package]]
 name = "negentropy"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e664971378a3987224f7a0e10059782035e89899ae403718ee07de85bec42afe"
-
-[[package]]
-name = "negentropy"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0efe882e02d206d8d279c20eb40e03baf7cb5136a1476dc084a324fbc3ec42d"
@@ -7524,9 +7525,8 @@ dependencies = [
 
 [[package]]
 name = "nostr"
-version = "0.41.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95d3f2f0d564cce3ebe09bb1343af67d88c60108cedc518a307dfdf6e3f503b6"
+version = "0.42.0"
+source = "git+https://github.com/fedibtc/rust-nostr?rev=06b59e3c9e3c8b6ed14679cfaf33730563eca124#06b59e3c9e3c8b6ed14679cfaf33730563eca124"
 dependencies = [
  "aes",
  "base64 0.22.1",
@@ -7548,53 +7548,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "nostr"
-version = "0.42.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9c1891da0e58e7eb48a1d2cd704a16f39a61bac3564a1426b26621e21073594"
-dependencies = [
- "base64 0.22.1",
- "bech32",
- "bip39",
- "bitcoin_hashes 0.14.0",
- "cbc",
- "chacha20",
- "chacha20poly1305",
- "getrandom 0.2.16",
- "instant",
- "regex",
- "scrypt",
- "secp256k1",
- "serde",
- "serde_json",
- "unicode-normalization",
- "url",
-]
-
-[[package]]
 name = "nostr-database"
-version = "0.41.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de6dc456a11d26f99a932b6531d94c20cb2e274ada6eab1d2438e2fb9c944af5"
+version = "0.42.0"
+source = "git+https://github.com/fedibtc/rust-nostr?rev=06b59e3c9e3c8b6ed14679cfaf33730563eca124#06b59e3c9e3c8b6ed14679cfaf33730563eca124"
 dependencies = [
- "lru 0.13.0",
- "nostr 0.41.0",
+ "lru 0.14.0",
+ "nostr",
  "tokio",
 ]
 
 [[package]]
 name = "nostr-relay-pool"
-version = "0.41.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23994b7a613540de50d0b6ac5fcdfeb65d814b0dc5630875d3e1d3e8f05e8c7c"
+version = "0.42.0"
+source = "git+https://github.com/fedibtc/rust-nostr?rev=06b59e3c9e3c8b6ed14679cfaf33730563eca124#06b59e3c9e3c8b6ed14679cfaf33730563eca124"
 dependencies = [
  "async-utility",
  "async-wsocket",
  "atomic-destructor",
- "lru 0.13.0",
- "negentropy 0.3.1",
- "negentropy 0.5.0",
- "nostr 0.41.0",
+ "lru 0.14.0",
+ "negentropy",
+ "nostr",
  "nostr-database",
  "tokio",
  "tracing",
@@ -7602,12 +7575,11 @@ dependencies = [
 
 [[package]]
 name = "nostr-sdk"
-version = "0.41.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58d201c49818ef560a67f9c26c415007da38b007943e7d1644ac55aa98c55a42"
+version = "0.42.0"
+source = "git+https://github.com/fedibtc/rust-nostr?rev=06b59e3c9e3c8b6ed14679cfaf33730563eca124#06b59e3c9e3c8b6ed14679cfaf33730563eca124"
 dependencies = [
  "async-utility",
- "nostr 0.41.0",
+ "nostr",
  "nostr-database",
  "nostr-relay-pool",
  "tokio",
@@ -7742,7 +7714,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.21.7",
  "chrono",
  "getrandom 0.2.16",
  "http 1.3.1",
@@ -9386,8 +9358,8 @@ dependencies = [
 
 [[package]]
 name = "ruma"
-version = "0.12.3"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+version = "0.12.5"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "assign",
  "js_int",
@@ -9402,8 +9374,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-client-api"
-version = "0.20.3"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+version = "0.20.4"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "as_variant",
  "assign",
@@ -9425,8 +9397,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-common"
-version = "0.15.2"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+version = "0.15.4"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "as_variant",
  "base64 0.22.1",
@@ -9457,8 +9429,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-events"
-version = "0.30.3"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+version = "0.30.4"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "as_variant",
  "indexmap 2.9.0",
@@ -9481,8 +9453,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-federation-api"
-version = "0.11.1"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+version = "0.11.2"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "http 1.3.1",
  "js_int",
@@ -9496,7 +9468,7 @@ dependencies = [
 [[package]]
 name = "ruma-html"
 version = "0.4.1"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "as_variant",
  "html5ever",
@@ -9508,7 +9480,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.10.1"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "js_int",
  "thiserror 2.0.12",
@@ -9516,8 +9488,8 @@ dependencies = [
 
 [[package]]
 name = "ruma-macros"
-version = "0.15.1"
-source = "git+https://github.com/fedibtc/ruma?tag=ruma-0.12.3-fedi1#086e963d331bf7859849713b1bf8929ec8bcce7a"
+version = "0.15.2"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
 dependencies = [
  "cfg-if",
  "proc-macro-crate 3.3.0",
