@@ -37,7 +37,6 @@ use matrix_sdk::ruma::events::poll::unstable_start::{
     NewUnstablePollStartEventContent, UnstablePollAnswer, UnstablePollAnswers,
     UnstablePollStartContentBlock,
 };
-use matrix_sdk::ruma::events::receipt::ReceiptThread;
 use matrix_sdk::ruma::events::room::encryption::RoomEncryptionEventContent;
 use matrix_sdk::ruma::events::room::message::{
     MessageType, RoomMessageEventContent, RoomMessageEventContentWithoutRelation,
@@ -760,7 +759,6 @@ impl Matrix {
             .await?
             .send_single_receipt(
                 ReceiptType::Read,
-                ReceiptThread::Unthreaded,
                 event_id.parse().context(ErrorCode::BadRequest)?,
             )
             .await?)

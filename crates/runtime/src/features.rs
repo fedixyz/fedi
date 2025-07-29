@@ -150,7 +150,9 @@ impl FeatureCatalog {
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
                 state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
-            nostr_client: None,
+            nostr_client: Some(NostrClientFeatureCatalog {
+                relays: vec![Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap()],
+            }),
             spv2_stable_account_id: false,
         }
     }
@@ -163,7 +165,9 @@ impl FeatureCatalog {
             stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
                 state: StabilityPoolV2FeatureConfigState::Multispend,
             }),
-            nostr_client: None,
+            nostr_client: Some(NostrClientFeatureCatalog {
+                relays: vec![Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap()],
+            }),
             spv2_stable_account_id: false,
         }
     }

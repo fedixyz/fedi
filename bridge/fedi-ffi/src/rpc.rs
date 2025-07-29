@@ -44,7 +44,7 @@ use nostril::{RpcNostrPubkey, RpcNostrSecret};
 use rpc_types::error::{ErrorCode, RpcError};
 use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
 use rpc_types::matrix::{
-    MatrixInitializeStatus, RpcBackPaginationStatus, RpcMatrixAccountSession,
+    MatrixInitializeStatus, RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession,
     RpcMatrixUploadResult, RpcMatrixUserDirectorySearchResponse, RpcRoomId, RpcRoomMember,
     RpcRoomNotificationMode, RpcSyncIndicator, RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
 };
@@ -1743,6 +1743,37 @@ async fn matrixDeleteMessage(
         .await
 }
 
+#[macro_rules_derive(rpc_method!)]
+async fn matrixSaveComposerDraft(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+    draft: RpcComposerDraft,
+) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    let room = matrix.room(&room_id.into_typed()?).await?;
+    room.save_composer_draft(draft.to_sdk()?, None).await?;
+    Ok(())
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixLoadComposerDraft(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+) -> anyhow::Result<Option<RpcComposerDraft>> {
+    let matrix = bg_matrix.wait().await;
+    let room = matrix.room(&room_id.into_typed()?).await?;
+    let draft = room.load_composer_draft(None).await?;
+    Ok(draft.map(RpcComposerDraft::from_sdk))
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn matrixClearComposerDraft(bg_matrix: &BgMatrix, room_id: RpcRoomId) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    let room = matrix.room(&room_id.into_typed()?).await?;
+    room.clear_composer_draft(None).await?;
+    Ok(())
+}
+
 ts_type_de!(RpcMediaSource: MediaSource = "JSONObject");
 #[macro_rules_derive(rpc_method!)]
 async fn matrixDownloadFile(
@@ -2298,6 +2329,9 @@ rpc_methods!(RpcMethods {
     matrixEndPoll,
     matrixRespondToPoll,
     matrixGetMediaPreview,
+    matrixSaveComposerDraft,
+    matrixLoadComposerDraft,
+    matrixClearComposerDraft,
     // multispend
     matrixObserveMultispendGroup,
     matrixMultispendAccountInfo,

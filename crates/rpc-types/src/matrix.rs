@@ -13,6 +13,7 @@ use matrix_sdk::ruma::events::room::message::MessageType;
 use matrix_sdk::ruma::events::AnyTimelineEvent;
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedTransactionId};
+use matrix_sdk::{ComposerDraft, ComposerDraftType};
 use matrix_sdk_ui::room_list_service::SyncIndicator;
 use matrix_sdk_ui::timeline::{
     EventSendState, MsgLikeKind, PollResult, TimelineEventItemId, TimelineItem,
@@ -22,6 +23,58 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::error::{ErrorCode, RpcError};
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcComposerDraftType {
+    NewMessage,
+    Reply { event_id: String },
+    Edit { event_id: String },
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcComposerDraft {
+    pub plain_text: String,
+    pub html_text: Option<String>,
+    pub draft_type: RpcComposerDraftType,
+}
+
+impl RpcComposerDraft {
+    pub fn from_sdk(draft: ComposerDraft) -> Self {
+        RpcComposerDraft {
+            plain_text: draft.plain_text,
+            html_text: draft.html_text,
+            draft_type: match draft.draft_type {
+                ComposerDraftType::NewMessage => RpcComposerDraftType::NewMessage,
+                ComposerDraftType::Reply { event_id } => RpcComposerDraftType::Reply {
+                    event_id: event_id.to_string(),
+                },
+                ComposerDraftType::Edit { event_id } => RpcComposerDraftType::Edit {
+                    event_id: event_id.to_string(),
+                },
+            },
+        }
+    }
+
+    pub fn to_sdk(self) -> Result<ComposerDraft> {
+        Ok(ComposerDraft {
+            plain_text: self.plain_text,
+            html_text: self.html_text,
+            draft_type: match self.draft_type {
+                RpcComposerDraftType::NewMessage => ComposerDraftType::NewMessage,
+                RpcComposerDraftType::Reply { event_id } => ComposerDraftType::Reply {
+                    event_id: event_id.parse()?,
+                },
+                RpcComposerDraftType::Edit { event_id } => ComposerDraftType::Edit {
+                    event_id: event_id.parse()?,
+                },
+            },
+        })
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
