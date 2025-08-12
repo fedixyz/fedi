@@ -1,16 +1,15 @@
 import NetInfo from '@react-native-community/netinfo'
-import { configureStore, ThunkDispatch, UnknownAction } from '@reduxjs/toolkit'
+import { ThunkDispatch, UnknownAction } from '@reduxjs/toolkit'
 import debounce from 'lodash/debounce'
 import { AppState as RNAppState } from 'react-native'
 
 import {
-    commonMiddleware,
-    commonReducers,
-    CommonState,
     initializeCommonStore,
     setCurrencyLocale,
     refreshHistoricalCurrencyRates,
     setIsInternetUnreachable,
+    CommonState,
+    setupStore,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -22,14 +21,7 @@ import { storage } from '../utils/storage'
 
 const log = makeLog('native/state/store')
 
-export const store = configureStore({
-    // @ts-expect-error - TODO: investigate how to type this properly
-    middleware: commonMiddleware,
-    reducer: {
-        ...commonReducers,
-    },
-})
-
+export const store = setupStore()
 export type AppStore = typeof store
 export type AppState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch &
@@ -38,7 +30,6 @@ export type AppDispatch = typeof store.dispatch &
 export function initializeNativeStore() {
     // Common initialization behavior
     const unsubscribe = initializeCommonStore({
-        // @ts-expect-error - TODO: investigate how to type this properly
         store,
         fedimint,
         storage,

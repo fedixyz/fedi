@@ -1,9 +1,9 @@
 import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
 
 import CogIcon from '@fedi/common/assets/svgs/cog.svg'
-import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -14,19 +14,23 @@ import {
     sendMatrixMessage,
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
+import { fedimint, writeBridgeFile } from '../../lib/bridge'
 import { styled } from '../../styles'
+import { getMediaDimensions } from '../../utils/media'
 import { Button } from '../Button'
 import { HoloLoader } from '../HoloLoader'
-import { IconButton } from '../IconButton'
+import { Icon } from '../Icon'
 import { Text } from '../Text'
 import { ChatConversation } from './ChatConversation'
 import { ChatEmptyState } from './ChatEmptyState'
 import { ChatPaymentDialog } from './ChatPaymentDialog'
 import { ChatPreviewConversation } from './ChatPreviewConversation'
 import { ChatRoomSettingsDialog } from './ChatRoomSettingsDialog'
+
+const log = makeLog('ChatRoomConversation')
 
 interface Props {
     roomId: string
@@ -37,12 +41,15 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     const { back } = useRouter()
     const dispatch = useAppDispatch()
     const { error } = useToast()
+
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
     const events = useAppSelector(s => selectMatrixRoomEvents(s, roomId))
+
     const [isLoading, setIsLoading] = useState(!room)
     const [isPaymentOpen, setIsPaymentOpen] = useState(false)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
     useObserveMatrixRoom(roomId)
 
     const directUserId = room?.directUserId
@@ -55,12 +62,42 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     }, [room])
 
     const handleSend = useCallback(
-        async (body: string) => {
-            await dispatch(
-                sendMatrixMessage({ fedimint, roomId, body }),
-            ).unwrap()
+        async (body: string, files: File[] = []) => {
+            try {
+                if (body) {
+                    await dispatch(
+                        sendMatrixMessage({ fedimint, roomId, body }),
+                    ).unwrap()
+                }
+
+                for (const file of files) {
+                    const { width, height } = await getMediaDimensions(file)
+
+                    const extension = file.name.split('.').pop()
+                    const randomFilename = `${uuidv4()}.${extension}`
+
+                    await writeBridgeFile(
+                        randomFilename,
+                        new Uint8Array(await file.arrayBuffer()),
+                    )
+
+                    await fedimint.matrixSendAttachment({
+                        roomId,
+                        filename: randomFilename,
+                        params: {
+                            mimeType: file.type,
+                            width,
+                            height,
+                        },
+                        filePath: randomFilename,
+                    })
+                }
+            } catch (err) {
+                log.error('error sending message', err)
+                error(t, 'errors.unknown-error')
+            }
         },
-        [dispatch, roomId],
+        [dispatch, error, roomId, t],
     )
 
     const handlePaginate = useCallback(async () => {
@@ -99,25 +136,18 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     return (
         <>
             <ChatConversation
-                type={ChatType.direct}
+                type={directUserId ? ChatType.direct : ChatType.group}
                 id={room?.id || ''}
                 name={room?.name || ''}
                 events={events}
                 onSendMessage={handleSend}
-                inputActions={
-                    directUserId ? (
-                        <IconButton
-                            size="md"
-                            icon={WalletIcon}
-                            onClick={() => setIsPaymentOpen(true)}
-                        />
-                    ) : undefined
-                }
+                inputActions={!!directUserId}
+                onWalletClick={() => setIsPaymentOpen(true)}
                 headerActions={
                     directUserId ? undefined : (
-                        <IconButton
-                            size="md"
+                        <Icon
                             icon={CogIcon}
+                            size={26}
                             onClick={() => setIsSettingsOpen(true)}
                         />
                     )

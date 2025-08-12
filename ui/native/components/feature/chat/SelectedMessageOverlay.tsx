@@ -14,6 +14,7 @@ import {
     selectSelectedChatMessage,
     setMessageToEdit,
     setSelectedChatMessage,
+    setChatReplyingToMessage,
 } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import { JSONObject } from '@fedi/common/types/bindings'
@@ -201,6 +202,18 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         downloadPermission,
     ])
 
+    const handleReply = useCallback(() => {
+        if (!selectedMessage) return
+
+        dispatch(
+            setChatReplyingToMessage({
+                roomId: selectedMessage.roomId,
+                event: selectedMessage,
+            }),
+        )
+        closeOverlay()
+    }, [dispatch, closeOverlay, selectedMessage])
+
     useEffect(() => {
         setDeleteMessage(false)
     }, [selectedMessage])
@@ -247,6 +260,19 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                         </Flex>
                     ) : (
                         <Flex fullWidth>
+                            {(selectedMessage?.content.msgtype === 'm.text' ||
+                                selectedMessage?.content.msgtype ===
+                                    'm.notice' ||
+                                selectedMessage?.content.msgtype ===
+                                    'm.emote') && (
+                                <Pressable
+                                    onPress={handleReply}
+                                    containerStyle={style.action}>
+                                    <SvgImage name="ArrowCornerUpLeftDouble" />
+                                    <Text bold>{t('words.reply')}</Text>
+                                </Pressable>
+                            )}
+
                             {selectedMessage?.content.msgtype === 'm.text' && (
                                 <>
                                     <Pressable

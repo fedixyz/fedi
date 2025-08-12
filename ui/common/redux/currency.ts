@@ -167,7 +167,16 @@ export const refreshHistoricalCurrencyRates = createAsyncThunk<
     { state: CommonState }
 >(
     'currency/refreshHistoricalCurrencyRates',
-    async ({ fedimint }, { dispatch }) => {
+    async ({ fedimint }, { dispatch, getState }) => {
+        // Check if onboarding is completed first
+        const state = getState()
+        if (!state.environment.onboardingCompleted) {
+            log.debug(
+                'Skipping currency rates refresh - onboarding not completed',
+            )
+            return
+        }
+
         try {
             const { btcUsdRate, fiatUsdRates } = await dispatch(
                 fetchCurrencyPrices(),

@@ -11,6 +11,7 @@ import {
     selectIsMatrixChatEmpty,
     selectMatrixStatus,
     selectNeedsMatrixRegistration,
+    selectOnboardingMethod,
 } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
@@ -42,6 +43,7 @@ const ChatScreen: React.FC<Props> = () => {
 
     const syncStatus = useAppSelector(selectMatrixStatus)
     const needsChatRegistration = useAppSelector(selectNeedsMatrixRegistration)
+    const onboardingMethod = useAppSelector(selectOnboardingMethod)
 
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
     const [hasOpenedNewChat, completeOpenedNewChat] =
@@ -56,6 +58,10 @@ const ChatScreen: React.FC<Props> = () => {
         { icon: 'Wallet', text: t('feature.chat.first-entry-option-2') },
     ]
     const style = styles(theme)
+
+    // if a new_seed user and it's your first time viewing the page, show overlay
+    const shouldShowFirstTimeModal =
+        !hasSeenChat && onboardingMethod !== 'restored'
 
     if (syncStatus === MatrixSyncStatus.initialSync) {
         return (
@@ -157,7 +163,7 @@ const ChatScreen: React.FC<Props> = () => {
             <FirstTimeCommunityEntryOverlay
                 overlayItems={chatFirstTimeOverlayItems}
                 title={t('feature.chat.first-entry')}
-                show={!hasSeenChat}
+                show={shouldShowFirstTimeModal}
                 onDismiss={completeSeenChat}
             />
         </Flex>

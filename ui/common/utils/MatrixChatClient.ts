@@ -54,6 +54,7 @@ import {
     encodeFediMatrixRoomUri,
     formatMatrixEventContent,
     mxcUrlToHttpUrl,
+    stripReplyFromPreview,
 } from './matrix'
 import {
     getNewObservableIds,
@@ -177,9 +178,16 @@ export class MatrixChatClient {
                     },
                     status => {
                         if (status.type === 'success') {
+                            log.debug(
+                                'got success from matrixInitializeStatus, unsubscribing...',
+                            )
                             unsubscribe()
                             this.getInitialAuth()
                                 .then(auth => {
+                                    log.debug(
+                                        'resolving auth from getInitialAuth...',
+                                        auth,
+                                    )
                                     // resolve cached auth before fetching anything
                                     // to support offline UX
                                     resolve(auth)
@@ -196,9 +204,21 @@ export class MatrixChatClient {
                                     this.observeRoomList().catch(reject)
                                 })
                                 .catch(err => {
-                                    log.error('matrixInit', err)
+                                    log.error(
+                                        'matrix initialized but failed to start MatrixChatClient',
+                                        err,
+                                    )
                                     reject(err)
                                 })
+                        } else if (status.type === 'error') {
+                            // for now we handle this as a critical error, since it blocks app initialization
+                            // TODO: allow user interaction even if we don't have a success status yet
+                            unsubscribe()
+                            log.error(
+                                'matrixInitializeStatus returned an error',
+                                status.error,
+                            )
+                            reject(status.error)
                         }
                     },
                 )
@@ -994,6 +1014,7 @@ export class MatrixChatClient {
         const avatarUrl = directUserId
             ? room.summary?.room_heroes?.[0]?.avatar_url
             : room.base_info.avatar?.Original?.content?.url
+
         let preview: MatrixRoom['preview']
         if (room.latest_event) {
             const { event, sender_profile } = room.latest_event
@@ -1029,13 +1050,14 @@ export class MatrixChatClient {
                             senderContent.displayname,
                         ),
                         avatarUrl: senderContent.avatar_url,
-                        body: previewEvent.content.body,
+                        body: stripReplyFromPreview(previewEvent.content.body),
                         isDeleted,
                         timestamp,
                     }
                 }
             }
         }
+
         // TODO (cleanup): Remove base_info.name fallback
         // cached_display_name seems to be the best source of truth for the room name
         // for both groups and DMS assuming matrix-rust-sdk handles computing it correctly

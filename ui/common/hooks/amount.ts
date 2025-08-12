@@ -332,38 +332,18 @@ export function useAmountInput(
         amountUtils.formatSats(amount),
     )
 
-    const [fiatValue, setFiatValue] = useState<string>(
-        amountUtils.formatFiat(
-            /*
-             *     Math.floor = Truncate (DON’T round) the float returned by satToFiat.
-             *     Example: 123.999 → 123
-             *     This avoids showing an inflated balance if the value would have
-             *     rounded up when we later format it with zero fraction digits.
-             *     i.e - accidental round-up (e.g. 123.999 becoming 124)
-             */
-            Math.floor(amountUtils.satToFiat(amount, btcToFiatRate)),
-            currency,
-            {
-                symbolPosition: 'none',
-                locale: currencyLocale,
-                /*
-                 *      Force the *initial* string to be a whole number:
-                 *      minimumFractionDigits: 0  → at least 0 decimals (never less)
-                 *      maximumFractionDigits: 0  → at most 0 decimals (never more)
-                 *
-                 *     Setting both to zero means “always show exactly zero decimal
-                 *     digits” – no trailing .00 or ,00.  We only apply this on the
-                 *     very first render; once the user starts typing (and may add a
-                 *     decimal separator) we call formatFiat again **without** these
-                 *     overrides so the normal currency-specific decimals (2 for
-                 *     USD/EUR, 0 for VND …) appear.
-                 *     i.e - guarantees the very first string that appears in the input is a clean whole-number
-                 */
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-            },
-        ),
-    )
+    const [fiatValue, setFiatValue] = useState<string>(() => {
+        const fiatAmount = amountUtils.satToFiat(amount, btcToFiatRate)
+        return amountUtils.formatFiat(fiatAmount, currency, {
+            symbolPosition: 'none',
+            locale: currencyLocale,
+            // show X USD instead of X.00 USD for initial render
+            // only truncates if we don't lose decimal precision
+            ...(fiatAmount === Number(Math.floor(fiatAmount).toFixed(0))
+                ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
+                : {}),
+        })
+    })
 
     const setIsFiat = useCallback(
         (value: boolean) => {

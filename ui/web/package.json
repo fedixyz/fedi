@@ -1,6 +1,6 @@
 {
     "name": "@fedi/web",
-    "version": "25.6.0",
+    "version": "25.8.1",
     "private": true,
     "scripts": {
         "dev": "next dev",
@@ -31,7 +31,7 @@
         "@radix-ui/react-switch": "^1.0.3",
         "@radix-ui/react-toast": "^1.1.5",
         "@radix-ui/react-tooltip": "^1.0.7",
-        "@reduxjs/toolkit": "^1.9.3",
+        "@reduxjs/toolkit": "^2.8.2",
         "@stitches/react": "^1.2.8",
         "i18next": "^23.0.1",
         "i18next-browser-languagedetector": "^7.0.1",

@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
+import { selectOnboardingMethod } from '@fedi/common/redux'
 import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
 import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
@@ -43,6 +44,11 @@ const Mods: React.FC = () => {
     const { launchZendesk } = useLaunchZendesk()
 
     const [hasSeenMods, completeSeenMods] = useNuxStep('modsModal')
+    const onboardingMethod = useAppSelector(selectOnboardingMethod)
+
+    // if a new_seed user and it's your first time viewing the page, show overlay
+    const shouldShowFirstTimeModal =
+        !hasSeenMods && onboardingMethod !== 'restored'
 
     const modsFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
         { icon: 'Apps', text: t('feature.fedimods.first-entry-option-1') },
@@ -144,7 +150,7 @@ const Mods: React.FC = () => {
             <FirstTimeCommunityEntryOverlay
                 overlayItems={modsFirstTimeOverlayItems}
                 title={t('feature.fedimods.first-entry')}
-                show={!hasSeenMods}
+                show={shouldShowFirstTimeModal}
                 onDismiss={completeSeenMods}
             />
         </Flex>

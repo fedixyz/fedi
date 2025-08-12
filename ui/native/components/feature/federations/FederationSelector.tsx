@@ -55,6 +55,9 @@ const FederationSelector: React.FC = () => {
                 style={style.gradientContainer}
                 gradientStyle={style.gradient}>
                 <Pressable
+                    testID={activeFederation.name
+                        .concat('SelectorButton')
+                        .replaceAll(' ', '')}
                     style={style.container}
                     onPress={openFederationsDrawer}>
                     <FederationLogo

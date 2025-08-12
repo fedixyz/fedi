@@ -31,6 +31,7 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
         <Flex fullWidth>
             {actions.map(({ label, icon, onPress }, idx) => (
                 <Pressable
+                    accessible={false}
                     key={idx}
                     onPress={() => handlePress(onPress, idx)}
                     style={style.action}>

@@ -10,12 +10,14 @@ import CustomOverlay from '../../ui/CustomOverlay'
 import FederationPreview from '../onboarding/FederationPreview'
 
 type Props = {
+    federationId: string
     inviteCode: string
     children: React.ReactNode
     fallbackContent?: React.ReactNode
 }
 
 export default function FederationGate({
+    federationId,
     inviteCode,
     children,
     fallbackContent,
@@ -24,7 +26,7 @@ export default function FederationGate({
     const navigation = useNavigation()
     const { t } = useTranslation()
     const { isFetchingPreview, federationPreview, isMember, handleJoin } =
-        useFederationMembership(t, fedimint, inviteCode)
+        useFederationMembership(t, fedimint, federationId, inviteCode)
 
     const handleBack = () => {
         if (navigation.canGoBack()) navigation.goBack()

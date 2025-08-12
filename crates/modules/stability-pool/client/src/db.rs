@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 
+use fedimint_client::OperationId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{impl_db_lookup, impl_db_record, Amount, TransactionId};
@@ -23,6 +24,21 @@ pub enum DbKeyPrefix {
     /// This is an accumulating amount for each seek that grows over its
     /// lifetime for each cycle that it is locked.
     SeekLifetimeFee = 0x05,
+    /// (AccountId, TXID) => OperationId
+    /// Stable balance transfers can involve the user as the sender/recipient
+    /// but may not necessarily be initiated by the user. In this case, the
+    /// local operation log will not have a corresponding entry for the
+    /// transfer, even though the account history items retreived from the
+    /// server will include the transfer. So this mapping helps us with
+    /// backfilling the local operation log.
+    RecordedTransfer = 0x06,
+    /// Deposit sequence => (AccountId, TXID)
+    /// The server assigns each deposit a unique "sequence" (nonce). Sometimes
+    /// it is useful for the client to be able to reverse-lookup the deposit
+    /// transaction from the deposit sequence. This is particularly useful in
+    /// the case of marking pending deposits that have been fully withdrawn as
+    /// "completed". This entry is short-lived: only while a deposit is pending.
+    DepositSequenceTransactionLookup = 0x07,
 }
 
 #[derive(Debug, Encodable, Decodable)]
@@ -226,3 +242,44 @@ pub async fn insert_user_operation_history_item(
         .await;
     }
 }
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct RecordedTransferItemKey {
+    pub account_id: AccountId,
+    pub txid: TransactionId,
+}
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct RecordedTransferAccountPrefix {
+    pub account_id: AccountId,
+}
+
+impl_db_record!(
+    key = RecordedTransferItemKey,
+    value = OperationId,
+    db_prefix = DbKeyPrefix::RecordedTransfer
+);
+
+impl_db_lookup!(
+    key = RecordedTransferItemKey,
+    query_prefix = RecordedTransferAccountPrefix,
+);
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct DepositSequenceTransactionLookupKey {
+    pub deposit_sequence: u64,
+}
+
+#[derive(Debug, Encodable, Decodable)]
+pub struct DepositSequenceTransactionLookupValue {
+    pub account_id: AccountId,
+    pub txid: TransactionId,
+    pub original_amount: Amount,
+    pub drained_amount: Amount,
+}
+
+impl_db_record!(
+    key = DepositSequenceTransactionLookupKey,
+    value = DepositSequenceTransactionLookupValue,
+    db_prefix = DbKeyPrefix::DepositSequenceTransactionLookup,
+);

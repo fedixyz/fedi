@@ -21,7 +21,7 @@ futures = "0.3"
 tracing = { workspace = true }
 hex = { workspace = true }
 nostr = { workspace = true }
-ts-rs = "10"
+ts-rs = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 federations = { workspace = true }

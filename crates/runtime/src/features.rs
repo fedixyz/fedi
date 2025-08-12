@@ -1,3 +1,5 @@
+use std::env;
+
 use reqwest::Url;
 use serde::Serialize;
 use ts_rs::TS;
@@ -5,6 +7,7 @@ use ts_rs::TS;
 /// Enum representing the environment in whose context the bridge is
 /// instantiated. For the Fedi app, this translates to the app flavors:
 /// - Dev = a locally-built developer build of the Fedi app
+/// - Tests = locally-build developer build for automated testing.
 /// - Staging = an internal build of the Fedi app, such as the nightly build
 /// - Prod = an external build of the Fedi app, such as the Fedi build
 ///
@@ -15,13 +18,14 @@ use ts_rs::TS;
 /// Depending on the runtime environment, features will be enabled or disabled.
 /// Typically when development work starts on a new feature, the feature will be
 /// turned off for all runtimes. Once the feature is code-complete, it might be
-/// turned on only for the "Dev" environment. Shortly thereafter, it might also
-/// be turned on for the "Staging" environment so that internally it can be
-/// tested. Finally, when the feature is considered stable, it will also be
-/// turned on for the "Prod" environment.
+/// turned on only for the "Dev" and "Tests" environment. Shortly thereafter, it
+/// might also be turned on for the "Staging" environment so that internally it
+/// can be tested. Finally, when the feature is considered stable, it will also
+/// be turned on for the "Prod" environment.
 #[derive(Debug, Clone, TS, Serialize)]
 pub enum RuntimeEnvironment {
     Dev,
+    Tests,
     Staging,
     Prod,
 }
@@ -60,30 +64,21 @@ pub struct FeatureCatalog {
     // iOS emulators.
     pub override_localhost: Option<OverrideLocalhostFeatureConfig>,
 
-    /// Enables stability pool v2 module, which also powers the multispend
-    /// feature. This feature is to be thought of as a tri-state enum
-    /// representing 3 scenarios.
-    /// 1. None: both stability pool v2 (and multispend feature) disabled
-    /// 2. Some(SpV2Only): use stability pool v2, but multispend disabled
-    /// 3. Some(Multispend): use stability pool and multispend enabled
-    ///
-    /// This is a global, bridge-level configuration. Actual availability of the
-    /// feature is on a per-federation basis, depending on whether or not
-    /// the new module is available in the federation. Note however, that
-    /// the feature flag takes precedence. If the feature flag is disabled,
-    /// the feature is never available. If the feature flag is enabled, then
-    /// the federation's module availability determines the availability of
-    /// the feature.
-    pub stability_pool_v2: Option<StabilityPoolV2FeatureConfig>,
-
     /// Enable Nostr client for Rate federation feature.
     ///
     /// This allows relays to be configured using a remote feature flag service
     /// in future.
     pub nostr_client: Option<NostrClientFeatureCatalog>,
-    /// figure out stable format for account id, that includes the federation id
-    /// prefix
-    pub spv2_stable_account_id: bool,
+
+    /// Device registration service configuration for registering devices with
+    /// Fedi's backend. This service helps coordinate device indices across
+    /// multiple devices using the same seed.
+    pub device_registration: DeviceRegistrationFeatureConfig,
+
+    /// Matrix server configuration for chat functionality.
+    /// This allows different matrix servers to be used based on the runtime
+    /// environment.
+    pub matrix: MatrixFeatureConfig,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -98,22 +93,21 @@ pub struct OverrideLocalhostFeatureConfig {}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
-pub struct StabilityPoolV2FeatureConfig {
-    pub state: StabilityPoolV2FeatureConfigState,
-}
-
-#[derive(Debug, Clone, TS, Serialize)]
-#[ts(export)]
 pub struct NostrClientFeatureCatalog {
     #[ts(type = "Array<string>")]
     pub relays: Vec<Url>,
 }
 
-#[derive(Debug, Clone, TS, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
-pub enum StabilityPoolV2FeatureConfigState {
-    SpV2Only,
-    Multispend,
+pub struct DeviceRegistrationFeatureConfig {
+    pub service_url: String,
+}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct MatrixFeatureConfig {
+    pub home_server: String,
 }
 
 impl FeatureCatalog {
@@ -122,6 +116,7 @@ impl FeatureCatalog {
             RuntimeEnvironment::Dev => Self::new_dev(),
             RuntimeEnvironment::Staging => Self::new_staging(),
             RuntimeEnvironment::Prod => Self::new_prod(),
+            RuntimeEnvironment::Tests => Self::new_tests(),
         }
     }
 
@@ -132,13 +127,35 @@ impl FeatureCatalog {
                 server_url: "https://prod-kv-store.dev.fedibtc.com/".to_string(),
             }),
             override_localhost: Some(OverrideLocalhostFeatureConfig {}),
-            stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
-                state: StabilityPoolV2FeatureConfigState::Multispend,
-            }),
             nostr_client: Some(NostrClientFeatureCatalog {
-                relays: vec![Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap()],
+                relays: vec![Url::parse("wss://nostr-rs-relay-staging.dev.fedibtc.com").unwrap()],
             }),
-            spv2_stable_account_id: true,
+            device_registration: DeviceRegistrationFeatureConfig {
+                service_url: "https://staging-device-control.dev.fedibtc.com/v0".to_string(),
+            },
+            matrix: MatrixFeatureConfig {
+                home_server: "https://staging.m1.8fa.in".to_string(),
+            },
+        }
+    }
+
+    fn new_tests() -> Self {
+        Self {
+            runtime_env: RuntimeEnvironment::Tests,
+            encrypted_sync: Some(EncryptedSyncFeatureConfig {
+                server_url: "https://prod-kv-store.dev.fedibtc.com/".to_string(),
+            }),
+            override_localhost: Some(OverrideLocalhostFeatureConfig {}),
+            nostr_client: Some(NostrClientFeatureCatalog {
+                relays: vec![Url::parse("wss://nostr-rs-relay-staging.dev.fedibtc.com").unwrap()],
+            }),
+            device_registration: DeviceRegistrationFeatureConfig {
+                service_url: "https://staging-device-control.dev.fedibtc.com/v0".to_string(),
+            },
+            matrix: MatrixFeatureConfig {
+                home_server: env::var("DEVI_SYNAPSE_SERVER")
+                    .expect("DEVI_SYNAPSE_SERVER must be set"),
+            },
         }
     }
 
@@ -147,13 +164,15 @@ impl FeatureCatalog {
             runtime_env: RuntimeEnvironment::Staging,
             encrypted_sync: None,
             override_localhost: None,
-            stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
-                state: StabilityPoolV2FeatureConfigState::Multispend,
-            }),
             nostr_client: Some(NostrClientFeatureCatalog {
-                relays: vec![Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap()],
+                relays: vec![Url::parse("wss://nostr-rs-relay-staging.dev.fedibtc.com").unwrap()],
             }),
-            spv2_stable_account_id: false,
+            device_registration: DeviceRegistrationFeatureConfig {
+                service_url: "https://staging-device-control.dev.fedibtc.com/v0".to_string(),
+            },
+            matrix: MatrixFeatureConfig {
+                home_server: "https://staging.m1.8fa.in".to_string(),
+            },
         }
     }
 
@@ -162,13 +181,18 @@ impl FeatureCatalog {
             runtime_env: RuntimeEnvironment::Prod,
             encrypted_sync: None,
             override_localhost: None,
-            stability_pool_v2: Some(StabilityPoolV2FeatureConfig {
-                state: StabilityPoolV2FeatureConfigState::Multispend,
-            }),
             nostr_client: Some(NostrClientFeatureCatalog {
-                relays: vec![Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap()],
+                relays: vec![
+                    Url::parse("wss://nostr-rs-relay.dev.fedibtc.com").unwrap(),
+                    Url::parse("wss://relay.damus.io/").unwrap(),
+                ],
             }),
-            spv2_stable_account_id: false,
+            device_registration: DeviceRegistrationFeatureConfig {
+                service_url: "https://prod-device-control.dev.fedibtc.com/v0".to_string(),
+            },
+            matrix: MatrixFeatureConfig {
+                home_server: "https://m1.8fa.in".to_string(),
+            },
         }
     }
 }

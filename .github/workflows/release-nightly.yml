@@ -57,6 +57,14 @@ jobs:
                   BUILD_UI_DEPS: 0
               run: nix develop -c ./scripts/ui/build-nightly-apk.sh
 
+            - name: Verify bridge hash
+              env:
+                  APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
+              run: |
+                  set -euo pipefail
+
+                  bash ./scripts/ci/verify-bridge-hash.sh "$APK_PATH" "${{ github.sha }}"
+
             - name: Create draft GitHub release with APK
               uses: softprops/action-gh-release@v2.2.2
               with:

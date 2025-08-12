@@ -4,12 +4,15 @@ import path from 'path'
 
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
+import { currentPlatform, Platform } from '../configs/appium/types'
+import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { OnboardingTest } from './common/onboarding.test'
 
 type TestConstructor = new () => AppiumTestBase
 
 const availableTests: Record<string, TestConstructor> = {
     onboarding: OnboardingTest,
+    joinLeaveFederations: JoinLeaveFederation,
 }
 type TestName = keyof typeof availableTests
 
@@ -119,7 +122,7 @@ async function runTests(testNames: string[]): Promise<void> {
 
                 anyTestFailed = true
 
-                /* take a screenshot on failure */
+                /* take a screenshot and dump the tree on failure */
                 try {
                     if (appiumManager.driver) {
                         const screenshot =
@@ -137,6 +140,14 @@ async function runTests(testNames: string[]): Promise<void> {
 
                         fs.writeFileSync(screenshotPath, screenshot, 'base64')
                         console.log(`Screenshot saved to: ${screenshotPath}`)
+                        if (currentPlatform === Platform.IOS) {
+                            // Android doesn't have this yet
+                            console.log('Dumping XML tree')
+                            await appiumManager.driver.executeScript(
+                                'mobile: source',
+                                [{ format: 'xml' }],
+                            )
+                        }
                     }
                 } catch (screenshotError) {
                     console.error(
@@ -144,6 +155,7 @@ async function runTests(testNames: string[]): Promise<void> {
                         screenshotError,
                     )
                 }
+                break
             }
         }
 

@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom'
 
 Object.defineProperty(window, 'matchMedia', {
-    writable: true,
     value: jest.fn().mockImplementation(query => ({
         matches: false,
         media: query,
@@ -14,6 +13,10 @@ Object.defineProperty(window, 'matchMedia', {
     })),
 })
 
+Object.defineProperty(HTMLMediaElement.prototype, 'load', {
+    value: jest.fn(),
+})
+
 jest.mock('next/router', () => ({
     useRouter() {
         return {
@@ -21,6 +24,21 @@ jest.mock('next/router', () => ({
             push: jest.fn(),
         }
     },
+}))
+
+jest.mock('@fedi/common/utils/log', () => ({
+    makeLog: () => ({
+        error: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+    }),
+}))
+
+jest.mock('@fedi/common/hooks/toast', () => ({
+    useToast: () => ({
+        error: jest.fn(),
+    }),
 }))
 
 global.URL.createObjectURL = jest.fn().mockImplementation(() => '/test-url')
@@ -31,3 +49,5 @@ global.ResizeObserver = jest.fn().mockImplementation(() => ({
     unobserve: jest.fn(),
     disconnect: jest.fn(),
 }))
+
+HTMLCanvasElement.prototype.getContext = jest.fn()

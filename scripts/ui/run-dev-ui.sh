@@ -49,8 +49,8 @@ if [[ "$MODE" == "interactive" ]]; then
     read -p "Use remote bridge? (y/n) " -n 1 -r
     echo
   done
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-    export FEDI_BRIDGE_REMOTE=1
+  if [[ $REPLY =~ ^[Nn]$ ]]; then
+    export FEDI_DISABLE_REMOTE_BRIDGE=1
   fi
 
   unset REPLY
@@ -149,7 +149,7 @@ if [[ "$MODE" == "interactive" ]]; then
   done
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     export RUN_TESTS=1
-    available_tests=("onboarding")
+    available_tests=("onboarding" "JoinLeaveFederation")
     echo "Available tests: ${available_tests[*]}"
     echo "Input the name of tests you wish to run separated by spaces, or input 'all' to run all tests and press Enter:"
     read -r test_input

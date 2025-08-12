@@ -7,8 +7,7 @@ import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import {
     selectActiveFederation,
-    selectHasSeenFederationRating,
-    selectIsNostrClientEnabled,
+    selectShouldRateFederation,
 } from '@fedi/common/redux'
 import { ParserDataType, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
@@ -22,7 +21,7 @@ import { AmountInput } from './AmountInput'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { DialogStatus, DialogStatusProps } from './DialogStatus'
-import { OmniInput } from './OmniInput'
+import { OmniInput, type OmniCustomAction } from './OmniInput'
 import RateFederationDialog from './Onboarding/RateFederationDialog'
 import { SendOffline } from './SendOffline'
 import { Text } from './Text'
@@ -59,10 +58,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         handleOmniSend,
         resetOmniPaymentState,
     } = useOmniPaymentState(fedimint, activeFederationId, false, t)
-    const hasRatedFederation = useAppSelector(s =>
-        selectHasSeenFederationRating(s, activeFederationId ?? ''),
-    )
-    const isNostrClientEnabled = useAppSelector(selectIsNostrClientEnabled)
+    const shouldRateFederation = useAppSelector(selectShouldRateFederation)
 
     const [showRateFederation, setShowRateFederation] = useState(false)
     const [isSendingOffline, setIsSendingOffline] = useState(false)
@@ -76,8 +72,6 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const isOfflineWalletSupported = useIsOfflineWalletSupported()
     const isSmall = useMediaQuery(config.media.sm)
     const balanceDisplay = useBalanceDisplay(t)
-
-    const willShowRateFederation = !hasRatedFederation && isNostrClientEnabled
 
     // Reset modal on close and open
     useEffect(() => {
@@ -104,13 +98,13 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
     const handleOpenChange = useCallback(
         (change: boolean) => {
-            if (willShowRateFederation && !change) {
+            if (shouldRateFederation && !change) {
                 setShowRateFederation(true)
             }
 
             onOpenChange(change)
         },
-        [willShowRateFederation, onOpenChange],
+        [shouldRateFederation, onOpenChange],
     )
 
     const handleChangeAmount = useCallback(
@@ -204,23 +198,24 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             />
         )
     } else {
+        const customActions: OmniCustomAction[] = ['paste']
+
+        if (isOfflineWalletSupported) {
+            customActions.push({
+                label: t('feature.send.send-offline'),
+                icon: OfflineIcon,
+                onClick: () => setIsSendingOffline(true),
+            })
+        }
+
         content = (
             <OmniInputContainer>
                 <OmniInput
                     expectedInputTypes={expectedInputTypes}
                     onExpectedInput={handleOmniInput}
                     onUnexpectedSuccess={() => handleOpenChange(false)}
-                    customActions={
-                        isOfflineWalletSupported
-                            ? [
-                                  {
-                                      label: t('feature.send.send-offline'),
-                                      icon: OfflineIcon,
-                                      onClick: () => setIsSendingOffline(true),
-                                  },
-                              ]
-                            : undefined
-                    }></OmniInput>
+                    customActions={customActions}
+                />
             </OmniInputContainer>
         )
     }
@@ -245,7 +240,8 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                     )}
                 </Container>
             </Dialog>
-            {isNostrClientEnabled && (
+            {/* temporarily disable federation rating until dialog bug is fixed */}
+            {false && shouldRateFederation && (
                 <RateFederationDialog
                     show={showRateFederation}
                     onDismiss={() => {

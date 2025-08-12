@@ -1,4 +1,4 @@
-import { QRCode } from 'qrcode'
+import { create, QRCode } from 'qrcode'
 
 interface QRCodeStyleOptions {
     moduleShape?: 'dot' | 'square'
@@ -12,17 +12,17 @@ interface QRCodeStyleOptions {
  * and modified to match our styles.
  */
 export function renderStyledQrSvg(
-    qrData: QRCode,
+    data: string,
     options: QRCodeStyleOptions = {},
 ) {
+    const qrData = create(data)
+
     removeModules(qrData.modules, options.hideLogo)
 
-    const data = qrData.modules.data
     const size = qrData.modules.size
+    const dataArr = qrData.modules.data
     const moduleSize = 97
     const randomId = Math.random().toString(36).substring(2, 15)
-
-    const moduleShape = size > 60 ? 'square' : options.moduleShape || 'dot'
 
     const avatarPictureDimension = 700
     const avatarPicturePosition =
@@ -33,48 +33,31 @@ export function renderStyledQrSvg(
             viewBox="0 0 ${moduleSize * size} ${moduleSize * size}"
             width="250px"
             height="250px"
-            version="1.1"
-            xml:space="preserve"
             xmlns="http://www.w3.org/2000/svg"
-            xmlns:xlink="http://www.w3.org/1999/xlink"
         >
             <defs>
-                ${
-                    moduleShape === 'square'
-                        ? `<rect id="dot-${randomId}" width="100" height="100" fill="currentColor" />`
-                        : `<circle id="dot-${randomId}" cx="45" cy="45" r="45" fill="currentColor" />`
-                }
                 <g id="point-${randomId}">
                     <rect x="0" y="0" width="695" height="700" rx="200" fill="currentColor" stroke-width="8"/>
                     <rect x="115" y="115" width="465" height="465" rx="40" fill="white"/>
                     <rect x="180" y="180" width="335" height="335" rx="20" fill="currentColor"/>
                 </g>
-                ${
-                    options.hideLogo && !options.logoOverrideUrl
-                        ? ''
-                        : `<g id="logo-${randomId}">
-                        <rect width="990" height="990" rx="200" fill="currentColor"/>
-                        <path fill-rule="evenodd" clip-rule="evenodd" d="M580.179 224H224V766.298H331.619V331.716H580.179V224ZM495.21 581.688C542.888 581.688 581.688 542.888 581.688 495.21C581.688 447.531 542.888 408.609 495.21 408.609C447.531 408.609 408.609 447.409 408.609 495.21C408.609 543.01 447.409 581.688 495.21 581.688ZM410.119 658.68H658.583V224H766.298V766.298H410.119V658.68Z" fill="white"/>
-                    </g>`
-                }
             </defs>
-            <g transform="translate(0,0)">
-                ${renderQrDots(data, size, moduleSize, randomId)}
-                <use fill-rule="evenodd" transform="translate(0,0)" xlink:href="#point-${randomId}"/>
+            <g>
+                ${renderQrDots(dataArr, size, moduleSize, options)}
+                <use fill-rule="evenodd" transform="translate(0,0)" href="#point-${randomId}"/>
                 <use fill-rule="evenodd" transform="translate(${
                     size * moduleSize - 700
-                },0)" xlink:href="#point-${randomId}"/>
+                },0)" href="#point-${randomId}"/>
                 <use fill-rule="evenodd" transform="translate(0,${
                     size * moduleSize - 700
-                })" xlink:href="#point-${randomId}"/>
+                })" href="#point-${randomId}"/>
                 ${
                     options.hideLogo || !!options.logoOverrideUrl
                         ? ''
-                        : `<use fill-rule="evenodd" transform="translate(${
-                              size * 0.5 * moduleSize - 280
-                          }, ${
-                              size * 0.5 * moduleSize - 290
-                          }) scale(0.6)" xlink:href="#logo-${randomId}" />`
+                        : `<g transform="translate(${size * 0.5 * moduleSize - 280}, ${size * 0.5 * moduleSize - 290}) scale(0.6)" href="#logo-${randomId}">
+                            <rect width="990" height="990" rx="200" fill="currentColor"/>
+                            <path fill-rule="evenodd" clip-rule="evenodd" d="M580.179 224H224V766.298H331.619V331.716H580.179V224ZM495.21 581.688C542.888 581.688 581.688 542.888 581.688 495.21C581.688 447.531 542.888 408.609 495.21 408.609C447.531 408.609 408.609 447.409 408.609 495.21C408.609 543.01 447.409 581.688 495.21 581.688ZM410.119 658.68H658.583V224H766.298V766.298H410.119V658.68Z" fill="white"/>
+                        </g>`
                 }
             </g>
 
@@ -105,7 +88,6 @@ export function renderStyledQrSvg(
             viewBox="0 0 250 250"
             version="1.1"
             xmlns="http://www.w3.org/2000/svg"
-            xmlns:xlink="http://www.w3.org/1999/xlink"
         >
             <defs>
                 <g id="qr-${randomId}" style="color: inherit">${qrSvg}</g>
@@ -114,10 +96,8 @@ export function renderStyledQrSvg(
                 <use
                     x="0"
                     y="0"
-                    xlink:href="#qr-${randomId}"
+                    href="#qr-${randomId}"
                     transform="scale(1)"
-                    xmlns="http://www.w3.org/2000/svg"
-                    xmlns:xlink="http://www.w3.org/1999/xlink"
                 />
             </g>
         </svg>
@@ -164,22 +144,31 @@ function removeModules(matrix: QRCode['modules'], hideLogo?: boolean) {
 }
 
 function renderQrDots(
-    data: Uint8Array,
+    dataArr: Uint8Array,
     size: number,
     moduleSize: number,
-    randomId: string,
+    options: QRCodeStyleOptions,
 ) {
-    let svg = ''
+    const moduleShape = size > 60 ? 'square' : options.moduleShape || 'dot'
+    let pathString = ''
 
-    for (let i = 0; i < data.length; i++) {
-        if (data[i]) {
-            const col = Math.floor(i % size)
-            const row = Math.floor(i / size)
-            svg += `<g transform="translate(${col * moduleSize}, ${
-                row * moduleSize
-            })"><use xlink:href="#dot-${randomId}"/></g>`
-        }
+    for (let i = 0; i < dataArr.length; i++) {
+        if (!dataArr[i]) continue
+
+        const x = Math.floor(i % size)
+        const y = Math.floor(i / size)
+
+        if (moduleShape === 'square')
+            pathString += `M ${x * moduleSize} ${y * moduleSize + moduleSize / 2} H ${x * moduleSize + moduleSize}`
+        else
+            pathString += `M ${x * moduleSize + moduleSize / 2} ${y * moduleSize + moduleSize / 2} H ${x * moduleSize + moduleSize / 2}`
     }
 
-    return svg
+    return `<path
+        d="${pathString}"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="${moduleShape === 'square' ? 100 : 90}"
+        stroke-linecap="${moduleShape === 'dot' ? 'round' : 'butt'}"
+    />`
 }

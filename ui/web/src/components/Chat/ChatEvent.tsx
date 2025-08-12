@@ -27,11 +27,26 @@ export const ChatEvent: React.FC<Props> = ({ event }) => {
 
     const isMe = event.senderId === matrixAuth?.userId
 
-    const content = isImageEvent(event) ? (
-        <ChatImageEvent event={event} />
-    ) : isVideoEvent(event) ? (
-        <ChatVideoEvent event={event} />
-    ) : isPaymentEvent(event) ? (
+    // Images and videos require a different wrapper that has a percentage width
+    // rather than a "fit-content" width. This allows the image to be scaled
+    // properly futher down.
+    if (isImageEvent(event)) {
+        return (
+            <MediaContent isMe={isMe}>
+                <ChatImageEvent event={event} />
+            </MediaContent>
+        )
+    }
+
+    if (isVideoEvent(event)) {
+        return (
+            <MediaContent isMe={isMe}>
+                <ChatVideoEvent event={event} />
+            </MediaContent>
+        )
+    }
+
+    const content = isPaymentEvent(event) ? (
         <ChatPaymentEvent event={event} />
     ) : isFormEvent(event) ? (
         <ChatFormEvent event={event} />
@@ -42,17 +57,30 @@ export const ChatEvent: React.FC<Props> = ({ event }) => {
     )
 
     return (
-        <MessageContent
+        <TextContent
             isMe={isMe}
-            isMedia={isImageEvent(event) || isVideoEvent(event)}
             isPayment={isPaymentEvent(event)}
             isForm={isFormEvent(event)}>
             {content}
-        </MessageContent>
+        </TextContent>
     )
 }
 
-const MessageContent = styled('div', {
+const MediaContent = styled('div', {
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    width: '90%',
+
+    variants: {
+        isMe: {
+            true: {
+                flexDirection: 'row',
+            },
+        },
+    },
+})
+
+const TextContent = styled('div', {
     background: theme.colors.blue,
     borderRadius: theme.sizes.xxs,
     color: theme.colors.white,
@@ -88,12 +116,6 @@ const MessageContent = styled('div', {
                 '& a': {
                     color: theme.colors.secondary,
                 },
-            },
-        },
-        isMedia: {
-            true: {
-                padding: 0,
-                width: '90%',
             },
         },
     },

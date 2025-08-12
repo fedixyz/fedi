@@ -15,10 +15,20 @@ interface Props {
     onSelect: (userId: string) => void
     showUsernames?: boolean
     isPublic?: boolean
+    onReplyTap?: (eventId: string) => void
+    highlightedMessageId?: string | null
 }
 
 const ChatEventCollection: React.FC<Props> = memo(
-    ({ roomId, collection, onSelect, showUsernames, isPublic }: Props) => {
+    ({
+        roomId,
+        collection,
+        onSelect,
+        showUsernames,
+        isPublic,
+        onReplyTap,
+        highlightedMessageId,
+    }: Props) => {
         const { theme } = useTheme()
 
         const earliestEvent = useMemo(
@@ -51,13 +61,20 @@ const ChatEventCollection: React.FC<Props> = memo(
                             showUsernames={showUsernames}
                             isPublic={isPublic}
                             onSelect={onSelect}
+                            onReplyTap={onReplyTap}
+                            highlightedMessageId={highlightedMessageId}
                         />
                     ))}
                 </Flex>
             </View>
         )
     },
-    (prev, curr) => isEqual(prev.collection, curr.collection),
+    (prev, curr) => {
+        if (prev.highlightedMessageId !== curr.highlightedMessageId) {
+            return false
+        }
+        return isEqual(prev.collection, curr.collection)
+    },
 )
 
 const styles = (theme: Theme) =>

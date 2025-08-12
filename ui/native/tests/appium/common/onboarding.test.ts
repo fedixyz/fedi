@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-import { currentPlatform, Platform } from '../../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../../configs/appium/AppiumTestBase'
 
 export class OnboardingTest extends AppiumTestBase {
@@ -29,13 +28,7 @@ export class OnboardingTest extends AppiumTestBase {
         await this.clickElementByKey('AvatarButton')
         await this.waitForElementDisplayed('UserQrContainer')
         // TODO: copy the fedi user address and validate it
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 950 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 402 })
-            .up({ button: 0 })
-            .perform()
+        await this.scrollToElement('Edit profile')
         await this.clickElementByKey('Edit profile')
         await this.clickElementByKey('DisplayNameInput')
         await this.typeIntoElementByKey(
@@ -55,6 +48,7 @@ export class OnboardingTest extends AppiumTestBase {
         await this.waitForElementDisplayed('SuccessToast')
         await this.clickElementByKey('HeaderBackButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
+        await this.scrollToElement('Fedi Mods')
         await this.clickElementByKey('Fedi Mods')
         await this.clickElementByKey('AskFediVisibilityToggleButton')
         await this.clickElementByKey('HeaderBackButton')
@@ -68,13 +62,7 @@ export class OnboardingTest extends AppiumTestBase {
         }
         await this.clickElementByKey('AvatarButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 950 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 402 })
-            .up({ button: 0 })
-            .perform()
+        await this.scrollToElement('Language')
         await this.clickElementByKey('Language')
         await this.clickElementByKey('es')
         await this.clickElementByKey('HeaderBackButton')
@@ -88,6 +76,7 @@ export class OnboardingTest extends AppiumTestBase {
         await this.clickElementByKey('en')
         await this.clickElementByKey('HeaderBackButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
+        await this.scrollToElement('Display currency')
         await this.clickElementByKey('Display currency')
         await this.clickElementByKey('ARS')
         await this.clickElementByKey('HeaderBackButton')
@@ -99,13 +88,7 @@ export class OnboardingTest extends AppiumTestBase {
         }
         await this.clickElementByKey('AvatarButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 950 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 402 })
-            .up({ button: 0 })
-            .perform()
+        await this.scrollToElement('Personal backup')
         await this.clickElementByKey('Personal backup')
         await this.clickElementByKey('Continue')
         // TODO: validate backup here
@@ -113,37 +96,9 @@ export class OnboardingTest extends AppiumTestBase {
         // TODO: test pin access
         // TODO: test nostr details
         await this.clickElementByKey('AvatarButton')
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 470 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 47 })
-            .up({ button: 0 })
-            .perform()
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 470 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 47 })
-            .up({ button: 0 })
-            .perform()
-        if (currentPlatform === Platform.ANDROID) {
-            await this.driver
-                .action('pointer')
-                .move({ duration: 0, x: 13, y: 470 })
-                .down({ button: 0 })
-                .move({ duration: 100, x: 13, y: 47 })
-                .up({ button: 0 })
-                .perform()
-        }
+        await this.scrollToElement('FediTestnetAccordionButton')
         await this.clickElementByKey('FediTestnetAccordionButton')
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 360 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 60 })
-            .up({ button: 0 })
-            .perform()
+        await this.scrollToElement('Federation Mods')
         await this.clickElementByKey('Federation Mods')
         await this.clickElementByKey('FaucetVisibilityToggleButton')
         await this.clickElementByKey('HeaderBackButton')
@@ -151,20 +106,7 @@ export class OnboardingTest extends AppiumTestBase {
         await this.clickElementByKey('HeaderCloseButton')
         await this.clickElementByKey('Home')
         await new Promise(resolve => setTimeout(resolve, 1000))
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 470 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 47 })
-            .up({ button: 0 })
-            .perform()
-        await this.driver
-            .action('pointer')
-            .move({ duration: 0, x: 13, y: 360 })
-            .down({ button: 0 })
-            .move({ duration: 1000, x: 13, y: 60 })
-            .up({ button: 0 })
-            .perform()
+        await this.scroll('down', 100, 50)
         if ((await this.isTextPresent('Faucet', false, 2000)) === true) {
             throw new Error(
                 `Faucet Mod wasn't hidden. Hiding federation mods is possibly broken`,

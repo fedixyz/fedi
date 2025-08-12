@@ -15,6 +15,7 @@ import {
     TextInput,
     TextInputContentSizeChangeEventData,
     View,
+    Animated,
 } from 'react-native'
 import { DocumentPickerResponse, types } from 'react-native-document-picker'
 import { Asset, ImageLibraryOptions } from 'react-native-image-picker'
@@ -31,10 +32,18 @@ import {
     selectMessageToEdit,
     setChatDraft,
     setMessageToEdit,
+    selectReplyingToMessageEventForRoom,
+    clearChatReplyingToMessage,
+    selectMatrixRoomMembers,
+    selectIsInternetUnreachable,
 } from '@fedi/common/redux'
 import { InputAttachment, InputMedia } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
-import { getEventId } from '@fedi/common/utils/matrix'
+import {
+    getEventId,
+    matrixIdToUsername,
+    stripReplyFromBody,
+} from '@fedi/common/utils/matrix'
 import { formatFileSize } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
@@ -54,11 +63,13 @@ type MessageInputProps = {
     onMessageSubmitted: (
         message: string,
         attachments?: Array<InputAttachment | InputMedia>,
+        repliedEventId?: string | null,
     ) => Promise<void>
     id: string
     isSending?: boolean
     isPublic?: boolean
     onHeightChanged?: (height: number) => void
+    onReplyBarHeightChanged?: (height: number) => void
 }
 
 const log = makeLog('MessageInput')
@@ -79,6 +90,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     isSending,
     isPublic = true,
     onHeightChanged,
+    onReplyBarHeightChanged: onReplyBarHeightChanged,
 }: MessageInputProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -90,6 +102,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const toast = useToast()
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, id))
+    const repliedEvent = useAppSelector(s =>
+        selectReplyingToMessageEventForRoom(s, id),
+    )
+    const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, id))
+    const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     const drafts = useAppSelector(s => selectChatDrafts(s))
     const [inputHeight, setInputHeight] = useState<number>(
@@ -98,6 +115,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const [keyboardHeight, setKeyboardHeight] = useState<number>(0)
     const [messageText, setMessageText] = useState<string>(drafts[id] ?? '')
     const [isSendingMessage, setIsSendingMessage] = useState(false)
+    const [replyAnimation] = useState(new Animated.Value(0))
+
     const directUserId = useMemo(
         () => existingRoom?.directUserId ?? null,
         [existingRoom],
@@ -107,6 +126,39 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const isEditingMessage = !!editingMessage
     const inputDisabled = isSending || isReadOnly
+
+    // animate reply bar appearance/disappearance
+    useEffect(() => {
+        if (repliedEvent && !isEditingMessage && !isReadOnly) {
+            Animated.timing(replyAnimation, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }).start()
+
+            // notify parent about reply bar height
+            if (onReplyBarHeightChanged) {
+                onReplyBarHeightChanged(110)
+            }
+        } else {
+            Animated.timing(replyAnimation, {
+                toValue: 0,
+                duration: 150,
+                useNativeDriver: true,
+            }).start()
+
+            // reset reply bar height
+            if (onReplyBarHeightChanged) {
+                onReplyBarHeightChanged(0)
+            }
+        }
+    }, [
+        repliedEvent,
+        isEditingMessage,
+        isReadOnly,
+        replyAnimation,
+        onReplyBarHeightChanged,
+    ])
 
     useDebouncedEffect(
         () => {
@@ -245,13 +297,38 @@ const MessageInput: React.FC<MessageInputProps> = ({
         )
             return
 
+        // Validate replied event before sending
+        if (repliedEvent) {
+            if (!repliedEvent.eventId || isOffline) {
+                dispatch(clearChatReplyingToMessage())
+
+                const errorMessage = !repliedEvent.eventId
+                    ? t('feature.chat.offline-reply-error-1')
+                    : t('feature.chat.offline-reply-error-2')
+
+                toast.error(t, new Error(errorMessage))
+                return
+            }
+
+            if (repliedEvent.status === 'failed') {
+                dispatch(clearChatReplyingToMessage())
+                toast.error(t, new Error('Cannot reply to failed message'))
+                return
+            }
+        }
+
         setIsSendingMessage(true)
 
         try {
-            await onMessageSubmitted(trimmedMessageText, combinedUploads)
+            await onMessageSubmitted(
+                trimmedMessageText,
+                combinedUploads,
+                repliedEvent?.eventId ?? null,
+            )
             setMessageText('')
             setMedia([])
             setDocuments([])
+            if (repliedEvent) dispatch(clearChatReplyingToMessage())
         } catch (e) {
             toast.error(t, e, 'errors.chat-unavailable')
         } finally {
@@ -262,9 +339,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         isSending,
         trimmedMessageText,
         onMessageSubmitted,
+        repliedEvent,
+        dispatch,
         toast,
         t,
         isSendingMessage,
+        isOffline,
     ])
 
     const style = useMemo(() => styles(theme, insets), [theme, insets])
@@ -305,6 +385,72 @@ const MessageInput: React.FC<MessageInputProps> = ({
         onHeightChanged(event.nativeEvent.layout.height)
     }
 
+    const repliedEventSenderName = useMemo(() => {
+        return (
+            roomMembers.find(member => member.id === repliedEvent?.senderId)
+                ?.displayName || matrixIdToUsername(repliedEvent?.senderId)
+        )
+    }, [roomMembers, repliedEvent?.senderId])
+
+    const renderReplyBar = () => {
+        if (!repliedEvent || isEditingMessage || isReadOnly) return null
+
+        const sender = repliedEventSenderName
+
+        const bodySnippet = (() => {
+            const body = repliedEvent.content.body || 'Message'
+
+            const formattedBody =
+                'formatted_body' in repliedEvent.content
+                    ? repliedEvent.content.formatted_body
+                    : undefined
+
+            const cleanBody = stripReplyFromBody(body, formattedBody)
+            return cleanBody.slice(0, 50) || 'Message'
+        })()
+
+        return (
+            <Animated.View
+                style={[
+                    style.replyBarContainer,
+                    {
+                        transform: [
+                            {
+                                translateY: replyAnimation.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [-5, 0],
+                                }),
+                            },
+                        ],
+                        opacity: replyAnimation,
+                    },
+                ]}>
+                <View style={style.replyBar}>
+                    <View style={style.replyIndicator} />
+                    <View style={style.replyContent}>
+                        <Text style={style.replySender} numberOfLines={1}>
+                            Replying to {sender}
+                        </Text>
+                        <Text style={style.replyBody} numberOfLines={1}>
+                            {bodySnippet}
+                        </Text>
+                    </View>
+
+                    <Pressable
+                        style={style.replyCloseButton}
+                        hitSlop={12}
+                        onPress={() => dispatch(clearChatReplyingToMessage())}>
+                        <SvgImage
+                            name="Close"
+                            size={SvgImageSize.xs}
+                            color={theme.colors.grey}
+                        />
+                    </Pressable>
+                </View>
+            </Animated.View>
+        )
+    }
+
     return (
         <View
             onLayout={onLayout}
@@ -314,7 +460,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     ? { paddingBottom: keyboardHeight + theme.spacing.lg }
                     : { paddingBottom: theme.spacing.lg + insets.bottom },
                 isReadOnly ? { borderTopWidth: 0 } : {},
+                // push content up when reply bar is visible
+                repliedEvent && !isEditingMessage && !isReadOnly
+                    ? { marginTop: -60 }
+                    : {},
             ]}>
+            {renderReplyBar()}
             {documents.length > 0 && (
                 <View style={style.attachmentContainer}>
                     {documents.map((att, i) => (
@@ -606,6 +757,60 @@ const styles = (theme: Theme, insets: Insets) =>
             alignItems: 'center',
             justifyContent: 'flex-end',
             gap: theme.spacing.md,
+        },
+        replyBarContainer: {
+            position: 'absolute',
+            top: -(59 + 1),
+            left: -(theme.spacing.md + (insets.left || 0)),
+            right: -(theme.spacing.md + (insets.right || 0)),
+            width: 'auto',
+            zIndex: 1,
+        },
+        replyBar: {
+            width: '100%',
+            height: 59,
+            backgroundColor: theme.colors.offWhite100,
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.lightGrey,
+            paddingTop: 12,
+            paddingRight: theme.spacing.md + (insets.right || 0) + 16,
+            paddingBottom: 12,
+            paddingLeft: theme.spacing.md + (insets.left || 0) + 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 16,
+        },
+        replyIndicator: {
+            width: 4,
+            height: 35,
+            backgroundColor: theme.colors.primary || '#007AFF',
+            borderRadius: 2,
+            flexShrink: 0,
+        },
+        replyContent: {
+            flex: 1,
+            justifyContent: 'center',
+        },
+        replySender: {
+            fontFamily: 'Albert Sans',
+            fontWeight: '700',
+            fontSize: 14,
+            lineHeight: 20,
+            letterSpacing: 0,
+            color: theme.colors.darkGrey,
+            marginBottom: 2,
+        },
+        replyBody: {
+            fontFamily: 'Albert Sans',
+            fontSize: 13,
+            color: theme.colors.grey || '#6C757D',
+            lineHeight: 16,
+        },
+        replyCloseButton: {
+            width: 24,
+            height: 24,
+            alignItems: 'center',
+            justifyContent: 'center',
         },
     })
 

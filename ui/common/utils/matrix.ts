@@ -4,7 +4,6 @@ import { z } from 'zod'
 
 import { toSha256EncHex } from '@fedi/common/utils/EncryptionUtils'
 
-import { GLOBAL_MATRIX_SERVER } from '../constants/matrix'
 import { FormattedAmounts } from '../hooks/amount'
 import {
     InputMedia,
@@ -62,6 +61,11 @@ export const getLocalizedTextWithFallback = (
 export const matrixIdToUsername = (id: string | null | undefined) =>
     id ? id.split(':')[0].replace('@', '') : '?'
 
+/*
+ * Converts a Matrix Content URI (mxc://) to a HTTP URL
+ * expected mxcUrl: mxc://staging.m1.8fa.in/HDUqmHaKmXbLbgkMHwUoXTry
+ * expected result: https://staging.m1.8fa.in/_matrix/media/r0/thumbnail/staging.m1.8fa.in/HDUqmHaKmXbLbgkMHwUoXTry?width=100&height=100&method=crop
+ */
 export const mxcUrlToHttpUrl = (
     mxcUrl: string,
     width: number,
@@ -70,11 +74,12 @@ export const mxcUrlToHttpUrl = (
 ) => {
     const [serverName, mediaId] = mxcUrl.split('/').slice(2)
     if (!mediaId) return undefined
-    const url = new URL(GLOBAL_MATRIX_SERVER)
+    const homeserverUrl = `https://${serverName}`
+    const url = new URL(homeserverUrl)
     url.pathname = `/_matrix/media/r0/thumbnail/${serverName}/${mediaId}`
     if (width) url.searchParams.set('width', width.toString())
     if (height) url.searchParams.set('height', height.toString())
-    if (method) url.searchParams.set('method', method)
+    url.searchParams.set('method', method)
     return url.toString()
 }
 
@@ -245,6 +250,12 @@ const multispendEventSchemas = {
         Extract<MultispendEvent, { kind: 'withdrawalResponse' }>
     >,
 }
+const baseTextMessageContent = z.object({
+    msgtype: z.string(),
+    body: z.string(),
+    format: z.literal('org.matrix.custom.html').optional(),
+    formatted_body: z.string().optional(),
+})
 
 const formTypeSchema = z.enum(['text', 'radio', 'button'])
 const formOptionSchema = z.object({
@@ -262,16 +273,41 @@ const formResponseSchema = z.object({
 export type MatrixFormOption = z.infer<typeof formOptionSchema>
 export type MatrixFormResponse = z.infer<typeof formResponseSchema>
 
+// Reply-related fields that can be added to any message, follows matrix spec:
+// https://spec.matrix.org/v1.15/client-server-api/#forming-relationships-between-events
+// https://spec.matrix.org/v1.15/client-server-api/#rich-replies
+const replyRelation = z.object({
+    'm.relates_to': z
+        .object({
+            rel_type: z.string().optional(),
+            event_id: z.string().optional(),
+            key: z.string().optional(), // for reactions
+            'm.in_reply_to': z
+                .object({
+                    event_id: z.string(),
+                })
+                .optional(),
+        })
+        .optional(),
+})
+
 const contentSchemas = {
     /* Matrix standard events, not an exhaustive list */
-    'm.text': z.object({
-        msgtype: z.literal('m.text'),
-        body: z.string(),
-    }),
-    'm.notice': z.object({
-        msgtype: z.literal('m.notice'),
-        body: z.string(),
-    }),
+    'm.text': baseTextMessageContent
+        .extend({
+            msgtype: z.literal('m.text'),
+        })
+        .merge(replyRelation),
+    'm.notice': baseTextMessageContent
+        .extend({
+            msgtype: z.literal('m.notice'),
+        })
+        .merge(replyRelation),
+    'm.emote': baseTextMessageContent
+        .extend({
+            msgtype: z.literal('m.emote'),
+        })
+        .merge(replyRelation),
     'm.image': z.object({
         msgtype: z.literal('m.image'),
         body: z.string(),
@@ -302,10 +338,6 @@ const contentSchemas = {
             size: z.number(),
         }),
         file: encryptedFileSchema,
-    }),
-    'm.emote': z.object({
-        msgtype: z.literal('m.emote'),
-        body: z.string(),
     }),
     /* This event is defined by Matrix, but we extend it with the `msgtype` for simpler parsing */
     'm.room.encrypted': z.object({
@@ -478,6 +510,37 @@ export type MatrixEventContentType<T extends keyof typeof contentSchemas> =
 export type MatrixEventContent =
     | z.infer<(typeof contentSchemas)[keyof typeof contentSchemas]>
     | MatrixEventUnknownContent
+
+export type RepliableMatrixEventContent = MatrixEventContent & {
+    'm.relates_to'?: {
+        rel_type?: string
+        event_id?: string
+        key?: string
+        'm.in_reply_to'?: {
+            event_id: string
+        }
+    }
+    formatted_body?: string
+    format?: 'org.matrix.custom.html'
+}
+
+export type ReplyMessageData = {
+    eventId: string
+    senderId: string
+    senderDisplayName?: string
+    body: string
+    timestamp?: number
+}
+export type MatrixRelatesTo =
+    | {
+          rel_type?: string
+          event_id: string
+          key?: string // for reactions
+          'm.in_reply_to'?: {
+              event_id: string
+          }
+      }
+    | undefined
 
 export function getEventId(event: MatrixEvent): RpcTimelineEventItemId {
     return event.eventId
@@ -1192,4 +1255,152 @@ export function isWithdrawalRequestApproved(
         return true
 
     return false
+}
+
+export function isRepliableContent(
+    content: unknown,
+): content is RepliableMatrixEventContent {
+    return (
+        content !== null &&
+        typeof content === 'object' &&
+        content !== undefined &&
+        'm.relates_to' in content &&
+        content['m.relates_to'] !== null &&
+        typeof content['m.relates_to'] === 'object'
+    )
+}
+
+export function isReply(event: MatrixEvent): boolean {
+    if (!isRepliableContent(event.content)) {
+        return false
+    }
+
+    if (event.content['m.relates_to']?.['m.in_reply_to']) {
+        return true
+    }
+
+    return false
+}
+
+export function getReplyMessageData(
+    event: MatrixEvent,
+): ReplyMessageData | null {
+    if (!isRepliableContent(event.content)) {
+        return null
+    }
+
+    if (event.content['m.relates_to']?.['m.in_reply_to']) {
+        const eventId = event.content['m.relates_to']['m.in_reply_to'].event_id
+
+        return {
+            eventId,
+            senderId: '',
+            senderDisplayName: undefined,
+            body: 'Reply message',
+            timestamp: undefined,
+        }
+    }
+
+    return null
+}
+
+export function getReplyEventId(event: MatrixEvent): string | null {
+    if (!isRepliableContent(event.content)) {
+        return null
+    }
+
+    if (event.content['m.relates_to']?.['m.in_reply_to']?.event_id) {
+        return event.content['m.relates_to']['m.in_reply_to'].event_id
+    }
+
+    return null
+}
+
+// helper function to check if an event is replying to a specific event
+export function isReplyToEvent(
+    event: MatrixEvent,
+    targetEventId: string,
+): boolean {
+    const replyEventId = getReplyEventId(event)
+    return replyEventId === targetEventId
+}
+export function stripReplyFromBody(
+    body: string,
+    formattedBody?: string,
+): string {
+    // strip mx-reply content if present
+    if (formattedBody && formattedBody.includes('<mx-reply>')) {
+        const strippedBody = formattedBody
+            .replace(/<mx-reply>[\s\S]*?<\/mx-reply>/g, '')
+            .trim()
+        return strippedBody.replace(/<[^>]*>/g, '').trim()
+    }
+
+    // strip reply from plain text body
+    const lines = body.split('\n')
+
+    // handle single line quote format: "> <@user> message\n\nReply"
+    if (lines.length >= 3 && lines[0].startsWith('> <@') && lines[1] === '') {
+        return lines.slice(2).join('\n').trim()
+    }
+
+    // handle multi-line quote format: "> <@user> line1\n> <@user> line2\nReply"
+    // multi-line quotes are only valid when they're all from the same user
+    if (lines.length >= 2) {
+        let lastQuoteLineIndex = -1
+        let firstQuoteUser = null
+        let allQuotesFromSameUser = true
+
+        // find consecutive quote lines from the same user
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].startsWith('> <@')) {
+                // extract user ID from quote line
+                const userMatch = lines[i].match(/^> <@([^>]+)>/)
+                if (userMatch) {
+                    const currentUser = userMatch[1]
+                    if (firstQuoteUser === null) {
+                        firstQuoteUser = currentUser
+                    } else if (currentUser !== firstQuoteUser) {
+                        allQuotesFromSameUser = false
+                        break
+                    }
+                    lastQuoteLineIndex = i
+                } else {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+
+        // if we found valid quote lines from the same user, return everything after them
+        if (
+            lastQuoteLineIndex >= 0 &&
+            lastQuoteLineIndex < lines.length - 1 &&
+            allQuotesFromSameUser
+        ) {
+            return lines
+                .slice(lastQuoteLineIndex + 1)
+                .join('\n')
+                .trim()
+        }
+    }
+
+    // if we have formatted_body but no mx-reply, and no valid plain text pattern,
+    // prefer formatted_body (strip HTML tags) over body as it may be cleaner
+    if (formattedBody) {
+        return formattedBody.replace(/<[^>]*>/g, '').trim()
+    }
+
+    // no valid reply pattern found, return original body unchanged
+    return body
+}
+
+// Helper method to strip reply formatting from preview text
+export const stripReplyFromPreview = (text: string): string => {
+    // Check if this looks like a reply (starts with >)
+    if (text.startsWith('>')) {
+        return stripReplyFromBody(text, text)
+    }
+    return text
 }

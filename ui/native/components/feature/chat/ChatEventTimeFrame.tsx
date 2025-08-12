@@ -13,6 +13,7 @@ import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
 import ChatEvent from './ChatEvent'
+import ChatSwipeableEventContainer from './ChatSwipeableEventContainer'
 
 interface Props {
     roomId: string
@@ -20,10 +21,20 @@ interface Props {
     showUsernames?: boolean
     isPublic?: boolean
     events: MatrixEvent[]
+    onReplyTap?: (eventId: string) => void
+    highlightedMessageId?: string | null
 }
 
 const ChatEventTimeFrame = memo(
-    ({ events, roomId, showUsernames, isPublic, onSelect }: Props) => {
+    ({
+        events,
+        roomId,
+        showUsernames,
+        isPublic,
+        onSelect,
+        onReplyTap,
+        highlightedMessageId,
+    }: Props) => {
         const matrixAuth = useAppSelector(selectMatrixAuth)
         const { t } = useTranslation()
         const { theme } = useTheme()
@@ -67,6 +78,7 @@ const ChatEventTimeFrame = memo(
                         {isAdmin && <SvgImage size={12} name="AdminBadge" />}
                     </Flex>
                 )}
+
                 <Flex row align="end">
                     {!isMe && showUsernames && (
                         <Pressable
@@ -78,21 +90,56 @@ const ChatEventTimeFrame = memo(
                             <ChatAvatar user={roomMember || { id: sentBy }} />
                         </Pressable>
                     )}
+
                     <View style={style.senderMessages}>
-                        {events.map((event, eindex) => (
-                            <ChatEvent
-                                key={`ceci-eb-${event.eventId}`}
-                                event={event}
-                                last={eindex === 0}
-                                isPublic={isPublic}
-                            />
-                        ))}
+                        {events.map((event, eindex) => {
+                            // To stop jarring highlight bar - use regular function, not useMemo
+                            const isVeryRecent = (() => {
+                                if (!event.timestamp) return false
+                                const now = Date.now()
+                                const messageAge = now - event.timestamp
+                                return messageAge < 1200 // Less than 1.2 seconds old
+                            })()
+
+                            const isHighlighted =
+                                !isVeryRecent && // Use the age check here
+                                (highlightedMessageId === event.eventId ||
+                                    highlightedMessageId === event.id)
+
+                            return (
+                                <ChatSwipeableEventContainer
+                                    key={`ceci-eb-${event.eventId}`}
+                                    roomId={roomId}
+                                    event={event}>
+                                    <View
+                                        style={[
+                                            isHighlighted &&
+                                                style.highlightedMessage,
+                                        ]}>
+                                        <ChatEvent
+                                            event={event}
+                                            last={eindex === 0}
+                                            isPublic={isPublic}
+                                            onReplyTap={onReplyTap}
+                                            highlightedMessageId={
+                                                highlightedMessageId
+                                            }
+                                        />
+                                    </View>
+                                </ChatSwipeableEventContainer>
+                            )
+                        })}
                     </View>
                 </Flex>
             </View>
         )
     },
-    (prev, curr) => isEqual(prev.events, curr.events),
+    (prev, curr) => {
+        if (prev.highlightedMessageId !== curr.highlightedMessageId) {
+            return false
+        }
+        return isEqual(prev.events, curr.events)
+    },
 )
 
 const styles = (theme: Theme) =>
@@ -108,6 +155,20 @@ const styles = (theme: Theme) =>
         senderNameContainer: { paddingLeft: 43 },
         senderMessages: {
             flexDirection: 'column-reverse',
+        },
+        highlightedMessage: {
+            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+            borderRadius: 18,
+            marginHorizontal: -4,
+            marginVertical: -2,
+            shadowColor: '#007AFF',
+            shadowOffset: {
+                width: 0,
+                height: 0,
+            },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 5,
         },
     })
 

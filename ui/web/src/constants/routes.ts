@@ -7,6 +7,9 @@ export const homeRoute = '/home'
 export const modsRoute = '/mods'
 export const scanRoute = '/scan'
 export const settingsRoute = '/settings'
+export const transactionsRoute = '/transactions'
+export const sendRoute = '/send'
+export const requestRoute = '/request'
 
 // Other pages
 export const onboardingRoute = '/onboarding'
@@ -24,5 +27,6 @@ export const settingsLanguageRoute = `${settingsRoute}/language`
 export const settingsNostrRoute = `${settingsRoute}/nostr`
 export const settingsBackupPersonalRoute = `${settingsRoute}/backup/personal`
 
-// will be adding more in a separate PR
-// and then switching out hard-coded routes for these
+// Chat
+export const chatUserRoute = (id: string) => `${chatRoute}/user/${id}`
+export const chatRoomRoute = (id: string) => `${chatRoute}/room/${id}`

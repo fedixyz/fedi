@@ -1,36 +1,25 @@
 /* eslint-disable no-console */
 import { remote } from 'webdriverio'
 
-export enum Platform {
-    ANDROID = 'android',
-    IOS = 'ios',
-}
-
-interface AppiumConfig {
-    'appium:platformName': string
-    'appium:automationName': string
-    // Android-specific caps
-    'appium:appPackage'?: string
-    'appium:app'?: string
-    'appium:appActivity'?: string
-    'appium:autoGrantPermissions'?: boolean
-    // iOS-specific caps
-    'appium:autoAcceptAlerts'?: boolean
-    'appium:platformVersion'?: string
-    'appium:udid'?: string // Device UDID as it appears. Mandatory
-    'appium:bundleId'?: string
-    'appium:includeSafariInWebviews'?: boolean
-    'appium:settings[acceptAlertButtonSelector]'?: string
-}
-
-export const currentPlatform: Platform =
-    process.env.PLATFORM?.toLowerCase() === 'ios'
-        ? Platform.IOS
-        : Platform.ANDROID
+import { AppiumConfigValidator } from './AppiumConfigValidator'
+import { AppiumConfig, currentPlatform, Platform } from './types'
 
 const getCapabilities = (): AppiumConfig => {
+    const config = AppiumConfigValidator.getValidatedConfig()
+
+    if (currentPlatform === Platform.PWA) {
+        console.log('PWA testing is not ready yet')
+
+        return {
+            'appium:platformName': 'Web',
+            'appium:automationName': 'TODO',
+        }
+    }
+
     const commonCaps = {
-        'appium:platformVersion': process.env.PLATFORM_VERSION || '',
+        'appium:platformVersion': config.PLATFORM_VERSION || '',
+        'appium:udid': config.DEVICE_ID || process.env.DEVICE_ID,
+        'appium:app': config.BUNDLE_PATH || process.env.BUNDLE_PATH || '',
     }
 
     if (currentPlatform === Platform.ANDROID) {
@@ -38,20 +27,16 @@ const getCapabilities = (): AppiumConfig => {
             ...commonCaps,
             'appium:platformName': 'Android',
             'appium:automationName': 'UiAutomator2',
-            'appium:udid': process.env.DEVICE_ID || '',
-            'appium:appPackage': process.env.APP_PACKAGE || 'com.fedi',
-            'appium:app': process.env.BUNDLE_PATH || '',
+            'appium:appPackage': config.APP_PACKAGE || 'com.fedi',
             'appium:appActivity':
-                process.env.APP_ACTIVITY || '' /*'com.fedi.MainActivity'*/,
+                config.APP_ACTIVITY || '' /*'com.fedi.MainActivity'*/,
         }
     } else {
         return {
             ...commonCaps,
             'appium:platformName': 'iOS',
             'appium:automationName': 'XCUITest',
-            'appium:autoAcceptAlerts': true,
-            'appium:bundleId': process.env.BUNDLE_ID || 'org.fedi.alpha',
-            'appium:app': process.env.BUNDLE_PATH || '',
+            'appium:bundleId': config.BUNDLE_ID || 'org.fedi.alpha',
             'appium:includeSafariInWebviews': true,
         }
     }
@@ -59,7 +44,7 @@ const getCapabilities = (): AppiumConfig => {
 
 export default class AppiumManager {
     private static instance: AppiumManager
-    driver: WebdriverIO.Browser
+    driver: WebdriverIO.Browser | null
     isInitialized = false
 
     static getInstance(): AppiumManager {
@@ -72,6 +57,17 @@ export default class AppiumManager {
     async setup(): Promise<WebdriverIO.Browser> {
         if (!this.isInitialized) {
             console.log('Initializing Appium session...')
+
+            try {
+                AppiumConfigValidator.validateEnvironment()
+            } catch (error) {
+                console.error(
+                    '❌ Configuration validation failed:',
+                    (error as Error).message,
+                )
+                throw error
+            }
+
             this.driver = await remote({
                 protocol: 'http',
                 hostname: '127.0.0.1',
@@ -79,18 +75,20 @@ export default class AppiumManager {
                 path: '/',
                 capabilities: getCapabilities(),
             })
+
             this.isInitialized = true
             console.log('Appium session initialized successfully')
         } else {
             console.log('Reusing existing Appium session')
         }
-        return this.driver
+        return this.driver as WebdriverIO.Browser
     }
 
     async teardown(): Promise<void> {
         if (this.driver && this.isInitialized) {
             console.log('Terminating Appium session...')
-            // this.driver = null
+            await this.driver.deleteSession()
+            this.driver = null
             this.isInitialized = false
             console.log('Appium session terminated')
         }

@@ -59,6 +59,8 @@ export type CustomMessageData = Record<string, JSONValue>;
  */
 export type DeviceRegistrationEvent = { state: DeviceRegistrationState };
 
+export type DeviceRegistrationFeatureConfig = { service_url: string };
+
 /**
  * States representing the different outcomes for device registration requests
  * sent to Fedi's servers
@@ -146,23 +148,6 @@ export type FeatureCatalog = {
   encrypted_sync: EncryptedSyncFeatureConfig | null;
   override_localhost: OverrideLocalhostFeatureConfig | null;
   /**
-   * Enables stability pool v2 module, which also powers the multispend
-   * feature. This feature is to be thought of as a tri-state enum
-   * representing 3 scenarios.
-   * 1. None: both stability pool v2 (and multispend feature) disabled
-   * 2. Some(SpV2Only): use stability pool v2, but multispend disabled
-   * 3. Some(Multispend): use stability pool and multispend enabled
-   *
-   * This is a global, bridge-level configuration. Actual availability of the
-   * feature is on a per-federation basis, depending on whether or not
-   * the new module is available in the federation. Note however, that
-   * the feature flag takes precedence. If the feature flag is disabled,
-   * the feature is never available. If the feature flag is enabled, then
-   * the federation's module availability determines the availability of
-   * the feature.
-   */
-  stability_pool_v2: StabilityPoolV2FeatureConfig | null;
-  /**
    * Enable Nostr client for Rate federation feature.
    *
    * This allows relays to be configured using a remote feature flag service
@@ -170,10 +155,17 @@ export type FeatureCatalog = {
    */
   nostr_client: NostrClientFeatureCatalog | null;
   /**
-   * figure out stable format for account id, that includes the federation id
-   * prefix
+   * Device registration service configuration for registering devices with
+   * Fedi's backend. This service helps coordinate device indices across
+   * multiple devices using the same seed.
    */
-  spv2_stable_account_id: boolean;
+  device_registration: DeviceRegistrationFeatureConfig;
+  /**
+   * Matrix server configuration for chat functionality.
+   * This allows different matrix servers to be used based on the runtime
+   * environment.
+   */
+  matrix: MatrixFeatureConfig;
 };
 
 export type FiatFXInfo = {
@@ -225,6 +217,8 @@ export type GuardianStatus =
   | { timeout: { guardian: string; elapsed: string } };
 
 export type LogEvent = { log: string };
+
+export type MatrixFeatureConfig = { home_server: string };
 
 export type MatrixInitializeStatus =
   | { type: "starting" }
@@ -374,6 +368,11 @@ export type ObservableVecUpdate<T> = ObservableUpdate<
   Array<SerdeVectorDiff<T>>
 >;
 
+/**
+ * Tracks how a user completed their onboarding process
+ */
+export type OnboardingMethod = "new_seed" | "restored";
+
 export type OverrideLocalhostFeatureConfig = Record<string, never>;
 
 export type PanicEvent = { message: string };
@@ -405,7 +404,8 @@ export type RpcAmount = MSats;
 export type RpcAppFlavor =
   | { type: "dev" }
   | { type: "nightly" }
-  | { type: "bravo" };
+  | { type: "bravo" }
+  | { type: "tests" };
 
 export type RpcBackPaginationStatus =
   | "idle"
@@ -421,7 +421,7 @@ export type RpcBitcoinNetwork =
   | "unknown";
 
 export type RpcBridgeStatus =
-  | { type: "onboarded" }
+  | { type: "onboarded"; onboarding_method: OnboardingMethod | null }
   | { type: "onboarding"; stage: RpcOnboardingStage }
   | { type: "offboarding"; reason: BridgeOffboardingReason };
 
@@ -430,6 +430,17 @@ export type RpcCommunity = {
   name: string;
   meta: { [key in string]?: string };
 };
+
+export type RpcComposerDraft = {
+  plainText: string;
+  htmlText: string | null;
+  draftType: RpcComposerDraftType;
+};
+
+export type RpcComposerDraftType =
+  | "newMessage"
+  | { reply: { event_id: string } }
+  | { edit: { event_id: string } };
 
 export type RpcDeviceIndexAssignmentStatus =
   | { assigned: number }
@@ -624,6 +635,7 @@ export type RpcMethods = {
   recheckPeginAddress: [recheckPeginAddress, null];
   previewPayAddress: [previewPayAddress, RpcFeeDetails];
   payAddress: [payAddress, RpcPayAddressResponse];
+  calculateMaxGenerateEcash: [calculateMaxGenerateEcash, RpcAmount];
   generateEcash: [generateEcash, RpcGenerateEcashResponse];
   receiveEcash: [receiveEcash, [RpcAmount, RpcOperationId]];
   validateEcash: [validateEcash, RpcEcashInfo];
@@ -786,6 +798,9 @@ export type RpcMethods = {
   matrixEndPoll: [matrixEndPoll, null];
   matrixRespondToPoll: [matrixRespondToPoll, null];
   matrixGetMediaPreview: [matrixGetMediaPreview, RpcMediaPreviewResponse];
+  matrixSaveComposerDraft: [matrixSaveComposerDraft, null];
+  matrixLoadComposerDraft: [matrixLoadComposerDraft, RpcComposerDraft | null];
+  matrixClearComposerDraft: [matrixClearComposerDraft, null];
   matrixObserveMultispendGroup: [
     matrixObserveMultispendGroup,
     Observable<RpcMultispendGroupStatus>,
@@ -1393,12 +1408,6 @@ export type StabilityPoolDepositState =
  */
 export type StabilityPoolUnfilledDepositSweptEvent = { amount: RpcAmount };
 
-export type StabilityPoolV2FeatureConfig = {
-  state: StabilityPoolV2FeatureConfigState;
-};
-
-export type StabilityPoolV2FeatureConfigState = "SpV2Only" | "Multispend";
-
 export type StabilityPoolWithdrawalEvent = {
   federationId: RpcFederationId;
   operationId: RpcOperationId;
@@ -1462,6 +1471,8 @@ export type backupNow = { federationId: RpcFederationId };
 export type backupStatus = { federationId: RpcFederationId };
 
 export type bridgeStatus = {};
+
+export type calculateMaxGenerateEcash = { federationId: RpcFederationId };
 
 export type cancelEcash = { federationId: RpcFederationId; ecash: string };
 
@@ -1584,6 +1595,8 @@ export type matrixApproveMultispendGroupInvitation = {
 
 export type matrixCancelMultispendGroupInvitation = { roomId: RpcRoomId };
 
+export type matrixClearComposerDraft = { roomId: RpcRoomId };
+
 export type matrixDeleteMessage = {
   roomId: RpcRoomId;
   eventId: RpcTimelineEventItemId;
@@ -1609,6 +1622,8 @@ export type matrixIgnoreUser = { userId: RpcUserId };
 export type matrixInitializeStatus = { observableId: number };
 
 export type matrixListIgnoredUsers = {};
+
+export type matrixLoadComposerDraft = { roomId: RpcRoomId };
 
 export type matrixMultispendAccountInfo = {
   roomId: RpcRoomId;
@@ -1734,6 +1749,11 @@ export type matrixRoomUnbanUser = {
   roomId: RpcRoomId;
   userId: RpcUserId;
   reason: string | null;
+};
+
+export type matrixSaveComposerDraft = {
+  roomId: RpcRoomId;
+  draft: RpcComposerDraft;
 };
 
 export type matrixSendAttachment = {

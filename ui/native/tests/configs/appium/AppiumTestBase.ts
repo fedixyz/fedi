@@ -1,5 +1,23 @@
 /* eslint-disable no-console */
-import AppiumManager, { Platform, currentPlatform } from './AppiumManager'
+import { ChainablePromiseArray, ChainablePromiseElement } from 'webdriverio'
+
+import AppiumManager from './AppiumManager'
+import {
+    LocatorStrategy,
+    Percentage,
+    Platform,
+    ScrollCoordinates,
+    ScrollDirection,
+    ScrollOptions,
+    currentPlatform,
+} from './types'
+
+const DEFAULT_SCROLL_OPTIONS: Required<ScrollOptions> = {
+    maxScrolls: 10,
+    scrollDirection: 'down',
+    scrollDuration: 100,
+    scrollPercentage: 10,
+}
 
 export const DEFAULT_TIMEOUT = 20000
 
@@ -15,176 +33,210 @@ export abstract class AppiumTestBase {
         this.driver = await appiumManager.setup()
     }
 
-    getLocatorStrategies(key: string): string[] {
-        if (currentPlatform === Platform.ANDROID) {
-            return [
-                `accessibility id:${key}`,
-                `android=new UiSelector().resourceId("${key}")`,
-            ]
-        } else {
-            return [
-                `accessibility id:${key}`,
-                `id:${key}`,
-                // `label == "${key}" OR name == "${key}" OR value == "${key}"`,
-                // `label CONTAINS "${key}" OR name CONTAINS "${key}" OR value CONTAINS "${key}"`, test to see how this works
-            ]
+    getElementLocatorStrategies(key: string): LocatorStrategy[] {
+        switch (currentPlatform) {
+            case Platform.ANDROID:
+                return [
+                    {
+                        selector: `accessibility id:${key}`,
+                        priority: 1,
+                        description: 'Accessibility ID',
+                    },
+                    {
+                        selector: `android=new UiSelector().resourceId("${key}")`,
+                        priority: 2,
+                        description: 'Resource ID',
+                    },
+                ]
+            case Platform.IOS:
+                return [
+                    {
+                        selector: `accessibility id:${key}`,
+                        priority: 1,
+                        description: 'Accessibility ID',
+                    },
+                    {
+                        selector: `id:${key}`,
+                        priority: 2,
+                        description: 'Element ID',
+                    },
+                ]
+            default:
+                throw new Error(
+                    "PWA element locator strategies haven't been implemented yet.",
+                )
         }
     }
 
-    async findElementByKey(key: string) {
-        const strategies = this.getLocatorStrategies(key)
+    async findElementByKey(
+        key: string,
+    ): Promise<ChainablePromiseElement | null> {
+        const strategies = this.getElementLocatorStrategies(key).sort(
+            (a, b) => a.priority - b.priority,
+        )
         const primaryStrategy = strategies[0]
+        const errors: string[] = []
 
         for (const strategy of strategies) {
             try {
-                console.log(`Trying to find element with strategy: ${strategy}`)
-                const element = await this.driver.$(strategy)
-                const exists = await element.isExisting()
-
-                if (exists) {
-                    console.log(`Element found with strategy: ${strategy}`)
-                    return element
-                }
-            } catch (error: unknown) {
                 console.log(
-                    `Strategy ${strategy} failed: ${(error as Error).message}. Trying the first strategy once again just to be sure.`,
+                    `Trying to find element with strategy: ${strategy.description}`,
                 )
-                const element = await this.driver.$(primaryStrategy)
-                const exists = await element.isExisting()
-                if (exists) {
+                const element = await this.driver.$(strategy.selector)
+
+                if (await element.isExisting()) {
                     console.log(
-                        `Element found with primary strategy ${primaryStrategy} after the strategy failed the first time.`,
+                        `Element found with strategy: ${strategy.description}`,
                     )
                     return element
                 } else {
-                    console.log(
-                        `A repeat atttempt with primary strategy ${primaryStrategy} failed: ${(error as Error).message}. Element most likely does not exist in XML tree. Try dumping it.`,
-                    )
+                    const msg = `Element not found with strategy: ${strategy.description}`
+                    console.log(msg)
+                    errors.push(msg)
                 }
+            } catch (error: unknown) {
+                const msg = `Strategy ${strategy.description} failed: ${(error as Error).message}`
+                console.log(msg)
+                errors.push(msg)
             }
         }
+        console.log(
+            `All strategies failed, trying the primary strategy once more:`,
+        )
+        try {
+            const element = await this.driver.$(primaryStrategy.selector)
+
+            if (await element.isExisting()) {
+                console.log(
+                    `Element found with primary strategy ${primaryStrategy.description} after the strategy failed the first time.`,
+                )
+                return element
+            }
+        } catch (error: unknown) {
+            console.log(
+                `A repeat atttempt with primary strategy ${primaryStrategy.description} failed: ${(error as Error).message}. Element most likely does not exist in XML tree. Try dumping it.`,
+            )
+        }
+        console.log(
+            `Element with key "${key}" not found after trying all strategies:`,
+        )
+        errors.forEach((err, index) => console.log(`  ${index + 1}. ${err}`))
 
         return null
+    }
+
+    getTextLocatorStrategies(
+        text: string,
+        exactMatch: boolean,
+    ): LocatorStrategy[] {
+        switch (currentPlatform) {
+            case Platform.ANDROID:
+                if (exactMatch === true) {
+                    return [
+                        {
+                            selector: `android=new UiSelector().text("${text}")`,
+                            priority: 1,
+                            description: 'Exact text match',
+                        },
+                        {
+                            selector: `android=new UiSelector().description("${text}")`,
+                            priority: 2,
+                            description: 'Exact content description',
+                        },
+                    ]
+                } else {
+                    return [
+                        {
+                            selector: `android=new UiSelector().textContains("${text}")`,
+                            priority: 1,
+                            description: 'Partial text match',
+                        },
+                        {
+                            selector: `android=new UiSelector().descriptionContains("${text}")`,
+                            priority: 2,
+                            description: 'Partial content description',
+                        },
+                    ]
+                }
+            case Platform.IOS:
+                if (exactMatch === true) {
+                    return [
+                        {
+                            selector: `-ios predicate string:label == "${text}" OR name == "${text}" OR value == "${text}"`,
+                            priority: 1,
+                            description: 'Predicate string (fast)',
+                        },
+                        {
+                            selector: `-ios class chain:**/*[@label="${text}" or @name="${text}" or @value="${text}"]`,
+                            priority: 2,
+                            description: 'Class chain (accurate)',
+                        },
+                        {
+                            selector: `//XCUIElementTypeStaticText[@value="${text}"]`,
+                            priority: 3,
+                            description: 'XPath (slow)',
+                        },
+                    ]
+                } else {
+                    return [
+                        {
+                            selector: `-ios predicate string:label CONTAINS "${text}" OR name CONTAINS "${text}" OR value CONTAINS "${text}"`,
+                            priority: 1,
+                            description: 'Predicate contains',
+                        },
+                        {
+                            selector: `-ios class chain:**/*[contains(@label, "${text}") or contains(@name, "${text}") or contains(@value, "${text}")]`,
+                            priority: 2,
+                            description: 'Class chain contains',
+                        },
+                        {
+                            selector: `//XCUIElementTypeStaticText[contains(@value, "${text}")]`,
+                            priority: 3,
+                            description: 'XPath contains (slow)',
+                        },
+                    ]
+                }
+            default:
+                throw new Error(
+                    "PWA text locator strategies haven't been implemented yet.",
+                )
+        }
     }
 
     async findElementsByText(
         text: string,
         exactMatch = false,
         timeout = DEFAULT_TIMEOUT,
-    ) {
+    ): Promise<ChainablePromiseArray> {
         const startTime = Date.now()
-        const platform = process.env.PLATFORM?.toLowerCase() || ''
         let elements
+        const strategies = this.getTextLocatorStrategies(text, exactMatch).sort(
+            (a, b) => a.priority - b.priority,
+        )
+        const errors: string[] = []
 
         while (Date.now() - startTime < timeout) {
-            try {
-                if (platform === 'android') {
-                    // Android
-                    if (exactMatch) {
-                        elements = await this.driver.$$(
-                            `android=new UiSelector().text("${text}")`,
-                        )
-                    } else {
-                        elements = await this.driver.$$(
-                            `android=new UiSelector().textContains("${text}")`,
-                        )
+            for (const strategy of strategies) {
+                try {
+                    elements = await this.driver
+                        .$$(strategy.selector)
+                        .filter(el => el.isDisplayed())
+                    if (elements.length > 0) {
+                        return this.driver.$$(elements)
                     }
-                } else {
-                    // iOS - try multiple strategies
-
-                    // Strategy 1: iOS Predicate String
-                    try {
-                        let predicateQuery
-                        if (exactMatch) {
-                            predicateQuery = `label == "${text}" OR name == "${text}" OR value == "${text}"`
-                        } else {
-                            predicateQuery = `label CONTAINS "${text}" OR name CONTAINS "${text}" OR value CONTAINS "${text}"`
-                        }
-
-                        elements = await this.driver.$$(
-                            `-ios predicate string:${predicateQuery}`,
-                        )
-                        if ((await elements.length) > 0) {
-                            // Filter for only displayed elements
-                            const displayedElements = []
-                            for (const element of elements) {
-                                if (await element.isDisplayed()) {
-                                    displayedElements.push(element)
-                                }
-                            }
-                            elements = displayedElements
-                        }
-                    } catch (error) {
-                        // Predicate strategy failed, continue to next strategy
-                        elements = []
-                    }
-
-                    // If no elements found with predicate, try XPath
-                    if (elements.length === 0) {
-                        try {
-                            let xpathQuery
-                            if (exactMatch) {
-                                xpathQuery = `//XCUIElementTypeStaticText[@value="${text}"]`
-                            } else {
-                                xpathQuery = `//XCUIElementTypeStaticText[contains(@value, "${text}")]`
-                            }
-
-                            elements = await this.driver.$$(xpathQuery)
-                            if ((await elements.length) > 0) {
-                                // Filter for only displayed elements
-                                const displayedElements = []
-                                for (const element of elements) {
-                                    if (await element.isDisplayed()) {
-                                        displayedElements.push(element)
-                                    }
-                                }
-                                elements = displayedElements
-                            }
-                        } catch (error) {
-                            // XPath strategy failed
-                        }
-                    }
-
-                    // If still no elements, try broader XPath
-                    if (elements.length === 0) {
-                        try {
-                            let xpathQueryAny
-                            if (exactMatch) {
-                                xpathQueryAny = `//*[@label="${text}" or @name="${text}" or @value="${text}"]`
-                            } else {
-                                xpathQueryAny = `//*[contains(@label, "${text}") or contains(@name, "${text}") or contains(@value, "${text}")]`
-                            }
-
-                            elements = await this.driver.$$(xpathQueryAny)
-                            if ((await elements.length) > 0) {
-                                // Filter for only displayed elements
-                                const displayedElements = []
-                                for (const element of elements) {
-                                    if (await element.isDisplayed()) {
-                                        displayedElements.push(element)
-                                    }
-                                }
-                                elements = displayedElements
-                            }
-                        } catch (error) {
-                            // General XPath strategy failed
-                        }
-                    }
+                } catch (error) {
+                    const msg = `No elements found using ${strategy.description}. ${(error as Error).message}.`
+                    console.log(msg)
+                    errors.push(msg)
                 }
-
-                // If we found at least one visible element, return all of them
-                if ((await elements.length) > 0) {
-                    return elements
-                }
-            } catch (error) {
-                // Continue trying until timeout
+                await new Promise(resolve => setTimeout(resolve, 500))
             }
-
-            // Sleep briefly before retrying
-            await new Promise(resolve => setTimeout(resolve, 500))
         }
-
-        return []
+        console.log(
+            `No elements with ${text} in them were found. If this is not intentional, check the XML tree dump or reproduce the test in Appium Inspector to find out why.`,
+        )
+        errors.forEach((err, index) => console.log(`  ${index + 1}. ${err}`))
+        return this.driver.$$([])
     }
 
     async findElementByText(
@@ -192,14 +244,14 @@ export abstract class AppiumTestBase {
         instanceNum: number,
         exactMatch = false,
         timeout = DEFAULT_TIMEOUT,
-    ) {
+    ): Promise<ChainablePromiseElement | null> {
         const elements = await this.findElementsByText(
             text,
             exactMatch,
             timeout,
         )
 
-        if (elements.length === 0) {
+        if ((await elements.length) === 0) {
             return null
         }
 
@@ -236,7 +288,7 @@ export abstract class AppiumTestBase {
         instanceNum: number,
         exactMatch = false,
         timeout = DEFAULT_TIMEOUT,
-    ): Promise<WebdriverIO.Element> {
+    ): Promise<ChainablePromiseElement> {
         const element = await this.findElementByText(
             text,
             instanceNum,
@@ -279,42 +331,34 @@ export abstract class AppiumTestBase {
         return elements.length
     }
 
-    async waitForElementDisplayed(key: string, timeout = DEFAULT_TIMEOUT) {
-        const strategies = this.getLocatorStrategies(key)
+    private async isElementVisible(
+        element: ChainablePromiseElement | null,
+    ): Promise<boolean> {
+        return element !== null && (await element.isDisplayed())
+    }
+
+    async waitForElementDisplayed(
+        key: string,
+        timeout = DEFAULT_TIMEOUT,
+    ): Promise<ChainablePromiseElement> {
         const startTime = Date.now()
         const errors: Error[] = []
 
         while (Date.now() - startTime < timeout) {
-            for (const strategy of strategies) {
-                try {
-                    console.log(
-                        `Trying strategy ${strategy} for element ${key}`,
-                    )
-                    const element = await this.driver.$(strategy)
-                    const isDisplayed = await element.isDisplayed()
+            try {
+                const element = await this.findElementByKey(key)
 
-                    if (isDisplayed) {
-                        console.log(
-                            `Element ${key} found and displayed with strategy: ${strategy}`,
-                        )
-                        return element
-                    }
-                } catch (error) {
-                    errors.push(error as Error)
+                if (await this.isElementVisible(element)) {
+                    return element as ChainablePromiseElement
                 }
+            } catch (error) {
+                errors.push(error as Error)
             }
 
             await new Promise(resolve => setTimeout(resolve, 500))
         }
-        if (currentPlatform === Platform.IOS) {
-            // Android doesn't have this yet
-            console.log('Dumping XML tree')
-            await this.driver.executeScript('mobile: source', [
-                { format: 'xml' },
-            ])
-        }
         throw new Error(
-            `Element with key "${key}" not displayed after ${timeout}ms. Tried strategies: ${strategies.join(', ')}. Errors: ${errors.map(e => e.message).join('; ')}`,
+            `Element with key "${key}" not displayed after ${timeout}ms. Errors: ${errors.map(e => e.message).join('; ')}`,
         )
     }
 
@@ -354,6 +398,194 @@ export abstract class AppiumTestBase {
         }
     }
 
+    private async getScrollCoordinates(
+        scrollDirection: ScrollDirection,
+        scrollPercentage: Percentage,
+    ): Promise<ScrollCoordinates> {
+        const { width, height } = await this.driver.getWindowSize()
+        const margin = (1 - scrollPercentage / 100) / 2
+
+        const coordinatesMap: Record<ScrollDirection, ScrollCoordinates> = {
+            down: {
+                startX: width / 2,
+                startY: height * (1 - margin),
+                endX: width / 2,
+                endY: height * margin,
+            },
+            up: {
+                startX: width / 2,
+                startY: height * margin,
+                endX: width / 2,
+                endY: height * (1 - margin),
+            },
+            left: {
+                startX: width * margin,
+                startY: height / 2,
+                endX: width * (1 - margin),
+                endY: height / 2,
+            },
+            right: {
+                startX: width * (1 - margin),
+                startY: height / 2,
+                endX: width * margin,
+                endY: height / 2,
+            },
+        }
+
+        return coordinatesMap[scrollDirection]
+    }
+
+    private createScrollActions(
+        coordinates: ScrollCoordinates,
+        duration: number,
+    ): any[] {
+        const { startX, startY, endX, endY } = coordinates
+
+        return [
+            {
+                type: 'pointer',
+                id: 'finger1',
+                parameters: { pointerType: 'touch' },
+                actions: [
+                    {
+                        type: 'pointerMove',
+                        duration: 0,
+                        x: Math.round(startX),
+                        y: Math.round(startY),
+                    },
+                    {
+                        type: 'pointerDown',
+                        button: 0,
+                    },
+                    {
+                        type: 'pointerMove',
+                        duration,
+                        x: Math.round(endX),
+                        y: Math.round(endY),
+                    },
+                    {
+                        type: 'pointerUp',
+                        button: 0,
+                    },
+                ],
+            },
+        ]
+    }
+
+    async scroll(
+        scrollDirection: ScrollDirection,
+        scrollDuration = 1000,
+        scrollPercentage: Percentage,
+    ): Promise<void> {
+        try {
+            const coordinates = await this.getScrollCoordinates(
+                scrollDirection,
+                scrollPercentage,
+            )
+
+            const actions = this.createScrollActions(
+                coordinates,
+                scrollDuration,
+            )
+            await this.driver.performActions(actions)
+            await this.driver.releaseActions()
+
+            // Wait for scroll animation to complete
+            await this.driver.pause(scrollDuration * 2)
+        } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : 'Unknown error'
+            throw new Error(`Scroll action failed: ${errorMessage}`)
+        }
+    }
+
+    private async scrollUntilFound(
+        findElementFn: () => Promise<ChainablePromiseElement | null>,
+        elementDescription: string,
+        options: ScrollOptions = {},
+    ): Promise<ChainablePromiseElement | null> {
+        const config = { ...DEFAULT_SCROLL_OPTIONS, ...options }
+        const {
+            maxScrolls,
+            scrollDirection,
+            scrollDuration,
+            scrollPercentage,
+        } = config
+
+        // Check if element is already visible
+        let element = await findElementFn()
+        if (await this.isElementVisible(element)) {
+            console.log(`Element ${elementDescription} is already visible`)
+            return element
+        }
+
+        console.log(
+            `Starting W3C Actions scroll search for element ${elementDescription}`,
+        )
+
+        // Perform scroll attempts
+        for (let i = 0; i < maxScrolls; i++) {
+            try {
+                await this.scroll(
+                    scrollDirection,
+                    scrollDuration,
+                    scrollPercentage,
+                )
+
+                element = await findElementFn()
+                if (await this.isElementVisible(element)) {
+                    console.log(
+                        `Element found and visible after ${i + 1} scroll(s)`,
+                    )
+                    return element
+                }
+            } catch (error) {
+                console.error(
+                    `Scroll attempt ${i + 1} in direction ${scrollDirection} failed:`,
+                    error instanceof Error ? error.message : error,
+                )
+                // Continue to next attempt
+            }
+        }
+
+        console.log(
+            `Element ${elementDescription} not found after ${maxScrolls} scroll attempts`,
+        )
+        return null
+    }
+    /**
+     * scrollOptions sets options to control scroll helper functions. e.g. scrollOptions: {param1, param2...}
+     * @param maxScrolls How many scrolls to perform within the functions.
+     * @param scrollDirection Tells the functions the direction to scroll in.
+     * @param scrollDuration Duration of the scroll in milliseconds. A smaller duration usually means a stronger scroll.
+     * @param scrollPercentage How far down the screen to scroll. Accepted values are from 1 to 100.
+     */
+    async scrollToElement(
+        key: string,
+        scrollOptions: ScrollOptions = {},
+    ): Promise<ChainablePromiseElement | null> {
+        return this.scrollUntilFound(
+            () => this.findElementByKey(key),
+            `with key "${key}"`,
+            scrollOptions,
+        )
+    }
+
+    async scrollToText(
+        text: string,
+        instanceNum = 1,
+        exactMatch = false,
+        timeout?: number,
+        scrollOptions: ScrollOptions = {},
+    ): Promise<ChainablePromiseElement | null> {
+        return this.scrollUntilFound(
+            () =>
+                this.findElementByText(text, instanceNum, exactMatch, timeout),
+            `with text "${text}"`,
+            scrollOptions,
+        )
+    }
+
     async dismissKeyboard(): Promise<void> {
         try {
             await this.driver.executeScript('mobile: isKeyboardShown', [])
@@ -367,25 +599,207 @@ export abstract class AppiumTestBase {
         }
     }
 
-    async acceptAlert(button?: string): Promise<void> {
-        if (currentPlatform === Platform.ANDROID) {
-            try {
-                await this.driver.executeScript('mobile: acceptAlert', [])
-            } catch (error: unknown) {
+    async acceptAlert(button: string): Promise<void> {
+        switch (currentPlatform) {
+            case Platform.ANDROID:
+                try {
+                    await this.driver.executeScript('mobile: acceptAlert', [
+                        { buttonLabel: button },
+                    ])
+                } catch (error: unknown) {
+                    console.log(
+                        `Unable to accept alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the allow button`,
+                    )
+                    await this.driver.executeScript('mobile: acceptAlert', [])
+                }
+                break
+            case Platform.IOS:
+                try {
+                    let retryCount = 0
+                    let alertButtons
+                    do {
+                        try {
+                            alertButtons = await this.driver.executeScript(
+                                'mobile: alert',
+                                [{ action: 'getButtons' }],
+                            )
+                        } catch (error) {
+                            console.log(
+                                'Got an error trying to fetch alert buttons',
+                            )
+                            alertButtons = null
+                        }
+                        if (alertButtons && alertButtons.length > 0) {
+                            await this.driver.executeScript('mobile: alert', [
+                                { action: 'accept', buttonLabel: button },
+                            ])
+                        }
+                        retryCount++
+                    } while (alertButtons && retryCount < 5)
+                } catch (error: unknown) {
+                    console.log(
+                        `Unable to accept alert with buttonLabel ${button} on iOS. Reason: ${(error as Error).message}. Trying to infer the allow button`,
+                    )
+                    await this.driver.executeScript('mobile: alert', [
+                        { action: 'accept' },
+                    ])
+                }
+                break
+            default:
                 console.log(
-                    `Unable to accept alert on Android. Reason: ${(error as Error).message}`,
+                    `Platform is PWA, and it is ${currentPlatform}, no alerts to accept`,
                 )
-            }
-        } else {
-            try {
-                await this.driver.executeScript('mobile: alert', [
-                    { action: 'accept', button: `${button}` },
-                ])
-            } catch (error: unknown) {
+        }
+    }
+
+    async dismissAlert(button: string): Promise<void> {
+        switch (currentPlatform) {
+            case Platform.ANDROID:
+                try {
+                    await this.driver.executeScript('mobile: dismissAlert', [
+                        { buttonLabel: button },
+                    ])
+                } catch (error: unknown) {
+                    console.log(
+                        `Unable to dismiss alert with buttonLabel ${button} on Android. Reason: ${(error as Error).message}. Trying to infer the dismiss button`,
+                    )
+                    await this.driver.executeScript('mobile: dismissAlert', [])
+                }
+                break
+            case Platform.IOS:
+                try {
+                    let retryCount = 0
+                    let alertButtons
+                    do {
+                        try {
+                            alertButtons = await this.driver.executeScript(
+                                'mobile: alert',
+                                [{ action: 'getButtons' }],
+                            )
+                        } catch (error) {
+                            console.log(
+                                'Got an error trying to fetch alert buttons',
+                            )
+                            alertButtons = null
+                        }
+                        if (alertButtons && alertButtons.length > 0) {
+                            await this.driver.executeScript('mobile: alert', [
+                                { action: 'dismiss', buttonLabel: button },
+                            ])
+                        }
+                        retryCount++
+                    } while (alertButtons && retryCount < 5)
+                } catch (error: unknown) {
+                    console.log(
+                        `Unable to dismiss alert buttonLabel ${button} on iOS. Reason: ${(error as Error).message}. Trying to infer the dismiss button.`,
+                    )
+                    await this.driver.executeScript('mobile: alert', [
+                        { action: 'dismiss' },
+                    ])
+                }
+                break
+            default:
                 console.log(
-                    `Unable to accept alert on iOS. Got error ${(error as Error).message}`,
+                    `Platform should be PWA, and it is ${currentPlatform}, no alerts to accept`,
                 )
+        }
+    }
+
+    async getClipboard(): Promise<string> {
+        try {
+            let clipboardContent = ''
+            switch (currentPlatform) {
+                case Platform.ANDROID:
+                    try {
+                        const base64Content = (await this.driver.executeScript(
+                            'mobile: getClipboard',
+                            [],
+                        )) as string
+                        if (base64Content) {
+                            clipboardContent = Buffer.from(
+                                base64Content,
+                                'base64',
+                            ).toString('utf8')
+                            console.log(
+                                `Retrieved clipboard content on Android. It is ${clipboardContent}`,
+                            )
+                        } else {
+                            console.warn(
+                                'Received empty or invalid clipboard data from Android',
+                            )
+                        }
+                    } catch (error: unknown) {
+                        console.error(
+                            `Failed to get Android clipboard: ${(error as Error).message}`,
+                        )
+                    }
+                    break
+                case Platform.IOS:
+                    try {
+                        const content = (await this.driver.executeScript(
+                            'mobile: getPasteboard',
+                            [],
+                        )) as string
+                        if (content) {
+                            clipboardContent = content
+                            console.log('Retrieved clipboard content on iOS')
+                        } else {
+                            console.warn(
+                                'Received non-string clipboard data from iOS',
+                            )
+                        }
+                    } catch (error: unknown) {
+                        console.error(
+                            `Failed to get iOS clipboard: ${(error as Error).message}`,
+                        )
+                    }
+                    break
+                default:
+                    console.log(`TODO: Implement clipboard functions for PWA`)
             }
+            return clipboardContent
+        } catch (error: unknown) {
+            console.error(
+                `Unexpected error getting clipboard: ${(error as Error).message}`,
+            )
+            return ''
+        }
+    }
+
+    async setClipboard(clipboardContent: string): Promise<void> {
+        switch (currentPlatform) {
+            case Platform.ANDROID:
+                try {
+                    await this.driver.executeScript('mobile: setClipboard', [
+                        {
+                            content:
+                                Buffer.from(clipboardContent).toString(
+                                    'base64',
+                                ),
+                        },
+                    ])
+                } catch (error: unknown) {
+                    console.log(
+                        `Unable to push content to clipboard on Android. Reason: ${(error as Error).message}`,
+                    )
+                }
+                break
+            case Platform.IOS:
+                try {
+                    await this.driver.executeScript('mobile: setPasteboard', [
+                        {
+                            content:
+                                Buffer.from(clipboardContent).toString('utf8'),
+                        },
+                    ])
+                } catch (error: unknown) {
+                    console.log(
+                        `Unable to push content to clipboard on iOS. Reason: ${(error as Error).message}`,
+                    )
+                }
+                break
+            default:
+                console.log(`TODO: Implement clipboard functions for PWA`)
         }
     }
 

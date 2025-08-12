@@ -46,6 +46,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
     const toast = useToast()
     const { shouldShowHeader } = useMultispendDisplayUtils(t, roomId)
+    const [replyBarHeight, setReplyBarHeight] = useState(0)
 
     const directUserId = useMemo(() => room?.directUserId, [room])
 
@@ -53,6 +54,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         async (
             body: string,
             attachments: Array<InputAttachment | InputMedia> = [],
+            repliedEventId?: string | null,
         ) => {
             if ((!body && !attachments.length) || isSending) return
 
@@ -67,6 +69,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                             fedimint,
                             roomId,
                             body,
+                            repliedEventId: repliedEventId,
                             // TODO: support intercepting bolt11 for group chats
                             options: { interceptBolt11: chatType === 'direct' },
                         }),
@@ -110,6 +113,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                     id={roomId || ''}
                     isPublic={room?.isPublic}
                     newMessageBottomOffset={newMessageBottomOffset}
+                    replyBarOffset={replyBarHeight}
                 />
                 <MessageInput
                     onMessageSubmitted={handleSend}
@@ -120,6 +124,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                             DEFAULT_NEW_MESSAGE_BOTTOM_OFFSET + height,
                         )
                     }
+                    onReplyBarHeightChanged={setReplyBarHeight}
                 />
             </>
         )
@@ -130,6 +135,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         handleSend,
         room,
         newMessageBottomOffset,
+        replyBarHeight,
         shouldShowHeader,
     ])
 

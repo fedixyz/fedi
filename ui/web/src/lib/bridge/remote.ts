@@ -1,11 +1,15 @@
 import {
+    fedimint,
     initializeBridge as initializeBridgeRemote,
     subscribeToBridgeEvents,
 } from '@fedi/common/utils/remote-bridge'
 
-export { fedimint } from '@fedi/common/utils/remote-bridge'
+export { fedimint }
 
 export async function initializeBridge(deviceId: string) {
+    // accessible in console
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(globalThis as any).fedimint = fedimint
     await initializeBridgeRemote(deviceId)
     await subscribeToBridgeEvents()
 }
@@ -24,6 +28,6 @@ export async function writeBridgeFile(
     throw new Error('writeBridgeFile is not supported in remote bridge')
 }
 
-export async function getBridgeLogs(): Promise<FileSystemFileHandle[]> {
+export async function getBridgeLogs(): Promise<File> {
     throw new Error('getBridgeLogs is not supported in remote bridge')
 }

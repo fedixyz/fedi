@@ -18,7 +18,7 @@ use runtime::constants::LNURL_CHILD_ID;
 use runtime::db::FederationPendingRejoinFromScratchKeyPrefix;
 use runtime::event::EventSink;
 use runtime::features::FeatureCatalog;
-use runtime::storage::state::{DeviceIdentifier, FiatFXInfo};
+use runtime::storage::state::{DeviceIdentifier, FiatFXInfo, OnboardingMethod};
 use runtime::storage::{AppState, OnboardingCompletionMethod, Storage};
 use runtime::utils::PoisonedLockExt;
 use serde::Serialize;
@@ -188,7 +188,9 @@ impl Bridge {
             BridgeState::Offboarding { reason, .. } => Ok(RpcBridgeStatus::Offboarding {
                 reason: reason.clone(),
             }),
-            BridgeState::Full(_) => Ok(RpcBridgeStatus::Onboarded {}),
+            BridgeState::Full(_) => Ok(RpcBridgeStatus::Onboarded {
+                onboarding_method: self.runtime()?.app_state.onboarding_method().await,
+            }),
         }
     }
 
@@ -236,7 +238,7 @@ impl Bridge {
         anyhow::ensure!(
             matches!(
                 runtime.feature_catalog.runtime_env,
-                RuntimeEnvironment::Dev | RuntimeEnvironment::Staging
+                RuntimeEnvironment::Dev | RuntimeEnvironment::Staging | RuntimeEnvironment::Tests
             ),
             "only available in internal builds"
         );
@@ -299,7 +301,9 @@ impl Bridge {
 #[serde(tag = "type")]
 #[ts(export)]
 pub enum RpcBridgeStatus {
-    Onboarded {},
+    Onboarded {
+        onboarding_method: Option<OnboardingMethod>,
+    },
     Onboarding {
         stage: RpcOnboardingStage,
     },

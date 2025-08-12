@@ -269,7 +269,6 @@ const InputContainer = styled('div', {
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    gap: 24,
 })
 
 const AmountInputContainer = styled('div', {

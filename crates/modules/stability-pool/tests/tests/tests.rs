@@ -22,7 +22,7 @@ use tokio::fs;
 use tracing::{debug, info};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn starter_test() -> anyhow::Result<()> {
+async fn flaky_starter_test() -> anyhow::Result<()> {
     let (process_mgr, _) = setup().await?;
 
     let (seeker_peg_in_sats, provider_peg_in_sats) = (10_000u64, 15_000u64);

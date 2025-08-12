@@ -28,6 +28,8 @@ export enum InjectionMessageType {
     nostr_signEvent = 'nostr_signEvent',
     nostr_encrypt = 'nostr_encrypt',
     nostr_decrypt = 'nostr_decrypt',
+    nostr_encrypt04 = 'nostr_encrypt04',
+    nostr_decrypt04 = 'nostr_decrypt04',
     fedi_generateEcash = 'fedi_generateEcash',
     fedi_receiveEcash = 'fedi_receiveEcash',
     fedi_getAuthenticatedMember = 'fedi_getAuthenticatedMember',
@@ -84,6 +86,20 @@ export type InjectionMessageResponseMap = {
         response: string
     }
     [InjectionMessageType.nostr_decrypt]: {
+        message: {
+            pubkey: string
+            ciphertext: string
+        }
+        response: string
+    }
+    [InjectionMessageType.nostr_encrypt04]: {
+        message: {
+            pubkey: string
+            plaintext: string
+        }
+        response: string
+    }
+    [InjectionMessageType.nostr_decrypt04]: {
         message: {
             pubkey: string
             ciphertext: string

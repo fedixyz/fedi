@@ -51,6 +51,7 @@ const FederationWalletSelector: React.FC<{
             makeFormattedAmountsFromMSats(f?.balance || (0 as MSats))
         return (
             <Pressable
+                key={f.id}
                 style={style.tileContainer}
                 onPress={() => handleFederationSelected(f)}>
                 <FederationLogo federation={f} size={32} />

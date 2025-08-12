@@ -10,16 +10,20 @@ interface Props {
     open: boolean
     title: React.ReactNode
     description: React.ReactNode
-    onClose(): void
     onConfirm(): void | Promise<void>
+    onClose?(): void
+    primaryButtonLabel?: string
+    secondaryButtonLabel?: string
 }
 
 export const ConfirmDialog: React.FC<Props> = ({
     open,
     title,
     description,
-    onClose,
     onConfirm,
+    onClose,
+    primaryButtonLabel,
+    secondaryButtonLabel,
 }) => {
     const { t } = useTranslation()
     const [isConfirming, setIsConfirming] = useState(false)
@@ -32,7 +36,7 @@ export const ConfirmDialog: React.FC<Props> = ({
 
     const handleOpenChange = useCallback(
         (isOpen: boolean) => {
-            if (!isOpen) onClose()
+            if (!isOpen && onClose) onClose()
         },
         [onClose],
     )
@@ -66,16 +70,19 @@ export const ConfirmDialog: React.FC<Props> = ({
                             </Text>
                         </Description>
                         <Actions>
+                            {onClose && (
+                                <Button
+                                    disabled={isConfirming}
+                                    variant="tertiary"
+                                    onClick={onClose}>
+                                    {secondaryButtonLabel || t('words.cancel')}
+                                </Button>
+                            )}
                             <Button
                                 disabled={isConfirming}
-                                variant="tertiary"
-                                onClick={onClose}>
-                                {t('words.cancel')}
-                            </Button>
-                            <Button
-                                loading={isConfirming}
+                                variant="primary"
                                 onClick={handleConfirm}>
-                                {t('words.okay')}
+                                {primaryButtonLabel || t('words.confirm')}
                             </Button>
                         </Actions>
                     </Content>

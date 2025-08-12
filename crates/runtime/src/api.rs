@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
@@ -19,9 +20,10 @@ use lightning_invoice::Bolt11Invoice;
 use reqwest::{Client, StatusCode};
 
 use crate::constants::{
-    FEDI_DEVICE_REGISTRATION_URL, FEDI_FEE_API_URL_MAINNET, FEDI_FEE_API_URL_MUTINYNET,
-    FEDI_INVOICE_API_URL_MAINNET, FEDI_INVOICE_API_URL_MUTINYNET,
+    FEDI_FEE_API_URL_MAINNET, FEDI_FEE_API_URL_MUTINYNET, FEDI_INVOICE_API_URL_MAINNET,
+    FEDI_INVOICE_API_URL_MUTINYNET,
 };
+use crate::features::FeatureCatalog;
 use crate::storage::state::{DeviceIdentifier, FediFeeSchedule, ModuleFediFeeSchedule};
 
 /// Represents registration information of a device using our root seed as
@@ -129,19 +131,15 @@ pub trait IFediApi: MaybeSend + MaybeSync + 'static {
 /// reqwest::Client to call out to Fedi's servers
 pub struct LiveFediApi {
     client: Client,
+    feature_catalog: Arc<FeatureCatalog>,
 }
 
 impl LiveFediApi {
-    pub fn new() -> Self {
+    pub fn new(feature_catalog: Arc<FeatureCatalog>) -> Self {
         Self {
             client: Client::new(),
+            feature_catalog,
         }
-    }
-}
-
-impl Default for LiveFediApi {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -251,7 +249,8 @@ impl IFediApi for LiveFediApi {
         let registered_devices_v0 = fedimint_core::task::timeout(Duration::from_secs(120), async {
             self.client
                 .get(format!(
-                    "{FEDI_DEVICE_REGISTRATION_URL}/get_devices_for_seed"
+                    "{}/get_devices_for_seed",
+                    self.feature_catalog.device_registration.service_url
                 ))
                 .query(&GetDevicesForSeedQueryV0 { seed_commitment })
                 .send()
@@ -295,7 +294,8 @@ impl IFediApi for LiveFediApi {
         let timeout_res = fedimint_core::task::timeout(Duration::from_secs(120), async {
             self.client
                 .post(format!(
-                    "{FEDI_DEVICE_REGISTRATION_URL}/register_device_for_seed"
+                    "{}/register_device_for_seed",
+                    self.feature_catalog.device_registration.service_url
                 ))
                 .json(&RegisterDeviceRequestV0 {
                     seed_commitment,

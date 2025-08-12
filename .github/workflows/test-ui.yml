@@ -57,14 +57,14 @@ jobs:
             - name: Build UI Dependencies
               run: nix develop -c ./scripts/ui/build-deps.sh
 
+            - name: Check code formatting
+              run: nix develop -c ./scripts/ci/check-ui-code-formatting.sh
+
             - name: Run linter and test suites
-              run: nix develop -c ./scripts/ci/test-ui.sh
+              run: nix develop -c ./scripts/ci/lint-and-test-ui.sh
 
             - name: Generate JS bundle for React Native
               run: nix develop -c ./scripts/ci/test-metro.sh
-
-            - name: Check code formatting
-              run: nix develop -c ./scripts/ci/check-ui-code-formatting.sh
 
     # Workaround to make this a required check only if Build UI workspace is actually triggered
     ui-status:

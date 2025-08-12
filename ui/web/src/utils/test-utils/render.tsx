@@ -1,10 +1,11 @@
-import { render, type RenderOptions } from '@testing-library/react'
+import { render, renderHook, type RenderOptions } from '@testing-library/react'
 import React, { PropsWithChildren } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { Provider } from 'react-redux'
 
+import { setupStore, type RootState } from '@fedi/common/redux'
+
 import i18n from '../../localization/i18n'
-import { setupStore, type RootState } from '../../state/store'
 
 // This type interface extends the default options for render from RTL, as well
 // as allows the user to specify other things such as initialState, store.
@@ -30,4 +31,26 @@ export function renderWithProviders(
         )
     }
     return { store, ...render(ui, { wrapper: Wrapper, ...renderOptions }) }
+}
+
+export function renderHookWithProviders<Result, Props>(
+    hook: (initialProps: Props) => Result,
+    {
+        preloadedState,
+        // Automatically create a store instance if no store was passed in
+        store = setupStore(preloadedState),
+        ...renderOptions
+    }: ExtendedRenderOptions = {},
+) {
+    function Wrapper({ children }: PropsWithChildren<unknown>): JSX.Element {
+        return (
+            <I18nextProvider i18n={i18n}>
+                <Provider store={store}>{children}</Provider>
+            </I18nextProvider>
+        )
+    }
+    return {
+        store,
+        ...renderHook(hook, { wrapper: Wrapper, ...renderOptions }),
+    }
 }

@@ -7,6 +7,9 @@ edition = "2021"
 anyhow = "1.0.66"
 axum = { version = "0.7", features = ["ws"] }
 bridge = { workspace = true }
+clap = { workspace = true }
+devi = { workspace = true }
+devimint = { workspace = true }
 fedi-ffi = { workspace = true }
 fedimint-logging = { workspace = true }
 fedimint-core = { workspace = true }

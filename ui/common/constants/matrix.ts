@@ -1,6 +1,6 @@
+// dev & staging use a different homeserver than prod, but all 3 use the same push server
+// TODO: consider hosting a separate push server for each homeserver?
 export const GLOBAL_MATRIX_PUSH_SERVER = 'https://sygnal.m1.8fa.in'
-export const GLOBAL_MATRIX_SERVER = 'https://m1.8fa.in'
-export const GLOBAL_MATRIX_SLIDING_SYNC_PROXY = 'https://sliding.m1.8fa.in'
 
 export const BANNED_DISPLAY_NAME_TERMS = [
     'admin',

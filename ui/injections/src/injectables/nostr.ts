@@ -3,6 +3,8 @@ import {
     sendInjectorMessage,
     encrypt as _encrypt,
     decrypt as _decrypt,
+    encrypt04 as _encrypt04,
+    decrypt04 as _decrypt04,
 } from '../utils'
 import {
     NostrNip07Provider,
@@ -36,14 +38,13 @@ class InjectionNostrProvider implements NostrNip07Provider {
         return sendInjectorMessage({ id, type, data })
     }
 
-    // We use the same encryption functions for both NIP 44 and NIP 04
     nip44 = {
         encrypt: _encrypt,
         decrypt: _decrypt,
     }
     nip04 = {
-        encrypt: _encrypt,
-        decrypt: _decrypt,
+        encrypt: _encrypt04,
+        decrypt: _decrypt04,
     }
 }
 

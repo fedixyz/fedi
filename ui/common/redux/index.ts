@@ -1,10 +1,10 @@
 import {
-    EnhancedStore,
     UnsubscribeListener,
+    combineReducers,
+    configureStore,
     createListenerMiddleware,
     isAnyOf,
 } from '@reduxjs/toolkit'
-import { CurriedGetDefaultMiddleware } from '@reduxjs/toolkit/dist/getDefaultMiddleware'
 import type { i18n as I18n } from 'i18next'
 import debounce from 'lodash/debounce'
 import type { AnyAction } from 'redux'
@@ -92,9 +92,19 @@ export const listenerMiddleware = createListenerMiddleware<
     CommonState,
     CommonDispatch
 >()
-export const commonMiddleware = (
-    getDefaultMiddleware: CurriedGetDefaultMiddleware<CommonState>,
-) => getDefaultMiddleware().prepend(listenerMiddleware.middleware)
+
+export const rootReducer = combineReducers({ ...commonReducers })
+
+export const setupStore = (preloadedState?: Partial<CommonState>) => {
+    return configureStore({
+        middleware: getDefaultMiddleware =>
+            getDefaultMiddleware().prepend(listenerMiddleware.middleware),
+        reducer: rootReducer,
+        preloadedState,
+    })
+}
+
+export type RootState = ReturnType<typeof rootReducer>
 
 /**
  * Sets up any initial redux behavior that is consistent across all platforms.
@@ -106,11 +116,7 @@ export function initializeCommonStore({
     i18n,
     detectLanguage,
 }: {
-    store: EnhancedStore<
-        CommonState,
-        AnyAction,
-        ReturnType<typeof commonMiddleware>
-    >
+    store: ReturnType<typeof setupStore>
     fedimint: FedimintBridge
     storage: StorageApi
     i18n: I18n
@@ -120,7 +126,7 @@ export function initializeCommonStore({
 
     dispatch(refreshHistoricalCurrencyRates({ fedimint }))
         .unwrap()
-        .catch(_error => {
+        .catch(() => {
             log.warn(
                 'Failed to refresh historical currency rates during store initialization:',
             )
@@ -273,8 +279,14 @@ export function initializeCommonStore({
             joinFederation.fulfilled,
             handleMatrixRoomTimelineObservableUpdates,
         ),
-        effect: (action, api) => {
-            const { roomId } = action.payload
+        effect: (
+            action:
+                | ReturnType<typeof joinFederation.fulfilled>
+                | ReturnType<typeof handleMatrixRoomTimelineObservableUpdates>,
+            api,
+        ) => {
+            const roomId =
+                'roomId' in action.payload ? action.payload?.roomId : undefined
             api.dispatch(
                 checkForReceivablePayments({
                     fedimint,

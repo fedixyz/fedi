@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::ffi::OsString;
+use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,13 +12,16 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use bridge::Bridge;
+use clap::Parser;
+use devimint::cli::exec_user_command;
+use devimint::cmd;
+use devimint::util::FedimintCli;
 use fediffi::ffi::PathBasedStorage;
 use fediffi::rpc::{fedimint_initialize_async, fedimint_rpc_async};
 use fedimint_logging::TracingSetup;
 use listenfd::ListenFd;
 use rpc_types::error::RpcError;
 use rpc_types::RpcInitOpts;
-use runtime::api::LiveFediApi;
 use runtime::event::IEventSink;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -29,6 +34,7 @@ type BridgeArc = Arc<Bridge>;
 struct AppState {
     bridges: Arc<RwLock<HashMap<String, BridgeState>>>,
     data_dir: PathBuf,
+    dev_fed: Option<Arc<devi::DevFed>>,
 }
 
 struct BridgeState {
@@ -56,44 +62,82 @@ impl IEventSink for EventSink {
     }
 }
 
+#[derive(Parser)]
+struct Cli {
+    /// Data directory for storing bridge data
+    #[arg(value_name = "DIR")]
+    data_dir: PathBuf,
+
+    /// Port to listen on (default: 26722)
+    #[arg(short, long, default_value = "26722")]
+    port: u16,
+
+    /// Run with a dev federation
+    #[arg(long)]
+    with_devfed: bool,
+
+    #[arg(trailing_var_arg = true)]
+    run_after_ready: Option<Vec<OsString>>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     TracingSetup::default().init()?;
 
-    let data_dir = std::env::args().nth(1).expect("must be present");
+    let cli = Cli::parse();
 
-    info!("Starting remote bridge server with data dir: {}", data_dir);
-
-    let state = AppState {
-        bridges: Arc::new(RwLock::new(HashMap::new())),
-        data_dir: PathBuf::from(data_dir),
+    let dev_fed = if cli.with_devfed {
+        let dev_fed = devi::DevFed::new_with_setup(4).await?;
+        Some(Arc::new(dev_fed))
+    } else {
+        None
     };
 
+    info!(
+        "Starting remote bridge server with data dir: {}",
+        cli.data_dir.display()
+    );
+    let state = AppState {
+        bridges: Arc::new(RwLock::new(HashMap::new())),
+        data_dir: cli.data_dir,
+        dev_fed,
+    };
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
-
     let app = Router::new()
         .route("/:device_id/init", post(handle_init))
         .route("/:device_id/rpc/:method", post(handle_rpc))
         .route("/:device_id/events", get(handle_events))
+        .route("/invite_code", get(handle_invite_code))
+        .route("/generate_ecash/:amount", get(handle_generate_ecash))
         .layer(cors)
         .with_state(state);
-
     let mut listenfd = ListenFd::from_env();
     let listener = if let Some(listener) = listenfd.take_tcp_listener(0)? {
         info!("Using listenfd socket");
         listener.set_nonblocking(true)?;
         tokio::net::TcpListener::from_std(listener)?
     } else {
-        let addr = "127.0.0.1:26722";
-        info!("Server listening on {}", addr);
-        tokio::net::TcpListener::bind(addr).await?
+        tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, cli.port)).await?
     };
-
-    axum::serve(listener, app).await?;
-
+    let port = listener.local_addr()?.port();
+    info!("Server listening on 127.0.0.1:{port}");
+    std::env::set_var("REMOTE_BRIDGE_PORT", port.to_string());
+    let shutdown_signal = async {
+        if let Some(command) = cli.run_after_ready {
+            // devimint already prints if command failed
+            let _ = exec_user_command(command).await;
+        } else {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to listen to event")
+        }
+    };
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await?;
     Ok(())
 }
 
@@ -133,7 +177,6 @@ async fn handle_init(
     let bridge = fedimint_initialize_async(
         Arc::new(PathBasedStorage::new(data_dir).await?),
         event_sink,
-        Arc::new(LiveFediApi::new()),
         opts.device_identifier,
         opts.app_flavor,
     )
@@ -245,4 +288,47 @@ async fn handle_websocket(mut socket: WebSocket, device_id: String, state: AppSt
     }
 
     info!("WebSocket connection closed for device: {}", device_id);
+}
+
+async fn handle_invite_code(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, RemoteRpcError> {
+    let dev_fed = state
+        .dev_fed
+        .as_ref()
+        .context("Dev federation not available - server must be started with --with-devfed")?;
+
+    let invite_code = dev_fed.fed.invite_code()?;
+
+    Ok(Json(serde_json::json!({
+        "invite_code": invite_code
+    })))
+}
+
+async fn handle_generate_ecash(
+    Path(amount_msats): Path<u64>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, RemoteRpcError> {
+    let _dev_fed = state
+        .dev_fed
+        .as_ref()
+        .context("Dev federation not available - server must be started with --with-devfed")?;
+
+    let amount = fedimint_core::Amount::from_msats(amount_msats);
+
+    let ecash_string = cmd!(
+        FedimintCli,
+        "spend",
+        "--allow-overpay",
+        amount.msats.to_string()
+    )
+    .out_json()
+    .await?["notes"]
+        .as_str()
+        .map(|s| s.to_owned())
+        .context("'notes' key not found generating ecash with fedimint-cli")?;
+
+    Ok(Json(serde_json::json!({
+        "ecash": ecash_string
+    })))
 }

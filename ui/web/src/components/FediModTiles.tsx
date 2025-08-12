@@ -1,13 +1,13 @@
 import Image from 'next/image'
-import Link from 'next/link'
 import React, { useState } from 'react'
 
 import DefaultFediModIcon from '@fedi/common/assets/images/fedimods/default.png'
 import { selectAllVisibleMods } from '@fedi/common/redux/mod'
 import { FediMod } from '@fedi/common/types'
 
+import { FediModBrowser } from '../components/FediModBrowser'
 import { FEDIMOD_IMAGES } from '../constants/fedimodimages'
-import { useAppSelector } from '../hooks'
+import { useAppSelector, useDeviceQuery } from '../hooks'
 import { styled } from '../styles'
 import { Text } from './Text'
 
@@ -15,61 +15,72 @@ type Props = {
     mods?: FediMod[]
 }
 
+// We don't have any mods yet but when we do we can add them here
+const whitelist: string[] = []
+
 export const FediModTiles: React.FC<Props> = ({ mods }) => {
+    const { isMobile } = useDeviceQuery()
     const defaultMods = useAppSelector(selectAllVisibleMods)
+    const [modUrl, setModUrl] = useState<string | null>(null)
 
     const fediMods = mods || defaultMods
 
+    const handleOnClick = (mod: FediMod) => {
+        // only show app in FediModBrowser if it is whitelisted and on mobile
+        if (whitelist.includes(mod.id) && isMobile) {
+            setModUrl(mod.url)
+            return
+        }
+
+        window.open(mod.url, '_blank')
+    }
+
     return (
-        <Container>
-            {fediMods.map(mod => (
-                <FediModTile
-                    key={mod.id}
-                    id={mod.id}
-                    href={mod.url}
-                    title={mod.title}
-                    image={mod.imageUrl || ''}
-                />
-            ))}
-        </Container>
+        <>
+            {!!modUrl && (
+                <FediModBrowser url={modUrl} onClose={() => setModUrl(null)} />
+            )}
+            <Container>
+                {fediMods.map(mod => {
+                    return (
+                        <FediModTile
+                            key={mod.id}
+                            mod={mod}
+                            onClick={handleOnClick}
+                        />
+                    )
+                })}
+            </Container>
+        </>
     )
 }
 
 const FediModTile = ({
-    id,
-    href,
-    image,
-    title,
+    mod,
+    onClick,
 }: {
-    id: string
-    href: string
-    image: string
-    title: string
+    mod: FediMod
+    onClick(mod: FediMod): void
 }) => {
-    const isExternal = href.startsWith('http')
     const [imageError, setImageError] = useState(false)
 
     return (
-        <FediModTileBase
-            href={href}
-            as={isExternal ? undefined : Link}
-            target={isExternal ? '_blank' : undefined}
-            rel={isExternal ? 'noopener noreferrer' : undefined}>
+        <FediModTileBase onClick={() => onClick(mod)}>
             <FediModIcon
                 src={
                     imageError
-                        ? FEDIMOD_IMAGES[id] || DefaultFediModIcon
-                        : image
+                        ? FEDIMOD_IMAGES[mod.id] || DefaultFediModIcon
+                        : mod.imageUrl || ''
                 }
                 width={48}
                 height={48}
-                alt={title || ''}
+                alt={mod.title || ''}
                 onError={() => setImageError(true)}
             />
 
             <FediModTitle>
                 <Text variant="small" ellipsize>
-                    {title}
+                    {mod.title}
                 </Text>
             </FediModTitle>
         </FediModTileBase>
@@ -92,7 +103,7 @@ const Container = styled('div', {
     },
 })
 
-const FediModTileBase = styled('a', {
+const FediModTileBase = styled('div', {
     display: 'inline-flex',
     flexDirection: 'column',
     justifyContent: 'center',

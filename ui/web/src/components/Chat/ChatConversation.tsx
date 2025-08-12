@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ImageIcon from '@fedi/common/assets/svgs/image.svg'
 import SendArrowUpCircleIcon from '@fedi/common/assets/svgs/send-arrow-up-circle.svg'
+import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectMatrixRoom,
@@ -24,15 +26,17 @@ import * as Layout from '../Layout'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatEventCollection } from './ChatEventCollection'
+import { ChatMediaThumbnail } from './ChatMediaThumbnail'
 
 interface Props {
     type: ChatType
     id: string
     name: string
     events: MatrixEvent[]
+    onSendMessage(message: string, files: File[]): Promise<void>
     headerActions?: React.ReactNode
-    inputActions?: React.ReactNode
-    onSendMessage(message: string): Promise<void>
+    inputActions?: boolean
+    onWalletClick?(): void
     onPaginate?: () => Promise<void>
 }
 
@@ -44,19 +48,26 @@ export const ChatConversation: React.FC<Props> = ({
     headerActions,
     inputActions,
     onSendMessage,
+    onWalletClick,
     onPaginate,
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
+    const isTouchScreen = useIsTouchScreen()
+
     const room = useAppSelector(s => selectMatrixRoom(s, id))
     const user = useAppSelector(s => selectMatrixUser(s, id))
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
+
     const [value, setValue] = useState('')
     const [isSending, setIsSending] = useState(false)
     const [hasPaginated, setHasPaginated] = useState(false)
     const [isPaginating, setIsPaginating] = useState(false)
-    const isTouchScreen = useIsTouchScreen()
+    const [files, setFiles] = useState<File[]>([])
+
     const inputRef = useRef<HTMLTextAreaElement>(null)
+    const fileRef = useRef<HTMLInputElement>(null)
+
     useAutosizeTextArea(inputRef.current, value)
 
     const eventGroups = useMemo(
@@ -69,6 +80,16 @@ export const ChatConversation: React.FC<Props> = ({
     useEffect(() => {
         setHasPaginated(false)
     }, [events.length])
+
+    // Handle loading initial messages
+    useEffect(() => {
+        if (!onPaginate) return
+        setIsPaginating(true)
+        setHasPaginated(true)
+        onPaginate()
+            .catch(() => null)
+            .finally(() => setIsPaginating(false))
+    }, [onPaginate])
 
     const handleMessagesScroll = useCallback(
         (ev: React.WheelEvent<HTMLDivElement>) => {
@@ -86,36 +107,45 @@ export const ChatConversation: React.FC<Props> = ({
         [onPaginate],
     )
 
-    // Handle loading initial messages
-    useEffect(() => {
-        if (!onPaginate) return
-        setIsPaginating(true)
-        setHasPaginated(true)
-        onPaginate()
-            .catch(() => null)
-            .finally(() => setIsPaginating(false))
-    }, [onPaginate])
-
     const handleSend = useCallback(
         async (ev?: React.FormEvent) => {
             if (ev) {
                 ev.preventDefault()
             }
 
-            // Prevent messages consisting of just spaces to be sent
-            if (value.trim().length === 0) return
-
             setIsSending(true)
             try {
-                await onSendMessage(value)
+                await onSendMessage(value, files)
                 setValue('')
+                setFiles([])
             } catch (err) {
                 toast.error(t, err, 'errors.chat-connection-unhealthy')
             }
             setIsSending(false)
         },
-        [onSendMessage, value, toast, t],
+        [onSendMessage, files, t, toast, value],
     )
+
+    const handleOnMediaClick = () => {
+        if (!fileRef.current) return
+        fileRef.current?.click()
+    }
+
+    const handleOnUploadMedia = async (
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+        if (!event.target.files || !event.target.files.length) return
+        const file = event.target.files[0]
+
+        setFiles(prev => [...prev, file])
+    }
+
+    const handleOnRemoveThumbnail = (idx: number) => {
+        // get everything back except item at idx
+        const newFiles = [...files.slice(0, idx), ...files.slice(idx + 1)]
+
+        setFiles(newFiles)
+    }
 
     const handleInputKeyDown = useCallback(
         (ev: React.KeyboardEvent) => {
@@ -159,6 +189,7 @@ export const ChatConversation: React.FC<Props> = ({
                     <HeaderActions>{headerActions}</HeaderActions>
                 )}
             </Layout.Header>
+
             <Layout.Content fullWidth>
                 <Messages
                     onWheel={
@@ -179,27 +210,73 @@ export const ChatConversation: React.FC<Props> = ({
                     </PaginationPlaceholder>
                 </Messages>
             </Layout.Content>
+
             <Actions onSubmit={handleSend}>
-                {inputActions && <InputActions>{inputActions}</InputActions>}
-                <Input
-                    ref={inputRef}
-                    value={value}
-                    onChange={ev => setValue(ev.currentTarget.value)}
-                    placeholder={t(
-                        isReadOnly
-                            ? 'feature.chat.broadcast-only-notice'
-                            : 'words.message',
-                    )}
-                    autoFocus={!isTouchScreen}
-                    rows={1}
-                    onKeyDown={handleInputKeyDown}
-                    disabled={isSending || isReadOnly}
-                />
-                <SendButton
-                    disabled={value.trim().length === 0 || isSending}
-                    type="submit">
-                    <Icon icon={SendArrowUpCircleIcon} />
-                </SendButton>
+                {files.length > 0 && (
+                    <ThumbnailsRow>
+                        {files.map((file, idx: number) => (
+                            <ChatMediaThumbnail
+                                key={`${file.name}-${idx}`}
+                                file={file}
+                                onRemove={() => handleOnRemoveThumbnail(idx)}
+                            />
+                        ))}
+                    </ThumbnailsRow>
+                )}
+
+                <InputRow>
+                    <Input
+                        ref={inputRef}
+                        value={value}
+                        onChange={ev => setValue(ev.currentTarget.value)}
+                        placeholder={t(
+                            isReadOnly
+                                ? 'feature.chat.broadcast-only-notice'
+                                : 'phrases.type-message',
+                        )}
+                        autoFocus={!isTouchScreen}
+                        rows={1}
+                        onKeyDown={handleInputKeyDown}
+                        disabled={isSending || isReadOnly}
+                    />
+                    <input
+                        data-testid="file-upload"
+                        type="file"
+                        ref={fileRef}
+                        hidden
+                        accept="image/*, video/*"
+                        onChange={handleOnUploadMedia}
+                    />
+                </InputRow>
+
+                <ActionsRow>
+                    <InputActions>
+                        {inputActions && (
+                            <>
+                                <Icon
+                                    aria-label="wallet-icon"
+                                    icon={WalletIcon}
+                                    size={32}
+                                    onClick={onWalletClick}
+                                />
+                                <Icon
+                                    aria-label="image-icon"
+                                    icon={ImageIcon}
+                                    size={26}
+                                    onClick={handleOnMediaClick}
+                                />
+                            </>
+                        )}
+                    </InputActions>
+                    <SendButton
+                        disabled={
+                            (value.trim().length === 0 && !files.length) ||
+                            isSending
+                        }
+                        type="submit">
+                        <Icon icon={SendArrowUpCircleIcon} />
+                    </SendButton>
+                </ActionsRow>
             </Actions>
         </Layout.Root>
     )
@@ -230,32 +307,55 @@ const Messages = styled('div', {
 })
 
 const Actions = styled('form', {
-    display: 'flex',
     alignItems: 'center',
-    flexShrink: 0,
-    padding: 8,
     borderTop: `1px solid ${theme.colors.lightGrey}`,
+    display: 'flex',
+    flexDirection: 'column',
+    padding: 8,
+    width: '100%',
 
     '@standalone': {
         '@sm': {
-            paddingBottom: 'env(safe-area-inset-bottom, 8px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 16px)',
         },
     },
 })
 
-const InputActions = styled('div', {
-    display: 'flex',
+const ThumbnailsRow = styled('div', {
     alignItems: 'center',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: 8,
+    width: '100%',
+})
+
+const InputRow = styled('div', {
+    width: '100%',
+})
+
+const ActionsRow = styled('div', {
+    alignItems: 'center',
+    display: 'flex',
+    height: 40,
+    justifyContent: 'space-between',
+    width: '100%',
+})
+
+const InputActions = styled('div', {
+    alignItems: 'center',
+    display: 'flex',
     gap: 8,
 })
 
 const Input = styled('textarea', {
     flex: 1,
     maxHeight: 120,
-    padding: 8,
+    padding: 4,
     border: 0,
     background: 'none',
     resize: 'none',
+    width: '100%',
 
     '&:hover, &:focus': {
         outline: 'none',
@@ -266,8 +366,6 @@ const SendButton = styled('button', {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 40,
-    height: 40,
     color: theme.colors.blue,
 
     '&:disabled': {
@@ -281,8 +379,8 @@ const SendButton = styled('button', {
     },
 
     '& > svg': {
-        width: 24,
-        height: 24,
+        width: 32,
+        height: 32,
     },
 })
 

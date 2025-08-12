@@ -53,6 +53,7 @@ const CommunityTile = ({
     const style = styles(theme)
     return (
         <Pressable
+            accessible={false}
             containerStyle={[
                 style.container,
                 isActiveCommunity && style.active,
@@ -88,6 +89,9 @@ const CommunityTile = ({
             </Flex>
             {showInviteCode && (
                 <PressableIcon
+                    testID={community.name
+                        .concat('QRCodeButton')
+                        .replaceAll(' ', '')}
                     hitSlop={10}
                     containerStyle={style.qr}
                     onPress={onSelectQr}

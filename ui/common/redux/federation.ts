@@ -13,7 +13,7 @@ import {
     previewCommunityDefaultChats,
     previewGlobalDefaultChats,
     selectIsInternetUnreachable,
-    selectIsMultispendFeatureEnabled,
+    selectIsNostrClientEnabled,
 } from '.'
 import { FEDI_GLOBAL_COMMUNITY } from '../constants/community'
 import {
@@ -29,7 +29,11 @@ import {
     Sats,
     StabilityPoolConfig,
 } from '../types'
-import { RpcLightningGateway, RpcStabilityPoolConfig } from '../types/bindings'
+import {
+    RpcFederationId,
+    RpcLightningGateway,
+    RpcStabilityPoolConfig,
+} from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import {
     coerceFederationListItem,
@@ -330,33 +334,25 @@ export const {
 
 export const rateFederation = createAsyncThunk<
     void,
-    { fedimint: FedimintBridge; rating: number },
+    { fedimint: FedimintBridge; rating: number; federationId: RpcFederationId },
     { state: CommonState }
 >(
     'federation/rateFederation',
-    async ({ fedimint, rating }, { getState, dispatch }) => {
-        const federationId = selectActiveFederationId(getState())
-
+    async ({ fedimint, rating, federationId }, { dispatch }) => {
         if (!federationId) return
 
-        await fedimint
-            .rpcResult('nostrRateFederation', {
-                federationId,
-                rating,
-                includeInviteCode: false,
-            })
-            .match(
-                () => {
-                    dispatch(
-                        setSeenFederationRating({
-                            federationId,
-                        }),
-                    )
-                },
-                e => {
-                    log.error(`nostrRateFederation failed`, e)
-                },
+        try {
+            log.debug(`rating federation ${federationId} with rating ${rating}`)
+            await fedimint.nostrRateFederation(federationId, rating, false)
+            log.debug(`adding ${federationId} to seenFederationRatings state`)
+            dispatch(
+                setSeenFederationRating({
+                    federationId,
+                }),
             )
+        } catch (e) {
+            log.error(`nostrRateFederation failed`, e)
+        }
     },
 )
 
@@ -588,6 +584,37 @@ export const leaveFederation = createAsyncThunk<
                 await fedimint.leaveFederation(federationId)
             // for communities, the federation id is the invite code
             else fedimint.leaveCommunity({ inviteCode: federationId })
+        }
+    },
+)
+
+export const setSuggestedPaymentFederation = createAsyncThunk<
+    void,
+    void,
+    { state: CommonState }
+>(
+    'federation/setSuggestedPaymentFederation',
+    async (_, { getState, dispatch }) => {
+        const state = getState()
+        const paymentFederation = selectPaymentFederation(state)
+        const walletFederations = selectWalletFederations(state)
+
+        // If no payment federation is set (e.g. your active federation is a non-wallet community),
+        // find and select the best possible wallet federation
+        if (!paymentFederation) {
+            const firstWalletFederation = walletFederations
+                // Sort by balance
+                .sort((a, b) => b.balance - a.balance)
+                // Prioritize mainnet federations
+                .sort(
+                    (a, b) =>
+                        // Resolves to either 0 or 1 for true/false
+                        // Sorts in descending order by network === bitcoin - network !== bitcoin
+                        Number(b.network === 'bitcoin') -
+                        Number(a.network === 'bitcoin'),
+                )[0]
+
+            dispatch(setPayFromFederationId(firstWalletFederation?.id ?? null))
         }
     },
 )
@@ -1073,10 +1100,9 @@ export const selectDoesFederationHaveMultispend = (
 }
 
 export const selectShouldShowMultispend = createSelector(
-    (s: CommonState) => selectIsMultispendFeatureEnabled(s),
     (s: CommonState) => selectDoesAnyFederationHaveMultispend(s),
-    (isMultispendEnabled, doesAnyFederationHaveMultispend) => {
-        return isMultispendEnabled && doesAnyFederationHaveMultispend
+    doesAnyFederationHaveMultispend => {
+        return doesAnyFederationHaveMultispend
     },
 )
 
@@ -1084,3 +1110,23 @@ export const selectHasSeenFederationRating = (
     state: CommonState,
     federationId: string,
 ) => state.federation.seenFederationRatings.includes(federationId)
+
+export const selectShouldRateFederation = createSelector(
+    (s: CommonState) => s.federation.seenFederationRatings,
+    (s: CommonState) => selectIsNostrClientEnabled(s),
+    (s: CommonState) => selectPaymentFederation(s),
+    (seenFederationRatings, isNostrClientEnabled, paymentFederation) => {
+        log.debug('selectShouldRateFederation', {
+            seenFederationRatings,
+            isNostrClientEnabled,
+            paymentFederation: `${paymentFederation?.id} - ${paymentFederation?.name}`,
+        })
+        // dont rate if the user has no wallet federations
+        if (!paymentFederation) return false
+        // dont rate if the user has already rated this federation
+        if (seenFederationRatings.includes(paymentFederation.id)) return false
+        // dont rate if nostr client is not enabled
+        if (!isNostrClientEnabled) return false
+        return true
+    },
+)

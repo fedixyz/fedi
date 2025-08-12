@@ -27,6 +27,7 @@ const FederationInviteHeader: React.FC = () => {
             }
             headerRight={
                 <Pressable
+                    testID="FederationInviteCloseButton"
                     onPress={() =>
                         navigation.canGoBack()
                             ? navigation.goBack()

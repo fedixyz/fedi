@@ -27,6 +27,7 @@ import FederationEndedPreview from '../FederationEndedPreview'
 import { HoloLoader } from '../HoloLoader'
 import { Header, Title } from '../Layout'
 import { Redirect } from '../Redirect'
+import { Switch } from '../Switch'
 import { Text } from '../Text'
 import {
     OnboardingActions,
@@ -49,6 +50,7 @@ export const JoinFederation: React.FC = () => {
     const [isJoining, setIsJoining] = useState(false)
     const [isFetchingPreview, setIsFetchingPreview] = useState<boolean>(true)
     const [federationPreview, setFederationPreview] = useState<JoinPreview>()
+    const [recoverFromScratch, setRecoverFromScratch] = useState(false)
 
     const popupInfo = usePopupFederationInfo(federationPreview?.meta)
 
@@ -79,6 +81,7 @@ export const JoinFederation: React.FC = () => {
                 joinFederation({
                     fedimint,
                     code: federationPreview.inviteCode,
+                    recoverFromScratch,
                 }),
             ).unwrap()
 
@@ -88,7 +91,15 @@ export const JoinFederation: React.FC = () => {
             toast.error(t, err, 'errors.invalid-federation-code')
             setIsJoining(false)
         }
-    }, [dispatch, federationIds, federationPreview, push, t, toast])
+    }, [
+        dispatch,
+        federationIds,
+        federationPreview,
+        push,
+        recoverFromScratch,
+        t,
+        toast,
+    ])
 
     // If they came here with invite code in query string then paste the code for them
     useEffect(() => {
@@ -214,21 +225,39 @@ export const JoinFederation: React.FC = () => {
                     <Text variant="h2" weight="medium">
                         {federationPreview.name}
                     </Text>
-                    {welcomeMessage ? (
-                        <CustomWelcomeMessage>
+                    <CustomWelcomeMessage>
+                        {welcomeMessage ? (
                             <Trans components={{ bold: <strong /> }}>
                                 {welcomeMessage}
                             </Trans>
-                        </CustomWelcomeMessage>
-                    ) : (
-                        <Text variant="caption">{welcomeInstructions}</Text>
-                    )}
+                        ) : (
+                            <Text variant="caption">{welcomeInstructions}</Text>
+                        )}
+                    </CustomWelcomeMessage>
                 </FederationPreviewInner>
             </FederationPreviewOuter>
         )
 
         actions = (
             <>
+                {memberStatus === 'returningMember' && (
+                    <RecoverFromScratch>
+                        <RecoverFromScratchText>
+                            <Text variant="small" weight="bold">
+                                {t('feature.federations.recover-from-scratch')}
+                            </Text>
+                            <Text variant="small">
+                                {t(
+                                    'feature.federations.recover-from-scratch-warning',
+                                )}
+                            </Text>
+                        </RecoverFromScratchText>
+                        <Switch
+                            checked={recoverFromScratch}
+                            onCheckedChange={setRecoverFromScratch}
+                        />
+                    </RecoverFromScratch>
+                )}
                 {tosUrl ? (
                     <>
                         <Text
@@ -249,15 +278,17 @@ export const JoinFederation: React.FC = () => {
                             />
                         </Text>
 
-                        <Button variant="tertiary" onClick={() => back()}>
-                            {t('feature.onboarding.i-do-not-accept')}
-                        </Button>
-                        <Button
-                            width="full"
-                            onClick={handleJoin}
-                            loading={isJoining}>
-                            {t('feature.onboarding.i-accept')}
-                        </Button>
+                        <div>
+                            <Button variant="tertiary" onClick={() => back()}>
+                                {t('feature.onboarding.i-do-not-accept')}
+                            </Button>
+                            <Button
+                                width="full"
+                                onClick={handleJoin}
+                                loading={isJoining}>
+                                {t('feature.onboarding.i-accept')}
+                            </Button>
+                        </div>
                     </>
                 ) : (
                     <Button
@@ -328,4 +359,20 @@ const UnsupportedBadge = styled('div', {
 
 const Link = styled('a', {
     color: theme.colors.link,
+})
+
+const RecoverFromScratch = styled('div', {
+    alignItems: 'center',
+    background: theme.colors.offWhite,
+    borderRadius: 12,
+    display: 'flex',
+    gap: 10,
+    padding: 12,
+    textAlign: 'left',
+})
+
+const RecoverFromScratchText = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
 })

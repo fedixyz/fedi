@@ -140,6 +140,8 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
         })
     }
 
+    const overlayBottomPadding = Math.max(theme.spacing.xl, insets.bottom || 0)
+
     return (
         <Overlay
             isVisible={isShowing}
@@ -156,6 +158,10 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
                         Platform.OS === 'android'
                             ? overlayHeight - keyboardHeight
                             : overlayHeight,
+                    paddingBottom:
+                        Platform.OS === 'ios'
+                            ? keyboardHeight + overlayBottomPadding
+                            : overlayBottomPadding,
                 }}>
                 {icon && (
                     <SvgImage

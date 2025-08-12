@@ -33,6 +33,7 @@ function ScanPage() {
                                 )
                             }
                             onUnexpectedSuccess={() => null}
+                            customActions={['paste']}
                         />
                     </Content>
                 </Layout.Content>

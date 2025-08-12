@@ -8,6 +8,7 @@ import SplashScreen from 'react-native-splash-screen'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     refreshOnboardingStatus,
+    selectMatrixAuth,
     setShouldLockDevice,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
@@ -17,13 +18,14 @@ import {
     LogEvent,
     PanicEvent,
 } from '@fedi/common/types/bindings'
+import { isDev } from '@fedi/common/utils/environment'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint, initializeBridge } from '../bridge'
 import { ErrorScreen } from '../screens/ErrorScreen'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import theme from '../styles/theme'
-import { generateDeviceId } from '../utils/device-info'
+import { generateDeviceId, isNightly } from '../utils/device-info'
 import { useAppIsInForeground } from '../utils/hooks/notifications'
 import { formatBridgeFfiLog } from '../utils/log'
 import { displayPaymentReceivedNotification } from '../utils/notifications'
@@ -41,6 +43,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const [bridgeIsReady, setBridgeIsReady] = useState<boolean>(false)
     const [bridgeError, setBridgeError] = useState<unknown>()
     const hasLoadedStorage = useAppSelector(selectStorageIsReady)
+    const matrixAuth = useAppSelector(selectMatrixAuth)
     const dispatchRef = useUpdatingRef(dispatch)
     const isForeground = useAppIsInForeground()
 
@@ -139,6 +142,21 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
             unsubscribeDeviceRegistration()
         }
     }, [dispatchRef, t])
+
+    // this is dev + nightly only logic to force an error if the production homeserver is still being used
+    // TODO: remove this after a few months after all nightly users have updated & migrated
+    useEffect(() => {
+        if ((isNightly() || isDev()) && matrixAuth && matrixAuth.userId) {
+            const [, homeserver] = matrixAuth.userId.split(':')
+            if (homeserver !== 'staging.m1.8fa.in') {
+                setBridgeError(
+                    new Error(
+                        'This is an expected nightly only error intentionally forced to ensure clean metrics. Please uninstall & recover from seed.\n',
+                    ),
+                )
+            }
+        }
+    }, [matrixAuth])
 
     if (bridgeIsReady && !bridgeError) {
         return <>{children}</>

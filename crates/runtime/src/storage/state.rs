@@ -98,6 +98,11 @@ pub struct AppStateJsonOnboarded {
     #[serde(default)]
     pub internal_bridge_export: bool,
 
+    /// Tracks how the user completed onboarding. None for users who onboarded
+    /// before this field was added.
+    #[serde(default)]
+    pub onboarding_method: Option<OnboardingMethod>,
+
     #[serde(flatten)]
     pub base: AppStateJsonBase,
 }
@@ -135,6 +140,17 @@ pub enum OnboardingStage {
         social_recovery_state: Option<SocialRecoveryState>,
         encrypted_device_identifier: String,
     },
+}
+
+/// Tracks how a user completed their onboarding process
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum OnboardingMethod {
+    /// User generated a new seed phrase
+    NewSeed,
+    /// User restored from an existing backup
+    Restored,
 }
 
 #[derive(Deserialize, Clone)]
@@ -374,6 +390,7 @@ impl AppStateJson {
                     device_index,
                     social_recovery_state,
                     internal_bridge_export: false,
+                    onboarding_method: None,
                     base: value.base,
                 })
             }

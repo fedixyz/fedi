@@ -107,6 +107,7 @@ const PermissionContainer = styled('div', {
     width: '100%',
     nightGradient: true,
     color: theme.colors.white,
+    minHeight: 400,
 })
 
 const PermissionInner = styled('div', {

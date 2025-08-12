@@ -118,7 +118,7 @@ lint-ui:
 
 # run UI tests
 test-ui:
-  pushd ./ui && yarn test && popd
+  @./scripts/ui/run-ui-tests.sh
 
 # run UI code formatter to check for formatting errors
 check-ui-code:

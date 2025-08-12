@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
+import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
@@ -8,12 +9,15 @@ import SettingsIcon from '@fedi/common/assets/svgs/cog.svg'
 import userProfile from '@fedi/common/assets/svgs/profile.svg'
 import WordListIcon from '@fedi/common/assets/svgs/word-list.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
+import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
     selectActiveFederation,
     selectActiveFederationChats,
+    selectIsActiveFederationRecovering,
     selectMatrixAuth,
     selectActiveFederationHasWallet,
+    selectOnboardingMethod,
 } from '@fedi/common/redux'
 import {
     selectCoreMods,
@@ -30,6 +34,7 @@ import { Icon } from '../components/Icon'
 import { InstallBanner } from '../components/InstallBanner'
 import * as Layout from '../components/Layout'
 import { Modal } from '../components/Modal'
+import { RecoveryInProgress } from '../components/RecoveryInProgress'
 import { Text } from '../components/Text'
 import {
     useAppSelector,
@@ -37,6 +42,7 @@ import {
     useInstallPromptContext,
     useShowInstallPromptBanner,
 } from '../hooks'
+import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 
 const BACKUP_REMINDER_MIN_BALANCE = 1000000 // 1000000 msats or 1000 sats
@@ -48,6 +54,8 @@ function HomePage() {
     const { showInstallBanner, handleOnDismiss } = useShowInstallPromptBanner()
     const router = useRouter()
 
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+
     const [hasSeenDisplayName, completeSeenDisplayName] =
         useNuxStep('displayNameModal')
     const [hasPerformedPersonalBackup] = useNuxStep(
@@ -58,11 +66,16 @@ function HomePage() {
         await deferredPrompt?.prompt()
     }
 
+    const recoveryInProgress = useAppSelector(
+        selectIsActiveFederationRecovering,
+    )
     const mods = useAppSelector(selectVisibleCommunityMods)
     const coreMods = useAppSelector(selectCoreMods)
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const activeFederation = useAppSelector(selectActiveFederation)
     const newsItems = useAppSelector(s => selectActiveFederationChats(s))
+    const onboardingMethod = useAppSelector(selectOnboardingMethod)
+    const isNewSeedUser = onboardingMethod !== 'restored'
 
     // Federations have wallets, communities do not
     const hasWallet = useAppSelector(selectActiveFederationHasWallet)
@@ -73,6 +86,11 @@ function HomePage() {
 
     const showFederation = !activeFederation || hasWallet
 
+    // Get rates from cache
+    useEffect(() => {
+        syncCurrencyRatesAndCache()
+    }, [syncCurrencyRatesAndCache])
+
     return (
         <ContentBlock>
             <Layout.Root>
@@ -80,7 +98,15 @@ function HomePage() {
                     <Content>
                         {showFederation && (
                             <Section>
-                                <BitcoinWallet />
+                                {recoveryInProgress ? (
+                                    <RecoveryInProgress
+                                        label={t(
+                                            'feature.recovery.recovery-in-progress-balance',
+                                        )}
+                                    />
+                                ) : (
+                                    <BitcoinWallet />
+                                )}
                             </Section>
                         )}
 
@@ -207,7 +233,11 @@ function HomePage() {
 
             {/* Modal - Show user their display name */}
             <Modal
-                open={!hasSeenDisplayName && !!matrixAuth?.displayName}
+                open={
+                    isNewSeedUser &&
+                    !hasSeenDisplayName &&
+                    !!matrixAuth?.displayName
+                }
                 onClick={completeSeenDisplayName}
                 title={t('feature.home.display-name')}
                 description={matrixAuth?.displayName}>

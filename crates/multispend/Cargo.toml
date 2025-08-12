@@ -20,4 +20,4 @@ stability-pool-client = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-ts-rs = "10"
+ts-rs = { workspace = true }
