@@ -57,7 +57,7 @@ pub fn init_logging(
     const MB: u64 = 1024 * 1024;
     const MAX_FILE_COUNT: usize = 2;
     let max_log_size = match app_flavor {
-        RpcAppFlavor::Dev | RpcAppFlavor::Nightly => 50 * MB,
+        RpcAppFlavor::Dev | RpcAppFlavor::Nightly | RpcAppFlavor::Tests => 50 * MB,
         RpcAppFlavor::Bravo => 5 * MB,
     };
     let log_file_writer = BasicRollingFileAppender::new(

@@ -74,6 +74,7 @@ const mockGetFederationDefaultCurrency =
         typeof getFederationDefaultCurrency
     >
 
+// TODO: Rewrite this entire test suite to use the new mockReduxProvider and split out util tests vs hook/selector tests
 describe('currency', () => {
     beforeEach(() => {
         jest.clearAllMocks()

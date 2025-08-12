@@ -47,6 +47,7 @@ jobs:
             - name: Execute fastlane beta lane for CI
               env:
                   GH_PAT_FEDI_FETCH_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_FETCH_IOS_CERTS }}
+                  GH_PAT_FEDI_WRITE_IOS_CERTS: ${{ secrets.GH_PAT_FEDI_WRITE_IOS_CERTS }}
                   MATCH_KEYCHAIN_NAME: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_NAME }}
                   MATCH_PASSWORD: ${{ secrets.APP_STORE_CONNECT_KEYCHAIN_PASSWORD }}
                   BUILD_BRIDGE: 0

@@ -29,9 +29,13 @@ import {
     observeMultispendAccountInfo,
     unobserveMultispendAccountInfo,
     checkBolt11PaymentResult,
+    clearChatReplyingToMessage,
+    setChatReplyingToMessage,
+    selectReplyingToMessageEventForRoom,
     sendMatrixFormResponse,
 } from '../redux'
 import {
+    MatrixEvent,
     MatrixFormEvent,
     MatrixPaymentEvent,
     MatrixPaymentStatus,
@@ -48,6 +52,8 @@ import { formatErrorMessage } from '../utils/format'
 import { makeLog } from '../utils/log'
 import {
     decodeFediMatrixUserUri,
+    getReplyMessageData,
+    isReply,
     isValidMatrixUserId,
     makeMatrixPaymentText,
     MatrixFormOption,
@@ -55,6 +61,7 @@ import {
     MatrixUrlMetadata,
     matrixUrlMetadataSchema,
     getLocalizedTextWithFallback,
+    stripReplyFromBody,
 } from '../utils/matrix'
 import { useAmountFormatter } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
@@ -884,4 +891,163 @@ export function useMatrixPaymentTransaction({
     }, [event.content, fedimint, currentUserId, hasTriedFetch])
 
     return { transaction, hasTriedFetch, isLoading, error }
+}
+
+/**
+ * Hook for managing replies in a specific room
+ */
+export function useMatrixReply(roomId: MatrixRoom['id']) {
+    const dispatch = useCommonDispatch()
+
+    // Get the currently replied event for this room
+    const replyEvent = useCommonSelector(s =>
+        selectReplyingToMessageEventForRoom(s, roomId),
+    )
+
+    // Get the sender's display name for the replied event
+    const replyEventSender = useCommonSelector(s =>
+        replyEvent?.senderId
+            ? selectMatrixUser(s, replyEvent.senderId)
+            : undefined,
+    )
+
+    const startReply = useCallback(
+        (event: MatrixEvent) => {
+            dispatch(
+                setChatReplyingToMessage({
+                    roomId,
+                    event,
+                }),
+            )
+        },
+        [dispatch, roomId],
+    )
+
+    const clearReply = useCallback(() => {
+        dispatch(clearChatReplyingToMessage())
+    }, [dispatch])
+
+    const replyForInput = useMemo(() => {
+        if (!replyEvent) return null
+
+        const senderName =
+            replyEventSender?.displayName || replyEvent.senderId || 'Unknown'
+
+        return {
+            eventId: replyEvent?.eventId || replyEvent?.id,
+            senderName,
+            body: replyEvent.content.body || 'Message',
+            timestamp: replyEvent.timestamp,
+        }
+    }, [replyEvent, replyEventSender])
+
+    const isReplying = useMemo(() => !!replyEvent, [replyEvent])
+
+    return {
+        replyEvent,
+        replyEventSender,
+        replyForInput,
+        isReplying,
+        startReply,
+        clearReply,
+    }
+}
+
+/**
+ * Hook for detecting and extracting reply data from timeline events
+ * Also handles stripping reply formatting from the current message body
+ */
+export function useMatrixRepliedMessage(event: MatrixEvent) {
+    const isReplied = useMemo(() => isReply(event), [event])
+
+    const replyData = useMemo(() => {
+        if (!isReplied) return null
+        return getReplyMessageData(event)
+    }, [event, isReplied])
+
+    // get the original replied-to event from the room timeline
+    const repliedToEvent = useCommonSelector(s => {
+        if (!replyData?.eventId || !event.roomId) return null
+
+        // get the timeline for this room
+        const timeline = s.matrix.roomTimelines[event.roomId]
+        if (!timeline) return null
+
+        // find the original event by ID
+        return (
+            timeline.find(
+                item =>
+                    item !== null &&
+                    (item.eventId === replyData.eventId ||
+                        item.id === replyData.eventId),
+            ) || null
+        )
+    })
+
+    // get the sender's display name for the original message
+    const replySender = useCommonSelector(s =>
+        repliedToEvent?.senderId
+            ? selectMatrixUser(s, repliedToEvent.senderId)
+            : undefined,
+    )
+
+    const repliedDisplayData = useMemo(() => {
+        if (!replyData) return null
+
+        // if we found the original event, use its data
+        if (repliedToEvent) {
+            const content = repliedToEvent.content
+            const body =
+                'body' in content && typeof content.body === 'string'
+                    ? content.body
+                    : 'Message'
+            const formattedBody =
+                'formatted_body' in content &&
+                typeof content.formatted_body === 'string'
+                    ? content.formatted_body
+                    : undefined
+
+            const strippedOriginalBody = stripReplyFromBody(body, formattedBody)
+
+            return {
+                eventId: replyData.eventId,
+                senderId: repliedToEvent.senderId || '',
+                senderDisplayName:
+                    replySender?.displayName ||
+                    repliedToEvent.senderId?.split(':')[0]?.replace('@', '') ||
+                    'Unknown',
+                body: strippedOriginalBody,
+                timestamp: repliedToEvent.timestamp,
+            }
+        }
+
+        return {
+            eventId: replyData.eventId,
+            senderId: '',
+            senderDisplayName: 'Unknown',
+            body: 'Message',
+            timestamp: undefined,
+        }
+    }, [replyData, repliedToEvent, replySender])
+
+    // handle stripping reply formatting from the current event's body
+    const strippedEventBody = useMemo(() => {
+        if (!isReplied) return event.content.body
+
+        // only strip if it's a text event with the required fields
+        const content = event.content
+        if (!('body' in content)) return event.content.body
+
+        const originalBody = content.body
+        const formattedBody =
+            'formatted_body' in content ? content.formatted_body : undefined
+
+        return stripReplyFromBody(originalBody, formattedBody)
+    }, [event.content, isReplied])
+
+    return {
+        isReplied: isReplied,
+        repliedData: repliedDisplayData,
+        strippedBody: strippedEventBody,
+    }
 }

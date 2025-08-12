@@ -11,7 +11,6 @@ use futures::FutureExt;
 use js_sys::Uint8Array;
 use rpc_types::error::ErrorCode;
 use rpc_types::RpcInitOpts;
-use runtime::api::LiveFediApi;
 use runtime::event::IEventSink;
 use runtime::storage::Storage;
 use storage::WasmStorage;
@@ -95,12 +94,10 @@ pub async fn fedimint_initialize_inner(
         .await
         .context("Failed to initialize storage")?;
     let storage = Arc::new(storage) as Storage;
-    let fedi_api = Arc::new(LiveFediApi::new());
 
     let bridge = fediffi::rpc::fedimint_initialize_async(
         storage.clone(),
-        event_sink.clone(),
-        fedi_api,
+        event_sink,
         init_opts.device_identifier,
         init_opts.app_flavor,
     )

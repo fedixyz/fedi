@@ -8,13 +8,12 @@ import {
     useWindowDimensions,
     Share,
 } from 'react-native'
-import QRCode from 'react-native-qrcode-svg'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { Images } from '../../assets/images'
 import Flex from './Flex'
+import QRCode from './QRCode'
 import SvgImage, { SvgImageSize } from './SvgImage'
 
 const log = makeLog('QRCodeContainer')
@@ -26,6 +25,7 @@ interface Props {
     qrValue: string
     useShare?: boolean
     shareValue?: string
+    logoOverrideUrl?: string
 }
 
 const QRCodeContainer = ({
@@ -60,11 +60,7 @@ const QRCodeContainer = ({
     return (
         <Flex gap="lg">
             <Flex row justify="center" style={style.qrCodeContainer}>
-                <QRCode
-                    value={qrValue}
-                    size={width * 0.7}
-                    logo={Images.FediQrLogo} //Should not be replaced with svg
-                />
+                <QRCode value={qrValue} size={width * 0.7} />
             </Flex>
             <Flex row align="center" style={style.copyInviteLinkContainer}>
                 <Text

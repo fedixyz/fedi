@@ -4,11 +4,7 @@ import { Button, Text } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-    selectActiveFederationId,
-    selectHasSeenFederationRating,
-    selectIsNostrClientEnabled,
-} from '@fedi/common/redux'
+import { selectShouldRateFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import RateFederationOverlay from '../components/feature/federations/RateFederationOverlay'
@@ -22,15 +18,11 @@ const SendSuccess: React.FC<Props> = ({ route }: Props) => {
     const { amount, unit } = route.params
 
     const [showRateFederation, setShowRateFederation] = useState(false)
-    const activeFederationId = useAppSelector(selectActiveFederationId)
-    const hasRatedFederation = useAppSelector(s =>
-        selectHasSeenFederationRating(s, activeFederationId ?? ''),
-    )
-    const isNostrClientEnabled = useAppSelector(selectIsNostrClientEnabled)
     const navigation = useNavigation()
     const { t } = useTranslation()
-
-    const willShowRateFederation = !hasRatedFederation && isNostrClientEnabled
+    const shouldRateFederation = useAppSelector(s =>
+        selectShouldRateFederation(s),
+    )
 
     return (
         <>
@@ -49,10 +41,7 @@ const SendSuccess: React.FC<Props> = ({ route }: Props) => {
                     <Button
                         title={t('words.done')}
                         onPress={() => {
-                            if (
-                                isNostrClientEnabled &&
-                                willShowRateFederation
-                            ) {
+                            if (shouldRateFederation) {
                                 setShowRateFederation(true)
                             } else {
                                 navigation.navigate('TabsNavigator')
@@ -61,7 +50,7 @@ const SendSuccess: React.FC<Props> = ({ route }: Props) => {
                     />
                 }
             />
-            {isNostrClientEnabled && (
+            {shouldRateFederation && (
                 <RateFederationOverlay
                     show={showRateFederation}
                     onDismiss={() => {

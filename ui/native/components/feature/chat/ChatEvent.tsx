@@ -44,6 +44,8 @@ type Props = {
     last?: boolean
     fullWidth?: boolean
     isPublic?: boolean
+    onReplyTap?: (eventId: string) => void
+    highlightedMessageId?: string | null
 }
 
 const ChatEvent: React.FC<Props> = ({
@@ -52,6 +54,7 @@ const ChatEvent: React.FC<Props> = ({
     fullWidth = true,
     // Defaults to true so we don't default to loading chat events with media
     isPublic = true,
+    onReplyTap,
 }: Props) => {
     const { theme } = useTheme()
     const [hasWidePreview, setHasWidePreview] = useState(false)
@@ -65,8 +68,8 @@ const ChatEvent: React.FC<Props> = ({
     const bubbleContainerStyles: StyleProp<ViewStyle | TextStyle>[] = [
         styles(theme).bubbleContainer,
     ]
-
     // Set alignment (left/right) based on sender
+
     if (isMe) {
         bubbleContainerStyles.push(styles(theme).rightAlignedMessage)
     } else {
@@ -97,13 +100,11 @@ const ChatEvent: React.FC<Props> = ({
 
     const derivedLinks = isText ? deriveUrlsFromText(event.content.body) : null
 
+    const style = styles(theme)
+
     return (
         <ErrorBoundary fallback={() => <MessageItemError />}>
-            <View
-                style={[
-                    styles(theme).container,
-                    isQueued && styles(theme).containerQueued,
-                ]}>
+            <View style={[style.container, isQueued && style.containerQueued]}>
                 <Flex row>
                     <Flex align="start" justify="end" fullWidth={fullWidth}>
                         <View style={bubbleContainerStyles}>
@@ -111,6 +112,7 @@ const ChatEvent: React.FC<Props> = ({
                                 <ChatTextEvent
                                     event={event}
                                     isWide={hasWidePreview}
+                                    onReplyTap={onReplyTap}
                                 />
                             ) : isEncryptedEvent(event) ? (
                                 <ChatEncryptedEvent event={event} />
@@ -136,13 +138,14 @@ const ChatEvent: React.FC<Props> = ({
                                 <ChatMultispendEvent event={event} />
                             ) : null}
                         </View>
+
                         {derivedLinks && isPublic && (
                             <View
                                 style={[
-                                    styles(theme).previewLinkContainer,
+                                    style.previewLinkContainer,
                                     isMe
-                                        ? styles(theme).rightAlignedMessage
-                                        : styles(theme).leftAlignedMessage,
+                                        ? style.rightAlignedMessage
+                                        : style.leftAlignedMessage,
                                 ]}>
                                 {derivedLinks.map((url, i) => (
                                     <ChatEmbeddedLinkPreview
@@ -170,10 +173,11 @@ const styles = (theme: Theme) =>
         containerQueued: {
             opacity: 0.5,
         },
+        // variable bubble container - let content determine wdith
         bubbleContainer: {
             borderRadius: 16,
-            maxWidth: theme.sizes.maxMessageWidth,
             overflow: 'hidden',
+            maxWidth: theme.sizes.maxMessageWidth,
         },
         leftAlignedMessage: {
             marginRight: 'auto',
@@ -193,7 +197,14 @@ const styles = (theme: Theme) =>
         },
     })
 
-const areEqual = ({ event: prevEvent }: Props, { event: currEvent }: Props) => {
+const areEqual = (
+    { event: prevEvent, highlightedMessageId: prevHighlighted }: Props,
+    { event: currEvent, highlightedMessageId: currHighlighted }: Props,
+) => {
+    if (prevHighlighted !== currHighlighted) {
+        return false
+    }
+
     if (isPaymentEvent(currEvent) && isPaymentEvent(prevEvent)) {
         return (
             prevEvent.id === currEvent.id &&

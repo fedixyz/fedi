@@ -105,20 +105,17 @@ export const useShareLogs = () => {
                 }
 
                 // Bridge logs
-                const bridgeLogFiles = await getBridgeLogs()
-                const bridgeLogs = await Promise.allSettled(
-                    bridgeLogFiles.map(x => x.text()),
-                ).then(result =>
-                    result
-                        .filter(x => x.status === 'fulfilled')
-                        .map(x => x.value)
-                        .join(),
-                )
+                try {
+                    const bridgeLogFile = await getBridgeLogs()
+                    const bridgeLogText = await bridgeLogFile.text()
 
-                attachmentFiles.push({
-                    name: 'bridge.log',
-                    content: bridgeLogs,
-                })
+                    attachmentFiles.push({
+                        name: 'bridge.log',
+                        content: bridgeLogText,
+                    })
+                } catch (error) {
+                    // If bridge logs fail, continue without them
+                }
 
                 // Add device info
                 if (navigator?.userAgent) {

@@ -61,7 +61,6 @@ export function OnboardingHome() {
         body = (
             <OmniInputWrapper>
                 <OmniInput
-                    mode="onboardingScanner"
                     expectedInputTypes={[
                         ParserDataType.FedimintInvite,
                         ParserDataType.CommunityInvite,
@@ -70,6 +69,7 @@ export function OnboardingHome() {
                         handleNavigation(data.invite)
                     }
                     onUnexpectedSuccess={() => null}
+                    customActions={['paste']}
                 />
             </OmniInputWrapper>
         )
@@ -138,5 +138,4 @@ const Body = styled('div', {
 
 const OmniInputWrapper = styled('div', {
     display: 'flex',
-    minHeight: 400,
 })

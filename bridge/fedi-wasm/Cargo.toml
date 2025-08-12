@@ -17,6 +17,7 @@ runtime = { workspace = true }
 rpc-types = { workspace = true }
 futures = { workspace = true }
 gloo-utils = "0.2"
+gloo-console = "0.3"
 gloo-file = "0.3"
 imbl = "5"
 js-sys = "0.3.77"
@@ -25,7 +26,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["json", "env-filter", "chrono"] }
 tracing-wasm = "0.2.1"
 web-sys = { version = "0.3", features = ["FileSystemSyncAccessHandle", "FileSystemReadWriteOptions"] }
 wasm-bindgen = "=0.2.100"

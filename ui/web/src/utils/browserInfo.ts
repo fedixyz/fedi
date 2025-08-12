@@ -18,3 +18,7 @@ export function generateDeviceId() {
     else if (navigator.userAgent.indexOf('Linux') != -1) os = 'Linux'
     return `${os}:Web:${uuidv4()}`
 }
+
+export function isNightly() {
+    return window.location.hostname.includes('fedi-ashen')
+}

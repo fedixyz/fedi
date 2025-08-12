@@ -4,10 +4,7 @@ import { Text } from '@rneui/themed'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-    selectIsMultispendFeatureEnabled,
-    selectSocialRecoveryState,
-} from '@fedi/common/redux'
+import { selectSocialRecoveryState } from '@fedi/common/redux'
 
 import ChooseBackupMethodHeader from '../components/feature/backup/ChooseBackupMethodHeader'
 import PersonalBackupHeader from '../components/feature/backup/PersonalBackupHeader'
@@ -203,9 +200,6 @@ export const MainNavigator = () => {
     )
     const shouldLockDevice = useAppSelector(s => s.recovery.shouldLockDevice)
     const navigation = useNavigation()
-    const isMultispendFeatureEnabled = useAppSelector(
-        selectIsMultispendFeatureEnabled,
-    )
 
     useEffect(() => {
         if (socialRecoveryState && navigation) {
@@ -502,124 +496,119 @@ export const MainNavigator = () => {
                                     name="RoomSettings"
                                     component={RoomSettings}
                                 />
-                                {isMultispendFeatureEnabled && (
-                                    <>
-                                        <Stack.Screen
-                                            name="MultispendIntro"
-                                            component={MultispendIntro}
-                                            options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'feature.multispend.create-multispend',
-                                                        )}
-                                                    />
-                                                ),
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="CreateMultispend"
-                                            component={CreateMultispend}
-                                            options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'feature.multispend.create-multispend',
-                                                        )}
-                                                    />
-                                                ),
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="AssignMultispendVoters"
-                                            component={AssignMultispendVoters}
-                                            options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'feature.multispend.assign-voters',
-                                                        )}
-                                                    />
-                                                ),
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="GroupMultispend"
-                                            component={GroupMultispend}
-                                            options={() => ({
-                                                header: () => null,
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="MultispendTransactions"
-                                            component={MultispendTransactions}
-                                            options={() => ({
-                                                header: () => null,
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="MultispendDeposit"
-                                            component={MultispendDeposit}
-                                            options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'feature.multispend.deposit-to-multispend',
-                                                        )}
-                                                    />
-                                                ),
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="MultispendConfirmDeposit"
-                                            component={MultispendConfirmDeposit}
-                                            options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'feature.multispend.confirm-transaction',
-                                                        )}
-                                                    />
-                                                ),
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="MultispendWithdraw"
-                                            component={MultispendWithdraw}
-                                            options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'feature.multispend.withdraw-from-multispend',
-                                                        )}
-                                                    />
-                                                ),
-                                            })}
-                                        />
-                                        <Stack.Screen
-                                            name="MultispendConfirmWithdraw"
-                                            component={
-                                                MultispendConfirmWithdraw
-                                            }
-                                            options={() => ({
-                                                header: () => (
-                                                    <CenteredHeader
-                                                        backButton
-                                                        title={t(
-                                                            'feature.multispend.confirm-transaction',
-                                                        )}
-                                                    />
-                                                ),
-                                            })}
-                                        />
-                                    </>
-                                )}
+                                <Stack.Screen
+                                    name="MultispendIntro"
+                                    component={MultispendIntro}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.multispend.create-multispend',
+                                                )}
+                                            />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="CreateMultispend"
+                                    component={CreateMultispend}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.multispend.create-multispend',
+                                                )}
+                                            />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="AssignMultispendVoters"
+                                    component={AssignMultispendVoters}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.multispend.assign-voters',
+                                                )}
+                                            />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="GroupMultispend"
+                                    component={GroupMultispend}
+                                    options={() => ({
+                                        header: () => null,
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="MultispendTransactions"
+                                    component={MultispendTransactions}
+                                    options={() => ({
+                                        header: () => null,
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="MultispendDeposit"
+                                    component={MultispendDeposit}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.multispend.deposit-to-multispend',
+                                                )}
+                                            />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="MultispendConfirmDeposit"
+                                    component={MultispendConfirmDeposit}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.multispend.confirm-transaction',
+                                                )}
+                                            />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="MultispendWithdraw"
+                                    component={MultispendWithdraw}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.multispend.withdraw-from-multispend',
+                                                )}
+                                            />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="MultispendConfirmWithdraw"
+                                    component={MultispendConfirmWithdraw}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.multispend.confirm-transaction',
+                                                )}
+                                            />
+                                        ),
+                                    })}
+                                />
+
                                 <Stack.Screen
                                     name="ChatWallet"
                                     component={ChatWallet}

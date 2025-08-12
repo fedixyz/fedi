@@ -205,6 +205,7 @@ export function OmniInput<
         const mergedLabel = (
             <View style={style.buttonContainer}>
                 <Button
+                    testID="PasteButton"
                     fullWidth
                     day
                     icon={<SvgImage name="Clipboard" />}

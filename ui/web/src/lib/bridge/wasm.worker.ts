@@ -11,7 +11,7 @@ import init, {
     fedimint_write_file,
 } from '@fedi/common/wasm/'
 
-import { getAllBridgeLogFiles, openBridgeLogFile } from './log'
+import { getBridgeLogFile, openBridgeLogFile } from './log'
 
 const log = makeLog('web/lib/bridge/wasm.worker')
 
@@ -90,12 +90,9 @@ addEventListener('message', e => {
         return
     }
     if (method == 'getLogs') {
-        getAllBridgeLogFiles()
-            .then(result => Promise.allSettled(result.map(x => x.getFile())))
-            .then(result =>
-                result.filter(x => x.status === 'fulfilled').map(x => x.value),
-            )
-            .then(result => postMessage({ token, result }))
+        getBridgeLogFile()
+            .then(fileHandle => fileHandle.getFile())
+            .then(file => postMessage({ token, result: file }))
             .catch(err => {
                 postMessage({ token, error: String(err) })
             })

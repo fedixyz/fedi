@@ -1,19 +1,23 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { waitFor } from '@testing-library/react'
 
 import {
     useMatrixFormEvent,
     useMatrixPaymentTransaction,
 } from '@fedi/common/hooks/matrix'
+import { setupStore, setMatrixAuth } from '@fedi/common/redux'
+import { MatrixAuth } from '@fedi/common/types'
+
 import {
     createMockPaymentEvent,
     createMockFormEvent,
-} from '@fedi/common/tests/mock-data/matrix-event'
-import { createMockTransaction } from '@fedi/common/tests/mock-data/transactions'
+} from '../mock-data/matrix-event'
+import { createMockTransaction } from '../mock-data/transactions'
 import {
-    mockFedimint,
-    mockSelectorValues,
-    mockUseTranslation,
-} from '@fedi/common/tests/setup/jest.setup'
+    MockFedimintBridge,
+    createMockFedimintBridge,
+} from '../test-utils/fedimint'
+import { renderHookWithState } from '../test-utils/render'
+import { createMockT } from '../test-utils/setup'
 
 /*
 // Payment Transaction Hook Tests
@@ -22,18 +26,17 @@ import {
 // and confirmation status. The hook manages state for fetching this data from the bridge
 */
 describe('useMatrixPaymentTransaction', () => {
+    let store: ReturnType<typeof setupStore>
+    let mockFedimint: MockFedimintBridge
+
     beforeEach(() => {
         jest.clearAllMocks()
-
-        // Reset the fedimint bridge mock to ensure clean state
-        mockFedimint.getTransaction.mockClear()
+        store = setupStore()
+        mockFedimint = createMockFedimintBridge()
     })
 
     it('should return no-op state for legacy payments (missing senderOperationId)', async () => {
-        mockSelectorValues({
-            selectMatrixAuth: { userId: 'npub123' },
-        })
-        mockFedimint.getTransaction.mockResolvedValue(undefined as any)
+        store.dispatch(setMatrixAuth({ userId: 'npub123' } as MatrixAuth))
 
         const event = createMockPaymentEvent({
             content: {
@@ -42,11 +45,13 @@ describe('useMatrixPaymentTransaction', () => {
             },
         })
 
-        const { result } = renderHook(() =>
-            useMatrixPaymentTransaction({
-                event,
-                fedimint: mockFedimint,
-            }),
+        const { result } = renderHookWithState(
+            () =>
+                useMatrixPaymentTransaction({
+                    event,
+                    fedimint: mockFedimint,
+                }),
+            store,
         )
 
         expect(result.current.hasTriedFetch).toBe(true)
@@ -57,10 +62,10 @@ describe('useMatrixPaymentTransaction', () => {
 
     it('should return the txn resolved by getTransaction', async () => {
         const mockTransaction = createMockTransaction()
-        mockSelectorValues({
-            selectMatrixAuth: { userId: 'npub123' },
+        const fedimintWithGetTransaction = createMockFedimintBridge({
+            getTransaction: mockTransaction,
         })
-        mockFedimint.getTransaction.mockResolvedValue(mockTransaction)
+        store.dispatch(setMatrixAuth({ userId: 'npub123' } as MatrixAuth))
 
         const event = createMockPaymentEvent({
             content: {
@@ -69,11 +74,13 @@ describe('useMatrixPaymentTransaction', () => {
             },
         })
 
-        const { result } = renderHook(() =>
-            useMatrixPaymentTransaction({
-                event,
-                fedimint: mockFedimint,
-            }),
+        const { result } = renderHookWithState(
+            () =>
+                useMatrixPaymentTransaction({
+                    event,
+                    fedimint: fedimintWithGetTransaction,
+                }),
+            store,
         )
 
         await waitFor(() => {
@@ -89,17 +96,17 @@ describe('useMatrixPaymentTransaction', () => {
 describe('useMatrixFormEvent hook', () => {
     const chatbotUserId = `@fedichatbot:m1.8fa.in`
     const userId = `@npub123:m1.8fa.in`
+    let store: ReturnType<typeof setupStore>
 
     beforeEach(() => {
         jest.clearAllMocks()
+        store = setupStore()
     })
 
     describe('receiving messages from chatbot', () => {
         it('should receive radio options from chatbot', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: { userId },
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -122,8 +129,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: chatbotUserId,
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(false)
@@ -141,10 +149,8 @@ describe('useMatrixFormEvent hook', () => {
         })
 
         it('should receive single button type from chatbot', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: { userId },
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -156,8 +162,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: chatbotUserId,
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(false)
@@ -170,10 +177,8 @@ describe('useMatrixFormEvent hook', () => {
 
     describe('user responses', () => {
         it('should render user response messages with formResponse correctly', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: { userId },
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -190,8 +195,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: userId, // This is our own message
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(true)
@@ -203,10 +209,8 @@ describe('useMatrixFormEvent hook', () => {
         })
 
         it('should render user response messages without formResponse correctly', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: { userId },
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -218,8 +222,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: userId, // This is our own message
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(true)
@@ -233,10 +238,8 @@ describe('useMatrixFormEvent hook', () => {
 
     describe('edge cases / failure modes', () => {
         it('should handle missing matrix auth gracefully', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: null,
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth(null))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -248,8 +251,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: chatbotUserId,
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(false)
@@ -258,10 +262,8 @@ describe('useMatrixFormEvent hook', () => {
         })
 
         it('should handle unknown form type gracefully', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: { userId },
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -271,8 +273,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: chatbotUserId,
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(false)
@@ -282,10 +285,8 @@ describe('useMatrixFormEvent hook', () => {
         })
 
         it('should handle empty options array gracefully', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: { userId },
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -295,8 +296,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: chatbotUserId,
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(false)
@@ -305,10 +307,8 @@ describe('useMatrixFormEvent hook', () => {
         })
 
         it('should handle null/undefined values in content', () => {
-            const { t } = mockUseTranslation()
-            mockSelectorValues({
-                selectMatrixAuth: { userId },
-            })
+            const t = createMockT()
+            store.dispatch(setMatrixAuth({ userId } as MatrixAuth))
 
             const mockFormEvent = createMockFormEvent({
                 content: {
@@ -322,8 +322,9 @@ describe('useMatrixFormEvent hook', () => {
                 senderId: chatbotUserId,
             })
 
-            const { result } = renderHook(() =>
-                useMatrixFormEvent(mockFormEvent, t),
+            const { result } = renderHookWithState(
+                () => useMatrixFormEvent(mockFormEvent, t),
+                store,
             )
 
             expect(result.current.isSentByMe).toBe(false)

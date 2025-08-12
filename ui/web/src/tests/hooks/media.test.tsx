@@ -5,20 +5,14 @@ import { mockMatrixEventImage } from '@fedi/common/tests/mock-data/matrix-event'
 
 import { useLoadMedia } from '../../hooks/media'
 
-const downloadFileSpy = jest.fn()
-const readFileSpy = jest.fn()
-
-jest.mock('@fedi/common/utils/log', () => ({
-    makeLog: () => ({
-        error: jest.fn(),
-    }),
-}))
+const matrixDownloadFileSpy = jest.fn()
+const readBrdigeFileSpy = jest.fn()
 
 jest.mock('../../lib/bridge', () => ({
     fedimint: {
-        matrixDownloadFile: () => downloadFileSpy(),
+        matrixDownloadFile: () => matrixDownloadFileSpy(),
     },
-    readBridgeFile: () => readFileSpy(),
+    readBridgeFile: () => readBrdigeFileSpy(),
 }))
 
 describe('/hooks/media', () => {
@@ -33,8 +27,9 @@ describe('/hooks/media', () => {
             )
 
             await waitFor(() => {
-                expect(downloadFileSpy).toHaveBeenCalled()
-                expect(readFileSpy).toHaveBeenCalled()
+                expect(matrixDownloadFileSpy).toHaveBeenCalled()
+                expect(readBrdigeFileSpy).toHaveBeenCalled()
+
                 expect(window.URL.createObjectURL).toHaveBeenCalledWith(
                     new Blob(),
                 )

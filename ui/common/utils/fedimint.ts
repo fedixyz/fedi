@@ -479,6 +479,18 @@ export class FedimintBridge {
         })
     }
 
+    async nostrRateFederation(
+        federationId: string,
+        rating: number,
+        includeInviteCode: boolean,
+    ) {
+        return this.rpcTyped('nostrRateFederation', {
+            federationId,
+            rating,
+            includeInviteCode,
+        })
+    }
+
     async listGateways(federationId: string) {
         return this.rpcTyped('listGateways', { federationId })
     }
@@ -653,6 +665,18 @@ export class FedimintBridge {
             answers,
             isMultipleChoice,
             isDisclosed,
+        })
+    }
+
+    async matrixSendReply(
+        roomId: RpcRoomId,
+        replyToEventId: string,
+        message: string,
+    ) {
+        return this.rpcTyped('matrixSendReply', {
+            roomId,
+            replyToEventId,
+            message,
         })
     }
 

@@ -4,7 +4,7 @@ import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
     selectWalletFederations,
-    setActiveFederationId,
+    setPayFromFederationId,
     selectPaymentFederation,
 } from '@fedi/common/redux'
 import { FederationListItem, MSats } from '@fedi/common/types'
@@ -25,7 +25,7 @@ export const FederationWalletSelector: React.FC = () => {
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
     const handleSelectFederation = useCallback(
         (fed: FederationListItem) => {
-            dispatch(setActiveFederationId(fed.id))
+            dispatch(setPayFromFederationId(fed.id))
             setIsSelectorOpen(false)
         },
         [dispatch],

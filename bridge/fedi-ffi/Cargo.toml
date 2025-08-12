@@ -45,7 +45,7 @@ hex = { workspace = true }
 macro_rules_attribute = "0.1.3"
 mime = "0.3.17"
 nostr = { workspace = true }
-ts-rs = "10"
+ts-rs = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
 rolling-file = "0.2.0"
@@ -93,6 +93,7 @@ tempfile = "3.17.1"
 mockito = "1.4.0"
 clap = { workspace = true }
 federations = { workspace = true, features = ["test-support"] }
+devi = { workspace = true }
 
 # FIXME: just put these above? or dev-dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

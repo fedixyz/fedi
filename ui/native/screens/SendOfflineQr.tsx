@@ -6,7 +6,6 @@ import { dataToFrames } from 'qrloop'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
-import QRCode from 'react-native-qrcode-svg'
 import Share from 'react-native-share'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
@@ -14,10 +13,10 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { cancelEcash } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { Images } from '../assets/images'
 import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloAlert from '../components/ui/HoloAlert'
+import QRCode from '../components/ui/QRCode'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch } from '../state/hooks'
@@ -107,11 +106,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                     {formattedSecondaryAmount}
                 </Text>
             </Flex>
-            <QRCode
-                value={frames[index]}
-                size={width * 0.7}
-                logo={Images.FediQrLogo} //Should not be replaced with svg
-            />
+            <QRCode value={frames[index]} size={width * 0.7} />
             <Flex align="center" gap="lg">
                 <Flex
                     row

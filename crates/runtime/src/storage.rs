@@ -15,7 +15,7 @@ use fedimint_derive_secret::DerivableSecret;
 use rand::rngs::OsRng;
 use state::{
     default_next_federation_prefix, AppStateJson, AppStateJsonBase, AppStateJsonOnboarded,
-    AppStateJsonOnboarding, DeviceIdentifier, OnboardingStage,
+    AppStateJsonOnboarding, DeviceIdentifier, OnboardingMethod, OnboardingStage,
 };
 use tokio::sync::RwLock;
 
@@ -240,6 +240,10 @@ impl AppState {
         self.with_read_lock(|state| state.device_index).await
     }
 
+    pub async fn onboarding_method(&self) -> Option<OnboardingMethod> {
+        self.with_read_lock(|state| state.onboarding_method).await
+    }
+
     pub async fn root_mnemonic(&self) -> bip39::Mnemonic {
         self.with_read_lock(|state| state.root_mnemonic.clone())
             .await
@@ -382,6 +386,7 @@ impl AppStateOnboarding {
                     encrypted_device_identifier,
                     social_recovery_state,
                     device_index,
+                    onboarding_method,
                 ) = match (method, uncommitted.stage.clone()) {
                     (OnboardingCompletionMethod::NewSeed, OnboardingStage::Init {}) => {
                         let root_mnemonic = Bip39RootSecretStrategy::<12>::random(&mut OsRng);
@@ -394,6 +399,7 @@ impl AppStateOnboarding {
                             None,
                             // device index 0 for new seed
                             0,
+                            OnboardingMethod::NewSeed,
                         )
                     }
                     (
@@ -408,6 +414,7 @@ impl AppStateOnboarding {
                         encrypted_device_identifier,
                         social_recovery_state,
                         device_index,
+                        OnboardingMethod::Restored,
                     ),
                     _ => bail!("Illegal state for {method:?}"),
                 };
@@ -419,6 +426,7 @@ impl AppStateOnboarding {
                     encrypted_device_identifier_v2: encrypted_device_identifier.clone(),
                     matrix_session: None,
                     internal_bridge_export: false,
+                    onboarding_method: Some(onboarding_method),
                     base: AppStateJsonBase {
                         root_mnemonic,
                         joined_federations: BTreeMap::new(),

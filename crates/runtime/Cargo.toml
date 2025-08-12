@@ -31,7 +31,7 @@ futures = "0.3"
 tracing = { workspace = true }
 thiserror = "2.0.8"
 hex = { workspace = true }
-ts-rs = "10"
+ts-rs = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
 reqwest = { workspace = true }

@@ -69,6 +69,7 @@ export const RecoverySeedWords: React.FC<Props> = ({
                             value={words[idx] || ''}
                             readOnly={readOnly}
                             error={readOnly ? false : !!errors[idx]}
+                            autoCapitalize="off"
                             onChange={ev =>
                                 handleChangeWord(ev.currentTarget.value, idx)
                             }

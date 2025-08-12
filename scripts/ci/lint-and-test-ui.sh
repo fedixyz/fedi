@@ -15,7 +15,7 @@ pushd $REPO_ROOT/ui
 # Check for Prettier, ESLint, + Typescript errors
 yarn lint
 
-# Run tests with Jest
-yarn test
+# Run test suites
+$REPO_ROOT/scripts/ui/run-ui-tests.sh
 
 popd

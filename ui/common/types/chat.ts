@@ -1,4 +1,5 @@
 import type { Invoice } from './fedimint'
+import { MatrixEvent, MatrixRoom } from './matrix'
 import type { MSats } from './units'
 
 export enum ChatType {
@@ -77,4 +78,9 @@ export interface ChatGroup {
     name: string
     joinedAt: number
     broadcastOnly?: boolean
+}
+
+export type ChatReplyState = {
+    roomId?: MatrixRoom['id'] // the room the reply belongs to
+    event: MatrixEvent | null // the full replied event
 }

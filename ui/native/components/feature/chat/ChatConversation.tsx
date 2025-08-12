@@ -25,6 +25,7 @@ import {
     selectMatrixRoomIsBlocked,
 } from '@fedi/common/redux'
 import { ChatType, MatrixEvent, MatrixEventStatus } from '@fedi/common/types'
+import { makeLog } from '@fedi/common/utils/log'
 import {
     MatrixEventContent,
     isImageEvent,
@@ -40,12 +41,16 @@ import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import NoMembersNotice from './NoMembersNotice'
 import NoMessagesNotice from './NoMessagesNotice'
 
+const log = makeLog('ChatConversation')
+const HIGHLIGHT_DURATION = 3000
+
 type MessagesListProps = {
     type: ChatType
     id: string
     multiUserChat?: boolean
     isPublic?: boolean
     newMessageBottomOffset: number
+    replyBarOffset?: number
 }
 
 const ChatConversation: React.FC<MessagesListProps> = ({
@@ -53,6 +58,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     id,
     isPublic = true,
     newMessageBottomOffset = 90,
+    replyBarOffset: replyBarOffset = 0,
 }: MessagesListProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -61,6 +67,9 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const isBroadcast = !!useAppSelector(s => selectMatrixRoom(s, id))
         ?.broadcastOnly
     const [hasNewMessage, setHasNewMessages] = useState(false)
+    const [highlightedMessageId, setHighlightedMessageId] = useState<
+        string | null
+    >(null)
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
     const previewMedia = useAppSelector(selectPreviewMedia)
     const hasLoadedEvents = useAppSelector(s =>
@@ -126,6 +135,55 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     )
 
     const style = useMemo(() => styles(theme), [theme])
+
+    const scrollToMessage = useCallback(
+        (eventId: string) => {
+            try {
+                let targetGroupIndex = -1
+
+                // Find the target group containing the event
+                for (
+                    let groupIndex = 0;
+                    groupIndex < eventGroups.length;
+                    groupIndex++
+                ) {
+                    const group = eventGroups[groupIndex]
+                    const found = group.some(timeFrame =>
+                        timeFrame.some(
+                            event =>
+                                event.eventId === eventId ||
+                                event.id === eventId,
+                        ),
+                    )
+                    if (found) {
+                        targetGroupIndex = groupIndex
+                        break
+                    }
+                }
+
+                if (targetGroupIndex !== -1) {
+                    setHighlightedMessageId(eventId)
+
+                    listRef.current?.scrollToIndex({
+                        index: targetGroupIndex,
+                        animated: false,
+                        viewOffset: 100,
+                        viewPosition: 0.5,
+                    })
+
+                    setTimeout(
+                        () => setHighlightedMessageId(null),
+                        HIGHLIGHT_DURATION,
+                    )
+                } else {
+                    log.error('Target group not found for eventId', { eventId })
+                }
+            } catch (error) {
+                log.error('Error in scrollToMessage', error)
+            }
+        },
+        [eventGroups],
+    )
 
     // Animate new message button in and out
     useEffect(() => {
@@ -193,10 +251,12 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     }
                     onSelect={setSelectedUserId}
                     isPublic={isPublic}
+                    onReplyTap={scrollToMessage}
+                    highlightedMessageId={highlightedMessageId}
                 />
             )
         },
-        [id, type, isPublic],
+        [id, type, isPublic, scrollToMessage, highlightedMessageId],
     )
 
     // Hide the preview cached media events when the ACTUAL chat image/video events come
@@ -225,7 +285,19 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                                     : theme.spacing.xl,
                         },
                     ]}
-                    contentContainerStyle={style.contentContainer}
+                    contentContainerStyle={(() => {
+                        const baseStyle = style.contentContainer
+                        const paddingStyle =
+                            replyBarOffset > 0
+                                ? {
+                                      paddingTop:
+                                          baseStyle.paddingTop + replyBarOffset,
+                                  }
+                                : {}
+                        const finalStyle = [baseStyle, paddingStyle]
+
+                        return finalStyle
+                    })()}
                     ListEmptyComponent={
                         isAlone ? (
                             <NoMembersNotice roomId={id} />

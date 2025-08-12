@@ -34,7 +34,8 @@ const shouldShowDefaultButtonBackground = (props: ButtonProps) => {
     return defaultBackground
 }
 
-const themeDefaults = {
+export const themeDefaults = {
+    colors,
     multipliers: {
         headerMaxFontMultiplier: 1.4,
         iconMaxSizeMultiplier: 2,
@@ -322,9 +323,6 @@ const theme = createTheme({
                 alignItems: 'center',
             },
         },
-    },
-    colors: {
-        ...colors,
     },
     ...themeDefaults,
 })

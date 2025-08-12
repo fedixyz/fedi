@@ -124,7 +124,7 @@ attempt_run_android() {
     }
 
     # Find the generated APK explicitly
-    APK_PATH=$(find ./app/build/outputs/apk/production/debug -name "*.apk" | head -1)
+    APK_PATH=$(find ~+ ./app/build/outputs/apk/production/debug -name "*.apk" | head -1)
     if [[ ! -f "$APK_PATH" ]]; then
         echo "APK not found after build!"
         return 1
@@ -159,7 +159,7 @@ attempt_run_android() {
         }
         echo "APK launched successfully."
         echo "Running tests on $FEDI_DEVICE_ID"
-        PLATFORM=android DEVICE_ID=$FEDI_DEVICE_ID APK_PATH=$APK_PATH yarn run ts-node $REPO_ROOT/ui/native/tests/appium/runner.ts $TESTS_TO_RUN
+        PLATFORM=android DEVICE_ID=$FEDI_DEVICE_ID BUNDLE_PATH=$APK_PATH yarn run ts-node $REPO_ROOT/ui/native/tests/appium/runner.ts $TESTS_TO_RUN
     fi
 
     # Explicitly launch app after successful installation

@@ -10,7 +10,7 @@ jobs:
     renew-ios-certs:
         name: Renew certificates for Apple App Store Connect
         timeout-minutes: 90
-        runs-on: [self-hosted, macos, arm64, legacy]
+        runs-on: [self-hosted, macos, arm64]
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4

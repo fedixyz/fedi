@@ -48,6 +48,7 @@ pub enum RpcAppFlavor {
     Dev,
     Nightly,
     Bravo,
+    Tests,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, TS)]

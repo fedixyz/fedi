@@ -18,7 +18,7 @@
         "i18n:sync-plist": "ts-node ./scripts/i18n-sync-plist.ts"
     },
     "dependencies": {
-        "@reduxjs/toolkit": "^1.9.3",
+        "@reduxjs/toolkit": "^2.8.2",
         "accounting": "^0.4.1",
         "bech32": "^2.0.0",
         "bitcoin-address-validation": "^2.2.1",

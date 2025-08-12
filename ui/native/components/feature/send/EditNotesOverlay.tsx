@@ -65,7 +65,6 @@ const EditNotesOverlay = ({
                         inputStyle={style.inputStyle}
                         inputContainerStyle={style.innerInputContainer}
                         containerStyle={style.inputContainer}
-                        returnKeyType="done"
                     />
                 ),
                 buttons: [

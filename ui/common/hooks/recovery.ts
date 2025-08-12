@@ -13,6 +13,7 @@ import {
     selectRegisteredDevices,
     selectSocialRecoveryQr,
     selectSocialRecoveryState,
+    selectActiveFederationId,
     transferExistingWallet,
     refreshOnboardingStatus,
     setDeviceIndexRequired,
@@ -184,5 +185,35 @@ export function useDeviceRegistration(t: TFunction, fedimint: FedimintBridge) {
         isProcessing,
         handleTransfer,
         handleNewWallet,
+    }
+}
+
+export function useRecoveryProgress(
+    fedimint: FedimintBridge,
+    fedimintId?: string,
+) {
+    const [progress, setProgress] = useState<number | undefined>(undefined)
+    const activeFederationId = useCommonSelector(selectActiveFederationId)
+    const federationIdToUse = fedimintId || activeFederationId
+
+    useEffect(() => {
+        const unsubscribe = fedimint.addListener('recoveryProgress', event => {
+            log.info('recovery progress', event)
+            if (event.federationId === federationIdToUse) {
+                if (event.total === 0) {
+                    setProgress(undefined)
+                } else {
+                    setProgress(event.complete / event.total)
+                }
+            }
+        })
+
+        return () => {
+            unsubscribe()
+        }
+    }, [fedimint, federationIdToUse])
+
+    return {
+        progress,
     }
 }

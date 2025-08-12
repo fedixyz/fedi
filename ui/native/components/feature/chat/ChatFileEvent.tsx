@@ -87,7 +87,7 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
 
     return (
         <Pressable style={style.attachment} onLongPress={handleLongPress}>
-            <Flex grow row align="center" gap="sm">
+            <Flex grow row basis={false} align="center" gap="sm">
                 <View style={style.attachmentIcon}>
                     <SvgImage name="File" />
                 </View>

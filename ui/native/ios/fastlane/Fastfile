@@ -149,6 +149,7 @@ platform :ios do
       type: 'appstore',
       app_identifier: 'org.fedi.alpha',
       generate_apple_certs: false,
+      readonly: true,
       git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-alpha-react-native-certs",
       storage_mode: 'git',
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'
@@ -161,6 +162,7 @@ platform :ios do
       type: 'appstore',
       app_identifier: 'org.fedi.nightly',
       generate_apple_certs: false,
+      readonly: true,
       git_url: "https://x-access-token:#{ENV['GH_PAT_FEDI_FETCH_IOS_CERTS']}@github.com/fedibtc/fedi-nightly-react-native-certs",
       storage_mode: 'git',
       api_key_path: 'fastlane/../decoded-asc-api-key-credentials.json'

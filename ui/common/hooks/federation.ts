@@ -5,11 +5,13 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import {
     joinFederation,
+    rateFederation,
     selectActiveFederation,
     selectFederationIds,
     selectFederationMetadata,
     selectFederations,
     selectOnchainDepositsEnabled,
+    selectPaymentFederation,
     selectStableBalance,
     selectStableBalanceEnabled,
     setActiveFederationId,
@@ -357,6 +359,7 @@ export function useFederationPreview(
 export function useFederationMembership(
     t: TFunction,
     fedimint: FedimintBridge,
+    federationId: string,
     inviteCode: string,
 ) {
     const { handleCode, ...rest } = useFederationPreview(
@@ -366,11 +369,9 @@ export function useFederationMembership(
     )
     const federations = useCommonSelector(selectFederations)
 
-    const isMember = federations.find(f => {
-        if (f.init_state === 'ready') return f.inviteCode === inviteCode
-
-        return false
-    })
+    const isMember = federations.some(
+        f => f.init_state === 'ready' && f.id === federationId,
+    )
 
     useEffect(() => {
         if (isMember) return
@@ -379,4 +380,42 @@ export function useFederationMembership(
     }, [isMember, inviteCode, handleCode])
 
     return { isMember, ...rest }
+}
+
+export function useFederationRating(fedimint: FedimintBridge) {
+    // federation ratings are shown after making a payment so we assume the correct
+    // federation is selected as paymentFederation which is the one we should be rating
+    const federationToRate = useCommonSelector(selectPaymentFederation)
+    const [rating, setRating] = useState<number | null>(null)
+    const dispatch = useCommonDispatch()
+
+    const handleSubmitRating = useCallback(
+        async (onSuccess?: () => void) => {
+            if (!federationToRate) return
+            if (typeof rating !== 'number') return
+            // enforce 0 - 4 range
+            if (rating < 0 || rating > 4) return
+
+            try {
+                await dispatch(
+                    rateFederation({
+                        fedimint,
+                        rating: rating + 1,
+                        federationId: federationToRate.id,
+                    }),
+                ).unwrap()
+                onSuccess && onSuccess()
+            } catch (error) {
+                log.error('handleSubmitRating', error)
+            }
+        },
+        [rating, federationToRate, dispatch, fedimint],
+    )
+
+    return {
+        rating,
+        setRating,
+        federationToRate,
+        handleSubmitRating,
+    }
 }

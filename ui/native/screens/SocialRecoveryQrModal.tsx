@@ -9,15 +9,14 @@ import {
     StyleSheet,
     View,
 } from 'react-native'
-import QRCode from 'react-native-qrcode-svg'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { Images } from '../assets/images'
 import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
+import QRCode from '../components/ui/QRCode'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('SocialRecoveryQrModal')
@@ -63,11 +62,7 @@ const SocialRecoveryQrModal: React.FC<Props> = ({ navigation }: Props) => {
             />
             <Flex row justify="center" style={style.qrCodeContainer}>
                 {recoveryQrCode ? (
-                    <QRCode
-                        value={recoveryQrCode}
-                        size={QR_CODE_SIZE}
-                        logo={Images.FediQrLogo}
-                    />
+                    <QRCode value={recoveryQrCode} size={QR_CODE_SIZE} />
                 ) : (
                     <ActivityIndicator />
                 )}

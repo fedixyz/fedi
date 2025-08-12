@@ -7,7 +7,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 # and keychain is unlocked since there are some codesigning steps
 # involved in the build process
 security unlock-keychain -p $MATCH_PASSWORD $MATCH_KEYCHAIN_NAME
-$REPO_ROOT/scripts/ci/install-apple-certs.sh
+nix develop .#xcode -c $REPO_ROOT/scripts/ci/install-apple-certs.sh
 
 # Nightly and Production use separate certificates but use the same
 # name (e.g. "Apple Distribution: FEDI, INC. (4JUZY29459)")

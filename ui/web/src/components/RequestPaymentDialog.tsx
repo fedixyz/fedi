@@ -7,13 +7,13 @@ import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { generateInvoice, selectActiveFederationId } from '@fedi/common/redux'
 import { Sats, Transaction } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { lnurlWithdraw } from '@fedi/common/utils/lnurl'
 
 import { useRouteState } from '../context/RouteStateContext'
-import { useAppSelector } from '../hooks'
+import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { config, styled, theme } from '../styles'
 import { AmountInput } from './AmountInput'
@@ -42,8 +42,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const {
         inputAmount: amount,
         setInputAmount: setAmount,
-        memo: note,
-        setMemo: setNote,
+        memo,
         minimumAmount,
         maximumAmount,
         reset: resetRequestForm,
@@ -62,6 +61,8 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const containerRef = useRef<HTMLDivElement | null>(null)
     const onOpenChangeRef = useUpdatingRef(onOpenChange)
     const isOnchainSupported = useIsOnchainDepositSupported(fedimint)
+    const [notes, setNotes] = useState<string>('')
+    const dispatch = useAppDispatch()
 
     // Reset on close, focus input on desktop open
     useEffect(() => {
@@ -84,11 +85,11 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         }
     }, [open, lnurlw, resetRequestForm])
 
-    // Reset invoices on federation change, amount change, or note change
+    // Reset invoices on federation change, amount change
     useEffect(() => {
         setLightningInvoice(undefined)
         setBitcoinUrl(undefined)
-    }, [activeFederationId, amount, note])
+    }, [activeFederationId, amount])
 
     // Generate fresh invoice / address on any change to it
     useEffect(() => {
@@ -98,12 +99,20 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         let promise: Promise<unknown> | undefined
 
         if (isLightning && !lightningInvoice) {
-            promise = fedimint
-                .generateInvoice(
-                    amountUtils.satToMsat(amount),
-                    note,
-                    activeFederationId,
-                )
+            promise = dispatch(
+                generateInvoice({
+                    fedimint,
+                    federationId: activeFederationId,
+                    amount: amountUtils.satToMsat(amount),
+                    description: memo,
+                    frontendMetadata: {
+                        initialNotes: notes || null,
+                        recipientMatrixId: null,
+                        senderMatrixId: null,
+                    },
+                }),
+            )
+                .unwrap()
                 .then(invoice => {
                     if (canceled) return
                     setLightningInvoice(invoice)
@@ -116,7 +125,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                     setBitcoinUrl(
                         `bitcoin:${addr}?amount=${amountUtils.satToBtc(
                             amount,
-                        )}&message=${note}`,
+                        )}&message=${memo}`,
                     )
                 })
         }
@@ -133,13 +142,15 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     }, [
         wantsInvoice,
         amount,
-        note,
         isLightning,
         lightningInvoice,
         bitcoinUrl,
         activeFederationId,
         toast,
         t,
+        dispatch,
+        memo,
+        notes,
     ])
 
     // Watch for incoming payments when we're rendering a lightning invoice
@@ -182,7 +193,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
             activeFederationId,
             lnurlw['data'],
             amountUtils.satToMsat(amount),
-            note,
+            memo,
         )
             .match(setLightningInvoice, e =>
                 toast.error(t, e, 'error.unknown-error'),
@@ -213,7 +224,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
 
     const qrData = isLightning ? lightningInvoice?.toUpperCase() : bitcoinUrl
     const copyData = isLightning ? lightningInvoice : bitcoinUrl
-    const showNote = !!note || !wantsInvoice
+    const showNote = !wantsInvoice
     const amountSats = amountUtils.formatSats(amount)
 
     let content: React.ReactNode
@@ -223,7 +234,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         content = (
             <>
                 <Center>
-                    {isOnchainSupported && (
+                    {isOnchainSupported && !wantsInvoice && (
                         <RequestTypeToggle
                             onClick={() => setIsLightning(!isLightning)}>
                             <Text variant="caption" weight="medium">
@@ -254,12 +265,12 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                         extraInput={
                             showNote ? (
                                 <NoteInput
-                                    value={note}
+                                    value={notes}
                                     placeholder={
                                         qrData ? '' : t('phrases.add-note')
                                     }
                                     onChange={ev =>
-                                        setNote(ev.currentTarget.value)
+                                        setNotes(ev.currentTarget.value)
                                     }
                                     readOnly={wantsInvoice}
                                 />
@@ -313,7 +324,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
 
     return (
         <Dialog
-            title={t('feature.receive.request-bitcoin')}
+            title={t('feature.receive.bitcoin-request')}
             open={open}
             mobileDismiss="back"
             onOpenChange={onOpenChange}>

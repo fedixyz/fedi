@@ -16,7 +16,7 @@ import { refreshOnboardingStatus } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
-import { fedimint } from '../bridge/native'
+import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'

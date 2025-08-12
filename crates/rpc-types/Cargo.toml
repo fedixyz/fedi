@@ -21,7 +21,7 @@ bitcoin = { workspace = true }
 lightning-invoice = "0.33.0"
 tracing = { workspace = true }
 thiserror = "2.0.8"
-ts-rs = "10"
+ts-rs = { workspace = true }
 url = "2.3.1"
 matrix-sdk-ui = { workspace = true, default-features = false }
 matrix-sdk = { workspace = true, default-features = false, features = [

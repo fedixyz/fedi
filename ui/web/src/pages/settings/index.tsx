@@ -48,7 +48,7 @@ const canLeaveFederation = (federation: FederationListItem): boolean => {
     return (
         federation?.hasWallet &&
         'balance' in federation &&
-        federation?.balance < 100_000
+        federation?.balance < 100000 // allow leave if balance less than 100 sats
     )
 }
 
@@ -255,8 +255,11 @@ function AdminPage() {
                             ? 'feature.federations.leave-federation-confirmation'
                             : 'feature.federations.leave-federation-withdraw-first',
                     )}
-                    onClose={() => setLeavingFederationId('')}
                     onConfirm={handleConfirmLeaveFederation}
+                    {...(canLeaveFederation(leavingFederation)
+                        ? { onClose: () => setLeavingFederationId('') }
+                        : {})}
+                    primaryButtonLabel={t('words.okay')}
                 />
             )}
         </ContentBlock>

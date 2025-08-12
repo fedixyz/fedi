@@ -1,9 +1,17 @@
 import { useNavigation } from '@react-navigation/native'
-import { Button, Card, Switch, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useLayoutEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Linking, ScrollView, StyleSheet, View } from 'react-native'
+import {
+    Linking,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    ScrollView,
+    StyleSheet,
+    View,
+} from 'react-native'
 import Hyperlink from 'react-native-hyperlink'
+import LinearGradient from 'react-native-linear-gradient'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { JoinPreview } from '@fedi/common/types'
@@ -16,6 +24,7 @@ import {
 
 import Flex from '../../ui/Flex'
 import RotatingSvg from '../../ui/RotatingSvg'
+import { SafeAreaContainer } from '../../ui/SafeArea'
 import { SvgImageSize } from '../../ui/SvgImage'
 import EndedFederationPreview from '../federations/EndedPreview'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -34,6 +43,8 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     const [isJoining, setIsJoining] = useState(false)
     const [selectedRecoverFromScratch, setSelectedRecoverFromScratch] =
         useState(false)
+    const [showTopShadow, setShowTopShadow] = useState(false)
+    const [showBottomShadow, setShowBottomShadow] = useState(true)
     const tosUrl = getFederationTosUrl(federation.meta)
     const welcomeMessage = getFederationWelcomeMessage(federation.meta)
     const isSupported = getIsFederationSupported(federation)
@@ -42,6 +53,15 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     const isReturningMember =
         federation.hasWallet &&
         federation.returningMemberStatus.type === 'returningMember'
+
+    const handleScroll = ({
+        nativeEvent,
+    }: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const { contentOffset } = nativeEvent
+
+        setShowTopShadow(contentOffset.y > 0)
+        setShowBottomShadow(contentOffset.y < 0)
+    }
 
     useLayoutEffect(() => {
         navigation.setOptions({ headerShown: !isJoining })
@@ -174,21 +194,25 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
               : t('feature.onboarding.welcome-instructions-unknown')
 
     return (
-        <View style={s.container}>
-            <View style={{ alignItems: 'center' }}>
-                <FederationLogo federation={federation} size={96} />
-                <Text h2 medium style={s.welcome}>
-                    {welcomeTitle}
-                </Text>
-            </View>
+        <SafeAreaContainer edges="notop" style={s.joinPreviewContainer}>
+            <Flex grow shrink style={s.federationInfoContainer}>
+                {showTopShadow && (
+                    <LinearGradient
+                        style={[s.scrollInsetShadow, s.scrollTopShadow]}
+                        colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0)']}
+                    />
+                )}
+                <ScrollView
+                    contentContainerStyle={s.federationInfoScrollView}
+                    onScroll={handleScroll}>
+                    <Flex center>
+                        <FederationLogo federation={federation} size={96} />
+                        <Text h2 medium style={s.welcome}>
+                            {welcomeTitle}
+                        </Text>
+                    </Flex>
 
-            <Card containerStyle={s.roundedCardContainer}>
-                <View style={s.cardContent}>
-                    <ScrollView
-                        style={s.scrollTos}
-                        contentContainerStyle={{
-                            padding: theme.spacing.lg,
-                        }}>
+                    <View style={s.roundedCardContainer}>
                         <Text caption style={s.welcomeText}>
                             <Trans
                                 components={{
@@ -203,40 +227,57 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                                 {welcomeMessage ?? welcomeInstructions}
                             </Trans>
                         </Text>
-                    </ScrollView>
-                </View>
-            </Card>
+                    </View>
+                </ScrollView>
+                {showBottomShadow && (
+                    <LinearGradient
+                        style={[s.scrollInsetShadow, s.scrollBottomShadow]}
+                        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.05)']}
+                    />
+                )}
+            </Flex>
 
-            <View style={s.bottomSection}>
+            <Flex shrink={false}>
                 {showJoinFederation && isReturningMember && (
                     <Flex gap="sm" style={s.switchWrapper}>
                         <Flex row align="center" justify="between" gap="md">
-                            <Text bold caption>
-                                {t('feature.federations.recover-from-scratch')}
-                            </Text>
+                            <Flex grow shrink gap="sm">
+                                <Text
+                                    bold
+                                    caption
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail">
+                                    {t(
+                                        'feature.federations.recover-from-scratch',
+                                    )}
+                                </Text>
+                                <Text small>
+                                    {t(
+                                        'feature.federations.recover-from-scratch-warning',
+                                    )}
+                                </Text>
+                            </Flex>
                             <Switch
+                                testID="RecoverFromScratchSwitch"
                                 value={selectedRecoverFromScratch}
-                                onValueChange={setSelectedRecoverFromScratch}
+                                onValueChange={() => {
+                                    setSelectedRecoverFromScratch(
+                                        !selectedRecoverFromScratch,
+                                    )
+                                }}
                             />
                         </Flex>
-                        <Text small>
-                            {t(
-                                'feature.federations.recover-from-scratch-warning',
-                            )}
-                        </Text>
                     </Flex>
                 )}
+
+                {joinButtons}
 
                 {showJoinFederation && tosUrl && (
                     <View style={s.guidance}>
                         <Hyperlink
                             onPress={() => Linking.openURL(tosUrl)}
                             linkStyle={s.linkText}>
-                            <Text
-                                style={{
-                                    fontSize: 14,
-                                    color: theme.colors.darkGrey,
-                                }}>
+                            <Text small color={theme.colors.darkGrey} center>
                                 {t('feature.onboarding.by-clicking-i-accept', {
                                     tos_url: tosUrl,
                                 })}
@@ -244,10 +285,8 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                         </Hyperlink>
                     </View>
                 )}
-
-                {joinButtons}
-            </View>
-        </View>
+            </Flex>
+        </SafeAreaContainer>
     )
 }
 
@@ -259,21 +298,11 @@ const styles = (theme: Theme) =>
             paddingBottom: 3,
         },
         loadingIcon: { marginBottom: theme.spacing.md },
-        loadingTitle: {
-            fontSize: 16,
-            fontWeight: '600',
-            marginBottom: theme.spacing.sm,
-            textAlign: 'center',
-            color: theme.colors.night,
-        },
-        loadingFactText: {
-            textAlign: 'center',
-            fontSize: 16,
-            fontWeight: '500',
-            color: theme.colors.darkGrey,
-        },
         container: { flex: 1, padding: theme.spacing.xl },
-        bottomSection: { marginTop: 'auto' },
+        joinPreviewContainer: {
+            gap: theme.spacing.lg,
+            paddingTop: theme.spacing.lg,
+        },
         guidance: { marginBottom: theme.spacing.xs },
         button: { marginVertical: theme.spacing.sm, width: '100%' },
         linkText: { color: theme.colors.link },
@@ -281,22 +310,16 @@ const styles = (theme: Theme) =>
             width: '100%',
             marginBottom: theme.spacing.sm,
         },
-        disabledNotice: {
-            color: theme.colors.red,
-            textAlign: 'center',
-            marginVertical: theme.spacing.md,
-        },
         roundedCardContainer: {
             flexShrink: 1,
             backgroundColor: theme.colors.offWhite100,
             marginTop: 10,
             borderRadius: theme.borders.defaultRadius,
             marginHorizontal: 0,
-            padding: 0,
+            padding: theme.spacing.lg,
             borderWidth: 0,
             borderColor: 'transparent',
         },
-        cardContent: { alignSelf: 'stretch' },
         welcome: {
             marginTop: theme.spacing.md,
             marginBottom: theme.spacing.md,
@@ -309,7 +332,6 @@ const styles = (theme: Theme) =>
             letterSpacing: -0.16,
             textAlign: 'left',
         },
-        scrollTos: { flexGrow: 1, flexShrink: 1, width: '100%' },
         unsupportedContainer: {
             maxWidth: 280,
             paddingTop: theme.spacing.xl,
@@ -322,10 +344,28 @@ const styles = (theme: Theme) =>
         },
         unsupportedBadgeLabel: { color: theme.colors.white },
         switchWrapper: {
-            margin: theme.spacing.xl,
             padding: theme.spacing.lg,
             borderRadius: 12,
             backgroundColor: theme.colors.offWhite,
+        },
+        scrollTopShadow: {
+            top: 0,
+        },
+        scrollBottomShadow: {
+            bottom: 0,
+        },
+        scrollInsetShadow: {
+            position: 'absolute',
+            height: 40,
+            left: 0,
+            right: 0,
+            backgroundColor: 'transparent',
+        },
+        federationInfoContainer: {
+            position: 'relative',
+        },
+        federationInfoScrollView: {
+            paddingVertical: theme.spacing.xl,
         },
     })
 

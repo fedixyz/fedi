@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+    listGateways,
     refreshLnurlReceive,
     selectLnurlReceiveCode,
     selectSupportsRecurringdLnurl,
@@ -26,9 +27,13 @@ import {
     type MeltResult,
 } from '../utils/cashu'
 import { FedimintBridge } from '../utils/fedimint'
+import { formatErrorMessage } from '../utils/format'
 import { lnurlPay } from '../utils/lnurl'
+import { makeLog } from '../utils/log'
 import { useSendForm } from './amount'
 import { useCommonDispatch, useCommonSelector } from './redux'
+
+const log = makeLog('common/hooks/pay')
 
 const expectedOmniInputTypes = [
     ParserDataType.BitcoinAddress,
@@ -72,6 +77,10 @@ interface OmniPaymentState {
     handleOmniInput: (input: ExpectedInputData) => void
     /** For resetting all state */
     resetOmniPaymentState: () => void
+    /** Whether or not state is being processed */
+    isLoading: boolean
+    /** User-facing error message to display if anything went wrong */
+    error: string | null
 }
 
 /**
@@ -86,6 +95,9 @@ export function useOmniPaymentState(
     selectedPaymentFederation = false,
     t: TFunction,
 ): OmniPaymentState {
+    const dispatch = useCommonDispatch()
+    const [isLoading, setIsLoading] = useState<boolean>(false)
+    const [error, setError] = useState<string | null>(null)
     const [feeDetails, setFeeDetails] = useState<RpcFeeDetails>()
     const [invoice, setInvoice] = useState<Invoice>()
     const [cashuMeltSummary, setCashuMeltSummary] = useState<MeltSummary>()
@@ -100,6 +112,7 @@ export function useOmniPaymentState(
         maximumAmount,
         description,
         sendTo,
+        reset: resetSendForm,
     } = useSendForm({
         btcAddress,
         bip21Payment,
@@ -121,7 +134,7 @@ export function useOmniPaymentState(
                         federationId,
                     )
                     setFeeDetails(fees)
-                } catch (error) {
+                } catch {
                     setFeeDetails(undefined)
                 }
             }
@@ -138,105 +151,142 @@ export function useOmniPaymentState(
 
     const handleOmniInput = useCallback(
         async (input: ExpectedInputData) => {
-            if (input.type === ParserDataType.Bolt11 && federationId) {
-                const decoded = await fedimint.decodeInvoice(
-                    input.data.invoice,
-                    federationId,
-                )
-                if (decoded.amount) {
-                    setInputAmount(amountUtils.msatToSat(decoded.amount))
-                }
-                setInvoice(decoded)
-                if (decoded.fee) {
-                    setFeeDetails(decoded.fee)
-                }
-            } else if (input.type === ParserDataType.LnurlPay) {
-                if (input.data.minSendable) {
-                    setInputAmount(
-                        amountUtils.msatToSat(input.data.minSendable),
+            try {
+                setIsLoading(true)
+                // reset fee details since it will change when switching federations
+                setFeeDetails(undefined)
+                if (input.type === ParserDataType.Bolt11 && federationId) {
+                    const decoded = await fedimint.decodeInvoice(
+                        input.data.invoice,
+                        federationId,
                     )
-                }
-                setLnurlPayment(input.data)
-            } else if (input.type === ParserDataType.Bip21) {
-                if (
-                    'amount' in input.data &&
-                    input.data.amount &&
+                    if (decoded.amount) {
+                        setInputAmount(amountUtils.msatToSat(decoded.amount))
+                    }
+                    setInvoice(decoded)
+                    if (decoded.fee) {
+                        setFeeDetails(decoded.fee)
+                    }
+                } else if (input.type === ParserDataType.LnurlPay) {
+                    if (input.data.minSendable) {
+                        setInputAmount(
+                            amountUtils.msatToSat(input.data.minSendable),
+                        )
+                    }
+                    setLnurlPayment(input.data)
+                } else if (input.type === ParserDataType.Bip21) {
+                    if (
+                        'amount' in input.data &&
+                        input.data.amount &&
+                        federationId
+                    ) {
+                        const amountSats = amountUtils.btcToSat(
+                            input.data.amount,
+                        )
+                        setInputAmount(amountSats)
+                    }
+                    setBip21Payment(input.data)
+                    setBtcAddress({ address: input.data.address })
+                } else if (input.type === ParserDataType.BitcoinAddress) {
+                    setBtcAddress(input.data)
+                } else if (
+                    input.type === ParserDataType.CashuEcash &&
                     federationId
                 ) {
-                    const amountSats = amountUtils.btcToSat(input.data.amount)
-                    setInputAmount(amountSats)
+                    const tokens = decodeCashuTokens(input.data.token)
+                    const meltSummary = await getMeltQuotes(
+                        tokens,
+                        fedimint,
+                        federationId,
+                    )
+                    setCashuMeltSummary(meltSummary)
+                    setInputAmount(
+                        amountUtils.msatToSat(meltSummary.totalAmount),
+                    )
+                    setFeeDetails({
+                        fediFee: 0 as MSats,
+                        networkFee: meltSummary.totalFees,
+                        federationFee: 0 as MSats,
+                    })
                 }
-                setBip21Payment(input.data)
-                setBtcAddress({ address: input.data.address })
-            } else if (input.type === ParserDataType.BitcoinAddress) {
-                setBtcAddress(input.data)
-            } else if (
-                input.type === ParserDataType.CashuEcash &&
-                federationId
-            ) {
-                const tokens = decodeCashuTokens(input.data.token)
-                const meltSummary = await getMeltQuotes(
-                    tokens,
-                    fedimint,
-                    federationId,
-                )
-                setCashuMeltSummary(meltSummary)
-                setInputAmount(amountUtils.msatToSat(meltSummary.totalAmount))
-                setFeeDetails({
-                    fediFee: 0 as MSats,
-                    networkFee: meltSummary.totalFees,
-                    federationFee: 0 as MSats,
-                })
+            } catch (err) {
+                log.error('handleOmniInput', err)
+                setError(formatErrorMessage(t, err, 'errors.unknown-error'))
+            } finally {
+                setIsLoading(false)
             }
         },
-        [federationId, fedimint, setInputAmount, setCashuMeltSummary],
+        [federationId, fedimint, setInputAmount, t],
     )
 
     const handleOmniSend = useCallback(
         async (amount: Sats, notes?: string) => {
-            if (!federationId) {
-                throw new Error('Must have a federation ID to send')
-            }
-            if (invoice) {
-                return fedimint.payInvoice(invoice.invoice, federationId, notes)
-            } else if (lnurlPayment) {
-                return lnurlPay(
-                    fedimint,
-                    federationId,
-                    lnurlPayment,
-                    amountUtils.satToMsat(amount),
-                    notes,
-                ).match(
-                    ok => ok,
-                    e => {
-                        // TODO: refactor handleOmniSend to return a ResultAsync
-                        // and don't throw
-                        throw e
-                    },
-                )
-            } else if (bip21Payment) {
-                return fedimint.payAddress(
-                    bip21Payment.address,
-                    amount,
-                    federationId,
-                    notes,
-                )
-            } else if (btcAddress) {
-                return fedimint.payAddress(
-                    btcAddress.address,
-                    amount,
-                    federationId,
-                    notes,
-                )
-            } else if (cashuMeltSummary) {
-                return executeMelts(cashuMeltSummary)
-            } else {
-                throw new Error(
-                    'Requires invoice, lnurl payment, bip21 payment, or btc address to send',
-                )
+            try {
+                if (!federationId) {
+                    throw new Error('Must have a federation ID to send')
+                }
+                // guard LN operations with a gateway check
+                // TODO: remove this and depend entirely on bridge error handling for this?
+                if (invoice || lnurlPayment) {
+                    const gateways = await dispatch(
+                        listGateways({ fedimint, federationId }),
+                    ).unwrap()
+
+                    if (!gateways.length) {
+                        throw new Error(t('errors.no-lightning-gateways'))
+                    }
+                }
+                if (invoice) {
+                    return await fedimint.payInvoice(
+                        invoice.invoice,
+                        federationId,
+                        notes,
+                    )
+                } else if (lnurlPayment) {
+                    return await lnurlPay(
+                        fedimint,
+                        federationId,
+                        lnurlPayment,
+                        amountUtils.satToMsat(amount),
+                        notes,
+                    ).match(
+                        ok => ok,
+                        e => {
+                            // TODO: refactor handleOmniSend to return a ResultAsync
+                            // and don't throw
+                            throw e
+                        },
+                    )
+                } else if (bip21Payment) {
+                    return await fedimint.payAddress(
+                        bip21Payment.address,
+                        amount,
+                        federationId,
+                        notes,
+                    )
+                } else if (btcAddress) {
+                    return await fedimint.payAddress(
+                        btcAddress.address,
+                        amount,
+                        federationId,
+                        notes,
+                    )
+                } else if (cashuMeltSummary) {
+                    return await executeMelts(cashuMeltSummary)
+                } else {
+                    throw new Error(
+                        'Requires invoice, lnurl payment, bip21 payment, or btc address to send',
+                    )
+                }
+            } catch (err) {
+                log.error('handleOmniSend', err)
+                setError(formatErrorMessage(t, err, 'errors.unknown-error'))
+                throw err
             }
         },
         [
+            t,
+            dispatch,
             federationId,
             invoice,
             lnurlPayment,
@@ -253,9 +303,9 @@ export function useOmniPaymentState(
         setLnurlPayment(undefined)
         setBtcAddress(undefined)
         setBip21Payment(undefined)
-        setInputAmount(0 as Sats)
         setCashuMeltSummary(undefined)
-    }, [setInputAmount])
+        resetSendForm()
+    }, [resetSendForm])
 
     return {
         isReadyToPay:
@@ -276,6 +326,8 @@ export function useOmniPaymentState(
         expectedOmniInputTypes,
         handleOmniInput,
         resetOmniPaymentState,
+        isLoading,
+        error,
     }
 }
 

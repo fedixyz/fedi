@@ -48,12 +48,14 @@ export const ChatEventCollection: React.FC<Props> = ({
                         : hasLeft
                           ? t('feature.chat.former-member')
                           : roomMember?.displayName || '...'
+
                     return (
                         <div key={events[0].id}>
                             {showUsernames && !isMe && (
                                 <Username>{displayName}</Username>
                             )}
-                            <MessageAvatarWrap isMe={isMe}>
+                            <MessageAvatarWrap
+                                showAvatar={showUsernames && !isMe}>
                                 <ChatAvatar
                                     user={roomMember || { id: sentBy }}
                                     size="sm"
@@ -91,16 +93,16 @@ const MessageAvatarWrap = styled('div', {
     },
 
     variants: {
-        isMe: {
+        showAvatar: {
             true: {
-                flexDirection: 'row-reverse',
                 '> *:first-child': {
-                    display: 'none',
+                    marginTop: 2,
                 },
             },
             false: {
+                flexDirection: 'row-reverse',
                 '> *:first-child': {
-                    marginTop: 2,
+                    display: 'none',
                 },
             },
         },

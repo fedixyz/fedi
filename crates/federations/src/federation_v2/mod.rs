@@ -103,7 +103,6 @@ use runtime::constants::{
     STABILITY_POOL_V2_OPERATION_TYPE, WALLET_OPERATION_TYPE,
 };
 use runtime::db::FederationPendingRejoinFromScratchKey;
-use runtime::features::{StabilityPoolV2FeatureConfig, StabilityPoolV2FeatureConfigState};
 use runtime::observable::Observable;
 use runtime::storage::state::{DatabaseInfo, FederationInfo, FediFeeSchedule};
 use runtime::utils::{display_currency, to_unix_time};
@@ -345,8 +344,7 @@ impl FederationV2 {
 
         // If SPv2 is enabled and the module is available, we initialize the sync
         // service and the history service.
-        if self.spv2_feature_state().is_some() {
-            let spv2 = self.client.spv2().expect("checked above");
+        if let Ok(spv2) = self.client.spv2() {
             let account = spv2.our_account(AccountType::Seeker);
             if self
                 .spv2_sync_service
@@ -362,8 +360,8 @@ impl FederationV2 {
             if self
                 .spv2_history_service
                 .set(StabilityPoolHistoryService::new(
+                    spv2.client_ctx.clone(),
                     spv2.api.clone(),
-                    spv2.db.clone(),
                     account.id(),
                 ))
                 .is_err()
@@ -1595,6 +1593,9 @@ impl FederationV2 {
                     outpoints: _,
                     extra_meta: _,
                 } => todo!("Implement with sweeper service for spv2, no FE events required"),
+                // No subscription necessary for variant ExternalTransferIn, since we only become
+                // aware of the transfer after it has already been completed
+                StabilityPoolMeta::ExternalTransferIn { .. } => (),
             },
             // FIXME: should I return an error or just log something?
             _ => {
@@ -2034,6 +2035,39 @@ impl FederationV2 {
             }
         }
         Ok(())
+    }
+
+    /// Determine the maximum actual amount of e-cash that can be generated for
+    /// sending taking into account fees.
+    pub async fn calculate_max_generate_ecash(&self) -> Result<RpcAmount> {
+        // Let's say that amount we're looking for is max. We wish to satisfy this
+        // equation: max + fedi_fee = virtual_balance
+        //
+        // fedi_fee is calculated as follows:
+        // fedi_fee = (max * fedi_fee_ppm) / MILLION
+        //
+        // Plugging this into the original equation, we get:
+        // max + [(max * fedi_fee_ppm) / MILLION] = virtual_balance
+        //
+        // We can solve this for max as follows:
+        // max = (virtual_balance * MILLION) / (MILLION + fedi_fee_ppm)
+        // We use floor division here
+
+        let fedi_fee_ppm = self
+            .fedi_fee_helper
+            .get_fedi_fee_ppm(
+                self.federation_id().to_string(),
+                fedimint_mint_client::KIND,
+                RpcTransactionDirection::Send,
+            )
+            .await?;
+        let virtual_balance = self.get_balance().await;
+        let max = {
+            let numerator = virtual_balance.mul_u64(MILLION).msats;
+            let denominator = MILLION + fedi_fee_ppm;
+            numerator / denominator
+        };
+        Ok(RpcAmount(Amount::from_msats(max)))
     }
 
     /// Generate ecash
@@ -2919,6 +2953,28 @@ impl FederationV2 {
                     // TXs to sweep idle balance shouldn't log in history
                     return None;
                 }
+                StabilityPoolMeta::ExternalTransferIn { txid } => {
+                    frontend_metadata = None;
+                    transaction_kind = RpcTransactionKind::SPV2TransferIn {
+                        state: if let Some(UserOperationHistoryItem {
+                            amount,
+                            fiat_amount,
+                            kind: UserOperationHistoryItemKind::TransferIn { from, .. },
+                            ..
+                        }) = self.spv2_user_op_history_item(txid).await
+                        {
+                            transaction_amount = RpcAmount(amount);
+                            RpcSPV2TransferInState::CompletedTransfer {
+                                from_account_id: from.to_string(),
+                                amount: RpcAmount(amount),
+                                fiat_amount: fiat_amount.0,
+                            }
+                        } else {
+                            transaction_amount = RpcAmount(Amount::ZERO);
+                            RpcSPV2TransferInState::DataNotInCache
+                        },
+                    }
+                }
             },
             MINT_OPERATION_TYPE => {
                 let mint_meta: MintOperationMeta = entry.meta();
@@ -3111,34 +3167,12 @@ impl FederationV2 {
         )
     }
 
-    /// Reads the SPv2 feature flag and applies the SPv2 module availability on
-    /// top of it. Ideally this function should be used for checking the state
-    /// of the SPv2 feature (instead of reading the feature catalog directly)
-    /// for any federation specific operations. However, for global checks (such
-    /// as showing UX entry points that are not tied to any federation), the
-    /// feature flag should be read directly.
-    pub fn spv2_feature_state(&self) -> Option<StabilityPoolV2FeatureConfig> {
-        // If the module is not available, the feature flag value doesn't matter. It's
-        // always treated as None.
-        match (
-            &self.runtime.feature_catalog.stability_pool_v2,
-            self.client.spv2(),
-        ) {
-            (state, Ok(_)) => state.clone(),
-            _ => None,
-        }
-    }
-
     /// Returns the latest cached sync response representing the seeker's last
     /// know SPv2 state. Getting the cached response should be sufficient
     /// because the value only updates once per cycle, and we already have a
     /// background service that automatically fetches and caches the state every
     /// cycle.
     pub async fn spv2_account_info(&self) -> Result<CachedSyncResponseValue> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
         let spv2 = self.client.spv2()?;
         let account_id = spv2.our_account(AccountType::Seeker).id();
 
@@ -3157,11 +3191,7 @@ impl FederationV2 {
         &self,
         observable_id: u32,
     ) -> Result<Observable<RpcSPv2CachedSyncResponse>> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
-
+        self.client.spv2()?;
         let Some(sync_service) = self.spv2_sync_service.get() else {
             bail!("Unexpected: sync service must have been initialized");
         };
@@ -3199,10 +3229,6 @@ impl FederationV2 {
     /// Returns the average fee rate over the last x cycles. Server enforces a
     /// cap on x, but perhaps going back 10-50 cycles is good enough.
     pub async fn spv2_average_fee_rate(&self, num_cycles: u64) -> Result<u64> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
         let spv2 = self.client.spv2()?;
         spv2.average_fee_rate(num_cycles)
             .await
@@ -3214,10 +3240,6 @@ impl FederationV2 {
     /// seeks. Allows blocking seeks that we know up-front will not be satisfied
     /// at this time.
     pub async fn spv2_available_liquidity(&self) -> Result<RpcAmount> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
         let spv2 = self.client.spv2()?;
         let stats = spv2
             .liquidity_stats()
@@ -3238,10 +3260,6 @@ impl FederationV2 {
         amount: Amount,
         frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
         let spv2 = self.client.spv2()?;
         let fedi_fee_ppm = self
             .fedi_fee_helper
@@ -3351,10 +3369,6 @@ impl FederationV2 {
         amount: FiatOrAll,
         frontend_meta: FrontendMetadata,
     ) -> Result<OperationId> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
         let spv2 = self.client.spv2()?;
         let fedi_fee_ppm = self
             .fedi_fee_helper
@@ -3430,10 +3444,6 @@ impl FederationV2 {
         amount: FiatAmount,
         meta: SPv2TransferMetadata,
     ) -> Result<OperationId> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
         ensure!(to_account.acc_type() == AccountType::Seeker);
         let spv2 = self.client.spv2()?;
 
@@ -3466,10 +3476,6 @@ impl FederationV2 {
         signed_request: SignedTransferRequest,
         meta: SPv2TransferMetadata,
     ) -> Result<OperationId> {
-        ensure!(
-            self.spv2_feature_state().is_some(),
-            ErrorCode::ModuleNotFound(STABILITY_POOL_V2_OPERATION_TYPE.to_string())
-        );
         let spv2 = self.client.spv2()?;
 
         // TODO shaurya skipping fee for now as it's unclear how to charge fee for
@@ -3594,7 +3600,7 @@ impl FederationV2 {
         Some(spv2.our_account(AccountType::Seeker))
     }
 
-    fn spv2_force_sync(&self) {
+    pub fn spv2_force_sync(&self) {
         self.spawn_cancellable("spv2_force_sync", |fed| async move {
             if let Some(sync_service) = fed.spv2_sync_service.get() {
                 let res = sync_service.update_once().await;
@@ -4332,16 +4338,7 @@ impl FederationV2 {
         Ok(())
     }
 
-    pub fn ensure_multispend_feature(&self) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            self.spv2_feature_state().map(|x| x.state)
-                == Some(StabilityPoolV2FeatureConfigState::Multispend),
-            "multispend feature not enabled"
-        );
-        Ok(())
-    }
     pub fn multispend_public_key(&self, group_id: String) -> anyhow::Result<PublicKey> {
-        self.ensure_multispend_feature()?;
         let spv2 = self.client.spv2()?;
         let pubkey = spv2.derive_multispend_group_key(group_id).public_key();
         Ok(pubkey)
@@ -4355,7 +4352,6 @@ impl FederationV2 {
         description: String,
         frontend_meta: FrontendMetadata,
     ) -> anyhow::Result<()> {
-        self.ensure_multispend_feature()?;
         self.spv2_simple_transfer(
             group_account,
             amount,
@@ -4374,7 +4370,6 @@ impl FederationV2 {
         amount: FiatAmount,
         group_account: Account,
     ) -> anyhow::Result<TransferRequest> {
-        self.ensure_multispend_feature()?;
         let spv2 = self.client.spv2()?;
         let transfer_request = TransferRequest::new(
             rand::thread_rng().gen(),
@@ -4393,7 +4388,6 @@ impl FederationV2 {
         group_id: String,
         transfer_request: &TransferRequest,
     ) -> anyhow::Result<schnorr::Signature> {
-        self.ensure_multispend_feature()?;
         let spv2 = self.client.spv2()?;
         let key = spv2.derive_multispend_group_key(group_id);
         let message = secp256k1::Message::from(&TransferRequestId::from(transfer_request));

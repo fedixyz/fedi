@@ -9,12 +9,14 @@ import {
     sendMatrixDirectMessage,
 } from '@fedi/common/redux'
 
+import { fedimint } from '../bridge'
 import MessageInput from '../components/feature/chat/MessageInput'
 import NoMessagesNotice from '../components/feature/chat/NoMessagesNotice'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import Flex from '../components/ui/Flex'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
+import { InputAttachment, InputMedia } from '../types'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -50,9 +52,20 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
 
     // add another check before creating another room
     const handleSend = useCallback(
-        async (body: string) => {
+        async (
+            body: string,
+            attachments?: Array<InputAttachment | InputMedia>,
+            repliedEventId?: string | null,
+        ) => {
             setIsSending(true)
-            dispatch(sendMatrixDirectMessage({ userId, body }))
+            dispatch(
+                sendMatrixDirectMessage({
+                    fedimint,
+                    userId,
+                    body,
+                    repliedEventId,
+                }),
+            )
         },
         [dispatch, userId],
     )

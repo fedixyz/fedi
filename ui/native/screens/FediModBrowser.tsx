@@ -44,10 +44,15 @@ import {
     selectFediModCacheMode,
     selectFediModCacheEnabled,
 } from '@fedi/common/redux'
-import { AnyParsedData, Invoice, ParserDataType } from '@fedi/common/types'
+import {
+    AnyParsedData,
+    Invoice,
+    MSats,
+    ParserDataType,
+} from '@fedi/common/types'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
 import { makeLog } from '@fedi/common/utils/log'
-import { parseUserInput } from '@fedi/common/utils/parser'
+import { isBolt11, parseUserInput } from '@fedi/common/utils/parser'
 import {
     InjectionMessageType,
     generateInjectionJs,
@@ -248,13 +253,17 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             }
 
             let invoice: Invoice
-            try {
-                invoice = await fedimint.decodeInvoice(
-                    data,
-                    paymentFederation?.id ?? null,
-                )
-            } catch (error) {
-                log.error('sendPayment', 'error', error)
+            // only do a basic parsing check, decoding happens in the SendPaymentOverlay
+            if (isBolt11(data)) {
+                invoice = {
+                    invoice: data,
+                    // these fake fields will get overwritten when we decode the invoice
+                    paymentHash: '',
+                    amount: 0 as MSats,
+                    fee: null,
+                    description: '',
+                }
+            } else {
                 toast.show({
                     content: t('phrases.failed-to-decode-invoice'),
                     status: 'error',
@@ -324,6 +333,22 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         }) => {
             log.info('nostr.decrypt', pubkey, ciphertext)
             const decrypted = await fedimint.nostrDecrypt(pubkey, ciphertext)
+            return decrypted
+        },
+        [InjectionMessageType.nostr_encrypt04]: async ({
+            pubkey,
+            plaintext,
+        }) => {
+            log.info('nostr.encrypt04', pubkey, plaintext)
+            const encrypted = await fedimint.nostrEncrypt04(pubkey, plaintext)
+            return encrypted
+        },
+        [InjectionMessageType.nostr_decrypt04]: async ({
+            pubkey,
+            ciphertext,
+        }) => {
+            log.info('nostr.decrypt04', pubkey, ciphertext)
+            const decrypted = await fedimint.nostrDecrypt04(pubkey, ciphertext)
             return decrypted
         },
         [InjectionMessageType.fedi_generateEcash]: async ecashRequestArgs => {

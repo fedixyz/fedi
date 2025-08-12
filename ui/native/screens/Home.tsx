@@ -11,6 +11,7 @@ import {
     selectFederationPinnedMessage,
     selectFederations,
     selectIsActiveFederationRecovering,
+    selectOnboardingMethod,
 } from '@fedi/common/redux'
 
 import { useCommonSelector } from '../../common/hooks/redux'
@@ -47,6 +48,7 @@ const Home: React.FC<Props> = ({ offline }) => {
         selectIsActiveFederationRecovering,
     )
     const pinnedMessage = useCommonSelector(selectFederationPinnedMessage)
+    const onboardingMethod = useCommonSelector(selectOnboardingMethod)
 
     const homeFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
         {
@@ -79,10 +81,14 @@ const Home: React.FC<Props> = ({ offline }) => {
     }
     prevIsFocused.current = isFocused
 
+    // Don't show any overlay modals if the seed was restored
+    const isNewSeedUser = onboardingMethod !== 'restored'
+
     // Decide which overlay (if any) to show for this render.
     const showCommunityOverlay =
-        !hasSeenCommunity && !overlayShownThisFocus.current
+        isNewSeedUser && !hasSeenCommunity && !overlayShownThisFocus.current
     const showDisplayNameOverlay =
+        isNewSeedUser &&
         hasSeenCommunity &&
         !hasSeenDisplayName &&
         !overlayShownThisFocus.current

@@ -31,17 +31,19 @@ const MultispendFinalized: React.FC<{
                     outline
                     onPress={() =>
                         navigation.navigate('MultispendDeposit', { roomId })
-                    }>
-                    {t('words.deposit')}
-                </Button>
+                    }
+                    title={t('words.deposit')}
+                    titleProps={{ numberOfLines: 1 }}
+                />
                 <Button
                     containerStyle={style.button}
                     disabled={multispendBalanceCents === 0}
                     onPress={() =>
                         navigation.navigate('MultispendWithdraw', { roomId })
-                    }>
-                    {t('words.withdraw')}
-                </Button>
+                    }
+                    title={t('words.withdraw')}
+                    titleProps={{ numberOfLines: 1 }}
+                />
             </SafeAreaContainer>
         </Flex>
     )

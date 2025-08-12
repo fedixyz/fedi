@@ -38,6 +38,7 @@ const ChatTile = ({ room, onSelect, onLongPress }: ChatTileProps) => {
         () => (showUnreadIndicator ? { medium: true } : {}),
         [showUnreadIndicator],
     )
+
     const previewMessage = useMemo(() => {
         if (room.isBlocked) return t('feature.chat.user-is-blocked')
         if (draftMessage)

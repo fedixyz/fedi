@@ -7,14 +7,9 @@ import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 import StarOutlineIcon from '@fedi/common/assets/svgs/star-outline.svg'
 import StarIcon from '@fedi/common/assets/svgs/star.svg'
 import { theme } from '@fedi/common/constants/theme'
-import {
-    rateFederation,
-    selectActiveFederation,
-    setSeenFederationRating,
-} from '@fedi/common/redux'
+import { useFederationRating } from '@fedi/common/hooks/federation'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
-import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { Button } from '../Button'
 import { Dialog } from '../Dialog'
@@ -28,11 +23,10 @@ interface Props {
 }
 
 const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
-    const [rating, setRating] = useState<number | null>(null)
     const [windowWidth, setWindowWidth] = useState<number>(0)
-    const activeFederation = useAppSelector(selectActiveFederation)
     const { t } = useTranslation()
-    const dispatch = useAppDispatch()
+    const { rating, setRating, federationToRate, handleSubmitRating } =
+        useFederationRating(fedimint)
 
     const bgImageHeight = scaleAttachment(
         RateFederationBg.width,
@@ -41,22 +35,8 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
         RateFederationBg.height,
     ).height
 
-    const handleDismiss = () => {
-        if (!activeFederation) return
-
-        dispatch(
-            setSeenFederationRating({
-                federationId: activeFederation.id,
-            }),
-        )
-        onDismiss()
-    }
-
     const handleSubmit = () => {
-        if (!rating) return
-        dispatch(rateFederation({ fedimint, rating: rating + 1 }))
-            .unwrap()
-            .then(onDismiss)
+        handleSubmitRating(() => onDismiss())
     }
 
     useEffect(() => setWindowWidth(Math.min(window.innerWidth, 500)), [])
@@ -64,7 +44,7 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
     return (
         <Dialog
             open={show}
-            onOpenChange={handleDismiss}
+            onOpenChange={onDismiss}
             mobileDismiss="overlay"
             disableOverlayHandle
             disableClose
@@ -76,21 +56,21 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
                         backgroundImage: `url(${RateFederationBg.src})`,
                     }}>
                     <FederationIconContainer>
-                        {activeFederation && (
+                        {federationToRate && (
                             <FederationAvatar
-                                federation={activeFederation}
+                                federation={federationToRate}
                                 size="lg"
                             />
                         )}
                     </FederationIconContainer>
-                    <CloseButton onClick={handleDismiss}>
+                    <CloseButton onClick={onDismiss}>
                         <Icon icon={CloseIcon} />
                     </CloseButton>
                 </Banner>
                 <Content>
                     <Text variant="h2" weight="medium" center>
                         {t('feature.federation.how-was-your-experience-with', {
-                            federation: activeFederation?.name,
+                            federation: federationToRate?.name,
                         })}
                     </Text>
                     <Stars>

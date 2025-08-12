@@ -10,7 +10,7 @@ use multispend::services::MultispendServices;
 use rpc_types::error::RpcError;
 use rpc_types::matrix::MatrixInitializeStatus;
 use runtime::bridge_runtime::Runtime;
-use runtime::constants::{GLOBAL_MATRIX_SERVER, MATRIX_CHILD_ID};
+use runtime::constants::MATRIX_CHILD_ID;
 use runtime::observable::Observable;
 use tokio::sync::{watch, OnceCell};
 
@@ -77,7 +77,7 @@ impl BgMatrix {
             &runtime.storage.platform_path("matrix".as_ref()),
             &matrix_secret,
             user_name,
-            GLOBAL_MATRIX_SERVER.to_owned(),
+            runtime.feature_catalog.matrix.home_server.clone(),
             &self.status,
         )
         .await;

@@ -37,11 +37,11 @@ while true; do
             ;;
         T)
             echo "Running tests for all UI code"
-            pushd $REPO_ROOT/ui && yarn test && popd
+            $REPO_ROOT/scripts/ui/run-ui-tests.sh
             ;;
         U)
             echo "Running linter & tests for all UI code"
-            pushd $REPO_ROOT/ui && yarn lint && yarn test && popd
+            pushd $REPO_ROOT/ui && yarn lint && popd && $REPO_ROOT/scripts/ui/run-ui-tests.sh
             ;;
         a)
             echo "Building android bridge artifacts"

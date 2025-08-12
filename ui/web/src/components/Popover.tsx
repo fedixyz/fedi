@@ -24,14 +24,12 @@ export const Popover: React.FC<Props> = ({
     ...contentProps
 }) => {
     return (
-        <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
+        <RadixPopover.Root open={open} onOpenChange={onOpenChange} modal>
             <RadixPopover.Trigger>{children}</RadixPopover.Trigger>
-            <RadixPopover.Portal>
-                <Content {...contentProps} arrowPadding={12}>
-                    {content}
-                    {arrow && <Arrow />}
-                </Content>
-            </RadixPopover.Portal>
+            <Content {...contentProps} arrowPadding={12}>
+                {content}
+                {arrow && <Arrow />}
+            </Content>
         </RadixPopover.Root>
     )
 }
@@ -46,8 +44,11 @@ const Content = styled(RadixPopover.Content, {
     background: theme.colors.white,
     borderRadius: 12,
     boxShadow: `0px 7px 11px rgba(1, 153, 176, 0.06), 0px 16px 40px rgba(112, 153, 176, 0.16)`,
-    padding: 20,
+    maxHeight: 150,
     minWidth: `var(--radix-popover-trigger-width)`,
+    overflowY: 'scroll',
+    padding: 20,
+    userSelect: 'none',
 
     '&[data-state="open"][data-side="top"]': {
         '--start-transform': 'translate(0, 4px)',

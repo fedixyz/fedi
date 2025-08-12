@@ -11,6 +11,7 @@ use common::{
     LiquidityStats, ProvideRequest, SeekRequest, StabilityPoolCommonGen, StabilityPoolInput,
     StabilityPoolModuleTypes, StabilityPoolOutput,
 };
+use db::RecordedTransferItemKey;
 use fedimint_api_client::api::{DynModuleApi, FederationApiExt as _, FederationError};
 use fedimint_client::module::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::module::recovery::NoModuleBackup;
@@ -26,7 +27,7 @@ use fedimint_client::transaction::{
 };
 use fedimint_client::{sm_enum_variant_translation, ClientModule, DynGlobalClientContext};
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
-use fedimint_core::db::{Database, DatabaseTransaction};
+use fedimint_core::db::{Database, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
     ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
@@ -103,7 +104,7 @@ pub struct StabilityPoolClientModule {
     pub cfg: StabilityPoolClientConfig,
     client_key_pair: Keypair,
     module_api: DynModuleApi,
-    client_ctx: ClientContext<Self>,
+    pub client_ctx: ClientContext<Self>,
     notifier: ModuleNotifier<StabilityPoolStateMachine>,
     db: Database,
     module_root_secret: DerivableSecret,
@@ -492,6 +493,12 @@ pub enum StabilityPoolMeta {
         #[serde(default)]
         extra_meta: serde_json::Value,
     },
+    /// A stable balance transfer where we are the receiver but we were not the
+    /// submitter of the transaction. We become aware of the finalized
+    /// transaction through server-side account history. We only store the TXID
+    /// here. The rest of the details can be looked up in the local
+    /// UserOperationHistory.
+    ExternalTransferIn { txid: TransactionId },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -677,12 +684,26 @@ impl StabilityPoolClientModule {
     ) -> anyhow::Result<OperationId> {
         let transfer_output = TransferOutput { signed_request };
 
-        let (operation_id, _) = submit_tx_with_output(
+        let (operation_id, txid) = submit_tx_with_output(
             self,
             StabilityPoolOutputV0::Transfer(transfer_output),
             extra_meta,
         )
         .await?;
+
+        // Record this transfer locally since we are the one initiating it. We assume
+        // that our seeker-type account is the one involved in this transfer, either as
+        // sender or receiver.
+        let mut dbtx = self.db.begin_transaction().await;
+        dbtx.insert_entry(
+            &RecordedTransferItemKey {
+                account_id: self.our_account(AccountType::Seeker).id(),
+                txid,
+            },
+            &operation_id,
+        )
+        .await;
+        dbtx.commit_tx().await;
         Ok(operation_id)
     }
 

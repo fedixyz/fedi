@@ -1,10 +1,15 @@
 import Link from 'next/link'
-import React from 'react'
+import { useRouter } from 'next/router'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import CloseIcon from '@fedi/common/assets/svgs/close.svg'
+import KeyboardIcon from '@fedi/common/assets/svgs/keyboard.svg'
+import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
 import { selectRecentMatrixRoomMembers } from '@fedi/common/redux'
+import { ParserDataType } from '@fedi/common/types'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 
@@ -14,6 +19,7 @@ import { CircularLoader } from '../CircularLoader'
 import { EmptyState } from '../EmptyState'
 import { Icon, IconProps } from '../Icon'
 import * as Layout from '../Layout'
+import { OmniInput } from '../OmniInput'
 import { ShadowScroller } from '../ShadowScroller'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
@@ -31,6 +37,15 @@ export const ChatUserSearch: React.FC<Props> = ({ action }) => {
     const recentRoomMembers = useAppSelector(selectRecentMatrixRoomMembers)
     const { query, setQuery, searchedUsers, isSearching, searchError } =
         useMatrixUserSearch()
+    const { push } = useRouter()
+
+    const [showScanner, setShowScanner] = useState(true)
+    const [inputFocused, setInputFocused] = useState(false)
+
+    const handleOnClose = () => {
+        setQuery('')
+        setInputFocused(false)
+    }
 
     let searchContent: React.ReactNode
     if (!query) {
@@ -76,69 +91,117 @@ export const ChatUserSearch: React.FC<Props> = ({ action }) => {
             <Header back="/chat">
                 <Title subheader>{t('feature.chat.new-message')}</Title>
             </Header>
-            <SearchHeader>
-                <SearchPrefix>{t('words.to')}:</SearchPrefix>
-                <SearchInput
-                    placeholder={t('feature.chat.enter-a-username')}
-                    value={query}
-                    onChange={ev => setQuery(ev.currentTarget.value)}
-                />
-            </SearchHeader>
-            <ShadowScroller>
-                <SearchResults>
-                    {!query && (
-                        <>
-                            {recentRoomMembers.length > 0 && (
+            {!showScanner && (
+                <>
+                    <SearchHeader>
+                        {inputFocused && (
+                            <CloseButton onClick={handleOnClose}>
+                                <Icon icon={CloseIcon} />
+                            </CloseButton>
+                        )}
+                        <SearchPrefix>{t('words.to')}:</SearchPrefix>
+                        <SearchInput
+                            placeholder={t('feature.chat.enter-a-username')}
+                            value={query}
+                            onChange={ev => setQuery(ev.currentTarget.value)}
+                            autoComplete="off"
+                            onFocus={() => setInputFocused(true)}
+                        />
+                    </SearchHeader>
+                    <ShadowScroller>
+                        <SearchResults>
+                            {!query && (
+                                <>
+                                    {!inputFocused &&
+                                        recentRoomMembers.length > 0 && (
+                                            <>
+                                                <SearchHeading>
+                                                    {t('words.people')}
+                                                </SearchHeading>
+                                                <RecentUsers>
+                                                    {recentRoomMembers.map(
+                                                        user => (
+                                                            <RecentUser
+                                                                href={`/chat/room/${user.roomId}`}
+                                                                key={user.id}>
+                                                                <ChatAvatar
+                                                                    user={user}
+                                                                />
+                                                                <Text
+                                                                    variant="small"
+                                                                    ellipsize
+                                                                    weight="medium"
+                                                                    css={{
+                                                                        width: '100%',
+                                                                        minWidth: 0,
+                                                                    }}>
+                                                                    {user.displayName ||
+                                                                        matrixIdToUsername(
+                                                                            user.id,
+                                                                        )}
+                                                                </Text>
+                                                            </RecentUser>
+                                                        ),
+                                                    )}
+                                                </RecentUsers>
+                                            </>
+                                        )}
+                                    {action && (
+                                        <SearchButton onClick={action.onClick}>
+                                            <Icon icon={action.icon} />
+                                            <Text weight="medium">
+                                                {action.label}
+                                            </Text>
+                                        </SearchButton>
+                                    )}
+                                </>
+                            )}
+                            {searchContent && (
                                 <>
                                     <SearchHeading>
                                         {t('words.people')}
                                     </SearchHeading>
-                                    <RecentUsers>
-                                        {recentRoomMembers.map(user => (
-                                            <RecentUser
-                                                href={`/chat/room/${user.roomId}`}
-                                                key={user.id}>
-                                                <ChatAvatar user={user} />
-                                                <Text
-                                                    variant="small"
-                                                    ellipsize
-                                                    weight="medium"
-                                                    css={{
-                                                        width: '100%',
-                                                        minWidth: 0,
-                                                    }}>
-                                                    {user.displayName ||
-                                                        matrixIdToUsername(
-                                                            user.id,
-                                                        )}
-                                                </Text>
-                                            </RecentUser>
-                                        ))}
-                                    </RecentUsers>
+                                    <div>{searchContent}</div>
                                 </>
                             )}
-                            {action && (
-                                <SearchButton onClick={action.onClick}>
-                                    <Icon icon={action.icon} />
-                                    <Text weight="medium">{action.label}</Text>
-                                </SearchButton>
-                            )}
-                        </>
-                    )}
-                    {searchContent && (
-                        <>
-                            <SearchHeading>{t('words.people')}</SearchHeading>
-                            <div>{searchContent}</div>
-                        </>
-                    )}
-                    <SearchButton as={Link} href="/chat/new/room">
-                        <Icon icon={SocialPeopleIcon} />
-                        <Text weight="medium">
-                            {t('feature.chat.create-a-group')}
-                        </Text>
-                    </SearchButton>
-                </SearchResults>
-            </ShadowScroller>
+                        </SearchResults>
+                    </ShadowScroller>
+                </>
+            )}
+
+            {!inputFocused && (
+                <OmniWrapper>
+                    <OmniInput
+                        expectedInputTypes={[ParserDataType.FediChatUser]}
+                        onExpectedInput={({ data }) =>
+                            push(`/chat/user/${data.id}`)
+                        }
+                        onUnexpectedSuccess={() => null}
+                        hideScanner={!showScanner}
+                        customActions={[
+                            showScanner
+                                ? {
+                                      label: t(
+                                          'feature.omni.action-enter-username',
+                                      ),
+                                      icon: KeyboardIcon,
+                                      onClick: () => setShowScanner(false),
+                                  }
+                                : {
+                                      label: t('feature.omni.action-scan'),
+                                      icon: ScanIcon,
+                                      onClick: () => setShowScanner(true),
+                                  },
+                            'paste',
+                            {
+                                label: t('feature.chat.create-a-group'),
+                                icon: SocialPeopleIcon,
+                                onClick: () => push('/chat/new/room'),
+                            },
+                        ]}
+                    />
+                </OmniWrapper>
+            )}
         </Container>
     )
 }
@@ -146,8 +209,7 @@ export const ChatUserSearch: React.FC<Props> = ({ action }) => {
 const Container = styled('div', {
     display: 'flex',
     flexDirection: 'column',
-    height: '100%',
-    overflow: 'hidden',
+    overflowY: 'scroll',
 })
 
 const Header = styled(Layout.Header, {})
@@ -166,12 +228,19 @@ const SearchHeader = styled('div', {
     display: 'flex',
     alignItems: 'center',
     padding: 10,
+    position: 'relative',
     borderBottom: `1px solid ${theme.colors.extraLightGrey}`,
     borderTop: `1px solid ${theme.colors.extraLightGrey}`,
 
     '@sm': {
         padding: '8px 24px',
     },
+})
+
+const CloseButton = styled('div', {
+    position: 'absolute',
+    top: 18,
+    right: 20,
 })
 
 const RecentUsers = styled('div', {
@@ -250,4 +319,8 @@ const LoaderContainer = styled('div', {
 
 const EmptyContainer = styled('div', {
     padding: '0px 24px',
+})
+
+const OmniWrapper = styled('div', {
+    padding: 20,
 })

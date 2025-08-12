@@ -7,7 +7,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { useLnurlReceiveCode } from '@fedi/common/hooks/pay'
 import { selectActiveFederationId } from '@fedi/common/redux'
 
-import { fedimint } from '../bridge/native'
+import { fedimint } from '../bridge'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'

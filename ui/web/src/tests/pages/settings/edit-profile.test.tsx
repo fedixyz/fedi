@@ -2,8 +2,10 @@ import '@testing-library/jest-dom'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { setupStore } from '@fedi/common/redux'
+
 import EditProfilePage from '../../../pages/settings/edit-profile'
-import { AppState, setupStore } from '../../../state/store'
+import { AppState } from '../../../state/store'
 import { renderWithProviders } from '../../../utils/test-utils/render'
 
 const onChangeSpy = jest.fn()

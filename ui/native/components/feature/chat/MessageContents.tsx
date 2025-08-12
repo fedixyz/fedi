@@ -115,10 +115,7 @@ const MessageContents: React.FC<MessageContentsProps> = ({
                                 caption
                                 style={[
                                     ...textStyles,
-                                    i !== 0 ? styles(theme).topPaddedText : {},
-                                    i !== messageElements.length - 1
-                                        ? styles(theme).bottomPaddedText
-                                        : {},
+                                    styles(theme).consistentText,
                                 ]}>
                                 {m.trim()}
                             </Text>
@@ -128,11 +125,13 @@ const MessageContents: React.FC<MessageContentsProps> = ({
             </View>
         )
     } else {
-        // otherwise just render text normally
+        // otherwise just render text normally with consistent container
         text = (
-            <Text caption medium style={textStyles}>
-                {content}
-            </Text>
+            <View style={{ minHeight: 20 }}>
+                <Text caption medium style={textStyles}>
+                    {content}
+                </Text>
+            </View>
         )
     }
 
@@ -157,6 +156,9 @@ const styles = (theme: Theme) =>
         },
         bottomPaddedText: {
             marginBottom: theme.spacing.sm,
+        },
+        consistentText: {
+            marginVertical: theme.spacing.xs / 2,
         },
         incomingLinkedText: {
             textDecorationLine: 'underline',

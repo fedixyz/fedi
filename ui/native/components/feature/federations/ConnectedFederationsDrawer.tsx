@@ -137,6 +137,7 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
             </DrawerContentScrollView>
             <View style={style.buttonContainer}>
                 <Button
+                    testID="AddFederationButton"
                     onPress={() => {
                         mainNavigation.navigate('PublicFederations')
                     }}

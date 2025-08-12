@@ -1,5 +1,4 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Image,
@@ -10,16 +9,11 @@ import {
     View,
 } from 'react-native'
 
-import {
-    setSeenFederationRating,
-    rateFederation,
-    selectActiveFederation,
-} from '@fedi/common/redux'
+import { useFederationRating } from '@fedi/common/hooks/federation'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { Images } from '../../../assets/images'
 import { fedimint } from '../../../bridge'
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import CustomOverlay from '../../ui/CustomOverlay'
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
@@ -31,12 +25,11 @@ interface Props {
 }
 
 export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
-    const [rating, setRating] = useState<number | null>(null)
-    const activeFederation = useAppSelector(selectActiveFederation)
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { width } = useWindowDimensions()
-    const dispatch = useAppDispatch()
+    const { rating, setRating, federationToRate, handleSubmitRating } =
+        useFederationRating(fedimint)
 
     const style = styles(theme)
 
@@ -48,30 +41,15 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
         dimensions.height,
     ).height
 
-    const handleDismiss = () => {
-        if (!activeFederation) return
-
-        dispatch(
-            setSeenFederationRating({
-                federationId: activeFederation.id,
-            }),
-        )
-        onDismiss()
-    }
-
     const handleSubmit = () => {
-        if (!rating) return
-
-        dispatch(rateFederation({ fedimint, rating: rating + 1 }))
-            .unwrap()
-            .then(onDismiss)
+        handleSubmitRating(() => onDismiss())
     }
 
     return (
         <CustomOverlay
             show={show}
             noHeaderPadding
-            onBackdropPress={handleDismiss}
+            onBackdropPress={onDismiss}
             contents={{
                 body: (
                     <Flex>
@@ -83,7 +61,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
                             ]}>
                             <View style={style.logoContainer}>
                                 <FederationLogo
-                                    federation={activeFederation}
+                                    federation={federationToRate}
                                     size={88}
                                 />
                             </View>
@@ -99,7 +77,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
                                 {t(
                                     'feature.federation.how-was-your-experience-with',
                                     {
-                                        federation: activeFederation?.name,
+                                        federation: federationToRate?.name,
                                     },
                                 )}
                             </Text>

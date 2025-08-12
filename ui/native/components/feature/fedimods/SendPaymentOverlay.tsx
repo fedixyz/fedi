@@ -1,10 +1,9 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { ActivityIndicator, StyleSheet } from 'react-native'
 import { RejectionError } from 'webln'
 
-import { useSendForm } from '@fedi/common/hooks/amount'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
@@ -15,8 +14,7 @@ import {
     selectLnurlPayment,
     selectPaymentFederation,
     selectSiteInfo,
-    selectWalletFederations,
-    setPayFromFederationId,
+    setSuggestedPaymentFederation,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { formatErrorMessage } from '@fedi/common/utils/format'
@@ -48,7 +46,6 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { theme } = useTheme()
     const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const walletFederations = useAppSelector(selectWalletFederations)
     const lnurlPayment = useAppSelector(selectLnurlPayment)
     const invoice = useAppSelector(selectInvoiceToPay)
     const siteInfo = useAppSelector(selectSiteInfo)
@@ -66,19 +63,12 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         exactAmount,
         minimumAmount,
         maximumAmount,
-        reset,
-    } = useSendForm({
-        invoice,
-        lnurlPayment,
-        t,
-        selectedPaymentFederation: true,
-    })
-    const { feeDetails, handleOmniInput } = useOmniPaymentState(
-        fedimint,
-        paymentFederation?.id,
-        true,
-        t,
-    )
+        resetOmniPaymentState,
+        feeDetails,
+        handleOmniInput,
+        isLoading: isOmniPaymentLoading,
+    } = useOmniPaymentState(fedimint, paymentFederation?.id, true, t)
+
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails
             ? makeLightningFeeContent(feeDetails)
@@ -90,30 +80,14 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
 
     useEffect(() => {
         if (isShowing) {
-            // If no payment federation is set (e.g. your active federation is a non-wallet community), find and select the best possible wallet federation
-            if (!paymentFederation) {
-                const firstWalletFederation = walletFederations
-                    // Sort by balance
-                    .sort((a, b) => b.balance - a.balance)
-                    // Prioritize mainnet federations
-                    .sort(
-                        (a, b) =>
-                            // Resolves to either 0 or 1 for true/false
-                            // Sorts in descending order by network === bitcoin - network !== bitcoin
-                            Number(b.network === 'bitcoin') -
-                            Number(a.network === 'bitcoin'),
-                    )[0]
+            // makes sure we auto-select a wallet to pay from if the user doesn't have one selected
+            dispatch(setSuggestedPaymentFederation())
 
-                dispatch(
-                    setPayFromFederationId(firstWalletFederation?.id ?? null),
-                )
-            }
-
-            reset()
+            resetOmniPaymentState()
             setAmountInputKey(key => key + 1)
             setError(null)
         }
-    }, [isShowing, reset, paymentFederation, walletFederations, dispatch])
+    }, [isShowing, resetOmniPaymentState, dispatch])
 
     useEffect(() => {
         if (!invoice) return
@@ -215,56 +189,69 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                         fullWidth
                         style={style.container}>
                         <FederationWalletSelector />
-                        {exactAmount ? (
-                            <AmountInputDisplay amount={inputAmount} />
+                        {isOmniPaymentLoading ? (
+                            <ActivityIndicator />
                         ) : (
-                            <AmountInput
-                                key={amountInputKey}
-                                amount={inputAmount}
-                                isSubmitting={isLoading}
-                                submitAttempts={submitAttempts}
-                                minimumAmount={minimumAmount}
-                                maximumAmount={maximumAmount}
-                                verb={t('words.send')}
-                                onChangeAmount={amt => {
-                                    setSubmitAttempts(0)
-                                    setInputAmount(amt)
-                                }}
-                                error={error}
-                            />
-                        )}
-                        <Flex fullWidth>
-                            <SendPreviewDetails
-                                onPressFees={() => setShowFeeBreakdown(true)}
-                                formattedTotalFee={formattedTotalFee}
-                                senderText={t(
-                                    'feature.stabilitypool.bitcoin-balance',
+                            <>
+                                {exactAmount ? (
+                                    <AmountInputDisplay amount={inputAmount} />
+                                ) : lnurlPayment ? (
+                                    // only show amount input for LNURL-pay, amount-less bolt11 invoices are not supported yet
+                                    <AmountInput
+                                        key={amountInputKey}
+                                        amount={inputAmount}
+                                        isSubmitting={isLoading}
+                                        submitAttempts={submitAttempts}
+                                        minimumAmount={minimumAmount}
+                                        maximumAmount={maximumAmount}
+                                        verb={t('words.send')}
+                                        onChangeAmount={amt => {
+                                            setSubmitAttempts(0)
+                                            setInputAmount(amt)
+                                        }}
+                                        error={error}
+                                    />
+                                ) : null}
+                                {formattedTotalFee !== '' && (
+                                    <Flex fullWidth>
+                                        <SendPreviewDetails
+                                            onPressFees={() =>
+                                                setShowFeeBreakdown(true)
+                                            }
+                                            formattedTotalFee={
+                                                formattedTotalFee
+                                            }
+                                            senderText={t(
+                                                'feature.stabilitypool.bitcoin-balance',
+                                            )}
+                                            isLoading={isLoading}
+                                        />
+                                    </Flex>
                                 )}
-                                isLoading={isLoading}
-                            />
-                        </Flex>
-                        <FeeOverlay
-                            show={showFeeBreakdown}
-                            onDismiss={() => setShowFeeBreakdown(false)}
-                            title={feeBreakdownTitle}
-                            feeItems={feeItemsBreakdown}
-                            description={
-                                <Trans
-                                    t={t}
-                                    i18nKey="feature.fees.guidance-lightning"
-                                    components={{
-                                        br: <LineBreak />,
-                                    }}
+                                <FeeOverlay
+                                    show={showFeeBreakdown}
+                                    onDismiss={() => setShowFeeBreakdown(false)}
+                                    title={feeBreakdownTitle}
+                                    feeItems={feeItemsBreakdown}
+                                    description={
+                                        <Trans
+                                            t={t}
+                                            i18nKey="feature.fees.guidance-lightning"
+                                            components={{
+                                                br: <LineBreak />,
+                                            }}
+                                        />
+                                    }
+                                    icon={
+                                        <SvgImage
+                                            name="Info"
+                                            size={32}
+                                            color={theme.colors.orange}
+                                        />
+                                    }
                                 />
-                            }
-                            icon={
-                                <SvgImage
-                                    name="Info"
-                                    size={32}
-                                    color={theme.colors.orange}
-                                />
-                            }
-                        />
+                            </>
+                        )}
                     </Flex>
                 ),
                 buttons: [

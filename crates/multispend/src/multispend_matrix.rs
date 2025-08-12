@@ -14,7 +14,6 @@ use rpc_types::error::ErrorCode;
 use rpc_types::matrix::RpcRoomId;
 use rpc_types::{NetworkError, RpcEventId, RpcPublicKey, RpcSPv2SyncResponse};
 use runtime::bridge_runtime::Runtime;
-use runtime::features::StabilityPoolV2FeatureConfigState;
 use runtime::observable::{Observable, ObservableUpdate};
 use runtime::utils::PoisonedLockExt as _;
 use stability_pool_client::common::TransferRequest;
@@ -71,41 +70,39 @@ impl MultispendMatrix {
     }
 
     pub fn register_message_handler(self: &Arc<Self>) {
-        if self.is_multispend_enabled() {
-            let this = Arc::downgrade(self);
-            self.client
-                .add_event_handler(move |event: AnySyncMessageLikeEvent, room: Room| {
-                    let this = this.clone();
-                    async move {
-                        // skip if shuting down
-                        let Some(this) = this.upgrade() else { return };
-                        let room_id = room.room_id();
-                        let event_id = event.event_id();
-                        let is_multispend = matches!(
-                            &event,
-                            AnySyncMessageLikeEvent::RoomMessage(SyncMessageLikeEvent::Original(m))
-                                if m.content.msgtype() == super::MULTISPEND_MSGTYPE
-                        );
+        let this = Arc::downgrade(self);
+        self.client
+            .add_event_handler(move |event: AnySyncMessageLikeEvent, room: Room| {
+                let this = this.clone();
+                async move {
+                    // skip if shuting down
+                    let Some(this) = this.upgrade() else { return };
+                    let room_id = room.room_id();
+                    let event_id = event.event_id();
+                    let is_multispend = matches!(
+                        &event,
+                        AnySyncMessageLikeEvent::RoomMessage(SyncMessageLikeEvent::Original(m))
+                            if m.content.msgtype() == super::MULTISPEND_MSGTYPE
+                    );
 
-                        if is_multispend {
-                            this.mark_room_for_scanning(room_id).await;
-                        }
+                    if is_multispend {
+                        this.mark_room_for_scanning(room_id).await;
+                    }
 
-                        // anytime we see an event in room marked as multispend, we rescan the room.
-                        if this.is_marked_room_for_scanning(room_id).await {
-                            this.rescanner.queue_rescan(room_id);
-                        }
+                    // anytime we see an event in room marked as multispend, we rescan the room.
+                    if this.is_marked_room_for_scanning(room_id).await {
+                        this.rescanner.queue_rescan(room_id);
+                    }
 
-                        if is_multispend {
-                            // see docs on `send_multispend_server_ack`
-                            let sender = this.send_multispend_server_ack.ensure_lock().clone();
-                            if let Some(sender) = sender {
-                                sender.send(event_id.to_owned()).await.ok();
-                            }
+                    if is_multispend {
+                        // see docs on `send_multispend_server_ack`
+                        let sender = this.send_multispend_server_ack.ensure_lock().clone();
+                        if let Some(sender) = sender {
+                            sender.send(event_id.to_owned()).await.ok();
                         }
                     }
-                });
-        }
+                }
+            });
     }
     pub fn send_multispend_mutex(&self) -> &Mutex<()> {
         &self.send_multispend_mutex
@@ -150,9 +147,6 @@ impl MultispendMatrix {
         room_id: &RoomId,
         content: MultispendEvent,
     ) -> anyhow::Result<()> {
-        if !self.is_multispend_enabled() {
-            bail!("multispend feature is disabled");
-        }
         // Acquire the lock to prevent concurrent sends
         let _lock = self.send_multispend_mutex.lock().await;
 
@@ -538,12 +532,5 @@ impl MultispendMatrix {
             RpcMultispendGroupStatus::Inactive => (),
         }
         Ok(())
-    }
-    pub fn is_multispend_enabled(&self) -> bool {
-        self.runtime
-            .feature_catalog
-            .stability_pool_v2
-            .as_ref()
-            .is_some_and(|cfg| matches!(cfg.state, StabilityPoolV2FeatureConfigState::Multispend))
     }
 }

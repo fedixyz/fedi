@@ -113,7 +113,7 @@ impl TestDevice {
 
     fn feature_catalog(&self) -> Arc<FeatureCatalog> {
         self.feature_catalog
-            .get_or_init(|| Arc::new(FeatureCatalog::new(RuntimeEnvironment::Dev)))
+            .get_or_init(|| Arc::new(FeatureCatalog::new(RuntimeEnvironment::Tests)))
             .clone()
     }
 

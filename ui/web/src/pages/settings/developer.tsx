@@ -213,6 +213,27 @@ function DeveloperPage() {
                                 {t('feature.developer.export-transactions-csv')}
                             </Button>
                         </Setting>
+                        <Setting>
+                            <Text>Evil Spam Testing</Text>
+                            <Button
+                                onClick={async () => {
+                                    if (!activeFederation?.id) return
+                                    await fedimint.evilSpamInvoices({
+                                        federationId: activeFederation.id,
+                                    })
+                                }}>
+                                Evil Spam Invoices
+                            </Button>
+                            <Button
+                                onClick={async () => {
+                                    if (!activeFederation?.id) return
+                                    await fedimint.evilSpamAddress({
+                                        federationId: activeFederation.id,
+                                    })
+                                }}>
+                                Evil Spam Address
+                            </Button>
+                        </Setting>
                     </Settings>
                 </Layout.Content>
             </Layout.Root>

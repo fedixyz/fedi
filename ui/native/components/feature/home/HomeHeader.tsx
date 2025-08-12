@@ -50,6 +50,7 @@ const HomeHeader: React.FC = () => {
                 containerStyle={style.container}
                 headerLeft={
                     <PressableIcon
+                        testID="HomeHeaderHamburger"
                         onPress={openFederationsDrawer}
                         hitSlop={10}
                         maxFontSizeMultiplier={1.5}

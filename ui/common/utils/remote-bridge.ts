@@ -6,99 +6,165 @@ import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
 const log = makeLog('common/utils/bridge/remote')
+const rbridgeHost = `localhost:${process?.env?.REMOTE_BRIDGE_PORT || 26722}`
 
-const rbridgeHost = 'localhost:26722'
-let deviceId: string | null = null
-let websocket: WebSocket | null = null
+export class RemoteBridge {
+    private deviceId: string | null = null
+    private websocket: WebSocket | null = null
+    private eventEnabled = false
 
-async function fedimintRpc<Type = void>(
-    method: string,
-    payload: object,
-): Promise<Type> {
-    if (!deviceId) {
-        throw new Error('Fedimint bridge is not ready!')
+    public readonly fedimint: FedimintBridge
+
+    constructor() {
+        this.fedimint = new FedimintBridge(this.fedimintRpc.bind(this))
     }
 
-    log.info(`fedimintRpc ${method}`)
-    const startTime = performance.now()
-    const jsonPayload = JSON.stringify(payload)
+    private async fedimintRpc<Type = void>(
+        method: string,
+        payload: object,
+    ): Promise<Type> {
+        if (!this.deviceId) {
+            throw new Error('Fedimint bridge is not ready!')
+        }
 
-    const response = await fetch(
-        `http://${rbridgeHost}/${deviceId}/rpc/${method}`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
+        log.info(`fedimintRpc ${method}`)
+        const startTime = performance.now()
+        const jsonPayload = JSON.stringify(payload)
+
+        const response = await fetch(
+            `http://${rbridgeHost}/${this.deviceId}/rpc/${method}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: jsonPayload,
             },
-            body: jsonPayload,
-        },
-    )
-
-    const json = await response.text()
-    const parsed = JSON.parse(json)
-
-    if (parsed.error) {
-        throw new BridgeError(parsed)
-    } else {
-        log.info(
-            `fedimintRpc ${method} resolved in ${Number(performance.now() - startTime).toFixed(0)}ms`,
         )
-        return parsed.result
-    }
-}
 
-export const fedimint = new FedimintBridge(fedimintRpc)
+        const json = await response.text()
+        const parsed = JSON.parse(json)
 
-let eventEnabled = false
-
-export async function subscribeToBridgeEvents() {
-    eventEnabled = true
-    return []
-}
-export async function unsubscribeFromBridgeEvents(_noop: unknown) {
-    eventEnabled = false
-}
-
-export async function initializeBridge(deviceIdentifier: string) {
-    deviceId = deviceIdentifier
-
-    const options: RpcInitOpts = {
-        dataDir: '/remote-data',
-        deviceIdentifier,
-        logLevel: 'info',
-        appFlavor: {
-            type: isDev() ? 'dev' : 'bravo',
-        },
+        if (parsed.error) {
+            throw new BridgeError(parsed)
+        } else {
+            log.info(
+                `fedimintRpc ${method} resolved in ${Number(performance.now() - startTime).toFixed(0)}ms`,
+            )
+            return parsed.result
+        }
     }
 
-    const stringifiedOptions = JSON.stringify(options)
-
-    const response = await fetch(`http://${rbridgeHost}/${deviceId}/init`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: stringifiedOptions,
-    })
-
-    const result = await response.text()
-    const resultJson = JSON.parse(result)
-
-    if (resultJson.error !== undefined) {
-        log.error('FedimintFfi.initialize', resultJson)
-        throw new Error(resultJson.error)
+    public async subscribeToBridgeEvents() {
+        this.eventEnabled = true
+        return []
     }
 
-    // web socket and connected
-    if (websocket && websocket.readyState != 4) return
-    websocket = new WebSocket(`ws://${rbridgeHost}/${deviceId}/events`)
-    websocket.onmessage = event => {
-        const data = JSON.parse(event.data)
-        if (data.event && data.data) {
-            const eventType = data.event as keyof FedimintBridgeEventMap
-            if (eventEnabled) {
-                fedimint.emit(eventType, JSON.parse(data.data))
+    public async unsubscribeFromBridgeEvents(_noop: unknown) {
+        this.eventEnabled = false
+    }
+
+    public async getInviteCode(): Promise<string> {
+        const response = await fetch(`http://${rbridgeHost}/invite_code`)
+
+        const result = await response.text()
+        const resultJson = JSON.parse(result)
+
+        if (resultJson.error !== undefined) {
+            log.error('getInviteCode', resultJson)
+            throw new Error(resultJson.error)
+        }
+
+        return resultJson.invite_code
+    }
+
+    public async generateEcash(amountMsats: number): Promise<string> {
+        const response = await fetch(
+            `http://${rbridgeHost}/generate_ecash/${amountMsats}`,
+        )
+
+        const result = await response.text()
+        const resultJson = JSON.parse(result)
+
+        if (resultJson.error !== undefined) {
+            log.error('generateEcash', resultJson)
+            throw new Error(resultJson.error)
+        }
+
+        return resultJson.ecash
+    }
+
+    public async initializeBridge(deviceIdentifier: string) {
+        this.deviceId = deviceIdentifier
+
+        const options: RpcInitOpts = {
+            dataDir: '/remote-data',
+            deviceIdentifier,
+            logLevel: 'info',
+            appFlavor: {
+                type:
+                    process.env.NODE_ENV === 'test'
+                        ? 'tests'
+                        : isDev()
+                          ? 'dev'
+                          : 'bravo',
+            },
+        }
+
+        const stringifiedOptions = JSON.stringify(options)
+
+        const response = await fetch(
+            `http://${rbridgeHost}/${this.deviceId}/init`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: stringifiedOptions,
+            },
+        )
+
+        const result = await response.text()
+        const resultJson = JSON.parse(result)
+
+        if (resultJson.error !== undefined) {
+            log.error('FedimintFfi.initialize', resultJson)
+            throw new Error(resultJson.error)
+        }
+
+        // web socket and connected
+        if (this.websocket && this.websocket.readyState != 4) return
+        this.websocket = new WebSocket(
+            `ws://${rbridgeHost}/${this.deviceId}/events`,
+        )
+        this.websocket.onmessage = event => {
+            const data = JSON.parse(event.data)
+            if (data.event && data.data) {
+                const eventType = data.event as keyof FedimintBridgeEventMap
+                if (this.eventEnabled) {
+                    this.fedimint.emit(eventType, JSON.parse(data.data))
+                }
             }
         }
     }
+
+    public shutdown() {
+        if (this.websocket) {
+            this.websocket.close()
+            this.websocket = null
+        }
+        this.eventEnabled = false
+        this.deviceId = null
+    }
 }
+
+const globalRemoteBridge = new RemoteBridge()
+
+// Export global instance for replacing other bridges in native and web.
+export const fedimint = globalRemoteBridge.fedimint
+export const subscribeToBridgeEvents =
+    globalRemoteBridge.subscribeToBridgeEvents.bind(globalRemoteBridge)
+export const unsubscribeFromBridgeEvents =
+    globalRemoteBridge.unsubscribeFromBridgeEvents.bind(globalRemoteBridge)
+export const initializeBridge =
+    globalRemoteBridge.initializeBridge.bind(globalRemoteBridge)

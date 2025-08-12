@@ -7,4 +7,10 @@ edition = "2021"
 anyhow = { workspace = true }
 clap = { workspace = true }
 devimint = { workspace = true }
+fedimint-core = { workspace = true }
+fedimint-logging = { workspace = true }
+fedimint-portalloc = { workspace = true }
+rand = { workspace = true }
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }

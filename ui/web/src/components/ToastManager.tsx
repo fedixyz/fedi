@@ -49,13 +49,14 @@ export const ToastManager: React.FC = () => {
 
     return (
         <Portal.Root>
-            <RadixToast.Provider swipeDirection={isMobile ? 'up' : 'right'}>
+            <RadixToast.Provider
+                duration={3000}
+                swipeDirection={isMobile ? 'up' : 'right'}>
                 <Toast
                     key={cachedToast?.key}
                     ref={toastElRef}
                     open={isToastOpen}
-                    onOpenChange={handleCloseToast}
-                    duration={Infinity}>
+                    onOpenChange={handleCloseToast}>
                     {cachedToast && (
                         <ToastInner>
                             <ToastIcon>
@@ -107,12 +108,15 @@ const toastFadeOut = keyframes({
     '100%': { opacity: 0 },
 })
 
-const CloseIcon = styled('button', {
+const CloseIcon = styled('div', {
     color: theme.colors.grey,
-    fontSize: 20,
-    width: 20,
-    height: 20,
+    cursor: 'pointer',
+    display: 'flex',
     flexShrink: 0,
+    fontSize: 20,
+    height: 20,
+    placeItems: 'center',
+    width: 20,
 })
 
 const ToastIcon = styled(Text, {

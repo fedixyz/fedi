@@ -53,12 +53,6 @@ pub const FEDI_INVOICE_API_URL_MUTINYNET: &str =
 pub const FEDI_INVOICE_API_URL_MAINNET: &str =
     "https://prod.fee-collection.dev.fedibtc.com/v1/generate-invoice";
 
-// URL for Fedi's device registration API
-pub const FEDI_DEVICE_REGISTRATION_URL: &str = "https://prod-device-control.dev.fedibtc.com/v0";
-
-pub const GLOBAL_MATRIX_SERVER: &str = "https://m1.8fa.in";
-pub const GLOBAL_MATRIX_SLIDING_SYNC_PROXY: &str = "https://sliding.m1.8fa.in";
-
 pub const COMMUNITY_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community");
 
 pub const RECURRINGD_API_META: &str = "recurringd_api";

@@ -1,5 +1,5 @@
 import { styled } from '@stitches/react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ClipboardIcon from '@fedi/common/assets/svgs/clipboard.svg'
@@ -21,16 +21,16 @@ import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { Button } from '../Button'
 import { HorizontalLine } from '../HorizontalLine'
-import { Icon } from '../Icon'
-import { Text } from '../Text'
 import { OmniConfirmation } from './OmniConfirmation'
 import { OmniQrScanner } from './OmniQrScanner'
 
-interface OmniInputAction {
+interface OmniCustomActionObject {
     label: React.ReactNode
     icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
     onClick(): void
 }
+
+export type OmniCustomAction = OmniCustomActionObject | 'paste'
 
 interface Props<T extends ParserDataType, ExpectedData> {
     children?: (props: { onSubmit: (value: string) => void }) => React.ReactNode
@@ -40,19 +40,25 @@ interface Props<T extends ParserDataType, ExpectedData> {
     onExpectedInput(data: ExpectedData): void
     /** Callback for when an unexpected input is successfully handled in-place, e.g. LNURL auth or ecash token redeem. */
     onUnexpectedSuccess(data: AnyParsedData): void
-    mode?: 'onboardingScanner' | 'scanner'
-    customActions?: OmniInputAction[]
+    hideScanner?: boolean
+    customActions?: OmniCustomAction[]
     loading?: boolean
-    allowUploads?: boolean
 }
 
 export function OmniInput<
     T extends ParserDataType,
     ExpectedData = Extract<AnyParsedData, { type: T }>,
 >(props: Props<T, ExpectedData>): React.ReactElement {
+    const {
+        customActions = [],
+        hideScanner = false,
+        onUnexpectedSuccess,
+    } = props
+
     const propsRef = useUpdatingRef(props)
     const { t } = useTranslation()
     const toast = useToast()
+
     const federationId = useAppSelector(selectActiveFederationId)
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
@@ -63,12 +69,8 @@ export function OmniInput<
         ParsedUnknownData | ParsedOfflineError
     >()
 
-    const fileInputRef = useRef<HTMLInputElement>(null)
     const isLoading = props.loading || isParsing
     const isLoadingRef = useUpdatingRef(isLoading)
-
-    const { customActions, mode = 'scanner', onUnexpectedSuccess } = props
-    const pasteLabel = t('feature.omni.action-paste')
 
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
 
@@ -151,26 +153,6 @@ export function OmniInput<
         }
     }, [parseInput, toast, t])
 
-    // Perform a QrScanner scan from an image file, rather than from the QRScanner component
-    const handleImageFile = useCallback(
-        async (ev: React.ChangeEvent<HTMLInputElement>) => {
-            const image = ev.currentTarget.files?.[0]
-            if (!image) return
-            ev.currentTarget.value = ''
-            try {
-                const QrScanner = (await import('qr-scanner')).default
-                const result = await QrScanner.scanImage(image, {
-                    returnDetailedScanResult: true,
-                })
-                parseInput(result.data)
-            } catch (err) {
-                toast.error(t, err, 'errors.unknown-error')
-            }
-            // Reset the input so they can re-select the same file if they wish
-        },
-        [toast, parseInput, t],
-    )
-
     let confirmation: React.ReactNode | undefined
     if (invalidData || unexpectedData) {
         confirmation = (
@@ -185,42 +167,12 @@ export function OmniInput<
         )
     }
 
-    // The new onboarding designs make it very difficult
-    // to make this component resuable across different
-    // areas of the app.
-    // Returning early here for onboarding scanner mode allows
-    // us to keep the code a little cleaner
-    if (mode === 'onboardingScanner') {
-        return (
-            <>
-                <Container>
-                    <Main>
-                        <OmniQrScanner
-                            onScan={parseInput}
-                            processing={isLoading}
-                        />
-                    </Main>
-                    <Actions>
-                        <HorizontalLine text={t('words.or')} />
-                        <Button
-                            onClick={handlePaste}
-                            disabled={isLoading}
-                            variant="secondary"
-                            icon={ClipboardIcon}
-                            css={{ marginTop: '10px' }}>
-                            {pasteLabel}
-                        </Button>
-                    </Actions>
-                </Container>
-                {confirmation}
-            </>
-        )
-    }
-
     return (
         <Container>
             <Main>
-                <OmniQrScanner onScan={parseInput} processing={isLoading} />
+                {!hideScanner && (
+                    <OmniQrScanner onScan={parseInput} processing={isLoading} />
+                )}
             </Main>
 
             {typeof props.children === 'function'
@@ -228,39 +180,37 @@ export function OmniInput<
                 : null}
 
             <Actions>
-                {/* Paste action */}
-                <Action onClick={handlePaste} disabled={isLoading}>
-                    <Icon size="sm" icon={ClipboardIcon} />
-                    <Text weight="bold">{pasteLabel}</Text>
-                </Action>
-
-                {/* Upload file action */}
-                {props.allowUploads && (
-                    <Action onClick={handlePaste} disabled={isLoading}>
-                        <Icon size="sm" icon={ClipboardIcon} />
-                        <Text weight="bold">{pasteLabel}</Text>
-                    </Action>
+                {customActions.length > 0 && (
+                    <HorizontalLine text={t('words.or')} />
                 )}
 
-                {/* Custom actions */}
-                {customActions &&
-                    customActions.map(({ label, icon, onClick }, idx) => (
-                        <Action
+                {customActions?.map((action, idx) => {
+                    if (typeof action === 'string') {
+                        return (
+                            <Button
+                                key={idx}
+                                onClick={handlePaste}
+                                disabled={isLoading}
+                                variant="secondary"
+                                icon={ClipboardIcon}>
+                                {t('feature.omni.action-paste')}
+                            </Button>
+                        )
+                    }
+
+                    const { label, icon, onClick } = action
+
+                    return (
+                        <Button
                             key={idx}
                             onClick={onClick}
-                            disabled={isLoading}>
-                            <Icon size="sm" icon={icon} />
-                            <Text weight="bold">{label}</Text>
-                        </Action>
-                    ))}
-
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageFile}
-                    style={{ display: 'none' }}
-                />
+                            disabled={isLoading}
+                            variant="secondary"
+                            icon={icon}>
+                            {label}
+                        </Button>
+                    )
+                })}
             </Actions>
             {confirmation}
         </Container>
@@ -273,7 +223,7 @@ const Container = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 16,
+    gap: 10,
 })
 
 const Main = styled('div', {
@@ -283,28 +233,12 @@ const Main = styled('div', {
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
+    textAlign: 'center',
 })
 
 const Actions = styled('div', {
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
-})
-
-const Action = styled('button', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    height: 40,
-    padding: '0 8px',
-    borderRadius: 8,
-
-    '&:hover': {
-        background: 'rgba(0, 0, 0, 0.04)',
-    },
-
-    '&:disabled': {
-        opacity: 0.5,
-        pointerEvents: 'none',
-    },
+    gap: 10,
 })

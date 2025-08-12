@@ -1,26 +1,50 @@
 import Image from 'next/image'
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ImageOff from '@fedi/common/assets/svgs/image-off.svg'
 import { MatrixEvent } from '@fedi/common/types'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
+import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { Icon } from '../../components/Icon'
 import { Text } from '../../components/Text'
 import { useLoadMedia } from '../../hooks/media'
-import { keyframes, styled, theme } from '../../styles'
+import { styled, theme } from '../../styles'
 import { ChatMediaPreview } from './ChatMediaPreview'
 
 interface Props {
     event: MatrixEvent<MatrixEventContentType<'m.image'>>
 }
 
+const MAX_HEIGHT = 400
+
 export const ChatImageEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
     const { error, src } = useLoadMedia(event)
 
+    const widthRef = useRef<HTMLDivElement>(null)
+
+    const [scaledWidth, setScaledWidth] = useState<number>(0)
+    const [scaledHeight, setScaledHeight] = useState<number>(0)
     const [showMediaPreview, setShowMediaPreview] = useState(false)
+    const [dataLoaded, setDataLoaded] = useState(false)
+
+    useEffect(() => {
+        if (!src) return
+        if (!widthRef.current) return
+        const wrapper = widthRef.current
+
+        const { width, height } = scaleAttachment(
+            event.content.info.w,
+            event.content.info.h,
+            wrapper.clientWidth,
+            MAX_HEIGHT,
+        )
+
+        setScaledWidth(width)
+        setScaledHeight(height)
+    }, [event.content, src])
 
     if (error) {
         return (
@@ -33,52 +57,70 @@ export const ChatImageEvent: React.FC<Props> = ({ event }) => {
         )
     }
 
-    if (!src) {
-        return <ImgWrapper />
-    }
-
     return (
-        <div>
+        <>
+            <FullWidthRef ref={widthRef} />
             <ChatMediaPreview
                 open={showMediaPreview}
                 onOpenChange={setShowMediaPreview}
                 trigger={
-                    <Img
-                        src={src}
-                        placeholder="empty"
-                        alt="image"
-                        width={0}
-                        height={0}
-                        loading="lazy"
-                    />
+                    <ImgWrapper>
+                        {!dataLoaded && (
+                            <ImagePlaceholder
+                                style={{
+                                    width: scaledWidth,
+                                    height: scaledHeight,
+                                }}
+                            />
+                        )}
+                        {src && (
+                            <Img
+                                src={src}
+                                alt="image"
+                                width={scaledWidth}
+                                height={scaledHeight}
+                                loading="lazy"
+                                onLoad={() =>
+                                    setTimeout(() => setDataLoaded(true), 200)
+                                }
+                            />
+                        )}
+                    </ImgWrapper>
                 }>
                 <PreviewImg
-                    src={src}
+                    src={src || ''}
                     alt="preview-image"
-                    width={0}
-                    height={0}
+                    width={scaledWidth}
+                    height={scaledHeight}
                 />
             </ChatMediaPreview>
-        </div>
+        </>
     )
 }
 
-const fadeIn = keyframes({
-    '0%': { opacity: 0 },
-    '100%': { opacity: 1 },
+const FullWidthRef = styled('div', {
+    flex: 1,
+    visibility: 'hidden',
+    width: '100%',
 })
 
 const ImgWrapper = styled('div', {
+    alignItems: 'center',
     background: theme.colors.extraLightGrey,
     borderRadius: theme.sizes.xxs,
-    height: 300,
-    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    position: 'relative',
+})
+
+const ImagePlaceholder = styled('div', {
+    background: theme.colors.extraLightGrey,
+    borderRadius: theme.sizes.xxs,
+    position: 'absolute',
 })
 
 const Img = styled(Image, {
-    animation: `${fadeIn} 200ms ease`,
-    height: 'auto',
-    width: '100%',
+    borderRadius: theme.sizes.xxs,
 })
 
 const PreviewImg = styled(Image, {
@@ -87,7 +129,14 @@ const PreviewImg = styled(Image, {
 })
 
 const Error = styled('div', {
+    alignItems: 'center',
     background: theme.colors.extraLightGrey,
+    borderRadius: theme.sizes.xxs,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    height: 150,
     padding: 10,
     textAlign: 'center',
+    width: '100%',
 })

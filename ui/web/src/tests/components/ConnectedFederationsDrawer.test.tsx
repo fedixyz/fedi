@@ -2,13 +2,14 @@ import '@testing-library/jest-dom'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { setupStore } from '@fedi/common/redux'
 import {
     mockFederation1,
     mockFederation2,
 } from '@fedi/common/tests/mock-data/federation'
 
 import { ConnectedFederationsDrawer } from '../../components/ConnectedFederationsDrawer'
-import { AppState, setupStore } from '../../state/store'
+import { AppState } from '../../state/store'
 import { renderWithProviders } from '../../utils/test-utils/render'
 
 const mockDispatch = jest.fn()

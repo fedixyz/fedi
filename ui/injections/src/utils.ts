@@ -64,3 +64,25 @@ export async function decrypt(
         data: { pubkey, ciphertext },
     })
 }
+
+export async function encrypt04(
+    pubkey: string,
+    plaintext: string,
+): Promise<string> {
+    return sendInjectorMessage({
+        id: 0,
+        type: InjectionMessageType.nostr_encrypt04,
+        data: { pubkey, plaintext },
+    })
+}
+
+export async function decrypt04(
+    pubkey: string,
+    ciphertext: string,
+): Promise<string> {
+    return sendInjectorMessage({
+        id: 0,
+        type: InjectionMessageType.nostr_decrypt04,
+        data: { pubkey, ciphertext },
+    })
+}

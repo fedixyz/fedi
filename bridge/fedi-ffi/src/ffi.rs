@@ -8,7 +8,6 @@ use bridge::Bridge;
 use lazy_static::lazy_static;
 use rpc_types::error::ErrorCode;
 use rpc_types::{RpcAppFlavor, RpcInitOpts};
-use runtime::api::LiveFediApi;
 // used by uniffi
 pub use runtime::event::IEventSink as EventSink;
 use runtime::storage::IStorage;
@@ -82,7 +81,10 @@ pub async fn fedimint_initialize_inner(
     };
 
     if let Some(bridge) = BRIDGE.lock().await.clone() {
-        if let RpcAppFlavor::Dev = init_opts.app_flavor {
+        if matches!(
+            init_opts.app_flavor,
+            RpcAppFlavor::Dev | RpcAppFlavor::Tests
+        ) {
             // reset observables
             if let Ok(runtime) = bridge.runtime() {
                 runtime.observable_pool.reset().await;
@@ -118,7 +120,6 @@ pub async fn fedimint_initialize_inner(
     let bridge = match fedimint_initialize_async(
         Arc::new(storage),
         event_sink,
-        Arc::new(LiveFediApi::new()),
         init_opts.device_identifier,
         init_opts.app_flavor,
     )

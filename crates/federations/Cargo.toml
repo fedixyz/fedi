@@ -36,7 +36,7 @@ tracing = { workspace = true }
 thiserror = "2.0.8"
 hex = { workspace = true }
 mime = "0.3.17"
-ts-rs = "10"
+ts-rs = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }

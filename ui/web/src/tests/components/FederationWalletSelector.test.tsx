@@ -2,13 +2,14 @@ import '@testing-library/jest-dom'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { setupStore } from '@fedi/common/redux'
 import {
     mockFederation1,
     mockFederation2,
 } from '@fedi/common/tests/mock-data/federation'
 
 import { FederationWalletSelector } from '../../components/FederationWalletSelector'
-import { AppState, setupStore } from '../../state/store'
+import { AppState } from '../../state/store'
 import { renderWithProviders } from '../../utils/test-utils/render'
 
 jest.mock('@fedi/common/hooks/amount', () => ({

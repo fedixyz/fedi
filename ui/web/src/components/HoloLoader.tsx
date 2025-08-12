@@ -1,19 +1,29 @@
 import React from 'react'
 
 import { keyframes, styled, theme } from '../styles'
+import { Text } from './Text'
 
 interface Props {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number
+    label?: string
 }
 
-export const HoloLoader: React.FC<Props> = ({ size = 'sm' }) => {
+export const HoloLoader: React.FC<Props> = ({ size = 'sm', label }) => {
     const style =
         typeof size === 'number' ? { width: size, height: size } : undefined
+
     return (
-        <Container
-            size={typeof size !== 'number' ? size : undefined}
-            style={style}>
-            <Inner />
+        <Container>
+            <Loader
+                size={typeof size !== 'number' ? size : undefined}
+                style={style}>
+                <Inner />
+            </Loader>
+            {label && (
+                <ProgressLabel variant="caption" weight="bold">
+                    {label}
+                </ProgressLabel>
+            )}
         </Container>
     )
 }
@@ -24,6 +34,13 @@ const rotate = keyframes({
 })
 
 const Container = styled('div', {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+})
+
+const Loader = styled('div', {
     display: 'inline-flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -49,4 +66,10 @@ const Inner = styled('div', {
     inset: 2,
     borderRadius: '100%',
     background: theme.colors.white,
+})
+
+const ProgressLabel = styled(Text, {
+    position: 'absolute',
+    color: theme.colors.black,
+    textAlign: 'center',
 })

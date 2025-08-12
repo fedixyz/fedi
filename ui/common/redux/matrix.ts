@@ -19,6 +19,7 @@ import {
     selectWalletFederations,
 } from '.'
 import {
+    ChatReplyState,
     FederationListItem,
     InputMedia,
     MSats,
@@ -154,7 +155,14 @@ const initialState = {
     drafts: {} as Record<MatrixRoom['id'], string>,
     selectedChatMessage: null as MatrixEvent<
         MatrixEventContentType<
-            'm.text' | 'm.image' | 'm.video' | 'm.file' | 'm.poll'
+            | 'm.text'
+            | 'm.image'
+            | 'm.video'
+            | 'm.file'
+            | 'm.poll'
+            | 'm.notice'
+            | 'm.emote'
+            | 'xyz.fedi.payment'
         >
     > | null,
     messageToEdit: null as MatrixEvent<MatrixEventContentType<'m.text'>> | null,
@@ -163,6 +171,10 @@ const initialState = {
         visible: boolean
         media: InputMedia
     }>,
+    replyingToMessage: {
+        roomId: undefined as MatrixRoom['id'] | undefined,
+        event: null as MatrixEvent | null,
+    } satisfies ChatReplyState,
 }
 
 export type MatrixState = typeof initialState
@@ -476,6 +488,21 @@ export const matrixSlice = createSlice({
                 state.previewMedia = updatedPreviewMedia
             }
         },
+        setChatReplyingToMessage(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                event: MatrixEvent
+            }>,
+        ) {
+            state.replyingToMessage = {
+                roomId: action.payload.roomId,
+                event: action.payload.event,
+            }
+        },
+        clearChatReplyingToMessage(state) {
+            state.replyingToMessage = { roomId: undefined, event: null }
+        },
     },
     extraReducers: builder => {
         builder.addCase(startMatrixClient.pending, state => {
@@ -666,6 +693,8 @@ export const {
     matchAndHidePreviewMedia,
     matchAndRemovePreviewMedia,
     updateMatrixRoomMultispendEvent,
+    setChatReplyingToMessage,
+    clearChatReplyingToMessage,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -905,12 +934,19 @@ export const observeMatrixRoom = createAsyncThunk<
 
 export const unobserveMatrixRoom = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id'] }
->('matrix/unobserveMatrixRoom', async ({ roomId }) => {
+    { roomId: MatrixRoom['id'] },
+    { state: CommonState }
+>('matrix/unobserveMatrixRoom', async ({ roomId }, { dispatch, getState }) => {
+    const state = getState()
+
+    // Clear reply if leaving the room we're replying in
+    if (state.matrix.replyingToMessage.roomId === roomId) {
+        dispatch(clearChatReplyingToMessage())
+    }
+
     const client = getMatrixClient()
     return client.unobserveRoom(roomId)
 })
-
 export const observeMultispendAccountInfo = createAsyncThunk<
     void,
     { roomId: MatrixRoom['id'] }
@@ -989,6 +1025,7 @@ export const sendMatrixMessage = createAsyncThunk<
         fedimint: FedimintBridge
         roomId: MatrixRoom['id']
         body: string
+        repliedEventId?: string | null
         // this allows us to convert a copy-pasted bolt11 invoice
         // into a custom message for smoother payments UX
         // TODO: add support for copy-pasting bolt11 invoices in a groupchat
@@ -996,13 +1033,18 @@ export const sendMatrixMessage = createAsyncThunk<
     }
 >(
     'matrix/sendMatrixMessage',
-    async ({
-        fedimint,
-        roomId,
-        body,
-        options = { interceptBolt11: false },
-    }) => {
+    async (
+        {
+            fedimint,
+            roomId,
+            body,
+            repliedEventId,
+            options = { interceptBolt11: false },
+        },
+        { dispatch },
+    ) => {
         const client = getMatrixClient()
+
         if (options.interceptBolt11) {
             try {
                 if (isBolt11(body)) {
@@ -1018,6 +1060,7 @@ export const sendMatrixMessage = createAsyncThunk<
                         // bolt11 there's no operation ID - cannot get historical value
                         // returned from external invoices - forces current rate fallback
                         const senderOperationId = undefined
+
                         return client.sendMessage(roomId, {
                             msgtype: 'xyz.fedi.payment',
                             body: `Requested payment of ${amountUtils.formatSats(sats)} SATS. Use the Fedi app to complete this request.`, // TODO: i18n?
@@ -1038,23 +1081,66 @@ export const sendMatrixMessage = createAsyncThunk<
                 // fall through to send as regular text message
             }
         }
-        await client.sendMessage(roomId, {
-            msgtype: 'm.text',
-            body,
-        })
+
+        // Handle regular text messages (with or without reply)
+        if (repliedEventId) {
+            await fedimint.matrixSendReply(roomId, repliedEventId, body)
+        } else {
+            await client.sendMessage(roomId, {
+                msgtype: 'm.text',
+                body,
+            })
+        }
+
+        // Clear reply for regular text messages (not needed for payments since they exit early)
+        if (repliedEventId) {
+            dispatch(clearChatReplyingToMessage())
+        }
     },
 )
 
 export const sendMatrixDirectMessage = createAsyncThunk<
     { roomId: string },
-    { userId: MatrixUser['id']; body: string }
->('matrix/sendMatrixDirectMessage', async ({ userId, body }) => {
-    const client = getMatrixClient()
-    return await client.sendDirectMessage(userId, {
-        msgtype: 'm.text',
-        body: body,
-    })
-})
+    {
+        fedimint: FedimintBridge
+        userId: MatrixUser['id']
+        body: string
+        repliedEventId?: string | null
+    },
+    { state: CommonState }
+>(
+    'matrix/sendMatrixDirectMessage',
+    async (
+        { fedimint, userId, body, repliedEventId },
+        { getState, dispatch },
+    ) => {
+        const client = getMatrixClient()
+        const state = getState()
+
+        if (repliedEventId) {
+            const existingRoom = selectMatrixDirectMessageRoom(state, userId)
+            if (!existingRoom) {
+                throw new Error(
+                    'Cannot reply to message in new direct message room',
+                )
+            }
+
+            await fedimint.matrixSendReply(
+                existingRoom.id,
+                repliedEventId,
+                body,
+            )
+            dispatch(clearChatReplyingToMessage())
+            return { roomId: existingRoom.id }
+        }
+
+        // Handle regular direct messages
+        return await client.sendDirectMessage(userId, {
+            msgtype: 'm.text',
+            body,
+        })
+    },
+)
 
 export const sendMatrixFormResponse = createAsyncThunk<
     void,
@@ -1147,6 +1233,7 @@ export const sendMatrixPaymentPush = createAsyncThunk<
         return senderOperationId
     },
 )
+
 export const sendMatrixPaymentRequest = createAsyncThunk<
     void,
     {
@@ -1222,6 +1309,7 @@ export const claimMatrixPayment = createAsyncThunk<
 
     await client.markRoomAsUnread(event.roomId, true)
 })
+
 export const checkForReceivablePayments = createAsyncThunk<
     void,
     {
@@ -1267,15 +1355,21 @@ export const checkForReceivablePayments = createAsyncThunk<
             if (receivedPayments.has(event.content.paymentId)) return
             receivedPayments.add(event.content.paymentId)
 
+            // Remove the `ecash` field from the event before logging, to respect user privacy
+            const eventToLog = {
+                ...event,
+                content: { ...event.content, ecash: undefined },
+            }
+
             log.info(
                 'Unclaimed matrix payment event detected, attempting to claim',
-                event,
+                eventToLog,
             )
 
             dispatch(claimMatrixPayment({ fedimint, event }))
                 .unwrap()
                 .then(() => {
-                    log.info('Successfully claimed matrix payment', event)
+                    log.info('Successfully claimed matrix payment', eventToLog)
                 })
                 .catch(err => {
                     log.warn(
@@ -2384,3 +2478,15 @@ export const selectMultispendInvitationEvent = createSelector(
     (_: CommonState, _roomId: string, eventId: string) => eventId,
     (events, eventId) => events.find(e => e.id === eventId) ?? undefined,
 )
+
+export const selectChatReplyingToMessage = (s: CommonState) =>
+    s.matrix.replyingToMessage
+
+// Returns the reply event *only* if it belongs to the given room.
+export const selectReplyingToMessageEventForRoom = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) =>
+    s.matrix.replyingToMessage.roomId === roomId
+        ? s.matrix.replyingToMessage.event
+        : null

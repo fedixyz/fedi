@@ -10,6 +10,8 @@ export { default as ArrowLoopRight } from '@fedi/common/assets/svgs/arrow-loop-r
 export { default as ArrowRight } from '@fedi/common/assets/svgs/arrow-right.svg'
 export { default as ArrowUpBadge } from '@fedi/common/assets/svgs/arrow-up-badge.svg'
 export { default as ArrowUpRight } from '@fedi/common/assets/svgs/arrow-up-right.svg'
+export { default as ArrowCornerUpLeftDouble } from '@fedi/common/assets/svgs/corner-up-left-double.svg'
+export { default as ArrowCornerUpRightDouble } from '@fedi/common/assets/svgs/corner-up-right-double.svg'
 export { default as Bell } from '@fedi/common/assets/svgs/bell.svg'
 export { default as Beta } from '@fedi/common/assets/svgs/beta.svg'
 export { default as BitcoinCircle } from '@fedi/common/assets/svgs/bitcoin-circle.svg'
