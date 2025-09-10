@@ -23,11 +23,8 @@ build-wasm-nix:
   # mostly for reference
   nix build -L .#wasm32-unknown.ci.fedi-wasm-pack
 
-test-bridge-current testcase="":
-   ./scripts/test-bridge-current.sh "{{testcase}}"
-
-test-bridge-all testcase="":
-  ./scripts/test-bridge-all.sh "{{testcase}}"
+test-bridge testcase="":
+   ./scripts/test-bridge.sh "{{testcase}}"
 
 test-stability-pool:
   ./scripts/test-stability-pool.sh

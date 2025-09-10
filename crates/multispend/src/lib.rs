@@ -3,10 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
 use db::{
-    insert_multispend_chronological_event, MultispendChronologicalEventData,
-    MultispendChronologicalEventKeyPrefix, MultispendDepositEventKey, MultispendGroupStatus,
-    MultispendGroupStatusKey, MultispendInvalidEvent, MultispendInvitationKey,
-    MultispendPendingApprovedWithdrawalRequestKey, MultispendWithdrawRequestKey,
+    MultispendChronologicalEventData, MultispendChronologicalEventKeyPrefix,
+    MultispendDepositEventKey, MultispendGroupStatus, MultispendGroupStatusKey,
+    MultispendInvalidEvent, MultispendInvitationKey, MultispendPendingApprovedWithdrawalRequestKey,
+    MultispendWithdrawRequestKey, insert_multispend_chronological_event,
 };
 use fedimint_core::core::OperationId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
@@ -800,8 +800,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use bitcoin::secp256k1;
-    use fedimint_core::db::mem_impl::MemDatabase;
     use fedimint_core::db::Database;
+    use fedimint_core::db::mem_impl::MemDatabase;
     use fedimint_core::module::registry::ModuleDecoderRegistry;
 
     use super::*;
@@ -844,34 +844,38 @@ mod tests {
             invitation: invitation.clone(),
             proposer_pubkey: pk1,
         };
-        assert!(process_event_db_raw(
-            &mut tx.to_ref_nc(),
-            &room_id,
-            user1.clone(),
-            event1_id.clone(),
-            event,
-            1,
-            &mut context,
-        )
-        .await
-        .is_ok());
+        assert!(
+            process_event_db_raw(
+                &mut tx.to_ref_nc(),
+                &room_id,
+                user1.clone(),
+                event1_id.clone(),
+                event,
+                1,
+                &mut context,
+            )
+            .await
+            .is_ok()
+        );
 
         // Accept invitation
         let event = MultispendEvent::GroupInvitationVote {
             invitation: event1_id.clone(),
             vote: MultispendGroupVoteType::Accept { member_pubkey: pk2 },
         };
-        assert!(process_event_db_raw(
-            &mut tx.to_ref_nc(),
-            &room_id,
-            user2.clone(),
-            event2_id.clone(),
-            event,
-            2,
-            &mut context,
-        )
-        .await
-        .is_ok());
+        assert!(
+            process_event_db_raw(
+                &mut tx.to_ref_nc(),
+                &room_id,
+                user2.clone(),
+                event2_id.clone(),
+                event,
+                2,
+                &mut context,
+            )
+            .await
+            .is_ok()
+        );
 
         // Try to send another invitation after finalization (should fail)
         let event = MultispendEvent::GroupInvitation {

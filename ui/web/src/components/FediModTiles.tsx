@@ -15,8 +15,11 @@ type Props = {
     mods?: FediMod[]
 }
 
-// We don't have any mods yet but when we do we can add them here
+// These are the mods that will work inside the web FediModBrowser
 const whitelist: string[] = []
+
+// These are the mods that don't work on web
+const blacklist: string[] = ['lngpt']
 
 export const FediModTiles: React.FC<Props> = ({ mods }) => {
     const { isMobile } = useDeviceQuery()
@@ -41,15 +44,17 @@ export const FediModTiles: React.FC<Props> = ({ mods }) => {
                 <FediModBrowser url={modUrl} onClose={() => setModUrl(null)} />
             )}
             <Container>
-                {fediMods.map(mod => {
-                    return (
-                        <FediModTile
-                            key={mod.id}
-                            mod={mod}
-                            onClick={handleOnClick}
-                        />
-                    )
-                })}
+                {fediMods
+                    .filter(mod => !blacklist.includes(mod.id))
+                    .map(mod => {
+                        return (
+                            <FediModTile
+                                key={mod.id}
+                                mod={mod}
+                                onClick={handleOnClick}
+                            />
+                        )
+                    })}
             </Container>
         </>
     )

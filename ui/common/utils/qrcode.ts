@@ -17,11 +17,11 @@ export function renderStyledQrSvg(
 ) {
     const qrData = create(data)
 
-    removeModules(qrData.modules, options.hideLogo)
+    removeModules(qrData.modules)
 
     const size = qrData.modules.size
     const dataArr = qrData.modules.data
-    const moduleSize = 97
+    const moduleSize = 100
     const randomId = Math.random().toString(36).substring(2, 15)
 
     const avatarPictureDimension = 700
@@ -37,9 +37,9 @@ export function renderStyledQrSvg(
         >
             <defs>
                 <g id="point-${randomId}">
-                    <rect x="0" y="0" width="695" height="700" rx="200" fill="currentColor" stroke-width="8"/>
-                    <rect x="115" y="115" width="465" height="465" rx="40" fill="white"/>
-                    <rect x="180" y="180" width="335" height="335" rx="20" fill="currentColor"/>
+                    <rect x="0" y="0" width="700" height="700" rx="200" fill="currentColor" stroke-width="8"/>
+                    <rect x="100" y="100" width="500" height="500" rx="100" fill="white"/>
+                    <rect x="200" y="200" width="300" height="300" rx="50" fill="currentColor"/>
                 </g>
             </defs>
             <g>
@@ -54,7 +54,8 @@ export function renderStyledQrSvg(
                 ${
                     options.hideLogo || !!options.logoOverrideUrl
                         ? ''
-                        : `<g transform="translate(${size * 0.5 * moduleSize - 280}, ${size * 0.5 * moduleSize - 290}) scale(0.6)" href="#logo-${randomId}">
+                        : `<rect x="${size * 0.5 * moduleSize - 350}" y="${size * 0.5 * moduleSize - 350}" width="700" height="700" fill="white"/>
+<g transform="translate(${size * 0.5 * moduleSize - 280}, ${size * 0.5 * moduleSize - 290}) scale(0.6)" href="#logo-${randomId}">
                             <rect width="990" height="990" rx="200" fill="currentColor"/>
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M580.179 224H224V766.298H331.619V331.716H580.179V224ZM495.21 581.688C542.888 581.688 581.688 542.888 581.688 495.21C581.688 447.531 542.888 408.609 495.21 408.609C447.531 408.609 408.609 447.409 408.609 495.21C408.609 543.01 447.409 581.688 495.21 581.688ZM410.119 658.68H658.583V224H766.298V766.298H410.119V658.68Z" fill="white"/>
                         </g>`
@@ -108,7 +109,7 @@ export function renderStyledQrSvg(
 /**
  * Removes the center modules for placing logo.
  */
-function removeModules(matrix: QRCode['modules'], hideLogo?: boolean) {
+function removeModules(matrix: QRCode['modules']) {
     const size = matrix.size
 
     const finderPatternModules = size - 7
@@ -121,11 +122,6 @@ function removeModules(matrix: QRCode['modules'], hideLogo?: boolean) {
         // bottom-left
         [0, finderPatternModules],
     ]
-    if (!hideLogo) {
-        // center
-        const centerModules = (size - 7 * 3) / 2 + 7
-        pos.push([centerModules, centerModules])
-    }
 
     for (let i = 0; i < pos.length; i++) {
         const row = pos[i][0]

@@ -34,7 +34,7 @@ import {
 } from './federation'
 import {
     checkForReceivablePayments,
-    handleMatrixRoomTimelineObservableUpdates,
+    handleMatrixRoomTimelineStreamUpdates,
     matrixSlice,
 } from './matrix'
 import { modSlice } from './mod'
@@ -47,7 +47,7 @@ import {
     setReadyToSave,
     storageSlice,
 } from './storage'
-import { supportSlice } from './support'
+import { checkSurveyCondition, supportSlice } from './support'
 import { toastSlice } from './toast'
 import { transactionsSlice, updateTransaction } from './transactions'
 import { walletSlice } from './wallet'
@@ -265,6 +265,7 @@ export function initializeCommonStore({
                 dispatch(saveToStorage({ storage }))
             },
         })
+        dispatch(checkSurveyCondition())
         dispatch(setReadyToSave(true))
     })
 
@@ -277,12 +278,12 @@ export function initializeCommonStore({
     const unsubscribeMatrixPayments = listenerMiddleware.startListening({
         matcher: isAnyOf(
             joinFederation.fulfilled,
-            handleMatrixRoomTimelineObservableUpdates,
+            handleMatrixRoomTimelineStreamUpdates,
         ),
         effect: (
             action:
                 | ReturnType<typeof joinFederation.fulfilled>
-                | ReturnType<typeof handleMatrixRoomTimelineObservableUpdates>,
+                | ReturnType<typeof handleMatrixRoomTimelineStreamUpdates>,
             api,
         ) => {
             const roomId =

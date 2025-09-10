@@ -3,16 +3,16 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use common::common::{SignedRecoveryRequest, VerificationDocument};
 use common::config::{
-    FediSocialClientConfig, FediSocialConfig, FediSocialConfigLocal, FediSocialConsensusConfig,
-    FediSocialGenParams, FediSocialPrivateConfig,
+    FediSocialClientConfig, FediSocialConfig, FediSocialConsensusConfig, FediSocialGenParams,
+    FediSocialPrivateConfig,
 };
 use common::db::{
     BackupKeyPrefix, DbKeyPrefix, DecryptionShareId, DecryptionSharePrefix, RecoveryPrefix,
     UsedDoubleEncryptedData, UsedDoubleEncryptedDataPrefix,
 };
 use common::{
-    FediSocialCommonGen, FediSocialConsensusItem, FediSocialModuleTypes, FediSocialOutputOutcome,
-    CONSENSUS_VERSION,
+    CONSENSUS_VERSION, FediSocialCommonGen, FediSocialConsensusItem, FediSocialModuleTypes,
+    FediSocialOutputOutcome,
 };
 pub use fedi_social_common as common;
 use fedi_social_common::{FediSocialInputError, FediSocialOutputError};
@@ -24,10 +24,11 @@ use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
-    api_endpoint, ApiEndpoint, ApiError, ApiVersion, CoreConsensusVersion, InputMeta, ModuleCommon,
+    ApiEndpoint, ApiError, ApiVersion, CoreConsensusVersion, InputMeta, ModuleCommon,
     ModuleConsensusVersion, ModuleInit, SupportedModuleApiVersions, TransactionItemAmount,
+    api_endpoint,
 };
-use fedimint_core::{push_db_pair_items, InPoint, NumPeersExt, OutPoint, PeerId};
+use fedimint_core::{InPoint, NumPeersExt, OutPoint, PeerId, push_db_pair_items};
 use fedimint_server::core::config::PeerHandleOps;
 use fedimint_server::core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
 use fedimint_threshold_crypto::serde_impl::SerdeSecret;
@@ -152,7 +153,6 @@ impl ServerModuleInit for FediSocialInit {
                             .expect("must not fail"),
                         pk_set: pks.clone(),
                     },
-                    local: FediSocialConfigLocal {},
                 }
                 .to_erased(),
             )
@@ -178,7 +178,6 @@ impl ServerModuleInit for FediSocialInit {
                 )),
                 threshold: u32::try_from(peers.num_peers().threshold()).expect("must not fail"),
             },
-            local: FediSocialConfigLocal {},
         };
 
         Ok(server.to_erased())

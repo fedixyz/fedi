@@ -7,10 +7,10 @@ use matrix_sdk::event_cache::RoomPaginationStatus;
 use matrix_sdk::notification_settings::RoomNotificationMode;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::api::client::user_directory::search_users::v3 as search_user_directory;
+use matrix_sdk::ruma::events::AnyTimelineEvent;
 use matrix_sdk::ruma::events::poll::start::PollKind;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::events::room::message::MessageType;
-use matrix_sdk::ruma::events::AnyTimelineEvent;
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedTransactionId};
 use matrix_sdk::{ComposerDraft, ComposerDraftType};
@@ -155,7 +155,7 @@ pub struct RpcTimelineItemEvent {
     pub(crate) id: String,
     pub(crate) txn_id: Option<String>,
     pub(crate) event_id: Option<String>,
-    pub(crate) content: RpcTimelineItemContent,
+    pub content: RpcTimelineItemContent,
     pub(crate) local_echo: bool,
     #[ts(type = "number")]
     pub(crate) timestamp: MilliSecondsSinceUnixEpoch,

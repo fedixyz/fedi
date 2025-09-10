@@ -25,8 +25,13 @@ interface Props {
 const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
     const [windowWidth, setWindowWidth] = useState<number>(0)
     const { t } = useTranslation()
-    const { rating, setRating, federationToRate, handleSubmitRating } =
-        useFederationRating(fedimint)
+    const {
+        rating,
+        setRating,
+        federationToRate,
+        handleSubmitRating,
+        handleDismissRating,
+    } = useFederationRating(fedimint)
 
     const bgImageHeight = scaleAttachment(
         RateFederationBg.width,
@@ -39,14 +44,18 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
         handleSubmitRating(() => onDismiss())
     }
 
+    const handleDismiss = () => {
+        onDismiss()
+        handleDismissRating()
+    }
+
     useEffect(() => setWindowWidth(Math.min(window.innerWidth, 500)), [])
 
     return (
         <Dialog
             open={show}
-            onOpenChange={onDismiss}
+            onOpenChange={handleDismiss}
             mobileDismiss="overlay"
-            disableOverlayHandle
             disableClose
             disablePadding>
             <Container data-testid="rate-federation-overlay">
@@ -63,7 +72,7 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
                             />
                         )}
                     </FederationIconContainer>
-                    <CloseButton onClick={onDismiss}>
+                    <CloseButton onClick={handleDismiss}>
                         <Icon icon={CloseIcon} />
                     </CloseButton>
                 </Banner>

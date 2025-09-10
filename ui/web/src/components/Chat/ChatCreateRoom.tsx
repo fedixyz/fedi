@@ -1,14 +1,14 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import React, { useCallback, useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
-import { useToast } from '@fedi/common/hooks/toast'
-import { createMatrixRoom } from '@fedi/common/redux'
+import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
+import { MatrixRoom } from '@fedi/common/types'
 
-import { useAppDispatch, useMediaQuery } from '../../hooks'
-import { config, styled } from '../../styles'
+import { useMediaQuery } from '../../hooks'
+import { config, styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { Icon } from '../Icon'
 import { Input } from '../Input'
@@ -20,31 +20,18 @@ import { ChatAvatar } from './ChatAvatar'
 export const ChatCreateRoom: React.FC = () => {
     const { t } = useTranslation()
     const { push } = useRouter()
-    const dispatch = useAppDispatch()
-    const toast = useToast()
-    const [newGroupName, setNewGroupName] = useState('')
-    const [isSavingGroup, setIsSavingGroup] = useState(false)
-    const [isBroadcastOnly, setIsBroadcastOnly] = useState(false)
     const isSm = useMediaQuery(config.media.sm)
-
-    const handleCreateRoom = useCallback(async () => {
-        const groupName = newGroupName.trim()
-        if (groupName.length === 0) return
-
-        setIsSavingGroup(true)
-        try {
-            const { roomId } = await dispatch(
-                createMatrixRoom({
-                    name: groupName,
-                    broadcastOnly: isBroadcastOnly,
-                }),
-            ).unwrap()
-            push(`/chat/room/${roomId}`)
-        } catch (err) {
-            toast.error(t, 'errors.chat-unavailable')
-        }
-        setIsSavingGroup(false)
-    }, [dispatch, newGroupName, isBroadcastOnly, push, toast, t])
+    const {
+        errorMessage,
+        handleCreateGroup,
+        isCreatingGroup,
+        groupName,
+        setGroupName,
+        broadcastOnly,
+        setBroadcastOnly,
+    } = useCreateMatrixRoom(t, (roomId: MatrixRoom['id']) => {
+        push(`/chat/room/${roomId}`)
+    })
 
     return (
         <Container>
@@ -64,31 +51,34 @@ export const ChatCreateRoom: React.FC = () => {
                     size="lg"
                     room={{
                         id: 'fake-room-id',
-                        name: newGroupName,
-                        broadcastOnly: isBroadcastOnly,
+                        name: groupName,
+                        broadcastOnly: broadcastOnly,
                     }}
                 />
                 <Input
                     label={t('feature.chat.group-name')}
-                    value={newGroupName}
-                    onChange={ev => setNewGroupName(ev.currentTarget.value)}
+                    value={groupName}
+                    onChange={ev => setGroupName(ev.currentTarget.value)}
                     maxLength={30}
                     placeholder={t('feature.chat.new-group')}
                 />
+                {errorMessage && (
+                    <WarningText variant="caption">{errorMessage}</WarningText>
+                )}
                 <BroadcastSwitchContainer>
                     <Text>{t('feature.chat.broadcast-only')}</Text>
                     <Switch
-                        checked={isBroadcastOnly}
-                        onCheckedChange={setIsBroadcastOnly}
+                        checked={broadcastOnly}
+                        onCheckedChange={setBroadcastOnly}
                     />
                 </BroadcastSwitchContainer>
             </Inner>
             <Buttons>
                 <Button
                     width="full"
-                    loading={isSavingGroup}
-                    onClick={handleCreateRoom}
-                    disabled={newGroupName.trim().length === 0}>
+                    loading={isCreatingGroup}
+                    onClick={handleCreateGroup}
+                    disabled={!groupName || isCreatingGroup || !!errorMessage}>
                     {t('feature.chat.create-group')}
                 </Button>
             </Buttons>
@@ -129,10 +119,16 @@ const BroadcastSwitchContainer = styled('div', {
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
+    marginTop: 8,
 })
 
 const DesktopBackButton = styled('button', {
     position: 'absolute',
     top: 24,
     left: 24,
+})
+
+const WarningText = styled(Text, {
+    color: theme.colors.red,
+    alignSelf: 'flex-start',
 })

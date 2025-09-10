@@ -1,10 +1,16 @@
-import { TagToErrorConstructorMap } from '../constants/errors'
+import { TaggedError } from '../utils/errors'
 
-export type ErrorTag = keyof typeof TagToErrorConstructorMap
-export type TaggedError<T extends keyof typeof TagToErrorConstructorMap> =
-    InstanceType<(typeof TagToErrorConstructorMap)[T]> & {
-        _tag: T
-    }
+export type ErrorTag =
+    | 'BridgeError'
+    | 'UrlConstructError'
+    | 'GenericError'
+    | 'MissingDataError'
+    | 'MalformedDataError'
+    | 'SchemaValidationError'
+    | 'FetchError'
+    | 'TimeoutError'
+    | 'UserError'
+    | 'NotOkHttpResponseError'
 
 /**
  * Specific error type for when a URL fails to be constructed
@@ -44,3 +50,7 @@ export type TimeoutError = TaggedError<'TimeoutError'>
  * Used for when an error is a result of a user action
  */
 export type UserError = TaggedError<'UserError'>
+/**
+ * Error type used when an HTTP status is not ok
+ */
+export type NotOkHttpResponseError = TaggedError<'NotOkHttpResponseError'>

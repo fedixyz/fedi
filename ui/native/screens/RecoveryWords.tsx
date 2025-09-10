@@ -13,6 +13,7 @@ import type { SeedWords } from '@fedi/common/types'
 
 import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -97,31 +98,33 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
     const style = styles(theme)
 
     return (
-        <Flex grow align="start" style={style.container}>
-            <ScrollView contentContainerStyle={style.scrollView}>
-                <Text h2 h2Style={style.label}>
-                    {t('feature.backup.recovery-words')}
-                </Text>
-                <Text style={style.instructionsText}>
-                    {t('feature.backup.recovery-words-instructions')}
-                </Text>
-                <Card containerStyle={style.roundedCardContainer}>
-                    <Flex row>
-                        <Flex grow basis={false} align="start">
-                            {renderFirstSixSeedWords()}
+        <SafeAreaContainer edges="bottom">
+            <Flex grow align="start" style={style.container}>
+                <ScrollView contentContainerStyle={style.scrollView}>
+                    <Text h2 h2Style={style.label}>
+                        {t('feature.backup.recovery-words')}
+                    </Text>
+                    <Text style={style.instructionsText}>
+                        {t('feature.backup.recovery-words-instructions')}
+                    </Text>
+                    <Card containerStyle={style.roundedCardContainer}>
+                        <Flex row>
+                            <Flex grow basis={false} align="start">
+                                {renderFirstSixSeedWords()}
+                            </Flex>
+                            <Flex grow basis={false} align="start">
+                                {renderLastSixSeedWords()}
+                            </Flex>
                         </Flex>
-                        <Flex grow basis={false} align="start">
-                            {renderLastSixSeedWords()}
-                        </Flex>
-                    </Flex>
-                </Card>
-            </ScrollView>
-            <Button
-                title={t('words.done')}
-                containerStyle={style.continueButton}
-                onPress={handleContinueOrDone}
-            />
-        </Flex>
+                    </Card>
+                </ScrollView>
+                <Button
+                    title={t('words.done')}
+                    containerStyle={style.continueButton}
+                    onPress={handleContinueOrDone}
+                />
+            </Flex>
+        </SafeAreaContainer>
     )
 }
 

@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::{impl_db_lookup, impl_db_record, Amount, PeerId, TransactionId};
+use fedimint_core::{Amount, PeerId, TransactionId, impl_db_lookup, impl_db_record};
 use fedimint_server_core::migration::ServerModuleDbMigrationFnContext;
 use secp256k1::PublicKey;
 use stability_pool_common_old::{

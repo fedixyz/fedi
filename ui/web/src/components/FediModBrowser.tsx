@@ -50,12 +50,7 @@ export const FediModBrowser: React.FC<Props> = ({ url, onClose }) => {
     }
 
     return (
-        <Dialog
-            open={!!url}
-            onOpenChange={onClose}
-            disableOverlayHandle
-            disableClose
-            disablePadding>
+        <Dialog open={!!url} onOpenChange={onClose} disableClose disablePadding>
             <SendPaymentOverlay
                 onAccept={res => {
                     sendSuccess('webln.sendPayment', res)

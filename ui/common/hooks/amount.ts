@@ -93,7 +93,9 @@ export type NumpadButtonValue = (typeof numpadButtons)[number]
 export const useBtcFiatPrice = (currency?: SelectableCurrency) => {
     const selectedFiatCurrency = useCommonSelector(selectCurrency)
     const currencyLocale = useCommonSelector(selectCurrencyLocale)
-    const exchangeRate: number = useCommonSelector(selectBtcExchangeRate)
+    const exchangeRate: number = useCommonSelector(s =>
+        selectBtcExchangeRate(s, currency),
+    )
     const btcUsdExchangeRate: number = useCommonSelector(
         selectBtcUsdExchangeRate,
     )

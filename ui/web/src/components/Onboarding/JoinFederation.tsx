@@ -260,12 +260,7 @@ export const JoinFederation: React.FC = () => {
                 )}
                 {tosUrl ? (
                     <>
-                        <Text
-                            variant="small"
-                            css={{
-                                color: theme.colors.grey,
-                                textAlign: 'left',
-                            }}>
+                        <TermsUrl variant="small">
                             <Trans
                                 i18nKey="feature.onboarding.terms-url"
                                 components={{
@@ -276,7 +271,7 @@ export const JoinFederation: React.FC = () => {
                                     ),
                                 }}
                             />
-                        </Text>
+                        </TermsUrl>
 
                         <div>
                             <Button variant="tertiary" onClick={() => back()}>
@@ -355,6 +350,14 @@ const UnsupportedBadge = styled('div', {
     color: theme.colors.white,
     borderRadius: 16,
     padding: `${theme.space.xs} ${theme.space.sm}`,
+})
+
+const TermsUrl = styled(Text, {
+    color: theme.colors.grey,
+    overflowWrap: 'break-word',
+    textAlign: 'left',
+    wordBreak: 'break-word',
+    wordWrap: 'break-word',
 })
 
 const Link = styled('a', {

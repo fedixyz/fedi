@@ -5,7 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
-import { MatrixEvent, MatrixRoomMember } from '@fedi/common/types'
+import {
+    MatrixEvent,
+    MatrixRoomMember,
+    MatrixEventStatus,
+} from '@fedi/common/types'
 import { isMultispendEvent } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
@@ -93,16 +97,20 @@ const ChatEventTimeFrame = memo(
 
                     <View style={style.senderMessages}>
                         {events.map((event, eindex) => {
-                            // To stop jarring highlight bar - use regular function, not useMemo
+                            const isPending =
+                                event.status === MatrixEventStatus.pending
+
                             const isVeryRecent = (() => {
                                 if (!event.timestamp) return false
                                 const now = Date.now()
                                 const messageAge = now - event.timestamp
-                                return messageAge < 1200 // Less than 1.2 seconds old
+                                return messageAge < 1200
                             })()
 
+                            // Don't highlight if message is pending or very recent
                             const isHighlighted =
-                                !isVeryRecent && // Use the age check here
+                                !isPending &&
+                                !isVeryRecent &&
                                 (highlightedMessageId === event.eventId ||
                                     highlightedMessageId === event.id)
 
@@ -168,7 +176,6 @@ const styles = (theme: Theme) =>
             },
             shadowOpacity: 0.3,
             shadowRadius: 8,
-            elevation: 5,
         },
     })
 

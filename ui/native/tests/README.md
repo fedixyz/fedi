@@ -1,64 +1,67 @@
-# Testing Environment
+# E2E Testing
 
-## Setup
+## Running E2E Tests
 
-To set up the testing environment, follow these steps:
+E2E tests are fully automated and integrated into the development environment. No manual setup required.
 
-1. Install Appium and webdriverio on your machine
+### Quick Start
 
-```
-npm install -g appium
-yarn install // do this if you haven't installed webdriverio and deps already
-```
+1. Start the development environment:
 
-At the present moment, it has to be installed globally and via npm because installation via yarn is not supported
+    ```bash
+    just run-dev-ui
+    ```
 
-2. Install the necessary drivers:
+2. In the mprocs dev UI that appears, select the **dev** pane and press **t** → **e** to launch the e2e test runner
 
--   [UiAutomator2 for Android](https://appium.io/docs/en/latest/quickstart/uiauto2-driver/)
--   [XCUItest for iOS](https://github.com/appium/appium-xcuitest-driver)
+3. Choose your tests:
 
-3. (optionally) Install [Appium Inspector](https://github.com/appium/appium-inspector).
+    - **o** - onboarding test
+    - **j** - JoinLeaveFederation test
+    - **a** - all tests
+    - **m** - manual selection
 
-This tool may aid you in writing tests as it can generate ready-to-use test files for a given platform if you use the Recorder feature in Appium. Whenever you do that, take care to ensure that you're using the [Element Mode](https://github.com/appium/appium-inspector/blob/main/docs/session-inspector/screenshot.md#interaction-mode) to select the elements.
+4. Choose platform:
+    - **a** - Android
+    - **i** - iOS
+    - **b** - both platforms
 
-## Test types
+The system will automatically:
 
-Appium tests live in `appium`. Legacy Detox tests live in `detox` respectively, and may be removed in the future. Within these folders, the tests are devided into further subdirectories: `ios` and `android` for iOS and Android-specific tests respectively, as well as `common` for tests that work on both platforms.
+-   Start/verify Appium server
+-   Create fresh emulators/simulators (recommended)
+-   Build and install the app
+-   Clear app data for clean test runs
+-   Execute the selected tests
 
-The test are further subdivided into `standard` and `adhoc` tests.
+### Test Management
 
--   `adhoc` tests are tests that have been recorded via Appium Inspector and have not been modified further.
--   `standard` tests are tests that meet the standards defined below.
+**Available Tests:**
 
-We should aim to have most of our tests to be `common` and `standard`.
+-   See `ui/native/tests/appium/` directory for all available tests
+-   Use `all` to run the complete test suite
 
-## Running the tests
+**Device Options:**
 
-At the moment, to run the tests, you need a freshly installed Fedi app on your device/e(si)mulator w/ no user data.
+-   **Android**: Choose existing device or create fresh emulator (recommended)
+-   **iOS**: Choose existing simulator or create fresh iOS 18 simulator (recommended)
 
--   `adhoc` and `standard` tests can be run via `node your.test.js`
--   `standard` tests can be run via either:
+⚠️ **Warning**: App data will be completely wiped from selected devices during testing.
 
-```bash
-just run-dev-ui interactive
-...
-Build for Android? (y/n) y  # will allow for running Android tests
-Build for iOS (y/n) y  # will allow for running iOS tests
-Run e2e tests (WARNING: app data will be erased) (y/n) y  # will actually trigger running the tests and present you with a list of runnable tests. Test will only run on platforms you've selected previously
-Input the name of tests you wish to run separated by spaces, or input 'all' to run all tests and press Enter:  # will default to 'all' if no valid test names were entered
-```
+### Development Tools
 
-OR:
+**Appium Inspector** (optional but recommended for test development):
 
-```bash
-nix develop .#xcode --command env -u MACOSX_DEPLOYMENT_TARGET ./scripts/ui/start-appium.sh # use this command macOS. The rest should just run ./scripts/ui/start-appium.sh
-# in a separate nix shell
-cd ui
-PLATFORM=ios|android DEVICE_ID=simulatorUDID|androidSerial yarn run ts-node ./native/tests/appium/runner.ts all|onboarding
-```
+-   Install [Appium Inspector](https://github.com/appium/appium-inspector)
+-   Use the Recorder feature to generate test files for new functionality
+-   When recording, ensure you're using [Element Mode](https://github.com/appium/appium-inspector/blob/main/docs/session-inspector/screenshot.md#interaction-mode) to select elements
+-   Connect to the running Appium server (started automatically by the dev environment)
 
-This method will also check if you have set up Appium and its drivers correctly.
+**Appium Server Logs** (optional):
+
+-   The **appium** pane in mprocs allows you to manually start the Appium server and view logs in the foreground instead of running appium in the background
+-   Select the **appium** pane and press 'y' to start the server with live log output
+-   Useful for debugging test failures or connection issues
 
 ## Test standards
 

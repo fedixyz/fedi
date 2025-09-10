@@ -4,6 +4,13 @@ import { z } from 'zod'
 
 import { toSha256EncHex } from '@fedi/common/utils/EncryptionUtils'
 
+import {
+    BR_TAG_REGEX,
+    HTML_ENTITIES,
+    HTML_TAG_REGEX,
+    MX_REPLY_REGEX,
+    QUOTE_USER_REGEX,
+} from '../constants/matrix'
 import { FormattedAmounts } from '../hooks/amount'
 import {
     InputMedia,
@@ -35,6 +42,9 @@ import {
     RpcUserId,
     MultispendListedEvent,
     RpcTransaction,
+    SendMessageData,
+    RpcMentions,
+    JSONObject,
 } from '../types/bindings'
 import { makeLog } from './log'
 import { constructUrl } from './neverthrow'
@@ -1324,16 +1334,60 @@ export function isReplyToEvent(
     const replyEventId = getReplyEventId(event)
     return replyEventId === targetEventId
 }
+
+function decodeHtmlEntities(text: string): string {
+    return text.replace(/&[#\w]+;/g, entity => HTML_ENTITIES[entity] || entity)
+}
+
+function findLastQuoteLineIndex(lines: string[]): {
+    isValid: boolean
+    lastIndex: number
+} {
+    let lastQuoteLineIndex = -1
+    let firstQuoteUser: string | null = null
+    let allQuotesFromSameUser = true
+
+    // find consecutive quote lines from the same user
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('> <@')) {
+            // extract user ID from quote line
+            const userMatch = lines[i].match(QUOTE_USER_REGEX)
+            if (userMatch) {
+                const currentUser = userMatch[1]
+                if (firstQuoteUser === null) {
+                    firstQuoteUser = currentUser
+                } else if (currentUser !== firstQuoteUser) {
+                    allQuotesFromSameUser = false
+                    break
+                }
+                lastQuoteLineIndex = i
+            } else {
+                break
+            }
+        } else {
+            break
+        }
+    }
+
+    const isValid =
+        lastQuoteLineIndex >= 0 &&
+        lastQuoteLineIndex < lines.length - 1 &&
+        allQuotesFromSameUser
+
+    return { isValid, lastIndex: lastQuoteLineIndex }
+}
+
 export function stripReplyFromBody(
     body: string,
     formattedBody?: string,
 ): string {
     // strip mx-reply content if present
-    if (formattedBody && formattedBody.includes('<mx-reply>')) {
+    if (formattedBody?.includes('<mx-reply>')) {
         const strippedBody = formattedBody
-            .replace(/<mx-reply>[\s\S]*?<\/mx-reply>/g, '')
-            .trim()
-        return strippedBody.replace(/<[^>]*>/g, '').trim()
+            .replace(MX_REPLY_REGEX, '')
+            .replace(BR_TAG_REGEX, '\n')
+        const withoutTags = strippedBody.replace(HTML_TAG_REGEX, '')
+        return decodeHtmlEntities(withoutTags)
     }
 
     // strip reply from plain text body
@@ -1341,66 +1395,54 @@ export function stripReplyFromBody(
 
     // handle single line quote format: "> <@user> message\n\nReply"
     if (lines.length >= 3 && lines[0].startsWith('> <@') && lines[1] === '') {
-        return lines.slice(2).join('\n').trim()
+        return decodeHtmlEntities(lines.slice(2).join('\n'))
     }
 
     // handle multi-line quote format: "> <@user> line1\n> <@user> line2\nReply"
     // multi-line quotes are only valid when they're all from the same user
     if (lines.length >= 2) {
-        let lastQuoteLineIndex = -1
-        let firstQuoteUser = null
-        let allQuotesFromSameUser = true
-
-        // find consecutive quote lines from the same user
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].startsWith('> <@')) {
-                // extract user ID from quote line
-                const userMatch = lines[i].match(/^> <@([^>]+)>/)
-                if (userMatch) {
-                    const currentUser = userMatch[1]
-                    if (firstQuoteUser === null) {
-                        firstQuoteUser = currentUser
-                    } else if (currentUser !== firstQuoteUser) {
-                        allQuotesFromSameUser = false
-                        break
-                    }
-                    lastQuoteLineIndex = i
-                } else {
-                    break
-                }
-            } else {
-                break
-            }
-        }
+        const quoteInfo = findLastQuoteLineIndex(lines)
 
         // if we found valid quote lines from the same user, return everything after them
-        if (
-            lastQuoteLineIndex >= 0 &&
-            lastQuoteLineIndex < lines.length - 1 &&
-            allQuotesFromSameUser
-        ) {
-            return lines
-                .slice(lastQuoteLineIndex + 1)
-                .join('\n')
-                .trim()
+        if (quoteInfo.isValid) {
+            return decodeHtmlEntities(
+                lines.slice(quoteInfo.lastIndex + 1).join('\n'),
+            )
         }
     }
 
     // if we have formatted_body but no mx-reply, and no valid plain text pattern,
     // prefer formatted_body (strip HTML tags) over body as it may be cleaner
     if (formattedBody) {
-        return formattedBody.replace(/<[^>]*>/g, '').trim()
+        const withoutTags = formattedBody
+            .replace(BR_TAG_REGEX, '\n')
+            .replace(HTML_TAG_REGEX, '')
+        return decodeHtmlEntities(withoutTags)
     }
 
     // no valid reply pattern found, return original body unchanged
-    return body
+    return decodeHtmlEntities(body)
 }
 
-// Helper method to strip reply formatting from preview text
+// helper to strip reply formatting from preview text
 export const stripReplyFromPreview = (text: string): string => {
     // Check if this looks like a reply (starts with >)
     if (text.startsWith('>')) {
-        return stripReplyFromBody(text, text)
+        return stripReplyFromBody(text)
     }
     return text
 }
+
+/** Normalize a plain string or a full SendMessageData into SendMessageData */
+export const toSendMessageData = (
+    x: string | SendMessageData,
+    opts?: { mentions?: RpcMentions | null; extra?: JSONObject },
+): SendMessageData =>
+    typeof x === 'string'
+        ? {
+              msgtype: 'm.text',
+              body: x,
+              data: opts?.extra ?? {},
+              mentions: opts?.mentions ?? null,
+          }
+        : x

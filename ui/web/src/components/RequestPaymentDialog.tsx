@@ -43,6 +43,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         inputAmount: amount,
         setInputAmount: setAmount,
         memo,
+        setMemo,
         minimumAmount,
         maximumAmount,
         reset: resetRequestForm,
@@ -61,7 +62,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const containerRef = useRef<HTMLDivElement | null>(null)
     const onOpenChangeRef = useUpdatingRef(onOpenChange)
     const isOnchainSupported = useIsOnchainDepositSupported(fedimint)
-    const [notes, setNotes] = useState<string>('')
     const dispatch = useAppDispatch()
 
     // Reset on close, focus input on desktop open
@@ -106,7 +106,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                     amount: amountUtils.satToMsat(amount),
                     description: memo,
                     frontendMetadata: {
-                        initialNotes: notes || null,
+                        initialNotes: memo || null,
                         recipientMatrixId: null,
                         senderMatrixId: null,
                     },
@@ -150,7 +150,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         t,
         dispatch,
         memo,
-        notes,
     ])
 
     // Watch for incoming payments when we're rendering a lightning invoice
@@ -224,7 +223,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
 
     const qrData = isLightning ? lightningInvoice?.toUpperCase() : bitcoinUrl
     const copyData = isLightning ? lightningInvoice : bitcoinUrl
-    const showNote = !wantsInvoice
     const amountSats = amountUtils.formatSats(amount)
 
     let content: React.ReactNode
@@ -254,6 +252,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                             />
                         </RequestTypeToggle>
                     )}
+
                     <AmountInput
                         amount={amount}
                         onChangeAmount={handleChangeAmount}
@@ -263,20 +262,21 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                         maximumAmount={maximumAmount}
                         submitAttempts={submitAttempts}
                         extraInput={
-                            showNote ? (
+                            !wantsInvoice ? (
                                 <NoteInput
-                                    value={notes}
+                                    value={memo}
                                     placeholder={
                                         qrData ? '' : t('phrases.add-note')
                                     }
                                     onChange={ev =>
-                                        setNotes(ev.currentTarget.value)
+                                        setMemo(ev.currentTarget.value)
                                     }
                                     readOnly={wantsInvoice}
                                 />
                             ) : undefined
                         }
                     />
+
                     {wantsInvoice && (
                         <QRContainer>
                             <QRCode data={qrData} />

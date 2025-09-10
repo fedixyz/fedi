@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use fedimint_client::OperationId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::{impl_db_lookup, impl_db_record, Amount, TransactionId};
+use fedimint_core::{Amount, TransactionId, impl_db_lookup, impl_db_record};
 use futures::StreamExt;
 use stability_pool_common::{AccountHistoryItem, AccountId, CycleInfo, FiatAmount, SyncResponse};
 

@@ -1,20 +1,21 @@
 use std::collections::BTreeMap;
 use std::convert::Infallible;
+use std::ops::Not;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use fedimint_core::task::TaskGroup;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::update_merge::UpdateMerge;
+use rpc_types::RpcCommunity;
 use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, EventSink, TypedEventExt};
-use rpc_types::RpcCommunity;
 use runtime::bridge_runtime::Runtime;
-use runtime::constants::COMMUNITY_INVITE_CODE_HRP;
-use runtime::storage::state::{CommunityInfo, CommunityJson};
+use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_GIFT_EXCLUDED_COMMUNITIES};
 use runtime::storage::AppState;
+use runtime::storage::state::{CommunityInfo, CommunityJson, FirstCommunityInviteCodeState};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 use tracing::info;
@@ -116,6 +117,16 @@ impl Communities {
                 state
                     .joined_communities
                     .insert(invite_code.to_owned(), CommunityInfo { meta: meta.clone() });
+
+                // If this is not the default Fedi community
+                if FEDI_GIFT_EXCLUDED_COMMUNITIES.contains(&invite_code).not() {
+                    // And if "first community" has never been set
+                    if state.first_comm_invite_code == FirstCommunityInviteCodeState::NeverSet {
+                        // Then record this as the "first community"
+                        state.first_comm_invite_code =
+                            FirstCommunityInviteCodeState::Set(invite_code.to_owned());
+                    }
+                }
             })
             .await?;
 
@@ -132,6 +143,17 @@ impl Communities {
         self.app_state
             .with_write_lock(|state| {
                 state.joined_communities.remove(invite_code);
+
+                // If we're leaving our "first community", we need to perma-clear that field
+                let FirstCommunityInviteCodeState::Set(ref first_invite_code) =
+                    state.first_comm_invite_code
+                else {
+                    return;
+                };
+
+                if first_invite_code == invite_code {
+                    state.first_comm_invite_code = FirstCommunityInviteCodeState::Unset;
+                }
             })
             .await?;
         Ok(())

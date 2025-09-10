@@ -101,7 +101,6 @@ export const SendPayment: React.FC<Props> = ({ onAccept, onReject }) => {
             open={!!invoice}
             onOpenChange={() => {}}
             mobileDismiss="overlay"
-            disableOverlayHandle
             disableClose
             disablePadding>
             <Container aria-label="payment request dialog">

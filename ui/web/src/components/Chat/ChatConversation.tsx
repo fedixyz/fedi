@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ImageIcon from '@fedi/common/assets/svgs/image.svg'
+import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
 import SendArrowUpCircleIcon from '@fedi/common/assets/svgs/send-arrow-up-circle.svg'
 import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -13,20 +13,16 @@ import {
 import { ChatType, MatrixEvent } from '@fedi/common/types'
 import { makeMatrixEventGroups } from '@fedi/common/utils/matrix'
 
-import {
-    useAppSelector,
-    useAutosizeTextArea,
-    useIsTouchScreen,
-} from '../../hooks'
+import { useAppSelector, useAutosizeTextArea } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Avatar } from '../Avatar'
 import { CircularLoader } from '../CircularLoader'
 import { Icon } from '../Icon'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
+import { ChatAttachmentThumbnail } from './ChatAttachmentThumbnail'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatEventCollection } from './ChatEventCollection'
-import { ChatMediaThumbnail } from './ChatMediaThumbnail'
 
 interface Props {
     type: ChatType
@@ -34,8 +30,8 @@ interface Props {
     name: string
     events: MatrixEvent[]
     onSendMessage(message: string, files: File[]): Promise<void>
+    isPublic?: boolean
     headerActions?: React.ReactNode
-    inputActions?: boolean
     onWalletClick?(): void
     onPaginate?: () => Promise<void>
 }
@@ -46,14 +42,13 @@ export const ChatConversation: React.FC<Props> = ({
     name,
     events,
     headerActions,
-    inputActions,
     onSendMessage,
+    isPublic,
     onWalletClick,
     onPaginate,
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
-    const isTouchScreen = useIsTouchScreen()
 
     const room = useAppSelector(s => selectMatrixRoom(s, id))
     const user = useAppSelector(s => selectMatrixUser(s, id))
@@ -113,15 +108,16 @@ export const ChatConversation: React.FC<Props> = ({
                 ev.preventDefault()
             }
 
-            setIsSending(true)
             try {
+                setIsSending(true)
                 await onSendMessage(value, files)
                 setValue('')
                 setFiles([])
             } catch (err) {
                 toast.error(t, err, 'errors.chat-connection-unhealthy')
+            } finally {
+                setIsSending(false)
             }
-            setIsSending(false)
         },
         [onSendMessage, files, t, toast, value],
     )
@@ -135,9 +131,11 @@ export const ChatConversation: React.FC<Props> = ({
         event: React.ChangeEvent<HTMLInputElement>,
     ) => {
         if (!event.target.files || !event.target.files.length) return
-        const file = event.target.files[0]
 
-        setFiles(prev => [...prev, file])
+        // converts FileList to Array
+        const filesArr = Array.from(event.target.files)
+
+        setFiles(prev => [...prev, ...filesArr])
     }
 
     const handleOnRemoveThumbnail = (idx: number) => {
@@ -156,14 +154,6 @@ export const ChatConversation: React.FC<Props> = ({
         },
         [handleSend],
     )
-
-    // Re-focus input after it had been disabled
-    const inputDisabled = isSending || isReadOnly
-    useEffect(() => {
-        if (!inputDisabled) {
-            inputRef.current?.focus()
-        }
-    }, [inputDisabled])
 
     let avatar: React.ReactNode
     if (room) {
@@ -215,7 +205,7 @@ export const ChatConversation: React.FC<Props> = ({
                 {files.length > 0 && (
                     <ThumbnailsRow>
                         {files.map((file, idx: number) => (
-                            <ChatMediaThumbnail
+                            <ChatAttachmentThumbnail
                                 key={`${file.name}-${idx}`}
                                 file={file}
                                 onRemove={() => handleOnRemoveThumbnail(idx)}
@@ -234,49 +224,56 @@ export const ChatConversation: React.FC<Props> = ({
                                 ? 'feature.chat.broadcast-only-notice'
                                 : 'phrases.type-message',
                         )}
-                        autoFocus={!isTouchScreen}
                         rows={1}
                         onKeyDown={handleInputKeyDown}
-                        disabled={isSending || isReadOnly}
+                        disabled={isReadOnly}
                     />
-                    <input
-                        data-testid="file-upload"
-                        type="file"
-                        ref={fileRef}
-                        hidden
-                        accept="image/*, video/*"
-                        onChange={handleOnUploadMedia}
-                    />
+                    {!isReadOnly && (
+                        <input
+                            data-testid="file-upload"
+                            type="file"
+                            ref={fileRef}
+                            hidden
+                            accept="image/*, video/*, .csv, .doc, .docx, .pdf, .ppt, .pptx, .xls, .xlsx, .txt, .zip"
+                            onChange={handleOnUploadMedia}
+                            multiple
+                        />
+                    )}
                 </InputRow>
 
-                <ActionsRow>
-                    <InputActions>
-                        {inputActions && (
-                            <>
+                {!isReadOnly && (
+                    <ActionsRow>
+                        <InputActions>
+                            {/* In-chat payments only available for DirectChat after a room has already been created with the user */}
+                            {type === ChatType.direct && (
                                 <Icon
                                     aria-label="wallet-icon"
                                     icon={WalletIcon}
                                     size={32}
                                     onClick={onWalletClick}
                                 />
+                            )}
+                            {/* To prevent users from uploading unencrypted media, media uploads are not available in public chats */}
+                            {!isPublic && (
                                 <Icon
-                                    aria-label="image-icon"
-                                    icon={ImageIcon}
+                                    aria-label="plus-icon"
+                                    icon={PlusIcon}
                                     size={26}
                                     onClick={handleOnMediaClick}
                                 />
-                            </>
-                        )}
-                    </InputActions>
-                    <SendButton
-                        disabled={
-                            (value.trim().length === 0 && !files.length) ||
-                            isSending
-                        }
-                        type="submit">
-                        <Icon icon={SendArrowUpCircleIcon} />
-                    </SendButton>
-                </ActionsRow>
+                            )}
+                        </InputActions>
+                        <SendButton
+                            disabled={
+                                (value.trim().length === 0 && !files.length) ||
+                                isSending
+                            }
+                            type="submit"
+                            onMouseDown={e => e.preventDefault()}>
+                            <Icon icon={SendArrowUpCircleIcon} />
+                        </SendButton>
+                    </ActionsRow>
+                )}
             </Actions>
         </Layout.Root>
     )

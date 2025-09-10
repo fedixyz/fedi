@@ -11,7 +11,6 @@ use crate::FediSocialCommonGen;
 pub struct FediSocialConfig {
     pub private: FediSocialPrivateConfig,
     pub consensus: FediSocialConsensusConfig,
-    pub local: FediSocialConfigLocal,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -43,9 +42,6 @@ impl std::fmt::Display for FediSocialClientConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FediSocialConfigLocal;
-
 impl FediSocialClientConfig {
     /// Get the combined public key
     pub fn pk(&self) -> fedimint_threshold_crypto::PublicKey {
@@ -74,7 +70,6 @@ plugin_types_trait_impl_config!(
     EmptyGenParams,
     EmptyGenParams,
     FediSocialConfig,
-    FediSocialConfigLocal,
     FediSocialPrivateConfig,
     FediSocialConsensusConfig,
     FediSocialClientConfig

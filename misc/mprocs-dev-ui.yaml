@@ -19,7 +19,7 @@ procs:
         shell: nix develop .#xcode --command bash scripts/ui/start-ios.sh
         stop: SIGKILL
     remote-bridge:
-        shell: bash scripts/bridge/run-remote.sh
+        shell: bash scripts/bridge/run-remote.sh --with-devfed
     appium:
-        shell: bash scripts/ui/start-appium.sh
+        shell: nix develop -c env PROMPT=true bash scripts/ui/setup-and-start-appium.sh
         stop: SIGKILL

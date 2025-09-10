@@ -334,7 +334,7 @@ describe('fedimods', () => {
             await constructUrl(notFound).asyncAndThen(tryFetchUrlMetadata)
         expect(metadata.isOk()).toBe(false)
         expect(metadata.isErr()).toBe(true)
-        expect(metadata._unsafeUnwrapErr()._tag).toBe('FetchError')
+        expect(metadata._unsafeUnwrapErr()._tag).toBe('NotOkHttpResponseError')
     })
 
     it('should return the application name as the title', async () => {

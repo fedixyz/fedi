@@ -2,6 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { Trans, useTranslation } from 'react-i18next'
 import { Linking, Pressable, StyleSheet } from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
 
 import CheckList from '../components/ui/CheckList'
 import Flex from '../components/ui/Flex'
@@ -25,7 +26,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <SafeAreaContainer edges="notop" style={style.container}>
-            <Flex grow style={style.content}>
+            <ScrollView contentContainerStyle={style.content}>
                 <Flex align="center" gap="xl" style={style.header}>
                     <HoloCircle
                         size={100}
@@ -48,7 +49,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                         'feature.multispend.intro-5',
                     ]}
                 />
-                <Flex center>
+                <Flex center style={style.learnMore}>
                     <Pressable
                         onPress={() =>
                             Linking.openURL(
@@ -63,15 +64,19 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                         </HoloAlert>
                     </Pressable>
                 </Flex>
+            </ScrollView>
+
+            <Flex style={style.footer}>
+                <Button
+                    style={style.button}
+                    onPress={() =>
+                        navigation.navigate('CreateMultispend', {
+                            roomId,
+                        })
+                    }>
+                    {t('feature.multispend.create-multispend')}
+                </Button>
             </Flex>
-            <Button
-                onPress={() =>
-                    navigation.navigate('CreateMultispend', {
-                        roomId,
-                    })
-                }>
-                {t('feature.multispend.create-multispend')}
-            </Button>
         </SafeAreaContainer>
     )
 }
@@ -82,6 +87,7 @@ const styles = (theme: Theme) =>
             flex: 1,
         },
         content: {
+            paddingBottom: theme.spacing.md,
             paddingHorizontal: theme.spacing.md,
         },
         header: {
@@ -93,6 +99,17 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             alignItems: 'center',
             gap: theme.spacing.sm,
+        },
+        button: {
+            paddingBottom: theme.spacing.xs,
+        },
+        footer: {
+            paddingHorizontal: theme.spacing.md,
+            paddingTop: theme.spacing.xs,
+            paddingBottom: theme.spacing.xs,
+        },
+        learnMore: {
+            paddingVertical: theme.spacing.md,
         },
     })
 

@@ -368,8 +368,69 @@ export abstract class AppiumTestBase {
     ): Promise<void> {
         console.log(`Attempting to click element: ${key}`)
         const element = await this.waitForElementDisplayed(key, timeout)
-        await element.click()
-        console.log(`Successfully clicked element: ${key}`)
+
+        const startTime = Date.now()
+        while (Date.now() - startTime < timeout) {
+            if (await this.isElementClickable(element)) {
+                await element.click()
+                console.log(`Successfully clicked element: ${key}`)
+                return
+            }
+            await new Promise(resolve => setTimeout(resolve, 100))
+        }
+
+        throw new Error(
+            `Element "${key}" was displayed but not clickable after ${timeout} ms`,
+        )
+    }
+
+    async clickAndCheckForNextElement(
+        keyOfElementToClick: string,
+        keyOfElementToCheck: string,
+        timeout = DEFAULT_TIMEOUT,
+        retryDelay = 500,
+    ): Promise<void> {
+        console.log(
+            `Clicking "${keyOfElementToClick}" until "${keyOfElementToCheck}" is displayed`,
+        )
+        const startTime = Date.now()
+        let attempts = 0
+        let targetFound = false
+
+        while (Date.now() - startTime < timeout && !targetFound) {
+            attempts++
+            console.log(`Attempt ${attempts}`)
+
+            try {
+                await this.clickElementByKey(keyOfElementToClick, 1000)
+            } catch (error) {
+                console.warn(
+                    `Clicking element ${keyOfElementToClick} failed: ${(error as Error).message}`,
+                )
+            }
+
+            targetFound = await this.elementIsDisplayed(
+                keyOfElementToCheck,
+                1000,
+            )
+
+            if (targetFound) {
+                console.log(
+                    `Success! Target element "${keyOfElementToCheck}" is displayed after ${attempts} attempt(s)`,
+                )
+            } else {
+                const remainingTime = timeout - (Date.now() - startTime)
+                if (remainingTime <= retryDelay) break
+
+                await new Promise(resolve => setTimeout(resolve, retryDelay))
+            }
+        }
+
+        if (!targetFound) {
+            throw new Error(
+                `Element ${keyOfElementToCheck} was not displayed after clicking ${keyOfElementToClick} ${attempts} times`,
+            )
+        }
     }
 
     async typeIntoElementByKey(
@@ -395,6 +456,24 @@ export abstract class AppiumTestBase {
                 `Element ${key} is not displayed: ${(error as Error).message}`,
             )
             return false
+        }
+    }
+
+    private async isElementClickable(
+        element: ChainablePromiseElement,
+    ): Promise<boolean> {
+        let attr
+        switch (currentPlatform) {
+            case Platform.ANDROID:
+                attr = await element.getAttribute('clickable')
+                return attr === 'true'
+
+            case Platform.IOS:
+                attr = await element.getAttribute('hittable')
+                return attr === 'true'
+
+            case Platform.PWA:
+                return await element.isClickable()
         }
     }
 

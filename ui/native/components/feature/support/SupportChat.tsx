@@ -12,6 +12,7 @@ import { useAppDispatch } from '../../../state/hooks'
 import { useLaunchZendesk } from '../../../utils/hooks/support'
 import Flex from '../../ui/Flex'
 import HoloGuidance from '../../ui/HoloGuidance'
+import { SafeAreaContainer } from '../../ui/SafeArea'
 
 const SupportChat: React.FC = () => {
     const { theme } = useTheme()
@@ -38,43 +39,52 @@ const SupportChat: React.FC = () => {
     }
 
     return (
-        <Flex grow style={[{ backgroundColor: theme.colors.background }]}>
-            <Flex center grow style={style.content}>
-                <HoloGuidance
-                    iconImage={<SvgImage name="Bulb" size={86} />}
-                    title={t('feature.support.friendly-request')}
-                    body={null}
-                    noFlexContainer={true}
-                />
-                <View style={{ marginTop: -14 }}>
-                    <Text style={[styles(theme).message]}>
-                        {t('feature.support.effective-support-1a')}
-                        <Text
-                            style={[style.linkText]}
-                            onPress={handlePrivacyPolicyPress}>
-                            {t('feature.support.effective-support-info')}
+        <SafeAreaContainer edges="bottom">
+            <Flex grow style={[{ backgroundColor: theme.colors.background }]}>
+                <Flex center grow style={style.content}>
+                    <HoloGuidance
+                        iconImage={<SvgImage name="Bulb" size={86} />}
+                        title={t('feature.support.friendly-request')}
+                        body={null}
+                        noFlexContainer={true}
+                    />
+                    <View style={{ marginTop: -14 }}>
+                        <Text style={[styles(theme).message]}>
+                            {t('feature.support.effective-support-1a')}
+                            <Text
+                                style={[style.linkText]}
+                                onPress={handlePrivacyPolicyPress}>
+                                {t('feature.support.effective-support-info')}
+                            </Text>
+                            <Text>
+                                {t('feature.support.effective-support-1b')}
+                            </Text>
                         </Text>
-                        <Text>{t('feature.support.effective-support-1b')}</Text>
-                    </Text>
-                    <Text style={[styles(theme).message, { marginTop: 22 }]}>
-                        {t('feature.support.effective-support-2a')}
                         <Text
-                            style={[style.linkText]}
-                            onPress={handleHelpCenterPress}>
-                            {t('feature.support.effective-support-help-center')}
+                            style={[styles(theme).message, { marginTop: 22 }]}>
+                            {t('feature.support.effective-support-2a')}
+                            <Text
+                                style={[style.linkText]}
+                                onPress={handleHelpCenterPress}>
+                                {t(
+                                    'feature.support.effective-support-help-center',
+                                )}
+                            </Text>
+                            <Text>
+                                {t('feature.support.effective-support-2b')}
+                            </Text>
                         </Text>
-                        <Text>{t('feature.support.effective-support-2b')}</Text>
-                    </Text>
+                    </View>
+                </Flex>
+                <View style={style.overlayButtonsContainer}>
+                    <Button
+                        fullWidth
+                        onPress={grantPermission}
+                        title={t('phrases.i-understand')}
+                    />
                 </View>
             </Flex>
-            <View style={style.overlayButtonsContainer}>
-                <Button
-                    fullWidth
-                    onPress={grantPermission}
-                    title={t('phrases.i-understand')}
-                />
-            </View>
-        </Flex>
+        </SafeAreaContainer>
     )
 }
 

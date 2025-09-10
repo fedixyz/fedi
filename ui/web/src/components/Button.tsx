@@ -177,7 +177,7 @@ const ButtonBase = styled('button', {
         size: {
             md: {
                 height: 48,
-                padding: '0 40px',
+                padding: '0 30px',
                 fontSize: 14,
             },
             sm: {

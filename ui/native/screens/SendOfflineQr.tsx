@@ -106,7 +106,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                     {formattedSecondaryAmount}
                 </Text>
             </Flex>
-            <QRCode value={frames[index]} size={width * 0.7} />
+            <QRCode value={frames[index]} size={width * 0.7} disableSave />
             <Flex align="center" gap="lg">
                 <Flex
                     row

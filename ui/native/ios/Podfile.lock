@@ -1364,7 +1364,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-document-picker (9.3.1):
+  - react-native-document-picker (10.1.3):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1485,6 +1485,27 @@ PODS:
     - ReactCommon/turbomodule/core
     - Yoga
   - react-native-video/Video (6.8.0):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.01.01.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
+  - react-native-view-shot (4.0.3):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2178,7 +2199,7 @@ DEPENDENCIES:
   - React-microtasksnativemodule (from `../../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - "react-native-blur (from `../../node_modules/@react-native-community/blur`)"
   - "react-native-cameraroll (from `../../node_modules/@react-native-camera-roll/camera-roll`)"
-  - react-native-document-picker (from `../../node_modules/react-native-document-picker`)
+  - "react-native-document-picker (from `../../node_modules/@react-native-documents/picker`)"
   - react-native-get-random-values (from `../../node_modules/react-native-get-random-values`)
   - react-native-image-picker (from `../../node_modules/react-native-image-picker`)
   - react-native-mmkv (from `../../node_modules/react-native-mmkv`)
@@ -2188,6 +2209,7 @@ DEPENDENCIES:
   - react-native-safe-area-context (from `../../node_modules/react-native-safe-area-context`)
   - react-native-splash-screen (from `../../node_modules/react-native-splash-screen`)
   - react-native-video (from `../../node_modules/react-native-video`)
+  - react-native-view-shot (from `../../node_modules/react-native-view-shot`)
   - react-native-webview (from `../../node_modules/react-native-webview`)
   - react-native-worklets-core (from `../../node_modules/react-native-worklets-core`)
   - react-native-zendesk-messaging (from `../../node_modules/react-native-zendesk-messaging`)
@@ -2348,7 +2370,7 @@ EXTERNAL SOURCES:
   react-native-cameraroll:
     :path: "../../node_modules/@react-native-camera-roll/camera-roll"
   react-native-document-picker:
-    :path: "../../node_modules/react-native-document-picker"
+    :path: "../../node_modules/@react-native-documents/picker"
   react-native-get-random-values:
     :path: "../../node_modules/react-native-get-random-values"
   react-native-image-picker:
@@ -2367,6 +2389,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/react-native-splash-screen"
   react-native-video:
     :path: "../../node_modules/react-native-video"
+  react-native-view-shot:
+    :path: "../../node_modules/react-native-view-shot"
   react-native-webview:
     :path: "../../node_modules/react-native-webview"
   react-native-worklets-core:
@@ -2520,7 +2544,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: 2b73e68f0462f3175f98782db08896f8501afd20
   react-native-blur: a1bf334589f44658a58a859b1f3defe28e367fcf
   react-native-cameraroll: b3395629565d1663b4f340c7314e7c04e88c9b3c
-  react-native-document-picker: 7343222102ece8aec51390717f47ad7119c7921f
+  react-native-document-picker: cdbd9e62968998e3c05476843f833a004d3a88a8
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
   react-native-image-picker: 2fbbafdae7a7c6db9d25df2f2b1db4442d2ca2ad
   react-native-mmkv: 7d0b6c2a79e73100b933f2947a9c8741d664e18b
@@ -2530,6 +2554,7 @@ SPEC CHECKSUMS:
   react-native-safe-area-context: 4532f1a0c5d34a46b9324ccaaedcb5582a302b7d
   react-native-splash-screen: 4312f786b13a81b5169ef346d76d33bc0c6dc457
   react-native-video: b687b8d0a8576535185adf78f0eeb27c7dc46b86
+  react-native-view-shot: 8c2a4beffea24492167dc347fa29664d0f41fddf
   react-native-webview: b4410bec39abb8dab6063b20675e7519267eda26
   react-native-worklets-core: 13837e78b876fb75154ff3594efef190befebcf9
   react-native-zendesk-messaging: c6fd4bf206fd6d295700b9ce3ef9a82deb123e90
@@ -2592,6 +2617,6 @@ SPEC CHECKSUMS:
   ZendeskSDKStorage: 8567fcb49ddbae493f431a8d0edaae51872c9ec1
   ZendeskSDKUIComponents: c0bcaaaa706b57fe580bcf17917f56f667604d62
 
-PODFILE CHECKSUM: 6c4b2e890f1bc17d0e6aeb661bbc9d904cbe84d7
+PODFILE CHECKSUM: 344fcf9265e3469908568efd133babdb15715490
 
 COCOAPODS: 1.16.2

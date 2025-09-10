@@ -39,4 +39,6 @@ if [ -n "${FEDI_INSTALL_IN_NIX_OUT:-}" ]; then
   # copy artifacts to $out so the UI code can find them
   mkdir -p "$out/share/wasm"
   cp "$pack_out/"*.{ts,js,wasm} "$out/share/wasm"
+else
+  cp -f "$pack_out/"*.{ts,js,wasm} "$REPO_ROOT/ui/common/wasm"
 fi

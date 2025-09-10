@@ -2,22 +2,18 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Platform } from 'react-native'
 import DeviceInfo from 'react-native-device-info'
+import { readFile } from 'react-native-fs'
 import Share from 'react-native-share'
 import { v4 as uuidv4 } from 'uuid'
 
+import { useCompressLogs } from '@fedi/common/hooks/compress-logs'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     ExportResult,
     useExportMultispendTransactions,
     useExportTransactions,
-    useTransactionHistory,
 } from '@fedi/common/hooks/transactions'
-import {
-    generateReusedEcashProofs,
-    selectFedimintVersion,
-    selectNostrNpub,
-} from '@fedi/common/redux'
-import { selectActiveFederation } from '@fedi/common/redux/federation'
+import { selectFedimintVersion } from '@fedi/common/redux'
 import {
     LoadedFederation,
     MatrixRoom,
@@ -32,9 +28,10 @@ import {
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../bridge'
-import { useAppDispatch, useAppSelector } from '../../state/hooks'
-import { dumpDB } from '../device-info'
-import { generateLogsExportGzip } from '../log'
+import { useAppSelector } from '../../state/hooks'
+import { getAllDeviceInfo } from '../device-info'
+import { exportBridgeLogs } from '../log'
+import { storage } from '../storage'
 
 const exportLogger = makeLog('native/utils/hooks/export/useNativeExport')
 const shareLogger = makeLog('native/utils/hooks/export/useShareLogs')
@@ -120,71 +117,85 @@ export type Status =
     | 'uploading-data'
     | 'submitting-report'
 
+export const useCompressNativeLogs = () => {
+    const handleCollectDbContents = (path: string) => readFile(path, 'base64')
+
+    const handleCollectExtraFiles = () => ({
+        'bridge.log': exportBridgeLogs,
+        'info.json': async () => {
+            const infoJson = await getAllDeviceInfo()
+
+            return JSON.stringify(infoJson, null, 2)
+        },
+    })
+
+    return useCompressLogs({
+        fedimint,
+        storage,
+        handleCollectDbContents,
+        handleCollectExtraFiles,
+    })
+}
+
+export const useShareNativeLogs = () => {
+    const [status, setStatus] =
+        useState<Extract<Status, 'idle' | 'generating-data'>>('idle')
+
+    const { compressLogs } = useCompressNativeLogs()
+
+    const shareLogs = useCallback(async () => {
+        const filename = `fedi-logs-${Math.floor(Date.now() / 1000)}.tar.gz`
+
+        setStatus('idle')
+
+        try {
+            setStatus('generating-data')
+
+            const gzip = await compressLogs({ sendDb: false })
+
+            await Share.open({
+                title: 'Fedi logs',
+                url: `data:application/tar+gzip;base64,${gzip.toString('base64')}`,
+                filename: filename,
+                type: 'application/tar+gzip',
+            })
+        } catch (e) {
+            shareLogger.error('Error sharing logs', e)
+        } finally {
+            // Ignores errors thrown by `Share.open`
+            // the most probable outcome is the user aborting
+            setStatus('idle')
+        }
+    }, [compressLogs])
+
+    return { shareLogs, status }
+}
+
 /**
  * Hook for collecting attachments for uploading logs with a bug report
  */
-export const useShareLogs = () => {
-    const dispatch = useAppDispatch()
-    const toast = useToast()
-    const { t } = useTranslation()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const npub = useAppSelector(selectNostrNpub)
+export const useSubmitLogs = () => {
     const [status, setStatus] = useState<Status>('idle')
-
     const fedimintVersion = useAppSelector(selectFedimintVersion)
-
-    const { fetchTransactions } = useTransactionHistory(fedimint)
+    const { compressLogs } = useCompressNativeLogs()
 
     const collectAttachmentsAndSubmit = useCallback(
         async (sendDb: boolean, ticketNumber: string) => {
-            const attachmentFiles = []
             const id = uuidv4()
+            const ticket = ticketNumber.startsWith('#')
+                ? ticketNumber
+                : `#${ticketNumber}`
+
             setStatus('generating-data')
+
             try {
-                if (sendDb) {
-                    const db = await dumpDB(fedimint, activeFederation?.id)
-                    if (db) {
-                        attachmentFiles.push(db)
-                    }
-                    // Share ecash proofs when DB is shared
-                    // if reused ecash is detected
-                    const proofs = await dispatch(
-                        generateReusedEcashProofs({
-                            fedimint,
-                        }),
-                    ).unwrap()
-                    if (proofs.length > 0) {
-                        attachmentFiles.push({
-                            name: 'proofs.json',
-                            content: JSON.stringify(proofs, null, 2),
-                        })
-                    }
-                }
-                const transactions = await fetchTransactions({ limit: 10 })
+                const gzip = await compressLogs({ sendDb })
 
-                // Attach the ten latest transactions to attachmentFiles
-                attachmentFiles.push({
-                    name: 'transactions.json',
-                    content: JSON.stringify(transactions.slice(0, 10), null, 2),
-                })
-
-                if (npub) {
-                    attachmentFiles.push({
-                        name: 'nostr-npub.txt',
-                        content: npub.npub,
-                    })
-                }
-
-                const gzip = await generateLogsExportGzip(attachmentFiles)
-                // Upload the logs export gzip to storage
                 setStatus('uploading-data')
-                await uploadBugReportLogs(id, gzip)
-                // Submit bug report
-                setStatus('submitting-report')
 
-                const ticket = ticketNumber.startsWith('#')
-                    ? ticketNumber
-                    : `#${ticketNumber}`
+                await uploadBugReportLogs(id, gzip)
+
+                setStatus('submitting-report')
 
                 await submitBugReport({
                     id,
@@ -196,21 +207,12 @@ export const useShareLogs = () => {
 
                 return true // success
             } catch (err) {
-                shareLogger.error('Failed to generate attachment files', err)
-                toast.error(t, err)
                 setStatus('idle')
+                exportLogger.error('Failed to generate attachment files', err)
                 return false // failed
             }
         },
-        [
-            dispatch,
-            activeFederation,
-            fetchTransactions,
-            t,
-            toast,
-            npub,
-            fedimintVersion,
-        ],
+        [compressLogs, fedimintVersion],
     )
 
     return { collectAttachmentsAndSubmit, status, setStatus }

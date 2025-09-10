@@ -13,8 +13,8 @@ import {
     selectIsActiveFederationRecovering,
     selectOnboardingMethod,
 } from '@fedi/common/redux'
+import { selectCanShowSurvey } from '@fedi/common/redux/support'
 
-import { useCommonSelector } from '../../common/hooks/redux'
 import FirstTimeCommunityEntryOverlay, {
     FirstTimeCommunityEntryItem,
 } from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
@@ -23,9 +23,11 @@ import DisplayNameOverlay from '../components/feature/home/DisplayNameOverlay'
 import HomeWallets from '../components/feature/home/HomeWallets'
 import HomeWalletsPlaceholder from '../components/feature/home/HomeWalletsPlaceholder'
 import ShortcutsList from '../components/feature/home/ShortcutsList'
+import SurveyOverlay from '../components/feature/home/SurveyOverlay'
 import WelcomeMessage from '../components/feature/home/WelcomeMessage'
 import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
 import Flex from '../components/ui/Flex'
+import { useAppSelector } from '../state/hooks'
 import type {
     RootStackParamList,
     TabsNavigatorParamList,
@@ -43,12 +45,13 @@ const Home: React.FC<Props> = ({ offline }) => {
     const { theme } = useTheme()
     const isFocused = useIsFocused()
 
-    const federations = useCommonSelector(selectFederations)
-    const recoveryInProgress = useCommonSelector(
+    const federations = useAppSelector(selectFederations)
+    const recoveryInProgress = useAppSelector(
         selectIsActiveFederationRecovering,
     )
-    const pinnedMessage = useCommonSelector(selectFederationPinnedMessage)
-    const onboardingMethod = useCommonSelector(selectOnboardingMethod)
+    const pinnedMessage = useAppSelector(selectFederationPinnedMessage)
+    const onboardingMethod = useAppSelector(selectOnboardingMethod)
+    const canShowSurvey = useAppSelector(selectCanShowSurvey)
 
     const homeFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
         {
@@ -105,12 +108,12 @@ const Home: React.FC<Props> = ({ offline }) => {
         completeSeenDisplayName()
     }
 
+    const style = styles(theme)
+
     // Show placeholder wallet if no federations
     if (federations.length === 0) {
         return <HomeWalletsPlaceholder />
     }
-
-    const style = styles(theme)
 
     return (
         <View>
@@ -162,6 +165,7 @@ const Home: React.FC<Props> = ({ offline }) => {
                 show={showCommunityOverlay}
                 onDismiss={handleCommunityDismiss}
             />
+            {canShowSurvey && <SurveyOverlay />}
         </View>
     )
 }

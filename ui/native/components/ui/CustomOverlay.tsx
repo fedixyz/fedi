@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { getOverlayBottomPadding } from '../../utils/layout'
 import Flex from './Flex'
 import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
 
@@ -227,7 +228,10 @@ const styles = (theme: Theme, insets: Insets) =>
             borderTopRightRadius: 20,
             paddingTop: theme.spacing.xl,
             paddingHorizontal: theme.spacing.md,
-            paddingBottom: Math.max(theme.spacing.xl, insets.bottom || 0),
+            paddingBottom: getOverlayBottomPadding(
+                theme.spacing.xl,
+                insets.bottom || 0,
+            ),
             backgroundColor: theme.colors.white,
             gap: theme.spacing.xl,
             ...Platform.select({

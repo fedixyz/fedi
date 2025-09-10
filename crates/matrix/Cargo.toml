@@ -1,7 +1,7 @@
 [package]
 name = "matrix"
 version = "0.3.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 fedimint-core = { workspace = true }
@@ -10,6 +10,7 @@ rpc-types = { workspace = true }
 runtime = { workspace = true }
 
 anyhow = { workspace = true }
+async-stream = { workspace = true }
 futures = "0.3"
 tracing = { workspace = true }
 hex = { workspace = true }
@@ -24,6 +25,8 @@ matrix-sdk = { workspace = true, default-features = false, features = [
   "rustls-tls",
   "e2e-encryption",
 ] }
+serde = { workspace = true }
+ts-rs = { workspace = true }
 imbl = { version = "5", features = ["serde"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]

@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 import {
     constructUrl,
+    ensureHttpResponseOk,
     ensureNonNullish,
     fetchResult,
     thenJson,
@@ -18,6 +19,7 @@ const validDataUrl = 'https://validjson.com'
 const responseHtmlUrl = 'https://html.com'
 const eNotFound = 'https://enotfound.com'
 const invalidUrl = '$invalid\\url'
+const nonOkResponseUrl = 'https://nonokresponse.com'
 
 const testSchema = z.object({
     foo: z.string(),
@@ -43,6 +45,9 @@ describe('neverthrow', () => {
                 ctx.set('Content-Type', 'text/html'),
                 ctx.body('<html>hi</html>'),
             )
+        }),
+        rest.get(nonOkResponseUrl, (_req, res, ctx) => {
+            return res(ctx.status(500), ctx.body('Not found'))
         }),
         rest.get(eNotFound, (_req, res, _ctx) => {
             return res.networkError('getaddrinfo ENOTFOUND')
@@ -208,6 +213,28 @@ describe('neverthrow', () => {
             expect(undefinedRes.isErr()).toBe(true)
             expect(undefinedRes._unsafeUnwrapErr()._tag).toBe(
                 'MissingDataError',
+            )
+        })
+    })
+
+    describe('ensureHttpResponseOk', () => {
+        it('should let the Response pass through if it is ok', async () => {
+            const result =
+                await fetchResult(validDataUrl).andThen(ensureHttpResponseOk)
+
+            expect(result.isOk()).toBe(true)
+            expect(result._unsafeUnwrap()).toBeInstanceOf(Response)
+        })
+
+        it('should return a NotOkHttpResponseError if the Response is not ok', async () => {
+            const result =
+                await fetchResult(nonOkResponseUrl).andThen(
+                    ensureHttpResponseOk,
+                )
+
+            expect(result.isErr()).toBe(true)
+            expect(result._unsafeUnwrapErr()._tag).toBe(
+                'NotOkHttpResponseError',
             )
         })
     })

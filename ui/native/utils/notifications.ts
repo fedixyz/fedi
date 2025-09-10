@@ -22,7 +22,7 @@ import {
     configureMatrixPushNotifications,
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { makeError } from '@fedi/common/utils/errors'
+import { TaggedError } from '@fedi/common/utils/errors'
 import { makeLog } from '@fedi/common/utils/log'
 import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 import { getTxnDirection } from '@fedi/common/utils/wallet'
@@ -438,13 +438,11 @@ export const dispatchNotification = async (
 
             log.info(`badge count ${currentBadgeCount}`)
         })(),
-        e => {
-            log.error('Failed to display notification', e)
-            return makeError(e, 'GenericError')
-        },
+        e => new TaggedError('GenericError', e),
     )
 
     if (result.isErr()) {
+        log.error('Failed to display notification', result.error)
         return
     }
 }

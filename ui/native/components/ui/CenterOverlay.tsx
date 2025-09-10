@@ -8,14 +8,18 @@ import {
     KeyboardAvoidingView,
     Platform,
     Dimensions,
+    Pressable,
 } from 'react-native'
 import Modal from 'react-native-modal'
+
+import SvgImage from './SvgImage'
 
 type CenterOverlayProps = {
     onBackdropPress?: () => void
     show?: boolean
     overlayStyle?: StyleProp<ViewStyle>
     children: React.ReactNode
+    showCloseButton?: boolean
 }
 
 const width = Dimensions.get('window').width
@@ -25,6 +29,7 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
     show = false,
     overlayStyle,
     children,
+    showCloseButton = false,
 }) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -46,12 +51,27 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
             animationIn="fadeIn"
             animationOut="fadeOut"
             useNativeDriver
+            useNativeDriverForBackdrop
             style={style.modalContainer}>
             {/* wraps the modal content for keyboard avoidance - required by react-native-modal */}
             <KeyboardAvoidingView
                 behavior={'position'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 30 : -50}>
-                <View style={memoizedOverlayStyle}>{memoizedChildren}</View>
+                <View style={memoizedOverlayStyle}>
+                    {memoizedChildren}
+                    {showCloseButton && (
+                        <Pressable
+                            onPress={onBackdropPress}
+                            style={style.closeButton}
+                            hitSlop={10}>
+                            <SvgImage
+                                name="Close"
+                                size={24}
+                                color={theme.colors.primary}
+                            />
+                        </Pressable>
+                    )}
+                </View>
             </KeyboardAvoidingView>
         </Modal>
     )
@@ -71,6 +91,12 @@ const styles = (theme: Theme) =>
             borderRadius: theme.borders.defaultRadius,
             alignItems: 'center',
             backgroundColor: theme.colors.background,
+            position: 'relative',
+        },
+        closeButton: {
+            position: 'absolute',
+            top: theme.spacing.xl,
+            right: theme.spacing.xl,
         },
     })
 

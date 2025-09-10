@@ -18,6 +18,7 @@ import stringUtils from '@fedi/common/utils/StringUtils'
 import { fedimint } from '../bridge'
 import SeedWordInput from '../components/feature/recovery/SeedWordInput'
 import Flex from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { BIP39_WORD_LIST } from '../constants'
 import { usePinContext } from '../state/contexts/PinContext'
 import { reset } from '../state/navigation'
@@ -125,34 +126,36 @@ const ResetPin: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     return (
-        <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[
-                style.container,
-                keyboardHeight > 0 && Platform.OS === 'ios'
-                    ? { paddingBottom: keyboardHeight + theme.spacing.xl }
-                    : {},
-            ]}>
-            <Text style={style.instructionsText}>
-                {t('feature.recovery.personal-recovery-instructions')}
-            </Text>
-            <Card containerStyle={style.roundedCardContainer}>
-                <Flex row>
-                    <Flex grow basis={false} align="start">
-                        {renderFirstSixSeedWords()}
+        <SafeAreaContainer edges="bottom">
+            <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={[
+                    style.container,
+                    keyboardHeight > 0 && Platform.OS === 'ios'
+                        ? { paddingBottom: keyboardHeight + theme.spacing.xl }
+                        : {},
+                ]}>
+                <Text style={style.instructionsText}>
+                    {t('feature.recovery.personal-recovery-instructions')}
+                </Text>
+                <Card containerStyle={style.roundedCardContainer}>
+                    <Flex row>
+                        <Flex grow basis={false} align="start">
+                            {renderFirstSixSeedWords()}
+                        </Flex>
+                        <Flex grow basis={false} align="start">
+                            {renderLastSixSeedWords()}
+                        </Flex>
                     </Flex>
-                    <Flex grow basis={false} align="start">
-                        {renderLastSixSeedWords()}
-                    </Flex>
-                </Flex>
-            </Card>
-            <Button
-                title={t('feature.recovery.recover-wallet')}
-                containerStyle={style.continueButton}
-                onPress={handleResetPin}
-                disabled={seedWords.some(s => !isValidSeedWord(s))}
-            />
-        </ScrollView>
+                </Card>
+                <Button
+                    title={t('feature.recovery.recover-wallet')}
+                    containerStyle={style.continueButton}
+                    onPress={handleResetPin}
+                    disabled={seedWords.some(s => !isValidSeedWord(s))}
+                />
+            </ScrollView>
+        </SafeAreaContainer>
     )
 }
 

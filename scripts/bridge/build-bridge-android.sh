@@ -20,7 +20,7 @@ if [[ -n "$CI" ]]; then
   FM_BUILD_BRIDGE_ANDROID_LIBS_OUT=./result/share/fedi-android "$REPO_ROOT/scripts/bridge/install-bridge-android.sh"
 else
   export FM_BUILD_BRIDGE_ANDROID_LIBS_OUT=$REPO_ROOT/bridge/fedi-android/kotlinLibDeps
-  "$REPO_ROOT/scripts/bridge/build-bridge-android-libs.sh"
+  source "$REPO_ROOT/scripts/bridge/build-bridge-android-libs.sh"
   "$REPO_ROOT/scripts/bridge/install-bridge-android.sh"
 
   echo "Cleaning up intermediate dependencies..."

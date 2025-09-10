@@ -1,7 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useCallback } from 'react'
-import { Drawer } from 'vaul'
 
 import ChevronLeftIcon from '@fedi/common/assets/svgs/chevron-left.svg'
 import CloseIcon from '@fedi/common/assets/svgs/close.svg'
@@ -25,7 +24,6 @@ interface Props {
      * If specified, behaves like an overlay on mobile, showing a Back button and a centered header instead of a Close button.
      */
     mobileDismiss?: 'back' | 'close' | 'overlay'
-    disableOverlayHandle?: boolean
     disablePadding?: boolean
 }
 
@@ -38,7 +36,6 @@ export const Dialog: React.FC<Props> = ({
     size,
     disableClose,
     mobileDismiss = 'close',
-    disableOverlayHandle = false,
     disablePadding = false,
 }) => {
     const isSm = useMediaQuery(config.media.sm)
@@ -57,12 +54,10 @@ export const Dialog: React.FC<Props> = ({
     const renderContents = useCallback(() => {
         return (
             <>
-                {isMobileOverlay && !disableOverlayHandle && <Drawer.Handle />}
                 <Header>
                     {title && (
                         <>
-                            <Title
-                                as={isMobileOverlay ? Drawer.Title : undefined}>
+                            <Title>
                                 {!disableClose && mobileDismissBack && (
                                     <BackButtonContainer>
                                         <IconButton
@@ -82,11 +77,7 @@ export const Dialog: React.FC<Props> = ({
                         </>
                     )}
                     {description && (
-                        <Description
-                            asChild
-                            as={
-                                isMobileOverlay ? Drawer.Description : undefined
-                            }>
+                        <Description asChild>
                             <Text variant="caption" weight="medium">
                                 {description}
                             </Text>
@@ -95,8 +86,7 @@ export const Dialog: React.FC<Props> = ({
                 </Header>
                 <Main>{children}</Main>
                 {!disableClose && !mobileDismissBack && (
-                    <CloseButton
-                        as={isMobileOverlay ? Drawer.Close : undefined}>
+                    <CloseButton>
                         <Icon icon={CloseIcon} />
                     </CloseButton>
                 )}
@@ -110,34 +100,20 @@ export const Dialog: React.FC<Props> = ({
         mobileDismissBack,
         onOpenChange,
         title,
-        isMobileOverlay,
-        disableOverlayHandle,
     ])
-
-    if (isMobileOverlay) {
-        return (
-            <Drawer.Root open={open} onOpenChange={onOpenChange}>
-                <Drawer.Portal>
-                    <DrawerOverlay as={Drawer.Overlay} />
-                    <OverlayContent disablePadding={disablePadding}>
-                        {renderContents()}
-                    </OverlayContent>
-                </Drawer.Portal>
-            </Drawer.Root>
-        )
-    }
 
     return (
         <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
             <RadixDialog.Portal>
-                <Overlay>
+                <Overlay isMobileOverlay={isMobileOverlay}>
                     <Content
                         size={size}
                         disablePadding={disablePadding}
                         onOpenAutoFocus={ev => ev.preventDefault()}
                         onEscapeKeyDown={handleCloseTrigger}
                         onPointerDownOutside={handleCloseTrigger}
-                        onInteractOutside={handleCloseTrigger}>
+                        onInteractOutside={handleCloseTrigger}
+                        isMobileOverlay={isMobileOverlay}>
                         <VisuallyHidden>
                             <Title>{title || ''}</Title>
                             <Description>{description || ''}</Description>
@@ -169,12 +145,17 @@ const Overlay = styled(RadixDialog.Overlay, {
         alignItems: 'flex-start',
         background: theme.colors.secondary,
     },
-})
 
-const DrawerOverlay = styled(Drawer.Overlay, {
-    position: 'fixed !important',
-    inset: 0,
-    background: theme.colors.primary80,
+    variants: {
+        isMobileOverlay: {
+            true: {
+                '@sm': {
+                    background: theme.colors.primary80,
+                    alignItems: 'flex-end',
+                },
+            },
+        },
+    },
 })
 
 const contentShow = keyframes({
@@ -185,26 +166,6 @@ const contentShow = keyframes({
     '100%': {
         opacity: 1,
         transform: 'translateY(0) scale(1)',
-    },
-})
-
-const OverlayContent = styled(Drawer.Content, {
-    position: 'absolute',
-    bottom: 0,
-    width: '100vw',
-    maxHeight: '90vh',
-    background: theme.colors.white,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    padding: 24,
-    overflow: 'hidden',
-
-    variants: {
-        disablePadding: {
-            true: {
-                padding: 0,
-            },
-        },
     },
 })
 
@@ -255,6 +216,19 @@ const Content = styled(RadixDialog.Content, {
         disablePadding: {
             true: {
                 padding: 0,
+            },
+        },
+        isMobileOverlay: {
+            true: {
+                '@sm': {
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 'auto',
+                    borderTopLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                },
             },
         },
     },

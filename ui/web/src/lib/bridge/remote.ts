@@ -7,6 +7,8 @@ import {
 export { fedimint }
 
 export async function initializeBridge(deviceId: string) {
+    deviceId = sessionStorage.deviceId =
+        sessionStorage.deviceId || prompt('give device id')
     // accessible in console
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(globalThis as any).fedimint = fedimint

@@ -12,6 +12,7 @@ import { setFeatureUnlocked } from '@fedi/common/redux'
 import PinDot from '../components/feature/pin/PinDot'
 import Flex from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
 import { reset } from '../state/navigation'
@@ -127,66 +128,68 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
     }, [debouncedPin])
 
     return (
-        <Flex grow center style={style.container}>
-            <Flex grow center style={style.content}>
-                <Flex row center style={style.dots}>
-                    {isReEnteringPin &&
-                    isConfirmationReady &&
-                    !isConfirmationCorrect ? (
-                        <Text
-                            style={[
-                                style.reEnterIndicator,
-                                style.incorrectPin,
-                            ]}>
-                            {t('feature.pin.pin-doesnt-match')}
-                        </Text>
-                    ) : isReEnteringPin ? (
-                        <Text style={style.reEnterIndicator}>
-                            {t('feature.pin.re-enter-pin')}
-                        </Text>
-                    ) : null}
+        <SafeAreaContainer edges="bottom">
+            <Flex grow center style={style.container}>
+                <Flex grow center style={style.content}>
+                    <Flex row center style={style.dots}>
+                        {isReEnteringPin &&
+                        isConfirmationReady &&
+                        !isConfirmationCorrect ? (
+                            <Text
+                                style={[
+                                    style.reEnterIndicator,
+                                    style.incorrectPin,
+                                ]}>
+                                {t('feature.pin.pin-doesnt-match')}
+                            </Text>
+                        ) : isReEnteringPin ? (
+                            <Text style={style.reEnterIndicator}>
+                                {t('feature.pin.re-enter-pin')}
+                            </Text>
+                        ) : null}
 
-                    {pinNumbers.map(i => (
-                        <PinDot
-                            key={i}
-                            status={dotStatus(i)}
-                            isLast={i === maxPinLength}
-                        />
-                    ))}
-                    {isConfirmationReady && !isConfirmationCorrect && (
-                        <View style={style.startOver}>
-                            <Button
-                                day
-                                title={
-                                    <Text caption>
-                                        {t('phrases.start-over')}
-                                    </Text>
-                                }
-                                buttonStyle={style.startOverButtonStyle}
-                                onPress={() => {
-                                    setPinDigits([])
-                                    setConfirmPinDigits([])
-                                    setIsReEnteringPin(false)
-                                }}
+                        {pinNumbers.map(i => (
+                            <PinDot
+                                key={i}
+                                status={dotStatus(i)}
+                                isLast={i === maxPinLength}
                             />
-                        </View>
+                        ))}
+                        {isConfirmationReady && !isConfirmationCorrect && (
+                            <View style={style.startOver}>
+                                <Button
+                                    day
+                                    title={
+                                        <Text caption>
+                                            {t('phrases.start-over')}
+                                        </Text>
+                                    }
+                                    buttonStyle={style.startOverButtonStyle}
+                                    onPress={() => {
+                                        setPinDigits([])
+                                        setConfirmPinDigits([])
+                                        setIsReEnteringPin(false)
+                                    }}
+                                />
+                            </View>
+                        )}
+                    </Flex>
+                </Flex>
+                <Flex row wrap fullWidth style={style.numpad}>
+                    {numpadButtons.map(btn =>
+                        btn === '.' ? (
+                            <View key="empty" style={style.numpadBtnWidth} />
+                        ) : (
+                            <NumpadButton
+                                key={btn}
+                                btn={btn}
+                                onPress={() => handleNumpadPress(btn)}
+                            />
+                        ),
                     )}
                 </Flex>
             </Flex>
-            <Flex row wrap fullWidth style={style.numpad}>
-                {numpadButtons.map(btn =>
-                    btn === '.' ? (
-                        <View key="empty" style={style.numpadBtnWidth} />
-                    ) : (
-                        <NumpadButton
-                            key={btn}
-                            btn={btn}
-                            onPress={() => handleNumpadPress(btn)}
-                        />
-                    ),
-                )}
-            </Flex>
-        </Flex>
+        </SafeAreaContainer>
     )
 }
 

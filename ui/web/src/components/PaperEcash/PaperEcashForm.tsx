@@ -2,6 +2,7 @@ import { dataToFrames } from 'qrloop'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useIsInviteSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectActiveFederation,
@@ -35,6 +36,7 @@ export const PaperEcashForm: React.FC<Props> = ({ onChangeEcashPapers }) => {
     const balance = useAppSelector(selectFederationBalance)
     const currency = useAppSelector(selectCurrency)
     const exchangeRate = useAppSelector(selectBtcExchangeRate)
+    const includeInvite = useIsInviteSupported()
     const [countValue, setCountValue] = useState('1')
     const [msatsValue, setMsatsValue] = useState('10000')
     const [isOptimizedQr, setIsOptimizedQr] = useState(true)
@@ -80,6 +82,7 @@ export const PaperEcashForm: React.FC<Props> = ({ onChangeEcashPapers }) => {
                 const { ecash } = await fedimint.generateEcash(
                     amount,
                     activeFederation.id,
+                    includeInvite,
                 )
                 const frames = dataToFrames(
                     isOptimizedQr ? Buffer.from(ecash, 'base64') : ecash,

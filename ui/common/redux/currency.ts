@@ -329,8 +329,11 @@ export const selectBtcUsdExchangeRate = (
         : s.currency.btcUsdRate || 0
 }
 
-export const selectBtcExchangeRate = (s: CommonState) => {
-    const currency = selectCurrency(s)
+export const selectBtcExchangeRate = (
+    s: CommonState,
+    customCurrency?: SelectableCurrency,
+) => {
+    const currency = customCurrency ?? selectCurrency(s)
     const metadata = selectFederationMetadata(s)
     const btcUsdRate = selectBtcUsdExchangeRate(s)
 

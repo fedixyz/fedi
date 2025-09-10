@@ -24,10 +24,15 @@
         "format": "prettier --write '*.{js,json,md,ts}' && turbo run format",
         "format:check": "prettier --check '*.{js,json,md,ts}' && turbo run format:check --parallel",
         "test": "turbo run test",
+        "test:common": "turbo run test --filter=common",
+        "test:injections": "turbo run test --filter=injections",
+        "test:native": "turbo run test --filter=native",
+        "test:web": "turbo run test --filter=web",
         "postinstall": "patch-package"
     },
     "devDependencies": {
         "@types/node": "^22.9.0",
+        "appium": "^3.0.0",
         "knip": "^5.36.5",
         "patch-package": "^8.0.0",
         "prettier": "3.3.3",

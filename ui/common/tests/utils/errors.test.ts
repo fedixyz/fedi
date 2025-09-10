@@ -1,79 +1,35 @@
-import fetchMock from 'jest-fetch-mock'
-
-import { isErrorInstance, makeError, UnexpectedError } from '../../utils/errors'
-
-fetchMock.enableMocks()
+import { TaggedError } from '../../utils/errors'
 
 describe('errors', () => {
-    describe('makeError', () => {
-        it('should tag an error if it matches the tag error type', () => {
-            // GenericError: Error
-            const error = makeError(new Error('test'), 'GenericError')
-
-            expect(error._tag).toBe('GenericError')
-        })
-
-        it('should not tag an error if it does not match the tag error type', () => {
-            // UrlConstructError: TypeError
-            const error = makeError(new Error('test'), 'UrlConstructError')
-
-            expect(error._tag).toBe('UnexpectedError')
-        })
-
-        it('should not re-tag an already-tagged error', () => {
-            const error1 = makeError(new Error('test'), 'GenericError')
-            const error2 = makeError(error1, 'FetchError')
-
-            expect(error1._tag).toBe('GenericError')
-            expect(error2._tag).toBe('UnexpectedError')
-            expect(error2).toBeInstanceOf(UnexpectedError)
-            expect((error2 as UnexpectedError).message).toBe(
-                'Failed to construct FetchError from GenericError',
-            )
-        })
-
-        it('should return an UnexpectedError if the passed-in object is not an Error', () => {
-            const strErr = makeError('not an error', 'GenericError')
-            const numErr = makeError(1, 'GenericError')
-            const boolErr = makeError(true, 'GenericError')
-            const nullErr = makeError(null, 'GenericError')
-            const undefinedErr = makeError(undefined, 'GenericError')
-
-            expect(strErr._tag).toBe('UnexpectedError')
-            expect(numErr._tag).toBe('UnexpectedError')
-            expect(boolErr._tag).toBe('UnexpectedError')
-            expect(nullErr._tag).toBe('UnexpectedError')
-            expect(undefinedErr._tag).toBe('UnexpectedError')
-        })
+    beforeEach(() => {
+        jest.clearAllMocks()
     })
 
-    describe('isErrorInstance', () => {
-        it('should return true if the value passed is an instance of the tag error type', () => {
-            const error = new Error('Normal Error')
+    describe('TaggedError', () => {
+        it('.withMessage() should attach a message to the tagged error', () => {
+            const error = new TaggedError('GenericError').withMessage('test')
 
-            // GenericError is an Error
-            expect(isErrorInstance(error, 'GenericError')).toBe(true)
+            expect(error._tag).toBe('GenericError')
+            expect(error.message).toBe('test')
         })
 
-        it('should return false if the value passed is not an instance of the tag error type', () => {
-            const error = new Error('Type Error')
+        it('should populate `.cause` if a second arg is passed into TaggedError', () => {
+            const cause = new Error('lol')
+            const error = new TaggedError('UserError', cause)
 
-            // UrlConstructError is a TypeError
-            expect(isErrorInstance(error, 'UrlConstructError')).toBe(false)
+            expect(error.cause).toBe(cause)
         })
 
-        it('should return true if the value passed extends the tag error type', () => {
-            const error = new Error('Normal Error')
-            const typeError = new TypeError('Type Error')
-            const syntaxError = new SyntaxError('Syntax Error')
-            const uriError = new URIError('URI Error')
-            const rangeError = new RangeError('Range Error')
+        it('.intoErr() / .intoErrAsync() should return the TaggedError wrapped in a neverthrow err() / errAsync()', async () => {
+            const error = new TaggedError('GenericError')
 
-            expect(isErrorInstance(error, 'GenericError')).toBe(true)
-            expect(isErrorInstance(typeError, 'GenericError')).toBe(true)
-            expect(isErrorInstance(syntaxError, 'GenericError')).toBe(true)
-            expect(isErrorInstance(uriError, 'GenericError')).toBe(true)
-            expect(isErrorInstance(rangeError, 'GenericError')).toBe(true)
+            const neverthrowErr = error.intoErr()
+            const neverthrowErrAsync = await error.intoErrAsync()
+
+            expect(neverthrowErr.isErr()).toBe(true)
+            expect(neverthrowErr._unsafeUnwrapErr()).toBe(error)
+            expect(neverthrowErrAsync.isErr()).toBe(true)
+            expect(neverthrowErrAsync._unsafeUnwrapErr()).toBe(error)
         })
     })
 })

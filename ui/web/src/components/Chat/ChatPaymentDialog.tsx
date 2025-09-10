@@ -45,6 +45,8 @@ export const ChatPaymentDialog: React.FC<Props> = ({
         canSendAmount,
         handleSendPayment,
         handleRequestPayment,
+        notes,
+        setNotes,
     } = useChatPaymentUtils(t, fedimint, roomId, recipientId)
     const recipient = useAppSelector(s => selectMatrixUser(s, recipientId))
 
@@ -54,7 +56,15 @@ export const ChatPaymentDialog: React.FC<Props> = ({
         setSubmitAction(null)
         setSubmitAttempts(0)
         setSubmitType(undefined)
-    }, [open, setAmount, setSubmitAction, setSubmitAttempts, setSubmitType])
+        setNotes('')
+    }, [
+        open,
+        setAmount,
+        setSubmitAction,
+        setSubmitAttempts,
+        setSubmitType,
+        setNotes,
+    ])
 
     const handleRequest = useCallback(async () => {
         handleRequestPayment(() => {
@@ -99,6 +109,15 @@ export const ChatPaymentDialog: React.FC<Props> = ({
                                 : t('words.request')
                         }
                         submitAttempts={submitAttempts}
+                        extraInput={
+                            <NoteInput
+                                value={notes}
+                                placeholder={t('phrases.add-note')}
+                                onChange={ev =>
+                                    setNotes(ev.currentTarget.value)
+                                }
+                            />
+                        }
                         {...inputMinMax}
                     />
                 )}
@@ -154,5 +173,20 @@ const Actions = styled('div', {
 
     '> *': {
         flex: 1,
+    },
+})
+
+const NoteInput = styled('input', {
+    width: '100%',
+    padding: 8,
+    textAlign: 'center',
+    fontSize: theme.fontSizes.caption,
+    fontWeight: theme.fontWeights.medium,
+    background: 'none',
+    border: 'none',
+    outline: 'none',
+
+    '&[readonly]': {
+        cursor: 'default',
     },
 })

@@ -24,6 +24,8 @@ export const shouldHideNavigation = (
         if (path.includes(`${routes.chatRoute}/`)) return true
 
         if (path === routes.shareLogsRoute) return true
+
+        if (path === routes.transactionsRoute) return true
     }
 
     return false

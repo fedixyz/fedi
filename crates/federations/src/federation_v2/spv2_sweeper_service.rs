@@ -1,8 +1,8 @@
 use anyhow::anyhow;
 use fedimint_client::ClientModuleInstance;
+use fedimint_core::Amount;
 use fedimint_core::core::OperationId;
 use fedimint_core::db::{Committable, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
-use fedimint_core::Amount;
 use futures::StreamExt;
 use rpc_types::event::{Event, EventSink, TypedEventExt};
 use rpc_types::{RpcAmount, SPv2WithdrawMetadata};
@@ -10,9 +10,9 @@ use stability_pool_client::common::{AccountType, FiatAmount, FiatOrAll, SyncResp
 use stability_pool_client::{StabilityPoolClientModule, StabilityPoolWithdrawalOperationState};
 use tracing::{error, info};
 
+use super::FederationV2;
 use super::client::ClientExt;
 use super::db::{LastSPv2SweeperWithdrawalKey, LastStabilityPoolV2DepositCycleKey};
-use super::FederationV2;
 
 // A continously running background service that sweeps unfilled seeker deposits
 // back into e-cash balance. Unfilled deposits could be a result of
@@ -120,7 +120,7 @@ async fn subscribe_withdraw(
             | StabilityPoolWithdrawalOperationState::UnlockProcessingError(e)
             | StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(e)
             | StabilityPoolWithdrawalOperationState::PrimaryOutputError(e) => {
-                return Err(anyhow!("spv2 Sweep error: {e}"))
+                return Err(anyhow!("spv2 Sweep error: {e}"));
             }
             StabilityPoolWithdrawalOperationState::Success(amount) => {
                 event_sink.typed_event(&Event::stability_pool_unfilled_deposit_swept(RpcAmount(

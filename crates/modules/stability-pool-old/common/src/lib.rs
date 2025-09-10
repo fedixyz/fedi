@@ -7,7 +7,7 @@ use fedimint_core::core::{Decoder, ModuleInstanceId, ModuleKind};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{CommonModuleInit, ModuleCommon, ModuleConsensusVersion};
 use fedimint_core::{
-    extensible_associated_module_type, plugin_types_trait_impl_common, Amount, TransactionId,
+    Amount, TransactionId, extensible_associated_module_type, plugin_types_trait_impl_common,
 };
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};

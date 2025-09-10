@@ -1,4 +1,4 @@
-import * as RadixAlertDialog from '@radix-ui/react-alert-dialog'
+import * as RadixDialog from '@radix-ui/react-dialog'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -55,8 +55,8 @@ export const ConfirmDialog: React.FC<Props> = ({
     }, [onConfirm])
 
     return (
-        <RadixAlertDialog.Root open={open} onOpenChange={handleOpenChange}>
-            <RadixAlertDialog.Portal>
+        <RadixDialog.Root open={open} onOpenChange={handleOpenChange}>
+            <RadixDialog.Portal>
                 <Overlay>
                     <Content onOpenAutoFocus={ev => ev.preventDefault()}>
                         <Title>
@@ -87,8 +87,8 @@ export const ConfirmDialog: React.FC<Props> = ({
                         </Actions>
                     </Content>
                 </Overlay>
-            </RadixAlertDialog.Portal>
-        </RadixAlertDialog.Root>
+            </RadixDialog.Portal>
+        </RadixDialog.Root>
     )
 }
 
@@ -97,7 +97,7 @@ const overlayShow = keyframes({
     '100%': { opacity: 1 },
 })
 
-const Overlay = styled(RadixAlertDialog.Overlay, {
+const Overlay = styled(RadixDialog.Overlay, {
     position: 'fixed',
     inset: 0,
     display: 'grid',
@@ -118,7 +118,7 @@ const contentShow = keyframes({
     },
 })
 
-const Content = styled(RadixAlertDialog.Content, {
+const Content = styled(RadixDialog.Content, {
     position: 'relative',
     padding: 32,
     borderRadius: 20,
@@ -129,11 +129,11 @@ const Content = styled(RadixAlertDialog.Content, {
     animation: `${contentShow} 150ms ease`,
 })
 
-const Title = styled(RadixAlertDialog.Title, {
+const Title = styled(RadixDialog.Title, {
     marginBottom: 8,
 })
 
-const Description = styled(RadixAlertDialog.Description, {
+const Description = styled(RadixDialog.Description, {
     color: theme.colors.darkGrey,
     marginBottom: 20,
 })

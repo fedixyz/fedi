@@ -1,4 +1,5 @@
 import { ONE_KB, ONE_MB } from '../constants/matrix'
+import { FileUri, HttpUri, MxcUri } from '../types/media'
 
 const unfixZero = (n: string) => (n.endsWith('.0') ? n.slice(0, -2) : n)
 
@@ -59,7 +60,7 @@ export const scaleAttachment = (
  * Ensures that the file URI is prefixed with `file://` if it is not already.
  */
 export const prefixFileUri = (uri: string) =>
-    uri.startsWith('file://') ? uri : `file://${uri}`
+    (uri.startsWith('file://') ? uri : `file://${uri}`) as FileUri
 
 /**
  * Strips off file:// from a file URI if it is present.
@@ -73,3 +74,9 @@ export const stripFileUriPrefix = (uri: string) =>
 export function pathJoin(...paths: string[]): string {
     return paths.join('/').replace(/\/+/g, '/')
 }
+
+export const isMxcUri = (uri: string): uri is MxcUri => uri.startsWith('mxc://')
+export const isFileUri = (uri: string): uri is FileUri =>
+    uri.startsWith('file://')
+export const isHttpUri = (uri: string): uri is HttpUri =>
+    uri.startsWith('http://') || uri.startsWith('https://')

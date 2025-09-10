@@ -13,14 +13,14 @@ import {
     StyleSheet,
 } from 'react-native'
 
-import { getMatrixRoomPreview } from '@fedi/common/redux'
+import { getMatrixRoomPreview, selectIsDefaultGroup } from '@fedi/common/redux'
 import { MatrixEvent, MatrixGroupPreview } from '@fedi/common/types'
 import {
     MatrixEventContent,
     makeMatrixEventGroups,
 } from '@fedi/common/utils/matrix'
 
-import { useAppDispatch } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import ChatEventCollection from './ChatEventCollection'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import NoMessagesNotice from './NoMessagesNotice'
@@ -39,6 +39,7 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
     const [isRefreshing, setIsRefreshing] = useState(false)
 
     const isBroadcast = preview.info?.broadcastOnly === true
+    const isDefault = useAppSelector(s => selectIsDefaultGroup(s, id))
 
     const [hasNewMessage, setHasNewMessages] = useState(false)
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
@@ -160,7 +161,10 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
                 contentContainerStyle={style.contentContainer}
                 removeClippedSubviews={false}
                 ListEmptyComponent={
-                    <NoMessagesNotice isBroadcast={isBroadcast} />
+                    <NoMessagesNotice
+                        isBroadcast={isBroadcast}
+                        isDefault={isDefault}
+                    />
                 }
                 onScroll={handleScroll}
                 // this prop is required to accomplish both:

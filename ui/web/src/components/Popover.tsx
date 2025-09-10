@@ -26,10 +26,12 @@ export const Popover: React.FC<Props> = ({
     return (
         <RadixPopover.Root open={open} onOpenChange={onOpenChange} modal>
             <RadixPopover.Trigger>{children}</RadixPopover.Trigger>
-            <Content {...contentProps} arrowPadding={12}>
-                {content}
-                {arrow && <Arrow />}
-            </Content>
+            <RadixPopover.Portal>
+                <Content {...contentProps} arrowPadding={12}>
+                    {content}
+                    {arrow && <Arrow />}
+                </Content>
+            </RadixPopover.Portal>
         </RadixPopover.Root>
     )
 }

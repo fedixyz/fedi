@@ -3,6 +3,7 @@ import React from 'react'
 import { selectMatrixAuth } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 import {
+    isFileEvent,
     isFormEvent,
     isImageEvent,
     isPaymentEvent,
@@ -12,6 +13,7 @@ import {
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
+import { ChatFileEvent } from './ChatFileEvent'
 import { ChatFormEvent } from './ChatFormEvent'
 import { ChatImageEvent } from './ChatImageEvent'
 import { ChatPaymentEvent } from './ChatPaymentEvent'
@@ -32,17 +34,25 @@ export const ChatEvent: React.FC<Props> = ({ event }) => {
     // properly futher down.
     if (isImageEvent(event)) {
         return (
-            <MediaContent isMe={isMe}>
+            <AttachmentContent isMe={isMe}>
                 <ChatImageEvent event={event} />
-            </MediaContent>
+            </AttachmentContent>
         )
     }
 
     if (isVideoEvent(event)) {
         return (
-            <MediaContent isMe={isMe}>
+            <AttachmentContent isMe={isMe}>
                 <ChatVideoEvent event={event} />
-            </MediaContent>
+            </AttachmentContent>
+        )
+    }
+
+    if (isFileEvent(event)) {
+        return (
+            <AttachmentContent isMe={isMe}>
+                <ChatFileEvent event={event} />
+            </AttachmentContent>
         )
     }
 
@@ -66,7 +76,7 @@ export const ChatEvent: React.FC<Props> = ({ event }) => {
     )
 }
 
-const MediaContent = styled('div', {
+const AttachmentContent = styled('div', {
     display: 'flex',
     flexDirection: 'row-reverse',
     width: '90%',

@@ -1,7 +1,7 @@
 [package]
 name = "runtime"
 version = "0.3.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 
@@ -43,6 +43,6 @@ matrix-sdk = { workspace = true, default-features = false, features = [
 ] }
 imbl = { version = "5", features = ["serde"] }
 serde_with = "3.12.0"
-eyeball-im = "0.7"
+eyeball-im = { version = "0.7", features = ["serde"] }
 eyeball = "0.8.7"
 either = "1.15.0"

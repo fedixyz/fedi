@@ -97,7 +97,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
         }
         return (
             <Flex align="start" gap="lg" fullWidth style={style.optionsList}>
-                {federationPreview && (
+                {federationPreview ? (
                     <Pressable
                         style={style.actionCardContainer}
                         onPress={() => setShowFederationPreview(true)}>
@@ -137,6 +137,8 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                             />
                         </View>
                     </Pressable>
+                ) : (
+                    <Text center>{t('errors.unknown-ecash-issuer')}</Text>
                 )}
 
                 {!hideOtherMethods && (

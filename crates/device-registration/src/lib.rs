@@ -1,8 +1,7 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::anyhow;
-use fedimint_core::task::TaskGroup;
 use fedimint_core::util::backoff_util::custom_backoff;
 use fedimint_core::util::retry;
 use rpc_types::event::{Event, EventSink, TypedEventExt as _};
@@ -10,79 +9,66 @@ use runtime::api::{IFediApi, RegisterDeviceError, RegisteredDevice};
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{DEVICE_REGISTRATION_FREQUENCY, DEVICE_REGISTRATION_OVERDUE};
 use runtime::storage::AppState;
+use tokio::sync::watch;
 use tracing::{error, info};
 
 pub struct DeviceRegistrationService {
-    app_state: AppState,
-    fedi_api: Arc<dyn IFediApi>,
-    active_task_subgroup: Option<TaskGroup>,
+    runtime: Arc<Runtime>,
+    // set to current time on every renew
+    just_renewed_tick: watch::Sender<Option<SystemTime>>,
 }
 
 impl DeviceRegistrationService {
-    pub async fn new(runtime: Arc<Runtime>) -> Self {
-        let mut service = Self {
-            app_state: runtime.app_state.clone(),
-            fedi_api: runtime.fedi_api.clone(),
-            active_task_subgroup: None,
-        };
+    pub async fn new(runtime: Arc<Runtime>) -> Arc<Self> {
+        let service = Arc::new(Self {
+            runtime: runtime.clone(),
+            just_renewed_tick: watch::Sender::new(None),
+        });
 
-        service
-            .start_periodic_registration(
-                service.app_state.device_index().await,
-                &runtime.task_group,
-                runtime.event_sink.clone(),
-            )
-            .await;
-
-        service
-    }
-
-    async fn start_periodic_registration(
-        &mut self,
-        device_index: u8,
-        task_group: &TaskGroup,
-        event_sink: EventSink,
-    ) {
-        let subgroup = task_group.make_subgroup();
-        subgroup.spawn_cancellable(
+        runtime.task_group.spawn_cancellable(
             "device_registration_service",
-            renew_registration_periodically(
-                device_index,
-                self.app_state.clone(),
-                event_sink,
-                self.fedi_api.clone(),
-            ),
+            service.clone().renew_registration_periodically(),
         );
-        self.active_task_subgroup = Some(subgroup);
+
+        service
     }
-}
 
-async fn renew_registration_periodically(
-    device_index: u8,
-    app_state: AppState,
-    event_sink: EventSink,
-    fedi_api: Arc<dyn IFediApi>,
-) {
-    // Start the periodic activity of renewing this device's
-    // registration every so often. Should this renewal ever fail because of
-    // a conflicting device that's registered with Fedi's servers using the
-    // same device index, we emit an event to let the UI know that
-    // this device should no longer be used.
-    loop {
-        if register_device_with_backoff(
-            app_state.clone(),
-            fedi_api.clone(),
-            event_sink.clone(),
-            device_index,
-            false,
-        )
-        .await
-        .is_err()
-        {
-            break;
+    // wait until registeration was renewed at most 1 minute ago
+    pub async fn wait_for_recently_renewed(&self) {
+        self.just_renewed_tick
+            .subscribe()
+            .wait_for(|last_renewed_time| {
+                last_renewed_time
+                    .is_some_and(|t| fedimint_core::time::now() + Duration::from_secs(60) > t)
+            })
+            .await
+            .expect("we own the sender");
+    }
+
+    async fn renew_registration_periodically(self: Arc<Self>) {
+        // Start the periodic activity of renewing this device's
+        // registration every so often. Should this renewal ever fail because of
+        // a conflicting device that's registered with Fedi's servers using the
+        // same device index, we emit an event to let the UI know that
+        // this device should no longer be used.
+        loop {
+            if register_device_with_backoff(
+                self.runtime.app_state.clone(),
+                self.runtime.fedi_api.clone(),
+                self.runtime.event_sink.clone(),
+                self.runtime.app_state.device_index().await,
+                false,
+            )
+            .await
+            .is_err()
+            {
+                break;
+            }
+
+            self.just_renewed_tick
+                .send_replace(Some(fedimint_core::time::now()));
+            fedimint_core::task::sleep(DEVICE_REGISTRATION_FREQUENCY).await;
         }
-
-        fedimint_core::task::sleep(DEVICE_REGISTRATION_FREQUENCY).await;
     }
 }
 

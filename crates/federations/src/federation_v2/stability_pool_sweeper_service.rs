@@ -1,17 +1,17 @@
 use std::time::Duration;
 
 use anyhow::anyhow;
-use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::Amount;
+use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use futures::StreamExt;
-use rpc_types::event::{Event, EventSink, TypedEventExt};
 use rpc_types::RpcAmount;
+use rpc_types::event::{Event, EventSink, TypedEventExt};
 use stability_pool_client_old::{ClientAccountInfo, StabilityPoolWithdrawalOperationState};
 use tracing::{error, info};
 
+use super::FederationV2;
 use super::client::ClientExt;
 use super::db::LastStabilityPoolDepositCycleKey;
-use super::FederationV2;
 
 // A continously running background service that sweeps unfilled seeker deposits
 // back into e-cash balance. Unfilled deposits could be a result of
@@ -95,10 +95,10 @@ async fn sweep_stability_pool_inner(
     while let Some(update) = updates.next().await {
         match update {
             StabilityPoolWithdrawalOperationState::TxRejected(e) => {
-                return Err(anyhow!("TX rejected: {e}"))
+                return Err(anyhow!("TX rejected: {e}"));
             }
             StabilityPoolWithdrawalOperationState::PrimaryOutputError(e) => {
-                return Err(anyhow!("Primary output error: {e}"))
+                return Err(anyhow!("Primary output error: {e}"));
             }
             StabilityPoolWithdrawalOperationState::Success(amount) => {
                 event_sink.typed_event(&Event::stability_pool_unfilled_deposit_swept(RpcAmount(

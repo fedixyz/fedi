@@ -65,6 +65,8 @@ communities = { workspace = true }
 rpc-types = { workspace = true }
 either = "1.15.0"
 nostril = { workspace = true }
+imbl = { version = "5", features = ["serde"] }
+eyeball-im = { version = "0.7", features = ["serde"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }

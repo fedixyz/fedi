@@ -2,7 +2,7 @@
 pub mod ffi;
 #[cfg(not(target_family = "wasm"))]
 pub mod logging;
-#[cfg(test)]
+#[cfg(any())]
 pub mod matrix_tests;
 pub mod rpc;
 

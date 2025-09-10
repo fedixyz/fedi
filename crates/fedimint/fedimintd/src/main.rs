@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use anyhow::bail;
 use env::envs::{
     FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV, FEDI_STABILITY_POOL_MODULE_ENABLE_ENV,
     FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV, FEDI_STABILITY_POOL_V2_CYCLE_DURATION_SECS_ENV,
@@ -8,30 +7,34 @@ use env::envs::{
 };
 use fedi_social_common::config::FediSocialGenParams;
 use fedi_social_server::FediSocialInit;
-use fedimint_core::envs::is_env_var_set;
 use fedimint_core::Amount;
-use fedimint_server_core::ServerModuleInit as _;
-use fedimintd::Fedimintd;
+use fedimint_core::bitcoin::Network;
+use fedimint_core::config::ServerModuleConfigGenParamsRegistry;
+use fedimint_core::envs::is_env_var_set;
+use fedimint_server_core::{ServerModuleInit as _, ServerModuleInitRegistry};
 use tracing::warn;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let include_stability_pool = is_env_var_set(FEDI_STABILITY_POOL_MODULE_ENABLE_ENV)
+    fn fedi_modules(
+        network: Network,
+    ) -> (
+        ServerModuleInitRegistry,
+        ServerModuleConfigGenParamsRegistry,
+    ) {
+        let mut modules = fedimintd::default_modules(network);
+
+        let include_stability_pool = is_env_var_set(FEDI_STABILITY_POOL_MODULE_ENABLE_ENV)
         // in the past we used this
         || std::env::var("INCLUDE_STABILITY_POOL").is_ok();
-    let include_social_recovery = is_env_var_set(FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV);
-    let include_stability_pool_v2 = is_env_var_set(FEDI_STABILITY_POOL_V2_MODULE_ENABLE_ENV);
-
-    let mut fedimintd =
-        Fedimintd::new(env!("FEDIMINT_BUILD_CODE_VERSION"), None)?.with_default_modules()?;
-
-    if include_stability_pool {
-        let use_test_params = is_env_var_set(FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV) ||
-            // in the past we used this
-            std::env::var("USE_STABILITY_POOL_TEST_PARAMS").is_ok();
-        fedimintd = fedimintd
-            .with_module_kind(stability_pool_server_old::StabilityPoolInit)
-            .with_module_instance(
+        if include_stability_pool {
+            let use_test_params = is_env_var_set(FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV) ||
+                // in the past we used this
+                std::env::var("USE_STABILITY_POOL_TEST_PARAMS").is_ok();
+            modules
+                .0
+                .attach(stability_pool_server_old::StabilityPoolInit);
+            modules.1.attach_config_gen_params(
                 stability_pool_server_old::common::KIND,
                 stability_pool_server_old::common::config::StabilityPoolGenParams {
                     local: Default::default(),
@@ -59,29 +62,37 @@ async fn main() -> anyhow::Result<()> {
                         },
                 },
             );
-    }
+        }
 
-    if include_social_recovery {
-        warn!("Warning: Fedi Social Recovery module is currently experimental and not recommended to use in Federations without explicit Fedi support");
-        fedimintd = fedimintd
-            .with_module_kind(FediSocialInit)
-            .with_module_instance(FediSocialInit::kind(), FediSocialGenParams::new());
-    }
+        let include_social_recovery = is_env_var_set(FEDI_SOCIAL_RECOVERY_MODULE_ENABLE_ENV);
+        if include_social_recovery {
+            warn!(
+                "Warning: Fedi Social Recovery module is currently experimental and not recommended to use in Federations without explicit Fedi support"
+            );
+            modules.0.attach(FediSocialInit);
+            modules
+                .1
+                .attach_config_gen_params(FediSocialInit::kind(), FediSocialGenParams::new());
+        }
 
-    if include_stability_pool_v2 {
-        let use_test_params = is_env_var_set(FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV);
-        let cycle_duration_secs = match std::env::var(
-            FEDI_STABILITY_POOL_V2_CYCLE_DURATION_SECS_ENV,
-        ) {
-            Ok(val) => val.parse::<u64>()?,
-            Err(std::env::VarError::NotPresent) => 600,
-            Err(std::env::VarError::NotUnicode(_)) => {
-                bail!("{FEDI_STABILITY_POOL_V2_CYCLE_DURATION_SECS_ENV} contains invalid Unicode.")
-            }
-        };
-        fedimintd = fedimintd
-            .with_module_kind(stability_pool_server::StabilityPoolInit)
-            .with_module_instance(
+        let include_stability_pool_v2 = is_env_var_set(FEDI_STABILITY_POOL_V2_MODULE_ENABLE_ENV);
+        if include_stability_pool_v2 {
+            let use_test_params = is_env_var_set(FEDI_STABILITY_POOL_MODULE_TEST_PARAMS_ENV);
+            let cycle_duration_secs = match std::env::var(
+                FEDI_STABILITY_POOL_V2_CYCLE_DURATION_SECS_ENV,
+            ) {
+                Ok(val) => val
+                    .parse::<u64>()
+                    .expect("Cycle duration must be valid u64"),
+                Err(std::env::VarError::NotPresent) => 600,
+                Err(std::env::VarError::NotUnicode(_)) => {
+                    panic!(
+                        "{FEDI_STABILITY_POOL_V2_CYCLE_DURATION_SECS_ENV} contains invalid Unicode."
+                    )
+                }
+            };
+            modules.0.attach(stability_pool_server::StabilityPoolInit);
+            modules.1.attach_config_gen_params(
                 stability_pool_server::common::KIND,
                 stability_pool_server::common::config::StabilityPoolGenParams {
                     local: Default::default(),
@@ -109,7 +120,10 @@ async fn main() -> anyhow::Result<()> {
                         },
                 },
             );
+        }
+
+        modules
     }
 
-    fedimintd.run().await
+    fedimintd::run(fedi_modules, env!("FEDIMINT_BUILD_CODE_VERSION"), None).await
 }

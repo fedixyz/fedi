@@ -2,10 +2,10 @@ use std::fmt::{self, Debug};
 use std::io;
 use std::time::SystemTime;
 
-use bitcoin_hashes::{sha256, Hash};
+use bitcoin_hashes::{Hash, sha256};
+use fedimint_core::PeerId;
 use fedimint_core::encoding::{Decodable, DecodeError, Encodable};
 use fedimint_core::module::registry::ModuleDecoderRegistry;
-use fedimint_core::PeerId;
 use impl_tools::autoimpl;
 use secp256k1::{Message, Secp256k1, Signing, Verification};
 use serde::{Deserialize, Serialize};
@@ -199,7 +199,7 @@ impl DoubleEncryptedData {
             shares
                 .into_iter()
                 .map(|(peer, share)| (peer.to_usize(), share)),
-            &self.0 .0,
+            &self.0.0,
         )?;
 
         let plaintext = fedimint_aead::decrypt(&mut encrypted_to_self, personal_sk)?;
@@ -354,7 +354,7 @@ impl EncryptedRecoveryShare {
         ephemeral_decryption_key: &fedimint_threshold_crypto::SecretKey,
     ) -> anyhow::Result<fedimint_threshold_crypto::DecryptionShare> {
         let encoded_share = ephemeral_decryption_key
-            .decrypt(&self.0 .0)
+            .decrypt(&self.0.0)
             .ok_or_else(|| anyhow::format_err!("Could not decrypt"))?;
 
         Ok(bincode::deserialize::<

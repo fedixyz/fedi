@@ -1,18 +1,18 @@
 use std::time::UNIX_EPOCH;
 
-use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
-use fedimint_core::module::{api_endpoint, ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion};
 use fedimint_core::Amount;
-use futures::{stream, StreamExt};
+use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::module::{ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, api_endpoint};
+use futures::{StreamExt, stream};
 use secp256k1::PublicKey;
 use stability_pool_common_old::{AccountInfo, LiquidityStats};
 
+use crate::StabilityPool;
 use crate::db::{
     CurrentCycleKey, Cycle, IdleBalance, IdleBalanceKey, PastCycleKeyPrefix,
     SeekMetadataAccountPrefix, StagedCancellationKey, StagedProvidesKey, StagedProvidesKeyPrefix,
     StagedSeeksKey, StagedSeeksKeyPrefix,
 };
-use crate::StabilityPool;
 
 pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
     vec![

@@ -1,5 +1,9 @@
 import { ThemeProvider } from '@rneui/themed'
-import { render, type RenderOptions } from '@testing-library/react-native'
+import {
+    render,
+    renderHook,
+    type RenderOptions,
+} from '@testing-library/react-native'
 import React, { PropsWithChildren } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { Provider } from 'react-redux'
@@ -16,16 +20,8 @@ interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
     store?: ReturnType<typeof setupStore>
 }
 
-export function renderWithProviders(
-    ui: React.ReactElement,
-    {
-        preloadedState,
-        // Automatically create a store instance if no store was passed in
-        store = setupStore(preloadedState),
-        ...renderOptions
-    }: ExtendedRenderOptions = {},
-) {
-    function Wrapper({ children }: PropsWithChildren<unknown>): JSX.Element {
+const makeWrapperWithStore = (store: ReturnType<typeof setupStore>) => {
+    return ({ children }: PropsWithChildren<unknown>) => {
         return (
             <SafeAreaProvider>
                 <I18nProvider>
@@ -36,6 +32,40 @@ export function renderWithProviders(
             </SafeAreaProvider>
         )
     }
+}
 
-    return { store, ...render(ui, { wrapper: Wrapper, ...renderOptions }) }
+export function renderWithProviders(
+    ui: React.ReactElement,
+    {
+        preloadedState,
+        // Automatically create a store instance if no store was passed in
+        store = setupStore(preloadedState),
+        ...renderOptions
+    }: ExtendedRenderOptions = {},
+) {
+    return {
+        ...render(ui, {
+            wrapper: makeWrapperWithStore(store),
+            ...renderOptions,
+        }),
+        store,
+    }
+}
+
+export function renderHookWithProviders<T>(
+    hook: () => T,
+    {
+        preloadedState,
+        // Automatically create a store instance if no store was passed in
+        store = setupStore(preloadedState),
+        ...renderOptions
+    }: ExtendedRenderOptions = {},
+) {
+    return {
+        store,
+        ...renderHook(hook, {
+            wrapper: makeWrapperWithStore(store),
+            ...renderOptions,
+        }),
+    }
 }

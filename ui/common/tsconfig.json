@@ -1,5 +1,6 @@
 {
     "compilerOptions": {
+        "lib": ["esnext"],
         "strict": true,
         "module": "CommonJS",
         "skipLibCheck": true,

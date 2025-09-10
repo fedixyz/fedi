@@ -5,7 +5,7 @@ import type {
 import type {
     JSONObject,
     MultispendEvent,
-    ObservableVecUpdate,
+    VectorDiff,
     RpcMatrixMembership,
     RpcMultispendGroupStatus,
 } from './bindings'
@@ -83,8 +83,7 @@ export type MatrixRoomListItem =
     | { status: 'loading'; id?: undefined }
     | { status: 'ready'; id: MatrixRoom['id'] }
 
-export type MatrixRoomListObservableUpdates =
-    ObservableVecUpdate<MatrixRoomListItem>['update']
+export type MatrixRoomListStreamUpdates = VectorDiff<MatrixRoomListItem>[]
 
 export interface MatrixUser {
     id: string
@@ -122,8 +121,7 @@ export interface MatrixEvent<
 
 export type MatrixTimelineItem = MatrixEvent | null
 
-export type MatrixTimelineObservableUpdates =
-    ObservableVecUpdate<MatrixTimelineItem>['update']
+export type MatrixTimelineStreamUpdates = VectorDiff<MatrixTimelineItem>[]
 
 export type MatrixError = Error
 

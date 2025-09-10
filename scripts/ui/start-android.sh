@@ -148,20 +148,6 @@ attempt_run_android() {
     fi
     echo "Application ID extracted successfully: $APP_ID"
 
-    if [[ "$RUN_TESTS" == "1" && "$ANDROID_DRIVER_PASSED" == "1" && -f "$APK_PATH" ]]; then
-        echo "Clearing app data for testing..."
-        adb -s $FEDI_DEVICE_ID shell pm clear $APP_ID || {
-            echo "Warning: Could not clear app data. Tests may fail."
-        }
-        adb -s "$FEDI_DEVICE_ID" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1 || {
-            echo "APK launch failed."
-            return 1
-        }
-        echo "APK launched successfully."
-        echo "Running tests on $FEDI_DEVICE_ID"
-        PLATFORM=android DEVICE_ID=$FEDI_DEVICE_ID BUNDLE_PATH=$APK_PATH yarn run ts-node $REPO_ROOT/ui/native/tests/appium/runner.ts $TESTS_TO_RUN
-    fi
-
     # Explicitly launch app after successful installation
     echo "Launching APK..."
     adb -s "$FEDI_DEVICE_ID" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1 || {

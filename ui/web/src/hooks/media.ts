@@ -10,7 +10,9 @@ import { fedimint, readBridgeFile } from '../lib/bridge/'
 const log = makeLog('useLoadMedia')
 
 export function useLoadMedia(
-    event: MatrixEvent<MatrixEventContentType<'m.video' | 'm.image'>>,
+    event: MatrixEvent<
+        MatrixEventContentType<'m.video' | 'm.image' | 'm.file'>
+    >,
 ) {
     const [src, setSrc] = useState<string | null>(null)
     const [loading, setLoading] = useState<boolean>(false)

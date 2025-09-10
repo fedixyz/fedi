@@ -14,30 +14,31 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use ::serde::{Deserialize, Serialize};
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hex::DisplayHex;
-use bitcoin::secp256k1::{self, schnorr, PublicKey};
+use bitcoin::secp256k1::{self, PublicKey, schnorr};
 use bitcoin::{Address, Network};
 use bug_report::reused_ecash_proofs::{self, SerializedReusedEcashProofs};
 use client::ClientExt;
 use db::{
     FediRawClientConfigKey, InviteCodeKey, LastStabilityPoolV2DepositCycleKey, TransactionNotesKey,
 };
+use device_registration::DeviceRegistrationService;
 use fedi_social_client::common::VerificationDocument;
 use fedi_social_client::{
-    FediSocialClientInit, RecoveryFile, RecoveryId, SocialBackup, SocialRecoveryClient,
-    SocialRecoveryState, SocialVerification, UserSeedPhrase, SOCIAL_RECOVERY_SECRET_CHILD_ID,
+    FediSocialClientInit, RecoveryFile, RecoveryId, SOCIAL_RECOVERY_SECRET_CHILD_ID, SocialBackup,
+    SocialRecoveryClient, SocialRecoveryState, SocialVerification, UserSeedPhrase,
 };
 use fedimint_api_client::api::net::Connector;
 use fedimint_api_client::api::{DynGlobalApi, DynModuleApi, FederationApiExt as _, StatusResponse};
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::db::{CachedApiVersionSetKey, ChronologicalOperationLogKey};
 use fedimint_client::meta::MetaService;
+use fedimint_client::module::ClientModule;
 use fedimint_client::module::meta::{FetchKind, MetaSource};
 use fedimint_client::module::module::recovery::RecoveryProgress;
 use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
-use fedimint_client::module::ClientModule;
 use fedimint_client::secret::RootSecretStrategy;
 use fedimint_client::{Client, ClientBuilder, ClientHandle};
 use fedimint_core::config::{ClientConfig, FederationId};
@@ -49,12 +50,12 @@ use fedimint_core::encoding::Encodable;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::module::{ApiRequestErased, ApiVersion};
-use fedimint_core::task::{timeout, MaybeSend, MaybeSync, TaskGroup};
+use fedimint_core::task::{MaybeSend, MaybeSync, TaskGroup, timeout};
 use fedimint_core::timing::TimeReporter;
 use fedimint_core::util::backoff_util::{aggressive_backoff, background_backoff};
-use fedimint_core::util::{retry, SafeUrl};
+use fedimint_core::util::{SafeUrl, retry};
 use fedimint_core::{
-    apply, async_trait_maybe_send, maybe_add_send_sync, Amount, PeerId, TransactionId,
+    Amount, PeerId, TransactionId, apply, async_trait_maybe_send, maybe_add_send_sync,
 };
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use fedimint_ln_client::pay::GatewayPayError;
@@ -63,23 +64,23 @@ use fedimint_ln_client::{
     LightningOperationMetaVariant, LnPayState, LnReceiveState, OutgoingLightningPayment,
     PayBolt11InvoiceError, PayType,
 };
-use fedimint_ln_common::config::FeeToAmount;
 use fedimint_ln_common::LightningGateway;
+use fedimint_ln_common::config::FeeToAmount;
 use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use fedimint_mint_client::api::MintFederationApi;
 use fedimint_mint_client::config::MintClientConfig;
 use fedimint_mint_client::{
-    spendable_notes_to_operation_id, MintClientInit, MintClientModule, MintOperationMeta,
-    MintOperationMetaVariant, OOBNotes, ReissueExternalNotesState, SelectNotesWithAtleastAmount,
-    SelectNotesWithExactAmount, SpendOOBState,
+    MintClientInit, MintClientModule, MintOperationMeta, MintOperationMetaVariant, OOBNotes,
+    ReissueExternalNotesState, SelectNotesWithAtleastAmount, SelectNotesWithExactAmount,
+    SpendOOBState, spendable_notes_to_operation_id,
 };
 use fedimint_wallet_client::{
     DepositStateV2, PegOutFees, WalletClientInit, WalletOperationMeta, WalletOperationMetaVariant,
     WithdrawState,
 };
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, Stream, StreamExt};
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
-use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries, MetaServiceExt};
+use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries};
 use rand::Rng;
 use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, RecoveryProgressEvent, TypedEventExt};
@@ -103,7 +104,6 @@ use runtime::constants::{
     STABILITY_POOL_V2_OPERATION_TYPE, WALLET_OPERATION_TYPE,
 };
 use runtime::db::FederationPendingRejoinFromScratchKey;
-use runtime::observable::Observable;
 use runtime::storage::state::{DatabaseInfo, FederationInfo, FediFeeSchedule};
 use runtime::utils::{display_currency, to_unix_time};
 use serde::de::DeserializeOwned;
@@ -124,10 +124,9 @@ use stability_pool_client::{
 };
 use stability_pool_client_old::ClientAccountInfo;
 use tokio::sync::{Mutex, OnceCell};
-use tracing::{error, info, instrument, warn, Level};
+use tracing::{Level, error, info, instrument, warn};
 
 use self::backup_service::BackupService;
-pub use self::backup_service::BackupServiceStatus;
 use self::db::{
     LastStabilityPoolDepositCycleKey, OperationFediFeeStatusKey, OutstandingFediFeesPerTXTypeKey,
     OutstandingFediFeesPerTXTypeKeyPrefix, PendingFediFeesPerTXTypeKey,
@@ -260,6 +259,7 @@ impl FederationV2 {
         auxiliary_secret: DerivableSecret,
         fedi_fee_helper: Arc<FediFeeHelper>,
         multispend_services: Arc<dyn MultispendNotifications>,
+        device_registration_service: Arc<DeviceRegistrationService>,
     ) -> Arc<Self> {
         let recovering = client.has_pending_recoveries();
         let federation = Arc::new_cyclic(|weak| Self {
@@ -268,7 +268,7 @@ impl FederationV2 {
             operation_states: Default::default(),
             auxiliary_secret,
             fedi_fee_helper,
-            backup_service: BackupService::default(),
+            backup_service: BackupService::new(device_registration_service),
             fedi_fee_remittance_service: OnceCell::new(),
             recovering,
             gateway_service: OnceCell::new(),
@@ -426,6 +426,7 @@ impl FederationV2 {
         guard: FederationLockGuard,
         fedi_fee_helper: Arc<FediFeeHelper>,
         multispend_services: Arc<dyn MultispendNotifications>,
+        device_registration_service: Arc<DeviceRegistrationService>,
     ) -> anyhow::Result<Arc<Self>> {
         let root_mnemonic = runtime.app_state.root_mnemonic().await;
         let device_index = runtime.app_state.device_index().await;
@@ -447,10 +448,12 @@ impl FederationV2 {
             info!("started federation loading");
             let _g = TimeReporter::new("federation loading").level(Level::INFO);
             client_builder
-                .open(Self::client_root_secret_from_root_mnemonic(
-                    &root_mnemonic,
-                    &federation_id,
-                    device_index,
+                .open(fedimint_client::RootSecret::Custom(
+                    Self::client_root_secret_from_root_mnemonic(
+                        &root_mnemonic,
+                        &federation_id,
+                        device_index,
+                    ),
                 ))
                 .await?
         };
@@ -463,6 +466,7 @@ impl FederationV2 {
             auxiliary_secret,
             fedi_fee_helper,
             multispend_services,
+            device_registration_service,
         )
         .await)
     }
@@ -528,6 +532,7 @@ impl FederationV2 {
 
     /// Download federation configs using an invite code. Save client config to
     /// correct database with Storage.
+    #[allow(clippy::too_many_arguments)]
     pub async fn join(
         runtime: Arc<Runtime>,
         federation_id_string: String,
@@ -536,6 +541,7 @@ impl FederationV2 {
         recover_from_scratch: bool,
         fedi_fee_helper: Arc<FediFeeHelper>,
         multispend_services: Arc<dyn MultispendNotifications>,
+        device_registration_service: Arc<DeviceRegistrationService>,
     ) -> Result<Arc<Self>> {
         let db_prefix = runtime
             .app_state
@@ -573,23 +579,23 @@ impl FederationV2 {
 
         let client_builder = Self::build_client_builder(federation_db.clone()).await?;
         let federation_id = client_config.calculate_federation_id();
-        let client_secret = Self::client_root_secret_from_root_mnemonic(
-            &root_mnemonic,
-            &federation_id,
-            device_index,
-        );
+        let client_secret =
+            fedimint_client::RootSecret::Custom(Self::client_root_secret_from_root_mnemonic(
+                &root_mnemonic,
+                &federation_id,
+                device_index,
+            ));
         let auxiliary_secret =
             Self::auxiliary_secret_from_root_mnemonic(&root_mnemonic, &federation_id, device_index);
         // restore from scratch is not used because it takes too much time.
         // FIXME: api secret
-        let client_backup = client_builder
-            .download_backup_from_federation(&client_secret, &client_config, None)
+        let client_preview = client_builder.preview(&invite_code).await?;
+        let client_backup = client_preview
+            .download_backup_from_federation(client_secret.clone())
             .await?;
         let client = if recover_from_scratch {
             info!("recovering from scratch");
-            client_builder
-                .recover(client_secret, client_config, None, None)
-                .await?
+            client_preview.recover(client_secret, None).await?
         } else if let Some(client_backup) = client_backup {
             // Ensure that rejoin attempt after nonce reuse check failure can never enter
             // this branch
@@ -608,15 +614,13 @@ impl FederationV2 {
                 );
             }
             info!("backup found {:?}", client_backup);
-            client_builder
-                .recover(client_secret, client_config, None, Some(client_backup))
+            client_preview
+                .recover(client_secret, Some(client_backup))
                 .await?
         } else {
             info!("backup not found");
             // FIXME: api secret
-            client_builder
-                .join(client_secret, client_config, None)
-                .await?
+            client_preview.join(client_secret).await?
         };
         let this = Self::new(
             runtime.clone(),
@@ -625,6 +629,7 @@ impl FederationV2 {
             auxiliary_secret,
             fedi_fee_helper,
             multispend_services,
+            device_registration_service,
         )
         .await;
 
@@ -701,12 +706,7 @@ impl FederationV2 {
                     "Timeout when fetching meta for federation ID {}",
                     self.federation_id()
                 );
-                match self
-                    .client
-                    .meta_service()
-                    .entries_from_db(self.client.db())
-                    .await
-                {
+                match self.client.meta_service().entries(self.client.db()).await {
                     Some(entries) => entries,
                     None => cfg_fetcher.await,
                 }
@@ -781,7 +781,7 @@ impl FederationV2 {
                         return GuardianStatus::Error {
                             guardian: guardian.to_string(),
                             error: e.to_string(),
-                        }
+                        };
                     }
                 };
                 let start = fedimint_core::time::now();
@@ -1229,9 +1229,7 @@ impl FederationV2 {
                 Amount::from_msats(est_total_spend),
             )
             .await;
-        let response = self
-            .subscribe_to_ln_pay(payment_type, extra_meta, invoice.clone())
-            .await?;
+        let response = self.subscribe_to_ln_pay(payment_type, extra_meta).await?;
 
         Ok(response)
     }
@@ -1466,7 +1464,6 @@ impl FederationV2 {
                                     PayType::Lightning(operation_id)
                                 },
                                 extra_meta,
-                                pay_meta.invoice,
                             )
                             .await
                         {
@@ -1613,10 +1610,7 @@ impl FederationV2 {
         let Ok(wallet) = self.client.wallet() else {
             return;
         };
-        let Ok(tweak_idxes) = wallet.list_peg_in_tweak_idxes().await else {
-            // failed to get peg in tweak idxes
-            return;
-        };
+        let tweak_idxes = wallet.list_peg_in_tweak_idxes().await;
 
         for tweak_data in tweak_idxes.into_values() {
             self.subscribe_deposit(tweak_data.operation_id);
@@ -1627,7 +1621,6 @@ impl FederationV2 {
         &self,
         pay_type: PayType,
         extra_meta: LightningSendMetadata,
-        _invoice: Bolt11Invoice,
     ) -> Result<RpcPayInvoiceResponse> {
         let ln = self.client.ln()?;
         match pay_type {
@@ -2248,10 +2241,6 @@ impl FederationV2 {
         .await
         .context(ErrorCode::Timeout)??;
         Ok(())
-    }
-
-    pub async fn backup_status(&self) -> Result<BackupServiceStatus> {
-        Ok(self.backup_service.status(&self.client).await)
     }
 
     //
@@ -3187,27 +3176,17 @@ impl FederationV2 {
 
     /// Same as [`spv2_account_info`] except that it returns an Observable that
     /// emits new values whenever the CachedSyncResponse in the DB updates.
-    pub async fn spv2_observe_account_info(
+    pub async fn spv2_subscribe_account_info(
         &self,
-        observable_id: u32,
-    ) -> Result<Observable<RpcSPv2CachedSyncResponse>> {
+    ) -> Result<impl Stream<Item = RpcSPv2CachedSyncResponse> + use<>> {
         self.client.spv2()?;
         let Some(sync_service) = self.spv2_sync_service.get() else {
             bail!("Unexpected: sync service must have been initialized");
         };
 
-        let update_stream = sync_service
+        Ok(sync_service
             .subscribe_to_updates()
-            .filter_map(|sync| async { sync.map(|sync| sync.into()) });
-
-        self.runtime
-            .observable_pool
-            .make_observable_from_stream(
-                observable_id.into(),
-                None::<RpcSPv2CachedSyncResponse>,
-                update_stream,
-            )
-            .await
+            .filter_map(|sync| async { sync.map(|sync| sync.into()) }))
     }
 
     /// Returns the start time of the next cycle by adding cycle duration to the
@@ -3448,7 +3427,7 @@ impl FederationV2 {
         let spv2 = self.client.spv2()?;
 
         let request = TransferRequest::new(
-            rand::thread_rng().gen(),
+            rand::thread_rng().r#gen(),
             spv2.our_account(AccountType::Seeker),
             amount,
             to_account,
@@ -4372,7 +4351,7 @@ impl FederationV2 {
     ) -> anyhow::Result<TransferRequest> {
         let spv2 = self.client.spv2()?;
         let transfer_request = TransferRequest::new(
-            rand::thread_rng().gen(),
+            rand::thread_rng().r#gen(),
             group_account,
             FiatAmount(amount.0),
             spv2.our_account(AccountType::Seeker).id(),

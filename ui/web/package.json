@@ -1,6 +1,6 @@
 {
     "name": "@fedi/web",
-    "version": "25.8.1",
+    "version": "25.8.2",
     "private": true,
     "scripts": {
         "dev": "next dev",
@@ -19,7 +19,6 @@
         "@aws-sdk/s3-request-presigner": "^3.451.0",
         "@ngraveio/bc-ur": "^1.1.13",
         "@notionhq/client": "^2.2.14",
-        "@radix-ui/react-alert-dialog": "^1.0.5",
         "@radix-ui/react-avatar": "^1.0.4",
         "@radix-ui/react-checkbox": "^1.0.4",
         "@radix-ui/react-dialog": "^1.0.5",
@@ -44,7 +43,6 @@
         "react-dom": "^18.2.0",
         "react-i18next": "^14.1.0",
         "react-redux": "^8.0.5",
-        "vaul": "^1.1.2",
         "zod": "^3.22.5"
     },
     "devDependencies": {

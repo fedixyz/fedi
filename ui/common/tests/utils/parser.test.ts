@@ -149,6 +149,11 @@ describe('parseUserInput', () => {
         data: simpleBolt11Data,
     })
     testCases.push({
+        input: `lightning:${simpleBolt11}`.toUpperCase(),
+        type: ParserDataType.Bolt11,
+        data: simpleBolt11Data,
+    })
+    testCases.push({
         input: `lightning://${simpleBolt11}`,
         type: ParserDataType.Bolt11,
         data: simpleBolt11Data,

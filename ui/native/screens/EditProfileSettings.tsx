@@ -1,7 +1,15 @@
+import { useHeaderHeight } from '@react-navigation/elements'
 import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { GestureResponderEvent, StyleSheet, View } from 'react-native'
+import {
+    GestureResponderEvent,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    View,
+} from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
 import { RESULTS } from 'react-native-permissions'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -12,21 +20,18 @@ import {
     uploadAndSetMatrixAvatarUrl,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { stripFileUriPrefix } from '@fedi/common/utils/media'
 import { ensureNonNullish } from '@fedi/common/utils/neverthrow'
 
 import { fedimint } from '../bridge'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import Flex from '../components/ui/Flex'
-import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { Pressable } from '../components/ui/Pressable'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { useStoragePermission } from '../utils/hooks'
-import {
-    copyAssetToTempUri,
-    stripFileUriPrefix,
-    tryPickAssets,
-} from '../utils/media'
+import { useImeFooterLift } from '../utils/hooks/keyboard'
+import { tryPickAssets } from '../utils/media'
 
 const log = makeLog('EditProfile')
 
@@ -49,7 +54,17 @@ const EditProfileSettings: React.FC = () => {
     const toast = useToast()
     const dispatch = useAppDispatch()
     const matrixAuth = useAppSelector(selectMatrixAuth)
+
     const insets = useSafeAreaInsets()
+    const headerHeight = useHeaderHeight()
+    const iosOffset = Math.max(0, headerHeight - insets.top + theme.spacing.xl)
+
+    const style = styles(theme)
+
+    const extraPadAndroid35 = useImeFooterLift({
+        insetsBottom: insets.bottom,
+        buffer: theme.spacing.xxl,
+    })
 
     const handleAvatarPress = useCallback(
         async (_: GestureResponderEvent) => {
@@ -70,11 +85,13 @@ const EditProfileSettings: React.FC = () => {
                 .map(assets => assets[0])
                 .andThen(ensureNonNullish)
                 .andTee(({ type }) => setProfileImageMimeType(type ?? ''))
-                .andThen(copyAssetToTempUri)
+                .map(asset => asset.uri)
+                .andThen(ensureNonNullish)
                 .match(setProfileImageUri, e => {
                     log.error('Failed to launch image library', e)
-
-                    if (e._tag === 'UserError') toast.error(t, e)
+                    if (e._tag === 'UserError') {
+                        toast.error(t, e)
+                    }
                 })
         },
         [storagePermission, requestStoragePermission, t, toast],
@@ -110,68 +127,91 @@ const EditProfileSettings: React.FC = () => {
         profileImageMimeType,
     ])
 
-    const style = styles(theme)
-
     const hasChanged =
         username.trim() !== matrixAuth?.displayName || profileImageUri !== null
 
     const saveButtonDisabled = !hasChanged || isLoading || errorMessage !== null
 
-    return (
-        <KeyboardAwareWrapper
-            behavior="padding"
-            additionalVerticalOffset={insets.top}>
-            <SafeAreaContainer style={style.container} edges="notop">
-                <Pressable
-                    onPress={handleAvatarPress}
-                    containerStyle={style.avatar}>
-                    <Avatar
-                        id={matrixAuth?.userId || ''}
-                        url={profileImageUri ?? matrixAuth?.avatarUrl}
-                        size={AvatarSize.lg}
-                        name={matrixAuth?.displayName}
-                    />
-                    <Text caption>{t('feature.chat.change-avatar')}</Text>
-                </Pressable>
-                <Flex grow style={style.content}>
-                    <Text
-                        testID="DisplayNameLabel"
-                        caption
-                        style={style.inputLabel}>
-                        {t('feature.chat.display-name')}
-                    </Text>
-                    <Input
-                        testID="DisplayNameInput"
-                        onChangeText={input => {
-                            handleChangeUsername(input)
-                        }}
-                        value={username}
-                        returnKeyType="done"
-                        keyboardType="visible-password"
-                        containerStyle={style.textInputOuter}
-                        inputContainerStyle={style.textInputInner}
-                        autoCapitalize={'none'}
-                        autoCorrect={false}
-                        disabled={isLoading}
-                    />
-                    {errorMessage && (
-                        <Text caption style={style.errorLabel}>
-                            {errorMessage}
-                        </Text>
-                    )}
-                </Flex>
+    const content = (
+        <>
+            <SafeAreaContainer edges="top">
+                <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    contentInsetAdjustmentBehavior="never"
+                    contentContainerStyle={{
+                        flexGrow: 1,
+                        paddingHorizontal: theme.spacing.xl,
+                        paddingBottom: theme.spacing.xl,
+                    }}
+                    style={style.container}>
+                    <Pressable
+                        onPress={handleAvatarPress}
+                        containerStyle={style.avatar}>
+                        <Avatar
+                            id={matrixAuth?.userId || ''}
+                            url={profileImageUri ?? matrixAuth?.avatarUrl}
+                            size={AvatarSize.lg}
+                            name={matrixAuth?.displayName}
+                        />
+                        <Text caption>{t('feature.chat.change-avatar')}</Text>
+                    </Pressable>
 
-                <View style={[style.buttonContainer]}>
-                    <Button
-                        fullWidth
-                        title={t('words.save')}
-                        onPress={handleNameSubmit}
-                        disabled={saveButtonDisabled}
-                        loading={isLoading}
-                    />
-                </View>
+                    <Flex grow style={style.content}>
+                        <Text
+                            testID="DisplayNameLabel"
+                            caption
+                            style={style.inputLabel}>
+                            {t('feature.chat.display-name')}
+                        </Text>
+                        <Input
+                            testID="DisplayNameInput"
+                            onChangeText={handleChangeUsername}
+                            value={username}
+                            returnKeyType="done"
+                            keyboardType="visible-password"
+                            containerStyle={style.textInputOuter}
+                            inputContainerStyle={style.textInputInner}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            disabled={isLoading}
+                        />
+                        {errorMessage && (
+                            <Text caption style={style.errorLabel}>
+                                {errorMessage}
+                            </Text>
+                        )}
+                    </Flex>
+                </ScrollView>
             </SafeAreaContainer>
-        </KeyboardAwareWrapper>
+
+            <View
+                style={[
+                    style.buttonContainer,
+                    {
+                        paddingBottom: insets.bottom + theme.spacing.lg,
+                        marginBottom: extraPadAndroid35, // lifts footer ONLY on Android API 35+
+                    },
+                ]}>
+                <Button
+                    fullWidth
+                    title={t('words.save')}
+                    onPress={handleNameSubmit}
+                    disabled={saveButtonDisabled}
+                    loading={isLoading}
+                />
+            </View>
+        </>
+    )
+
+    return Platform.OS === 'ios' ? (
+        <KeyboardAvoidingView
+            behavior="padding"
+            style={style.container}
+            keyboardVerticalOffset={iosOffset}>
+            {content}
+        </KeyboardAvoidingView>
+    ) : (
+        <View style={style.container}>{content}</View>
     )
 }
 
@@ -183,10 +223,13 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.sm,
         },
         buttonContainer: {
-            marginTop: 'auto',
+            paddingTop: theme.spacing.lg,
+            paddingHorizontal: theme.spacing.lg,
+            backgroundColor: theme.colors?.background,
             width: '100%',
         },
         container: {
+            flex: 1,
             gap: theme.spacing.md,
             width: '100%',
         },

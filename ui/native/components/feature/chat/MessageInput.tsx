@@ -1,8 +1,10 @@
+import { DocumentPickerResponse, types } from '@react-native-documents/picker'
 import { useNavigation } from '@react-navigation/native'
 import { Input, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+    ActivityIndicator,
     Insets,
     Keyboard,
     KeyboardEvent,
@@ -17,7 +19,6 @@ import {
     View,
     Animated,
 } from 'react-native'
-import { DocumentPickerResponse, types } from 'react-native-document-picker'
 import { Asset, ImageLibraryOptions } from 'react-native-image-picker'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -44,19 +45,19 @@ import {
     matrixIdToUsername,
     stripReplyFromBody,
 } from '@fedi/common/utils/matrix'
-import { formatFileSize } from '@fedi/common/utils/media'
+import { formatFileSize, prefixFileUri } from '@fedi/common/utils/media'
+import { upsertListItem } from '@fedi/common/utils/redux'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import {
-    copyDocumentToTempUri,
-    copyAssetToTempUri,
+    deriveCopyableFileUri,
     tryPickAssets,
     tryPickDocuments,
     mapMixedMediaToMatrixInput,
 } from '../../../utils/media'
-import { Attachments } from '../../ui/Attachments'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import { AssetsList } from './AssetsList'
 import ChatWalletButton from './ChatWalletButton'
 
 type MessageInputProps = {
@@ -162,13 +163,29 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     useDebouncedEffect(
         () => {
-            dispatch(setChatDraft({ roomId: id, text: messageText }))
+            // don't save drafts when editing a message & ensure we're saving for the correct room
+            if (!isEditingMessage) {
+                dispatch(setChatDraft({ roomId: id, text: messageText }))
+            }
         },
-        [messageText, dispatch],
+        [messageText, dispatch, isEditingMessage, id],
         500,
     )
+
+    // only update message text when not editing and when room changes
+    useEffect(() => {
+        if (!isEditingMessage) {
+            setMessageText(drafts[id] ?? '')
+        }
+    }, [id, drafts, isEditingMessage])
+
     const [documents, setDocuments] = useState<DocumentPickerResponse[]>([])
     const [media, setMedia] = useState<Asset[]>([])
+    const [documentsPendingUpload, setDocumentsPendingUpload] = useState<
+        DocumentPickerResponse[]
+    >([])
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+    const [isUploadingDocuments, setIsUploadingDocuments] = useState(false)
 
     const combinedUploads = useMemo(
         () => mapMixedMediaToMatrixInput({ documents, assets: media }),
@@ -176,30 +193,52 @@ const MessageInput: React.FC<MessageInputProps> = ({
     )
 
     const handleUploadMedia = useCallback(async () => {
-        tryPickAssets(imageOptions, t).match(
-            async assets => {
-                const assetsToUpload: Array<Asset> = []
+        setIsUploadingMedia(true)
+        tryPickAssets(imageOptions, t)
+            .match(
+                assets => {
+                    if (Platform.OS === 'ios') setMedia(m => [...m, ...assets])
+                    // On Android, the react-native-image-picker library is breaking the gif animation
+                    // somehow when it produces the file URI, so we copy the gif from the original path.
+                    // https://github.com/react-native-image-picker/react-native-image-picker/issues/2064#issuecomment-2460501473
+                    // TODO: Check if this is fixed upstream (perhaps in the turbo module) and remove this workaround
+                    else {
+                        setMedia(m => [
+                            ...m,
+                            ...assets.map(a => {
+                                if (
+                                    a.originalPath &&
+                                    // sometimes animated pics are webp files so we include webp in this workaround
+                                    // even though some webp files are not animated and wouldn't be broken
+                                    // but using the original path works either way, perhaps a small perf hit
+                                    // if rn image-picker is optimizing when producing the file URI
+                                    (a.type?.includes('gif') ||
+                                        a.type?.includes('webp'))
+                                )
+                                    return {
+                                        ...a,
+                                        uri: prefixFileUri(a.originalPath),
+                                    }
 
-                await Promise.all(
-                    assets.map(asset =>
-                        copyAssetToTempUri(asset).map(uri =>
-                            assetsToUpload.push({ ...asset, uri }),
-                        ),
-                    ),
-                )
+                                return a
+                            }),
+                        ])
+                    }
+                },
+                e => {
+                    log.error('launchImageLibrary Error: ', e)
 
-                setMedia(imgs => [...imgs, ...assetsToUpload])
-            },
-            e => {
-                log.error('launchImageLibrary Error: ', e)
-
-                // Only show a toast if the error is the user's fault
-                if (e._tag === 'UserError') toast.error(t, e)
-            },
-        )
+                    // Only show a toast if the error is the user's fault
+                    if (e._tag === 'UserError') toast.error(t, e)
+                },
+            )
+            .finally(() => {
+                setIsUploadingMedia(false)
+            })
     }, [t, toast])
 
     const handleUploadDocument = useCallback(() => {
+        setIsUploadingDocuments(true)
         tryPickDocuments(
             {
                 // Allow all supported file extensions except for images, audio, and video
@@ -216,29 +255,39 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     types.zip,
                 ],
                 allowMultiSelection: true,
+                allowVirtualFiles: true,
             },
             t,
-        ).match(
-            async files => {
-                const documentsToUpload: Array<DocumentPickerResponse> = []
-
-                await Promise.all(
-                    files.map(file =>
-                        copyDocumentToTempUri(file).map(uri =>
-                            documentsToUpload.push({ ...file, uri }),
-                        ),
-                    ),
-                )
-
-                setDocuments(att => [...att, ...documentsToUpload])
-            },
-            e => {
-                log.error('DocumentPicker Error: ', e)
-
-                // Only show a toast if the error is the user's fault
-                if (e._tag === 'UserError') toast.error(t, e)
-            },
         )
+            .match(
+                async files => {
+                    setDocumentsPendingUpload(files)
+
+                    await Promise.all(
+                        files.map(file =>
+                            deriveCopyableFileUri(file).map(uri => {
+                                setDocumentsPendingUpload(pending =>
+                                    pending.filter(d => d.uri !== file.uri),
+                                )
+                                setDocuments(docs => [
+                                    ...docs,
+                                    { ...file, uri },
+                                ])
+                            }),
+                        ),
+                    )
+                },
+                e => {
+                    log.error('DocumentPicker Error: ', e)
+
+                    // Only show a toast if the error is the user's fault
+                    if (e._tag === 'UserError') toast.error(t, e)
+                },
+            )
+            .finally(() => {
+                setDocumentsPendingUpload([])
+                setIsUploadingDocuments(false)
+            })
     }, [t, toast])
 
     const handleEdit = useCallback(async () => {
@@ -283,11 +332,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
         }
     }, [])
 
+    // handle edit message: set text if editing current room's message, clear edit state if from different room
     useEffect(() => {
         if (editingMessage) {
-            setMessageText(editingMessage.content.body)
+            if (editingMessage.roomId === id) {
+                setMessageText(editingMessage.content.body)
+            } else {
+                dispatch(setMessageToEdit(null))
+            }
         }
-    }, [editingMessage])
+    }, [editingMessage, id, dispatch])
 
     const handleSend = useCallback(async () => {
         if (
@@ -328,7 +382,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
             setMessageText('')
             setMedia([])
             setDocuments([])
-            if (repliedEvent) dispatch(clearChatReplyingToMessage())
+
+            if (repliedEvent) {
+                requestAnimationFrame(() => {
+                    dispatch(clearChatReplyingToMessage())
+                })
+            }
         } catch (e) {
             toast.error(t, e, 'errors.chat-unavailable')
         } finally {
@@ -451,6 +510,31 @@ const MessageInput: React.FC<MessageInputProps> = ({
         )
     }
 
+    const documentListItems = useMemo(() => {
+        let items: Array<{
+            id: string
+            isLoading: boolean
+            document: DocumentPickerResponse
+        }> = documents.map(doc => ({
+            document: doc,
+            isLoading: false,
+            id: doc.uri,
+        }))
+
+        for (const doc of documentsPendingUpload) {
+            items = upsertListItem(items, {
+                document: doc,
+                isLoading: true,
+                id: doc.uri,
+            })
+        }
+
+        // Sort by fileName to prevent layout shifting
+        return items.sort((a, b) =>
+            (a.document.name ?? '').localeCompare(b.document.name ?? ''),
+        )
+    }, [documents, documentsPendingUpload])
+
     return (
         <View
             onLayout={onLayout}
@@ -466,43 +550,50 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     : {},
             ]}>
             {renderReplyBar()}
-            {documents.length > 0 && (
+            {documentListItems.length > 0 && (
                 <View style={style.attachmentContainer}>
-                    {documents.map((att, i) => (
-                        <View key={i} style={style.attachment}>
-                            <View style={style.attachmentIcon}>
-                                <SvgImage name="File" />
+                    {documentListItems.map(
+                        ({ document, isLoading, id: docId }) => (
+                            <View
+                                key={`doc-pend-${docId}`}
+                                style={style.attachment}>
+                                <View style={style.attachmentIcon}>
+                                    {isLoading ? (
+                                        <ActivityIndicator />
+                                    ) : (
+                                        <SvgImage name="File" />
+                                    )}
+                                </View>
+                                <View style={style.attachmentContent}>
+                                    <Text>{document.name}</Text>
+                                    <Text style={style.attachmentSize}>
+                                        {formatFileSize(document.size ?? 0)}
+                                    </Text>
+                                </View>
+                                {!isLoading && (
+                                    <Pressable
+                                        style={style.removeButton}
+                                        onPress={() =>
+                                            setDocuments(prev =>
+                                                prev.filter(
+                                                    a => a.uri !== document.uri,
+                                                ),
+                                            )
+                                        }>
+                                        <SvgImage
+                                            name="Close"
+                                            size={SvgImageSize.xs}
+                                            color={theme.colors.white}
+                                        />
+                                    </Pressable>
+                                )}
                             </View>
-                            <View style={style.attachmentContent}>
-                                <Text>{att.name}</Text>
-                                <Text style={style.attachmentSize}>
-                                    {formatFileSize(att.size ?? 0)}
-                                </Text>
-                            </View>
-                            <Pressable
-                                style={style.removeButton}
-                                onPress={() =>
-                                    setDocuments(prev =>
-                                        prev.filter(a => a.uri !== att.uri),
-                                    )
-                                }>
-                                <SvgImage
-                                    name="Close"
-                                    size={SvgImageSize.xs}
-                                    color={theme.colors.white}
-                                />
-                            </Pressable>
-                        </View>
-                    ))}
+                        ),
+                    )}
                 </View>
             )}
             {media.length > 0 && (
-                <Attachments
-                    attachments={media}
-                    setAttachments={setMedia}
-                    uploadButton={false}
-                    options={imageOptions}
-                />
+                <AssetsList assets={media} setAttachments={setMedia} />
             )}
             <View style={style.inputContainer}>
                 <Input
@@ -568,16 +659,24 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         {/* To prevent users from uploading unencrypted media, media uploads are not available in public chats */}
                         {!isPublic && !isReadOnly && (
                             <>
-                                <Pressable
-                                    onPress={handleUploadMedia}
-                                    hitSlop={10}>
-                                    <SvgImage name="Image" />
-                                </Pressable>
-                                <Pressable
-                                    onPress={handleUploadDocument}
-                                    hitSlop={10}>
-                                    <SvgImage name="Plus" />
-                                </Pressable>
+                                {isUploadingMedia ? (
+                                    <ActivityIndicator size={theme.sizes.sm} />
+                                ) : (
+                                    <Pressable
+                                        onPress={handleUploadMedia}
+                                        hitSlop={10}>
+                                        <SvgImage name="Image" />
+                                    </Pressable>
+                                )}
+                                {isUploadingDocuments ? (
+                                    <ActivityIndicator size={theme.sizes.sm} />
+                                ) : (
+                                    <Pressable
+                                        onPress={handleUploadDocument}
+                                        hitSlop={10}>
+                                        <SvgImage name="Plus" />
+                                    </Pressable>
+                                )}
                             </>
                         )}
                     </View>

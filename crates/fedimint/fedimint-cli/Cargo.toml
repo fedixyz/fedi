@@ -2,7 +2,7 @@
 name = "fedi-fedimint-cli"
 version = "0.3.0"
 authors = ["The Fedi Developers"]
-edition = "2021"
+edition = "2024"
 description = "fedimintd with custom fedi modules"
 
 [[bin]]

@@ -38,6 +38,7 @@ jest.mock('@fedi/common/utils/log', () => ({
 jest.mock('@fedi/common/hooks/toast', () => ({
     useToast: () => ({
         error: jest.fn(),
+        show: jest.fn(),
     }),
 }))
 

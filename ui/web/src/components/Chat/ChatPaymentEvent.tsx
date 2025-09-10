@@ -28,6 +28,8 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
         statusText,
         buttons,
         isLoadingTransaction,
+        isSentByMe,
+        transaction,
     } = useMatrixPaymentEvent({
         event,
         fedimint,
@@ -65,6 +67,11 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
                 {messageText}
                 {isLoadingTransaction && <CircularLoader size="xs" />}
             </MessageContainer>
+            {isSentByMe && transaction?.txnNotes && (
+                <NotesText>
+                    <strong>{t('words.notes')}</strong>: {transaction.txnNotes}
+                </NotesText>
+            )}
             {hasExtra && (
                 <>
                     {statusText && (
@@ -93,6 +100,10 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
         </>
     )
 }
+
+const NotesText = styled('div', {
+    marginTop: 8,
+})
 
 const MessageContainer = styled('div', {
     display: 'flex',

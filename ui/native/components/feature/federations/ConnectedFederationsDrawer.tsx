@@ -17,6 +17,7 @@ import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import Flex from '../../ui/Flex'
 import HoloGradient from '../../ui/HoloGradient'
+import { SafeAreaContainer } from '../../ui/SafeArea'
 import SvgImage from '../../ui/SvgImage'
 import CommunityTile from './CommunityTile'
 import CommunityTileLoading from './CommunityTileLoading'
@@ -73,99 +74,102 @@ const ConnectedFederationsDrawer: React.FC<DrawerContentComponentProps> = (
     )
     const style = styles(theme)
     return (
-        <HoloGradient
-            level="400"
-            gradientStyle={style.imageBackground}
-            style={style.backgroundContainer}
-            locations={fediTheme.holoGradientLocations.radial}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}>
-            <DrawerContentScrollView
-                {...props}
-                style={[
-                    style.container,
-                    {
-                        maxHeight:
-                            height -
-                            theme.sizes.addFederationButtonHeight -
-                            insets.bottom,
-                    },
-                ]}>
-                <Flex grow shrink>
-                    <View style={style.topTextContainer}>
-                        <Text
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            style={style.drawerTitle}>
-                            {`${t('phrases.my-communities')}`}
-                        </Text>
-                        {federations.length === 0 && (
-                            <Text style={style.drawerSubtitle}>
-                                {t('feature.federations.drawer-subtitle')}
-                            </Text>
-                        )}
-                    </View>
-                    <View style={style.communitiesList}>
-                        {federations.map((f, i) => {
-                            if (f.init_state === 'ready') {
-                                const community: LoadedFederationListItem = f
-                                return (
-                                    <CommunityTile
-                                        key={`di-${i}`}
-                                        community={community}
-                                        onSelect={() =>
-                                            handleTilePress(community)
-                                        }
-                                        onSelectQr={() =>
-                                            handleQrPress(community)
-                                        }
-                                        onSelectStatus={() =>
-                                            handleStatusPress(community)
-                                        }
-                                        isActiveCommunity={
-                                            activeFederation?.id ===
-                                            community.id
-                                        }
-                                    />
-                                )
-                            } else {
-                                return <CommunityTileLoading />
-                            }
-                        })}
-                    </View>
-                </Flex>
-            </DrawerContentScrollView>
-            <View style={style.buttonContainer}>
-                <Button
-                    testID="AddFederationButton"
-                    onPress={() => {
-                        mainNavigation.navigate('PublicFederations')
-                    }}
-                    titleStyle={style.buttonText}
-                    titleProps={{ medium: true, caption: true }}
-                    icon={
-                        <SvgImage
-                            size={14}
-                            containerStyle={style.svgPlus}
-                            name="Plus"
-                            color={theme.colors.white}
-                        />
-                    }
-                    title={
-                        <>
+        <SafeAreaContainer edges={'none'}>
+            <HoloGradient
+                level="400"
+                gradientStyle={style.imageBackground}
+                style={style.backgroundContainer}
+                locations={fediTheme.holoGradientLocations.radial}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}>
+                <DrawerContentScrollView
+                    {...props}
+                    style={[
+                        style.container,
+                        {
+                            maxHeight:
+                                height -
+                                theme.sizes.addFederationButtonHeight -
+                                insets.bottom,
+                        },
+                    ]}>
+                    <Flex grow shrink>
+                        <View style={style.topTextContainer}>
                             <Text
-                                caption
-                                medium
+                                numberOfLines={1}
                                 adjustsFontSizeToFit
-                                style={style.buttonText}>
-                                {t('feature.federation.add-federation')}
+                                style={style.drawerTitle}>
+                                {`${t('phrases.my-communities')}`}
                             </Text>
-                        </>
-                    }
-                    night
-                />
-            </View>
-        </HoloGradient>
+                            {federations.length === 0 && (
+                                <Text style={style.drawerSubtitle}>
+                                    {t('feature.federations.drawer-subtitle')}
+                                </Text>
+                            )}
+                        </View>
+                        <View style={style.communitiesList}>
+                            {federations.map((f, i) => {
+                                if (f.init_state === 'ready') {
+                                    const community: LoadedFederationListItem =
+                                        f
+                                    return (
+                                        <CommunityTile
+                                            key={`di-${i}`}
+                                            community={community}
+                                            onSelect={() =>
+                                                handleTilePress(community)
+                                            }
+                                            onSelectQr={() =>
+                                                handleQrPress(community)
+                                            }
+                                            onSelectStatus={() =>
+                                                handleStatusPress(community)
+                                            }
+                                            isActiveCommunity={
+                                                activeFederation?.id ===
+                                                community.id
+                                            }
+                                        />
+                                    )
+                                } else {
+                                    return <CommunityTileLoading />
+                                }
+                            })}
+                        </View>
+                    </Flex>
+                </DrawerContentScrollView>
+                <View style={style.buttonContainer}>
+                    <Button
+                        testID="AddFederationButton"
+                        onPress={() => {
+                            mainNavigation.navigate('PublicFederations')
+                        }}
+                        titleStyle={style.buttonText}
+                        titleProps={{ medium: true, caption: true }}
+                        icon={
+                            <SvgImage
+                                size={14}
+                                containerStyle={style.svgPlus}
+                                name="Plus"
+                                color={theme.colors.white}
+                            />
+                        }
+                        title={
+                            <>
+                                <Text
+                                    caption
+                                    medium
+                                    adjustsFontSizeToFit
+                                    style={style.buttonText}>
+                                    {t('feature.federation.add-federation')}
+                                </Text>
+                            </>
+                        }
+                        night
+                    />
+                </View>
+            </HoloGradient>
+        </SafeAreaContainer>
     )
 }
 

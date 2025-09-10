@@ -16,6 +16,7 @@ import {
     selectStableBalanceEnabled,
     setActiveFederationId,
     setPublicFederations,
+    setSeenFederationRating,
     supportsSafeOnchainDeposit,
 } from '../redux'
 import { FederationMetadata, JoinPreview, SupportedMetaFields } from '../types'
@@ -412,10 +413,17 @@ export function useFederationRating(fedimint: FedimintBridge) {
         [rating, federationToRate, dispatch, fedimint],
     )
 
+    const handleDismissRating = useCallback(() => {
+        if (!federationToRate) return
+
+        dispatch(setSeenFederationRating({ federationId: federationToRate.id }))
+    }, [dispatch, federationToRate])
+
     return {
         rating,
         setRating,
         federationToRate,
         handleSubmitRating,
+        handleDismissRating,
     }
 }

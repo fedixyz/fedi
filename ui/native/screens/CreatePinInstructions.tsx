@@ -8,6 +8,7 @@ import { setIsBackingUpBeforePin } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
 import Flex from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -24,27 +25,29 @@ const CreatePinInstructions: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     return (
-        <Flex grow style={style.container}>
-            <Flex center grow gap="sm">
-                <Image
-                    resizeMode="contain"
-                    source={Images.IllustrationPin}
-                    style={style.emptyImage}
+        <SafeAreaContainer edges={'bottom'}>
+            <Flex grow style={style.container}>
+                <Flex center grow gap="sm">
+                    <Image
+                        resizeMode="contain"
+                        source={Images.IllustrationPin}
+                        style={style.emptyImage}
+                    />
+                    <Text h2>{t('feature.pin.back-up-your-account')}</Text>
+                    <Text style={style.backupNotice}>
+                        {t('feature.pin.backup-notice')}
+                    </Text>
+                </Flex>
+                <Button
+                    containerStyle={style.containerButton}
+                    title={t('words.continue')}
+                    onPress={() => {
+                        dispatch(setIsBackingUpBeforePin(true))
+                        navigation.navigate('ChooseBackupMethod')
+                    }}
                 />
-                <Text h2>{t('feature.pin.back-up-your-account')}</Text>
-                <Text style={style.backupNotice}>
-                    {t('feature.pin.backup-notice')}
-                </Text>
             </Flex>
-            <Button
-                containerStyle={style.containerButton}
-                title={t('words.continue')}
-                onPress={() => {
-                    dispatch(setIsBackingUpBeforePin(true))
-                    navigation.navigate('ChooseBackupMethod')
-                }}
-            />
-        </Flex>
+        </SafeAreaContainer>
     )
 }
 

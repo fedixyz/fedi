@@ -2,7 +2,7 @@
 name = "stability-pool-tests-old"
 version = "0.3.0"
 authors = ["The Fedimint Developers"]
-edition = "2021"
+edition = "2024"
 description = "tests for stability pool module"
 
 [[test]]

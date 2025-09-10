@@ -124,7 +124,7 @@ const AmountInput: React.FC<Props> = ({
         // TODO: Make this wiggle when submitAttempts is incremented
         error = (
             <Pressable onPress={handlePressSuggestion} disabled={readOnly}>
-                <Text style={style.error} caption>
+                <Text style={style.error} caption testID="amount-input-error">
                     <Trans
                         i18nKey={validation.i18nKey}
                         values={{

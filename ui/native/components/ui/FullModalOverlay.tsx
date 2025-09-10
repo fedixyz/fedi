@@ -1,4 +1,4 @@
-import { Button, Overlay, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
     Animated,
@@ -11,6 +11,7 @@ import {
     StyleSheet,
     useWindowDimensions,
 } from 'react-native'
+import Modal from 'react-native-modal'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import Flex from './Flex'
@@ -143,10 +144,19 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
     const overlayBottomPadding = Math.max(theme.spacing.xl, insets.bottom || 0)
 
     return (
-        <Overlay
+        <Modal
             isVisible={isShowing}
             onBackdropPress={onBackdropPress}
-            overlayStyle={style.overlayContainer}>
+            onBackButtonPress={onBackdropPress}
+            backdropOpacity={0.5}
+            animationIn="fadeIn"
+            animationOut="fadeOut"
+            animationInTiming={1}
+            animationOutTiming={1}
+            backdropTransitionInTiming={200}
+            backdropTransitionOutTiming={200}
+            useNativeDriver={false}
+            style={style.modalContainer}>
             <Animated.View
                 style={{
                     ...style.overlayContents,
@@ -198,19 +208,23 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
                     </Flex>
                 )}
             </Animated.View>
-        </Overlay>
+        </Modal>
     )
 }
 
 const styles = (theme: Theme, insets: Insets) =>
     StyleSheet.create({
+        modalContainer: {
+            justifyContent: 'flex-end',
+            margin: 0,
+        },
         overlayContainer: {
-            // Undo all overlay styling, overlayContents will handle styling
             position: 'absolute',
             bottom: 0,
             left: 0,
             right: 0,
             padding: 0,
+            margin: 0,
             backgroundColor: 'transparent',
             shadowColor: 'transparent',
         },

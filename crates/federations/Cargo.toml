@@ -1,7 +1,7 @@
 [package]
 name = "federations"
 version = "0.3.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 # to disable SP sweepers in tests
@@ -10,6 +10,7 @@ test-support = []
 [dependencies]
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }
+fedimint-client-module = { workspace = true }
 fedimint-mint-client = { workspace = true }
 fedimint-ln-client = { workspace = true }
 fedimint-api-client = { workspace = true }
@@ -20,6 +21,7 @@ fedi-social-client = { workspace = true }
 stability-pool-client-old = { workspace = true }
 stability-pool-client = { workspace = true }
 bug-report = { workspace = true }
+device-registration = { workspace = true }
 matrix = { workspace = true }
 fedimint-derive-secret = { workspace = true }
 fedimint-bip39 = { workspace = true }

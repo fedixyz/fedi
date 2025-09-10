@@ -5,7 +5,7 @@ use std::time::SystemTime;
 use anyhow::ensure;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::{impl_db_lookup, impl_db_record, Amount, PeerId, TransactionId};
+use fedimint_core::{Amount, PeerId, TransactionId, impl_db_lookup, impl_db_record};
 use futures::StreamExt;
 use stability_pool_common::{
     AccountHistoryItem, AccountId, CycleInfo, FeeRate, FiatAmount, Provide, Seek,

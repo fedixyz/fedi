@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use communities::Communities;
 use device_registration::DeviceRegistrationService;
 use federations::Federations;
@@ -13,7 +13,6 @@ use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
 use runtime::storage::state::{DeviceIdentifier, ModuleFediFeeSchedule};
 use serde::Serialize;
-use tokio::sync::Mutex;
 use tracing::error;
 use ts_rs::TS;
 
@@ -32,7 +31,7 @@ pub struct BridgeFull {
     pub communities: Arc<Communities>,
     pub matrix: Arc<BgMatrix>,
     pub multispend_services: Arc<MultispendServices>,
-    pub device_registration_service: Mutex<DeviceRegistrationService>,
+    pub device_registration_service: Arc<DeviceRegistrationService>,
     pub nostril: Nostril,
 }
 
@@ -53,7 +52,10 @@ pub enum BridgeOffboardingReason {
 impl Display for BridgeOffboardingReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DeviceIdentifierMismatch { existing, new } => write!(f, "Expected device ID {existing} but received {new}. Likely app has been cloned on a new device."),
+            Self::DeviceIdentifierMismatch { existing, new } => write!(
+                f,
+                "Expected device ID {existing} but received {new}. Likely app has been cloned on a new device."
+            ),
             Self::InternalBridgeExport => write!(f, "Bridge is ready for export"),
         }
     }
@@ -83,8 +85,7 @@ impl BridgeFull {
             return Err(BridgeOffboardingReason::InternalBridgeExport);
         }
 
-        let device_registration_service =
-            Mutex::new(DeviceRegistrationService::new(runtime.clone()).await);
+        let device_registration_service = DeviceRegistrationService::new(runtime.clone()).await;
 
         let multispend_services = MultispendServices::new(runtime.clone());
         let multispend_notifications =
@@ -92,7 +93,11 @@ impl BridgeFull {
 
         // Load communities and federations services
         let communities = Communities::init(runtime.clone()).await;
-        let federations = Arc::new(Federations::new(runtime.clone(), multispend_notifications));
+        let federations = Arc::new(Federations::new(
+            runtime.clone(),
+            multispend_notifications,
+            device_registration_service.clone(),
+        ));
         federations.load_joined_federations_in_background().await;
 
         let nostril = Nostril::new(&runtime).await;

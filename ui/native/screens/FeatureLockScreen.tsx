@@ -11,6 +11,7 @@ import { ProtectedFeatures, setFeatureUnlocked } from '@fedi/common/redux'
 import PinDot from '../components/feature/pin/PinDot'
 import Flex from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
 import type { NavigationArgs, RootStackParamList } from '../types/navigation'
@@ -132,42 +133,46 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
     }, [])
 
     return (
-        <Flex grow center style={style.container}>
-            <Flex grow center style={style.content}>
-                <Flex row center style={style.dots}>
-                    {pinNumbers.map(i => (
-                        <PinDot
-                            key={i}
-                            status={dotStatus(i)}
-                            isLast={i === maxPinLength}
-                        />
-                    ))}
+        <SafeAreaContainer style={style.container} edges="bottom">
+            <Flex grow center style={style.container}>
+                <Flex grow center style={style.content}>
+                    <Flex row center style={style.dots}>
+                        {pinNumbers.map(i => (
+                            <PinDot
+                                key={i}
+                                status={dotStatus(i)}
+                                isLast={i === maxPinLength}
+                            />
+                        ))}
+                    </Flex>
+                </Flex>
+                <Flex row wrap style={style.numpad}>
+                    {numpadButtons.map(btn =>
+                        btn === '.' ? (
+                            <View key="empty" style={style.numpadBtnWidth} />
+                        ) : (
+                            <NumpadButton
+                                key={btn}
+                                btn={btn}
+                                onPress={() =>
+                                    handleNumpadPress(
+                                        btn as number | 'backspace',
+                                    )
+                                }
+                                disabled={timeoutSeconds > 0}
+                            />
+                        ),
+                    )}
+                    {timeoutSeconds > 0 && (
+                        <Flex center style={style.timeoutOverlay}>
+                            <Text bold h1>
+                                0:{String(timeoutSeconds).padStart(2, '0')}
+                            </Text>
+                        </Flex>
+                    )}
                 </Flex>
             </Flex>
-            <Flex row wrap style={style.numpad}>
-                {numpadButtons.map(btn =>
-                    btn === '.' ? (
-                        <View key="empty" style={style.numpadBtnWidth} />
-                    ) : (
-                        <NumpadButton
-                            key={btn}
-                            btn={btn}
-                            onPress={() =>
-                                handleNumpadPress(btn as number | 'backspace')
-                            }
-                            disabled={timeoutSeconds > 0}
-                        />
-                    ),
-                )}
-                {timeoutSeconds > 0 && (
-                    <Flex center style={style.timeoutOverlay}>
-                        <Text bold h1>
-                            0:{String(timeoutSeconds).padStart(2, '0')}
-                        </Text>
-                    </Flex>
-                )}
-            </Flex>
-        </Flex>
+        </SafeAreaContainer>
     )
 }
 

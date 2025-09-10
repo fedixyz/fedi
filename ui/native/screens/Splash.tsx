@@ -45,8 +45,18 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
         try {
             setLoading(true)
             await fedimint.completeOnboardingNewSeed()
-            await dispatch(refreshOnboardingStatus(fedimint)).unwrap()
-            navigation.navigate('PublicFederations', { from: 'Splash' })
+            const status = await dispatch(
+                refreshOnboardingStatus(fedimint),
+            ).unwrap()
+            log.debug('onboarding status after new seed', status)
+
+            // remove Splash from the stack entirely, stop possible bridge panic from user re-navigating to splash
+            navigation.reset({
+                index: 0,
+                routes: [
+                    { name: 'PublicFederations', params: { from: 'Splash' } },
+                ],
+            })
         } catch (err) {
             log.error('handleContinue', err)
             toast.error(t, err, 'errors.unknown-error')
@@ -54,6 +64,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
             setLoading(false)
         }
     }
+
     const handleReturningUser = async () => {
         navigation.navigate('ChooseRecoveryMethod')
     }

@@ -3,9 +3,9 @@ use std::fmt;
 use std::time::Duration;
 
 use anyhow::anyhow;
+use bitcoin::Network;
 use bitcoin::secp256k1::ecdsa::Signature;
 use bitcoin::secp256k1::schnorr;
-use bitcoin::Network;
 use fedimint_core::config::{GlobalClientConfig, JsonWithKind, PeerUrl};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{Amount, TransactionId};

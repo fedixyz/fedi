@@ -1,12 +1,12 @@
-import { TFunction } from 'i18next'
-import { err, errAsync, ok, okAsync, ResultAsync } from 'neverthrow'
-import { Platform } from 'react-native'
 import {
     DocumentPickerOptions,
     DocumentPickerResponse,
+    keepLocalCopy,
     pick,
-} from 'react-native-document-picker'
-import RNFS, { TemporaryDirectoryPath } from 'react-native-fs'
+} from '@react-native-documents/picker'
+import { TFunction } from 'i18next'
+import { ok, okAsync, ResultAsync } from 'neverthrow'
+import { TemporaryDirectoryPath } from 'react-native-fs'
 import {
     Asset,
     ImageLibraryOptions,
@@ -20,29 +20,16 @@ import {
     MissingDataError,
     UserError,
 } from '@fedi/common/types/errors'
-import {
-    makeError,
-    makeLocalizedError,
-    tryTag,
-    UnexpectedError,
-} from '@fedi/common/utils/errors'
+import { TaggedError } from '@fedi/common/utils/errors'
 import { makeLog } from '@fedi/common/utils/log'
-import { formatFileSize, pathJoin } from '@fedi/common/utils/media'
+import {
+    formatFileSize,
+    pathJoin,
+    prefixFileUri,
+} from '@fedi/common/utils/media'
 import { ensureNonNullish } from '@fedi/common/utils/neverthrow'
 
 const log = makeLog('utils/media')
-
-/**
- * Ensures that the file URI is prefixed with `file://` if it is not already.
- */
-export const prefixFileUri = (uri: string) =>
-    uri.startsWith('file://') ? uri : `file://${uri}`
-
-/**
- * Strips off file:// from a file URI if it is present.
- */
-export const stripFileUriPrefix = (uri: string) =>
-    uri.startsWith('file://') ? uri.slice(7) : uri
 
 export function makeRandomTempFilePath(fileName: string) {
     const dirName = `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -57,110 +44,42 @@ export function makeRandomTempFilePath(fileName: string) {
  * Converts a DocumentPickerResponse to a file URI.
  * Handles Android content URIs which may not have the filename in the URI.
  */
-export function copyDocumentToTempUri({
+export function deriveCopyableFileUri({
     name,
     ...document
 }: DocumentPickerResponse): ResultAsync<
     string,
-    UnexpectedError | MissingDataError | GenericError
+    MissingDataError | GenericError
 > {
     if (!name)
-        return errAsync(
-            makeError(
-                new Error(`expected document.name, got ${name}`),
-                'MissingDataError',
-            ),
-        )
-
-    const { dirPath, path, uri } = makeRandomTempFilePath(name)
+        return new TaggedError('MissingDataError')
+            .withMessage(`expected document.name, got ${name}`)
+            .intoErrAsync()
 
     if (document.uri.startsWith('content://')) {
         return ResultAsync.fromPromise(
-            RNFS.mkdir(dirPath),
-            tryTag('GenericError'),
+            keepLocalCopy({
+                files: [
+                    {
+                        uri: document.uri,
+                        fileName: name,
+                    },
+                ],
+                destination: 'cachesDirectory',
+            }),
+            e => new TaggedError('GenericError', e),
         )
-            .andThen(() =>
-                ResultAsync.fromPromise(
-                    RNFS.readFile(document.uri, 'base64'),
-                    tryTag('GenericError'),
-                ),
-            )
-            .andThen(inputStream =>
-                ResultAsync.fromPromise(
-                    RNFS.writeFile(path, inputStream, 'base64'),
-                    tryTag('GenericError'),
-                ),
-            )
-            .map(() => uri)
+            .andThen(([result]) => {
+                if (result.status === 'success') return ok(result.localUri)
+
+                return new TaggedError('GenericError')
+                    .withMessage(result.copyError)
+                    .intoErr()
+            })
             .orTee(e => log.error(`Error copying document ${document.uri}`, e))
     }
 
     return okAsync(document.uri)
-}
-
-export function copyAssetToTempUri(
-    asset: Asset,
-): ResultAsync<string, UnexpectedError | MissingDataError | GenericError> {
-    const { uri, fileName } = asset
-
-    if (!uri)
-        return errAsync(
-            makeError(
-                new Error(`expected asset.uri, got ${asset.uri}`),
-                'MissingDataError',
-            ),
-        )
-
-    if (!fileName)
-        return errAsync(
-            makeError(
-                new Error(`expected asset.fileName, got ${asset.fileName}`),
-                'MissingDataError',
-            ),
-        )
-
-    const { dirPath, uri: resolvedUri } = makeRandomTempFilePath(fileName)
-
-    return ResultAsync.fromPromise(RNFS.mkdir(dirPath), tryTag('GenericError'))
-        .andThrough(() => {
-            const assetUri = prefixFileUri(uri)
-            let copyOrDownloadPromise: Promise<void | RNFS.DownloadResult>
-
-            // Videos don't get copied correctly on iOS
-            if (Platform.OS === 'ios' && asset.type?.includes('video/')) {
-                copyOrDownloadPromise = RNFS.downloadFile({
-                    fromUrl: assetUri,
-                    toFile: resolvedUri,
-                }).promise
-            } else if (
-                // On Android, the react-native-image-picker library is breaking the gif animation
-                // somehow when it produces the file URI, so we copy the gif from the original path.
-                // https://github.com/react-native-image-picker/react-native-image-picker/issues/2064#issuecomment-2460501473
-                // TODO: Check if this is fixed upstream (perhaps in the turbo module) and remove this workaround
-                Platform.OS === 'android' &&
-                asset.originalPath &&
-                // sometimes animated pics are webp files so we include webp in this workaround
-                // even though some webp files are not animated and wouldn't be broken
-                // but using the original path works either way, perhaps a small perf hit
-                // if rn image-picker is optimizing when producing the file URI
-                (asset.type?.includes('gif') || asset.type?.includes('webp'))
-            ) {
-                const animatedImageUri = prefixFileUri(asset.originalPath)
-                copyOrDownloadPromise = RNFS.copyFile(
-                    animatedImageUri,
-                    resolvedUri,
-                )
-            } else {
-                copyOrDownloadPromise = RNFS.copyFile(uri, resolvedUri)
-            }
-
-            return ResultAsync.fromPromise(
-                copyOrDownloadPromise,
-                tryTag('GenericError'),
-            )
-        })
-        .map(() => resolvedUri)
-        .orTee(e => log.error(`Error copying asset ${uri}`, e))
 }
 
 /**
@@ -170,22 +89,16 @@ export function copyAssetToTempUri(
 export function tryPickAssets(
     imageOptions: ImageLibraryOptions,
     t: TFunction,
-): ResultAsync<
-    Array<Asset>,
-    UnexpectedError | GenericError | MissingDataError | UserError
-> {
+): ResultAsync<Array<Asset>, MissingDataError | GenericError | UserError> {
     return ResultAsync.fromPromise(
         launchImageLibrary(imageOptions),
-        tryTag('GenericError'),
+        e => new TaggedError('GenericError', e),
     )
         .andThen(library => {
             if (library.didCancel)
-                return err(
-                    makeError(
-                        new Error('Image library cancelled'),
-                        'GenericError',
-                    ),
-                )
+                return new TaggedError('UserError')
+                    .withMessage('Image library cancelled')
+                    .intoErr()
 
             return ok(library.assets)
         })
@@ -199,29 +112,23 @@ export function tryPickAssets(
                 .some(asset => doesAssetExceedSize(asset, MAX_FILE_SIZE))
 
             if (anyImageExceedsSize) {
-                return err(
-                    makeLocalizedError(
-                        t,
-                        'UserError',
-                        'errors.images-may-not-exceed-size',
-                        {
+                return new TaggedError('UserError')
+                    .withMessage(
+                        t('errors.images-may-not-exceed-size', {
                             size: formatFileSize(MAX_IMAGE_SIZE),
-                        },
-                    ),
-                )
+                        }),
+                    )
+                    .intoErr()
             }
 
             if (anyVideoExceedsSize) {
-                return err(
-                    makeLocalizedError(
-                        t,
-                        'UserError',
-                        'errors.videos-may-not-exceed-size',
-                        {
+                return new TaggedError('UserError')
+                    .withMessage(
+                        t('errors.videos-may-not-exceed-size', {
                             size: formatFileSize(MAX_FILE_SIZE),
-                        },
-                    ),
-                )
+                        }),
+                    )
+                    .intoErr()
             }
 
             return ok()
@@ -235,26 +142,21 @@ export function tryPickAssets(
 export function tryPickDocuments(
     options: DocumentPickerOptions,
     t: TFunction,
-): ResultAsync<
-    Array<DocumentPickerResponse>,
-    UnexpectedError | GenericError | UserError
-> {
+): ResultAsync<Array<DocumentPickerResponse>, GenericError | UserError> {
     return ResultAsync.fromPromise(
         pick(options),
-        tryTag('GenericError'),
+        e => new TaggedError('GenericError', e),
     ).andThrough(documents => {
         if (documents.some(doc => doesDocumentExceedSize(doc, MAX_FILE_SIZE))) {
-            return err(
-                makeLocalizedError(
-                    t,
-                    'UserError',
-                    'errors.files-may-not-exceed-size',
-                    {
+            return new TaggedError('UserError')
+                .withMessage(
+                    t('errors.files-may-not-exceed-size', {
                         size: formatFileSize(MAX_FILE_SIZE),
-                    },
-                ),
-            )
+                    }),
+                )
+                .intoErr()
         }
+
         return ok()
     })
 }

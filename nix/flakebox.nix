@@ -99,6 +99,13 @@ in
 
         "SQLITE3_${build_arch_underscores}_LIB_DIR" = "${pkgs.sqlite.out}/lib/";
         "SQLCIPHER_${build_arch_underscores}_LIB_DIR" = "${pkgs.sqlcipher}/lib/";
+
+        # these two are mismatched between Nix/Rust so just set the
+        # other one manually
+        # See https://github.com/NixOS/nixpkgs/pull/393213
+        "SQLITE3_aarch64_apple_darwin_LIB_DIR" = "${pkgs.pkgsStatic.sqlite.out}/lib/";
+        # "SQLITE3_arm64_apple_darwin_LIB_DIR" = "${pkgs.pkgsStatic.sqlite.out}/lib/";
+
       };
 
     commonArgs =
@@ -280,7 +287,7 @@ in
 
       nativeBuildInputs = [
         pkgs.wasm-pack
-        pkgs.wasm-bindgen-cli
+        pkgs.wasm-bindgen-cli_0_2_100
         pkgs.binaryen
       ];
       buildPhaseCargoCommand =
@@ -426,14 +433,10 @@ in
       }
     );
 
-    testBridgeAll = pkgs.linkFarmFromDrvs "fedi-test-bridge-all" [
-      testBridgeCurrent
-    ];
-
-    testBridgeCurrent = craneLib.buildCommand (
+    testBridge = craneLib.buildCommand (
       commonTestArgs
       // {
-        pname = "fedi-test-bridge-current";
+        pname = "fedi-test-bridge";
         cargoArtifacts = workspaceBuild;
         doInstallCargoArtifacts = false;
         src = rustTestSrc;
@@ -448,7 +451,7 @@ in
           done
 
           export HOME=/tmp
-          ./scripts/test-bridge-current.sh
+          ./scripts/test-bridge.sh
         '';
       }
     );

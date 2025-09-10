@@ -63,3 +63,38 @@ export const ZENDESK_USER_SCOPE = 'user'
 */
 
 export const ZENDESK_PUSH_NOTIFICATION_CHANNEL = 'and-notification-channel'
+
+/*
+    -----
+    Layout
+    -----
+*/
+
+// Screen size thresholds
+export const SCREEN_SIZE_THRESHOLDS = {
+    SMALL_TO_MEDIUM: 750,
+    MEDIUM_TO_LARGE: 900,
+} as const
+
+// Android screen size categories
+export enum AndroidScreenSize {
+    SMALL = 750, // <750px - small phones (5" and under)
+    MEDIUM = 900, // 750-900px - standard phones (5.5-6.5")
+    LARGE = 901, // 900px+ - large phones and tablets (6.5"+)
+}
+
+export const DEFAULT_ANIMATION_DURATION = 250
+export const DEFAULT_KEYBOARD_HEIGHT_FALLBACK = 300
+export const ANDROID_INPUT_FOCUS_OFFSET = 20
+
+export const KEYBOARD_PADDING = {
+    SMALL_MULTIPLIER: 0.08,
+    LARGE_MULTIPLIER: 0.2,
+    SMALL_MAX_PERCENT: 0.015,
+    LARGE_MAX_PERCENT: 0.05,
+} as const
+
+export const CHAT_KEYBOARD_BEHAVIOR = {
+    ANDROID_OFFSET_PERCENT: 0.025,
+    MAX_BOTTOM_PERCENT: 0.5,
+} as const

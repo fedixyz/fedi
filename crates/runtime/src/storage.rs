@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{bail, Context as _};
+use anyhow::{Context as _, bail};
 use either::Either;
 use fedi_social_client::SocialRecoveryState;
 use fedimint_bip39::Bip39RootSecretStrategy;
@@ -14,12 +15,13 @@ use fedimint_core::{apply, async_trait_maybe_send, impl_db_record};
 use fedimint_derive_secret::DerivableSecret;
 use rand::rngs::OsRng;
 use state::{
-    default_next_federation_prefix, AppStateJson, AppStateJsonBase, AppStateJsonOnboarded,
-    AppStateJsonOnboarding, DeviceIdentifier, OnboardingMethod, OnboardingStage,
+    AppStateJson, AppStateJsonBase, AppStateJsonOnboarded, AppStateJsonOnboarding,
+    DeviceIdentifier, FirstCommunityInviteCodeState, OnboardingMethod, OnboardingStage,
+    default_next_federation_prefix,
 };
 use tokio::sync::RwLock;
 
-use crate::constants::FEDI_FILE_V0_PATH;
+use crate::constants::{FEDI_FILE_V0_PATH, FEDI_GIFT_EXCLUDED_COMMUNITIES};
 use crate::db::BridgeDbPrefix;
 
 pub mod state;
@@ -153,7 +155,36 @@ impl AppState {
             bridge_db,
         };
         if onboarding_complete {
-            Ok(Either::Left(AppState { store }))
+            let app_state = AppState { store };
+            // Backfill fields for "Fedi Gift" project if necessary
+            app_state
+                .with_write_lock(|state| {
+                    let mut invite_codes: BTreeSet<_> =
+                        state.joined_communities.keys().cloned().collect();
+
+                    // First remove default community invite code from consideration
+                    for &excluded in FEDI_GIFT_EXCLUDED_COMMUNITIES {
+                        invite_codes.remove(excluded);
+                    }
+
+                    // Backfilling is necessary iff:
+                    // - "first community" is never set
+                    // - There are pre-existing joined communities
+                    if state.first_comm_invite_code == FirstCommunityInviteCodeState::NeverSet
+                        && invite_codes.is_empty().not()
+                    {
+                        // Then evaluate the remaining communities
+                        if invite_codes.len() == 1 {
+                            state.first_comm_invite_code = FirstCommunityInviteCodeState::Set(
+                                invite_codes.first().expect("checked").to_string(),
+                            );
+                        } else {
+                            state.first_comm_invite_code = FirstCommunityInviteCodeState::Unset; // can never be set now
+                        }
+                    }
+                })
+                .await?;
+            Ok(Either::Left(app_state))
         } else {
             Ok(Either::Right(AppStateOnboarding { store }))
         }
@@ -427,6 +458,7 @@ impl AppStateOnboarding {
                     matrix_session: None,
                     internal_bridge_export: false,
                     onboarding_method: Some(onboarding_method),
+                    first_comm_invite_code: FirstCommunityInviteCodeState::NeverSet,
                     base: AppStateJsonBase {
                         root_mnemonic,
                         joined_federations: BTreeMap::new(),

@@ -4,47 +4,12 @@ import Share from 'react-native-share'
 import RNFB from 'rn-fetch-blob'
 
 import { LogEvent } from '@fedi/common/types/bindings'
-import {
-    exportUiLogs,
-    exportLegacyUiLogs,
-    makeLog,
-} from '@fedi/common/utils/log'
-import { File, makeTarGz } from '@fedi/common/utils/targz'
+import { makeLog } from '@fedi/common/utils/log'
+import { File } from '@fedi/common/utils/targz'
 
 import { store } from '../state/store'
-import { getAllDeviceInfo } from './device-info'
-import { storage } from './storage'
 
 const log = makeLog('native/utils/logs-export')
-
-export async function generateLogsExportGzip(extraFiles: File[] = []) {
-    // Parallelize all information gathering.
-    const [legacyUiLogs, uiLogs, bridgeLogs, infoJson] = await Promise.all([
-        exportLegacyUiLogs(storage),
-        exportUiLogs(),
-        exportBridgeLogs(),
-        getAllDeviceInfo(),
-    ])
-
-    return await makeTarGz([
-        { name: 'app-ui-legacy.log', content: legacyUiLogs },
-        { name: 'app.log', content: uiLogs },
-        { name: 'bridge.log', content: bridgeLogs },
-        { name: 'info.json', content: JSON.stringify(infoJson, null, 2) },
-        ...extraFiles,
-    ])
-}
-
-export async function shareLogsExport() {
-    const targz = await generateLogsExportGzip()
-    const filename = `fedi-logs-${Math.floor(Date.now() / 1000)}.tar.gz`
-    return Share.open({
-        title: 'Fedi logs',
-        url: `data:application/tar+gzip;base64,${targz.toString('base64')}`,
-        filename: filename,
-        type: 'application/tar+gzip',
-    })
-}
 
 export async function shareReduxState() {
     const state = store.getState()
@@ -82,7 +47,7 @@ export async function attachmentsToFiles(
     return files
 }
 
-async function exportBridgeLogs() {
+export async function exportBridgeLogs() {
     // Ensure we get all logs. Logs are split across multiple files on a
     // rolling basis, so it's possible that `fedi.log` is nearly empty but
     // `fedi.log.1` has a lot of logs from before.

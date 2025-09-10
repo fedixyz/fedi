@@ -20,7 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
     a full-sized view for dismissing the keyboard by tapping anywhere outside
     the keyboard. The dismiss behavior can also be disabled if needed
 */
-
 type KeyboardAwareWrapperProps = {
     children: React.ReactNode
     dismissableArea?: boolean

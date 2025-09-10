@@ -9,7 +9,7 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fedimint-pkgs = {
-      url = "github:fedibtc/fedimint?ref=v0.7.0-fedi1";
+      url = "github:fedibtc/fedimint?ref=v0.8.0-fedi2";
     };
 
     fenix = {
@@ -74,9 +74,6 @@
               esplora-electrs = pkgs-fedimint.esplora-electrs;
               # remove after upgrading pkgs-fedimint
               bitcoind = pkgs-fedimint.bitcoind;
-
-              # https://github.com/rustwasm/wasm-bindgen/pull/4380
-              wasm-bindgen-cli = final.callPackage ./nix/pkgs/wasm-bindgen-cli { };
 
               binaryen = pkgs-unstable.binaryen;
               snappy = prev.snappy.overrideAttrs (
@@ -161,6 +158,8 @@
             build-tools-34-0-0
             build-tools-35-0-0
             platform-tools
+            platforms-android-16
+            platforms-android-25
             platforms-android-31
             platforms-android-33
             platforms-android-34
@@ -169,6 +168,10 @@
             ndk-26-1-10909125
             cmake-3-22-1
             tools
+            system-images-android-25-google-apis-x86-64
+            system-images-android-25-google-apis-arm64-v8a
+            system-images-android-34-google-apis-x86-64
+            system-images-android-34-google-apis-arm64-v8a
           ]
         );
 
@@ -226,7 +229,7 @@
             args = {
               nativeBuildInputs =
                 [
-                  pkgs.wasm-bindgen-cli
+                  pkgs.wasm-bindgen-cli_0_2_100
                   pkgs.geckodriver
                   pkgs.wasm-pack
                 ]
@@ -333,50 +336,58 @@
           // craneMultiBuild.commonArgs
           // {
             toolchain = toolchainAll;
-            nativeBuildInputs = craneMultiBuild.commonArgs.nativeBuildInputs ++ [
-              fedimint-pkgs.packages.${system}.gateway-pkgs
-              fedimint-pkgs.packages.${system}.fedimint-recurringd
-              pkgs.fs-dir-cache
-              pkgs.cargo-nextest
-              pkgs.cargo-audit
-              pkgs.cargo-udeps
-              pkgs.curl # wasm build needs it for some reason
-              pkgs.wasm-pack
-              pkgs.wasm-bindgen-cli
-              pkgs.binaryen
-              pkgs.gnused
-              pkgs.yarn
-              pkgs.nodejs_22
-              pkgs.nodePackages.prettier # for ts-bindgen
-              pkgs.jdk17
-              pkgs.nodePackages.typescript-language-server
-              # tools for managing native app deployments
-              pkgs.fastlane
-              pkgs.ruby
-              pkgs.perl
-              pkgs.pkg-config
-              pkgs.mprocs
-              pkgs.bitcoind
-              pkgs.electrs
-              pkgs.esplora-electrs
-              pkgs.clightning
-              pkgs.lnd
-              (pkgs.matrix-synapse.override { extras = [ ]; })
-              pkgs.sccache
-              pkgs.ripgrep
-              pkgs.lsof
+            nativeBuildInputs =
+              craneMultiBuild.commonArgs.nativeBuildInputs
+              ++ [
+                fedimint-pkgs.packages.${system}.gateway-pkgs
+                fedimint-pkgs.packages.${system}.fedimint-recurringd
+                pkgs.fs-dir-cache
+                pkgs.cargo-nextest
+                pkgs.cargo-audit
+                pkgs.cargo-udeps
+                pkgs.curl # wasm build needs it for some reason
+                pkgs.wasm-pack
+                pkgs.wasm-bindgen-cli_0_2_100
+                pkgs.binaryen
+                pkgs.gnused
+                pkgs.yarn
+                pkgs.nodejs_22
+                pkgs.nodePackages.prettier # for ts-bindgen
+                pkgs.jdk17
+                pkgs.nodePackages.typescript-language-server
+                pkgs.nodePackages.ts-node
+                # tools for managing native app deployments
+                pkgs.fastlane
+                pkgs.ruby
+                pkgs.perl
+                pkgs.pkg-config
+                pkgs.mprocs
+                pkgs.bitcoind
+                pkgs.electrs
+                pkgs.esplora-electrs
+                pkgs.clightning
+                pkgs.lnd
+                (pkgs.matrix-synapse.override { extras = [ ]; })
+                pkgs.sccache
+                pkgs.ripgrep
+                pkgs.lsof
 
-              androidSdk
-            ];
+                pkgs.android-tools
+                androidSdk
+              ]
+              ++ lib.optionals pkgs.stdenv.isDarwin [
+                # add some darwin pkgs if on macos
+                pkgs.darwin.text_cmds
+                pkgs.darwin.shell_cmds
+                pkgs.darwin.system_cmds
+                pkgs.darwin.ditto
+                pkgs.darwin.ps
+              ];
 
             buildInputs = craneMultiBuild.commonArgs.buildInputs ++ [ pkgs.openssl ];
 
             FEDI_CROSS_DEV_SHELL = "1";
             shellHook = ''
-              export PATH=$PATH:''${ANDROID_SDK_ROOT}/../../bin
-              alias create-avd="avdmanager create avd --force --name phone --package 'system-images;android-32;google_apis;arm64-v8a' --path $PWD/avd";
-              alias emulator="emulator -avd phone"
-
               # Use old ESLINT config format until we upgrade to v9+
               export ESLINT_USE_FLAT_CONFIG=false
 
@@ -398,6 +409,19 @@
               export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt2"
 
               export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="--cfg getrandom_backend=\"wasm_js\" $CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS"
+
+              # E2E test framework (Appium) expects these to be configured
+              export ANDROID_SDK_ROOT=${androidSdk}/share/android-sdk
+              export ANDROID_HOME="$ANDROID_SDK_ROOT"
+              export PATH=$PATH:''${ANDROID_SDK_ROOT}/emulator:''${ANDROID_SDK_ROOT}/platform-tools:''${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin
+              # ensure appium binary installed via npm is available in path
+              export PATH="$PATH:''${REPO_ROOT}/ui/node_modules/.bin"
+              # give appium a working directory (see ui/package.json to set the appium version)
+              export APPIUM_HOME="''${REPO_ROOT}/ui/.appium"
+              mkdir -p "$APPIUM_HOME"
+              # create android emulators in appium's working directory
+              export ANDROID_AVD_HOME="$APPIUM_HOME/avd"
+              mkdir -p "$ANDROID_AVD_HOME"
             '';
           }
         );
@@ -416,6 +440,9 @@
             # ln -s /usr/bin/xcodebuild $out/bin/xcodebuild
             ln -s /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild $out/bin/xcodebuild
             ln -s /usr/bin/xcrun $out/bin/xcrun
+            ln -s /usr/bin/xcode-select $out/bin/xcode-select
+            ln -s /usr/bin/security $out/bin/security
+            ln -s /usr/bin/codesign $out/bin/codesign
             ls -alh $out/bin
             $out/bin/xcodebuild -version
             # Check if we have the xcodebuild version that we want
@@ -470,7 +497,6 @@
                 pkgs.cocoapods
                 pkgs.rsync
                 pkgs.unzip
-                pkgs.darwin.shell_cmds
                 (pkgs.hiPrio xcode-wrapper)
                 pkgs.fs-dir-cache
               ]

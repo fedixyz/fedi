@@ -15,14 +15,11 @@ on:
 jobs:
     build-run-e2e-tests:
         name: 'Build & run end-to-end tests (React Native: iOS + Android)'
-        runs-on: [self-hosted, macos, arm64, legacy]
+        runs-on: [self-hosted, macos, arm64, macstadium]
         timeout-minutes: 200
         env:
-            BUILD_ANDROID: 1
-            BUILD_IOS: 1
             RUN_TESTS: 1
             TESTS_TO_RUN: all
-            E2E_CI: 1
         steps:
             - uses: actions/checkout@v4
             - uses: cachix/install-nix-action@v30
@@ -33,6 +30,8 @@ jobs:
                   name: fedibtc
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
               continue-on-error: true
+            
+            # TODO: consolidate into 1 script to save time on nix develop calls
 
             - name: Build iOS bridge artifacts
               # note: can't use --ignore-environment as it uses globally installed xcode
@@ -48,236 +47,49 @@ jobs:
               # xcode shell ensures we have cocoapods installed
               run: nix develop .#xcode -c ./scripts/ui/install-ios-deps.sh
 
+            # TODO: figure out how to share these bundle artifacts between jobs to optimize this workflow
             - name: Build Android debug bundle
               run: nix develop -c ./scripts/ci/build-android.sh
 
             - name: Build iOS debug bundle
               run: nix develop .#xcode -c ./scripts/ci/build-ios.sh
-
-            # this code was hitting limits when using Github Artifacts for some reason
-            # TODO: figure out how to share build artifacts between jobs and optimize this workflow
-            # - name: Upload iOS debug bundle
-            #   uses: actions/upload-artifact@v4
-            #   with:
-            #      name: iosBundle
-            #      path: ./ui/native/ios/build/Build/Products/Debug-iphonesimulator/FediReactNative.app
-            #      retention-days: 1
-            # - name: Upload Android debug bundle
-            #   uses: actions/upload-artifact@v4
-            #   with:
-            #      name: androidBundle
-            #      path: ./ui/native/android/app/build/outputs/apk/production/debug/app-production-debug.apk
-            #      retention-days: 1
-            # - name: Download Android bundle
-            #   uses: actions/download-artifact@v4
-            #   with:
-            #     name: androidBundle
-            #     path: ./ui/native/testArtifacts
-            # - name: Download iOS bundle
-            #   uses: actions/download-artifact@v4
-            #   with:
-            #     name: iosBundle
-            #     path: ./ui/native/testArtifacts/FediReactNative.app
-          
-            - name: Setup Node
-              uses: actions/setup-node@v4
-              with:
-                node-version: 22
-   
-            - name: Install Appium globally
-              run: |
-                npm install -g appium
-                appium --version
-
-            - name: Install Appium drivers
-              run: |
-                DRIVER_LIST_FILE=$(mktemp)
-                appium driver list --installed > "$DRIVER_LIST_FILE" 2>&1
-                echo "Currently installed drivers:"
-                cat "$DRIVER_LIST_FILE"
-                if grep -q "xcuitest" "$DRIVER_LIST_FILE"; then
-                  appium driver update xcuitest || echo "No updates available for xcuitest driver"
-                else
-                  appium driver install xcuitest
-                fi
-                if grep -q "uiautomator2" "$DRIVER_LIST_FILE"; then
-                  appium driver uninstall uiautomator2 && appium driver install uiautomator2@4.0.0 || echo "Reinstalled uiautomator2@4.0.0"
-                else
-                  appium driver install uiautomator2@4.0.0
-                fi
-                rm "$DRIVER_LIST_FILE"
-                echo "Final installed drivers:"
-                appium driver list --installed
-
-            - name: Start Appium
-              run: |
-                nix develop .#xcode --command env -u MACOSX_DEPLOYMENT_TARGET ./scripts/ui/start-appium.sh > appium.log 2>&1 &
-                echo $! > appium_pid.txt
-                sleep 5
-                cat appium.log
+    
+            - name: Setup and Start Appium
+              run: nix develop -c ./scripts/ui/setup-and-start-appium.sh
 
             - name: Start Android Emulators
-              run: |
-                export ANDROID_HOME=~/Library/Android/sdk
-                export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools
-                echo $ANDROID_HOME
-                echo "Starting Android emulators..."
-                ANDROID_DEVICES=("emulator-5554" "emulator-5556")
-                ANDROID_VERSIONS=("7.1" "16")
-                $ANDROID_HOME/emulator/emulator -avd "android-7.1" -no-audio -no-boot-anim -no-window > emulator71.log 2>&1 & echo $! >> android_emulator_pids.txt
-                $ANDROID_HOME/emulator/emulator -avd "android-16" -no-audio -no-boot-anim -no-window > emulator16.log 2>&1 & echo $! >> android_emulator_pids.txt
-                sleep 10
-                echo "Emulator processes:"
-                ps aux | grep emulator
-                for device in "${ANDROID_DEVICES[@]}"; do
-                  echo "Waiting for $device to connect..."
-                  adb -s $device wait-for-device
-                  echo "Waiting for $device to fully boot (timeout: 5 minutes)..."
-                  boot_complete=false
-                  for attempt in {1..30}; do
-                    boot_completed=$(adb -s $device shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-                    if [[ "$boot_completed" == "1" ]]; then
-                      echo "$device is fully booted after $((attempt * 10)) seconds"
-                      boot_complete=true
-                      break
-                    fi
-                    echo "Boot attempt $attempt: Device $device not ready yet, waiting 10 more seconds..."
-                    sleep 10
-                  done
-                  if [[ "$boot_complete" != "true" ]]; then
-                    echo "WARNING: Timed out after 5 minutes waiting for $device to boot"
-                  fi
-                done
-                echo "All Android emulators started (or timed out)"
-                adb devices
-                echo "Checking logs"
-                cat emulator16.log
-                cat emulator71.log
-                cat android_emulator_pids.txt
+              run: nix develop -c ./scripts/ui/start-android-emulators.sh
 
             - name: Start iOS simulators
-              run: |
-                echo "Starting iOS simulators..."
-                xcrun simctl boot "iPhone SE 1st gen (15.2)" || true
-                IOS_15_UDID=$(xcrun simctl list devices | grep "iPhone SE 1st gen (15.2)" | grep -E -o -i "([0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12})")
-                echo "IOS_15_UDID=$IOS_15_UDID" >> $GITHUB_ENV
-
-                xcrun simctl boot "iPhone 16 Pro Max (18.1)" || true
-                IOS_18_UDID=$(xcrun simctl list devices | grep "iPhone 16 Pro Max (18.1)" | grep -E -o -i "([0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12})")
-                echo "IOS_18_UDID=$IOS_18_UDID" >> $GITHUB_ENV
-
-                xcrun simctl list devices | grep "Booted"
-
-            - name: Build UI dependencies again
-              run: nix develop -c ./scripts/ui/build-deps.sh
+              run: nix develop .#xcode -c ./scripts/ui/start-ios-simulators.sh
 
             - name: Start Metro
-              run: |
-                pushd ui
-                nix develop -c yarn install
-                popd
-                nix develop --command ./scripts/ui/start-metro.sh > metro.log 2>&1 & echo $! > metro_pid.txt
-                sleep 5
-                cat metro.log
+              run: nix develop -c ./scripts/ui/start-metro.sh
 
             - name: Run Android 7.1 tests
-              run: |
-                export ANDROID_HOME=~/Library/Android/sdk
-                export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools
-                echo "Running tests on Android 7.1 (Device ID: emulator-5554)"
-                pushd ui
-                if adb -s emulator-5554 shell pm list packages | grep -q "package:com.fedi"; then
-                  adb -s emulator-5554 uninstall com.fedi
-                else
-                  echo "No com.fedi detected. Continuing..."
-                fi
-                nix develop -c yarn install
-                PLATFORM=android DEVICE_ID=emulator-5554 BUNDLE_PATH="./ui/native/android/app/build/outputs/apk/production/debug/app-production-debug.apk" nix develop -c yarn run ts-node ./native/tests/appium/runner.ts all
-                echo "status=$?" >> $GITHUB_OUTPUT
-                popd
+              run: nix develop -c ./scripts/ci/run-android-tests.sh android-7.1 "./ui/native/android/app/build/outputs/apk/production/debug/app-production-debug.apk" "Android 7.1"
 
-            - name: Run Android 16 tests
-              run: |
-                echo "Running tests on Android 16 (Device ID: emulator-5556)"
-                pushd ui
-                if adb -s emulator-5556 shell pm list packages | grep -q "package:com.fedi"; then
-                  adb -s emulator-5556 uninstall com.fedi
-                else
-                  echo "No com.fedi detected. Continuing..."
-                fi
-                nix develop -c yarn install
-                PLATFORM=android DEVICE_ID=emulator-5556 BUNDLE_PATH="./ui/native/android/app/build/outputs/apk/production/debug/app-production-debug.apk" nix develop -c yarn run ts-node ./native/tests/appium/runner.ts all
-                echo "status=$?" >> $GITHUB_OUTPUT
-                popd
+            - name: Run Android 14 tests
+              run: nix develop -c ./scripts/ci/run-android-tests.sh android-14 "./ui/native/android/app/build/outputs/apk/production/debug/app-production-debug.apk" "Android 14"
 
             - name: Run iOS 15 tests
-              run: |
-                echo "Running tests on iOS 15 (Device ID: $IOS_15_UDID)"
-                pushd ui
-                xcrun simctl uninstall $IOS_15_UDID org.fedi.alpha
-                nix develop -c yarn install
-                PLATFORM=ios DEVICE_ID=$IOS_15_UDID BUNDLE_PATH="./ui/native/ios/build/Build/Products/Debug-iphonesimulator/FediReactNative.app" nix develop -c yarn run ts-node ./native/tests/appium/runner.ts all
-                echo "status=$?" >> $GITHUB_OUTPUT
-                popd
+              run: nix develop .#xcode -c ./scripts/ci/run-ios-tests.sh "$IOS_15_UDID" "./ui/native/ios/build/Build/Products/Debug-iphonesimulator/FediReactNative.app" "iOS 15"
 
             - name: Run iOS 18 tests
-              run: |
-                echo "Running tests on iOS 18 (Device ID: $IOS_18_UDID)"
-                pushd ui
-                xcrun simctl uninstall $IOS_15_UDID org.fedi.alpha
-                nix develop -c yarn install
-                PLATFORM=ios DEVICE_ID=$IOS_18_UDID BUNDLE_PATH="./ui/native/ios/build/Build/Products/Debug-iphonesimulator/FediReactNative.app" nix develop -c yarn run ts-node ./native/tests/appium/runner.ts all
-                echo "status=$?" >> $GITHUB_OUTPUT
-                popd
+              run: nix develop .#xcode -c ./scripts/ci/run-ios-tests.sh "$IOS_18_UDID" "./ui/native/ios/build/Build/Products/Debug-iphonesimulator/FediReactNative.app" "iOS 18"
 
             - name: Upload logs & screenshots
               uses: actions/upload-artifact@v4
               if: ${{ always() }}
               with:
                 name: logs
+                include-hidden-files: true
                 path: |
+                  ./**/.appium/*.log
                   ./*.log
                   ./**/screenshots/*.png
 
-            - name: Stop Android emulators
+            - name: Stop all servers & emulators
               continue-on-error: true
               if: ${{ always() }}
-              run: |
-                if [ -f "android_emulator_pids.txt" ]; then
-                  while IFS=: read -r device_id pid; do
-                    echo "Stopping Android emulator $device_id (PID: $pid)"
-                    kill -9 $pid || true
-                  done < "android_emulator_pids.txt"
-                fi
-                pkill -9 qemu-system-x86_64 || true
-                adb devices
-
-            - name: Stop iOS simulators
-              continue-on-error: true
-              if: ${{ always() }}
-              run: |
-                echo "Shutting down all iOS simulators"
-                xcrun simctl shutdown all
-                pkill -9 Simulator || true
-                xcrun simctl list devices | grep "Booted" || echo "No simulators running"
-
-            - name: Stop Appium server
-              continue-on-error: true
-              if: ${{ always() }}
-              run: |
-                if [ -f "appium_pid.txt" ]; then
-                  APPIUM_PID=$(cat appium_pid.txt)
-                  echo "Stopping Appium server (PID: $APPIUM_PID)"
-                  kill -9 $APPIUM_PID || true
-                fi
-                pkill -9 -f appium || true
-
-            - name: Stop Metro server
-              if: ${{ always() }}
-              run: |
-                if [ -f "metro_pid.txt" ]; then
-                  METRO_PID=$(cat metro_pid.txt)
-                  echo "Stopping Metro server (PID: $METRO_PID)"
-                  kill -9 $METRO_PID || true
-                fi
-                pkill -9 -f node || true
+              run: nix develop .#xcode -c ./scripts/ci/stop-all-e2e-services.sh

@@ -1,12 +1,8 @@
-import { CameraRoll } from '@react-native-camera-roll/camera-roll'
 import Clipboard from '@react-native-clipboard/clipboard'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native'
-import { TemporaryDirectoryPath, exists } from 'react-native-fs'
-import { PermissionStatus, RESULTS } from 'react-native-permissions'
-import Share from 'react-native-share'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -17,22 +13,22 @@ import {
     setChatReplyingToMessage,
 } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { JSONObject } from '@fedi/common/types/bindings'
-import { makeLog } from '@fedi/common/utils/log'
-import { getEventId, MatrixEventContentType } from '@fedi/common/utils/matrix'
-import { pathJoin } from '@fedi/common/utils/media'
+import {
+    getEventId,
+    isFileEvent,
+    isImageEvent,
+    isVideoEvent,
+    MatrixEventContentType,
+} from '@fedi/common/utils/matrix'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { useDownloadPermission } from '../../../utils/hooks'
-import { prefixFileUri } from '../../../utils/media'
+import { useDownloadResource } from '../../../utils/hooks/media'
 import CustomOverlay from '../../ui/CustomOverlay'
 import Flex from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 import ChatEvent from './ChatEvent'
-
-const log = makeLog('feature/chat/SelectedMessageOverlay')
 
 const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     // Defaults to true so we don't default to loading chat events with media
@@ -40,15 +36,25 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
 }) => {
     const [deleteMessage, setDeleteMessage] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
-    const [isDownloading, setIsDownloading] = useState(false)
     const selectedMessage = useAppSelector(selectSelectedChatMessage)
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const { downloadPermission, requestDownloadPermission } =
-        useDownloadPermission()
+
+    const downloadResource =
+        selectedMessage &&
+        (isFileEvent(selectedMessage) ||
+            isImageEvent(selectedMessage) ||
+            isVideoEvent(selectedMessage))
+            ? selectedMessage
+            : null
+
+    const { handleDownload: handleDownloadFile, isDownloading } =
+        useDownloadResource(downloadResource, {
+            loadResourceInitially: false,
+        })
 
     const isMe = selectedMessage?.senderId === matrixAuth?.userId
 
@@ -105,102 +111,11 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     }, [dispatch, closeOverlay, selectedMessage])
 
     const handleDownload = useCallback(async () => {
-        if (
-            !selectedMessage ||
-            (selectedMessage.content.msgtype !== 'm.file' &&
-                selectedMessage.content.msgtype !== 'm.image' &&
-                selectedMessage.content.msgtype !== 'm.video')
-        )
-            return
+        if (!selectedMessage) return
 
-        setIsDownloading(true)
-
-        try {
-            const path = pathJoin(
-                TemporaryDirectoryPath,
-                selectedMessage.content.body,
-            )
-
-            const downloadedFilePath = await fedimint.matrixDownloadFile(
-                path,
-                selectedMessage.content as JSONObject,
-            )
-
-            const downloadedFileUri = prefixFileUri(downloadedFilePath)
-
-            if (!(await exists(downloadedFilePath))) {
-                throw new Error(t('errors.failed-to-download-file'))
-            }
-
-            // Downloading files does not require a permissions request
-            // since are using the Share.open dialog
-            if (selectedMessage.content.msgtype === 'm.file') {
-                const filename =
-                    Platform.OS === 'android'
-                        ? selectedMessage.content.body.replace(/\.[a-z]+$/, '')
-                        : selectedMessage.content.body
-
-                try {
-                    await Share.open({
-                        filename,
-                        type: selectedMessage.content.info.mimetype,
-                        url: downloadedFileUri,
-                    })
-
-                    toast.show({
-                        content: t('feature.chat.file-saved'),
-                        status: 'success',
-                    })
-                } catch {
-                    /* no-op*/
-                }
-            } else {
-                // Downloading images and videos requires permissions
-                let permissionStatus: PermissionStatus | undefined =
-                    downloadPermission
-
-                if (permissionStatus !== RESULTS.GRANTED)
-                    permissionStatus = await requestDownloadPermission()
-
-                if (permissionStatus === RESULTS.GRANTED) {
-                    await CameraRoll.saveAsset(downloadedFileUri, {
-                        type: 'auto',
-                    })
-                } else {
-                    throw new Error(t('errors.please-grant-permission'))
-                }
-
-                // Customize the message by OS:
-                // - iOS saves both pictures and videos to the photos library
-                // - Android saves videos and photos in different folders
-                let message = t('feature.chat.saved-to-photo-library')
-                if (Platform.OS === 'android') {
-                    message =
-                        selectedMessage.content.msgtype === 'm.video'
-                            ? t('feature.chat.saved-to-movies')
-                            : t('feature.chat.saved-to-pictures')
-                }
-
-                toast.show({
-                    content: message,
-                    status: 'success',
-                })
-            }
-        } catch (err) {
-            toast.error(t, err, 'errors.unknown-error')
-            log.error('failed to save file', err)
-        } finally {
-            setIsDownloading(false)
-            closeOverlay()
-        }
-    }, [
-        selectedMessage,
-        t,
-        toast,
-        closeOverlay,
-        requestDownloadPermission,
-        downloadPermission,
-    ])
+        await handleDownloadFile()
+        closeOverlay()
+    }, [closeOverlay, handleDownloadFile, selectedMessage])
 
     const handleReply = useCallback(() => {
         if (!selectedMessage) return
@@ -219,6 +134,15 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     }, [selectedMessage])
 
     const style = styles(theme)
+
+    const canReply =
+        !!selectedMessage &&
+        (['m.text', 'm.notice', 'm.emote'].includes(
+            selectedMessage.content.msgtype,
+        ) ||
+            isImageEvent(selectedMessage) ||
+            isVideoEvent(selectedMessage) ||
+            isFileEvent(selectedMessage))
 
     return (
         <CustomOverlay
@@ -260,11 +184,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                         </Flex>
                     ) : (
                         <Flex fullWidth>
-                            {(selectedMessage?.content.msgtype === 'm.text' ||
-                                selectedMessage?.content.msgtype ===
-                                    'm.notice' ||
-                                selectedMessage?.content.msgtype ===
-                                    'm.emote') && (
+                            {canReply && (
                                 <Pressable
                                     onPress={handleReply}
                                     containerStyle={style.action}>
