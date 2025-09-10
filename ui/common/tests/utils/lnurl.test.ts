@@ -118,14 +118,16 @@ describe('lnurl', () => {
             expect(result._unsafeUnwrap()).toEqual(lnurlOkResponse)
         })
 
-        it('should bubble up a FetchError if the LNURL callback URL returns an error', async () => {
+        it('should bubble up a NotOkHttpResponseError if the LNURL callback URL returns a non-ok response', async () => {
             const result = await constructUrl(
                 lnurlErrorCallbackUrl,
             ).asyncAndThen(lnurlCallback)
 
             expect(result.isOk()).toBe(false)
             expect(result.isErr()).toBe(true)
-            expect(result._unsafeUnwrapErr()._tag).toBe('FetchError')
+            expect(result._unsafeUnwrapErr()._tag).toBe(
+                'NotOkHttpResponseError',
+            )
         })
 
         it('should bubble up a MalformedDataError if the LNURL callback URL returns a non-JSON response', async () => {
@@ -224,7 +226,7 @@ describe('lnurl', () => {
             expect(result._unsafeUnwrap()).toEqual({ preimage: 'preimage' })
         })
 
-        it('should bubble up a FetchError if the LNURL pay callback URL errors', async () => {
+        it('should bubble up a NotOkHttpResponseError if the LNURL pay callback URL returns a non-ok response', async () => {
             const result = await lnurlPay(
                 fedimint,
                 testFederationId,
@@ -238,7 +240,9 @@ describe('lnurl', () => {
 
             expect(result.isOk()).toBe(false)
             expect(result.isErr()).toBe(true)
-            expect(result._unsafeUnwrapErr()._tag).toBe('FetchError')
+            expect(result._unsafeUnwrapErr()._tag).toBe(
+                'NotOkHttpResponseError',
+            )
         })
 
         it('should bubble up a MalformedDataError if the LNURL pay callback URL returns a non-JSON response', async () => {
@@ -277,7 +281,7 @@ describe('lnurl', () => {
             expect(result._unsafeUnwrap()).toEqual(lnurlWithdrawInvoice)
         })
 
-        it('should bubble up a FetchError if the LNURL withdraw callback URL errors', async () => {
+        it('should bubble up a NotOkHttpResponseError if the LNURL withdraw callback URL returns a non-ok response', async () => {
             const result = await lnurlWithdraw(
                 fedimint,
                 testFederationId,
@@ -291,7 +295,9 @@ describe('lnurl', () => {
 
             expect(result.isOk()).toBe(false)
             expect(result.isErr()).toBe(true)
-            expect(result._unsafeUnwrapErr()._tag).toBe('FetchError')
+            expect(result._unsafeUnwrapErr()._tag).toBe(
+                'NotOkHttpResponseError',
+            )
         })
 
         it('should bubble up a MalformedDataError if the LNURL withdraw callback URL returns a non-JSON response', async () => {

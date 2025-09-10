@@ -1,17 +1,20 @@
 import orderBy from 'lodash/orderBy'
-import { err, errAsync, ok, Result, ResultAsync } from 'neverthrow'
+import { Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import {
     FetchError,
     MalformedDataError,
     MissingDataError,
+    NotOkHttpResponseError,
     SchemaValidationError,
     UrlConstructError,
 } from '../types/errors'
-import { makeError, tryTag, UnexpectedError } from './errors'
+import { TaggedError } from './errors'
 import {
     constructUrl,
+    ensureHttpResponseOk,
+    ensureNonNullish,
     fetchResult,
     thenJson,
     throughZodSchema,
@@ -22,9 +25,7 @@ import {
  * Falls back to the first title tag
  * If nothing is found, returns a `MissingDataError`
  */
-const tryGetHtmlTitle = (
-    html: string,
-): Result<string, MissingDataError | UnexpectedError> => {
+const tryGetHtmlTitle = (html: string): Result<string, MissingDataError> => {
     const titleMetaTags = html.match(
         /<meta[^>]*name="(application-name|apple-mobile-web-app-title)"[^>]*>/gi,
     )
@@ -35,10 +36,7 @@ const tryGetHtmlTitle = (
     const titleText = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]
     const resolvedTitle = titleMetaContents?.[0] ?? titleText
 
-    if (resolvedTitle === undefined)
-        return err(makeError(new Error('expected title'), 'MissingDataError'))
-
-    return ok(resolvedTitle)
+    return ensureNonNullish(resolvedTitle)
 }
 
 /**
@@ -48,17 +46,14 @@ const tryGetHtmlTitle = (
 const tryGetManifestUrl = (
     html: string,
     urlOrigin: string,
-): Result<URL, MissingDataError | UrlConstructError | UnexpectedError> => {
+): Result<URL, MissingDataError | UrlConstructError> => {
     const manifestLink = html
         .match(/<link[^>]*rel="manifest"[^>]*>/gi)?.[0]
         ?.match(/href="([^"]*)"/i)?.[1]
 
-    if (manifestLink === undefined)
-        return err(
-            makeError(new Error('expected manifest url'), 'MissingDataError'),
-        )
-
-    return constructUrl(manifestLink ?? '', urlOrigin)
+    return ensureNonNullish(manifestLink).andThen(link =>
+        constructUrl(link, urlOrigin),
+    )
 }
 
 /**
@@ -89,34 +84,22 @@ const tryFetchFirstHtmlIcon = (
     urlOrigin: string,
 ): ResultAsync<
     URL,
-    UnexpectedError | UrlConstructError | FetchError | MissingDataError
+    FetchError | UrlConstructError | MissingDataError | NotOkHttpResponseError
 > => {
     const iconUrls = getHtmlIconUrls(html, urlOrigin)
 
     // Ensures that the http response of an icon, given its URL, is ok
     const isUrlOk = (url: URL) =>
-        fetchResult(url.toString()).andThen(res => {
-            if (!res.ok) {
-                return err(
-                    makeError(new Error('failed to fetch icon'), 'FetchError'),
-                )
-            }
-
-            return ok(url)
-        })
+        fetchResult(url.toString())
+            .andThrough(ensureHttpResponseOk)
+            .map(() => url)
 
     // Attempts to fetch icon URLs until one is valid
     return iconUrls.reduce(
         (prev, curr) => prev.orElse(() => isUrlOk(curr)),
-        errAsync<
-            URL,
-            UnexpectedError | UrlConstructError | MissingDataError | FetchError
-        >(
-            makeError(
-                new Error('expected at least one icon'),
-                'MissingDataError',
-            ),
-        ),
+        new TaggedError('MissingDataError')
+            .withMessage('expected at least one icon')
+            .intoErrAsync() as ReturnType<typeof tryFetchFirstHtmlIcon>,
     )
 }
 
@@ -145,11 +128,7 @@ const tryFetchManifestMetadata = (
     manifestUrl: URL,
 ): ResultAsync<
     { title: string; icon: string },
-    | SchemaValidationError
-    | UrlConstructError
-    | MalformedDataError
-    | UnexpectedError
-    | FetchError
+    SchemaValidationError | UrlConstructError | MalformedDataError | FetchError
 > => {
     return fetchResult(manifestUrl.toString())
         .andThen(thenJson)
@@ -191,23 +170,15 @@ export function tryFetchUrlMetadata(
     url: URL,
 ): ResultAsync<
     { icon: string; title: string },
-    UrlConstructError | FetchError | MalformedDataError | UnexpectedError
+    FetchError | MalformedDataError | UrlConstructError | NotOkHttpResponseError
 > {
     return fetchResult(url.toString())
-        .andThrough(res =>
-            res.status === 200
-                ? ok()
-                : err(
-                      makeError(
-                          new Error(
-                              `failed to fetch ${url.toString()}, got status code ${res.status}`,
-                          ),
-                          'FetchError',
-                      ),
-                  ),
-        )
+        .andThen(ensureHttpResponseOk)
         .andThen(res =>
-            ResultAsync.fromPromise(res.text(), tryTag('MalformedDataError')),
+            ResultAsync.fromPromise(
+                res.text(),
+                e => new TaggedError('MalformedDataError', e),
+            ),
         )
         .map(async html => {
             let title = '',

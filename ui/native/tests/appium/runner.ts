@@ -4,7 +4,6 @@ import path from 'path'
 
 import AppiumManager from '../configs/appium/AppiumManager'
 import { AppiumTestBase } from '../configs/appium/AppiumTestBase'
-import { currentPlatform, Platform } from '../configs/appium/types'
 import { JoinLeaveFederation } from './common/JoinLeaveFederation.test'
 import { OnboardingTest } from './common/onboarding.test'
 
@@ -140,14 +139,8 @@ async function runTests(testNames: string[]): Promise<void> {
 
                         fs.writeFileSync(screenshotPath, screenshot, 'base64')
                         console.log(`Screenshot saved to: ${screenshotPath}`)
-                        if (currentPlatform === Platform.IOS) {
-                            // Android doesn't have this yet
-                            console.log('Dumping XML tree')
-                            await appiumManager.driver.executeScript(
-                                'mobile: source',
-                                [{ format: 'xml' }],
-                            )
-                        }
+                        console.log('Dumping XML tree')
+                        await appiumManager.driver.getPageSource()
                     }
                 } catch (screenshotError) {
                     console.error(

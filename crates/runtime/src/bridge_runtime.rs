@@ -8,7 +8,7 @@ use super::storage::Storage;
 use crate::api::IFediApi;
 use crate::db::BridgeDbPrefix;
 use crate::features::FeatureCatalog;
-use crate::observable::ObservablePool;
+use crate::rpc_stream::RpcStreamPool;
 use crate::storage::{AppState, BRIDGE_DB_PREFIX};
 
 // FIXME: federation-specific filename
@@ -26,7 +26,7 @@ pub struct Runtime {
     pub fedi_api: Arc<dyn IFediApi>,
     pub global_db: Database,
     pub feature_catalog: Arc<FeatureCatalog>,
-    pub observable_pool: ObservablePool,
+    pub stream_pool: RpcStreamPool,
 }
 
 impl Runtime {
@@ -39,7 +39,7 @@ impl Runtime {
         feature_catalog: Arc<FeatureCatalog>,
     ) -> anyhow::Result<Self> {
         let task_group = TaskGroup::new();
-        let observable_pool = ObservablePool::new(event_sink.clone(), task_group.clone());
+        let stream_pool = RpcStreamPool::new(event_sink.clone(), task_group.clone());
 
         Ok(Self {
             storage,
@@ -49,7 +49,7 @@ impl Runtime {
             fedi_api,
             global_db,
             feature_catalog,
-            observable_pool,
+            stream_pool,
         })
     }
 

@@ -1,7 +1,7 @@
 [package]
 name = "device-registration"
 version = "0.3.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 fedimint-core = { workspace = true }
@@ -11,3 +11,4 @@ bip39 = { version = "2.0.0", features = ["rand"] }
 tracing = { workspace = true }
 runtime = { workspace = true }
 rpc-types = { workspace = true }
+tokio = { workspace = true, features = ["time", "macros"] }

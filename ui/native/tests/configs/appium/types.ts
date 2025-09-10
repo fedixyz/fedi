@@ -12,6 +12,7 @@ export interface AppiumConfig {
     'appium:appPackage'?: string
     'appium:app'?: string
     'appium:appActivity'?: string
+    'appium:avd'?: string
     // iOS-specific caps
     'appium:autoAcceptAlerts'?: boolean
     'appium:platformVersion'?: string

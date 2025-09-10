@@ -63,6 +63,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
                 `Failed - Bitcoin Principles accordion is not in the account settings`,
             )
         }
+        await this.scrollToElement('Leave Federation')
         await this.clickElementByKey('Leave Federation')
         await this.acceptAlert('Yes')
         if (
@@ -112,7 +113,11 @@ export class JoinLeaveFederation extends AppiumTestBase {
         }
         // END of the process of re-joining to a Public Federation with TOS
         await this.clickOnText('E-Cash Club', 0, true)
-        await this.clickElementByKey('AvatarButton')
+        // await new Promise(resolve => setTimeout(resolve, 1000)) // if the avatar button is clicked too fast (before the animation commpletes itself), the tests get stuck
+        await this.clickAndCheckForNextElement(
+            'AvatarButton',
+            'HeaderCloseButton',
+        )
         await this.scrollToElement('E-CashClubAccordionButton')
         await this.clickElementByKey('E-CashClubAccordionButton')
         await this.scrollToElement('Leave Federation')

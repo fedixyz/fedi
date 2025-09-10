@@ -14,7 +14,7 @@ import {
 import { sortCurrenciesByName } from '@fedi/common/utils/currency'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 
-import { SafeScrollArea } from '../components/ui/SafeArea'
+import { SafeAreaContainer, SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { SelectableCurrency } from '../types'
@@ -41,31 +41,33 @@ const FederationCurrency: React.FC<Props> = props => {
     const sortedCurrencies = sortCurrenciesByName(t, Object.values(currencies))
 
     return (
-        <SafeScrollArea style={style.container} edges="notop">
-            <View style={style.content}>
-                <View style={style.currencyContainer}>
-                    <Text caption style={style.label}>
-                        {t('phrases.federation-default')}
-                    </Text>
-                    <CurrencyItem
-                        currency={defaultCurrency}
-                        federationId={federationId}
-                    />
-                </View>
-                <View style={style.currencyContainer}>
-                    <Text caption style={style.label}>
-                        {t('words.others')}
-                    </Text>
-                    {sortedCurrencies.map(currency => (
+        <SafeAreaContainer edges="bottom">
+            <SafeScrollArea style={style.container} edges="notop">
+                <View style={style.content}>
+                    <View style={style.currencyContainer}>
+                        <Text caption style={style.label}>
+                            {t('phrases.federation-default')}
+                        </Text>
                         <CurrencyItem
-                            currency={currency}
+                            currency={defaultCurrency}
                             federationId={federationId}
-                            key={currency}
                         />
-                    ))}
+                    </View>
+                    <View style={style.currencyContainer}>
+                        <Text caption style={style.label}>
+                            {t('words.others')}
+                        </Text>
+                        {sortedCurrencies.map(currency => (
+                            <CurrencyItem
+                                currency={currency}
+                                federationId={federationId}
+                                key={currency}
+                            />
+                        ))}
+                    </View>
                 </View>
-            </View>
-        </SafeScrollArea>
+            </SafeScrollArea>
+        </SafeAreaContainer>
     )
 }
 

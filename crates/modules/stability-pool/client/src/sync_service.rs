@@ -5,8 +5,8 @@ use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::util::update_merge::UpdateMerge;
 use fedimint_core::util::{backoff_util, retry};
 use futures::Stream;
-use stability_pool_common::config::StabilityPoolClientConfig;
 use stability_pool_common::AccountId;
+use stability_pool_common::config::StabilityPoolClientConfig;
 use tokio::sync::watch;
 use tokio_stream::wrappers::WatchStream;
 
@@ -110,7 +110,9 @@ impl StabilityPoolSyncService {
     }
 
     /// Subscribe to sync data updates
-    pub fn subscribe_to_updates(&self) -> impl Stream<Item = Option<CachedSyncResponseValue>> {
+    pub fn subscribe_to_updates(
+        &self,
+    ) -> impl Stream<Item = Option<CachedSyncResponseValue>> + use<> {
         WatchStream::new(self.sync_response.subscribe())
     }
 }

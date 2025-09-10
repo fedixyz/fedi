@@ -1,12 +1,12 @@
+import DocumentPicker, {
+    DocumentPickerResponse,
+    types,
+} from '@react-native-documents/picker'
 import { useNavigation } from '@react-navigation/native'
 import { Button } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
-import DocumentPicker, {
-    DocumentPickerResponse,
-    types,
-} from 'react-native-document-picker'
 import RNFS from 'react-native-fs'
 
 import { makeLog } from '@fedi/common/utils/log'
@@ -27,9 +27,14 @@ const SelectRecoveryFileButton: React.FC = () => {
 
     const openFileExplorer = async () => {
         try {
-            const response = await DocumentPicker.pickSingle({
+            const responses = await DocumentPicker.pick({
                 type: types.allFiles,
             })
+            const response = responses[0]
+
+            if (!response) {
+                return
+            }
 
             setValidationInProgress(true)
             setResult(response)

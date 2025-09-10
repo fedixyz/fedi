@@ -3,7 +3,7 @@ import { ResultAsync } from 'neverthrow'
 import { useCallback, useRef, useState } from 'react'
 
 import { setIsInternetUnreachable } from '@fedi/common/redux'
-import { tryTag } from '@fedi/common/utils/errors'
+import { TaggedError } from '@fedi/common/utils/errors'
 
 import { useAppDispatch } from '../../state/hooks'
 import { checkIsInternetUnreachable } from '../environment'
@@ -26,7 +26,8 @@ export const useRecheckInternet = () => {
 
         isOffline = await ResultAsync.fromPromise(
             NetInfo.fetch(),
-            tryTag('GenericError'),
+            // TODO: use a more specific error type
+            e => new TaggedError('GenericError', e),
         )
             .map(checkIsInternetUnreachable)
             .unwrapOr(false)

@@ -5,7 +5,7 @@ use std::ops::Range;
 use std::str::FromStr;
 use std::time::SystemTime;
 
-use anyhow::{anyhow, bail, ensure, Context};
+use anyhow::{Context, anyhow, bail, ensure};
 use bitcoin::bech32::{self, Bech32m, Hrp};
 use bitcoin::hashes::sha256;
 use fedimint_core::core::{Decoder, ModuleInstanceId, ModuleKind};
@@ -13,10 +13,10 @@ use fedimint_core::encoding::{Decodable, DecodeError, Encodable};
 use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::module::{CommonModuleInit, ModuleCommon, ModuleConsensusVersion};
 use fedimint_core::{
-    extensible_associated_module_type, plugin_types_trait_impl_common, Amount, BitcoinHash,
-    TransactionId,
+    Amount, BitcoinHash, TransactionId, extensible_associated_module_type,
+    plugin_types_trait_impl_common,
 };
-use secp256k1::{schnorr, PublicKey};
+use secp256k1::{PublicKey, schnorr};
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 

@@ -8,12 +8,12 @@ use anyhow::bail;
 use devimint::external::Bitcoind;
 use devimint::federation::Federation;
 use devimint::util::{Command, ProcessManager};
-use devimint::{cmd, dev_fed, vars, DevFed};
+use devimint::{DevFed, cmd, dev_fed, vars};
+use fedimint_core::Amount;
 use fedimint_core::module::serde_json;
 use fedimint_core::secp256k1::schnorr;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::util::write_overwrite_async;
-use fedimint_core::Amount;
 use stability_pool_common::{
     Account, AccountId, AccountType, ActiveDeposits, FeeRate, FiatAmount, FiatOrAll, Provide, Seek,
     SignedTransferRequest, SyncResponse, TransferRequest,
@@ -36,7 +36,6 @@ async fn flaky_starter_test() -> anyhow::Result<()> {
         fed,
         gw_lnd,
         gw_ldk,
-        electrs,
         esplora,
         gw_ldk_second,
         recurringd,
@@ -92,10 +91,12 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         .staged_balance;
 
     // Try to withdraw 10 cents, expect error
-    assert!(seeker
-        .withdraw(AccountType::Seeker, FiatOrAll::Fiat(FiatAmount(10)))
-        .await
-        .is_err());
+    assert!(
+        seeker
+            .withdraw(AccountType::Seeker, FiatOrAll::Fiat(FiatAmount(10)))
+            .await
+            .is_err()
+    );
 
     // Deposit-to-seek
     let first_deposit_amount = Amount::from_msats(150_000);
@@ -160,10 +161,12 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
     // Try to withdraw more than unlocked balance, expect error
     // Currently with Mock oracle, price of 1 BTC is 1,000,000 cents
     // So with 400,000 msats, our balance is 4 cents
-    assert!(seeker
-        .withdraw(AccountType::Seeker, FiatOrAll::Fiat(FiatAmount(5)))
-        .await
-        .is_err());
+    assert!(
+        seeker
+            .withdraw(AccountType::Seeker, FiatOrAll::Fiat(FiatAmount(5)))
+            .await
+            .is_err()
+    );
 
     // Withdraw less than 2nd staged seek, verify 2nd staged seek modified
     // Verify ecash balance
@@ -265,10 +268,12 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         .staged_balance;
 
     // Try to withdraw 10 cents, expect error
-    assert!(provider
-        .withdraw(AccountType::Provider, FiatOrAll::Fiat(FiatAmount(10)))
-        .await
-        .is_err());
+    assert!(
+        provider
+            .withdraw(AccountType::Provider, FiatOrAll::Fiat(FiatAmount(10)))
+            .await
+            .is_err()
+    );
 
     // Deposit-to-provide
     let first_deposit_amount = Amount::from_msats(150_000);
@@ -338,10 +343,12 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
     // Try to withdraw more than unlocked balance, expect error
     // Currently with Mock oracle, price of 1 BTC is 1,000,000 cents
     // So with 400,000 msats, our balance is 4 cents
-    assert!(provider
-        .withdraw(AccountType::Provider, FiatOrAll::Fiat(FiatAmount(5)))
-        .await
-        .is_err());
+    assert!(
+        provider
+            .withdraw(AccountType::Provider, FiatOrAll::Fiat(FiatAmount(5)))
+            .await
+            .is_err()
+    );
 
     // Withdraw less than 2nd staged provide, verify 2nd staged provide modified
     // Verify ecash balance
@@ -1018,7 +1025,8 @@ async fn setup() -> anyhow::Result<(ProcessManager, TaskGroup)> {
     for (var, value) in globals.vars() {
         debug!(var, value, "Env variable set");
         writeln!(env_string, r#"export {var}="{value}""#)?; // hope that value doesn't contain a "
-        std::env::set_var(var, value);
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var(var, value) };
     }
     write_overwrite_async(globals.FM_TEST_DIR.join("env"), env_string).await?;
     info!("Test setup in {:?}", globals.FM_DATA_DIR);

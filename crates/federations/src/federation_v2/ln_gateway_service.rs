@@ -10,9 +10,9 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use tracing::warn;
 
+use super::FederationV2;
 use super::client::ClientExt;
 use super::db::LastActiveGatewayKey;
-use super::FederationV2;
 
 pub const META_VETTED_GATEWAYS_KEY: &str = "vetted_gateways";
 
@@ -84,11 +84,7 @@ impl LnGatewayService {
             .into_iter()
             .partition::<Vec<_>, _>(|g| vetted_gws.contains(&g.info.gateway_id));
 
-        if !vetted.is_empty() {
-            vetted
-        } else {
-            unvetted
-        }
+        if !vetted.is_empty() { vetted } else { unvetted }
     }
 
     async fn selectable_gateways(

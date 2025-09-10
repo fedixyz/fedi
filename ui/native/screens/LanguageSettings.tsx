@@ -7,7 +7,7 @@ import { i18nLanguages } from '@fedi/common/localization'
 import { changeLanguage, selectLanguage } from '@fedi/common/redux'
 
 import CheckBox from '../components/ui/CheckBox'
-import { SafeScrollArea } from '../components/ui/SafeArea'
+import { SafeAreaContainer, SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 
@@ -20,27 +20,29 @@ const LanguageSettings: React.FC = () => {
     const style = styles(theme)
 
     return (
-        <SafeScrollArea style={style.container} edges="notop">
-            {Object.entries(i18nLanguages).map(([lang, display]) => (
-                <CheckBox
-                    testID={lang}
-                    key={lang}
-                    checkedIcon={<SvgImage name="RadioSelected" />}
-                    uncheckedIcon={<SvgImage name="RadioUnselected" />}
-                    title={<Text style={style.radioText}>{display}</Text>}
-                    checked={(language || i18n.language) === lang}
-                    onPress={() => {
-                        dispatch(
-                            changeLanguage({
-                                i18n,
-                                language: lang,
-                            }),
-                        )
-                    }}
-                    containerStyle={style.radioContainer}
-                />
-            ))}
-        </SafeScrollArea>
+        <SafeAreaContainer edges="bottom">
+            <SafeScrollArea style={style.container} edges="notop">
+                {Object.entries(i18nLanguages).map(([lang, display]) => (
+                    <CheckBox
+                        testID={lang}
+                        key={lang}
+                        checkedIcon={<SvgImage name="RadioSelected" />}
+                        uncheckedIcon={<SvgImage name="RadioUnselected" />}
+                        title={<Text style={style.radioText}>{display}</Text>}
+                        checked={(language || i18n.language) === lang}
+                        onPress={() => {
+                            dispatch(
+                                changeLanguage({
+                                    i18n,
+                                    language: lang,
+                                }),
+                            )
+                        }}
+                        containerStyle={style.radioContainer}
+                    />
+                ))}
+            </SafeScrollArea>
+        </SafeAreaContainer>
     )
 }
 

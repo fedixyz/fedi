@@ -1,36 +1,23 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { ErrorFallbackProps } from '@fedi/common/components/ErrorBoundary'
 import { formatErrorMessage } from '@fedi/common/utils/format'
-import { makeLog } from '@fedi/common/utils/log'
 
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { version } from '../package.json'
-import { shareLogsExport } from '../utils/log'
-
-const log = makeLog('ErrorScreen')
+import { useShareNativeLogs } from '../utils/hooks/export'
 
 type Props = Pick<ErrorFallbackProps, 'error'>
 
 export const ErrorScreen: React.FC<Props> = ({ error }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const { shareLogs, status } = useShareNativeLogs()
     const style = styles(theme)
-    const [isSharingLogs, setIsSharingLogs] = useState(false)
-
-    const handleShareLogs = async () => {
-        setIsSharingLogs(true)
-        try {
-            await shareLogsExport()
-        } catch (err) {
-            log.error('handleShareLogs', err)
-        }
-        setIsSharingLogs(false)
-    }
 
     const stack: Error['stack'] = (error as Error)?.stack
 
@@ -50,9 +37,9 @@ export const ErrorScreen: React.FC<Props> = ({ error }) => {
             </ScrollView>
             <Button
                 fullWidth
-                onPress={handleShareLogs}
+                onPress={shareLogs}
                 title={t('feature.developer.share-logs')}
-                loading={isSharingLogs}
+                loading={status === 'generating-data'}
             />
             <Text caption style={style.version}>
                 Version {version}

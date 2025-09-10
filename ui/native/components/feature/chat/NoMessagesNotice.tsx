@@ -8,9 +8,13 @@ import SvgImage from '../../ui/SvgImage'
 
 type Props = {
     isBroadcast?: boolean
+    isDefault?: boolean
 }
 
-const NoMessagesNotice: React.FC<Props> = ({ isBroadcast = false }: Props) => {
+const NoMessagesNotice: React.FC<Props> = ({
+    isBroadcast = false,
+    isDefault = false,
+}: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
@@ -25,7 +29,9 @@ const NoMessagesNotice: React.FC<Props> = ({ isBroadcast = false }: Props) => {
                 <Text medium style={styles(theme).text}>
                     {t('feature.chat.no-messages')}
                     {'\r'}
-                    {t('feature.chat.start-the-conversation')}
+                    {isDefault
+                        ? null
+                        : t('feature.chat.start-the-conversation')}
                 </Text>
             )}
         </Flex>

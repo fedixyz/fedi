@@ -5,27 +5,44 @@ import { Trans, useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
+import {
+    selectActiveFederation,
+    selectPaymentFederation,
+    selectWalletFederations,
+    setActiveFederationId,
+} from '@fedi/common/redux'
 import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
+import CustomOverlay from '../components/ui/CustomOverlay'
 import Flex from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
-import { useShareLogs } from '../utils/hooks/export'
+import { useSubmitLogs } from '../utils/hooks/export'
 import { useLaunchZendesk } from '../utils/hooks/support'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'ShareLogs'>
 
 const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
+    const initialTicketNumber = route?.params?.ticketNumber ?? ''
+
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const initialTicketNumber = route?.params?.ticketNumber ?? ''
+
+    const activeFederation = useAppSelector(selectActiveFederation)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const walletFederations = useAppSelector(selectWalletFederations)
+    const dispatch = useAppDispatch()
+
+    const [isSelectingFederation, setIsSelectingFederation] = useState(false)
     const [ticketNumber, setTicketNumber] = useState(initialTicketNumber)
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
     const [dbTaps, setDbTaps] = useState(0)
     const [sendDb, setShouldSendDb] = useState(false)
 
-    const { status, collectAttachmentsAndSubmit } = useShareLogs()
+    const { status, collectAttachmentsAndSubmit } = useSubmitLogs()
 
     const { launchZendesk } = useLaunchZendesk()
 
@@ -72,6 +89,14 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
 
     const handleSubmit = useCallback(async () => {
         setHasAttemptedSubmit(true)
+        if (
+            walletFederations.length > 0 &&
+            activeFederation &&
+            !activeFederation.hasWallet
+        ) {
+            setIsSelectingFederation(true)
+            return
+        }
         if (!isValid) return
         const isSuccess = await collectAttachmentsAndSubmit(
             sendDb,
@@ -80,7 +105,22 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
         if (isSuccess) {
             navigation.push('BugReportSuccess')
         }
-    }, [ticketNumber, isValid, navigation, sendDb, collectAttachmentsAndSubmit])
+    }, [
+        ticketNumber,
+        isValid,
+        navigation,
+        sendDb,
+        collectAttachmentsAndSubmit,
+        activeFederation,
+        walletFederations,
+    ])
+
+    const handleChooseWalletFederation = useCallback(() => {
+        if (!paymentFederation) return
+
+        dispatch(setActiveFederationId(paymentFederation?.id))
+        setIsSelectingFederation(false)
+    }, [paymentFederation, dispatch])
 
     return (
         <SafeScrollArea edges="notop">
@@ -141,6 +181,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                 <Button
                     fullWidth
                     disabled={isSubmitDisabled}
+                    testID="submit"
                     title={
                         <Flex row center gap="sm">
                             {isSubmitDisabled && (
@@ -157,6 +198,24 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                     onPress={handleSubmit}
                 />
             </Flex>
+            <CustomOverlay
+                show={isSelectingFederation}
+                onBackdropPress={handleChooseWalletFederation}
+                contents={{
+                    title: t('phrases.select-federation'),
+                    description: t(
+                        'feature.developer.select-federation-share-logs',
+                    ),
+                    body: <FederationWalletSelector fullWidth />,
+                    buttons: [
+                        {
+                            text: t('words.continue'),
+                            onPress: handleChooseWalletFederation,
+                            primary: true,
+                        },
+                    ],
+                }}
+            />
         </SafeScrollArea>
     )
 }

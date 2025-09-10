@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use bitcoin::secp256k1;
 use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::{impl_db_lookup, impl_db_record, Amount};
+use fedimint_core::{Amount, impl_db_lookup, impl_db_record};
 use rpc_types::{OperationFediFeeStatus, RpcTransactionDirection};
 use runtime::storage::state::FiatFXInfo;
 
@@ -61,6 +61,13 @@ pub enum BridgeDbPrefix {
     // app-restart. So to guard against a repeated withdrawal TX, we store the operation ID and
     // check it first.
     LastSPv2SweeperWithdrawal = 0xc2,
+
+    // For the Fedi Gift project (iteration #1), we decided to include all the relevant data
+    // reporting together with the Fedi fee invoice generator endpoint. Fedi fee invoice currently
+    // only works with a remittance threshold amount, which can lead to long time periods in
+    // between queries. To somewhat normalize the reporting frequency for Fedi gift data, we also
+    // decide to introduce a 7-day check to trigger Fedi fee invoice generation.
+    FediFeesRemittanceTimestampPerTXType = 0xc3,
 
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
@@ -199,6 +206,15 @@ impl_db_record!(
 impl_db_lookup!(
     key = PendingFediFeesPerTXTypeKey,
     query_prefix = PendingFediFeesPerTXTypeKeyPrefix,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct FediFeesRemittanceTimestampPerTXTypeKey(pub ModuleKind, pub RpcTransactionDirection);
+
+impl_db_record!(
+    key = FediFeesRemittanceTimestampPerTXTypeKey,
+    value = SystemTime,
+    db_prefix = BridgeDbPrefix::FediFeesRemittanceTimestampPerTXType,
 );
 
 #[derive(Debug, Decodable, Encodable)]

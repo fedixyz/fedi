@@ -9,7 +9,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import { RpcTransaction, TransactionEvent } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { tryTag } from '@fedi/common/utils/errors'
+import { TaggedError } from '@fedi/common/utils/errors'
 import { lnurlWithdraw } from '@fedi/common/utils/lnurl'
 
 import { fedimint } from '../bridge'
@@ -74,7 +74,7 @@ const RedeemLnurlWithdraw: React.FC<Props> = ({ navigation, route }: Props) => {
                     reject(new Error('feature.receive.lnurl-withdraw-failed'))
                 }, 5000)
             }),
-            tryTag('TimeoutError'),
+            e => new TaggedError('TimeoutError', e),
         )
     }
 

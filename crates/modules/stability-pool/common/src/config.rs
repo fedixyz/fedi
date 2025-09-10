@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 use fedimint_core::config::EmptyGenParams;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::{plugin_types_trait_impl_config, Amount};
+use fedimint_core::{Amount, plugin_types_trait_impl_config};
 use serde::{Deserialize, Serialize};
 
 use super::StabilityPoolCommonGen;
@@ -45,15 +45,11 @@ pub struct StabilityPoolGenParamsConsensus {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StabilityPoolConfig {
-    pub local: StabilityPoolConfigLocal,
     /// Configuration that will be encrypted.
     pub private: StabilityPoolConfigPrivate,
     /// Configuration that needs to be the same for every federation member.
     pub consensus: StabilityPoolConfigConsensus,
 }
-
-#[derive(Clone, Debug, Serialize, Deserialize, Encodable, Decodable)]
-pub struct StabilityPoolConfigLocal;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Encodable, Decodable)]
 pub struct StabilityPoolConfigConsensus {
@@ -100,7 +96,6 @@ plugin_types_trait_impl_config!(
     EmptyGenParams,
     StabilityPoolGenParamsConsensus,
     StabilityPoolConfig,
-    StabilityPoolConfigLocal,
     StabilityPoolConfigPrivate,
     StabilityPoolConfigConsensus,
     StabilityPoolClientConfig

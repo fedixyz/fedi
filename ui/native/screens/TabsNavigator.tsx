@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useIsFocused } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -10,6 +10,7 @@ import {
     Pressable,
     StyleSheet,
     useWindowDimensions,
+    Text,
 } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -75,7 +76,6 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
         }
     }, [isFocused, navigation, popupInfo])
 
-    // This logic is needed refresh federation metadata
     useEffect(() => {
         // Subscribe to changes in AppState to detect when app goes from
         // background to foreground
@@ -103,127 +103,121 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
         insets,
         Math.min(fontScale, MAX_TABS_FONT_SCALE),
     )
+
     return (
-        <>
-            <Tab.Navigator
-                initialRouteName={route.params?.initialRouteName || 'Home'}
-                id={TABS_NAVIGATOR_ID}
-                screenOptions={({ route: screenRoute }) => ({
-                    freezeOnBlur: true,
-                    tabBarButton: props => {
-                        switch (screenRoute.name) {
-                            case 'Home':
-                                return <Pressable {...props} />
-                            case 'Chat':
-                                return <Pressable {...props} />
-                            case 'Mods':
-                                return <Pressable {...props} />
-                            case 'OmniScanner':
-                                return <Pressable {...props} />
-                            default:
-                                return null
-                        }
-                    },
-                    tabBarIcon: ({ focused }) => {
-                        const svgImageProps = {
-                            maxFontSizeMultiplier: MAX_TABS_FONT_SCALE,
-                            containerStyle: style.tabBarIconContainer,
+        <Tab.Navigator
+            initialRouteName={route.params?.initialRouteName || 'Home'}
+            id={TABS_NAVIGATOR_ID}
+            screenOptions={({ route: screenRoute }) => ({
+                freezeOnBlur: true,
+                tabBarButton: props => {
+                    switch (screenRoute.name) {
+                        case 'Home':
+                        case 'Chat':
+                        case 'Mods':
+                        case 'OmniScanner':
+                            return <Pressable {...props} />
+                        default:
+                            return null
+                    }
+                },
+                tabBarIcon: ({ focused }) => {
+                    const svgImageProps = {
+                        maxFontSizeMultiplier: MAX_TABS_FONT_SCALE,
+                        containerStyle: style.tabBarIconContainer,
+                        color: focused
+                            ? theme.colors.primary
+                            : theme.colors.primaryLight,
+                    }
+                    switch (screenRoute.name) {
+                        case 'Home':
+                            return (
+                                <SvgImage name="Community" {...svgImageProps} />
+                            )
+                        case 'Chat':
+                            return (
+                                <SvgImage
+                                    name={focused ? 'ChatFilled' : 'Chat'}
+                                    {...svgImageProps}
+                                />
+                            )
+                        case 'Mods':
+                            return <SvgImage name="Apps" {...svgImageProps} />
+                        case 'OmniScanner':
+                            return <SvgImage name="Scan" {...svgImageProps} />
+                        default:
+                            return null
+                    }
+                },
+                tabBarLabel: ({ focused, children }) => (
+                    <Text
+                        allowFontScaling
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={MAX_TABS_FONT_SCALE}
+                        // @ts-expect-error Android-only prop not in RN types
+                        includeFontPadding={false}
+                        style={{
+                            fontSize: fediTheme.fontSizes.caption, // RN scales visually; height comes from style calc
+                            lineHeight: Math.round(
+                                fediTheme.fontSizes.caption * 1.2,
+                            ),
+                            fontFamily: focused
+                                ? 'AlbertSans-Bold'
+                                : 'AlbertSans-Medium',
                             color: focused
                                 ? theme.colors.primary
                                 : theme.colors.primaryLight,
-                        }
-                        switch (screenRoute.name) {
-                            case 'Home':
-                                return (
-                                    <SvgImage
-                                        name={'Community'}
-                                        {...svgImageProps}
-                                    />
-                                )
-                            case 'Chat':
-                                return (
-                                    <SvgImage
-                                        name={focused ? 'ChatFilled' : 'Chat'}
-                                        {...svgImageProps}
-                                    />
-                                )
-                            case 'Mods':
-                                return (
-                                    <SvgImage
-                                        name={'Apps'}
-                                        {...svgImageProps}
-                                    />
-                                )
-                            case 'OmniScanner':
-                                return (
-                                    <SvgImage
-                                        name={'Scan'}
-                                        {...svgImageProps}
-                                    />
-                                )
-                            default:
-                                return null
-                        }
-                    },
-                    tabBarLabel: ({ focused, children }) => (
-                        <Text
-                            caption
-                            bold={focused}
-                            medium={!focused}
-                            maxFontSizeMultiplier={MAX_TABS_FONT_SCALE}
-                            numberOfLines={1}
-                            style={{
-                                color: focused
-                                    ? theme.colors.primary
-                                    : theme.colors.primaryLight,
-                            }}>
-                            {children}
-                        </Text>
-                    ),
-                    tabBarActiveTintColor: theme.colors.primary,
-                    tabBarInactiveTintColor: theme.colors.primaryLight,
-                    tabBarStyle: style.tabBar,
-                    tabBarItemStyle: style.tabBarItem,
-                    headerTitleStyle: theme.components.Text.style,
-                    tabBarBadgeStyle: style.tabBarBadge,
+                            textAlign: 'center',
+                        }}>
+                        {children}
+                    </Text>
+                ),
+                tabBarActiveTintColor: theme.colors.primary,
+                tabBarInactiveTintColor: theme.colors.primaryLight,
+                tabBarStyle: style.tabBar,
+                tabBarItemStyle: style.tabBarItem,
+                headerTitleStyle: theme.components.Text.style,
+                tabBarBadgeStyle: style.tabBarBadge,
+            })}>
+            <Tab.Screen
+                name="Home"
+                initialParams={{ offline }}
+                options={() => ({
+                    title: t('words.home'),
+                    header: () => <HomeHeader />,
                 })}>
-                <Tab.Screen
-                    name="Home"
-                    initialParams={{ offline }}
-                    options={() => ({
-                        title: t('words.home'),
-                        header: () => <HomeHeader />,
-                    })}>
-                    {props => <Home {...props} offline={offline} />}
-                </Tab.Screen>
-                <Tab.Screen
-                    name="Chat"
-                    component={ChatScreen}
-                    options={() => ({
-                        title: t('words.chat'),
-                        header: () => <ChatHeader />,
-                        tabBarBadge: hasUnreadMessages ? '' : undefined,
-                    })}
-                />
-                <Tab.Screen
-                    name="Mods"
-                    component={Mods}
-                    options={() => ({
-                        title: t('words.mods'),
-                        headerShown: false, // this allows us to draw over the header with tooltips
-                        tabBarBadge: zendeskMsgCount > 0 ? '' : undefined,
-                    })}
-                />
-                <Tab.Screen
-                    name="OmniScanner"
-                    component={OmniScanner}
-                    options={() => ({
-                        title: t('words.scan'),
-                        header: () => <Header empty />,
-                    })}
-                />
-            </Tab.Navigator>
-        </>
+                {props => <Home {...props} offline={offline} />}
+            </Tab.Screen>
+
+            <Tab.Screen
+                name="Chat"
+                component={ChatScreen}
+                options={() => ({
+                    title: t('words.chat'),
+                    header: () => <ChatHeader />,
+                    tabBarBadge: hasUnreadMessages ? '' : undefined,
+                })}
+            />
+
+            <Tab.Screen
+                name="Mods"
+                component={Mods}
+                options={() => ({
+                    title: t('words.mods'),
+                    headerShown: false, // this allows us to draw over the header with tooltips
+                    tabBarBadge: zendeskMsgCount > 0 ? '' : undefined,
+                })}
+            />
+
+            <Tab.Screen
+                name="OmniScanner"
+                component={OmniScanner}
+                options={() => ({
+                    title: t('words.scan'),
+                    header: () => <Header empty />,
+                })}
+            />
+        </Tab.Navigator>
     )
 }
 

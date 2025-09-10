@@ -27,7 +27,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 26,
+        version: 27,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -55,6 +55,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
                 state.support.zendeskPushNotificationToken,
         },
         seenFederationRatings: state.federation.seenFederationRatings,
+        lastShownSurveyTimestamp: state.support.lastShownSurveyTimestamp,
     }
 
     return transformedState
@@ -110,6 +111,7 @@ export function hasStorageStateChanged(
         ['mod', 'modVisibility'],
         ['support', 'supportPermissionGranted'],
         ['support', 'zendeskPushNotificationToken'],
+        ['support', 'lastShownSurveyTimestamp'],
     ]
 
     for (const keysToCheck of keysetsToCheck) {
@@ -629,6 +631,15 @@ async function migrateStoredState(
             ...migrationState,
             version: 26,
             seenFederationRatings: [],
+        }
+    }
+
+    if (migrationState.version === 26) {
+        migrationState = {
+            ...migrationState,
+            version: 27,
+            // The timestamp is initially set to -1 so it doesn't take a whole week to show up in prod
+            lastShownSurveyTimestamp: -1,
         }
     }
 

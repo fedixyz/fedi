@@ -3,8 +3,8 @@
 //! This module provides functionality for scanning Matrix rooms to multispend
 //! events and storing them in easy to query database.
 
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::iter;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,7 +13,7 @@ use anyhow::Context;
 use async_stream::stream;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::util::backoff_util::background_backoff;
-use futures::{stream, Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt, stream};
 use matrix_sdk::crypto::types::events::UtdCause;
 use matrix_sdk::deserialized_responses::{TimelineEvent, TimelineEventKind};
 use matrix_sdk::event_cache::EventCacheError;
@@ -30,7 +30,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 use super::db::MultispendScannerLastEventKey;
 use super::services::MultispendServices;
-use super::{MultispendContext, MultispendEvent, RpcRoomId, RpcUserId, MULTISPEND_MSGTYPE};
+use super::{MULTISPEND_MSGTYPE, MultispendContext, MultispendEvent, RpcRoomId, RpcUserId};
 
 /// Represents the current state of a room rescan operation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

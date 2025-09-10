@@ -129,6 +129,8 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
         setIsHandlingForeignEcash,
         handleRejectRequest,
         isLoadingTransaction,
+        isSentByMe,
+        transaction,
     } = useMatrixPaymentEvent({
         event,
         fedimint,
@@ -166,7 +168,17 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
     return (
         <PaymentEventContainer>
             <>
-                <Text color={theme.colors.secondary}>{messageText}</Text>
+                <Flex gap="lg">
+                    <Text color={theme.colors.secondary}>{messageText}</Text>
+                    {isSentByMe && transaction?.txnNotes && (
+                        <Text color={theme.colors.secondary}>
+                            <Text bold color={theme.colors.secondary}>
+                                {t('words.notes')}
+                            </Text>
+                            : {transaction.txnNotes}
+                        </Text>
+                    )}
+                </Flex>
                 {isLoadingTransaction && (
                     <Flex row align="center" gap="xs" style={{ marginTop: 4 }}>
                         <ActivityIndicator

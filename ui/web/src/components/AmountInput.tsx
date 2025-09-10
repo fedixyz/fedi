@@ -133,7 +133,6 @@ export const AmountInput: React.FC<Props> = ({
         active: true,
         readOnly,
         autoFocus,
-        hasError: !!error,
         onClick: useCallback(
             (ev: React.MouseEvent) => {
                 if (!isSmall) {
@@ -150,7 +149,6 @@ export const AmountInput: React.FC<Props> = ({
     const inactiveWrapProps = {
         active: false,
         readOnly,
-        hasError: !!error,
         role: readOnly ? undefined : 'button',
         tabIndex: readOnly ? undefined : 0,
         onClick: useCallback(
@@ -190,6 +188,7 @@ export const AmountInput: React.FC<Props> = ({
                                 onChange={ev =>
                                     handleChangeSats(ev.currentTarget.value)
                                 }
+                                data-testid="amount-input-sats"
                             />
                             <div>{satsValue}</div>
                         </SnugInput>
@@ -209,6 +208,7 @@ export const AmountInput: React.FC<Props> = ({
                                 onChange={ev =>
                                     handleChangeFiat(ev.currentTarget.value)
                                 }
+                                data-testid="amount-input-fiat"
                             />
                             <div>{fiatValue}</div>
                         </SnugInput>

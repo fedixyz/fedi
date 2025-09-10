@@ -3,8 +3,8 @@ use std::ops::Range;
 
 use anyhow::bail;
 use fedimint_api_client::api::DynModuleApi;
-use fedimint_client::module::module::ClientContext;
 use fedimint_client::OperationId;
+use fedimint_client::module::module::ClientContext;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::util::backoff_util::{self};
 use fedimint_core::util::retry;
@@ -155,7 +155,7 @@ impl StabilityPoolHistoryService {
     }
 
     /// Subscribe to history fetch updates to show a loading.
-    pub fn subscribe_to_fetches(&self) -> impl Stream<Item = bool> {
+    pub fn subscribe_to_fetches(&self) -> impl Stream<Item = bool> + use<> {
         WatchStream::new(self.is_fetching.subscribe())
     }
 

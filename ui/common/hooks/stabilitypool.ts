@@ -4,13 +4,15 @@ import {
     refreshActiveStabilityPool,
     selectActiveFederationId,
     selectStabilityPoolState,
+    selectStabilityPoolVersion,
     selectStableBalancePending,
+    setStabilityPoolState,
 } from '../redux'
 import {
     StabilityPoolDepositEvent,
     StabilityPoolWithdrawalEvent,
 } from '../types/bindings'
-import { FedimintBridge } from '../utils/fedimint'
+import { FedimintBridge, UnsubscribeFn } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { useIsStabilityPoolSupported } from './federation'
 import { useCommonDispatch, useCommonSelector } from './redux'
@@ -31,24 +33,38 @@ export async function useMonitorStabilityPool(fedimint: FedimintBridge) {
     const dispatch = useCommonDispatch()
     const activeFederationId = useCommonSelector(selectActiveFederationId)
     const isStabilityPoolSupported = useIsStabilityPoolSupported()
+    const stabilityVersion = useCommonSelector(selectStabilityPoolVersion)
     const idleBalance = useCommonSelector(selectStabilityPoolState)?.idleBalance
     const hasWithdrawPending = useCommonSelector(selectStableBalancePending) < 0
     const isSweepingIdleBalanceRef = useRef(false)
 
     useEffect(() => {
-        // Can't monitor stabilitypool if no federation is selected
-        if (!activeFederationId) return
-
-        // Can't monitor stabilitypool if not supported
-        if (!isStabilityPoolSupported) return
+        if (!activeFederationId || !isStabilityPoolSupported) return
 
         log.info('Monitoring stabilitypool account info...')
-        // Refresh account info initally,
+
         dispatch(refreshActiveStabilityPool({ fedimint }))
         // then every 60 seconds after that
         const stabilityPoolMonitor = setInterval(() => {
             dispatch(refreshActiveStabilityPool({ fedimint }))
         }, 60000)
+
+        let unsubscribeSpv2AccountInfo: UnsubscribeFn | undefined
+
+        if (stabilityVersion === 2) {
+            unsubscribeSpv2AccountInfo = fedimint.spv2SubscribeAccountInfo({
+                federationId: activeFederationId,
+                callback(accountInfo) {
+                    log.info('stabilityPoolState (v2)', accountInfo)
+                    dispatch(
+                        setStabilityPoolState({
+                            federationId: activeFederationId,
+                            stabilityPoolState: accountInfo,
+                        }),
+                    )
+                },
+            })
+        }
 
         const unsubscribeDeposits = fedimint.addListener(
             'stabilityPoolDeposit',
@@ -85,13 +101,19 @@ export async function useMonitorStabilityPool(fedimint: FedimintBridge) {
             },
         )
 
-        // Disconnect whenever dependencies change
         return () => {
             unsubscribeDeposits()
             unsubscribeWithdrawals()
+            unsubscribeSpv2AccountInfo?.()
             clearInterval(stabilityPoolMonitor)
         }
-    }, [activeFederationId, dispatch, fedimint, isStabilityPoolSupported])
+    }, [
+        activeFederationId,
+        dispatch,
+        fedimint,
+        stabilityVersion,
+        isStabilityPoolSupported,
+    ])
 
     // If we see any idle balance, go ahead and sweep it, sometimes the bridge
     // fails to do this for us.

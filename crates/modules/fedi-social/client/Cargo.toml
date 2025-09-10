@@ -2,7 +2,7 @@
 name = "fedi-social-client"
 version = "0.3.0"
 authors = ["The Fedimint Developers"]
-edition = "2021"
+edition = "2024"
 description = "fedi-social is a Fedi's social backup&recovery module."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

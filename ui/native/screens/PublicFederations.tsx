@@ -20,6 +20,7 @@ import InfoEntryList from '../components/feature/home/InfoEntryList'
 import { Switcher } from '../components/feature/home/Switcher'
 import { OmniInput } from '../components/feature/omni/OmniInput'
 import Flex from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -93,7 +94,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
     ]
 
     return (
-        <Flex grow>
+        <SafeAreaContainer edges="bottom">
             {/* HEADER */}
             <Flex
                 align="center"
@@ -248,7 +249,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                     onPress={() => navigation.navigate('TabsNavigator')}
                 />
             </View>
-        </Flex>
+        </SafeAreaContainer>
     )
 }
 
@@ -321,6 +322,7 @@ const styles = (theme: Theme) =>
         footerContainer: {
             width: '100%',
             padding: theme.spacing.lg,
+            paddingTop: 2,
             alignItems: 'center',
         },
         imageWrapper: {

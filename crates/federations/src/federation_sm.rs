@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
+use device_registration::DeviceRegistrationService;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Encodable;
 use rpc_types::error::RpcError;
@@ -10,8 +11,8 @@ use rpc_types::event::{Event, TypedEventExt as _};
 use rpc_types::{RpcFederationId, RpcFederationMaybeLoading};
 use runtime::bridge_runtime::Runtime;
 use runtime::db::FederationPendingRejoinFromScratchKey;
-use runtime::storage::state::{DatabaseInfo, FederationInfo};
 use runtime::storage::Storage;
+use runtime::storage::state::{DatabaseInfo, FederationInfo};
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
@@ -94,6 +95,7 @@ impl FederationStateMachine {
         recover_from_scratch: bool,
         fedi_fee_helper: &Arc<FediFeeHelper>,
         multispend_services: Arc<dyn MultispendNotifications>,
+        device_registration_service: Arc<DeviceRegistrationService>,
     ) -> Result<Arc<FederationV2>> {
         let mut wstate = self.state.write().await;
         anyhow::ensure!(
@@ -114,12 +116,13 @@ impl FederationStateMachine {
             recover_from_scratch,
             fedi_fee_helper.clone(),
             multispend_services,
+            device_registration_service.clone(),
         )
         .await?;
 
         if federation_arc.recovering() {
             *wstate = FederationStateInternal::Recovering(federation_arc.clone());
-            self.start_recovery_monitoring(runtime);
+            self.start_recovery_monitoring(runtime, device_registration_service);
         } else {
             *wstate = FederationStateInternal::Normal(federation_arc.clone());
         }
@@ -128,6 +131,7 @@ impl FederationStateMachine {
     }
 
     /// Transition from NewForLoad to LoadFailed or Normal or Recovering
+    #[allow(clippy::too_many_arguments)]
     pub async fn load_from_db(
         &self,
         federation_id: String,
@@ -136,6 +140,7 @@ impl FederationStateMachine {
         locker: &FederationsLocker,
         fedi_fee_helper: &Arc<FediFeeHelper>,
         multispend_services: Arc<dyn MultispendNotifications>,
+        device_registration_service: Arc<DeviceRegistrationService>,
     ) {
         let mut wstate = self.state.write().await;
         assert!(matches!(&*wstate, FederationStateInternal::NewForLoad));
@@ -148,6 +153,7 @@ impl FederationStateMachine {
                 federation_info,
                 fedi_fee_helper,
                 multispend_services,
+                device_registration_service.clone(),
                 guard,
             )
             .await;
@@ -158,7 +164,7 @@ impl FederationStateMachine {
                 federation_arc.send_federation_event().await;
                 if federation_arc.recovering() {
                     *wstate = FederationStateInternal::Recovering(federation_arc);
-                    self.start_recovery_monitoring(runtime);
+                    self.start_recovery_monitoring(runtime, device_registration_service);
                 } else {
                     *wstate = FederationStateInternal::Normal(federation_arc);
                 }
@@ -181,6 +187,7 @@ impl FederationStateMachine {
         federation_info: FederationInfo,
         fedi_fee_helper: &Arc<FediFeeHelper>,
         multispend_services: Arc<dyn MultispendNotifications>,
+        device_registration_service: Arc<DeviceRegistrationService>,
         guard: FederationLockGuard,
     ) -> anyhow::Result<Arc<FederationV2>> {
         FederationV2::from_db(
@@ -189,20 +196,30 @@ impl FederationStateMachine {
             guard,
             fedi_fee_helper.clone(),
             multispend_services,
+            device_registration_service,
         )
         .await
     }
 
-    fn start_recovery_monitoring(&self, runtime: Arc<Runtime>) {
+    fn start_recovery_monitoring(
+        &self,
+        runtime: Arc<Runtime>,
+        device_registration_service: Arc<DeviceRegistrationService>,
+    ) {
         runtime.task_group.clone().spawn_cancellable(
             "waiting for recovery to replace federation",
-            self.clone().start_recovery_monitoring_inner(runtime),
+            self.clone()
+                .start_recovery_monitoring_inner(runtime, device_registration_service),
         );
     }
     // Start monitoring federation recovery in background
     // Invariant: this must called exactly once when transitioning to
     // Self::Recovering
-    async fn start_recovery_monitoring_inner(self, runtime: Arc<Runtime>) -> Result<()> {
+    async fn start_recovery_monitoring_inner(
+        self,
+        runtime: Arc<Runtime>,
+        device_registration_service: Arc<DeviceRegistrationService>,
+    ) -> Result<()> {
         // acquire read lock to block all other writes
         let rstate = self.state.read().await;
         let FederationStateInternal::Recovering(federation_arc) = &*rstate else {
@@ -251,6 +268,7 @@ impl FederationStateMachine {
             guard,
             fedi_fee_helper,
             multispend_services,
+            device_registration_service,
         )
         .await;
 

@@ -21,6 +21,7 @@ const initialState = {
         chatModal: false,
         modsModal: false,
         pwaHasDismissedInstallPrompt: false, // pwa only
+        hasAcceptedSurvey: false,
     },
 }
 

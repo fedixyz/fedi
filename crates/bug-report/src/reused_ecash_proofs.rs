@@ -2,12 +2,12 @@ use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use base64_serde::base64_serde_type;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::secp256k1::hashes::sha256;
-use fedimint_core::secp256k1::{schnorr, Message, PublicKey};
+use fedimint_core::secp256k1::{Message, PublicKey, schnorr};
 use fedimint_core::{Amount, BitcoinHash};
 use fedimint_mint_client::output::NoteIssuanceRequest;
 use fedimint_mint_client::{BlindNonce, MintClientModule, Nonce};
 use serde::{Deserialize, Serialize};
-use tbs::{blind_message, BlindingKey};
+use tbs::{BlindingKey, blind_message};
 
 base64_serde_type!(
     Base64UrlSafe,
@@ -102,14 +102,14 @@ impl ReusedEcashProof {
 #[cfg(test)]
 mod tests {
     use fedimint_core::secp256k1;
-    use fedimint_core::secp256k1::rand::{thread_rng, Rng};
+    use fedimint_core::secp256k1::rand::{Rng, thread_rng};
     use fedimint_derive_secret::DerivableSecret;
     use fedimint_mint_client::output::NoteIssuanceRequest;
 
     use super::*;
 
     fn mk_secret() -> DerivableSecret {
-        let (key, salt): ([u8; 32], [u8; 32]) = thread_rng().gen();
+        let (key, salt): ([u8; 32], [u8; 32]) = thread_rng().r#gen();
         DerivableSecret::new_root(&key, &salt)
     }
 

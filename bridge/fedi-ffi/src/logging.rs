@@ -21,7 +21,9 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, Layer};
 
 pub fn default_log_filter() -> String {
-    format!("info,{LOG_CLIENT}=debug,fediffi=trace,{LOG_CLIENT_REACTOR}=trace,{LOG_CLIENT_MODULE_WALLET}=trace")
+    format!(
+        "info,{LOG_CLIENT}=debug,fediffi=trace,{LOG_CLIENT_REACTOR}=trace,{LOG_CLIENT_MODULE_WALLET}=trace"
+    )
 }
 
 pub struct ReactNativeLayer(pub EventSink);

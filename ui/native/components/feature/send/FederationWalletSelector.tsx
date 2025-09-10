@@ -51,7 +51,7 @@ const FederationWalletSelector: React.FC<{
             makeFormattedAmountsFromMSats(f?.balance || (0 as MSats))
         return (
             <Pressable
-                key={f.id}
+                key={`federation-option-${f.id}`}
                 style={style.tileContainer}
                 onPress={() => handleFederationSelected(f)}>
                 <FederationLogo federation={f} size={32} />
@@ -79,7 +79,7 @@ const FederationWalletSelector: React.FC<{
     if (federations.length === 0) return null
 
     return (
-        <Flex align="center" fullWidth>
+        <Flex align="center" fullWidth testID="federation-wallet-selector">
             <Pressable
                 style={[
                     style.selectedFederation,

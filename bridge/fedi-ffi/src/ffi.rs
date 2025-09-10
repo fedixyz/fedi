@@ -87,7 +87,7 @@ pub async fn fedimint_initialize_inner(
         ) {
             // reset observables
             if let Ok(runtime) = bridge.runtime() {
-                runtime.observable_pool.reset().await;
+                runtime.stream_pool.reset().await;
             }
         }
         return Ok(());
@@ -178,7 +178,7 @@ pub fn fedimint_get_supported_events() -> Vec<String> {
         String::from("stabilityPoolWithdrawal"),
         String::from("recoveryComplete"),
         String::from("recoveryProgress"),
-        String::from("observableUpdate"),
+        String::from("streamUpdate"),
         String::from("deviceRegistration"),
         String::from("communityMetadataUpdated"),
     ]

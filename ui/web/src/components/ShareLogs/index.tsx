@@ -25,9 +25,7 @@ export default function ShareLogs({ ticketNumber, onChange, error }: Props) {
                 value={ticketNumber}
                 onChange={e => onChange(e.currentTarget.value)}
                 placeholder={t('feature.support.support-ticket-number')}
-                name="email"
-                type="email"
-                id="email"
+                data-testid="ticket-number-input"
                 autoComplete="off"
             />
             {error && (

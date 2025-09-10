@@ -9,10 +9,11 @@ import {
 } from 'react-native'
 
 import { useMatrixUrlPreview } from '@fedi/common/hooks/matrix'
+import { FileUri, HttpUri } from '@fedi/common/types/media'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { fedimint } from '../../../bridge'
-import { useMatrixFile } from '../../../utils/hooks/media'
+import { useDownloadResource } from '../../../utils/hooks/media'
 import Flex from '../../ui/Flex'
 
 type Props = {
@@ -35,8 +36,8 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
         height: number
     } | null>(null)
     const { theme } = useTheme()
-    const { uri, isLoading, isError } = useMatrixFile(
-        urlPreview?.['og:image'] ?? null,
+    const { uri, isLoading, isError } = useDownloadResource(
+        (urlPreview?.['og:image'] as HttpUri | FileUri) ?? null,
     )
 
     const style = styles(theme)

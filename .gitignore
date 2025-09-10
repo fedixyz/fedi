@@ -29,3 +29,5 @@ bridge/fedi-android/plugins/bin/
 # Cursor
 .cursorignore
 .cursorrules
+.cursor
+.claude

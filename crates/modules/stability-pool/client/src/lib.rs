@@ -17,7 +17,6 @@ use fedimint_client::module::module::init::{ClientModuleInit, ClientModuleInitAr
 use fedimint_client::module::module::recovery::NoModuleBackup;
 use fedimint_client::module::module::{ClientContext, OutPointRange};
 use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
-use fedimint_client::module::sm::util::MapStateTransitions;
 use fedimint_client::module::sm::{
     ClientSMDatabaseTransaction, Context, DynState, ModuleNotifier, State, StateTransition,
 };
@@ -25,7 +24,7 @@ use fedimint_client::transaction::{
     ClientInput, ClientInputBundle, ClientInputSM, ClientOutput, ClientOutputBundle,
     ClientOutputSM, TransactionBuilder,
 };
-use fedimint_client::{sm_enum_variant_translation, ClientModule, DynGlobalClientContext};
+use fedimint_client::{ClientModule, DynGlobalClientContext, sm_enum_variant_translation};
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::{Database, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
@@ -34,19 +33,19 @@ use fedimint_core::module::{
 };
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::util::backoff_util::background_backoff;
-use fedimint_core::{apply, async_trait_maybe_send, Amount, OutPoint, TransactionId};
+use fedimint_core::{Amount, OutPoint, TransactionId, apply, async_trait_maybe_send};
 use fedimint_derive_secret::DerivableSecret;
 use futures::{Stream, StreamExt};
 use rand::Rng;
-use secp256k1::{schnorr, Keypair, Secp256k1};
+use secp256k1::{Keypair, Secp256k1, schnorr};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub use stability_pool_common as common;
 use stability_pool_common::{
     Account, AccountId, AccountType, ActiveDeposits, DepositToProvideOutput, DepositToSeekOutput,
-    FeeRate, FiatAmount, FiatOrAll, SignedTransferRequest, StabilityPoolInputV0,
+    FeeRate, FiatAmount, FiatOrAll, KIND, SignedTransferRequest, StabilityPoolInputV0,
     StabilityPoolOutputV0, TransferOutput, TransferRequest, TransferRequestId,
-    UnlockForWithdrawalInput, UnlockRequestStatus, WithdrawalInput, KIND,
+    UnlockForWithdrawalInput, UnlockRequestStatus, WithdrawalInput,
 };
 use tracing::info;
 
@@ -270,7 +269,7 @@ impl ClientModule for StabilityPoolClientModule {
 
             CliCommand::SimpleTransfer { to_account, amount } => {
                 let request = TransferRequest::new(
-                    rand::thread_rng().gen(),
+                    rand::thread_rng().r#gen(),
                     self.our_account(AccountType::Seeker),
                     amount,
                     to_account,

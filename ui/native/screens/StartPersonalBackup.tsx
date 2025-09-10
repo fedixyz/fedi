@@ -6,6 +6,7 @@ import { StyleSheet } from 'react-native'
 
 import Flex from '../components/ui/Flex'
 import HoloGuidance from '../components/ui/HoloGuidance'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -19,20 +20,26 @@ const StartPersonalBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
 
     return (
-        <Flex grow center style={styles(theme).container}>
-            <HoloGuidance
-                iconImage={<SvgImage name="WordList" size={SvgImageSize.lg} />}
-                title={t('feature.backup.personal-backup')}
-                message={t('feature.backup.start-personal-backup-instructions')}
-            />
-            <Button
-                title={t('words.continue')}
-                containerStyle={styles(theme).continueButton}
-                onPress={() => {
-                    navigation.navigate('RecoveryWords')
-                }}
-            />
-        </Flex>
+        <SafeAreaContainer edges="bottom">
+            <Flex grow center style={styles(theme).container}>
+                <HoloGuidance
+                    iconImage={
+                        <SvgImage name="WordList" size={SvgImageSize.lg} />
+                    }
+                    title={t('feature.backup.personal-backup')}
+                    message={t(
+                        'feature.backup.start-personal-backup-instructions',
+                    )}
+                />
+                <Button
+                    title={t('words.continue')}
+                    containerStyle={styles(theme).continueButton}
+                    onPress={() => {
+                        navigation.navigate('RecoveryWords')
+                    }}
+                />
+            </Flex>
+        </SafeAreaContainer>
     )
 }
 

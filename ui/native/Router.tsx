@@ -130,11 +130,20 @@ const Router = () => {
 
         if (previousRoute === currentRoute?.name) return
 
+        let paramsToLog = currentRoute?.params
+
+        if (currentRoute?.params && 'ecash' in currentRoute.params) {
+            paramsToLog = {
+                ...currentRoute?.params,
+                ecash: '[redacted]',
+            }
+        }
+
         routeRef.current = currentRoute?.name
         log.debug(
             `Navigating from "${previousRoute}" to "${routeRef.current}"`,
             {
-                params: currentRoute?.params,
+                params: paramsToLog,
             },
         )
     }, [navigation, toast])

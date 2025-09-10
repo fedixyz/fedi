@@ -12,6 +12,7 @@ import { setFeatureUnlocked } from '@fedi/common/redux'
 import PinDot from '../components/feature/pin/PinDot'
 import Flex from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -134,61 +135,63 @@ const LockScreen = ({ navigation }: Props) => {
     }, [])
 
     return (
-        <Flex grow center style={style.container}>
-            <Flex grow center style={style.content}>
-                <Flex row center style={style.dots}>
-                    {isEnteredPinIncorrect && (
-                        <Text style={style.incorrectPin}>
-                            {t('feature.pin.pin-doesnt-match')}
-                        </Text>
-                    )}
-                    {pinNumbers.map(i => (
-                        <PinDot
-                            key={i}
-                            status={dotStatus(i)}
-                            isLast={i === maxPinLength}
-                        />
-                    ))}
-                    {isEnteredPinIncorrect && (
-                        <View style={style.forgotPinButtonContainer}>
-                            <Button
-                                day
-                                title={
-                                    <Text caption>
-                                        {t('feature.pin.forgot-your-pin')}
-                                    </Text>
-                                }
-                                buttonStyle={style.forgotPinButton}
-                                onPress={() => {
-                                    navigation.navigate('ResetPinStart')
-                                }}
+        <SafeAreaContainer edges="bottom">
+            <Flex grow center style={style.container}>
+                <Flex grow center style={style.content}>
+                    <Flex row center style={style.dots}>
+                        {isEnteredPinIncorrect && (
+                            <Text style={style.incorrectPin}>
+                                {t('feature.pin.pin-doesnt-match')}
+                            </Text>
+                        )}
+                        {pinNumbers.map(i => (
+                            <PinDot
+                                key={i}
+                                status={dotStatus(i)}
+                                isLast={i === maxPinLength}
                             />
-                        </View>
+                        ))}
+                        {isEnteredPinIncorrect && (
+                            <View style={style.forgotPinButtonContainer}>
+                                <Button
+                                    day
+                                    title={
+                                        <Text caption>
+                                            {t('feature.pin.forgot-your-pin')}
+                                        </Text>
+                                    }
+                                    buttonStyle={style.forgotPinButton}
+                                    onPress={() => {
+                                        navigation.navigate('ResetPinStart')
+                                    }}
+                                />
+                            </View>
+                        )}
+                    </Flex>
+                </Flex>
+                <Flex row wrap fullWidth style={style.numpad}>
+                    {numpadButtons.map(btn =>
+                        btn === '.' ? (
+                            <View key="empty" style={style.numpadBtnWidth} />
+                        ) : (
+                            <NumpadButton
+                                key={btn}
+                                btn={btn}
+                                onPress={() => handleNumpadPress(btn)}
+                                disabled={timeoutSeconds > 0}
+                            />
+                        ),
+                    )}
+                    {timeoutSeconds > 0 && (
+                        <Flex center style={style.timeoutOverlay}>
+                            <Text bold h1>
+                                0:{String(timeoutSeconds).padStart(2, '0')}
+                            </Text>
+                        </Flex>
                     )}
                 </Flex>
             </Flex>
-            <Flex row wrap fullWidth style={style.numpad}>
-                {numpadButtons.map(btn =>
-                    btn === '.' ? (
-                        <View key="empty" style={style.numpadBtnWidth} />
-                    ) : (
-                        <NumpadButton
-                            key={btn}
-                            btn={btn}
-                            onPress={() => handleNumpadPress(btn)}
-                            disabled={timeoutSeconds > 0}
-                        />
-                    ),
-                )}
-                {timeoutSeconds > 0 && (
-                    <Flex center style={style.timeoutOverlay}>
-                        <Text bold h1>
-                            0:{String(timeoutSeconds).padStart(2, '0')}
-                        </Text>
-                    </Flex>
-                )}
-            </Flex>
-        </Flex>
+        </SafeAreaContainer>
     )
 }
 

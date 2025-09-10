@@ -6,7 +6,7 @@ const customJestConfig = {
 }
 
 const createJestConfig = nextJest({
-    dir: './',
+    dir: './tests',
 })
 
 const jestConfig = async () => {

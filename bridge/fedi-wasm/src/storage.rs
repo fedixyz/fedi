@@ -4,7 +4,7 @@ use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{apply, async_trait_maybe_send, impl_db_record};
 use runtime::db::BridgeDbPrefix;
-use runtime::storage::{IStorage, BRIDGE_DB_PREFIX};
+use runtime::storage::{BRIDGE_DB_PREFIX, IStorage};
 
 #[derive(Debug, Encodable, Decodable, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct FileStorageKey(String);

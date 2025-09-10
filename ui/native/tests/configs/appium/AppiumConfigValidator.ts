@@ -4,14 +4,14 @@ import { RequiredEnvVars, EnvVarValidation, Platform } from './types'
 export class AppiumConfigValidator {
     private static requiredVars: RequiredEnvVars = {
         common: ['PLATFORM'],
-        android: ['DEVICE_ID'],
+        android: [],
         ios: ['DEVICE_ID'],
         pwa: [],
     }
 
     private static optionalVars: Record<Platform | 'common', string[]> = {
         common: [],
-        android: ['PLATFORM_VERSION', 'BUNDLE_PATH'],
+        android: ['PLATFORM_VERSION', 'BUNDLE_PATH', 'DEVICE_ID', 'AVD'],
         ios: ['PLATFORM_VERSION', 'BUNDLE_PATH'],
         pwa: [],
     }
@@ -25,9 +25,15 @@ export class AppiumConfigValidator {
         },
         {
             name: 'DEVICE_ID',
-            platforms: [Platform.ANDROID, Platform.IOS],
+            platforms: [Platform.IOS],
             validator: value => value.length > 0,
             errorMessage: 'DEVICE_ID cannot be empty',
+        },
+        {
+            name: 'AVD',
+            platforms: [Platform.ANDROID],
+            validator: value => value.length > 0,
+            errorMessage: 'AVD cannot be empty',
         },
         {
             name: 'BUNDLE_PATH',
@@ -54,6 +60,20 @@ export class AppiumConfigValidator {
             throw new Error(
                 'PLATFORM environment variable is required and must be set first',
             )
+        }
+
+        // Special handling for Android platform
+        if (platform === 'android') {
+            if (!process.env.DEVICE_ID && !process.env.AVD) {
+                throw new Error(
+                    `Missing required environment variables for ANDROID: Either DEVICE_ID or AVD must be provided\n\n` +
+                        `Please set one of the following environment variables:\n${this.getExampleConfig(platform)}\n\n` +
+                        `You can either:\n` +
+                        `1. Export them in your shell: export PLATFORM=${platform}\n` +
+                        `2. Use a .env file with dotenv\n` +
+                        `3. Pass them when running: PLATFORM=${platform} yarn run ts-node ./path/to/runner.ts`,
+                )
+            }
         }
 
         const platformSpecificVars = this.getPlatformRequiredVars(platform)
@@ -128,6 +148,9 @@ export class AppiumConfigValidator {
                 return `
 # Android Configuration
 export PLATFORM=android
+# Provide either AVD or DEVICE_ID (or both)
+export AVD=android-7.1  # Run 'emulator -list-avds' to get this
+# OR
 export DEVICE_ID=emulator-5554  # Run 'adb devices' to get this
 export BUNDLE_PATH=/path/to/app-debug.apk
 export APP_PACKAGE=com.fedi
@@ -162,7 +185,12 @@ export PLATFORM_VERSION=18.1  # Optional
 
         switch (platform) {
             case 'android':
-                console.log(`   Device ID: ${process.env.DEVICE_ID}`)
+                if (process.env.DEVICE_ID) {
+                    console.log(`   Device ID: ${process.env.DEVICE_ID}`)
+                }
+                if (process.env.AVD) {
+                    console.log(`   AVD: ${process.env.AVD}`)
+                }
                 console.log(`   Bundle Path: ${process.env.BUNDLE_PATH}`)
                 console.log(`   App Package: ${process.env.APP_PACKAGE}`)
                 console.log(`   App Activity: ${process.env.APP_ACTIVITY}`)

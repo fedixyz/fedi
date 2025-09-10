@@ -86,6 +86,8 @@ export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
             <ChatMediaPreview
                 open={showMediaPreview}
                 onOpenChange={setShowMediaPreview}
+                src={src}
+                name={event.content.body}
                 trigger={
                     <VideoWrapper>
                         {!dataLoaded && (
@@ -116,12 +118,14 @@ export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
                         )}
                     </VideoWrapper>
                 }>
-                <PreviewVideo
-                    src={src || ''}
-                    autoPlay
-                    playsInline
-                    aria-label="preview-video"
-                />
+                {src && (
+                    <PreviewVideo
+                        src={src}
+                        autoPlay
+                        playsInline
+                        aria-label="preview-video"
+                    />
+                )}
             </ChatMediaPreview>
         </>
     )

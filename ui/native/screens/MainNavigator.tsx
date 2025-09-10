@@ -32,10 +32,9 @@ import SetPinHeader from '../components/feature/pin/SetPinHeader'
 import SetPinLockScreen from '../components/feature/pin/SetPinLockScreen'
 import UnlockAppLockScreenHeader from '../components/feature/pin/UnlockAppLockScreenHeader'
 import BitcoinRequestHeader from '../components/feature/receive/BitcoinRequestHeader'
-import ReceiveBitcoinHeader from '../components/feature/receive/ReceiveBitcoinHeader'
 import ReceiveBitcoinOfflineHeader from '../components/feature/receive/ReceiveBitcoinOfflineHeader'
 import ReceiveCashuHeader from '../components/feature/receive/ReceiveCashuHeader'
-import ReceiveLightningHeader from '../components/feature/receive/ReceiveLightningHeader'
+import RequestMoneyHeader from '../components/feature/receive/RequestMoneyHeader'
 import ChooseRecoveryMethodHeader from '../components/feature/recovery/ChooseRecoveryMethodHeader'
 import PersonalRecoveryHeader from '../components/feature/recovery/PersonalRecoveryHeader'
 import RecoveryAssistHeader from '../components/feature/recovery/RecoveryAssistHeader'
@@ -269,7 +268,11 @@ export const MainNavigator = () => {
                     <Stack.Screen
                         name="PublicFederations"
                         component={PublicFederations}
-                        options={() => ({
+                        options={({ route }) => ({
+                            gestureEnabled: !(route?.params?.from === 'Splash'),
+                            fullScreenSwipeEnabled: !(
+                                route?.params?.from === 'Splash'
+                            ),
                             header: () => (
                                 <CenteredHeader
                                     title={t('phrases.join-a-federation')}
@@ -717,7 +720,7 @@ export const MainNavigator = () => {
                                 name="Receive"
                                 component={Receive}
                                 options={() => ({
-                                    header: () => <ReceiveBitcoinHeader />,
+                                    header: () => <RequestMoneyHeader />,
                                 })}
                             />
                             <Stack.Screen
@@ -731,7 +734,7 @@ export const MainNavigator = () => {
                                 name="ReceiveLightning"
                                 component={ReceiveLightning}
                                 options={() => ({
-                                    header: () => <ReceiveLightningHeader />,
+                                    header: () => <RequestMoneyHeader />,
                                 })}
                             />
                             <Stack.Screen

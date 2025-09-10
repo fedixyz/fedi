@@ -42,3 +42,36 @@ pub struct InvoiceRequestMemoV1 {
     pub module: String,
     pub tx_direction: TransactionDirection,
 }
+
+// v2 - extended fee collection info
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v2")]
+pub struct GenerateInvoiceRequestV2 {
+    pub amount_msat: u64,
+    pub module: String,
+    pub tx_direction: TransactionDirection,
+    pub stable_id: String,
+    pub spv2_account_id: Option<String>,
+    pub federation_id: String,
+    pub first_comm_invite_code_hash: Option<String>,
+    pub other_comm_invite_codes_hashes: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v2")]
+pub struct InvoiceRequestMemoV2 {
+    pub module: String,
+    pub tx_direction: TransactionDirection,
+    pub stable_id: String,
+    pub spv2_account_id: Option<String>,
+    pub federation_id: String,
+    pub first_comm_invite_code_hash: Option<String>,
+    pub other_comm_invite_codes_hashes: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v2")]
+pub struct GenerateInvoiceResponseV2 {
+    pub invoice: String,
+}

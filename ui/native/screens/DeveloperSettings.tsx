@@ -59,7 +59,8 @@ import SvgImage from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
-import { shareLogsExport, shareReduxState } from '../utils/log'
+import { useShareNativeLogs } from '../utils/hooks/export'
+import { shareReduxState } from '../utils/log'
 
 const log = makeLog('DeveloperSettings')
 
@@ -77,7 +78,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const [isModalVisible, setIsModalVisible] = useState(false)
     const [isLoadingGateways, setIsLoadingGateways] = useState<boolean>(false)
     const [gateways, setGateways] = useState<LightningGateway[]>([])
-    const [isSharingLogs, setIsSharingLogs] = useState(false)
     const [outstandingFediSendFeesMap, setOutstandingFediSendFeesMap] =
         useState<FeesMap>({})
     const [outstandingFediReceiveFeesMap, setOutstandingFediReceiveFeesMap] =
@@ -105,6 +105,8 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const spBtcUsdPrice = useAppSelector(selectStabilityPoolCycleStartPrice)
     const apiBtcUsdPrice = useAppSelector(s => s.currency.btcUsdRate)
     const apiFiatUsdPrices = useAppSelector(s => s.currency.fiatUsdRates)
+
+    const { shareLogs, status: shareLogsStatus } = useShareNativeLogs()
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
@@ -236,16 +238,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             return gw
         })
         setGateways(updatedGateways)
-    }
-
-    const handleShareLogs = async () => {
-        setIsSharingLogs(true)
-        try {
-            await shareLogsExport()
-        } catch (e) {
-            toast.error(t, e)
-        }
-        setIsSharingLogs(false)
     }
 
     const handleShareStorage = async () => {
@@ -386,8 +378,8 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 <Button
                     title={t('feature.developer.share-logs')}
                     containerStyle={style.buttonContainer}
-                    onPress={handleShareLogs}
-                    loading={isSharingLogs}
+                    onPress={shareLogs}
+                    loading={shareLogsStatus === 'generating-data'}
                 />
                 <Button
                     title={t('feature.developer.share-state')}

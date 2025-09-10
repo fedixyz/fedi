@@ -14,6 +14,7 @@ import {
     sendMatrixMessage,
 } from '@fedi/common/redux'
 import { ChatType } from '@fedi/common/types'
+import { RpcMediaUploadParams } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
@@ -71,25 +72,37 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
                 }
 
                 for (const file of files) {
-                    const { width, height } = await getMediaDimensions(file)
+                    const { name, type } = file
 
-                    const extension = file.name.split('.').pop()
-                    const randomFilename = `${uuidv4()}.${extension}`
+                    const isMedia =
+                        file.type.startsWith('image/') ||
+                        file.type.startsWith('video/')
+
+                    const params: RpcMediaUploadParams = {
+                        width: null,
+                        height: null,
+                        mimeType: type,
+                    }
+
+                    if (isMedia) {
+                        const { width, height } = await getMediaDimensions(file)
+                        params.width = width
+                        params.height = height
+                    }
+
+                    const extension = name.split('.').pop()
+                    const filename = isMedia ? `${uuidv4()}.${extension}` : name
 
                     await writeBridgeFile(
-                        randomFilename,
+                        filename,
                         new Uint8Array(await file.arrayBuffer()),
                     )
 
                     await fedimint.matrixSendAttachment({
                         roomId,
-                        filename: randomFilename,
-                        params: {
-                            mimeType: file.type,
-                            width,
-                            height,
-                        },
-                        filePath: randomFilename,
+                        filename: filename,
+                        params,
+                        filePath: filename,
                     })
                 }
             } catch (err) {
@@ -138,10 +151,10 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
             <ChatConversation
                 type={directUserId ? ChatType.direct : ChatType.group}
                 id={room?.id || ''}
+                isPublic={room?.isPublic}
                 name={room?.name || ''}
                 events={events}
                 onSendMessage={handleSend}
-                inputActions={!!directUserId}
                 onWalletClick={() => setIsPaymentOpen(true)}
                 headerActions={
                     directUserId ? undefined : (

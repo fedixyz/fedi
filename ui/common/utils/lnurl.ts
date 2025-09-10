@@ -1,4 +1,4 @@
-import { err, ok, ResultAsync } from 'neverthrow'
+import { ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import {
@@ -11,13 +11,15 @@ import { RpcPayInvoiceResponse } from '../types/bindings'
 import {
     FetchError,
     MalformedDataError,
+    NotOkHttpResponseError,
     SchemaValidationError,
     UrlConstructError,
 } from '../types/errors'
-import { BridgeError, makeError, UnexpectedError } from './errors'
+import { BridgeError, TaggedError } from './errors'
 import { FedimintBridge } from './fedimint'
 import {
     constructUrl,
+    ensureHttpResponseOk,
     fetchResult,
     thenJson,
     throughZodSchema,
@@ -50,12 +52,9 @@ const lnurlOkResponseSchema = z.object({
 const lnurlNonError = (data: unknown) =>
     throughZodSchema(lnurlErrorResponseSchema)(data).match(
         res =>
-            err(
-                makeError(
-                    new Error(res.reason || 'errors.unknown-error'),
-                    'FetchError',
-                ),
-            ),
+            new TaggedError('FetchError')
+                .withMessage(res.reason || 'errors.unknown-error')
+                .intoErr(),
         () => ok(data),
     )
 
@@ -67,13 +66,14 @@ export function lnurlCallback(
     callbackUrl: URL,
 ): ResultAsync<
     z.infer<typeof lnurlOkResponseSchema>,
-    | UnexpectedError
     | UrlConstructError
-    | SchemaValidationError
     | FetchError
     | MalformedDataError
+    | SchemaValidationError
+    | NotOkHttpResponseError
 > {
     return fetchResult(callbackUrl.toString())
+        .andThen(ensureHttpResponseOk)
         .andThen(thenJson)
         .andThrough(lnurlNonError)
         .andThen(throughZodSchema(lnurlOkResponseSchema))
@@ -87,12 +87,12 @@ export function lnurlAuth(
     lnurlData: ParsedLnurlAuth['data'],
 ): ResultAsync<
     z.infer<typeof lnurlOkResponseSchema>,
-    | UnexpectedError
     | BridgeError
     | UrlConstructError
     | MalformedDataError
     | SchemaValidationError
     | FetchError
+    | NotOkHttpResponseError
 > {
     return fedimint
         .rpcResult('signLnurlMessage', {
@@ -122,12 +122,12 @@ export function lnurlPay(
     notes?: string,
 ): ResultAsync<
     RpcPayInvoiceResponse,
-    | UnexpectedError
     | UrlConstructError
     | MalformedDataError
     | SchemaValidationError
     | FetchError
     | BridgeError
+    | NotOkHttpResponseError
 > {
     return constructUrl(lnurlData.callback)
         .map(url => {
@@ -136,6 +136,7 @@ export function lnurlPay(
             return url.toString()
         })
         .asyncAndThen(fetchResult)
+        .andThen(ensureHttpResponseOk)
         .andThen(thenJson)
         .andThrough(lnurlNonError)
         .andThen(throughZodSchema(lnurlPayResponseSchema))
@@ -166,12 +167,12 @@ export function lnurlWithdraw(
     note?: string,
 ): ResultAsync<
     string,
-    | UnexpectedError
     | UrlConstructError
-    | BridgeError
     | FetchError
     | MalformedDataError
     | SchemaValidationError
+    | BridgeError
+    | NotOkHttpResponseError
 > {
     return constructUrl(lnurlData.callback)
         .asyncAndThen(url =>

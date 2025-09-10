@@ -2,9 +2,10 @@ use std::collections::BTreeSet;
 use std::pin::pin;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
+use async_stream::stream;
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use matrix_sdk::room::RoomMemberRole;
 use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
 use matrix_sdk::ruma::events::{AnySyncMessageLikeEvent, SyncMessageLikeEvent};
@@ -14,10 +15,9 @@ use rpc_types::error::ErrorCode;
 use rpc_types::matrix::RpcRoomId;
 use rpc_types::{NetworkError, RpcEventId, RpcPublicKey, RpcSPv2SyncResponse};
 use runtime::bridge_runtime::Runtime;
-use runtime::observable::{Observable, ObservableUpdate};
 use runtime::utils::PoisonedLockExt as _;
 use stability_pool_client::common::TransferRequest;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 use super::db::{MultispendGroupStatus, MultispendMarkedForScanning, RpcMultispendGroupStatus};
 use super::rescanner::RoomRescannerManager;
@@ -217,73 +217,45 @@ impl MultispendMatrix {
             .event_id)
     }
 
-    pub async fn observe_multispend_group(
+    pub async fn subscribe_multispend_group(
         self: &Arc<Self>,
-        id: u64,
         room_id: OwnedRoomId,
-    ) -> Result<Observable<RpcMultispendGroupStatus>> {
+    ) -> impl Stream<Item = RpcMultispendGroupStatus> + use<> {
         let this = self.clone();
-        self.runtime
-            .observable_pool
-            .make_observable(
-                id,
-                self.get_multispend_group_status(&room_id).await,
-                move |pool, id| async move {
-                    let mut update_index = 0;
-                    let mut stream = pin!(this.rescanner.scan_complete_stream(&room_id));
-                    while let Some(()) = stream.next().await {
-                        pool.send_observable_update(ObservableUpdate::new(
-                            id,
-                            update_index,
-                            this.get_multispend_group_status(&room_id).await,
-                        ))
-                        .await;
-                        update_index += 1;
-                    }
-                    Ok(())
-                },
-            )
-            .await
+        stream! {
+            let mut stream = pin!(this.rescanner.scan_complete_stream(&room_id));
+            loop {
+                yield this.get_multispend_group_status(&room_id).await;
+                if stream.next().await.is_none() {
+                    break;
+                }
+            }
+        }
     }
 
-    pub async fn observe_multispend_account_info(
+    pub async fn subscribe_multispend_account_info(
         self: &Arc<Self>,
-        id: u64,
         federation_ops: Arc<dyn FederationProvider>,
         federation_id: String,
         room_id: OwnedRoomId,
         finalized_group: &FinalizedGroup,
-    ) -> Result<Observable<Result<RpcSPv2SyncResponse, NetworkError>>> {
+    ) -> impl Stream<Item = Result<RpcSPv2SyncResponse, NetworkError>> + use<> {
         let account_id = finalized_group.spv2_account.id();
-        let fetch = move || {
-            let federation_ops = federation_ops.clone();
-            let federation_id = federation_id.clone();
-            async move {
-                federation_ops
+        let this = self.clone();
+
+        stream! {
+            let mut stream = pin!(this.rescanner.subscribe_to_account_info_refresh(&room_id));
+            loop {
+                yield federation_ops
                     .multispend_group_sync_info(&federation_id, account_id)
                     .await
                     .map(RpcSPv2SyncResponse::from)
-                    .map_err(|_| NetworkError {})
-            }
-        };
-        let this = self.clone();
-        self.runtime
-            .observable_pool
-            .make_observable(id, fetch().await, move |pool, id| async move {
-                let mut update_index = 0;
-                let mut stream = pin!(this.rescanner.subscribe_to_account_info_refresh(&room_id));
-                while let Some(()) = stream.next().await {
-                    pool.send_observable_update(ObservableUpdate::new(
-                        id,
-                        update_index,
-                        fetch().await,
-                    ))
-                    .await;
-                    update_index += 1;
+                    .map_err(|_| NetworkError {});
+                if stream.next().await.is_none() {
+                    break;
                 }
-                Ok(())
-            })
-            .await
+            }
+        }
     }
 
     pub async fn get_multispend_group_status(&self, room_id: &RoomId) -> RpcMultispendGroupStatus {
@@ -441,48 +413,34 @@ impl MultispendMatrix {
     }
 
     /// Get all accumulated data for an event id.
-    pub async fn observe_multispend_event_data(
+    pub async fn subscribe_multispend_event_data(
         self: &Arc<Self>,
-        observable_id: u64,
         room_id: RpcRoomId,
         event_id: RpcEventId,
-    ) -> Result<Observable<MsEventData>> {
+    ) -> Result<impl Stream<Item = MsEventData> + use<>> {
         let this = self.clone();
         let typed_room_id = room_id.into_typed()?;
-        self.rescanner.wait_for_scanned(&typed_room_id).await;
-        let initial = self
+        this.rescanner.wait_for_scanned(&typed_room_id).await;
+
+        let initial = this
             .get_multispend_event_data(&room_id, &event_id)
             .await
             .context("event not found")?;
         let mut last_value = initial.clone();
-        self.runtime
-            .observable_pool
-            .make_observable(
-                observable_id,
-                initial,
-                move |pool, observable_id| async move {
-                    let mut update_index = 0;
-                    let mut stream = pin!(this.rescanner.scan_complete_stream(&typed_room_id));
-                    while let Some(()) = stream.next().await {
-                        let updated = this
-                            .get_multispend_event_data(&room_id, &event_id)
-                            .await
-                            .expect("event to not disappear after checking once above");
-                        if updated != last_value {
-                            last_value = updated.clone();
-                            pool.send_observable_update(ObservableUpdate::new(
-                                observable_id,
-                                update_index,
-                                updated,
-                            ))
-                            .await;
-                            update_index += 1;
-                        }
-                    }
-                    Ok(())
-                },
-            )
-            .await
+
+        Ok(stream! {
+            let mut stream = pin!(this.rescanner.scan_complete_stream(&typed_room_id));
+            while let Some(()) = stream.next().await {
+                let updated = this
+                    .get_multispend_event_data(&room_id, &event_id)
+                    .await
+                    .expect("event to not disappear after checking once above");
+                if updated != last_value {
+                    last_value = updated.clone();
+                    yield updated;
+                }
+            }
+        })
     }
 
     /// Check if this is an invalid multispend event.

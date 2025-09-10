@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use federations::federation_v2::MultispendNotifications;
 use federations::Federations;
+use federations::federation_v2::MultispendNotifications;
 use fedimint_core::core::OperationId;
-use fedimint_core::{apply, async_trait_maybe_send, TransactionId};
-use multispend::services::MultispendServices;
+use fedimint_core::{TransactionId, apply, async_trait_maybe_send};
 use multispend::FederationProvider;
+use multispend::services::MultispendServices;
 use rpc_types::matrix::RpcRoomId;
 use rpc_types::{RpcEventId, SPv2TransferMetadata};
 use stability_pool_client::common::{AccountId, FiatAmount, SignedTransferRequest, SyncResponse};

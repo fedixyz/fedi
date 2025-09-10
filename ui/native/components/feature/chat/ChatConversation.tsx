@@ -23,6 +23,7 @@ import {
     selectMatrixRoomMembersCount,
     selectMatrixRoomEventsHaveLoaded,
     selectMatrixRoomIsBlocked,
+    selectIsDefaultGroup,
 } from '@fedi/common/redux'
 import { ChatType, MatrixEvent, MatrixEventStatus } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
@@ -66,6 +67,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const myId = useMemo(() => matrixAuth?.userId, [matrixAuth])
     const isBroadcast = !!useAppSelector(s => selectMatrixRoom(s, id))
         ?.broadcastOnly
+    const isDefault = useAppSelector(s => selectIsDefaultGroup(s, id))
     const [hasNewMessage, setHasNewMessages] = useState(false)
     const [highlightedMessageId, setHighlightedMessageId] = useState<
         string | null
@@ -302,7 +304,10 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                         isAlone ? (
                             <NoMembersNotice roomId={id} />
                         ) : (
-                            <NoMessagesNotice isBroadcast={isBroadcast} />
+                            <NoMessagesNotice
+                                isBroadcast={isBroadcast}
+                                isDefault={isDefault}
+                            />
                         )
                     }
                     ListHeaderComponent={

@@ -8,7 +8,7 @@ use anyhow::anyhow;
 use devimint::external::Bitcoind;
 use devimint::federation::Federation;
 use devimint::util::{Command, ProcessManager};
-use devimint::{cmd, dev_fed, vars, DevFed};
+use devimint::{DevFed, cmd, dev_fed, vars};
 use fedimint_core::task::TaskGroup;
 use fedimint_core::util::write_overwrite_async;
 use tokio::fs;
@@ -29,7 +29,6 @@ async fn flaky_starter_test() -> anyhow::Result<()> {
         fed,
         gw_lnd,
         gw_ldk,
-        electrs,
         esplora,
         gw_ldk_second,
         recurringd,
@@ -904,7 +903,8 @@ async fn setup() -> anyhow::Result<(ProcessManager, TaskGroup)> {
     for (var, value) in globals.vars() {
         debug!(var, value, "Env variable set");
         writeln!(env_string, r#"export {var}="{value}""#)?; // hope that value doesn't contain a "
-        std::env::set_var(var, value);
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var(var, value) };
     }
     write_overwrite_async(globals.FM_TEST_DIR.join("env"), env_string).await?;
     info!("Test setup in {:?}", globals.FM_DATA_DIR);

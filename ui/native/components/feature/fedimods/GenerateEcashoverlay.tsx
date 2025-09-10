@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { RejectionError } from 'webln'
 
 import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
+import { useIsInviteSupported } from '@fedi/common/hooks/federation'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     generateEcash,
@@ -36,6 +37,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     const { theme } = useTheme()
     const ecashRequest = useAppSelector(selectEcashRequest)
     const activeFederation = useAppSelector(selectActiveFederation)
+    const includeInvite = useIsInviteSupported()
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const [submitAttempts, setSubmitAttempts] = useState(0)
@@ -78,7 +80,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
                     fedimint,
                     federationId: activeFederation.id,
                     amount: msats,
-                    includeInvite: true,
+                    includeInvite,
                     frontendMetadata: {
                         initialNotes: null,
                         recipientMatrixId: null,

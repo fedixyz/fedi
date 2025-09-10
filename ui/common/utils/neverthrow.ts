@@ -1,13 +1,14 @@
-import { err, ok, Result, ResultAsync } from 'neverthrow'
+import { ok, Result, ResultAsync } from 'neverthrow'
 import { ZodSchema, z } from 'zod'
 
 import {
     FetchError,
     MalformedDataError,
     MissingDataError,
+    NotOkHttpResponseError,
     UrlConstructError,
 } from '../types/errors'
-import { isErrorInstance, makeError, tryTag, UnexpectedError } from './errors'
+import { TaggedError } from './errors'
 
 /**
  * Attempts to pass unknown data through a zod schema
@@ -25,7 +26,10 @@ import { isErrorInstance, makeError, tryTag, UnexpectedError } from './errors'
  */
 export const throughZodSchema = <T extends ZodSchema>(schema: T) => {
     const parse = (data: unknown): z.infer<T> => schema.parse(data)
-    return Result.fromThrowable(parse, tryTag('SchemaValidationError'))
+    return Result.fromThrowable(
+        parse,
+        e => new TaggedError('SchemaValidationError', e),
+    )
 }
 
 /**
@@ -36,17 +40,28 @@ export const throughZodSchema = <T extends ZodSchema>(schema: T) => {
  */
 export const fetchResult = (
     ...args: Parameters<typeof fetch>
-): ResultAsync<Response, UrlConstructError | FetchError | UnexpectedError> =>
+): ResultAsync<Response, UrlConstructError | FetchError> =>
     ResultAsync.fromPromise(fetch(...args), e => {
-        if (
-            isErrorInstance(e, 'UrlConstructError') &&
-            e.message.includes('URL')
-        ) {
-            return makeError(e, 'UrlConstructError')
+        if (e instanceof Error && e.message.includes('URL')) {
+            return new TaggedError('UrlConstructError', e)
         }
 
-        return makeError(e, 'FetchError')
+        return new TaggedError('FetchError', e)
     })
+
+/**
+ * Returns a Result based on whether the passed-in Response status is OK or not
+ * If OK, allows the original `Response` to pass through
+ * Otherwise returns a `NotOkHttpStatusError`
+ */
+export const ensureHttpResponseOk = (
+    res: Response,
+): Result<Response, NotOkHttpResponseError> =>
+    res.ok
+        ? ok(res)
+        : new TaggedError('NotOkHttpResponseError')
+              .withMessage(`HTTP Response Status not OK, got ${res.status}`)
+              .intoErr()
 
 /**
  * Attempts to parse a `Response` as JSON
@@ -60,8 +75,11 @@ export const fetchResult = (
  */
 export const thenJson = (
     res: Response,
-): ResultAsync<unknown, MalformedDataError | UnexpectedError> =>
-    ResultAsync.fromPromise(res.json(), tryTag('MalformedDataError'))
+): ResultAsync<unknown, MalformedDataError> =>
+    ResultAsync.fromPromise(
+        res.json(),
+        e => new TaggedError('MalformedDataError', e),
+    )
 
 /**
  * Attempts to construct a `URL` from a string or a `URL` object
@@ -69,7 +87,7 @@ export const thenJson = (
  */
 export const constructUrl = Result.fromThrowable(
     (...args: ConstructorParameters<typeof URL>) => new URL(...args),
-    tryTag('UrlConstructError'),
+    e => new TaggedError('UrlConstructError', e),
 )
 
 /**
@@ -87,14 +105,11 @@ export const constructUrl = Result.fromThrowable(
  */
 export const ensureNonNullish = <T>(
     value: T,
-): Result<NonNullable<T>, MissingDataError | UnexpectedError> => {
+): Result<NonNullable<T>, MissingDataError> => {
     if (value === null || value === undefined)
-        return err(
-            makeError(
-                new Error(`expected non-nullish value, got ${value}`),
-                'MissingDataError',
-            ),
-        )
+        return new TaggedError('MissingDataError')
+            .withMessage(`Expected non-nullish value, got ${value}`)
+            .intoErr()
 
     return ok(value as NonNullable<T>)
 }

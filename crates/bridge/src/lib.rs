@@ -2,7 +2,7 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use bitcoin::key::Secp256k1;
 use either::Either;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped as _};
@@ -220,8 +220,8 @@ impl Bridge {
 
         use runtime::constants::FEDI_FILE_V0_PATH;
         use runtime::features::RuntimeEnvironment;
-        use zip::write::SimpleFileOptions;
         use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
 
         enum ItemKind {
             Directory(PathBuf),

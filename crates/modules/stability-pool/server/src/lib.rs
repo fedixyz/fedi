@@ -12,14 +12,13 @@ use anyhow::bail;
 use async_trait::async_trait;
 use common::config::{
     CollateralRatio, OracleConfig, StabilityPoolClientConfig, StabilityPoolConfig,
-    StabilityPoolConfigConsensus, StabilityPoolConfigLocal, StabilityPoolConfigPrivate,
-    StabilityPoolGenParams,
+    StabilityPoolConfigConsensus, StabilityPoolConfigPrivate, StabilityPoolGenParams,
 };
 use common::{
-    Provide, Seek, StabilityPoolCommonGen, StabilityPoolConsensusItem, StabilityPoolInput,
-    StabilityPoolInputError, StabilityPoolModuleTypes, StabilityPoolOutput,
+    CONSENSUS_VERSION, Provide, Seek, StabilityPoolCommonGen, StabilityPoolConsensusItem,
+    StabilityPoolInput, StabilityPoolInputError, StabilityPoolModuleTypes, StabilityPoolOutput,
     StabilityPoolOutputError, StabilityPoolOutputOutcome, StabilityPoolOutputOutcomeV0,
-    UnlockRequest, CONSENSUS_VERSION,
+    UnlockRequest,
 };
 use db::{
     CurrentCycleKey, CurrentCycleKeyPrefix, Cycle, CycleChangeVoteIndexPrefix, CycleChangeVoteKey,
@@ -44,7 +43,7 @@ use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{Amount, InPoint, NumPeersExt, OutPoint, PeerId, TransactionId};
 use fedimint_server_core::config::PeerHandleOps;
 use fedimint_server_core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 use itertools::Itertools;
 use oracle::{AggregateOracle, MockOracle, Oracle};
 pub use stability_pool_common as common;
@@ -106,7 +105,6 @@ impl ServerModuleInit for StabilityPoolInit {
             .iter()
             .map(|&peer| {
                 let config = StabilityPoolConfig {
-                    local: StabilityPoolConfigLocal,
                     private: StabilityPoolConfigPrivate,
                     consensus: StabilityPoolConfigConsensus {
                         consensus_threshold: peers.to_num_peers().threshold() as _,
@@ -141,7 +139,6 @@ impl ServerModuleInit for StabilityPoolInit {
             .expect("Invalid mint params");
 
         let server = StabilityPoolConfig {
-            local: StabilityPoolConfigLocal,
             private: StabilityPoolConfigPrivate,
             consensus: StabilityPoolConfigConsensus {
                 consensus_threshold: peers.num_peers().threshold() as _,

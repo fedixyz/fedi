@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -12,6 +13,7 @@ import {
 } from '@fedi/common/redux'
 import { ChatType, InputAttachment, InputMedia } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
+import { stripFileUriPrefix } from '@fedi/common/utils/media'
 
 import { fedimint } from '../bridge'
 import ChatConversation from '../components/feature/chat/ChatConversation'
@@ -23,11 +25,12 @@ import Flex from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
-import { stripFileUriPrefix } from '../utils/media'
+import {
+    useChatKeyboardBehavior,
+    useImeFooterLift,
+} from '../utils/hooks/keyboard'
 
 const log = makeLog('ChatRoomConversation')
-
-const DEFAULT_NEW_MESSAGE_BOTTOM_OFFSET = 20
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -39,16 +42,21 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const dispatch = useAppDispatch()
     const { roomId, chatType = ChatType.group } = route.params
     const [isSending, setIsSending] = useState(false)
-    const [newMessageBottomOffset, setNewMessageBottomOffset] = useState(
-        DEFAULT_NEW_MESSAGE_BOTTOM_OFFSET,
-    )
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
     const toast = useToast()
     const { shouldShowHeader } = useMultispendDisplayUtils(t, roomId)
     const [replyBarHeight, setReplyBarHeight] = useState(0)
 
+    const insets = useSafeAreaInsets()
+    const extraPadAndroid35 = useImeFooterLift({
+        insetsBottom: insets.bottom,
+        buffer: 20,
+    })
+
     const directUserId = useMemo(() => room?.directUserId, [room])
+
+    const { bottomOffset, setMessageInputHeight } = useChatKeyboardBehavior()
 
     const handleSend = useCallback(
         async (
@@ -104,6 +112,26 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         [chatType, dispatch, isSending, roomId, t, toast],
     )
 
+    const renderMessageInput = useCallback((): JSX.Element => {
+        const input = (
+            <MessageInput
+                onMessageSubmitted={handleSend}
+                id={roomId || directUserId || ''}
+                isPublic={room?.isPublic}
+                onHeightChanged={setMessageInputHeight}
+                onReplyBarHeightChanged={setReplyBarHeight}
+            />
+        )
+        return input
+    }, [
+        handleSend,
+        roomId,
+        directUserId,
+        room?.isPublic,
+        setMessageInputHeight,
+        setReplyBarHeight,
+    ])
+
     const content = useMemo(() => {
         return (
             <>
@@ -112,31 +140,20 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                     type={chatType}
                     id={roomId || ''}
                     isPublic={room?.isPublic}
-                    newMessageBottomOffset={newMessageBottomOffset}
+                    newMessageBottomOffset={bottomOffset}
                     replyBarOffset={replyBarHeight}
                 />
-                <MessageInput
-                    onMessageSubmitted={handleSend}
-                    id={roomId || directUserId || ''}
-                    isPublic={room?.isPublic}
-                    onHeightChanged={height =>
-                        setNewMessageBottomOffset(
-                            DEFAULT_NEW_MESSAGE_BOTTOM_OFFSET + height,
-                        )
-                    }
-                    onReplyBarHeightChanged={setReplyBarHeight}
-                />
+                {renderMessageInput()}
             </>
         )
     }, [
         roomId,
-        directUserId,
         chatType,
-        handleSend,
         room,
-        newMessageBottomOffset,
+        bottomOffset,
         replyBarHeight,
         shouldShowHeader,
+        renderMessageInput,
     ])
 
     if (!room) {
@@ -155,7 +172,10 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <>
-            <Flex grow basis={false}>
+            <Flex
+                grow
+                basis={false}
+                style={{ paddingBottom: extraPadAndroid35 }}>
                 {content}
             </Flex>
             <SelectedMessageOverlay isPublic={!!room.isPublic} />

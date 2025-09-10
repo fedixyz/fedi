@@ -4,16 +4,16 @@ use std::collections::BTreeMap;
 
 pub use client::*;
 pub use fedi_social_common::*;
+use fedimint_client::DynGlobalClientContext;
+use fedimint_client::module::ClientModule;
 use fedimint_client::module::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::module::recovery::NoModuleBackup;
 use fedimint_client::module::sm::{Context, DynState, State, StateTransition};
-use fedimint_client::module::ClientModule;
-use fedimint_client::DynGlobalClientContext;
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::DatabaseTransaction;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{ApiVersion, ModuleInit, MultiApiVersion};
-use fedimint_core::{apply, async_trait_maybe_send, Amount};
+use fedimint_core::{Amount, apply, async_trait_maybe_send};
 
 #[derive(Debug, Clone)]
 pub struct FediSocialClientInit;

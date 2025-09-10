@@ -10,7 +10,7 @@ jobs:
     test-ci-workflow:
         name: Test CI Workflow
         timeout-minutes: 90
-        runs-on: [self-hosted, macos, arm64, legacy]
+        runs-on: [self-hosted, macos, arm64]
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4

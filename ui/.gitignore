@@ -13,3 +13,6 @@ dist
 
 # watchman
 .watchman-cookie-*
+
+# e2e testing
+.appium

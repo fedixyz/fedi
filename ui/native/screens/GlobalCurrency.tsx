@@ -15,7 +15,7 @@ import {
 } from '@fedi/common/utils/currency'
 import { formatCurrencyText } from '@fedi/common/utils/format'
 
-import { SafeScrollArea } from '../components/ui/SafeArea'
+import { SafeAreaContainer, SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { SelectableCurrency, SupportedCurrency } from '../types'
@@ -40,34 +40,40 @@ const GlobalCurrency: React.FC<Props> = () => {
     const isSelected = overrideCurrency === null
 
     return (
-        <SafeScrollArea style={style.container} edges="notop">
-            <View style={style.content}>
-                <View style={style.currencyContainer}>
-                    <Pressable
-                        onPress={() => dispatch(changeOverrideCurrency(null))}
-                        style={style.currencyItem}>
-                        <Text style={style.currencyFlag} h2>
-                            {'🌐'}
-                        </Text>
-                        <Text
-                            style={[
-                                style.currencyText,
-                                {
-                                    fontWeight: isSelected ? 'bold' : 'normal',
-                                },
-                            ]}>
-                            {t('phrases.federation-default')}
-                        </Text>
-                        {isSelected && <SvgImage name="Check" />}
-                    </Pressable>
-                    {/* Put USD first */}
-                    <CurrencyItem currency={SupportedCurrency.USD} />
-                    {currencies.map(currency => (
-                        <CurrencyItem currency={currency} key={currency} />
-                    ))}
+        <SafeAreaContainer edges="bottom">
+            <SafeScrollArea style={style.container} edges="notop">
+                <View style={style.content}>
+                    <View style={style.currencyContainer}>
+                        <Pressable
+                            onPress={() =>
+                                dispatch(changeOverrideCurrency(null))
+                            }
+                            style={style.currencyItem}>
+                            <Text style={style.currencyFlag} h2>
+                                {'🌐'}
+                            </Text>
+                            <Text
+                                style={[
+                                    style.currencyText,
+                                    {
+                                        fontWeight: isSelected
+                                            ? 'bold'
+                                            : 'normal',
+                                    },
+                                ]}>
+                                {t('phrases.federation-default')}
+                            </Text>
+                            {isSelected && <SvgImage name="Check" />}
+                        </Pressable>
+                        {/* Put USD first */}
+                        <CurrencyItem currency={SupportedCurrency.USD} />
+                        {currencies.map(currency => (
+                            <CurrencyItem currency={currency} key={currency} />
+                        ))}
+                    </View>
                 </View>
-            </View>
-        </SafeScrollArea>
+            </SafeScrollArea>
+        </SafeAreaContainer>
     )
 }
 

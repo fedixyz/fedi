@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Context as _};
+use anyhow::{Context as _, bail};
 use fedi_social_client::{
     FediSocialCommonGen, RecoveryFile, SocialRecoveryClient, SocialRecoveryState,
 };
 use fedimint_api_client::api::DynGlobalApi;
+use fedimint_core::PeerId;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::encoding::Decodable;
-use fedimint_core::module::registry::ModuleDecoderRegistry;
 use fedimint_core::module::CommonModuleInit as _;
-use fedimint_core::PeerId;
+use fedimint_core::module::registry::ModuleDecoderRegistry;
 use rpc_types::error::ErrorCode;
 use rpc_types::event::SocialRecoveryEvent;
 use rpc_types::{RpcRecoveryId, SocialRecoveryApproval, SocialRecoveryQr};

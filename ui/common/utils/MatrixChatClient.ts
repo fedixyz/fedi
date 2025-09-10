@@ -13,22 +13,20 @@ import {
     MatrixRoom,
     MatrixRoomListItem,
     MatrixRoomListItemStatus,
-    MatrixRoomListObservableUpdates,
+    MatrixRoomListStreamUpdates,
     MatrixRoomMember,
     MatrixRoomPowerLevels,
     MatrixSearchResults,
     MatrixSyncStatus,
     MatrixTimelineItem,
-    MatrixTimelineObservableUpdates,
+    MatrixTimelineStreamUpdates,
     MatrixUser,
 } from '../types'
 import {
     JSONObject,
-    MatrixInitializeStatus,
     MsEventData,
     MultispendListedEvent,
     NetworkError,
-    ObservableVecUpdate,
     RpcBackPaginationStatus,
     RpcMatrixAccountSession,
     RpcMatrixUserDirectorySearchResponse,
@@ -37,8 +35,6 @@ import {
     RpcRoomMember,
     RpcRoomNotificationMode,
     RpcSPv2SyncResponse,
-    RpcSyncIndicator,
-    RpcTimelineItem,
 } from '../types/bindings'
 import {
     DisplayNameValidatorType,
@@ -56,11 +52,7 @@ import {
     mxcUrlToHttpUrl,
     stripReplyFromPreview,
 } from './matrix'
-import {
-    getNewObservableIds,
-    makeInitialResetUpdate,
-    mapObservableUpdates,
-} from './observable'
+import { mapStreamUpdate, getNewStreamIds } from './stream'
 
 const log = makeLog('MatrixChatClient')
 
@@ -72,7 +64,7 @@ export enum UserPowerLevel {
 
 interface MatrixChatClientEventMap {
     status: MatrixSyncStatus
-    roomListUpdate: MatrixRoomListObservableUpdates
+    roomListUpdate: MatrixRoomListStreamUpdates
     roomInfo: MatrixRoom
     roomMember: MatrixRoomMember
     roomMembers: {
@@ -81,7 +73,7 @@ interface MatrixChatClientEventMap {
     }
     roomTimelineUpdate: {
         roomId: MatrixRoom['id']
-        updates: MatrixTimelineObservableUpdates
+        updates: MatrixTimelineStreamUpdates
     }
     roomTimelinePaginationStatus: {
         roomId: MatrixRoom['id']
@@ -169,59 +161,53 @@ export class MatrixChatClient {
         }
 
         this.startPromise = new Promise((resolve, reject) => {
-            const unsubscribe =
-                this.fedimint.subscribeObservableSimple<MatrixInitializeStatus>(
-                    id => {
-                        return this.fedimint.matrixInitializeStatus({
-                            observableId: id,
-                        })
-                    },
-                    status => {
-                        if (status.type === 'success') {
-                            log.debug(
-                                'got success from matrixInitializeStatus, unsubscribing...',
-                            )
-                            unsubscribe()
-                            this.getInitialAuth()
-                                .then(auth => {
-                                    log.debug(
-                                        'resolving auth from getInitialAuth...',
-                                        auth,
-                                    )
-                                    // resolve cached auth before fetching anything
-                                    // to support offline UX
-                                    resolve(auth)
-                                    this.emit('auth', auth)
+            const unsubscribe = this.fedimint.matrixInitializeStatus({
+                callback: status => {
+                    if (status.type === 'success') {
+                        log.debug(
+                            'got success from matrixInitializeStatus, unsubscribing...',
+                        )
+                        unsubscribe()
+                        this.getInitialAuth()
+                            .then(auth => {
+                                log.debug(
+                                    'resolving auth from getInitialAuth...',
+                                    auth,
+                                )
+                                // resolve cached auth before fetching anything
+                                // to support offline UX
+                                resolve(auth)
+                                this.emit('auth', auth)
 
-                                    // try to refetch auth in the background to
-                                    // asynchronously get the user's avatarUrl
-                                    this.refetchAuth()
+                                // try to refetch auth in the background to
+                                // asynchronously get the user's avatarUrl
+                                this.refetchAuth()
 
-                                    // get initial list of ignored users
-                                    this.listIgnoredUsers()
-                                    // these should always be observing
-                                    this.observeSyncStatus()
-                                    this.observeRoomList().catch(reject)
-                                })
-                                .catch(err => {
-                                    log.error(
-                                        'matrix initialized but failed to start MatrixChatClient',
-                                        err,
-                                    )
-                                    reject(err)
-                                })
-                        } else if (status.type === 'error') {
-                            // for now we handle this as a critical error, since it blocks app initialization
-                            // TODO: allow user interaction even if we don't have a success status yet
-                            unsubscribe()
-                            log.error(
-                                'matrixInitializeStatus returned an error',
-                                status.error,
-                            )
-                            reject(status.error)
-                        }
-                    },
-                )
+                                // get initial list of ignored users
+                                this.listIgnoredUsers()
+                                // these should always be observing
+                                this.observeSyncStatus()
+                                this.observeRoomList().catch(reject)
+                            })
+                            .catch(err => {
+                                log.error(
+                                    'matrix initialized but failed to start MatrixChatClient',
+                                    err,
+                                )
+                                reject(err)
+                            })
+                    } else if (status.type === 'error') {
+                        // for now we handle this as a critical error, since it blocks app initialization
+                        // TODO: allow user interaction even if we don't have a success status yet
+                        unsubscribe()
+                        log.error(
+                            'matrixInitializeStatus returned an error',
+                            status.error,
+                        )
+                        reject(status.error)
+                    }
+                },
+            })
         })
 
         return this.startPromise
@@ -443,12 +429,15 @@ export class MatrixChatClient {
 
     async sendMessage(roomId: string, content: MatrixEventContent) {
         const { msgtype, body, ...data } = content
-        await this.fedimint.matrixSendMessageJson({
+        await this.fedimint.matrixSendMessage({
             roomId,
-            msgtype,
-            body,
-            // TODO: Update zod schemas to remove .passthrough() & remove this cast
-            data: data as JSONObject,
+            data: {
+                msgtype,
+                body,
+                // TODO: Update zod schemas to remove .passthrough() & remove this cast
+                data: data as JSONObject,
+                mentions: null,
+            },
         })
     }
 
@@ -503,20 +492,15 @@ export class MatrixChatClient {
 
         // Listen and emit on observable updates
         const unsubscribe =
-            this.fedimint.subscribeObservableSimple<RpcBackPaginationStatus>(
-                id => {
-                    return this.fedimint.matrixRoomObserveTimelineItemsPaginateBackwards(
-                        {
+            this.fedimint.matrixRoomSubscribeTimelineItemsPaginateBackwardsStatus(
+                {
+                    roomId,
+                    callback: paginationStatus => {
+                        this.emit('roomTimelinePaginationStatus', {
                             roomId,
-                            observableId: id,
-                        },
-                    )
-                },
-                paginationStatus => {
-                    this.emit('roomTimelinePaginationStatus', {
-                        roomId,
-                        paginationStatus,
-                    })
+                            paginationStatus,
+                        })
+                    },
                 },
             )
         // store unsubscribe functions to cancel later if needed
@@ -677,22 +661,16 @@ export class MatrixChatClient {
         if (this.syncStatusUnsubscribe !== undefined) return
 
         // Listen and emit on observable updates
-        const unsubscribe =
-            this.fedimint.subscribeObservableSimple<RpcSyncIndicator>(
-                id => {
-                    return this.fedimint.matrixObserveSyncIndicator({
-                        observableId: id,
-                    })
-                },
-                status => {
-                    this.emit(
-                        'status',
-                        status === 'show'
-                            ? MatrixSyncStatus.syncing
-                            : MatrixSyncStatus.synced,
-                    )
-                },
-            )
+        const unsubscribe = this.fedimint.matrixSubscribeSyncIndicator({
+            callback: status => {
+                this.emit(
+                    'status',
+                    status === 'show'
+                        ? MatrixSyncStatus.syncing
+                        : MatrixSyncStatus.synced,
+                )
+            },
+        })
         // store unsubscribe functions to cancel later if needed
         this.syncStatusUnsubscribe = unsubscribe
     }
@@ -702,38 +680,23 @@ export class MatrixChatClient {
     private async observeRoomList() {
         // Only observe the roomList once, subsequent calls are no-ops.
         if (this.roomListUnsubscribe !== undefined) return
-        // Listen and emit on observable updates
-        const unsubscribe = this.fedimint.subscribeObservable<
-            RpcRoomId[],
-            ObservableVecUpdate<RpcRoomId>['update']
-        >(
-            id => {
-                return this.fedimint.matrixRoomList({ observableId: id })
-            },
-            rooms => {
-                // Emit a fake "update" using the initial values
+
+        // Listen and emit on stream updates
+        const unsubscribe = this.fedimint.matrixSubscribeRoomList({
+            callback: data => {
+                // Get newly added room IDs before updating the list
+                const newRoomIds = getNewStreamIds(data, room => room)
+
+                // Emit the actual updates
                 this.emit(
                     'roomListUpdate',
-                    makeInitialResetUpdate(
-                        rooms.map(this.serializeRoomListItem),
+                    data.map(update =>
+                        mapStreamUpdate(update, this.serializeRoomListItem),
                     ),
                 )
 
-                // Observe all of the rooms
-                rooms.map(async room => {
-                    await this.observeRoomInfo(room)
-                    await this.observeRoomPowerLevels(room)
-                    await this.observeRoomNotificationMode(room)
-                })
-            },
-            update => {
-                this.emit(
-                    'roomListUpdate',
-                    mapObservableUpdates(update, this.serializeRoomListItem),
-                )
-                getNewObservableIds(update, room => {
-                    return room
-                }).forEach(roomId => {
+                // observe new added rooms
+                newRoomIds.forEach(roomId => {
                     this.observeRoomInfo(roomId).catch(err =>
                         log.warn('Failed to observe room info', {
                             roomId,
@@ -754,7 +717,7 @@ export class MatrixChatClient {
                     )
                 })
             },
-        )
+        })
         // store unsubscribe functions to cancel later if needed
         this.roomListUnsubscribe = unsubscribe
     }
@@ -762,24 +725,19 @@ export class MatrixChatClient {
         // Only observe a room once, subsequent calls are no-ops.
         if (this.roomInfoUnsubscribeMap[roomId] !== undefined) return
 
-        // Listen and emit on observable updates
-        const unsubscribe = this.fedimint.subscribeObservableSimple(
-            id => {
-                return this.fedimint.matrixRoomObserveInfo({
-                    roomId,
-                    observableId: id,
-                })
-            },
-            (update, isInitialUpdate) => {
+        // Listen and emit on stream updates
+        const unsubscribe = this.fedimint.matrixRoomSubscribeInfo({
+            roomId,
+            callback: room => {
                 try {
-                    // Emit the initial info
-                    const room = this.serializeRoomInfo(update)
-                    this.emit('roomInfo', room)
+                    // Emit the room info
+                    const serializedRoom = this.serializeRoomInfo(room)
+                    this.emit('roomInfo', serializedRoom)
 
-                    // If it's the initial update of a DM:
+                    // If it's a DM:
                     // - fetch the member since it's small and we use recent DM users.
                     // - HACK: observe all DMs to claim ecash in the background.
-                    if (isInitialUpdate && room.directUserId) {
+                    if (serializedRoom.directUserId) {
                         // TODO: remove this when members list is observable
                         this.observeRoomMembers(roomId).catch(err => {
                             log.warn(
@@ -805,14 +763,13 @@ export class MatrixChatClient {
 
                     log.error('Error handling room update', {
                         roomId,
-                        update,
-                        isInitialUpdate,
+                        room,
                         errorMessage: err.message,
                         errorStack: err.stack,
                     })
                 }
             },
-        )
+        })
 
         // store unsubscribe functions to cancel later if needed
         this.roomInfoUnsubscribeMap[roomId] = unsubscribe
@@ -821,20 +778,15 @@ export class MatrixChatClient {
     private async observeMultispendGroup(roomId: string) {
         if (this.multispendUnsubscribeMap[roomId] !== undefined) return
 
-        const unsubscribe =
-            this.fedimint.subscribeObservableSimple<RpcMultispendGroupStatus | null>(
-                observableId =>
-                    this.fedimint.matrixObserveMultispendGroup({
-                        observableId,
-                        roomId,
-                    }),
-                update => {
-                    this.emit('multispendUpdate', {
-                        roomId,
-                        status: update,
-                    })
-                },
-            )
+        const unsubscribe = this.fedimint.matrixSubscribeMultispendGroup({
+            roomId,
+            callback: update => {
+                this.emit('multispendUpdate', {
+                    roomId,
+                    status: update,
+                })
+            },
+        })
 
         this.multispendUnsubscribeMap[roomId] = unsubscribe
     }
@@ -843,22 +795,17 @@ export class MatrixChatClient {
         if (this.multispendEventUnsubscribeMap[roomId]?.[eventId] !== undefined)
             return
 
-        const unsubscribe =
-            this.fedimint.subscribeObservableSimple<MsEventData | null>(
-                observableId =>
-                    this.fedimint.matrixObserveMultispendEventData({
-                        observableId,
-                        roomId,
-                        eventId,
-                    }),
-                update => {
-                    this.emit('multispendEventUpdate', {
-                        roomId,
-                        eventId,
-                        update,
-                    })
-                },
-            )
+        const unsubscribe = this.fedimint.matrixSubscribeMultispendEventData({
+            roomId,
+            eventId,
+            callback: update => {
+                this.emit('multispendEventUpdate', {
+                    roomId,
+                    eventId,
+                    update,
+                })
+            },
+        })
 
         this.multispendEventUnsubscribeMap[roomId] = {
             ...(this.multispendUnsubscribeMap[roomId] || {}),
@@ -883,21 +830,15 @@ export class MatrixChatClient {
     private async observeMultispendAccountInfo(roomId: string) {
         if (this.multispendAccountUnsubscribeMap[roomId] !== undefined) return
 
-        const unsubscribe = this.fedimint.subscribeObservableSimple<
-            { Ok: RpcSPv2SyncResponse } | { Err: NetworkError } | null
-        >(
-            observableId =>
-                this.fedimint.matrixMultispendAccountInfo({
-                    roomId,
-                    observableId,
-                }),
-            update => {
+        const unsubscribe = this.fedimint.matrixSubscribeMultispendAccountInfo({
+            roomId,
+            callback: info => {
                 this.emit('multispendAccountUpdate', {
                     roomId,
-                    info: update,
+                    info,
                 })
             },
-        )
+        })
 
         this.multispendAccountUnsubscribeMap[roomId] = unsubscribe
     }
@@ -906,37 +847,21 @@ export class MatrixChatClient {
         // Only observe a room once, subsequent calls are no-ops.
         if (this.roomTimelineUnsubscribeMap[roomId] !== undefined) return
 
-        // Listen and emit on observable updates
-        const unsubscribe = this.fedimint.subscribeObservable<
-            RpcTimelineItem[],
-            ObservableVecUpdate<RpcTimelineItem>['update']
-        >(
-            id => {
-                return this.fedimint.matrixRoomTimelineItems({
-                    roomId,
-                    observableId: id,
-                })
-            },
-            initial => {
-                // // Emit a fake "update" using the initial values
+        // Listen and emit on stream updates
+        const unsubscribe = this.fedimint.matrixSubscribeRoomTimelineItems({
+            roomId,
+            callback: data => {
                 this.emit('roomTimelineUpdate', {
                     roomId,
-                    updates: makeInitialResetUpdate(
-                        initial.map(ev =>
+                    updates: data.map(update =>
+                        mapStreamUpdate(update, ev =>
                             this.serializeTimelineItem(ev, roomId),
                         ),
                     ),
                 })
             },
-            update => {
-                this.emit('roomTimelineUpdate', {
-                    roomId,
-                    updates: mapObservableUpdates(update, ev =>
-                        this.serializeTimelineItem(ev, roomId),
-                    ),
-                })
-            },
-        )
+        })
+
         // store unsubscribe functions to cancel later if needed
         this.roomTimelineUnsubscribeMap[roomId] = unsubscribe
     }

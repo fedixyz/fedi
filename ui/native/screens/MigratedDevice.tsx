@@ -7,13 +7,13 @@ import RNFS from 'react-native-fs'
 import Share from 'react-native-share'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { prefixFileUri } from '@fedi/common/utils/media'
 
 import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import LineBreak from '../components/ui/LineBreak'
 import type { RootStackParamList } from '../types/navigation'
-import { prefixFileUri } from '../utils/media'
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MigratedDevice'>
 

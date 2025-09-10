@@ -1,40 +1,43 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { useToast } from '@fedi/common/hooks/toast'
-import { createMatrixRoom, selectMatrixRoom } from '@fedi/common/redux'
-import { ChatType } from '@fedi/common/types'
-import { makeLog } from '@fedi/common/utils/log'
+import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
+import { ChatType, MatrixRoom } from '@fedi/common/types'
 
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import Flex from '../components/ui/Flex'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
+import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
+import { SafeAreaContainer, SafeScrollArea } from '../components/ui/SafeArea'
 import type { RootStackParamList } from '../types/navigation'
-
-const log = makeLog('CreateGroup')
+import { useImeFooterLift, useIosKeyboardOpen } from '../utils/hooks/keyboard'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>
 
 const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const insets = useSafeAreaInsets()
     const defaultGroup = route.params?.defaultGroup || undefined
-    const dispatch = useAppDispatch()
-    const [groupName, setGroupName] = useState<string>(
-        t('feature.chat.new-group'),
-    )
-    const [creatingGroup, setCreatingGroup] = useState<boolean>(false)
-    const [pendingRoomId, setPendingRoomId] = useState<string | null>(null)
-    const [broadcastOnly, setBroadcastOnly] = useState<boolean>(false)
-    const [isPublic, setIsPublic] = useState<boolean>(false)
-    const toast = useToast()
-
-    const loadedRoom = useAppSelector(
-        s => pendingRoomId && selectMatrixRoom(s, pendingRoomId),
-    )
+    const {
+        handleCreateGroup,
+        isCreatingGroup,
+        groupName,
+        setGroupName,
+        broadcastOnly,
+        setBroadcastOnly,
+        isPublic,
+        setIsPublic,
+        errorMessage,
+    } = useCreateMatrixRoom(t, (roomId: MatrixRoom['id']) => {
+        navigation.replace('ChatRoomConversation', {
+            roomId,
+            chatType: ChatType.group,
+        })
+    })
 
     // Forces default groups to be broadcast-only & public
     // TODO: support nonbroadcast/nonpublic default groups
@@ -43,134 +46,155 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
             setBroadcastOnly(true)
             setIsPublic(true)
         }
-    }, [defaultGroup])
-
-    // Upon creating a room, we wait for the new room
-    // to show up in the room list before trying to navigate
-    useEffect(() => {
-        const handleRoomLoaded = async () => {
-            if (!loadedRoom) return
-            log.info('Group created', loadedRoom)
-            navigation.replace('ChatRoomConversation', {
-                roomId: loadedRoom.id,
-                chatType: ChatType.group,
-            })
-            setCreatingGroup(false)
-        }
-        if (loadedRoom) handleRoomLoaded()
-    }, [loadedRoom, navigation])
-
-    const handleCreateGroup = useCallback(async () => {
-        setCreatingGroup(true)
-        try {
-            const { roomId } = await dispatch(
-                createMatrixRoom({
-                    name: groupName,
-                    broadcastOnly,
-                    isPublic,
-                }),
-            ).unwrap()
-            setPendingRoomId(roomId)
-        } catch (error) {
-            log.error('group create failed', error)
-            toast.error(t, error)
-        }
-    }, [broadcastOnly, dispatch, groupName, isPublic, toast, t])
+    }, [defaultGroup, setBroadcastOnly, setIsPublic])
 
     const icon = useMemo(() => {
         return broadcastOnly ? 'SpeakerPhone' : 'SocialPeople'
     }, [broadcastOnly])
 
-    const handleSubmit = async () => {
-        if (groupName) {
-            handleCreateGroup()
-        }
-    }
-
     const style = styles(theme)
+    const openIOS = useIosKeyboardOpen(80)
+    const extraPadAndroid35 = useImeFooterLift({
+        insetsBottom: insets.bottom,
+        buffer: theme.spacing.xxl,
+    })
 
     return (
-        <Flex grow center style={style.container}>
-            <Avatar id={''} icon={icon} size={AvatarSize.md} />
-            <View style={style.inputWrapper}>
-                <Input
-                    onChangeText={setGroupName}
-                    value={groupName}
-                    maxLength={30}
-                    placeholder={`${t('feature.chat.group-name')}`}
-                    returnKeyType="done"
-                    containerStyle={style.textInputOuter}
-                    inputContainerStyle={style.textInputInner}
-                    autoCapitalize={'none'}
-                    autoCorrect={false}
-                    selectTextOnFocus
-                />
-                {groupName.length === 30 && (
-                    <Text
-                        caption
-                        style={[style.errorLabel, style.maxLengthError]}>
-                        {t('errors.group-name-too-long')}
-                    </Text>
-                )}
-            </View>
-            <Flex
-                row
-                align="center"
-                justify="between"
-                fullWidth
-                style={style.switchWrapper}>
-                <Text style={style.inputLabel}>
-                    {t('feature.chat.broadcast-only')}
-                </Text>
-                <Switch
-                    value={broadcastOnly}
-                    onValueChange={value => {
-                        // for now default groups must be public
-                        if (defaultGroup === true) return
-                        setBroadcastOnly(value)
-                    }}
-                />
-            </Flex>
-            <Flex
-                row
-                align="center"
-                justify="between"
-                fullWidth
-                style={style.switchWrapper}>
-                <Text style={style.inputLabel}>{t('words.public')}</Text>
-                <Switch
-                    value={isPublic}
-                    onValueChange={value => {
-                        // for now default groups must be public
-                        if (defaultGroup === true) return
-                        setIsPublic(value)
-                    }}
-                />
-            </Flex>
-            {isPublic && (
-                <Text caption style={style.errorLabel}>
-                    {t('feature.chat.public-group-warning')}
-                </Text>
-            )}
-            <Button
-                fullWidth
-                title={t('phrases.save-changes')}
-                onPress={handleSubmit}
-                loading={creatingGroup}
-                disabled={!groupName || creatingGroup}
-                containerStyle={style.button}
-            />
-        </Flex>
+        <KeyboardAwareWrapper>
+            <SafeAreaContainer edges="none">
+                <View style={style.outerContainer}>
+                    <SafeScrollArea
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                        contentInsetAdjustmentBehavior="never"
+                        contentContainerStyle={style.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                        edges="none"
+                        safeAreaContainerStyle={style.safeAreaContainer}
+                        style={style.container}>
+                        <Flex align="center" justify="start" fullWidth>
+                            <Avatar id={''} icon={icon} size={AvatarSize.md} />
+
+                            <View style={style.inputWrapper}>
+                                <Input
+                                    onChangeText={setGroupName}
+                                    value={groupName}
+                                    maxLength={30}
+                                    placeholder={`${t('feature.chat.group-name')}`}
+                                    returnKeyType="done"
+                                    containerStyle={style.textInputOuter}
+                                    inputContainerStyle={style.textInputInner}
+                                    autoCapitalize={'none'}
+                                    autoCorrect={false}
+                                    selectTextOnFocus
+                                />
+                                {errorMessage && (
+                                    <Text
+                                        caption
+                                        style={[
+                                            style.errorLabel,
+                                            style.maxLengthError,
+                                        ]}>
+                                        {errorMessage}
+                                    </Text>
+                                )}
+                            </View>
+
+                            <Flex
+                                row
+                                align="center"
+                                justify="between"
+                                fullWidth
+                                style={style.switchWrapper}>
+                                <Text style={style.inputLabel}>
+                                    {t('feature.chat.broadcast-only')}
+                                </Text>
+                                <Switch
+                                    value={broadcastOnly}
+                                    onValueChange={value => {
+                                        // for now default groups must be public
+                                        if (defaultGroup === true) return
+                                        setBroadcastOnly(value)
+                                    }}
+                                />
+                            </Flex>
+
+                            <Flex
+                                row
+                                align="center"
+                                justify="between"
+                                fullWidth
+                                style={style.switchWrapper}>
+                                <Text style={style.inputLabel}>
+                                    {t('words.public')}
+                                </Text>
+                                <Switch
+                                    value={isPublic}
+                                    onValueChange={value => {
+                                        // for now default groups must be public
+                                        if (defaultGroup === true) return
+                                        setIsPublic(value)
+                                    }}
+                                />
+                            </Flex>
+
+                            {isPublic && (
+                                <Text caption style={style.errorLabel}>
+                                    {t('feature.chat.public-group-warning')}
+                                </Text>
+                            )}
+                        </Flex>
+                    </SafeScrollArea>
+
+                    <View
+                        style={[
+                            style.footer,
+                            {
+                                paddingBottom:
+                                    insets.bottom +
+                                    theme.spacing.lg +
+                                    (openIOS ? 40 : 0) +
+                                    extraPadAndroid35,
+                            },
+                        ]}>
+                        <Button
+                            fullWidth
+                            title={t('phrases.save-changes')}
+                            onPress={handleCreateGroup}
+                            loading={isCreatingGroup}
+                            disabled={
+                                !groupName || isCreatingGroup || !!errorMessage
+                            }
+                        />
+                    </View>
+                </View>
+            </SafeAreaContainer>
+        </KeyboardAwareWrapper>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            padding: theme.spacing.lg,
+        outerContainer: {
+            flex: 1,
         },
-        button: {
-            marginTop: 'auto',
+        container: {
+            flex: 1,
+            width: '100%',
+        },
+        scrollContent: {
+            flexGrow: 1,
+            paddingHorizontal: theme.spacing.lg,
+            paddingTop: theme.spacing.lg,
+            paddingBottom: theme.spacing.xl + 120,
+        },
+        footer: {
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingHorizontal: theme.spacing.lg,
+            backgroundColor: theme.colors?.background,
         },
         errorLabel: {
             textAlign: 'left',
@@ -191,7 +215,6 @@ const styles = (theme: Theme) =>
             paddingHorizontal: 10,
         },
         textInputInner: {
-            // borderBottomWidth: 0,
             textAlignVertical: 'center',
             borderColor: theme.colors.primaryVeryLight,
             borderWidth: 1,
@@ -204,6 +227,9 @@ const styles = (theme: Theme) =>
         },
         maxLengthError: {
             paddingHorizontal: theme.spacing.lg,
+        },
+        safeAreaContainer: {
+            paddingTop: 0,
         },
     })
 

@@ -2,14 +2,25 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
+import CheckIcon from '@fedi/common/assets/svgs/check.svg'
+import {
+    selectActiveFederation,
+    selectPaymentFederation,
+    selectWalletFederations,
+    setActiveFederationId,
+} from '@fedi/common/redux'
 import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
 import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
+import { Dialog } from '../components/Dialog'
+import { FederationWalletSelector } from '../components/FederationWalletSelector'
+import { Icon } from '../components/Icon'
 import * as Layout from '../components/Layout'
 import ShareLogs from '../components/ShareLogs'
 import Success from '../components/Success'
 import { Text } from '../components/Text'
+import { useAppDispatch, useAppSelector } from '../hooks'
 import { useShareLogs } from '../hooks/export'
 import { styled, theme } from '../styles'
 
@@ -22,11 +33,17 @@ export default function ShareLogsPage() {
     const { status, collectAttachmentsAndSubmit } = useShareLogs()
     const { push } = useRouter()
 
+    const activeFederation = useAppSelector(selectActiveFederation)
+    const walletFederations = useAppSelector(selectWalletFederations)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const dispatch = useAppDispatch()
+
     const [ticketNumber, setTicketNumber] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [isValid, setIsValid] = useState<boolean>(false)
     const [bugClicks, setBugClicks] = useState<number>(0)
     const [sendDb, setSendDb] = useState<boolean>(false)
+    const [isSelectingFederation, setIsSelectingFederation] = useState(false)
 
     useEffect(() => {
         if (ticketNumber.trim().length === 0) {
@@ -49,6 +66,14 @@ export default function ShareLogsPage() {
     }, [status])
 
     const handleOnSubmit = async () => {
+        if (
+            walletFederations.length > 0 &&
+            activeFederation &&
+            !activeFederation.hasWallet
+        ) {
+            setIsSelectingFederation(true)
+            return
+        }
         if (!isValid) return
 
         await collectAttachmentsAndSubmit(sendDb, ticketNumber)
@@ -61,6 +86,15 @@ export default function ShareLogsPage() {
         if (newBugClicks > BUG_CLICK_THRESHOLD) {
             setSendDb(true)
         }
+    }
+
+    const handleSelectFederation = () => {
+        if (!paymentFederation) return
+
+        setIsSelectingFederation(false)
+        dispatch(setActiveFederationId(paymentFederation?.id))
+
+        handleOnSubmit()
     }
 
     if (status === 'success') {
@@ -111,6 +145,15 @@ export default function ShareLogsPage() {
                         />
                     </Disclaimer>
 
+                    {sendDb && (
+                        <SendDbContainer>
+                            <Text weight="medium">
+                                {t('feature.bug.database-attached')} 🕷️🐞🦟
+                            </Text>
+                            <Icon icon={CheckIcon} />
+                        </SendDbContainer>
+                    )}
+
                     <Button
                         width="full"
                         loading={status === 'loading'}
@@ -119,9 +162,42 @@ export default function ShareLogsPage() {
                     </Button>
                 </Layout.Actions>
             </Layout.Root>
+
+            <Dialog
+                mobileDismiss="overlay"
+                open={isSelectingFederation}
+                onOpenChange={setIsSelectingFederation}
+                title={t('phrases.select-federation')}
+                description={t(
+                    'feature.developer.select-federation-share-logs',
+                )}>
+                <SelectFederationContent>
+                    <FederationWalletSelector />
+                    <Button width="full" onClick={handleSelectFederation}>
+                        {t('words.continue')}
+                    </Button>
+                </SelectFederationContent>
+            </Dialog>
         </ContentBlock>
     )
 }
+
+const SendDbContainer = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 8,
+    background: theme.colors.offWhite,
+    padding: 12,
+    borderRadius: 12,
+})
+
+const SelectFederationContent = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+})
 
 const BugIcon = styled('div', {
     cursor: 'default',

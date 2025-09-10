@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use anyhow::{Context, Result};
 use devimint::cmd;
-use devimint::util::{poll, ProcessHandle, ProcessManager};
+use devimint::util::{ProcessHandle, ProcessManager, poll};
 use fedimint_core::util::write_overwrite_async;
 use fedimint_logging::LOG_DEVIMINT;
 use fedimint_portalloc::port_alloc;

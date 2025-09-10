@@ -28,8 +28,13 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { width } = useWindowDimensions()
-    const { rating, setRating, federationToRate, handleSubmitRating } =
-        useFederationRating(fedimint)
+    const {
+        rating,
+        setRating,
+        federationToRate,
+        handleSubmitRating,
+        handleDismissRating,
+    } = useFederationRating(fedimint)
 
     const style = styles(theme)
 
@@ -45,11 +50,16 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
         handleSubmitRating(() => onDismiss())
     }
 
+    const handleDismiss = () => {
+        onDismiss()
+        handleDismissRating()
+    }
+
     return (
         <CustomOverlay
             show={show}
             noHeaderPadding
-            onBackdropPress={onDismiss}
+            onBackdropPress={handleDismiss}
             contents={{
                 body: (
                     <Flex>
@@ -67,7 +77,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
                             </View>
                             <Pressable
                                 style={style.closeButton}
-                                onPress={onDismiss}
+                                onPress={handleDismiss}
                                 hitSlop={10}>
                                 <SvgImage name="Close" size={20} />
                             </Pressable>

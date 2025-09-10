@@ -233,6 +233,10 @@ export interface StoredStateV26 extends Omit<StoredStateV25, 'version'> {
     version: 26
     seenFederationRatings: Array<Federation['id']>
 }
+export interface StoredStateV27 extends Omit<StoredStateV26, 'version'> {
+    version: 27
+    lastShownSurveyTimestamp: number | null
+}
 
 /*** Union of all past shapes of stored state ***/
 export type AnyStoredState =
@@ -263,9 +267,10 @@ export type AnyStoredState =
     | StoredStateV24
     | StoredStateV25
     | StoredStateV26
+    | StoredStateV27
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV26
+export type LatestStoredState = StoredStateV27
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

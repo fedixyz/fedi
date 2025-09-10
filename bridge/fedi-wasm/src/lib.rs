@@ -4,19 +4,19 @@ use std::cell::RefCell;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use bridge::Bridge;
 use fediffi::rpc::rpc_error_json;
 use futures::FutureExt;
 use js_sys::Uint8Array;
-use rpc_types::error::ErrorCode;
 use rpc_types::RpcInitOpts;
+use rpc_types::error::ErrorCode;
 use runtime::event::IEventSink;
 use runtime::storage::Storage;
 use storage::WasmStorage;
 use tracing::{error, warn};
-use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsError;
+use wasm_bindgen::prelude::wasm_bindgen;
 use web_sys::FileSystemSyncAccessHandle;
 
 mod logging;

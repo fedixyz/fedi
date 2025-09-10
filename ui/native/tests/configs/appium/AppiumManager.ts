@@ -18,7 +18,6 @@ const getCapabilities = (): AppiumConfig => {
 
     const commonCaps = {
         'appium:platformVersion': config.PLATFORM_VERSION || '',
-        'appium:udid': config.DEVICE_ID || process.env.DEVICE_ID,
         'appium:app': config.BUNDLE_PATH || process.env.BUNDLE_PATH || '',
     }
 
@@ -26,6 +25,8 @@ const getCapabilities = (): AppiumConfig => {
         return {
             ...commonCaps,
             'appium:platformName': 'Android',
+            'appium:avd': config.AVD || process.env.AVD,
+            'appium:udid': config.DEVICE_ID || process.env.DEVICE_ID,
             'appium:automationName': 'UiAutomator2',
             'appium:appPackage': config.APP_PACKAGE || 'com.fedi',
             'appium:appActivity':
@@ -36,6 +37,7 @@ const getCapabilities = (): AppiumConfig => {
             ...commonCaps,
             'appium:platformName': 'iOS',
             'appium:automationName': 'XCUITest',
+            'appium:udid': config.DEVICE_ID || process.env.DEVICE_ID,
             'appium:bundleId': config.BUNDLE_ID || 'org.fedi.alpha',
             'appium:includeSafariInWebviews': true,
         }

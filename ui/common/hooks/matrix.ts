@@ -33,6 +33,7 @@ import {
     setChatReplyingToMessage,
     selectReplyingToMessageEventForRoom,
     sendMatrixFormResponse,
+    createMatrixRoom,
 } from '../redux'
 import {
     MatrixEvent,
@@ -516,13 +517,6 @@ export function useMatrixPaymentEvent({
                     loading: isCanceling,
                     disabled: isOffline,
                 })
-            } else {
-                buttons.push({
-                    label: t('words.reject'),
-                    handler: handleRejectRequest,
-                    loading: isRejecting,
-                    disabled: isAccepting,
-                })
             }
         } else {
             if (isRecipient) {
@@ -576,6 +570,8 @@ export function useMatrixPaymentEvent({
         paymentSender,
         handleRejectRequest,
         isLoadingTransaction,
+        transaction,
+        isSentByMe,
     }
 }
 
@@ -1049,5 +1045,89 @@ export function useMatrixRepliedMessage(event: MatrixEvent) {
         isReplied: isReplied,
         repliedData: repliedDisplayData,
         strippedBody: strippedEventBody,
+    }
+}
+
+/**
+ * All functions and state needed for creating a new Matrix room / groupchat
+ * Validates group name, exposes error messages / loading, & executes optional success callback
+ */
+export function useCreateMatrixRoom(
+    t: TFunction,
+    onGroupCreated?: (roomId: MatrixRoom['id']) => void,
+) {
+    const [groupName, setGroupName] = useState(t('feature.chat.new-group'))
+    const [broadcastOnly, setBroadcastOnly] = useState(false)
+    const [isPublic, setIsPublic] = useState(false)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
+    const [createdRoomId, setCreatedRoomId] = useState<string | null>(null)
+    const [isCreatingGroup, setIsCreatingGroup] = useState(false)
+    const dispatch = useCommonDispatch()
+    const loadedRoom = useCommonSelector(
+        s => createdRoomId && selectMatrixRoom(s, createdRoomId),
+    )
+    const toast = useToast()
+
+    useEffect(() => {
+        if (groupName.trim().length >= 30) {
+            setErrorMessage(t('errors.group-name-too-long'))
+        } else {
+            setErrorMessage(null)
+        }
+    }, [groupName, t])
+
+    // After creating a room, we wait for the new room to show up
+    // in the room list for group creation to complete
+    useEffect(() => {
+        const handleRoomLoaded = async () => {
+            if (!loadedRoom) return
+            try {
+                log.info('Group created', loadedRoom)
+                if (onGroupCreated) onGroupCreated(loadedRoom.id)
+            } catch (error) {
+                toast.error(t, error)
+            } finally {
+                setIsCreatingGroup(false)
+            }
+        }
+        if (loadedRoom) handleRoomLoaded()
+    }, [loadedRoom, onGroupCreated, t, toast])
+
+    const handleCreateGroup = async () => {
+        if (errorMessage) return
+        const newGroupName = groupName.trim()
+        if (newGroupName.length === 0) {
+            setErrorMessage(t('errors.group-name-required'))
+            return
+        }
+        setIsCreatingGroup(true)
+        try {
+            const { roomId } = await dispatch(
+                createMatrixRoom({
+                    name: newGroupName,
+                    broadcastOnly,
+                    isPublic,
+                }),
+            ).unwrap()
+            setCreatedRoomId(roomId)
+        } catch (error) {
+            setIsCreatingGroup(false)
+            setErrorMessage(t('errors.failed-to-create-group'))
+            log.error('group create failed', error)
+            toast.error(t, error)
+        }
+    }
+
+    return {
+        handleCreateGroup,
+        isCreatingGroup,
+        groupName,
+        setGroupName,
+        broadcastOnly,
+        setBroadcastOnly,
+        isPublic,
+        setIsPublic,
+        errorMessage,
+        createdRoomId,
     }
 }

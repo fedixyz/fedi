@@ -11,6 +11,7 @@ import {
     selectActiveFederationId,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { prefixFileUri } from '@fedi/common/utils/media'
 
 import { fedimint } from '../bridge'
 import CheckBox from '../components/ui/CheckBox'
@@ -19,7 +20,6 @@ import LineBreak from '../components/ui/LineBreak'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
-import { prefixFileUri } from '../utils/media'
 
 const log = makeLog('CompleteRecoveryAssist')
 

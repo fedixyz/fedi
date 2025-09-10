@@ -7,6 +7,7 @@ import Share from 'react-native-share'
 
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { prefixFileUri } from '@fedi/common/utils/media'
 
 import { fedimint } from '../bridge'
 import HoloGuidance from '../components/ui/HoloGuidance'
@@ -17,7 +18,6 @@ import {
 } from '../state/contexts/BackupRecoveryContext'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
-import { prefixFileUri } from '../utils/media'
 
 const log = makeLog('CompleteSocialBackup')
 

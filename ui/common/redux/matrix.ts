@@ -34,13 +34,13 @@ import {
     MatrixPowerLevel,
     MatrixRoom,
     MatrixRoomListItem,
-    MatrixRoomListObservableUpdates,
+    MatrixRoomListStreamUpdates,
     MatrixRoomMember,
     MatrixRoomPowerLevels,
     MatrixSearchResults,
     MatrixSyncStatus,
     MatrixTimelineItem,
-    MatrixTimelineObservableUpdates,
+    MatrixTimelineStreamUpdates,
     MatrixUser,
     MultispendActiveInvitation,
     MultispendFinalized,
@@ -63,7 +63,10 @@ import {
     RpcSPv2SyncResponse,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
-import { getFederationGroupChats } from '../utils/FederationUtils'
+import {
+    getFederationGroupChats,
+    shouldShowInviteCode,
+} from '../utils/FederationUtils'
 import { MatrixChatClient } from '../utils/MatrixChatClient'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
@@ -88,9 +91,9 @@ import {
     isMultispendFinancialTransaction,
     MatrixFormResponse,
 } from '../utils/matrix'
-import { applyObservableUpdates } from '../utils/observable'
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
+import { applyStreamUpdates } from '../utils/stream'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('redux/matrix')
@@ -175,6 +178,7 @@ const initialState = {
         roomId: undefined as MatrixRoom['id'] | undefined,
         event: null as MatrixEvent | null,
     } satisfies ChatReplyState,
+    tempMediaUriMap: {} as Record<string, string>,
 }
 
 export type MatrixState = typeof initialState
@@ -228,14 +232,11 @@ export const matrixSlice = createSlice({
         addMatrixRoomInfo(state, action: PayloadAction<MatrixRoom>) {
             state.roomInfo = upsertRecordEntity(state.roomInfo, action.payload)
         },
-        handleMatrixRoomListObservableUpdates(
+        handleMatrixRoomListStreamUpdates(
             state,
-            action: PayloadAction<MatrixRoomListObservableUpdates>,
+            action: PayloadAction<MatrixRoomListStreamUpdates>,
         ) {
-            state.roomList = applyObservableUpdates(
-                state.roomList,
-                action.payload,
-            )
+            state.roomList = applyStreamUpdates(state.roomList, action.payload)
         },
         addMatrixRoomMember(state, action: PayloadAction<MatrixRoomMember>) {
             const { roomId } = action.payload
@@ -272,15 +273,15 @@ export const matrixSlice = createSlice({
                 {},
             )
         },
-        handleMatrixRoomTimelineObservableUpdates(
+        handleMatrixRoomTimelineStreamUpdates(
             state,
             action: PayloadAction<{
                 roomId: string
-                updates: MatrixTimelineObservableUpdates
+                updates: MatrixTimelineStreamUpdates
             }>,
         ) {
             const { roomId, updates } = action.payload
-            state.roomTimelines[roomId] = applyObservableUpdates(
+            state.roomTimelines[roomId] = applyStreamUpdates(
                 state.roomTimelines[roomId] || [],
                 updates,
             )
@@ -503,6 +504,12 @@ export const matrixSlice = createSlice({
         clearChatReplyingToMessage(state) {
             state.replyingToMessage = { roomId: undefined, event: null }
         },
+        addTempMediaUriEntry(
+            state,
+            action: PayloadAction<{ uri: string; hash: string }>,
+        ) {
+            state.tempMediaUriMap[action.payload.hash] = action.payload.uri
+        },
     },
     extraReducers: builder => {
         builder.addCase(startMatrixClient.pending, state => {
@@ -682,8 +689,8 @@ export const {
     setMatrixRoomMultispendTransactions,
     updateMatrixRoomMultispendTxns,
     addMatrixError,
-    handleMatrixRoomListObservableUpdates,
-    handleMatrixRoomTimelineObservableUpdates,
+    handleMatrixRoomListStreamUpdates,
+    handleMatrixRoomTimelineStreamUpdates,
     handleMatrixRoomTimelinePaginationStatus,
     resetMatrixState,
     setChatDraft,
@@ -695,6 +702,7 @@ export const {
     updateMatrixRoomMultispendEvent,
     setChatReplyingToMessage,
     clearChatReplyingToMessage,
+    addTempMediaUriEntry,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -781,7 +789,7 @@ export const startMatrixClient = createAsyncThunk<
     // Bind all the listeners we need to dispatch actions
     client.on('auth', auth => dispatch(setMatrixAuth(auth)))
     client.on('roomListUpdate', updates => {
-        dispatch(handleMatrixRoomListObservableUpdates(updates))
+        dispatch(handleMatrixRoomListStreamUpdates(updates))
     })
     client.on('roomInfo', room => {
         dispatch(addMatrixRoomInfo(room))
@@ -792,7 +800,7 @@ export const startMatrixClient = createAsyncThunk<
     client.on('roomMember', member => dispatch(addMatrixRoomMember(member)))
     client.on('roomMembers', ev => dispatch(setMatrixRoomMembers(ev)))
     client.on('roomTimelineUpdate', ev =>
-        dispatch(handleMatrixRoomTimelineObservableUpdates(ev)),
+        dispatch(handleMatrixRoomTimelineStreamUpdates(ev)),
     )
     client.on('roomTimelinePaginationStatus', ev =>
         dispatch(handleMatrixRoomTimelinePaginationStatus(ev)),
@@ -1033,16 +1041,13 @@ export const sendMatrixMessage = createAsyncThunk<
     }
 >(
     'matrix/sendMatrixMessage',
-    async (
-        {
-            fedimint,
-            roomId,
-            body,
-            repliedEventId,
-            options = { interceptBolt11: false },
-        },
-        { dispatch },
-    ) => {
+    async ({
+        fedimint,
+        roomId,
+        body,
+        repliedEventId,
+        options = { interceptBolt11: false },
+    }) => {
         const client = getMatrixClient()
 
         if (options.interceptBolt11) {
@@ -1078,7 +1083,6 @@ export const sendMatrixMessage = createAsyncThunk<
                     'Not a valid bolt11 invoice or failed to decode... sending as regular text message',
                     error,
                 )
-                // fall through to send as regular text message
             }
         }
 
@@ -1090,11 +1094,6 @@ export const sendMatrixMessage = createAsyncThunk<
                 msgtype: 'm.text',
                 body,
             })
-        }
-
-        // Clear reply for regular text messages (not needed for payments since they exit early)
-        if (repliedEventId) {
-            dispatch(clearChatReplyingToMessage())
         }
     },
 )
@@ -1110,10 +1109,7 @@ export const sendMatrixDirectMessage = createAsyncThunk<
     { state: CommonState }
 >(
     'matrix/sendMatrixDirectMessage',
-    async (
-        { fedimint, userId, body, repliedEventId },
-        { getState, dispatch },
-    ) => {
+    async ({ fedimint, userId, body, repliedEventId }, { getState }) => {
         const client = getMatrixClient()
         const state = getState()
 
@@ -1130,7 +1126,7 @@ export const sendMatrixDirectMessage = createAsyncThunk<
                 repliedEventId,
                 body,
             )
-            dispatch(clearChatReplyingToMessage())
+
             return { roomId: existingRoom.id }
         }
 
@@ -1199,6 +1195,7 @@ export const sendMatrixPaymentPush = createAsyncThunk<
 
         const msats = amountUtils.satToMsat(amount)
         const client = getMatrixClient()
+        const includeInvite = shouldShowInviteCode(federation.meta)
 
         const frontendMetadata = {
             recipientMatrixId: recipientId,
@@ -1209,12 +1206,18 @@ export const sendMatrixPaymentPush = createAsyncThunk<
         const { ecash, operationId } = await fedimint.generateEcash(
             msats,
             federationId,
-            true,
+            includeInvite,
             frontendMetadata,
         )
 
         const senderOperationId = operationId
         const paymentId = uuidv4()
+
+        await fedimint.updateTransactionNotes(
+            operationId,
+            notes || '',
+            federationId,
+        )
 
         await client.sendMessage(roomId, {
             msgtype: 'xyz.fedi.payment',
@@ -1421,6 +1424,10 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
         if (!federationId) throw new Error('Payment missing federationId')
         if (!amount) throw new Error('Payment request missing amount')
 
+        const federationMeta =
+            selectLoadedFederation(getState(), federationId)?.meta ?? {}
+        const includeInvite = shouldShowInviteCode(federationMeta)
+
         const msats = amount as MSats
 
         const frontendMetadata = {
@@ -1433,7 +1440,7 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
             await fedimint.generateEcash(
                 msats,
                 federationId,
-                true,
+                includeInvite,
                 frontendMetadata,
             )
 
@@ -2490,3 +2497,5 @@ export const selectReplyingToMessageEventForRoom = (
     s.matrix.replyingToMessage.roomId === roomId
         ? s.matrix.replyingToMessage.event
         : null
+export const selectTempMediaUriMap = (s: CommonState) =>
+    s.matrix.tempMediaUriMap

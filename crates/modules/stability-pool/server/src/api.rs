@@ -1,21 +1,21 @@
 use std::collections::BTreeMap;
 use std::time::SystemTime;
 
-use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
-use fedimint_core::module::{api_endpoint, ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion};
 use fedimint_core::Amount;
-use futures::{stream, StreamExt};
+use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::module::{ApiEndpoint, ApiEndpointContext, ApiError, ApiVersion, api_endpoint};
+use futures::{StreamExt, stream};
 use stability_pool_common::{
     AccountHistoryItem, AccountHistoryRequest, AccountId, AccountType, ActiveDeposits, FeeRate,
     LiquidityStats, SyncResponse, UnlockRequestStatus,
 };
 
-use crate::db::{
-    account_history_count, get_account_history_items, CurrentCycleKey, IdleBalanceKey,
-    PastCycleKeyPrefix, SeekLifetimeFeeKey, StagedProvidesKey, StagedProvidesKeyPrefix,
-    StagedSeeksKey, StagedSeeksKeyPrefix, UnlockRequestKey,
-};
 use crate::StabilityPool;
+use crate::db::{
+    CurrentCycleKey, IdleBalanceKey, PastCycleKeyPrefix, SeekLifetimeFeeKey, StagedProvidesKey,
+    StagedProvidesKeyPrefix, StagedSeeksKey, StagedSeeksKeyPrefix, UnlockRequestKey,
+    account_history_count, get_account_history_items,
+};
 
 pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
     vec![

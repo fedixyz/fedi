@@ -20,3 +20,18 @@ export const ONE_KB = 1024
 export const ONE_MB = 1024 * ONE_KB
 export const MAX_IMAGE_SIZE = 100 * ONE_MB // 100MB for images
 export const MAX_FILE_SIZE = 500 * ONE_MB // 500MB for other files
+
+//HTML comversion for special characters
+export const HTML_ENTITIES: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&nbsp;': ' ',
+} as const
+
+export const MX_REPLY_REGEX = /<mx-reply>[\s\S]*?<\/mx-reply>/g // matches mx-reply blocks with any content including newlines
+export const BR_TAG_REGEX = /<br\s*\/?>/gi // matches <br>, <br/>, <br /> tags (case insensitive)
+export const HTML_TAG_REGEX = /<[^>]*>/g // matches any HTML tag
+export const QUOTE_USER_REGEX = /^> <@([^>]+)>/ // matches quote line and captures user ID

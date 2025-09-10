@@ -14,14 +14,18 @@ use federations::federation_v2::FederationV2;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::secret::RootSecretStrategy as _;
 use fedimint_client::ModuleKind;
+use fedimint_core::config::FederationId;
 use fedimint_core::{apply, async_trait_maybe_send, Amount};
 use lightning_invoice::Bolt11Invoice;
+use matrix::Matrix;
+use multispend::multispend_matrix::MultispendMatrix;
 use nostr::secp256k1::PublicKey;
 use runtime::api::{IFediApi, RegisterDeviceError, RegisteredDevice, TransactionDirection};
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
 use runtime::storage::state::{DeviceIdentifier, FediFeeSchedule};
 use runtime::storage::{OnboardingCompletionMethod, Storage};
+use stability_pool_client::common::AccountId;
 use tempfile::TempDir;
 use tokio::sync::{Mutex, OnceCell};
 
@@ -37,7 +41,7 @@ pub struct TestDevice {
     device_identifier: OnceLock<DeviceIdentifier>,
     fedi_api: OnceLock<Arc<MockFediApi>>,
     feature_catalog: OnceLock<Arc<FeatureCatalog>>,
-    event_sink: OnceLock<Arc<dyn IEventSink>>,
+    event_sink: OnceLock<Arc<FakeEventSink>>,
     bridge_uncommited: OnceCell<Arc<Bridge>>,
     bridge_full: OnceCell<Arc<BridgeFull>>,
     default_client: OnceCell<Arc<FederationV2>>,
@@ -83,11 +87,6 @@ impl TestDevice {
         self
     }
 
-    pub fn with_event_sink(&mut self, event_sink: Arc<dyn IEventSink>) -> &mut Self {
-        self.event_sink = OnceLock::from(event_sink);
-        self
-    }
-
     pub async fn storage(&self) -> anyhow::Result<&Storage> {
         self.storage
             .get_or_try_init(|| async {
@@ -117,7 +116,7 @@ impl TestDevice {
             .clone()
     }
 
-    fn event_sink(&self) -> Arc<dyn IEventSink> {
+    pub fn event_sink(&self) -> Arc<FakeEventSink> {
         self.event_sink
             .get_or_init(|| Arc::new(FakeEventSink::default()))
             .clone()
@@ -155,6 +154,14 @@ impl TestDevice {
                 Ok(bridge.full()?.clone())
             })
             .await
+    }
+
+    pub async fn matrix(&self) -> anyhow::Result<&Arc<Matrix>> {
+        Ok(self.bridge_full().await?.matrix.wait().await)
+    }
+
+    pub async fn multispend(&self) -> anyhow::Result<&Arc<MultispendMatrix>> {
+        Ok(self.bridge_full().await?.matrix.wait_multispend().await)
     }
 
     pub async fn join_default_fed(&self) -> anyhow::Result<&Arc<FederationV2>> {
@@ -241,6 +248,11 @@ impl IFediApi for MockFediApi {
         _network: Network,
         _module: ModuleKind,
         _tx_direction: TransactionDirection,
+        _stable_user_id: String,
+        _spv2_account_id: Option<AccountId>,
+        _federation_id: FederationId,
+        _first_comm_invite_code: Option<String>,
+        _other_comm_invite_codes: Vec<String>,
     ) -> anyhow::Result<Bolt11Invoice> {
         self.fedi_fee_invoice
             .clone()
@@ -321,13 +333,16 @@ impl IEventSink for FakeEventSink {
             .expect("couldn't acquire FakeEventSink lock");
         events.push((event_type, body));
     }
-    fn events(&self) -> Vec<(String, String)> {
+}
+
+impl FakeEventSink {
+    pub fn events(&self) -> Vec<(String, String)> {
         self.events
             .read()
             .expect("FakeEventSink could not acquire read lock")
             .clone()
     }
-    fn num_events_of_type(&self, event_type: String) -> usize {
+    pub fn num_events_of_type(&self, event_type: String) -> usize {
         self.events().iter().filter(|e| e.0 == event_type).count()
     }
 }

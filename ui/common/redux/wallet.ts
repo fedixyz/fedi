@@ -148,14 +148,6 @@ export const walletSlice = createSlice({
         },
     },
     extraReducers: builder => {
-        builder.addCase(fetchStabilityPoolState.fulfilled, (state, action) => {
-            const { federationId } = action.meta.arg
-            const federation = getFederationWalletState(state, federationId)
-            state[federationId] = {
-                ...federation,
-                ...action.payload,
-            }
-        })
         builder.addCase(
             fetchStabilityPoolAvailableLiquidity.fulfilled,
             (state, action) => {
@@ -404,47 +396,33 @@ export const generateReusedEcashProofs = createAsyncThunk<
     return settledProofs.map(p => p.value)
 })
 
-export const fetchStabilityPoolState = createAsyncThunk<
-    StabilityPoolState,
+export const fetchSpv1Account = createAsyncThunk<
+    void,
     { fedimint: FedimintBridge; federationId: string },
     { state: CommonState }
 >(
-    'wallet/fetchStabilityPoolState',
-    async ({ fedimint, federationId }, { dispatch, getState }) => {
-        const version = selectStabilityPoolVersion(getState())
-        if (version === 2) {
-            const accountInfo = await fedimint.spv2AccountInfo(federationId)
-            log.info('stabilityPoolState (v2)', accountInfo)
-            dispatch(
-                setStabilityPoolState({
-                    federationId,
-                    stabilityPoolState: accountInfo,
-                }),
-            )
-            return accountInfo
-        } else {
-            const legacyAccountInfo =
-                await fedimint.stabilityPoolAccountInfo(federationId)
+    'wallet/fetchSpv1Account',
+    async ({ fedimint, federationId }, { dispatch }) => {
+        const legacyAccountInfo =
+            await fedimint.stabilityPoolAccountInfo(federationId)
 
-            // SPv2 combines the cycle start price and accountInfo call
-            const priceCents =
-                await fedimint.stabilityPoolCycleStartPrice(federationId)
-            const price = Number(priceCents)
+        // SPv2 combines the cycle start price and accountInfo call
+        const priceCents =
+            await fedimint.stabilityPoolCycleStartPrice(federationId)
+        const price = Number(priceCents)
 
-            const stabilityPoolState = coerceLegacyAccountInfo(
-                legacyAccountInfo,
-                price,
-            )
+        const stabilityPoolState = coerceLegacyAccountInfo(
+            legacyAccountInfo,
+            price,
+        )
 
-            log.info('stabilityPoolState (v1)', stabilityPoolState)
-            dispatch(
-                setStabilityPoolState({
-                    federationId,
-                    stabilityPoolState,
-                }),
-            )
-            return stabilityPoolState
-        }
+        log.info('stabilityPoolState (v1)', stabilityPoolState)
+        dispatch(
+            setStabilityPoolState({
+                federationId,
+                stabilityPoolState,
+            }),
+        )
     },
 )
 
@@ -505,6 +483,7 @@ export const refreshActiveStabilityPool = createAsyncThunk<
     async ({ fedimint }, { dispatch, getState }) => {
         const state = getState()
         const federationId = state.federation.activeFederationId
+        const stabilityVersion = selectStabilityPoolVersion(getState())
         if (!federationId) throw new Error('errors.unknown-error')
         // Make sure we have the latest exchange rates every time we refresh stabilitypool
         // so deposits/withdrawal amount conversions are as accurate as possible
@@ -532,12 +511,13 @@ export const refreshActiveStabilityPool = createAsyncThunk<
             }),
         )
 
-        await dispatch(
-            fetchStabilityPoolState({
-                fedimint,
-                federationId,
-            }),
-        ).unwrap()
+        if (stabilityVersion === 1)
+            dispatch(
+                fetchSpv1Account({
+                    fedimint,
+                    federationId,
+                }),
+            )
     },
 )
 

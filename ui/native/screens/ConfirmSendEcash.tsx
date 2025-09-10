@@ -13,6 +13,7 @@ import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { generateEcash, selectPaymentFederation } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -58,12 +59,13 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
         try {
             if (!paymentFederation?.id) throw new Error('No payment federation')
             const millis = amountUtils.satToMsat(Number(amount) as Sats)
+            const includeInvite = shouldShowInviteCode(paymentFederation.meta)
             const { ecash } = await dispatch(
                 generateEcash({
                     fedimint,
                     federationId: paymentFederation?.id,
                     amount: millis,
-                    includeInvite: true,
+                    includeInvite,
                     frontendMetadata: {
                         initialNotes: notes,
                         recipientMatrixId: null,
@@ -81,7 +83,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
             toast.error(t, error)
         }
         setIsLoading(false)
-    }, [paymentFederation?.id, amount, dispatch, notes, navigation, toast, t])
+    }, [amount, dispatch, notes, navigation, toast, t, paymentFederation])
 
     const handleConfirm = useCallback(() => {
         Alert.alert(

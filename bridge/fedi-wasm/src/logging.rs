@@ -2,9 +2,9 @@ use std::io::Write;
 use std::sync::{Arc, Mutex as StdMutex};
 
 use runtime::event::IEventSink;
+use tracing_subscriber::EnvFilter;
 // nosemgrep: ban-wildcard-imports
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::EnvFilter;
 use wasm_bindgen::JsValue;
 use web_sys::{FileSystemReadWriteOptions, FileSystemSyncAccessHandle};
 

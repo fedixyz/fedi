@@ -65,15 +65,15 @@ function test_stability_pool_v2() {
 }
 export -f test_stability_pool_v2
 
-function test_bridge_current() {
-  fm-run-test "${FUNCNAME[0]}" ./scripts/test-bridge-current.sh
+function test_bridge() {
+  fm-run-test "${FUNCNAME[0]}" ./scripts/test-bridge.sh
 }
-export -f test_bridge_current
+export -f test_bridge
 
-function test_bridge_current_use_upstream_fedimintd() {
-  USE_UPSTREAM_FEDIMINTD=1 fm-run-test "${FUNCNAME[0]}" ./scripts/test-bridge-current.sh
+function test_bridge_use_upstream_fedimintd() {
+  USE_UPSTREAM_FEDIMINTD=1 fm-run-test "${FUNCNAME[0]}" ./scripts/test-bridge.sh
 }
-export -f test_bridge_current_use_upstream_fedimintd
+export -f test_bridge_use_upstream_fedimintd
 
 tests_to_run_in_parallel=()
 for _ in $(seq "${FM_TEST_CI_ALL_TIMES:-1}"); do
@@ -84,8 +84,8 @@ tests_to_run_in_parallel+=(
   test_fm_load_tests
   test_stability_pool_v2
   test_stability_pool
-  test_bridge_current
-  test_bridge_current_use_upstream_fedimintd
+  test_bridge
+  test_bridge_use_upstream_fedimintd
 )
 done
 

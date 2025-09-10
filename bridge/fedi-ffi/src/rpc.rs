@@ -17,7 +17,7 @@ use bug_report::reused_ecash_proofs::SerializedReusedEcashProofs;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::client::ClientExt;
 use federations::federation_v2::spv2_pay_address::Spv2PaymentAddress;
-use federations::federation_v2::{BackupServiceStatus, FederationV2};
+use federations::federation_v2::FederationV2;
 use federations::Federations;
 use fedimint_client::db::ChronologicalOperationLogKey;
 use fedimint_core::core::OperationId;
@@ -25,7 +25,7 @@ use fedimint_core::timing::TimeReporter;
 use futures::Future;
 use lightning_invoice::Bolt11Invoice;
 use macro_rules_attribute::macro_rules_derive;
-use matrix;
+use matrix::SendMessageData;
 use matrix_sdk::ruma::api::client::authenticated_media::get_media_preview;
 use matrix_sdk::ruma::api::client::profile::get_profile;
 use matrix_sdk::ruma::api::client::push::Pusher;
@@ -62,7 +62,7 @@ use runtime::api::LiveFediApi;
 use runtime::bridge_runtime::Runtime;
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
-use runtime::observable::{Observable, ObservableVec};
+use runtime::rpc_stream::{RpcStreamId, RpcVecDiffStreamId};
 use runtime::storage::state::FiatFXInfo;
 use runtime::storage::{OnboardingCompletionMethod, Storage};
 use serde::de::DeserializeOwned;
@@ -689,11 +689,6 @@ async fn backupNow(federation: Arc<FederationV2>) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[macro_rules_derive(federation_rpc_method!)]
-async fn backupStatus(federation: Arc<FederationV2>) -> anyhow::Result<BackupServiceStatus> {
-    federation.backup_status().await
-}
-
 #[macro_rules_derive(rpc_method!)]
 async fn fedimintVersion(_bridge: &Bridge) -> anyhow::Result<String> {
     Ok(fedimint_core::version::cargo_pkg().to_string())
@@ -838,11 +833,16 @@ async fn spv2AccountInfo(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
-async fn spv2ObserveAccountInfo(
+async fn spv2SubscribeAccountInfo(
     federation: Arc<FederationV2>,
-    observable_id: u32,
-) -> anyhow::Result<Observable<RpcSPv2CachedSyncResponse>> {
-    federation.spv2_observe_account_info(observable_id).await
+    stream_id: RpcStreamId<RpcSPv2CachedSyncResponse>,
+) -> anyhow::Result<()> {
+    let stream = federation.spv2_subscribe_account_info().await?;
+    federation
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
+        .await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -1100,12 +1100,13 @@ async fn dumpDb(bridge: &BridgeFull, federation_id: String) -> anyhow::Result<Pa
 #[macro_rules_derive(rpc_method!)]
 async fn matrixInitializeStatus(
     bridge: &Bridge,
-    observable_id: u32,
-) -> anyhow::Result<Observable<MatrixInitializeStatus>> {
+    stream_id: RpcStreamId<MatrixInitializeStatus>,
+) -> anyhow::Result<()> {
     let runtime: Arc<Runtime> = bridge.try_get()?;
     let bg_matrix: &BgMatrix = bridge.try_get()?;
-    bg_matrix
-        .observe_status(&runtime, observable_id.into())
+    runtime
+        .stream_pool
+        .register_stream(stream_id, bg_matrix.subscribe_status())
         .await
 }
 
@@ -1250,11 +1251,6 @@ async fn generateReusedEcashProofs(
     ))
 }
 
-// we are really binding generator pushing to its limits.
-ts_type_ser!(
-    ObservableRoomList: ObservableVec<RpcRoomId> = "ObservableVec<RpcRoomId>"
-);
-
 #[macro_rules_derive(rpc_method!)]
 async fn matrixGetAccountSession(
     bg_matrix: &BgMatrix,
@@ -1267,30 +1263,32 @@ async fn matrixGetAccountSession(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixRoomList(
+async fn matrixSubscribeRoomList(
     bg_matrix: &BgMatrix,
-    observable_id: u32,
-) -> anyhow::Result<ObservableRoomList> {
+    stream_id: RpcVecDiffStreamId<RpcRoomId>,
+) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
-    Ok(ObservableRoomList(
-        matrix.room_list(observable_id.into()).await?,
-    ))
+    let stream = matrix.room_list().await;
+    matrix
+        .runtime
+        .stream_pool
+        .register_stream(stream_id.0, stream)
+        .await
 }
 
-ts_type_ser!(
-    ObservableTimelineItems: ObservableVec<RpcTimelineItem> = "ObservableVec<RpcTimelineItem>"
-);
 #[macro_rules_derive(rpc_method!)]
-async fn matrixRoomTimelineItems(
+async fn matrixSubscribeRoomTimelineItems(
     bg_matrix: &BgMatrix,
-    observable_id: u32,
+    stream_id: RpcVecDiffStreamId<RpcTimelineItem>,
     room_id: RpcRoomId,
-) -> anyhow::Result<ObservableTimelineItems> {
+) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
-    let items = matrix
-        .room_timeline_items(observable_id.into(), &room_id.into_typed()?)
-        .await?;
-    Ok(ObservableTimelineItems(items))
+    let stream = matrix.room_timeline_items(&room_id.into_typed()?).await?;
+    matrix
+        .runtime
+        .stream_pool
+        .register_stream(stream_id.0, stream)
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -1339,52 +1337,36 @@ async fn matrixRoomTimelineItemsPaginateBackwards(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixRoomObserveTimelineItemsPaginateBackwards(
+async fn matrixRoomSubscribeTimelineItemsPaginateBackwardsStatus(
     bg_matrix: &BgMatrix,
-    observable_id: u32,
+    stream_id: RpcStreamId<RpcBackPaginationStatus>,
     room_id: RpcRoomId,
-) -> anyhow::Result<Observable<RpcBackPaginationStatus>> {
+) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
+    let stream = matrix
+        .subscribe_timeline_items_paginate_backwards_status(&room_id.into_typed()?)
+        .await?;
     matrix
-        .room_observe_timeline_items_paginate_backwards_status(
-            observable_id.into(),
-            &room_id.into_typed()?,
-        )
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
         .await
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixObservableCancel(bg_matrix: &BgMatrix, observable_id: u32) -> anyhow::Result<()> {
-    let matrix = bg_matrix.wait().await;
-    matrix.observable_cancel(observable_id.into()).await?;
-    Ok(())
+async fn streamCancel(bridge: &Bridge, stream_id: u32) -> anyhow::Result<()> {
+    let runtime: Arc<Runtime> = bridge.try_get()?;
+    runtime.stream_pool.cancel_stream(stream_id.into()).await
 }
 
 #[macro_rules_derive(rpc_method!)]
 async fn matrixSendMessage(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
-    message: String,
+    data: SendMessageData,
 ) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
-    matrix
-        .send_message_text(&room_id.into_typed()?, message)
-        .await
-}
-
-ts_type_de!(CustomMessageData: serde_json::Map<String, serde_json::Value> = "Record<string, JSONValue>");
-#[macro_rules_derive(rpc_method!)]
-async fn matrixSendMessageJson(
-    bg_matrix: &BgMatrix,
-    room_id: RpcRoomId,
-    msgtype: String,
-    body: String,
-    data: CustomMessageData,
-) -> anyhow::Result<()> {
-    let matrix = bg_matrix.wait().await;
-    matrix
-        .send_message_json(&room_id.into_typed()?, &msgtype, body, data.0)
-        .await
+    matrix.send_message(&room_id.into_typed()?, data).await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -1392,14 +1374,14 @@ async fn matrixSendReply(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
     reply_to_event_id: RpcEventId,
-    message: String,
+    data: SendMessageData,
 ) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
     matrix
         .send_reply(
             &room_id.into_typed()?,
             &OwnedEventId::try_from(&*reply_to_event_id.0)?,
-            message,
+            data,
         )
         .await
 }
@@ -1445,29 +1427,35 @@ async fn matrixRoomLeave(bg_matrix: &BgMatrix, room_id: RpcRoomId) -> anyhow::Re
     matrix.room_leave(&room_id.into_typed()?).await
 }
 
-ts_type_ser!(ObservableRoomInfo: Observable<RoomInfo> = "Observable<JSONObject>");
+ts_type_de!(RoomInfoStreamId: RpcStreamId<RoomInfo> = "RpcStreamId<JSONObject>");
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixRoomObserveInfo(
+async fn matrixRoomSubscribeInfo(
     bg_matrix: &BgMatrix,
-    observable_id: u32,
+    stream_id: RoomInfoStreamId,
     room_id: RpcRoomId,
-) -> anyhow::Result<ObservableRoomInfo> {
+) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
-    Ok(ObservableRoomInfo(
-        matrix
-            .room_observe_info(observable_id.into(), &room_id.into_typed()?)
-            .await?,
-    ))
+    let stream = matrix.subscribe_room_info(&room_id.into_typed()?).await?;
+    matrix
+        .runtime
+        .stream_pool
+        .register_stream(stream_id.0, stream)
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixObserveSyncIndicator(
+async fn matrixSubscribeSyncIndicator(
     bg_matrix: &BgMatrix,
-    observable_id: u32,
-) -> anyhow::Result<Observable<RpcSyncIndicator>> {
+    stream_id: RpcStreamId<RpcSyncIndicator>,
+) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
-    matrix.observe_sync_status(observable_id.into()).await
+    let stream = matrix.subscribe_sync_status();
+    matrix
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -1732,7 +1720,7 @@ async fn matrixEditMessage(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
     event_id: RpcTimelineEventItemId,
-    new_content: String,
+    new_content: SendMessageData,
 ) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
     matrix
@@ -1863,23 +1851,28 @@ async fn getFeatureCatalog(runtime: Arc<Runtime>) -> anyhow::Result<Arc<FeatureC
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixObserveMultispendGroup(
+async fn matrixSubscribeMultispendGroup(
     bg_matrix: &BgMatrix,
-    observable_id: u32,
+    stream_id: RpcStreamId<RpcMultispendGroupStatus>,
     room_id: RpcRoomId,
-) -> anyhow::Result<Observable<RpcMultispendGroupStatus>> {
+) -> anyhow::Result<()> {
     let multispend_matrix = bg_matrix.wait_multispend().await;
+    let stream = multispend_matrix
+        .subscribe_multispend_group(room_id.into_typed()?)
+        .await;
     multispend_matrix
-        .observe_multispend_group(observable_id.into(), room_id.into_typed()?)
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
         .await
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixMultispendAccountInfo(
+async fn matrixSubscribeMultispendAccountInfo(
     bridge: &BridgeFull,
     room_id: RpcRoomId,
-    observable_id: u32,
-) -> anyhow::Result<Observable<Result<RpcSPv2SyncResponse, NetworkError>>> {
+    stream_id: RpcStreamId<Result<RpcSPv2SyncResponse, NetworkError>>,
+) -> anyhow::Result<()> {
     let multispend_matrix = bridge.matrix.wait_multispend().await;
     let finalized_group = multispend_matrix
         .get_multispend_finalized_group(room_id.clone())
@@ -1888,14 +1881,18 @@ async fn matrixMultispendAccountInfo(
 
     let room_id = room_id.into_typed()?;
     let federation_provider = Arc::new(FederationProviderWrapper(bridge.federations.clone()));
-    multispend_matrix
-        .observe_multispend_account_info(
-            observable_id.into(),
+    let stream = multispend_matrix
+        .subscribe_multispend_account_info(
             federation_provider,
             finalized_group.federation_id.0.clone(),
             room_id,
             &finalized_group,
         )
+        .await;
+    multispend_matrix
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
         .await
 }
 
@@ -2117,15 +2114,20 @@ async fn matrixMultispendEventData(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn matrixObserveMultispendEventData(
+async fn matrixSubscribeMultispendEventData(
     bg_matrix: &BgMatrix,
-    observable_id: u32,
+    stream_id: RpcStreamId<MsEventData>,
     room_id: RpcRoomId,
     event_id: RpcEventId,
-) -> anyhow::Result<Observable<MsEventData>> {
+) -> anyhow::Result<()> {
     let multispend_matrix = bg_matrix.wait_multispend().await;
+    let stream = multispend_matrix
+        .subscribe_multispend_event_data(room_id, event_id)
+        .await?;
     multispend_matrix
-        .observe_multispend_event_data(observable_id.into(), room_id, event_id)
+        .runtime
+        .stream_pool
+        .register_stream(stream_id, stream)
         .await
 }
 
@@ -2236,8 +2238,6 @@ rpc_methods!(RpcMethods {
     signLnurlMessage,
     supportsRecurringdLnurl,
     getRecurringdLnurl,
-    // backup
-    backupStatus,
     // Nostr
     getNostrPubkey,
     getNostrSecret,
@@ -2257,7 +2257,7 @@ rpc_methods!(RpcMethods {
     stabilityPoolAvailableLiquidity,
     // Stability Pool v2
     spv2AccountInfo,
-    spv2ObserveAccountInfo,
+    spv2SubscribeAccountInfo,
     spv2NextCycleStartTime,
     spv2DepositToSeek,
     spv2Withdraw,
@@ -2286,25 +2286,24 @@ rpc_methods!(RpcMethods {
     onboardRegisterAsNewDevice,
     onboardTransferExistingDeviceRegistration,
 
-    matrixObservableCancel,
+    streamCancel,
 
     // Matrix
     matrixInitializeStatus,
     matrixGetAccountSession,
-    matrixObserveSyncIndicator,
-    matrixRoomList,
-    matrixRoomTimelineItems,
+    matrixSubscribeSyncIndicator,
+    matrixSubscribeRoomList,
+    matrixSubscribeRoomTimelineItems,
     matrixRoomTimelineItemsPaginateBackwards,
-    matrixRoomObserveTimelineItemsPaginateBackwards,
+    matrixRoomSubscribeTimelineItemsPaginateBackwardsStatus,
     matrixSendMessage,
-    matrixSendMessageJson,
     matrixSendAttachment,
     matrixRoomCreate,
     matrixRoomCreateOrGetDm,
     matrixRoomJoin,
     matrixRoomJoinPublic,
     matrixRoomLeave,
-    matrixRoomObserveInfo,
+    matrixRoomSubscribeInfo,
     matrixRoomInviteUserById,
     matrixRoomSetName,
     matrixRoomSetTopic,
@@ -2341,15 +2340,15 @@ rpc_methods!(RpcMethods {
     matrixLoadComposerDraft,
     matrixClearComposerDraft,
     // multispend
-    matrixObserveMultispendGroup,
-    matrixMultispendAccountInfo,
+    matrixSubscribeMultispendGroup,
+    matrixSubscribeMultispendAccountInfo,
     matrixMultispendListEvents,
     matrixSendMultispendGroupInvitation,
     matrixApproveMultispendGroupInvitation,
     matrixRejectMultispendGroupInvitation,
     matrixCancelMultispendGroupInvitation,
     matrixMultispendEventData,
-    matrixObserveMultispendEventData,
+    matrixSubscribeMultispendEventData,
     matrixSendMultispendWithdrawalRequest,
     matrixSendMultispendWithdrawalApprove,
     matrixSendMultispendWithdrawalReject,

@@ -217,7 +217,7 @@ jobs:
         if: >
             needs.precheck.outputs.HAS_NON_UI_CHANGES == '1' ||
             needs.precheck.outputs.IS_PUSH_TO_MASTER == '1'
-        runs-on: [self-hosted, macos, arm64]
+        runs-on: [self-hosted, macos, arm64, macstadium]
         timeout-minutes: 60
         steps:
             - uses: actions/checkout@v4
@@ -247,7 +247,7 @@ jobs:
                       timeout: 30
                       system: x86_64-linux
                     - host: macos-arm64
-                      runs-on: [self-hosted, macos, arm64]
+                      runs-on: [self-hosted, macos, arm64, macstadium]
                       os: macOS
                       build-in-pr: true
                       timeout: 45
@@ -352,6 +352,45 @@ jobs:
           run: |
             nix_tag=${{ env.fedi_fedimintd_container_tag }} && hub_tag="fedibtc/fedi-fedimintd:${GITHUB_REF_NAME}" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
             nix_tag=${{ env.fedi_fedimint_cli_container_tag }} && hub_tag="fedibtc/fedi-fedimint-cli:${GITHUB_REF_NAME}" && docker tag "$nix_tag" "$hub_tag" && docker push "$hub_tag"
+
+    check-nixos-up-to-date:
+      name: "Check NixOS/nixpkgs on ${{ matrix.arch }}"
+      strategy:
+        matrix:
+          arch: [x64, macos]
+          include:
+            - arch: x64
+              runs-on: [self-hosted, linux, x64]
+            - arch: macos
+              runs-on: [self-hosted, macos, macstadium]
+      runs-on: ${{ matrix.runs-on }}
+      if: github.event_name == 'pull_request'
+      timeout-minutes: 5
+      steps:
+        - name: Check NixOS system age
+          run: |
+            if [ ! -f /etc/nixpkgs-last-modified ]; then
+              echo "ERROR: /etc/nixpkgs-last-modified file not found"
+              exit 1
+            fi
+
+            MAX_AGE_DAYS=45
+
+            last_modified=$(cat /etc/nixpkgs-last-modified)
+            current_time=$(date +%s)
+            age_seconds=$((current_time - last_modified))
+            age_days=$((age_seconds / 86400))
+
+            echo "System last modified: $(date -d @$last_modified '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "Current time: $(date -d @$current_time '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "System age: $age_days days"
+
+            if [ $age_days -gt $MAX_AGE_DAYS ]; then
+              echo "ERROR: NixOS system is $age_days days old (older than $MAX_AGE_DAYS days)"
+              exit 1
+            else
+              echo "SUCCESS: NixOS system is $age_days days old (within $MAX_AGE_DAYS day limit)"
+            fi
 
     status:
       name: Status

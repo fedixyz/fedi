@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{bail, Context as _};
+use anyhow::{Context as _, bail};
 use fedi_social_client::SocialRecoveryState;
 use fedimint_core::db::Database;
 use fedimint_core::util::backoff_util::aggressive_backoff;

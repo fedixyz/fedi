@@ -4,7 +4,6 @@ import {
     DeviceRegistrationEvent,
     LogEvent,
     NonceReuseCheckFailedEvent,
-    ObservableUpdate,
     PanicEvent,
     RecoveryCompleteEvent,
     RecoveryProgressEvent,
@@ -30,6 +29,7 @@ import {
     MultispendDepositEventData,
     WithdrawRequestWithApprovals,
     GroupInvitationWithKeys,
+    RpcStreamUpdate,
 } from './bindings'
 import { MSats, Usd, UsdCents } from './units'
 
@@ -375,7 +375,7 @@ export type FedimintBridgeEventMap = {
     spv2Transfer: SPv2TransferEvent
     recoveryComplete: RecoveryCompleteEvent
     recoveryProgress: RecoveryProgressEvent
-    observableUpdate: ObservableUpdate<unknown>
+    streamUpdate: RpcStreamUpdate<unknown>
     deviceRegistration: DeviceRegistrationEvent
     communityMetadataUpdated: CommunityMetadataUpdatedEvent
     nonceReuseCheckFailed: NonceReuseCheckFailedEvent

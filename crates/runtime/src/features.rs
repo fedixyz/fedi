@@ -4,6 +4,8 @@ use reqwest::Url;
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::constants::{FEDI_GLOBAL_COMMUNITY_PROD, FEDI_GLOBAL_COMMUNITY_STAGING};
+
 /// Enum representing the environment in whose context the bridge is
 /// instantiated. For the Fedi app, this translates to the app flavors:
 /// - Dev = a locally-built developer build of the Fedi app
@@ -79,6 +81,9 @@ pub struct FeatureCatalog {
     /// This allows different matrix servers to be used based on the runtime
     /// environment.
     pub matrix: MatrixFeatureConfig,
+
+    /// Config for which invite code to use for joining the global community
+    pub global_community: GlobalCommunityFeatureConfig,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -110,6 +115,12 @@ pub struct MatrixFeatureConfig {
     pub home_server: String,
 }
 
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct GlobalCommunityFeatureConfig {
+    pub invite_code: String,
+}
+
 impl FeatureCatalog {
     pub fn new(runtime_env: RuntimeEnvironment) -> Self {
         match runtime_env {
@@ -136,6 +147,9 @@ impl FeatureCatalog {
             matrix: MatrixFeatureConfig {
                 home_server: "https://staging.m1.8fa.in".to_string(),
             },
+            global_community: GlobalCommunityFeatureConfig {
+                invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
+            },
         }
     }
 
@@ -156,6 +170,9 @@ impl FeatureCatalog {
                 home_server: env::var("DEVI_SYNAPSE_SERVER")
                     .expect("DEVI_SYNAPSE_SERVER must be set"),
             },
+            global_community: GlobalCommunityFeatureConfig {
+                invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
+            },
         }
     }
 
@@ -172,6 +189,9 @@ impl FeatureCatalog {
             },
             matrix: MatrixFeatureConfig {
                 home_server: "https://staging.m1.8fa.in".to_string(),
+            },
+            global_community: GlobalCommunityFeatureConfig {
+                invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
             },
         }
     }
@@ -192,6 +212,9 @@ impl FeatureCatalog {
             },
             matrix: MatrixFeatureConfig {
                 home_server: "https://m1.8fa.in".to_string(),
+            },
+            global_community: GlobalCommunityFeatureConfig {
+                invite_code: FEDI_GLOBAL_COMMUNITY_PROD.to_string(),
             },
         }
     }

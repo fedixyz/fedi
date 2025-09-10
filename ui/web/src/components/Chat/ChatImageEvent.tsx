@@ -63,6 +63,8 @@ export const ChatImageEvent: React.FC<Props> = ({ event }) => {
             <ChatMediaPreview
                 open={showMediaPreview}
                 onOpenChange={setShowMediaPreview}
+                src={src}
+                name={event.content.body}
                 trigger={
                     <ImgWrapper>
                         {!dataLoaded && (
@@ -87,12 +89,14 @@ export const ChatImageEvent: React.FC<Props> = ({ event }) => {
                         )}
                     </ImgWrapper>
                 }>
-                <PreviewImg
-                    src={src || ''}
-                    alt="preview-image"
-                    width={scaledWidth}
-                    height={scaledHeight}
-                />
+                {src && (
+                    <PreviewImg
+                        src={src}
+                        alt="preview-image"
+                        width={scaledWidth}
+                        height={scaledHeight}
+                    />
+                )}
             </ChatMediaPreview>
         </>
     )

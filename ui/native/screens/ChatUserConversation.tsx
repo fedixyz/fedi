@@ -2,12 +2,14 @@ import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
     selectMatrixAuth,
     selectMatrixDirectMessageRoom,
     sendMatrixDirectMessage,
 } from '@fedi/common/redux'
+import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import MessageInput from '../components/feature/chat/MessageInput'
@@ -18,11 +20,14 @@ import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
 import { InputAttachment, InputMedia } from '../types'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
+import { useImeFooterLift } from '../utils/hooks/keyboard'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
     'ChatUserConversation'
 >
+
+const log = makeLog('ChatUserConversation')
 
 const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
     const navigation = useNavigation<NavigationHook>()
@@ -33,6 +38,11 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
         selectMatrixDirectMessageRoom(s, userId),
     )
     const [isSending, setIsSending] = useState(false)
+    const insets = useSafeAreaInsets()
+    const extraPadAndroid35 = useImeFooterLift({
+        insetsBottom: insets.bottom,
+        buffer: 20,
+    })
 
     const dispatch = useAppDispatch()
 
@@ -58,21 +68,44 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
             repliedEventId?: string | null,
         ) => {
             setIsSending(true)
-            dispatch(
-                sendMatrixDirectMessage({
-                    fedimint,
-                    userId,
-                    body,
-                    repliedEventId,
-                }),
-            )
+            try {
+                await dispatch(
+                    sendMatrixDirectMessage({
+                        fedimint,
+                        userId,
+                        body,
+                        repliedEventId,
+                    }),
+                ).unwrap()
+            } catch (err) {
+                log.error('error sending direct message', err)
+            } finally {
+                setIsSending(false)
+            }
         },
         [dispatch, userId],
     )
 
+    const renderMessageInput = useCallback((): JSX.Element => {
+        const messageInput = (
+            <MessageInput
+                isSending={isSending}
+                onMessageSubmitted={handleSend}
+                id={userId}
+                isPublic={false}
+            />
+        )
+
+        return messageInput
+    }, [handleSend, isSending, userId])
+
     return (
-        <Flex grow basis={false} center>
-            <>
+        <>
+            <Flex
+                grow
+                basis={false}
+                align="stretch"
+                style={{ paddingBottom: extraPadAndroid35 }}>
                 {isSending ? (
                     <Flex grow justify="center">
                         <ActivityIndicator size="large" />
@@ -80,15 +113,10 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
                 ) : (
                     <NoMessagesNotice />
                 )}
-                <MessageInput
-                    isSending={isSending}
-                    onMessageSubmitted={handleSend}
-                    id={userId}
-                    isPublic={false}
-                />
-            </>
+                {renderMessageInput()}
+            </Flex>
             <SelectedMessageOverlay isPublic={false} />
-        </Flex>
+        </>
     )
 }
 

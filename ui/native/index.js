@@ -209,8 +209,10 @@ initializePushNotificationListeners()
 // Register the app component
 AppRegistry.registerComponent(appName, () => App)
 
-// Prevent RN logs from obscuring buttons
-if (process.env.RUN_TESTS === '1') {
+// In dev, RN enabled logbox, we want it disabled by default but can be enabled via env var
+if (process.env.ENABLE_LOGBOX === '1') {
+    // no-op, just don't call ignoreAllLogs()
+} else {
     LogBox.ignoreAllLogs()
 }
 

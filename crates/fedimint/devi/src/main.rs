@@ -22,8 +22,10 @@ async fn main() -> anyhow::Result<()> {
     let args: Args = Args::parse();
     match args.cmd {
         Cmd::Devimint(cmd) => {
-            std::env::set_var("FM_DISBALE_META_MODULE", "1");
-            std::env::set_var("FM_USE_UNKNOWN_MODULE", "0");
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { std::env::set_var("FM_DISBALE_META_MODULE", "1") };
+            // TODO: Audit that the environment access only happens in single-threaded code.
+            unsafe { std::env::set_var("FM_USE_UNKNOWN_MODULE", "0") };
             devimint::cli::handle_command(cmd, args.common).await?;
         }
         Cmd::DevimintTest(test_cmd) => {

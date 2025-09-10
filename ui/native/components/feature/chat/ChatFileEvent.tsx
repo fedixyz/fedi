@@ -1,26 +1,13 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import {
-    ActivityIndicator,
-    Platform,
-    Pressable,
-    StyleSheet,
-    View,
-} from 'react-native'
-import { TemporaryDirectoryPath, exists } from 'react-native-fs'
-import Share from 'react-native-share'
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 
-import { useToast } from '@fedi/common/hooks/toast'
 import { setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { JSONObject } from '@fedi/common/types/bindings'
 import { MatrixEventContentType } from '@fedi/common/utils/matrix'
-import { formatFileSize, pathJoin } from '@fedi/common/utils/media'
+import { formatFileSize } from '@fedi/common/utils/media'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
-import { prefixFileUri } from '../../../utils/media'
+import { useDownloadResource } from '../../../utils/hooks/media'
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
@@ -31,57 +18,13 @@ type ChatImageEventProps = {
 const ChatFileEvent: React.FC<ChatImageEventProps> = ({
     event,
 }: ChatImageEventProps) => {
-    const [isLoading, setIsLoading] = useState(false)
+    const { isDownloading, handleDownload } = useDownloadResource(event)
     const { theme } = useTheme()
-    const toast = useToast()
-    const { t } = useTranslation()
     const dispatch = useAppDispatch()
 
     const handleLongPress = () => {
         dispatch(setSelectedChatMessage(event))
     }
-
-    const handleDownload = useCallback(async () => {
-        setIsLoading(true)
-
-        try {
-            const path = pathJoin(TemporaryDirectoryPath, event.content.body)
-
-            // bridge downloads the file to the path we provide
-            const downloadedFilePath = await fedimint.matrixDownloadFile(
-                path,
-                event.content as JSONObject,
-            )
-
-            const downloadedFileUri = prefixFileUri(downloadedFilePath)
-
-            if (await exists(downloadedFileUri)) {
-                const filename =
-                    Platform.OS === 'android'
-                        ? event.content.body.replace(/\.[a-z]+$/, '')
-                        : event.content.body
-
-                try {
-                    await Share.open({
-                        filename,
-                        type: event.content.info.mimetype,
-                        url: downloadedFileUri,
-                    })
-
-                    toast.show({
-                        content: t('feature.chat.file-saved'),
-                        status: 'success',
-                    })
-                } catch {
-                    /* no-op*/
-                }
-            }
-        } catch (err) {
-            toast.error(t, err, 'errors.unknown-error')
-        } finally {
-            setIsLoading(false)
-        }
-    }, [event.content, t, toast])
 
     const style = styles(theme)
 
@@ -102,7 +45,7 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
             </Flex>
             <Pressable onPress={handleDownload}>
                 <Flex center style={style.downloadButton}>
-                    {isLoading ? (
+                    {isDownloading ? (
                         <ActivityIndicator />
                     ) : (
                         <SvgImage name="Download" />

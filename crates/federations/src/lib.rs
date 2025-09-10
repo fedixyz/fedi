@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
+use device_registration::DeviceRegistrationService;
 use federation_sm::{FederationState, FederationStateMachine};
 use federation_v2::FederationV2;
 use federations_locker::FederationsLocker;
@@ -29,12 +30,14 @@ pub struct Federations {
     federations: Mutex<BTreeMap<String, FederationStateMachine>>,
     federations_locker: FederationsLocker,
     multispend_services: Arc<dyn MultispendNotifications>,
+    device_registration_service: Arc<DeviceRegistrationService>,
 }
 
 impl Federations {
     pub fn new(
         runtime: Arc<Runtime>,
         multispend_services: Arc<dyn MultispendNotifications>,
+        device_registration_service: Arc<DeviceRegistrationService>,
     ) -> Self {
         Federations {
             fedi_fee_helper: Arc::new(FediFeeHelper::new(runtime.clone())),
@@ -42,6 +45,7 @@ impl Federations {
             federations: Default::default(),
             federations_locker: Default::default(),
             multispend_services,
+            device_registration_service,
         }
     }
 
@@ -71,6 +75,7 @@ impl Federations {
                     federation_id.clone(),
                     federation_info,
                     this.multispend_services.clone(),
+                    this.device_registration_service.clone(),
                     fed_sm,
                 )
                 .await
@@ -132,6 +137,7 @@ impl Federations {
                 recover_from_scratch,
                 &self.fedi_fee_helper,
                 self.multispend_services.clone(),
+                self.device_registration_service.clone(),
             )
             .await?;
         Ok(federation_arc)
@@ -237,6 +243,7 @@ impl Federations {
 }
 
 #[tracing::instrument(skip_all, err, fields(federation_id = federation_id_str))]
+#[allow(clippy::too_many_arguments)]
 async fn load_federation(
     runtime: Arc<Runtime>,
     fedi_fee_helper: Arc<FediFeeHelper>,
@@ -244,6 +251,7 @@ async fn load_federation(
     federation_id_str: String,
     federation_info: FederationInfo,
     multispend_services: Arc<dyn MultispendNotifications>,
+    device_registration_service: Arc<DeviceRegistrationService>,
     fed_sm: FederationStateMachine,
 ) -> anyhow::Result<()> {
     fed_sm
@@ -254,6 +262,7 @@ async fn load_federation(
             federations_locker,
             &fedi_fee_helper,
             multispend_services,
+            device_registration_service,
         )
         .await;
     Ok(())

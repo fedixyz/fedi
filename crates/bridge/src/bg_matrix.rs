@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use fedimint_derive_secret::ChildId;
+use futures::Stream;
 use matrix::Matrix;
 use multispend::multispend_matrix::MultispendMatrix;
 use multispend::services::MultispendServices;
@@ -11,8 +12,7 @@ use rpc_types::error::RpcError;
 use rpc_types::matrix::MatrixInitializeStatus;
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::MATRIX_CHILD_ID;
-use runtime::observable::Observable;
-use tokio::sync::{watch, OnceCell};
+use tokio::sync::{OnceCell, watch};
 
 pub struct BgMatrix {
     initialized: OnceCell<(Arc<Matrix>, Arc<MultispendMatrix>)>,
@@ -47,21 +47,8 @@ impl BgMatrix {
         bg_matrix
     }
 
-    pub async fn observe_status(
-        &self,
-        runtime: &Runtime,
-        observable_id: u64,
-    ) -> anyhow::Result<Observable<MatrixInitializeStatus>> {
-        let status_rx = self.status.subscribe();
-
-        runtime
-            .observable_pool
-            .make_observable_from_stream(
-                observable_id,
-                None,
-                tokio_stream::wrappers::WatchStream::new(status_rx),
-            )
-            .await
+    pub fn subscribe_status(&self) -> impl Stream<Item = MatrixInitializeStatus> + use<> {
+        tokio_stream::wrappers::WatchStream::new(self.status.subscribe())
     }
 
     pub async fn initialize(
