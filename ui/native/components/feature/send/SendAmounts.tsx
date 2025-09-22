@@ -7,7 +7,7 @@ export type Props = {
     showBalance?: boolean
     subHeader?: React.ReactNode
     balanceDisplay?: string
-    formattedPrimaryAmount: string
+    formattedPrimaryAmount: string | React.ReactNode
     formattedSecondaryAmount?: string
 }
 
@@ -25,7 +25,7 @@ const SendAmounts: React.FC<Props> = ({
         <>
             <View style={style.header}>
                 {subHeader}
-                {showBalance && (
+                {showBalance && balanceDisplay && (
                     <Text
                         caption
                         style={style.balance}
@@ -36,15 +36,21 @@ const SendAmounts: React.FC<Props> = ({
                 )}
             </View>
             <View style={style.amountContainer}>
-                <Text h1 numberOfLines={1}>
-                    {formattedPrimaryAmount}
-                </Text>
-                <Text
-                    style={style.secondaryAmountText}
-                    medium
-                    numberOfLines={1}>
-                    {formattedSecondaryAmount}
-                </Text>
+                {typeof formattedPrimaryAmount === 'string' ? (
+                    <Text h1 medium numberOfLines={1}>
+                        {formattedPrimaryAmount}
+                    </Text>
+                ) : (
+                    formattedPrimaryAmount
+                )}
+                {formattedSecondaryAmount && (
+                    <Text
+                        style={style.secondaryAmountText}
+                        medium
+                        numberOfLines={1}>
+                        {formattedSecondaryAmount}
+                    </Text>
+                )}
             </View>
         </>
     )

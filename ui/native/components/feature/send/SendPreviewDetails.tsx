@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
+import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 export type Props = {
@@ -12,7 +13,55 @@ export type Props = {
     senderText: string | React.ReactNode
     sendButtonText?: string
     receiverText?: string | React.ReactNode
+    showTotalFee?: boolean
+    formattedAmount?: string
+    formattedTotalAmount?: string
     isLoading?: boolean
+    notesText?: string
+}
+
+const DetailItem = ({
+    title,
+    value,
+    onPress,
+    thin = false,
+    bottomBorder = false,
+    bold = false,
+}: {
+    title: string
+    value: string | React.ReactNode
+    onPress?: () => void
+    bottomBorder?: boolean
+    bold?: boolean
+    thin?: boolean
+}) => {
+    const { theme } = useTheme()
+    const style = styles(theme)
+
+    const Wrapper = onPress ? Pressable : View
+    return (
+        <Wrapper
+            style={[
+                thin ? style.detailBlockRow : style.detailItem,
+                bottomBorder && style.bottomBorder,
+            ]}
+            onPress={onPress}>
+            <Text
+                caption
+                bold={bold}
+                color={theme.colors.primary}
+                style={style.detailItemTitle}>
+                {title}
+            </Text>
+            {typeof value === 'string' ? (
+                <Text caption bold={bold} color={theme.colors.primary}>
+                    {value}
+                </Text>
+            ) : (
+                value
+            )}
+        </Wrapper>
+    )
 }
 
 const SendPreviewDetails: React.FC<Props> = ({
@@ -22,7 +71,11 @@ const SendPreviewDetails: React.FC<Props> = ({
     receiverText,
     senderText,
     sendButtonText,
+    formattedAmount,
+    formattedTotalAmount,
+    showTotalFee = false,
     isLoading = false,
+    notesText,
 }) => {
     const { theme } = useTheme()
     const [showDetails, setShowDetails] = useState<boolean>(false)
@@ -38,45 +91,89 @@ const SendPreviewDetails: React.FC<Props> = ({
                         : style.collapsedContainer,
                 ]}>
                 {receiverText && (
-                    <View style={[style.detailItem, style.bottomBorder]}>
-                        <Text caption bold style={style.darkGrey}>{`${t(
-                            'feature.send.send-to',
-                        )}`}</Text>
-                        {typeof receiverText === 'string' ? (
-                            <Text caption style={style.darkGrey}>
-                                {receiverText}
+                    <DetailItem
+                        title={t('feature.send.send-to')}
+                        value={receiverText}
+                        bottomBorder={true}
+                        bold
+                    />
+                )}
+                {showTotalFee ? (
+                    <View style={[style.detailBlock, style.bottomBorder]}>
+                        <DetailItem
+                            title={t('words.amount')}
+                            value={formattedAmount ?? ''}
+                            thin
+                        />
+                        <DetailItem
+                            title={t('words.fees')}
+                            value={
+                                <>
+                                    <Text
+                                        caption
+                                        color={
+                                            theme.colors.primary
+                                        }>{`${formattedTotalFee}`}</Text>
+                                    <SvgImage
+                                        name="Info"
+                                        size={16}
+                                        color={theme.colors.primary}
+                                        containerStyle={style.infoIcon}
+                                    />
+                                </>
+                            }
+                            thin
+                            onPress={onPressFees}
+                        />
+                        <DetailItem
+                            title={t('words.total')}
+                            value={formattedTotalAmount ?? ''}
+                            thin
+                            bold
+                        />
+                    </View>
+                ) : (
+                    <DetailItem
+                        title={t('words.fees')}
+                        value={
+                            <>
+                                <Text caption color={theme.colors.primary}>
+                                    {formattedTotalFee}
+                                </Text>
+                                <SvgImage
+                                    name="Info"
+                                    size={16}
+                                    color={theme.colors.primary}
+                                    containerStyle={style.infoIcon}
+                                />
+                            </>
+                        }
+                        bottomBorder={true}
+                        onPress={onPressFees}
+                    />
+                )}
+                <DetailItem
+                    title={t('feature.send.send-from')}
+                    value={senderText}
+                    bold
+                />
+                {notesText && (
+                    <View style={style.notesContainer}>
+                        <Column
+                            align="stretch"
+                            justify="center"
+                            fullWidth
+                            gap="sm"
+                            style={style.notesContent}>
+                            <Text small medium color={theme.colors.night}>
+                                {t('words.notes')}
                             </Text>
-                        ) : (
-                            receiverText
-                        )}
+                            <Text small color={theme.colors.grey}>
+                                {notesText}
+                            </Text>
+                        </Column>
                     </View>
                 )}
-                <Pressable
-                    style={[style.detailItem, style.bottomBorder]}
-                    onPress={onPressFees}>
-                    <Text
-                        caption
-                        bold
-                        style={[style.darkGrey, style.detailItemTitle]}>{`${t(
-                        'words.fees',
-                    )}`}</Text>
-                    <Text
-                        caption
-                        style={style.darkGrey}>{`${formattedTotalFee}`}</Text>
-                    <SvgImage name="Info" size={16} color={theme.colors.grey} />
-                </Pressable>
-                <View style={[style.detailItem]}>
-                    <Text caption bold style={style.darkGrey}>{`${t(
-                        'feature.send.send-from',
-                    )}`}</Text>
-                    {typeof senderText === 'string' ? (
-                        <Text caption style={style.darkGrey}>
-                            {senderText}
-                        </Text>
-                    ) : (
-                        senderText
-                    )}
-                </View>
             </View>
             <Button
                 fullWidth
@@ -87,7 +184,7 @@ const SendPreviewDetails: React.FC<Props> = ({
                     <Text medium>
                         {showDetails
                             ? t('phrases.hide-details')
-                            : t('feature.stabilitypool.details-and-fee')}
+                            : t('phrases.show-details')}
                     </Text>
                 }
             />
@@ -120,7 +217,7 @@ const styles = (theme: Theme) =>
             marginTop: 'auto',
         },
         button: {
-            marginTop: theme.spacing.lg,
+            marginTop: theme.spacing.sm,
         },
         buttonText: {
             color: theme.colors.secondary,
@@ -139,15 +236,40 @@ const styles = (theme: Theme) =>
             justifyContent: 'space-between',
             height: 52,
         },
+        detailBlockRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+        },
+        detailBlock: {
+            flexDirection: 'column',
+            gap: theme.spacing.md,
+            paddingVertical: theme.spacing.md,
+        },
         detailItemTitle: {
             marginRight: 'auto',
         },
-        darkGrey: {
-            color: theme.colors.darkGrey,
-        },
         detailsButton: {
-            backgroundColor: theme.colors.offWhite,
+            backgroundColor: theme.colors.grey100,
             width: '100%',
+        },
+        infoIcon: {
+            marginLeft: theme.spacing.xs,
+        },
+        notesContainer: {
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'center',
+            paddingHorizontal: theme.spacing.md,
+            paddingVertical: theme.spacing.md,
+            marginTop: theme.spacing.sm,
+            borderWidth: 1,
+            borderRadius: theme.borders.defaultRadius,
+            borderColor: theme.colors.lightGrey,
+            alignSelf: 'stretch',
+        },
+        notesContent: {
+            paddingHorizontal: theme.spacing.xs,
         },
     })
 

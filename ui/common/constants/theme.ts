@@ -13,6 +13,8 @@ const HEX_COLORS = {
     lightOrange: '#ECA429',
     darkGrey: '#6D7071',
     grey: '#858789',
+    grey400: '#9C9EA0',
+    grey100: '#F3F3F3',
     grey50: '#F8F8F8',
     lightGrey: '#D3D4DB',
     extraLightGrey: '#E9E9EA',

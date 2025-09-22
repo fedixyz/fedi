@@ -6,7 +6,6 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import {
@@ -17,13 +16,15 @@ import {
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../bridge'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
-import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
-import { Column } from '../components/ui/Flex'
+import SendAmounts from '../components/feature/send/SendAmounts'
+import { Row, Column } from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetAfterSendSuccess } from '../state/navigation'
+import { SupportedCurrency } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('StabilityConfirmDeposit')
@@ -37,7 +38,6 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const fedimint = useFedimint()
     const { amount, federationId = '' } = route.params
     const toast = useToast()
     const [processingDeposit, setProcessingDeposit] = useState<boolean>(false)
@@ -49,8 +49,13 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     const { makeFormattedAmountsFromSats } = useAmountFormatter({
         federationId,
     })
-    const { formattedFiat, formattedSats, formattedUsd } =
-        makeFormattedAmountsFromSats(amount)
+    const { formattedSats, formattedUsd } = makeFormattedAmountsFromSats(
+        amount,
+        'end',
+    )
+    const { formattedUsd: formattedUsdWithoutSymbol } =
+        makeFormattedAmountsFromSats(amount, 'none')
+
     const { feeBreakdownTitle, makeSPDepositFeeContent } = useFeeDisplayUtils(
         t,
         federationId,
@@ -78,7 +83,9 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                         'feature.stabilitypool.deposit-success-description',
                     ),
                     formattedAmount: formattedUsd,
-                    federationId,
+                    // TODO: make sure we either autoscroll or change the last used federation ID
+                    // so users with many wallets aren't confused
+                    // federationId,
                 }),
             )
         } catch (error) {
@@ -107,81 +114,59 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                         <Text
                             caption
                             bold
-                            style={[
-                                style.darkGrey,
-                                style.detailItemTitle,
-                            ]}>{`${t(
-                            'feature.stabilitypool.deposit-from',
-                        )}`}</Text>
-                        <Text caption style={style.darkGrey}>
-                            {`${t('feature.stabilitypool.bitcoin-balance')}`}
+                            color={theme.colors.primary}
+                            style={style.detailItemTitle}>
+                            {t('feature.stabilitypool.deposit-from')}
+                        </Text>
+                        <Text caption medium color={theme.colors.primary}>
+                            {t('feature.stabilitypool.bitcoin-balance')}
                         </Text>
                     </View>
                     <View style={[style.detailItem, style.bottomBorder]}>
-                        <Text
-                            caption
-                            bold
-                            style={[
-                                style.darkGrey,
-                                style.detailItemTitle,
-                            ]}>{`${t(
-                            'feature.stabilitypool.bitcoin-amount',
-                        )}`}</Text>
-                        <Text
-                            caption
-                            style={style.darkGrey}>{`${formattedSats}`}</Text>
+                        <Text caption bold style={style.detailItemTitle}>
+                            {t('feature.stabilitypool.bitcoin-amount')}
+                        </Text>
+                        <Text caption medium color={theme.colors.primary}>
+                            {formattedSats}
+                        </Text>
                     </View>
                     <View style={[style.detailItem, style.bottomBorder]}>
-                        <Text
-                            caption
-                            bold
-                            style={[
-                                style.darkGrey,
-                                style.detailItemTitle,
-                            ]}>{`USD ${t('words.amount')}`}</Text>
-                        <Text
-                            caption
-                            style={style.darkGrey}>{`${formattedUsd}`}</Text>
+                        <Text caption bold style={style.detailItemTitle}>
+                            {t('feature.stabilitypool.usd-amount')}
+                        </Text>
+                        <Text caption medium color={theme.colors.primary}>
+                            {formattedUsd}
+                        </Text>
                     </View>
                     <Pressable
                         style={[style.detailItem, style.bottomBorder]}
                         onPress={() => setShowFeeBreakdown(true)}>
-                        <Text
-                            caption
-                            bold
-                            style={[
-                                style.darkGrey,
-                                style.detailItemTitle,
-                            ]}>{`${t('words.fees')}`}</Text>
-                        <Text caption style={style.darkGrey}>
+                        <Text caption bold style={style.detailItemTitle}>
+                            {t('words.fees')}
+                        </Text>
+                        <Text caption medium color={theme.colors.primary}>
                             {formattedTotalFee}
                         </Text>
                         <SvgImage
                             name="Info"
                             size={16}
-                            color={theme.colors.grey}
+                            color={theme.colors.primary}
                             containerStyle={style.feeIcon}
                         />
                     </Pressable>
-                    <View style={[style.detailItem]}>
-                        <Text
-                            caption
-                            bold
-                            style={[
-                                style.darkGrey,
-                                style.detailItemTitle,
-                            ]}>{`${t(
-                            'feature.stabilitypool.deposit-time',
-                        )}`}</Text>
-                        <Text caption style={style.darkGrey}>
+                    <View style={style.detailItem}>
+                        <Text caption bold style={style.detailItemTitle}>
+                            {t('feature.stabilitypool.deposit-time')}
+                        </Text>
+                        <Text caption medium color={theme.colors.primary}>
                             {depositTime}
                         </Text>
                     </View>
                 </View>
                 <Button
                     fullWidth
-                    containerStyle={[style.button]}
-                    buttonStyle={[style.detailsButton]}
+                    containerStyle={style.button}
+                    buttonStyle={style.detailsButton}
                     onPress={() => setShowDetails(!showDetails)}
                     title={
                         <Text medium caption>
@@ -227,17 +212,32 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
             <View style={style.conversionIndicator}>
                 <SvgImage
                     name="BitcoinCircle"
-                    size={SvgImageSize.md}
+                    size={SvgImageSize.sm}
                     color={theme.colors.orange}
                 />
                 <SvgImage name="ArrowRight" color={theme.colors.primaryLight} />
-                <CurrencyAvatar />
+                <SvgImage
+                    name="UsdCircleFilled"
+                    size={SvgImageSize.sm}
+                    color={theme.colors.mint}
+                />
             </View>
-            <View style={style.amountText}>
-                <Text h1 numberOfLines={1}>
-                    {formattedFiat}
-                </Text>
-            </View>
+            <SendAmounts
+                showBalance={false}
+                formattedPrimaryAmount={
+                    <Row justify="start" align="end" gap="sm">
+                        <Text h1 medium numberOfLines={1}>
+                            {formattedUsdWithoutSymbol}
+                        </Text>
+                        <Text
+                            numberOfLines={1}
+                            medium
+                            style={style.currencyCode}>
+                            {SupportedCurrency.USD}
+                        </Text>
+                    </Row>
+                }
+            />
             <Column fullWidth style={style.buttonsGroup}>
                 {renderDetails()}
                 <Button
@@ -304,11 +304,11 @@ const styles = (theme: Theme) =>
         detailItemTitle: {
             marginRight: 'auto',
         },
-        darkGrey: {
-            color: theme.colors.darkGrey,
+        black: {
+            color: theme.colors.night,
         },
         detailsButton: {
-            backgroundColor: theme.colors.offWhite,
+            backgroundColor: theme.colors.grey100,
         },
         feeIcon: {
             marginLeft: theme.spacing.xxs,
@@ -319,6 +319,9 @@ const styles = (theme: Theme) =>
             padding: theme.spacing.xl,
             borderRadius: theme.borders.defaultRadius,
             alignItems: 'center',
+        },
+        currencyCode: {
+            paddingBottom: theme.spacing.xs,
         },
     })
 

@@ -63,6 +63,8 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
             <Button
                 fullWidth
                 containerStyle={style.button}
+                // TODO: make sure we either autoscroll or change the last used federation ID
+                // so users with many wallets aren't confused
                 onPress={() => navigation.dispatch(resetToWallets())}
                 title={
                     <Text medium caption style={style.buttonText}>

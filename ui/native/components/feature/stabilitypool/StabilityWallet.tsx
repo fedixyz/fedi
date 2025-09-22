@@ -23,7 +23,6 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import WalletButtons from '../../feature/wallet/WalletButtons'
 import { BubbleCard } from '../../ui/BubbleView'
-import { Row } from '../../ui/Flex'
 import StabilityWalletBalance from './StabilityWalletBalance'
 import StabilityWalletTitle from './StabilityWalletTitle'
 
@@ -49,7 +48,6 @@ const StabilityWallet: React.FC<Props> = ({
     const shouldShowStablePaymentAddress = useAppSelector(s =>
         selectShouldShowStablePaymentAddress(s, federation.id),
     )
-
     const stabilityPoolDisabledByFederation =
         !useIsStabilityPoolEnabledByFederation(federation.id)
     const stableBalance = useAppSelector(s =>
@@ -132,9 +130,7 @@ const StabilityWallet: React.FC<Props> = ({
                 containerStyle={style.card}>
                 <View style={style.header}>
                     {/* Icon, title, and chevron grouped together */}
-                    <Row align="center" gap="sm" shrink style={style.leftGroup}>
-                        <StabilityWalletTitle federationId={federation.id} />
-                    </Row>
+                    <StabilityWalletTitle federationId={federation.id} />
                     {/* Balance on the right */}
                     <StabilityWalletBalance federationId={federation.id} />
                 </View>

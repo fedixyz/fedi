@@ -2,14 +2,17 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { transferStableBalance } from '@fedi/common/redux'
+import {
+    selectLoadedFederation,
+    transferStableBalance,
+} from '@fedi/common/redux'
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -19,7 +22,7 @@ import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import StabilityBalanceTile from '../components/feature/stabilitypool/StabilityBalanceTile'
 import StabilityWalletTitle from '../components/feature/stabilitypool/StabilityWalletTitle'
 import { Column } from '../components/ui/Flex'
-import { useAppDispatch } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetAfterSendSuccess } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -36,6 +39,9 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const { amount, federationId, recipient } = route.params
+    const federation = useAppSelector(s =>
+        selectLoadedFederation(s, federationId),
+    )
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const { feeBreakdownTitle, makeSPTransferFeeContent } = useFeeDisplayUtils(
         t,
@@ -86,7 +92,11 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
         <SafeAreaView
             style={style.container}
             edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
-            <StabilityBalanceTile federationId={federationId} />
+            {federation ? (
+                <StabilityBalanceTile federation={federation} />
+            ) : (
+                <ActivityIndicator />
+            )}
             <Column align="center" style={style.amountContainer}>
                 <StabilityWalletTitle bolder federationId={federationId} />
                 <SendAmounts

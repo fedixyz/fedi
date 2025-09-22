@@ -27,6 +27,8 @@ declare module '@rneui/themed' {
             darkGrey: string
             grey: string
             grey50: string
+            grey100: string
+            grey400: string
             lightGrey: string
             extraLightGrey: string
             ghost: string
