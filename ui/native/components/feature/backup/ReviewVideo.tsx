@@ -1,4 +1,3 @@
-import { useNavigation } from '@react-navigation/native'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,9 +16,12 @@ import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const log = makeLog('ReviewVideo')
 
-const ReviewVideo = () => {
+type Props = {
+    onConfirmVideo: (videoFilePath: string) => void
+}
+
+const ReviewVideo = ({ onConfirmVideo }: Props) => {
     const { t } = useTranslation()
-    const navigation = useNavigation()
     const { theme } = useTheme()
     const [isPaused, setIsPaused] = useState(true)
     const [confirmingVideo, setConfirmingVideo] = useState(false)
@@ -36,9 +38,7 @@ const ReviewVideo = () => {
                 const filename = Math.random().toString(20)
                 const dest = `${RNFS.TemporaryDirectoryPath}/${filename}.mp4`
                 await RNFS.copyFile(videoFile.path, dest)
-                navigation.navigate('SocialBackupProcessing', {
-                    videoFilePath: dest,
-                })
+                onConfirmVideo(dest)
             } catch (e) {
                 log.error('copy failed', e)
                 return
@@ -49,7 +49,7 @@ const ReviewVideo = () => {
                 copyVideoAndProceed()
             })
         }
-    }, [confirmingVideo, navigation, videoFile])
+    }, [confirmingVideo, onConfirmVideo, videoFile])
 
     return (
         <View style={styles(theme).container}>

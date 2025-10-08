@@ -7,12 +7,13 @@ type CenteredHeaderProps = {
     title: string
     backButton?: boolean
     closeButton?: boolean
-}
+} & React.ComponentProps<typeof Header>
 
 export const CenteredHeader: React.FC<CenteredHeaderProps> = ({
     title,
     backButton,
     closeButton,
+    ...props
 }) => {
     return (
         <Header
@@ -23,6 +24,7 @@ export const CenteredHeader: React.FC<CenteredHeaderProps> = ({
                     {title}
                 </Text>
             }
+            {...props}
         />
     )
 }

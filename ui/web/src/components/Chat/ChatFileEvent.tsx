@@ -4,7 +4,6 @@ import DownloadIcon from '@fedi/common/assets/svgs/download.svg'
 import FileIcon from '@fedi/common/assets/svgs/file.svg'
 import { MatrixEvent } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { formatFileSize } from '@fedi/common/utils/media'
 
 import { Icon } from '../../components/Icon'
@@ -14,7 +13,7 @@ import { styled, theme } from '../../styles'
 import { downloadFile } from '../../utils/media'
 
 interface Props {
-    event: MatrixEvent<MatrixEventContentType<'m.file'>>
+    event: MatrixEvent<'m.file'>
 }
 
 export const ChatFileEvent: React.FC<Props> = ({ event }) => {
@@ -34,7 +33,7 @@ export const ChatFileEvent: React.FC<Props> = ({ event }) => {
                     {stringUtils.truncateMiddleOfString(event.content.body, 10)}
                 </Text>
                 <Text variant="small" css={{ color: theme.colors.darkGrey }}>
-                    {formatFileSize(event.content.info.size ?? 0)}
+                    {formatFileSize(event.content.info?.size ?? 0)}
                 </Text>
             </TextContent>
             <DownloadIconSection>

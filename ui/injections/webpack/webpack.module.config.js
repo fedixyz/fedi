@@ -48,12 +48,12 @@ module.exports = env => ({
         outputModule: true,
     },
     resolve: {
-        extensions: ['.ts'],
+        extensions: ['.ts', '.tsx'],
     },
     module: {
         rules: [
             {
-                test: /\.ts$/,
+                test: /\.(ts|tsx)$/,
                 use: 'ts-loader',
                 exclude: /node_modules/,
             },

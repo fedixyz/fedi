@@ -8,8 +8,9 @@ import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { getMatrixRoomPreview, selectGroupPreviews } from '@fedi/common/redux'
 import { MatrixGroupPreview } from '@fedi/common/types'
 
+import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
-import HoloGradient from '../components/ui/HoloGradient'
+import HoloCircle from '../components/ui/HoloCircle'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToGroupChat } from '../state/navigation'
@@ -55,7 +56,7 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
             setPreviewGroup(defaultGroup)
             return
         }
-        dispatch(getMatrixRoomPreview(groupId))
+        dispatch(getMatrixRoomPreview({ fedimint, roomId: groupId }))
             .unwrap()
             .then(preview => {
                 setPreviewGroup(preview)
@@ -68,9 +69,10 @@ const ConfirmJoinPublicGroup: React.FC<Props> = ({ route, navigation }) => {
     return previewGroup === undefined ? null : (
         <SafeAreaContainer edges="notop">
             <Flex center grow gap="md">
-                <HoloGradient level="400" gradientStyle={style.icon}>
-                    <Text style={style.iconText}>👋</Text>
-                </HoloGradient>
+                <HoloCircle
+                    content={<Text style={style.iconText}>👋</Text>}
+                    size={64}
+                />
                 <Text h2 h2Style={style.buttonText}>
                     {previewGroup
                         ? t('feature.onboarding.welcome-to-federation', {

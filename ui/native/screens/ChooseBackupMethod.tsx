@@ -5,8 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
-import { selectActiveFederation } from '@fedi/common/redux'
-import { shouldShowSocialRecovery } from '@fedi/common/utils/FederationUtils'
+import { selectDoesAnyFederationHaveSocialBackup } from '@fedi/common/redux'
 
 import HoloCard from '../components/ui/HoloCard'
 import LineBreak from '../components/ui/LineBreak'
@@ -19,10 +18,15 @@ export type Props = NativeStackScreenProps<
     'ChooseBackupMethod'
 >
 
+// TODO: When social backup is out of beta, use this screen to let the user choose between personal and social backup
+// when coming from CreatePinInstructions
 const ChooseBackupMethod: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const doesAnyFederationHaveSocialBackup = useAppSelector(
+        selectDoesAnyFederationHaveSocialBackup,
+    )
+    const showSocialRecovery = doesAnyFederationHaveSocialBackup
     const [hasPerformedPersonalBackup] = useNuxStep(
         'hasPerformedPersonalBackup',
     )
@@ -39,16 +43,16 @@ const ChooseBackupMethod: React.FC<Props> = ({ navigation }: Props) => {
     // }
 
     const handleStartSocialBackup = async () => {
-        // TODO: Uncomment when bridge function is ready
+        navigation.navigate('CompleteSocialBackup')
+        // TODO: Implement this when bridge function is ready
         // const backupFound = await checkForExistingSocialBackup()
-        const backupFound = false
 
-        if (backupFound) {
-            // TODO: navigate to SocialBackupCloudUpload when it's implemented
-            navigation.navigate('CompleteSocialBackup')
-        } else {
-            navigation.navigate('StartSocialBackup')
-        }
+        // if (backupFound) {
+        //     // TODO: navigate to SocialBackupCloudUpload when it's implemented
+        //     navigation.navigate('CompleteSocialBackup')
+        // } else {
+        //     navigation.navigate('StartSocialBackup')
+        // }
     }
 
     const handleStartPersonalBackup = () => {
@@ -58,9 +62,6 @@ const ChooseBackupMethod: React.FC<Props> = ({ navigation }: Props) => {
             navigation.navigate('StartPersonalBackup')
         }
     }
-
-    const showSocialRecovery =
-        activeFederation && shouldShowSocialRecovery(activeFederation)
 
     return (
         <ScrollView contentContainerStyle={styles(theme).container}>

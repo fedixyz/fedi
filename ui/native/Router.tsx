@@ -1,4 +1,3 @@
-import { createDrawerNavigator } from '@react-navigation/drawer'
 import {
     NavigationContainer,
     useNavigationContainerRef,
@@ -12,19 +11,12 @@ import { isUniversalLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from './bridge'
-import ConnectedFederationsDrawer from './components/feature/federations/ConnectedFederationsDrawer'
 import { OmniLinkHandler } from './components/feature/omni/OmniLinkHandler'
-import Header from './components/ui/Header'
 import SvgImage, { SvgImageSize } from './components/ui/SvgImage'
 import ToastManager from './components/ui/ToastManager'
 import { MainNavigator } from './screens/MainNavigator'
-import SwitchingFederations from './screens/SwitchingFederations'
 import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
 import { usePinContext } from './state/contexts/PinContext'
-import {
-    DRAWER_NAVIGATION_ID,
-    MainNavigatorDrawerParamList,
-} from './types/navigation'
 import { useIsFeatureUnlocked } from './utils/hooks/security'
 import {
     getLinkingConfig,
@@ -36,8 +28,6 @@ import {
 } from './utils/linking'
 
 const log = makeLog('NavigationRouter')
-
-const Drawer = createDrawerNavigator<MainNavigatorDrawerParamList>()
 
 const Router = () => {
     const { theme } = useTheme()
@@ -180,27 +170,7 @@ const Router = () => {
                 </View>
             }
             onStateChange={handleStateChange}>
-            <Drawer.Navigator
-                id={DRAWER_NAVIGATION_ID}
-                drawerContent={ConnectedFederationsDrawer}
-                screenOptions={{
-                    swipeEnabled: isAppUnlocked,
-                    freezeOnBlur: true,
-                }}>
-                <Drawer.Screen
-                    name="MainNavigator"
-                    component={MainNavigator}
-                    options={{ headerShown: false }}
-                />
-                <Drawer.Screen
-                    name="SwitchingFederations"
-                    component={SwitchingFederations}
-                    initialParams={{ federationId: null }}
-                    options={{
-                        header: () => <Header />,
-                    }}
-                />
-            </Drawer.Navigator>
+            <MainNavigator />
             {/*
                 Only show this when the app is unlocked.
                 It handles state from a context provider so it won't drop the state.

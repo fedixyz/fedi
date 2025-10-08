@@ -13,6 +13,7 @@ name = "fediffi"
 empty-line-after-doc-comments = "allow"
 
 [dependencies]
+api-types = { workspace = true }
 env = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }

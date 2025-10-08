@@ -1,13 +1,11 @@
-import { useRouter } from 'next/router'
 import React, { useMemo } from 'react'
 
-import ChevronLeftIcon from '@fedi/common/assets/svgs/chevron-left.svg'
 import { MatrixEvent, MatrixGroupPreview } from '@fedi/common/types'
 import { makeMatrixEventGroups } from '@fedi/common/utils/matrix'
 
+import { chatRoute } from '../../constants/routes'
 import { styled } from '../../styles'
 import { Avatar } from '../Avatar'
-import { IconButton } from '../IconButton'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
 import { ChatEventCollection } from './ChatEventCollection'
@@ -18,8 +16,6 @@ interface Props {
 }
 
 export const ChatPreviewConversation: React.FC<Props> = ({ id, preview }) => {
-    const { back } = useRouter()
-
     const timeline = preview.timeline || []
     const events = timeline.filter((item): item is MatrixEvent => {
         return item !== null
@@ -31,16 +27,7 @@ export const ChatPreviewConversation: React.FC<Props> = ({ id, preview }) => {
 
     return (
         <Layout.Root>
-            <Layout.Header padded>
-                <HeaderInfo>
-                    <BackButton>
-                        <IconButton
-                            size="md"
-                            icon={ChevronLeftIcon}
-                            onClick={() => back()}
-                        />
-                    </BackButton>
-                </HeaderInfo>
+            <Layout.Header back={chatRoute}>
                 <HeaderContent>
                     <Avatar size="sm" id={id} name={preview.info.name} />
                     <Text weight="medium">{preview.info.name}</Text>
@@ -68,20 +55,6 @@ const HeaderContent = styled('div', {
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-})
-
-const HeaderInfo = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,
-})
-
-const BackButton = styled('div', {
-    display: 'none',
-    '@sm': {
-        display: 'block',
-    },
 })
 
 const Messages = styled('div', {

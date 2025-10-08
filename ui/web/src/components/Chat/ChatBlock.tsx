@@ -1,10 +1,8 @@
-import Link from 'next/link'
-import React, { useState } from 'react'
+import { useRouter } from 'next/router'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
-import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
-import QRIcon from '@fedi/common/assets/svgs/qr.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { selectMatrixChatsList } from '@fedi/common/redux'
 
@@ -13,10 +11,9 @@ import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { ContentBlock } from '../ContentBlock'
 import { Icon } from '../Icon'
-import { IconButton } from '../IconButton'
+import MainHeaderButtons from '../MainHeaderButtons'
 import { Text } from '../Text'
 import { ChatListItem } from './ChatListItem'
-import { ChatUserQRDialog } from './ChatUserQRDialog'
 
 interface Props {
     children: React.ReactNode
@@ -26,8 +23,11 @@ interface Props {
 export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
     const { t } = useTranslation()
     const rooms = useAppSelector(selectMatrixChatsList)
+    const router = useRouter()
 
-    const [isMemberQrOpen, setIsMemberQrOpen] = useState(false)
+    const goToNewChat = () => {
+        router.push('/chat/new')
+    }
 
     return (
         <ContentBlock css={{ maxWidth: 840, padding: 0 }}>
@@ -36,11 +36,8 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
                     <Layout.Root>
                         <SidebarHeader>
                             <Layout.Title small>{t('words.chat')}</Layout.Title>
-                            <IconButton
-                                icon={QRIcon}
-                                onClick={() => setIsMemberQrOpen(true)}
-                                size="md"
-                            />
+
+                            <MainHeaderButtons onAddPress={goToNewChat} />
                         </SidebarHeader>
                         <Layout.Content fullWidth>
                             <SidebarList>
@@ -52,12 +49,6 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
                                     </ErrorBoundary>
                                 ))}
                             </SidebarList>
-
-                            <ButtonWrapper>
-                                <NewChatButton href="/chat/new">
-                                    <Icon icon={PlusIcon} />
-                                </NewChatButton>
-                            </ButtonWrapper>
                         </Layout.Content>
                     </Layout.Root>
                 </Sidebar>
@@ -75,10 +66,6 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
                     </ErrorBoundary>
                 </Content>
             </Container>
-            <ChatUserQRDialog
-                open={isMemberQrOpen}
-                onOpenChange={setIsMemberQrOpen}
-            />
         </ContentBlock>
     )
 }
@@ -130,7 +117,7 @@ const SidebarHeader = styled(Layout.Header, {
     padding: '8px 16px',
 
     '@sm': {
-        padding: '16px 16px',
+        padding: 0,
     },
 })
 
@@ -177,25 +164,4 @@ const Error = styled('div', {
     textAlign: 'center',
     gap: 8,
     color: theme.colors.red,
-})
-
-const ButtonWrapper = styled('div', {
-    bottom: 12,
-    borderRadius: '50%',
-    boxShadow: '3px 6px 6px hsl(0deg 0% 0% / 0.24)',
-    overflow: 'hidden',
-    position: 'absolute',
-    right: 12,
-    zIndex: 10,
-})
-
-const NewChatButton = styled(Link, {
-    alignItems: 'center',
-    background: theme.colors.blue,
-    color: theme.colors.white,
-    display: 'flex',
-    height: 50,
-    justifyContent: 'center',
-    right: 10,
-    width: 50,
 })

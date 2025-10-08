@@ -4,14 +4,13 @@ import { Pressable, StyleSheet } from 'react-native'
 
 import { selectMatrixAuth } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import { bubbleGradient } from './ChatEvent'
 
 type Props = {
-    event: MatrixEvent<MatrixEventContentType<'m.room.encrypted'>>
+    event: MatrixEvent<'unableToDecrypt'>
 }
 
 const ChatEncryptedEvent: React.FC<Props> = ({ event }) => {
@@ -20,7 +19,7 @@ const ChatEncryptedEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
     const style = styles(theme)
 
-    const isMe = event.senderId === matrixAuth?.userId
+    const isMe = event.sender === matrixAuth?.userId
 
     return (
         <Pressable>

@@ -4,7 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable } from 'react-native'
 
-import { selectIsActiveFederationRecovering } from '@fedi/common/redux'
+import { selectAreAllFederationsRecovering } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
@@ -22,19 +22,19 @@ const ChatWalletButton: React.FC<ChatWalletButtonProps> = ({
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const [showOverlay, setShowOverlay] = useState(false)
-    const recoveryInProgress = useAppSelector(
-        selectIsActiveFederationRecovering,
+    const areAllFederationsRecovering = useAppSelector(
+        selectAreAllFederationsRecovering,
     )
 
     const handlePress = useCallback(() => {
-        if (recoveryInProgress) {
+        if (areAllFederationsRecovering) {
             setShowOverlay(true)
             return
         }
         navigation.navigate('ChatWallet', {
             recipientId,
         })
-    }, [recoveryInProgress, recipientId, navigation])
+    }, [areAllFederationsRecovering, recipientId, navigation])
 
     return (
         <>
@@ -43,7 +43,7 @@ const ChatWalletButton: React.FC<ChatWalletButtonProps> = ({
                     name="Wallet"
                     size={SvgImageSize.md}
                     color={
-                        recoveryInProgress
+                        areAllFederationsRecovering
                             ? theme.colors.primaryVeryLight
                             : theme.colors.primary
                     }

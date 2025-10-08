@@ -1,28 +1,35 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use fedimint_core::encoding::{Decodable, Encodable};
+use fedimint_core::invite_code::InviteCode;
 use matrix_sdk::event_cache::RoomPaginationStatus;
 use matrix_sdk::notification_settings::RoomNotificationMode;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::api::client::user_directory::search_users::v3 as search_user_directory;
 use matrix_sdk::ruma::events::AnyTimelineEvent;
 use matrix_sdk::ruma::events::poll::start::PollKind;
+use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::events::room::member::MembershipState;
-use matrix_sdk::ruma::events::room::message::MessageType;
 use matrix_sdk::ruma::serde::Raw;
-use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedTransactionId};
-use matrix_sdk::{ComposerDraft, ComposerDraftType};
+use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, events as ruma_events};
+use matrix_sdk::{ComposerDraft, ComposerDraftType, RoomDisplayName, RoomState};
 use matrix_sdk_ui::room_list_service::SyncIndicator;
 use matrix_sdk_ui::timeline::{
-    EventSendState, MsgLikeKind, PollResult, TimelineEventItemId, TimelineItem,
-    TimelineItemContent, TimelineItemKind, VirtualTimelineItem,
+    EventSendState, EventTimelineItem, InReplyToDetails, MsgLikeKind, PollResult, RoomExt,
+    TimelineDetails, TimelineEventItemId, TimelineItem, TimelineItemContent, TimelineItemKind,
+    VirtualTimelineItem,
 };
+use ruma_events::room::message::MessageType as RumaMessageType;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
+use ts_rs::TS;
 
 use crate::error::{ErrorCode, RpcError};
+use crate::matrix::ruma_events::AnyMessageLikeEvent;
+use crate::multispend::MultispendEvent;
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
@@ -105,23 +112,25 @@ pub enum RpcTimelineItem {
     TimelineStart,
 }
 
-#[derive(Debug, Deserialize, Clone, ts_rs::TS)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
-pub enum RpcTimelineEventItemId {
-    TransactionId(String),
-    EventId(String),
+pub struct RpcTimelineEventItemId(#[ts(type = "Opaque<string, 'RpcTimelineEventItemId'>")] String);
+
+impl From<RpcTimelineEventItemId> for TimelineEventItemId {
+    fn from(value: RpcTimelineEventItemId) -> Self {
+        match value.0.parse() {
+            // if string starts with $
+            Ok(event_id) => TimelineEventItemId::EventId(event_id),
+            Err(_) => TimelineEventItemId::TransactionId(value.0.into()),
+        }
+    }
 }
 
-impl TryFrom<RpcTimelineEventItemId> for TimelineEventItemId {
-    type Error = anyhow::Error;
-
-    fn try_from(value: RpcTimelineEventItemId) -> std::result::Result<Self, Self::Error> {
+impl From<TimelineEventItemId> for RpcTimelineEventItemId {
+    fn from(value: TimelineEventItemId) -> Self {
         match value {
-            RpcTimelineEventItemId::TransactionId(t) => Ok(TimelineEventItemId::TransactionId(
-                OwnedTransactionId::from(t),
-            )),
-            RpcTimelineEventItemId::EventId(e) => Ok(TimelineEventItemId::EventId(e.parse()?)),
+            TimelineEventItemId::TransactionId(t) => RpcTimelineEventItemId(t.to_string()),
+            TimelineEventItemId::EventId(e) => RpcTimelineEventItemId(e.to_string()),
         }
     }
 }
@@ -152,29 +161,110 @@ pub enum RpcTimelineEventSendState {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcTimelineItemEvent {
-    pub(crate) id: String,
-    pub(crate) txn_id: Option<String>,
-    pub(crate) event_id: Option<String>,
-    pub content: RpcTimelineItemContent,
+    pub(crate) id: RpcTimelineEventItemId,
+    pub content: RpcMsgLikeKind,
     pub(crate) local_echo: bool,
     #[ts(type = "number")]
     pub(crate) timestamp: MilliSecondsSinceUnixEpoch,
     #[ts(type = "string")]
     pub(crate) sender: matrix_sdk::ruma::OwnedUserId,
     pub(crate) send_state: Option<RpcTimelineEventSendState>,
+    in_reply: Option<Box<RpcTimelineDetails<RpcTimelineItemEvent>>>,
 }
 
-#[derive(Debug, Serialize, Clone, ts_rs::TS)]
-#[serde(tag = "kind", content = "value")]
+impl From<&EventSendState> for RpcTimelineEventSendState {
+    fn from(state: &EventSendState) -> Self {
+        match state {
+            EventSendState::NotSentYet => RpcTimelineEventSendState::NotSentYet,
+            EventSendState::SendingFailed {
+                error,
+                is_recoverable,
+            } => RpcTimelineEventSendState::SendingFailed {
+                error: error.to_string(),
+                is_recoverable: *is_recoverable,
+            },
+            EventSendState::Sent { event_id } => RpcTimelineEventSendState::Sent {
+                event_id: event_id.to_string(),
+            },
+        }
+    }
+}
+
+impl From<&EventTimelineItem> for RpcTimelineItemEvent {
+    fn from(e: &EventTimelineItem) -> Self {
+        let (content, in_reply) = Self::from_item_content(e.content());
+        RpcTimelineItemEvent {
+            id: e.identifier().into(),
+            content,
+            local_echo: e.is_local_echo(),
+            timestamp: e.timestamp(),
+            sender: e.sender().into(),
+            send_state: e.send_state().map(RpcTimelineEventSendState::from),
+            in_reply,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(tag = "kind")]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-#[allow(clippy::large_enum_variant)]
-pub enum RpcTimelineItemContent {
-    Message(#[ts(type = "JSONObject")] MessageType),
-    Json(#[ts(type = "JSONValue")] serde_json::Value),
-    RedactedMessage,
-    Poll(RpcPollResult),
-    Unknown,
+pub enum RpcTimelineDetails<T> {
+    /// The details are not available yet, and have not been requested from the
+    /// server.
+    Unavailable,
+
+    /// The details are not available yet, but have been requested.
+    Pending,
+
+    /// The details are available.
+    Ready(T),
+
+    /// An error occurred when fetching the details.
+    Error,
+}
+
+impl<T> RpcTimelineDetails<T> {
+    fn mapped<U>(details: &TimelineDetails<U>, f: impl FnOnce(&U) -> T) -> Self {
+        match details {
+            TimelineDetails::Unavailable => Self::Unavailable,
+            TimelineDetails::Pending => Self::Pending,
+            TimelineDetails::Ready(value) => Self::Ready(f(value)),
+            TimelineDetails::Error(_) => Self::Error,
+        }
+    }
+}
+
+impl RpcTimelineItemEvent {
+    fn from_item_content(
+        item: &TimelineItemContent,
+    ) -> (
+        RpcMsgLikeKind,
+        Option<Box<RpcTimelineDetails<RpcTimelineItemEvent>>>,
+    ) {
+        match item {
+            TimelineItemContent::MsgLike(msg) => {
+                let in_reply = msg.in_reply_to.as_ref().map(Self::for_reply);
+                (RpcMsgLikeKind::from(&msg.kind), in_reply)
+            }
+            _ => (RpcMsgLikeKind::Unknown, None),
+        }
+    }
+
+    fn for_reply(value: &InReplyToDetails) -> Box<RpcTimelineDetails<RpcTimelineItemEvent>> {
+        Box::new(RpcTimelineDetails::mapped(&value.event, |value| {
+            let (content, in_reply) = Self::from_item_content(&value.content);
+            RpcTimelineItemEvent {
+                id: value.identifier.clone().into(),
+                content,
+                local_echo: false,
+                timestamp: value.timestamp,
+                sender: value.sender.clone(),
+                send_state: None,
+                in_reply,
+            }
+        }))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, ts_rs::TS)]
@@ -209,23 +299,14 @@ pub enum RpcPollKind {
 pub struct RpcPollResult {
     pub body: String,
     pub kind: RpcPollKind,
+    #[ts(type = "number")]
     pub max_selections: u64,
     pub answers: Vec<RpcPollResultAnswer>,
     pub votes: HashMap<String, Vec<String>>,
+    #[ts(type = "number | null")]
     pub end_time: Option<u64>,
     pub has_been_edited: bool,
     pub msgtype: String,
-}
-
-impl RpcPollResult {
-    fn from_timeline_item(content: &TimelineItemContent) -> Option<Self> {
-        if let TimelineItemContent::MsgLike(msg) = content {
-            if let MsgLikeKind::Poll(poll_state) = &msg.kind {
-                return Some(RpcPollResult::from(poll_state.results()));
-            }
-        }
-        None
-    }
 }
 
 impl From<PollResult> for RpcPollResult {
@@ -324,50 +405,7 @@ impl From<RoomPaginationStatus> for RpcBackPaginationStatus {
 impl From<Arc<TimelineItem>> for RpcTimelineItem {
     fn from(item: Arc<TimelineItem>) -> Self {
         match **item {
-            TimelineItemKind::Event(ref e) => {
-                let content = e.content();
-                let content = if let Some(poll) = RpcPollResult::from_timeline_item(content) {
-                    RpcTimelineItemContent::Poll(poll)
-                } else if let Some(json) = e.latest_json() {
-                    RpcTimelineItemContent::Json(
-                        json.deserialize_as::<serde_json::Value>()
-                            .expect("failed to deserialize event"),
-                    )
-                } else if let TimelineItemContent::MsgLike(msg) = content {
-                    match &msg.kind {
-                        MsgLikeKind::Message(m) => {
-                            RpcTimelineItemContent::Message(m.msgtype().clone())
-                        }
-                        MsgLikeKind::Redacted => RpcTimelineItemContent::RedactedMessage,
-                        _ => RpcTimelineItemContent::Unknown,
-                    }
-                } else {
-                    RpcTimelineItemContent::Unknown
-                };
-                let send_state = e.send_state().map(|s| match s {
-                    EventSendState::NotSentYet => RpcTimelineEventSendState::NotSentYet,
-                    EventSendState::SendingFailed {
-                        error,
-                        is_recoverable,
-                    } => RpcTimelineEventSendState::SendingFailed {
-                        error: error.to_string(),
-                        is_recoverable: *is_recoverable,
-                    },
-                    EventSendState::Sent { event_id } => RpcTimelineEventSendState::Sent {
-                        event_id: event_id.to_string(),
-                    },
-                });
-                Self::Event(RpcTimelineItemEvent {
-                    id: item.unique_id().0.clone(),
-                    txn_id: e.transaction_id().map(|s| s.to_string()),
-                    event_id: e.event_id().map(|s| s.to_string()),
-                    content,
-                    local_echo: e.is_local_echo(),
-                    timestamp: e.timestamp(),
-                    sender: e.sender().into(),
-                    send_state,
-                })
-            }
+            TimelineItemKind::Event(ref e) => Self::Event(RpcTimelineItemEvent::from(e)),
             TimelineItemKind::Virtual(ref v) => match v {
                 VirtualTimelineItem::DateDivider(t) => Self::DateDivider(*t),
                 VirtualTimelineItem::ReadMarker => Self::ReadMarker,
@@ -387,16 +425,18 @@ impl RpcTimelineItem {
         match item.deserialize().ok()? {
             AnyTimelineEvent::MessageLike(message_event) => {
                 let event = RpcTimelineItemEvent {
-                    id: message_event.event_id().to_string(),
-                    txn_id: message_event.transaction_id().map(|tid| tid.to_string()),
-                    event_id: Some(message_event.event_id().to_string()),
-                    content: RpcTimelineItemContent::Json(
-                        item.deserialize_as::<serde_json::Value>().ok()?,
-                    ),
+                    id: RpcTimelineEventItemId(message_event.event_id().to_string()),
+                    content: match &message_event {
+                        AnyMessageLikeEvent::RoomMessage(msg) => {
+                            RpcMsgLikeKind::from(&msg.as_original()?.content.msgtype)
+                        }
+                        _ => return None,
+                    },
                     local_echo: false, // preview is never a local echo
                     timestamp: message_event.origin_server_ts(),
                     sender: message_event.sender().to_owned(),
                     send_state: None, // This is for local echos, not relevant here
+                    in_reply: None,
                 };
 
                 Some(RpcTimelineItem::Event(event))
@@ -569,6 +609,618 @@ impl From<RpcRoomNotificationMode> for RoomNotificationMode {
             RpcRoomNotificationMode::AllMessages => Self::AllMessages,
             RpcRoomNotificationMode::MentionsAndKeywordsOnly => Self::MentionsAndKeywordsOnly,
             RpcRoomNotificationMode::Mute => Self::Mute,
+        }
+    }
+}
+
+use matrix_sdk::RoomInfo;
+use matrix_sdk::room::Room;
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcMatrixRoomState {
+    Joined,
+    Left,
+    Invited,
+    Banned,
+    Knocked,
+}
+
+#[derive(Clone, Debug, Serialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcSerializedRoomInfo {
+    pub id: String,
+    pub name: String,
+    pub avatar_url: Option<String>,
+    pub preview: Option<RpcTimelineItemEvent>,
+    pub direct_user_id: Option<String>,
+    #[ts(as = "u32")]
+    pub notification_count: u64,
+    pub is_marked_unread: bool,
+    #[ts(as = "u32")]
+    pub joined_member_count: u64,
+    pub is_preview: bool,
+    pub is_public: Option<bool>,
+    pub room_state: RpcMatrixRoomState,
+}
+
+impl RpcSerializedRoomInfo {
+    pub async fn from_room_and_info(room: &Room, room_info: &RoomInfo) -> Self {
+        let direct_user_id = room.direct_targets().iter().next().map(|id| id.to_string());
+
+        Self {
+            id: room_info.room_id().to_string(),
+            name: match room.cached_display_name() {
+                Some(RoomDisplayName::Calculated(name)) => name.clone(),
+                Some(RoomDisplayName::Named(name)) => name.clone(),
+                Some(RoomDisplayName::Empty) => String::new(),
+                Some(RoomDisplayName::EmptyWas(name)) => name.clone(),
+                Some(RoomDisplayName::Aliased(name)) => name.clone(),
+                // TODO: fixme
+                None => String::new(),
+            },
+            avatar_url: if direct_user_id.is_some() {
+                room_info
+                    .heroes()
+                    .first()
+                    .and_then(|hero| hero.avatar_url.as_ref())
+                    .map(|url| url.to_string())
+            } else {
+                room_info.avatar_url().map(|url| url.to_string())
+            },
+            preview: room
+                .latest_event_item()
+                .await
+                .map(|e| RpcTimelineItemEvent::from(&e)),
+            direct_user_id,
+            notification_count: room.read_receipts().num_unread,
+            is_marked_unread: room.is_marked_unread(),
+            joined_member_count: room_info.joined_members_count(),
+            is_preview: false,
+            is_public: Some(room.encryption_settings().is_none()),
+            room_state: match room_info.state() {
+                RoomState::Joined => RpcMatrixRoomState::Joined,
+                RoomState::Left => RpcMatrixRoomState::Left,
+                RoomState::Invited => RpcMatrixRoomState::Invited,
+                RoomState::Knocked => RpcMatrixRoomState::Knocked,
+                RoomState::Banned => RpcMatrixRoomState::Banned,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcPublicRoomInfo {
+    pub id: String,
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+    #[ts(type = "number")]
+    pub joined_member_count: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFormattedBody {
+    pub format: String,
+    pub formatted_body: String,
+}
+
+impl From<&ruma_events::room::message::FormattedBody> for RpcFormattedBody {
+    fn from(formatted: &ruma_events::room::message::FormattedBody) -> Self {
+        Self {
+            format: formatted.format.to_string(),
+            formatted_body: formatted.body.clone(),
+        }
+    }
+}
+
+// Shared base for text-like messages (text, notice, emote)
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcTextLikeContent {
+    pub body: String,
+    pub formatted: Option<RpcFormattedBody>,
+}
+
+impl From<&ruma_events::room::message::TextMessageEventContent> for RpcTextLikeContent {
+    fn from(content: &ruma_events::room::message::TextMessageEventContent) -> Self {
+        Self {
+            body: content.body.clone(),
+            formatted: content.formatted.as_ref().map(RpcFormattedBody::from),
+        }
+    }
+}
+
+impl From<&ruma_events::room::message::NoticeMessageEventContent> for RpcTextLikeContent {
+    fn from(content: &ruma_events::room::message::NoticeMessageEventContent) -> Self {
+        Self {
+            body: content.body.clone(),
+            formatted: content.formatted.as_ref().map(RpcFormattedBody::from),
+        }
+    }
+}
+
+impl From<&ruma_events::room::message::EmoteMessageEventContent> for RpcTextLikeContent {
+    fn from(content: &ruma_events::room::message::EmoteMessageEventContent) -> Self {
+        Self {
+            body: content.body.clone(),
+            formatted: content.formatted.as_ref().map(RpcFormattedBody::from),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[ts(export)]
+pub struct RpcMediaSource(#[ts(type = "Opaque<unknown, 'MediaSource'>")] MediaSource);
+
+impl From<&MediaSource> for RpcMediaSource {
+    fn from(source: &MediaSource) -> Self {
+        RpcMediaSource(source.clone())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFileInfo {
+    pub mimetype: Option<String>,
+    #[ts(as = "Option<u32>")]
+    pub size: Option<u64>,
+    pub thumbnail_info: Option<Box<RpcThumbnailInfo>>,
+    pub thumbnail_source: Option<RpcMediaSource>,
+}
+
+impl From<&ruma_events::room::message::FileInfo> for RpcFileInfo {
+    fn from(info: &ruma_events::room::message::FileInfo) -> Self {
+        Self {
+            mimetype: info.mimetype.clone(),
+            size: info.size.map(|s| s.into()),
+            thumbnail_info: info
+                .thumbnail_info
+                .as_ref()
+                .map(|ti| Box::new(RpcThumbnailInfo::from(ti.as_ref()))),
+            thumbnail_source: info.thumbnail_source.as_ref().map(RpcMediaSource::from),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcImageInfo {
+    #[ts(as = "Option<u32>")]
+    pub height: Option<u64>,
+    #[ts(as = "Option<u32>")]
+    pub width: Option<u64>,
+    pub mimetype: Option<String>,
+    #[ts(as = "Option<u32>")]
+    pub size: Option<u64>,
+    pub thumbnail_info: Option<Box<RpcThumbnailInfo>>,
+    pub thumbnail_source: Option<RpcMediaSource>,
+}
+
+impl From<&ruma_events::room::ImageInfo> for RpcImageInfo {
+    fn from(info: &ruma_events::room::ImageInfo) -> Self {
+        Self {
+            height: info.height.map(|h| h.into()),
+            width: info.width.map(|w| w.into()),
+            mimetype: info.mimetype.clone(),
+            size: info.size.map(|s| s.into()),
+            thumbnail_info: info
+                .thumbnail_info
+                .as_ref()
+                .map(|ti| Box::new(RpcThumbnailInfo::from(ti.as_ref()))),
+            thumbnail_source: info.thumbnail_source.as_ref().map(RpcMediaSource::from),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcThumbnailInfo {
+    #[ts(as = "Option<u32>")]
+    pub height: Option<u64>,
+    #[ts(as = "Option<u32>")]
+    pub width: Option<u64>,
+    pub mimetype: Option<String>,
+    #[ts(as = "Option<u32>")]
+    pub size: Option<u64>,
+}
+
+impl From<&ruma_events::room::ThumbnailInfo> for RpcThumbnailInfo {
+    fn from(info: &ruma_events::room::ThumbnailInfo) -> Self {
+        Self {
+            height: info.height.map(|h| h.into()),
+            width: info.width.map(|w| w.into()),
+            mimetype: info.mimetype.clone(),
+            size: info.size.map(|s| s.into()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcVideoInfo {
+    #[ts(as = "Option<u32>")]
+    pub duration: Option<u64>,
+    #[ts(as = "Option<u32>")]
+    pub height: Option<u64>,
+    #[ts(as = "Option<u32>")]
+    pub width: Option<u64>,
+    pub mimetype: Option<String>,
+    #[ts(as = "Option<u32>")]
+    pub size: Option<u64>,
+    pub thumbnail_info: Option<Box<RpcThumbnailInfo>>,
+    pub thumbnail_source: Option<RpcMediaSource>,
+}
+
+impl From<&ruma_events::room::message::VideoInfo> for RpcVideoInfo {
+    fn from(info: &ruma_events::room::message::VideoInfo) -> Self {
+        Self {
+            duration: info.duration.map(|d| d.as_millis() as u64),
+            height: info.height.map(|h| h.into()),
+            width: info.width.map(|w| w.into()),
+            mimetype: info.mimetype.clone(),
+            size: info.size.map(|s| s.into()),
+            thumbnail_info: info
+                .thumbnail_info
+                .as_ref()
+                .map(|ti| Box::new(RpcThumbnailInfo::from(ti.as_ref()))),
+            thumbnail_source: info.thumbnail_source.as_ref().map(RpcMediaSource::from),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcAudioInfo {
+    #[ts(as = "Option<u32>")]
+    pub duration: Option<u64>,
+    pub mimetype: Option<String>,
+    #[ts(as = "Option<u32>")]
+    pub size: Option<u64>,
+}
+
+impl From<&ruma_events::room::message::AudioInfo> for RpcAudioInfo {
+    fn from(info: &ruma_events::room::message::AudioInfo) -> Self {
+        Self {
+            duration: info.duration.map(|d| d.as_millis() as u64),
+            mimetype: info.mimetype.clone(),
+            size: info.size.map(|s| s.into()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcMediaContent {
+    pub body: String,
+    pub formatted: Option<RpcFormattedBody>,
+    pub filename: Option<String>,
+    pub source: RpcMediaSource,
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFileMessageContent {
+    #[serde(flatten)]
+    pub content: RpcMediaContent,
+    pub info: Option<RpcFileInfo>,
+}
+
+impl From<&ruma_events::room::message::FileMessageEventContent> for RpcFileMessageContent {
+    fn from(content: &ruma_events::room::message::FileMessageEventContent) -> Self {
+        Self {
+            content: RpcMediaContent {
+                body: content.body.clone(),
+                formatted: content.formatted.as_ref().map(RpcFormattedBody::from),
+                filename: content.filename.clone(),
+                source: RpcMediaSource::from(&content.source),
+            },
+            info: content.info.as_ref().map(|i| RpcFileInfo::from(i.as_ref())),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcImageMessageContent {
+    #[serde(flatten)]
+    pub content: RpcMediaContent,
+    pub info: Option<RpcImageInfo>,
+}
+
+impl From<&ruma_events::room::message::ImageMessageEventContent> for RpcImageMessageContent {
+    fn from(content: &ruma_events::room::message::ImageMessageEventContent) -> Self {
+        Self {
+            content: RpcMediaContent {
+                body: content.body.clone(),
+                formatted: content.formatted.as_ref().map(RpcFormattedBody::from),
+                filename: content.filename.clone(),
+                source: RpcMediaSource::from(&content.source),
+            },
+            info: content
+                .info
+                .as_ref()
+                .map(|i| RpcImageInfo::from(i.as_ref())),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcVideoMessageContent {
+    #[serde(flatten)]
+    pub content: RpcMediaContent,
+    pub info: Option<RpcVideoInfo>,
+}
+
+impl From<&ruma_events::room::message::VideoMessageEventContent> for RpcVideoMessageContent {
+    fn from(content: &ruma_events::room::message::VideoMessageEventContent) -> Self {
+        Self {
+            content: RpcMediaContent {
+                body: content.body.clone(),
+                formatted: content.formatted.as_ref().map(RpcFormattedBody::from),
+                filename: content.filename.clone(),
+                source: RpcMediaSource::from(&content.source),
+            },
+            info: content
+                .info
+                .as_ref()
+                .map(|i| RpcVideoInfo::from(i.as_ref())),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcAudioMessageContent {
+    #[serde(flatten)]
+    pub content: RpcMediaContent,
+    pub info: Option<RpcAudioInfo>,
+}
+
+impl From<&ruma_events::room::message::AudioMessageEventContent> for RpcAudioMessageContent {
+    fn from(content: &ruma_events::room::message::AudioMessageEventContent) -> Self {
+        Self {
+            content: RpcMediaContent {
+                body: content.body.clone(),
+                formatted: content.formatted.as_ref().map(RpcFormattedBody::from),
+                filename: content.filename.clone(),
+                source: RpcMediaSource::from(&content.source),
+            },
+            info: content
+                .info
+                .as_ref()
+                .map(|i| RpcAudioInfo::from(i.as_ref())),
+        }
+    }
+}
+
+// Custom Fedi event types
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum RpcMatrixPaymentStatus {
+    Pushed,
+    Requested,
+    Accepted,
+    Rejected,
+    Canceled,
+    Received,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcPaymentMessageContent {
+    pub body: String,
+    pub status: RpcMatrixPaymentStatus,
+    pub payment_id: String,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recipient_id: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_operation_id: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub receiver_operation_id: Option<String>,
+    #[ts(type = "number")]
+    pub amount: u64,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_id: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ecash: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub federation_id: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bolt11: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invite_code: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcFormType {
+    #[serde(rename = "text")]
+    Text,
+    #[serde(rename = "radio")]
+    Radio,
+    #[serde(rename = "button")]
+    Button,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFormOption {
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub i18n_key_label: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFormResponse {
+    pub response_type: Option<RpcFormType>,
+    pub response_value: RpcFormResponseValue,
+    pub response_body: Option<String>,
+    pub response_i18n_key: Option<String>,
+    pub responding_to_event_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(untagged)]
+#[ts(export)]
+pub enum RpcFormResponseValue {
+    String(String),
+    Number(#[ts(type = "number")] u64),
+    Bool(bool),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFormMessageContent {
+    pub body: String,
+    pub i18n_key_label: Option<String>,
+    #[serde(rename = "type")]
+    pub form_type: Option<RpcFormType>,
+    pub options: Option<Vec<RpcFormOption>>,
+    pub value: Option<String>,
+    pub form_response: Option<RpcFormResponse>,
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+#[serde(tag = "msgtype")]
+pub enum RpcMsgLikeKind {
+    #[serde(rename = "m.text")]
+    Text(RpcTextLikeContent),
+    #[serde(rename = "m.notice")]
+    Notice(RpcTextLikeContent),
+    #[serde(rename = "m.emote")]
+    Emote(RpcTextLikeContent),
+    #[serde(rename = "xyz.fedi.federationInvite")]
+    FederationInvite(RpcTextLikeContent),
+    #[serde(rename = "m.file")]
+    File(RpcFileMessageContent),
+    #[serde(rename = "m.image")]
+    Image(RpcImageMessageContent),
+    #[serde(rename = "m.video")]
+    Video(RpcVideoMessageContent),
+    #[serde(rename = "m.audio")]
+    Audio(RpcAudioMessageContent),
+    #[serde(rename = "m.poll")]
+    Poll(RpcPollResult),
+    #[serde(rename = "xyz.fedi.payment")]
+    Payment(RpcPaymentMessageContent),
+    #[serde(rename = "xyz.fedi.form")]
+    Form(RpcFormMessageContent),
+    #[serde(rename = "xyz.fedi.multispend")]
+    Multispend(MultispendEvent),
+    FailedToParseCustom {
+        msg_type: String,
+        error: String,
+    },
+    Unknown,
+    Redacted,
+    UnableToDecrypt,
+}
+
+impl From<&RumaMessageType> for RpcMsgLikeKind {
+    fn from(value: &RumaMessageType) -> Self {
+        fn parse_custom_msg<T, F>(msg: &RumaMessageType, constructor: F) -> RpcMsgLikeKind
+        where
+            T: for<'de> Deserialize<'de>,
+            F: Fn(T) -> RpcMsgLikeKind,
+        {
+            let msg_type_str = msg.msgtype();
+            let mut object = msg.data().into_owned();
+            object.insert("body".into(), msg.body().into());
+            match serde_json::from_value(serde_json::Value::Object(object)) {
+                Ok(content) => constructor(content),
+                Err(e) => RpcMsgLikeKind::FailedToParseCustom {
+                    msg_type: msg_type_str.to_string(),
+                    error: e.to_string(),
+                },
+            }
+        }
+
+        match value {
+            RumaMessageType::Text(content)
+                if content.body.starts_with("fed1")
+                    && InviteCode::from_str(&content.body).is_ok() =>
+            {
+                RpcMsgLikeKind::FederationInvite(content.into())
+            }
+            RumaMessageType::Text(content) => RpcMsgLikeKind::Text(content.into()),
+            RumaMessageType::Notice(content) => {
+                RpcMsgLikeKind::Notice(RpcTextLikeContent::from(content))
+            }
+            RumaMessageType::Emote(content) => {
+                RpcMsgLikeKind::Emote(RpcTextLikeContent::from(content))
+            }
+            RumaMessageType::File(content) => {
+                RpcMsgLikeKind::File(RpcFileMessageContent::from(content))
+            }
+            RumaMessageType::Image(content) => {
+                RpcMsgLikeKind::Image(RpcImageMessageContent::from(content))
+            }
+            RumaMessageType::Video(content) => {
+                RpcMsgLikeKind::Video(RpcVideoMessageContent::from(content))
+            }
+            RumaMessageType::Audio(content) => {
+                RpcMsgLikeKind::Audio(RpcAudioMessageContent::from(content))
+            }
+            RumaMessageType::Location(_)
+            | RumaMessageType::ServerNotice(_)
+            | RumaMessageType::VerificationRequest(_) => RpcMsgLikeKind::Unknown,
+            msg => match msg.msgtype() {
+                "xyz.fedi.multispend" => parse_custom_msg(msg, RpcMsgLikeKind::Multispend),
+                "xyz.fedi.form" => parse_custom_msg(msg, RpcMsgLikeKind::Form),
+                "xyz.fedi.payment" => parse_custom_msg(msg, RpcMsgLikeKind::Payment),
+                _ => RpcMsgLikeKind::Unknown,
+            },
+        }
+    }
+}
+
+impl From<&MsgLikeKind> for RpcMsgLikeKind {
+    fn from(value: &MsgLikeKind) -> Self {
+        match &value {
+            MsgLikeKind::Message(message) => RpcMsgLikeKind::from(message.msgtype()),
+            MsgLikeKind::Poll(poll_state) => {
+                RpcMsgLikeKind::Poll(RpcPollResult::from(poll_state.results()))
+            }
+            MsgLikeKind::Redacted => RpcMsgLikeKind::Redacted,
+            MsgLikeKind::Sticker(_) => RpcMsgLikeKind::Unknown,
+            MsgLikeKind::UnableToDecrypt(_) => RpcMsgLikeKind::UnableToDecrypt,
         }
     }
 }

@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
-    selectActiveFederationId,
+    selectLastUsedFederationId,
     selectIsInternetUnreachable,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
@@ -52,7 +52,7 @@ export const OmniLinkContextProvider: React.FC<{
     children: React.ReactNode
 }> = ({ children }) => {
     const { t } = useTranslation()
-    const federationId = useAppSelector(selectActiveFederationId)
+    const federationId = useAppSelector(selectLastUsedFederationId)
     const [isParsingLink, setIsParsingLink] = useState(false)
     const [parsedLink, setParsedLink] = useState<AnyParsedData | null>(null)
     const interceptorsRef = useRef<OmniLinkInterceptFunction[]>([])

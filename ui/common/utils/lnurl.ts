@@ -180,10 +180,10 @@ export function lnurlWithdraw(
                 .rpcResult('generateInvoice', {
                     federationId,
                     amount,
-                    description: note || '',
+                    description: note ?? '',
                     expiry: null,
                     frontendMetadata: {
-                        initialNotes: null,
+                        initialNotes: note ?? '',
                         recipientMatrixId: null,
                         senderMatrixId: null,
                     },

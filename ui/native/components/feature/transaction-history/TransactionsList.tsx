@@ -3,13 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTxnDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectActiveFederationId } from '@fedi/common/redux'
 import { updateTransactionNotes } from '@fedi/common/redux/transactions'
-import { TransactionListEntry } from '@fedi/common/types'
+import { Federation, TransactionListEntry } from '@fedi/common/types'
 import { makeTransactionAmountState } from '@fedi/common/utils/wallet'
 
 import { fedimint } from '../../../bridge'
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import { useAppDispatch } from '../../../state/hooks'
 import { HistoryList } from './HistoryList'
 import { TransactionIcon } from './TransactionIcon'
 
@@ -17,18 +16,19 @@ type TransactionsListProps = {
     transactions: TransactionListEntry[]
     loading?: boolean
     loadMoreTransactions?: () => void
+    federationId: Federation['id']
 }
 
 const TransactionsList: React.FC<TransactionsListProps> = ({
     transactions,
     loading,
     loadMoreTransactions,
+    federationId,
 }) => {
     const [isUpdating, setIsUpdating] = useState(false)
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const toast = useToast()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
     const {
         getCurrencyText,
         getShowAskFedi,
@@ -39,10 +39,11 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
         makeTxnTypeText,
         makeTxnStatusText,
         makeTxnDetailTitleText,
-    } = useTxnDisplayUtils(t)
+    } = useTxnDisplayUtils(t, federationId, false)
 
     return (
         <HistoryList
+            federationId={federationId}
             rows={transactions}
             loading={loading}
             makeIcon={txn => <TransactionIcon txn={txn} />}
@@ -61,20 +62,20 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                 title: makeTxnDetailTitleText(txn),
                 items: makeTxnDetailItems(txn),
                 amount: makeTxnAmountText(txn, true),
-                notes: txn.txnNotes,
+                notes: makeTxnNotesText(txn),
                 txn,
                 onSaveNotes: async (notes: string) => {
                     if (isUpdating) return // Prevent multiple simultaneous updates
 
                     try {
                         setIsUpdating(true)
-                        if (!activeFederationId)
+                        if (!federationId)
                             throw new Error('errors.unknown-error')
                         await dispatch(
                             updateTransactionNotes({
                                 fedimint,
                                 notes,
-                                federationId: activeFederationId,
+                                federationId,
                                 transactionId: txn.id,
                             }),
                         ).unwrap()

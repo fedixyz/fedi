@@ -1,5 +1,4 @@
 import { useNavigation } from '@react-navigation/native'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator } from 'react-native'
 
@@ -22,11 +21,16 @@ export default function FederationGate({
     children,
     fallbackContent,
 }: Props) {
-    const [isJoining, setIsJoining] = useState(true)
     const navigation = useNavigation()
     const { t } = useTranslation()
-    const { isFetchingPreview, federationPreview, isMember, handleJoin } =
-        useFederationMembership(t, fedimint, federationId, inviteCode)
+    const {
+        isJoining,
+        setIsJoining,
+        isFetchingPreview,
+        federationPreview,
+        isMember,
+        handleJoin,
+    } = useFederationMembership(t, fedimint, federationId, inviteCode)
 
     const handleBack = () => {
         if (navigation.canGoBack()) navigation.goBack()
@@ -52,6 +56,7 @@ export default function FederationGate({
                                     handleJoin(() => setIsJoining(false))
                                 }
                                 onBack={handleBack}
+                                isJoining={isJoining}
                             />
                         ),
                 }}

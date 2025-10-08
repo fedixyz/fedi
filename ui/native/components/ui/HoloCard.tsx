@@ -1,9 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { ImageBackground, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
 
-import { Images } from '../../assets/images'
 import Flex from './Flex'
+import GradientView from './GradientView'
 
 type HoloCardProps = {
     iconImage?: React.ReactNode | null
@@ -21,10 +21,7 @@ const HoloCard: React.FC<HoloCardProps> = ({
     const style = styles(theme)
 
     return (
-        <ImageBackground
-            source={Images.HoloBackground}
-            style={style.container}
-            imageStyle={style.roundedBorder}>
+        <GradientView variant="sky-banner" style={style.container}>
             <Flex align="center" fullWidth style={style.innerContainer}>
                 {iconImage}
 
@@ -35,7 +32,7 @@ const HoloCard: React.FC<HoloCardProps> = ({
                 )}
                 {body}
             </Flex>
-        </ImageBackground>
+        </GradientView>
     )
 }
 
@@ -45,6 +42,7 @@ const styles = (theme: Theme) =>
             width: '100%',
             alignItems: 'center',
             marginVertical: theme.spacing.xs,
+            borderRadius: theme.borders.defaultRadius,
         },
         iconImage: {
             height: theme.sizes.sm,
@@ -52,9 +50,6 @@ const styles = (theme: Theme) =>
         },
         innerContainer: {
             padding: theme.spacing.xl,
-        },
-        roundedBorder: {
-            borderRadius: theme.borders.defaultRadius,
         },
         titleText: {
             marginVertical: theme.spacing.md,

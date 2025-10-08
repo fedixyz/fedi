@@ -26,7 +26,12 @@ const RecoverFromNonceReuse: React.FC<Props> = () => {
                     {t('feature.recovery.continue-recovery-description')}
                 </Text>
             </Flex>
-            <Button onPress={() => navigation.navigate('TabsNavigator')}>
+            <Button
+                onPress={() =>
+                    navigation.navigate('TabsNavigator', {
+                        initialRouteName: 'Federations',
+                    })
+                }>
                 {t('words.okay')}
             </Button>
         </SafeAreaContainer>

@@ -6,14 +6,13 @@ import { ActivityIndicator, Image, StyleSheet, View } from 'react-native'
 import Video, { VideoRef } from 'react-native-video'
 
 import { MatrixEvent } from '@fedi/common/types'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
-    event: MatrixEvent<MatrixEventContentType<'xyz.fedi.preview-media'>>
+    event: MatrixEvent<'xyz.fedi.preview-media'>
 }
 
 /**

@@ -7,12 +7,7 @@ import type {
     SignMessageResponse,
 } from 'webln'
 
-import {
-    EcashRequest,
-    LoadedFederationListItem,
-    MSats,
-    SupportedCurrency,
-} from '@fedi/common/types'
+import { EcashRequest, MSats, SupportedCurrency } from '@fedi/common/types'
 
 import { SignedNostrEvent, UnsignedNostrEvent } from './injectables/nostr/types'
 
@@ -33,7 +28,6 @@ export enum InjectionMessageType {
     fedi_generateEcash = 'fedi_generateEcash',
     fedi_receiveEcash = 'fedi_receiveEcash',
     fedi_getAuthenticatedMember = 'fedi_getAuthenticatedMember',
-    fedi_getActiveFederation = 'fedi_getActiveFederation',
     fedi_getCurrencyCode = 'fedi_getCurrencyCode',
     fedi_getLanguageCode = 'fedi_getLanguageCode',
 }
@@ -117,10 +111,6 @@ export type InjectionMessageResponseMap = {
     [InjectionMessageType.fedi_getAuthenticatedMember]: {
         message: void
         response: { id: string; username: string }
-    }
-    [InjectionMessageType.fedi_getActiveFederation]: {
-        message: void
-        response: Pick<LoadedFederationListItem, 'id' | 'name' | 'network'>
     }
     [InjectionMessageType.fedi_getCurrencyCode]: {
         message: void

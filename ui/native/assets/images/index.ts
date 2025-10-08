@@ -19,6 +19,7 @@ export const Images: ImagesMap = {
     FallbackInset: require('@fedi/common/assets/images/fallback-inset.png'),
     AwesomeFedimint: require('@fedi/common/assets/images/awesome-fedimint.png'),
     CommunityCreate: require('@fedi/common/assets/images/community-create-graphic.png'),
+    FederationCreate: require('@fedi/common/assets/images/federation-create-graphic.png'),
     WelcomeBackground: require('@fedi/common/assets/images/welcome-bg.png'),
     Red: require('@fedi/common/assets/images/red.png'),
     RateFederationBackground: require('@fedi/common/assets/images/rate-federation-bg.png'),
@@ -50,3 +51,10 @@ export const FediModImages: ImagesMap = {
     wavlake: require('@fedi/common/assets/images/fedimods/wavlake.png'),
     support: require('@fedi/common/assets/images/fedimods/support.png'),
 }
+
+export const FediLoaders: ImageSourcePropType[] = [
+    require('./loader/Fedi-Loading1.gif'),
+    require('./loader/Fedi-Loading2.gif'),
+    require('./loader/Fedi-Loading3.gif'),
+    require('./loader/Fedi-Loading4.gif'),
+]

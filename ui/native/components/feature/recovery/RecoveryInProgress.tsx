@@ -3,6 +3,7 @@ import React from 'react'
 import { StyleSheet } from 'react-native'
 
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
+import { Federation } from '@fedi/common/types'
 
 import { fedimint } from '../../../bridge'
 import Flex from '../../ui/Flex'
@@ -10,13 +11,13 @@ import HoloLoader from '../../ui/HoloLoader'
 
 export type Props = {
     label?: string
-    federationId?: string
+    federationId?: Federation['id']
     size?: number
 }
 
 const RecoveryInProgress: React.FC<Props> = ({
     label,
-    federationId,
+    federationId = '',
     size = 100,
 }: Props) => {
     const { theme } = useTheme()

@@ -123,6 +123,11 @@ export const GeneralSettings = () => {
                 onPress={() => launchZendesk()}
             />
             <SettingsItem
+                icon="Settings"
+                label={t('feature.settings.app-settings')}
+                onPress={() => navigation.navigate('AppSettings')}
+            />
+            <SettingsItem
                 icon="SpeakerPhone"
                 label={t('feature.notifications.notification-settings')}
                 actionIcon="ExternalLink"

@@ -11,13 +11,16 @@ import PersonalBackupHeader from '../components/feature/backup/PersonalBackupHea
 import RecoveryWordsHeader from '../components/feature/backup/RecoveryWordsHeader'
 import SocialBackupHeader from '../components/feature/backup/SocialBackupHeader'
 import ChatConversationHeader from '../components/feature/chat/ChatConversationHeader'
+import ChatConversationSearchHeader from '../components/feature/chat/ChatConversationSearchHeader'
+import ChatRoomMembersHeader from '../components/feature/chat/ChatRoomMembersHeader'
+import ChatsListSearchHeader from '../components/feature/chat/ChatsListSearchHeader'
 import ConfirmJoinPublicGroupHeader from '../components/feature/chat/ConfirmJoinPublicGroupHeader'
 import CreatePollHeader from '../components/feature/chat/CreatePollHeader'
 import DefaultChatHeader from '../components/feature/chat/DefaultChatHeader'
+import CommunityDetailsHeader from '../components/feature/federations/CommunityDetailsHeader'
 import FederationDetailsHeader from '../components/feature/federations/FederationDetailsHeader'
 import FederationInviteHeader from '../components/feature/federations/FederationInviteHeader'
 import JoinFederationHeader from '../components/feature/federations/JoinFederationHeader'
-import PopupFederationEndedHeader from '../components/feature/federations/PopupFederationEndedHeader'
 import NostrSettingsHeader from '../components/feature/fedimods/NostrSettingsHeader'
 import EulaHeader from '../components/feature/onboarding/EulaHeader'
 import NewMemberAvatarImageHeader from '../components/feature/onboarding/NewMemberAvatarImageHeader'
@@ -71,9 +74,11 @@ import { MSats } from '../types'
 import { MAIN_NAVIGATOR_ID, RootStackParamList } from '../types/navigation'
 import { useIsFeatureUnlocked } from '../utils/hooks/security'
 import AddFediMod from './AddFediMod'
+import AppSettings from './AppSettings'
 import AssignMultispendVoters from './AssignMultispendVoters'
 import BitcoinRequest from './BitcoinRequest'
 import BugReportSuccess from './BugReportSuccess'
+import ChatConversationSearch from './ChatConversationSearch'
 import ChatImageViewer from './ChatImageViewer'
 import ChatRoomConversation from './ChatRoomConversation'
 import ChatRoomInvite from './ChatRoomInvite'
@@ -81,8 +86,10 @@ import ChatRoomMembers from './ChatRoomMembers'
 import ChatUserConversation from './ChatUserConversation'
 import ChatVideoViewer from './ChatVideoViewer'
 import ChatWallet from './ChatWallet'
+import ChatsListSearch from './ChatsListSearch'
 import ChooseBackupMethod from './ChooseBackupMethod'
 import ChooseRecoveryMethod from './ChooseRecoveryMethod'
+import CommunityDetails from './CommunityDetails'
 import CompleteRecoveryAssist from './CompleteRecoveryAssist'
 import CompleteSocialBackup from './CompleteSocialBackup'
 import CompleteSocialRecovery from './CompleteSocialRecovery'
@@ -130,10 +137,11 @@ import MultispendTransactions from './MultispendTransactions'
 import MultispendWithdraw from './MultispendWithdraw'
 import NewMessage from './NewMessage'
 import NostrSettings from './NostrSettings'
+import OmniScanner from './OmniScanner'
 import PersonalRecovery from './PersonalRecovery'
 import PersonalRecoverySuccess from './PersonalRecoverySuccess'
 import PinAccess from './PinAccess'
-import PopupFederationEnded from './PopupFederationEnded'
+import PublicCommunities from './PublicCommunities'
 import PublicFederations from './PublicFederations'
 import Receive from './Receive'
 import ReceiveLightning from './ReceiveLightning'
@@ -230,8 +238,6 @@ export const MainNavigator = () => {
             initialRouteName={'Initializing'}
             id={MAIN_NAVIGATOR_ID}>
             <>
-                {/* This group of screens may render regardless of the value of
-                 activeFederation */}
                 <Stack.Group
                     screenOptions={{
                         animation: 'fade',
@@ -276,6 +282,18 @@ export const MainNavigator = () => {
                             header: () => (
                                 <CenteredHeader
                                     title={t('phrases.join-a-federation')}
+                                />
+                            ),
+                        })}
+                    />
+                    <Stack.Screen
+                        name="PublicCommunities"
+                        component={PublicCommunities}
+                        options={() => ({
+                            header: () => (
+                                <CenteredHeader
+                                    backButton
+                                    title={t('phrases.join-a-community')}
                                 />
                             ),
                         })}
@@ -350,13 +368,6 @@ export const MainNavigator = () => {
                         })}
                     />
                 </Stack.Group>
-                {/*
-                    This group of screens relies on a non-null activeFederation
-                    in the federation reducer because they contain API calls to
-                    the FFI NativeModule. Since it is possible to store multiple
-                    federation connections in-app, each call requires a
-                    Federation to be specified
-                */}
                 {isAppUnlocked ? (
                     <Stack.Group>
                         <Stack.Group
@@ -368,6 +379,18 @@ export const MainNavigator = () => {
                                 name="TabsNavigator"
                                 component={TabsNavigator}
                                 options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                                name="OmniScanner"
+                                component={OmniScanner}
+                                options={{
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t('words.scan')}
+                                        />
+                                    ),
+                                }}
                             />
                             {/* FediMods */}
                             <Stack.Screen
@@ -422,6 +445,22 @@ export const MainNavigator = () => {
                                     })}
                                 />
                                 <Stack.Screen
+                                    name="ChatsListSearch"
+                                    component={ChatsListSearch}
+                                    options={() => ({
+                                        header: () => <ChatsListSearchHeader />,
+                                    })}
+                                />
+                                <Stack.Screen
+                                    name="ChatConversationSearch"
+                                    component={ChatConversationSearch}
+                                    options={() => ({
+                                        header: () => (
+                                            <ChatConversationSearchHeader />
+                                        ),
+                                    })}
+                                />
+                                <Stack.Screen
                                     name="ScanMemberCode"
                                     component={ScanMemberCode}
                                     options={() => ({
@@ -446,6 +485,9 @@ export const MainNavigator = () => {
                                 <Stack.Screen
                                     name="ChatRoomMembers"
                                     component={ChatRoomMembers}
+                                    options={() => ({
+                                        header: () => <ChatRoomMembersHeader />,
+                                    })}
                                 />
                                 <Stack.Screen
                                     name="ChatRoomInvite"
@@ -745,6 +787,7 @@ export const MainNavigator = () => {
                                         <CenteredHeader
                                             backButton
                                             closeButton
+                                            closeRoute="Federations"
                                             title={t('words.lnurl')}
                                         />
                                     ),
@@ -969,16 +1012,6 @@ export const MainNavigator = () => {
                                     ),
                                 })}
                             />
-                            {/* Popup federations */}
-                            <Stack.Screen
-                                name="PopupFederationEnded"
-                                component={PopupFederationEnded}
-                                options={() => ({
-                                    header: () => (
-                                        <PopupFederationEndedHeader />
-                                    ),
-                                })}
-                            />
                             {/* Settings */}
                             <Stack.Screen
                                 name="Settings"
@@ -1112,10 +1145,31 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
+                                name="AppSettings"
+                                component={AppSettings}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.settings.app-settings',
+                                            )}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
                                 name="FederationDetails"
                                 component={FederationDetails}
                                 options={() => ({
                                     header: () => <FederationDetailsHeader />,
+                                })}
+                            />
+                            <Stack.Screen
+                                name="CommunityDetails"
+                                component={CommunityDetails}
+                                options={() => ({
+                                    header: () => <CommunityDetailsHeader />,
                                 })}
                             />
                             <Stack.Screen

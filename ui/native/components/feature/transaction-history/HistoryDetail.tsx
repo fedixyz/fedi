@@ -12,13 +12,11 @@ import {
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTransactionHistory } from '@fedi/common/hooks/transactions'
-import { selectActiveFederationId } from '@fedi/common/redux'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
-import { useAppSelector } from '../../../state/hooks'
-import { TransactionListEntry } from '../../../types'
+import { Federation, TransactionListEntry } from '../../../types'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
@@ -34,6 +32,7 @@ export type HistoryDetailProps = {
     notes?: string
     onSaveNotes?: (notes: string) => void
     onClose: () => void
+    federationId?: Federation['id']
 }
 
 const log = makeLog(
@@ -51,6 +50,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     notes: propsNotes,
     onSaveNotes,
     onClose,
+    federationId = '',
 }) => {
     const inputRef = useRef<TextInput | null>(null)
     const { theme } = useTheme()
@@ -58,9 +58,8 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     const [notes, setNotes] = useState<string>(propsNotes || '')
     const [isFocused, setIsFocused] = useState(false)
     const [checkLoading, setCheckLoading] = useState(false)
-    const activeFederationId = useAppSelector(selectActiveFederationId)
     const toast = useToast()
-    const { fetchTransactions } = useTransactionHistory(fedimint)
+    const { fetchTransactions } = useTransactionHistory(fedimint, federationId)
 
     // If notes prop changes, update notes state
     useEffect(() => {
@@ -88,12 +87,12 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     }, [handleSaveNotes, onClose])
 
     const handleCheckIncomingFunds = useCallback(async () => {
-        if (!activeFederationId) return
+        if (!federationId) return
 
         setCheckLoading(true)
         try {
             await fedimint.recheckPeginAddress({
-                federationId: activeFederationId,
+                federationId: federationId,
                 operationId: id,
             })
             const transactions = await fetchTransactions()
@@ -120,7 +119,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
         } finally {
             setCheckLoading(false)
         }
-    }, [activeFederationId, id, fetchTransactions, t, toast])
+    }, [federationId, id, fetchTransactions, t, toast])
 
     const style = styles(theme)
 

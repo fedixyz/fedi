@@ -33,20 +33,24 @@ const StabilityConfirmWithdraw: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const { amountSats, amountCents } = route.params
+    const { amountSats, amountCents, federationId = '' } = route.params
     const toast = useToast()
     const [processingDeposit, setProcessingDeposit] = useState<boolean>(false)
     const [showDetails, setShowDetails] = useState<boolean>(false)
     const { convertSatsToFormattedFiat, convertCentsToFormattedFiat } =
         useBtcFiatPrice()
-    const version = useAppSelector(selectStabilityPoolVersion)
+    const version = useAppSelector(s =>
+        selectStabilityPoolVersion(s, federationId),
+    )
 
     const formattedFiat =
         version === 2
             ? convertCentsToFormattedFiat(amountCents)
             : convertSatsToFormattedFiat(amountSats)
 
-    const depositTime = useAppSelector(s => selectFormattedDepositTime(s, t))
+    const depositTime = useAppSelector(s =>
+        selectFormattedDepositTime(s, federationId, t),
+    )
 
     const handleSubmit = async () => {
         try {
@@ -56,6 +60,7 @@ const StabilityConfirmWithdraw: React.FC<Props> = ({ route, navigation }) => {
                     decreaseStableBalanceV2({
                         fedimint,
                         amount: amountCents,
+                        federationId,
                     }),
                 ).unwrap()
             } else {
@@ -64,11 +69,13 @@ const StabilityConfirmWithdraw: React.FC<Props> = ({ route, navigation }) => {
                     decreaseStableBalanceV1({
                         fedimint,
                         amount: amountMsats,
+                        federationId,
                     }),
                 ).unwrap()
             }
             navigation.replace('StabilityWithdrawInitiated', {
                 formattedFiat,
+                federationId,
             })
         } catch (error) {
             setProcessingDeposit(false)

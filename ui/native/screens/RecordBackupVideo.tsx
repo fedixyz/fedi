@@ -16,9 +16,17 @@ export type Props = NativeStackScreenProps<
     'RecordBackupVideo'
 >
 
-const RecordBackupVideo: React.FC<Props> = () => {
+const RecordBackupVideo: React.FC<Props> = ({ navigation, route }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const { federationId } = route.params
+
+    const onConfirmVideo = (videoFilePath: string) => {
+        navigation.navigate('SocialBackupProcessing', {
+            videoFilePath,
+            federationId,
+        })
+    }
 
     const device = useCameraDevice('front')
 
@@ -34,7 +42,7 @@ const RecordBackupVideo: React.FC<Props> = () => {
                         <ActivityIndicator size="large" />
                     </Flex>
                 ) : (
-                    <BackupVideoRecorder />
+                    <BackupVideoRecorder onConfirmVideo={onConfirmVideo} />
                 )}
             </ScrollView>
         </CameraPermissionsRequired>

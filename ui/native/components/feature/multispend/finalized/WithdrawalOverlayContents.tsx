@@ -119,7 +119,12 @@ function VoterDropdown({
                     )}
                 </Text>
                 <Flex row align="center" gap="sm">
-                    <AvatarStack members={members} />
+                    <AvatarStack
+                        data={members}
+                        renderAvatar={member => (
+                            <ChatAvatar user={member} size={AvatarSize.sm} />
+                        )}
+                    />
                     <SvgImage
                         name={
                             userIds.length === 0

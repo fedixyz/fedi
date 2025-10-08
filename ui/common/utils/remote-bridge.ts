@@ -132,23 +132,38 @@ export class RemoteBridge {
             throw new Error(resultJson.error)
         }
 
-        // web socket and connected
-        if (this.websocket && this.websocket.readyState != 4) return
-        this.websocket = new WebSocket(
+        await this.initializeWebsocket(
             `ws://${rbridgeHost}/${this.deviceId}/events`,
         )
-        this.websocket.onmessage = event => {
-            const data = JSON.parse(event.data)
-            if (data.event && data.data) {
-                const eventType = data.event as keyof FedimintBridgeEventMap
-                if (this.eventEnabled) {
-                    this.fedimint.emit(eventType, JSON.parse(data.data))
+    }
+
+    private initializeWebsocket(connUrl: string) {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            return
+        }
+
+        return new Promise<void>(resolve => {
+            this.websocket = new WebSocket(connUrl)
+
+            this.websocket.onopen = () => {
+                resolve()
+            }
+
+            this.websocket.onmessage = event => {
+                const data = JSON.parse(event.data)
+
+                if (data.event && data.data) {
+                    const eventType = data.event as keyof FedimintBridgeEventMap
+                    if (this.eventEnabled) {
+                        this.fedimint.emit(eventType, JSON.parse(data.data))
+                    }
                 }
             }
-        }
+        })
     }
 
     public shutdown() {
+        this.fedimint.matrixClient = null
         if (this.websocket) {
             this.websocket.close()
             this.websocket = null

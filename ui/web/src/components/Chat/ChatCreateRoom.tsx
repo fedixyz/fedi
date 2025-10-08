@@ -53,6 +53,8 @@ export const ChatCreateRoom: React.FC = () => {
                         id: 'fake-room-id',
                         name: groupName,
                         broadcastOnly: broadcastOnly,
+                        avatarUrl: null,
+                        directUserId: null,
                     }}
                 />
                 <Input

@@ -15,6 +15,8 @@ interface Props {
     open: boolean
     onOpenChange(open: boolean): void
     title?: React.ReactNode
+    titleLeft?: React.ReactNode
+    titleRight?: React.ReactNode
     description?: React.ReactNode
     children: React.ReactNode
     size?: 'sm' | 'md' | 'lg'
@@ -31,6 +33,8 @@ export const Dialog: React.FC<Props> = ({
     open,
     onOpenChange,
     title,
+    titleLeft,
+    titleRight,
     description,
     children,
     size,
@@ -57,22 +61,30 @@ export const Dialog: React.FC<Props> = ({
                 <Header>
                     {title && (
                         <>
-                            <Title>
-                                {!disableClose && mobileDismissBack && (
-                                    <BackButtonContainer>
-                                        <IconButton
-                                            icon={ChevronLeftIcon}
-                                            size="md"
-                                            onClick={() => onOpenChange(false)}
-                                        />
-                                    </BackButtonContainer>
-                                )}
+                            <Title center={isSm}>
+                                <TitleLeft center={isSm}>
+                                    {!disableClose && mobileDismissBack && (
+                                        <BackButtonContainer>
+                                            <IconButton
+                                                icon={ChevronLeftIcon}
+                                                size="md"
+                                                onClick={() =>
+                                                    onOpenChange(false)
+                                                }
+                                            />
+                                        </BackButtonContainer>
+                                    )}
+                                    {titleLeft}
+                                </TitleLeft>
                                 <TitleText
                                     variant="body"
                                     weight="bold"
                                     center={isSm}>
                                     {title}
                                 </TitleText>
+                                <TitleRight center={isSm}>
+                                    {titleRight}
+                                </TitleRight>
                             </Title>
                         </>
                     )}
@@ -93,13 +105,15 @@ export const Dialog: React.FC<Props> = ({
             </>
         )
     }, [
-        children,
+        title,
         description,
         disableClose,
-        isSm,
         mobileDismissBack,
+        isSm,
+        titleLeft,
+        titleRight,
+        children,
         onOpenChange,
-        title,
     ])
 
     return (
@@ -247,20 +261,30 @@ const Title = styled(RadixDialog.Title, {
     marginBottom: 8,
     display: 'flex',
     alignItems: 'center',
-    position: 'relative',
+    gap: 16,
+
+    variants: {
+        center: {
+            true: {
+                display: 'grid',
+                gridTemplateColumns: '1fr auto 1fr',
+            },
+        },
+    },
 })
 
 const BackButtonContainer = styled('div', {
-    position: 'absolute',
-    left: 0,
+    display: 'flex',
+    alignItems: 'center',
 })
 
 const TitleText = styled(Text, {
+    textAlign: 'left',
+    flex: 1,
     variants: {
         center: {
             true: {
                 textAlign: 'center',
-                flex: 1,
             },
         },
     },
@@ -294,5 +318,36 @@ const CloseButton = styled(RadixDialog.Close, {
     '@sm': {
         top: 18,
         right: 18,
+    },
+})
+
+const TitleRight = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+    flexShrink: 0,
+    // Avoids overlap with the close button on desktop
+    paddingRight: 16,
+
+    variants: {
+        center: {
+            true: {
+                justifyContent: 'flex-end',
+                paddingRight: 0,
+            },
+        },
+    },
+})
+
+const TitleLeft = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+    flexShrink: 0,
+
+    variants: {
+        center: {
+            true: {
+                justifyContent: 'flex-start',
+            },
+        },
     },
 })

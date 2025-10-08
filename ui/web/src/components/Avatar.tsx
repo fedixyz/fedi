@@ -113,7 +113,7 @@ const Root = styled(RadixAvatar.Root, {
         },
         holo: {
             true: {
-                holoGradient: '600',
+                fediGradient: 'sky',
             },
         },
     },

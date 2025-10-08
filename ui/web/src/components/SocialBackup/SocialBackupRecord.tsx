@@ -280,7 +280,7 @@ const VideoContainer = styled('div', {
     maxWidth: 320,
     aspectRatio: '1/1',
     padding: 2,
-    holoGradient: '600',
+    fediGradient: 'sky',
     borderRadius: '100%',
     transition: 'opacity 100ms ease',
 
@@ -355,7 +355,7 @@ const PromptContainer = styled('div', {
     minWidth: 200,
     borderRadius: 16,
     padding: 2,
-    holoGradient: '900',
+    fediGradient: 'sky-heavy',
 })
 
 const PromptInner = styled('div', {

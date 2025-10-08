@@ -8,7 +8,6 @@ import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import { MatrixPaymentEvent } from '@fedi/common/types'
 
-import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 import { Button } from '../Button'
 import { CircularLoader } from '../CircularLoader'
@@ -32,7 +31,6 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
         transaction,
     } = useMatrixPaymentEvent({
         event,
-        fedimint,
         t,
         onError: _ => toast.error(t, 'errors.chat-payment-failed'),
         onCopyBolt11: (bolt11: string) => {

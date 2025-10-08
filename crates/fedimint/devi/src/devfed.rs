@@ -100,6 +100,13 @@ impl DevFed {
         info!(target: LOG_DEVIMINT, "Devfed ready");
 
         let devimint = dev_fed.to_dev_fed(&process_mgr).await?;
+        // Expose recurringd API for tests via env override
+        unsafe {
+            std::env::set_var(
+                "TEST_BRIDGE_RECURRINGD_API",
+                devimint.recurringd.api_url.to_string(),
+            )
+        };
         Ok(Self {
             bitcoind: devimint.bitcoind,
             lnd: devimint.lnd,

@@ -12,10 +12,10 @@ import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
 import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
+import { HoloLoader } from '../HoloLoader'
 import { Icon } from '../Icon'
-import { Header, Title } from '../Layout'
+import * as Layout from '../Layout'
 import { Text } from '../Text'
-import { OnboardingContainer, OnboardingContent } from './components'
 
 const getIcon = (iconName: string) => {
     switch (iconName) {
@@ -57,10 +57,8 @@ export const SelectDevice: React.FC = () => {
     const { t } = useTranslation()
     const router = useRouter()
 
-    const { registeredDevices, handleTransfer } = useDeviceRegistration(
-        t,
-        fedimint,
-    )
+    const { isProcessing, registeredDevices, handleTransfer } =
+        useDeviceRegistration(t, fedimint)
 
     const onDeviceSelect = (device: RpcRegisteredDevice) => {
         handleTransfer(device, () => {
@@ -68,12 +66,22 @@ export const SelectDevice: React.FC = () => {
         })
     }
 
+    if (isProcessing) {
+        return (
+            <LoadingWrapper>
+                <HoloLoader size={'xl'} />
+            </LoadingWrapper>
+        )
+    }
+
     return (
-        <OnboardingContainer>
-            <Header back>
-                <Title subheader>{t('feature.recovery.select-a-device')}</Title>
-            </Header>
-            <OnboardingContent fullWidth justify="start">
+        <Layout.Root>
+            <Layout.Header back>
+                <Layout.Title subheader>
+                    {t('feature.recovery.select-a-device')}
+                </Layout.Title>
+            </Layout.Header>
+            <Layout.Content>
                 <Content>
                     {registeredDevices.length === 0 ? (
                         <Text variant="body">
@@ -90,8 +98,8 @@ export const SelectDevice: React.FC = () => {
                         </Devices>
                     )}
                 </Content>
-            </OnboardingContent>
-        </OnboardingContainer>
+            </Layout.Content>
+        </Layout.Root>
     )
 }
 
@@ -99,6 +107,8 @@ const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 10,
+    padding: 20,
+    textAlign: 'left',
 })
 
 const Devices = styled('div', {
@@ -112,6 +122,7 @@ const Device = styled('div', {
     background: theme.colors.offWhite,
     borderRadius: 10,
     boxSizing: 'border-box',
+    cursor: 'pointer',
     display: 'flex',
     minHeight: 50,
     padding: 10,
@@ -132,4 +143,12 @@ const DeviceIconWrapper = styled('div', {
     height: 40,
     justifyContent: 'center',
     width: 40,
+})
+
+const LoadingWrapper = styled('div', {
+    alignItems: 'center',
+    display: 'flex',
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
 })

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
+import { FedimintProvider } from '@fedi/common/components/FedimintProvider'
 import {
     ANDROID_PLAY_STORE_URL,
     IOS_APP_STORE_URL,
@@ -16,6 +17,7 @@ import {
     refreshOnboardingStatus,
     selectOnboardingCompleted,
     selectMatrixAuth,
+    setAppFlavor,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
 import {
@@ -29,6 +31,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import { version } from '../../package.json'
 import { useAppDispatch, useAppSelector, useDeviceQuery } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
+import { getAppFlavor } from '../lib/bridge/worker'
 import { keyframes, styled, theme } from '../styles'
 import { generateDeviceId, isNightly } from '../utils/browserInfo'
 import { isDeepLink, getDeepLinkPath } from '../utils/linking'
@@ -74,6 +77,8 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                     .current(initializeDeviceIdWeb({ deviceId: newDeviceId }))
                     .unwrap()
                 dispatchRef.current(initializePwaVersion({ version }))
+                const appFlavor = getAppFlavor()
+                dispatchRef.current(setAppFlavor(appFlavor))
                 log.info('initializing bridge with deviceId', deviceId)
                 await initializeBridge(deviceId)
 
@@ -229,7 +234,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         return <Redirect path="/home" />
     }
 
-    return children
+    return <FedimintProvider fedimint={fedimint}>{children}</FedimintProvider>
 }
 
 const loaderFadeIn = keyframes({

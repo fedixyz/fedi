@@ -18,6 +18,9 @@ type HoloGradientProps = {
     children?: React.ReactNode
 }
 
+/**
+ * @deprecated use <GradientView /> instead
+ */
 const HoloGradient: React.FC<HoloGradientProps> = ({
     size,
     level = '900',

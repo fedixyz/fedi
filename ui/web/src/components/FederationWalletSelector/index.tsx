@@ -3,11 +3,11 @@ import React, { useCallback, useState } from 'react'
 import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
-    selectWalletFederations,
+    selectLoadedFederations,
     setPayFromFederationId,
     selectPaymentFederation,
 } from '@fedi/common/redux'
-import { FederationListItem, MSats } from '@fedi/common/types'
+import { Federation, MSats } from '@fedi/common/types'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
@@ -19,12 +19,12 @@ import { Text } from '../Text'
 export const FederationWalletSelector: React.FC = () => {
     const dispatch = useAppDispatch()
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const federations = useAppSelector(selectWalletFederations)
+    const federations = useAppSelector(selectLoadedFederations)
     const [isSelectorOpen, setIsSelectorOpen] = useState(false)
 
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
     const handleSelectFederation = useCallback(
-        (fed: FederationListItem) => {
+        (fed: Federation) => {
             dispatch(setPayFromFederationId(fed.id))
             setIsSelectorOpen(false)
         },
@@ -32,19 +32,17 @@ export const FederationWalletSelector: React.FC = () => {
     )
 
     const {
-        formattedPrimaryAmount: activeFederationPrimaryAmount,
-        formattedSecondaryAmount: activeFederationSecondaryAmount,
+        formattedPrimaryAmount: federationPrimaryAmount,
+        formattedSecondaryAmount: federationSecondaryAmount,
     } = makeFormattedAmountsFromMSats(
-        paymentFederation?.hasWallet ? paymentFederation.balance : (0 as MSats),
+        paymentFederation?.balance || (0 as MSats),
     )
 
     const federationList = (
         <FederationList>
             {federations.map(fed => {
                 const { formattedPrimaryAmount, formattedSecondaryAmount } =
-                    makeFormattedAmountsFromMSats(
-                        fed.hasWallet ? fed.balance : (0 as MSats),
-                    )
+                    makeFormattedAmountsFromMSats(fed.balance)
                 return (
                     <FederationItem
                         key={fed.id}
@@ -56,11 +54,9 @@ export const FederationWalletSelector: React.FC = () => {
                             <Text variant="caption" weight="bold">
                                 {fed.name}
                             </Text>
-                            {fed.hasWallet && (
-                                <Text variant="small">
-                                    {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
-                                </Text>
-                            )}
+                            <Text variant="small">
+                                {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
+                            </Text>
                         </div>
                     </FederationItem>
                 )
@@ -86,11 +82,9 @@ export const FederationWalletSelector: React.FC = () => {
                             <Text variant="body" weight="bold">
                                 {paymentFederation.name}
                             </Text>
-                            {paymentFederation.hasWallet && (
-                                <Text variant="small">
-                                    {`${activeFederationPrimaryAmount} (${activeFederationSecondaryAmount})`}
-                                </Text>
-                            )}
+                            <Text variant="small">
+                                {`${federationPrimaryAmount} (${federationSecondaryAmount})`}
+                            </Text>
                         </ActiveFederationTextWrapper>
                         <IconWrapper isOpen={isSelectorOpen}>
                             <Icon size="sm" icon={ChevronRightIcon} />

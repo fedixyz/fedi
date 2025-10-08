@@ -2,7 +2,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import {
     selectGroupPreview,
@@ -76,6 +76,13 @@ const ChatConversationHeader: React.FC = () => {
         navigation.dispatch(resetToChatsScreen())
     }, [navigation])
 
+    const handleSearch = useCallback(() => {
+        navigation.navigate('ChatConversationSearch', {
+            roomId,
+            initialQuery: '',
+        })
+    }, [navigation, roomId])
+
     const HeaderCenter = useMemo(() => {
         const isNameEmpty = !name
         return (
@@ -128,9 +135,18 @@ const ChatConversationHeader: React.FC = () => {
                 centerContainerStyle={style.headerCenterContainer}
                 headerCenter={HeaderCenter}
                 headerRight={
-                    <Pressable onPress={() => navigateToRoom()}>
-                        <SvgImage name="Profile" />
-                    </Pressable>
+                    <View style={style.headerRightContainer}>
+                        <Pressable
+                            onPress={handleSearch}
+                            style={style.headerButton}>
+                            <SvgImage name="Search" />
+                        </Pressable>
+                        <Pressable
+                            onPress={() => navigateToRoom()}
+                            style={style.headerButton}>
+                            <SvgImage name="Profile" />
+                        </Pressable>
+                    </View>
                 }
             />
             <ChatConnectionBadge offset={40} />
@@ -161,6 +177,14 @@ const styles = (theme: Theme) =>
         },
         shortIdText: {
             marginLeft: theme.spacing.xs,
+        },
+        headerRightContainer: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.sm,
+        },
+        headerButton: {
+            padding: theme.spacing.xs,
         },
     })
 

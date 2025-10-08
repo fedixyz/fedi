@@ -1,14 +1,12 @@
 import React from 'react'
 
 import { styled } from '../../styles'
-import { EnterDisplayName } from './EnterDisplayName'
 import { JoinFederation } from './JoinFederation'
-import { OnboardingComplete } from './OnboardingComplete'
+import { OnboardingCommunities } from './OnboardingCommunities'
 import { OnboardingHome } from './OnboardingHome'
 import { PersonalRecovery } from './PersonalRecovery'
 import { SelectDevice } from './SelectDevice'
 import { SocialRecovery } from './SocialRecovery'
-import { UploadAvatarImage } from './UploadAvatarImage'
 import { WalletRecovery } from './WalletRecovery'
 import { WalletTransfer } from './WalletTransfer'
 
@@ -30,12 +28,8 @@ export const Onboarding: React.FC<Props> = ({ step }) => {
         content = <WalletTransfer />
     } else if (step === 'recover/select-device') {
         content = <SelectDevice />
-    } else if (step === 'username') {
-        content = <EnterDisplayName />
-    } else if (step === 'image') {
-        content = <UploadAvatarImage />
-    } else if (step === 'complete') {
-        content = <OnboardingComplete />
+    } else if (step === 'communities') {
+        content = <OnboardingCommunities />
     } else {
         content = <OnboardingHome />
     }

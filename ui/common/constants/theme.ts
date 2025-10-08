@@ -9,9 +9,11 @@ const HEX_COLORS = {
     green100: '#B4F1C7',
     orange: '#DF7B00',
     orange100: '#F8DFB3',
+    orange200: '#FFF9DE',
     lightOrange: '#ECA429',
     darkGrey: '#6D7071',
     grey: '#858789',
+    grey50: '#F8F8F8',
     lightGrey: '#D3D4DB',
     extraLightGrey: '#E9E9EA',
     keyboardGrey: '#E8EAED',
@@ -27,6 +29,7 @@ const HEX_COLORS = {
     fuschia: '#EF5DA8',
     // TODO: Move these into maps instead of properties, e.g. blue[100] instead of blue100
     blue100: '#BAE0FE',
+    blue200: '#B6EAFF',
     blueDropShadow: '#7099B0',
     mint: '#26A07B',
 }

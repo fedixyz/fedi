@@ -62,7 +62,7 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
                   : room.broadcastOnly
                     ? 'SpeakerPhone'
                     : 'SocialPeople'
-        src = room.avatarUrl
+        src = room.avatarUrl ?? undefined
         avatarProps = rest
         isBlocked = room.isBlocked
     } else {

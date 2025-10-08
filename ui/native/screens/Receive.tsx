@@ -13,8 +13,9 @@ import { NavigationHook, RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Receive'>
 
-const Receive: React.FC<Props> = () => {
+const Receive: React.FC<Props> = ({ route }) => {
     const { t } = useTranslation()
+    const { federationId = '' } = route.params
     const navigation = useNavigation<NavigationHook>()
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
 
@@ -53,13 +54,18 @@ const Receive: React.FC<Props> = () => {
                 onUnexpectedSuccess={() => {
                     navigation.canGoBack()
                         ? navigation.goBack()
-                        : navigation.navigate('TabsNavigator')
+                        : navigation.navigate('TabsNavigator', {
+                              initialRouteName: 'Federations',
+                          })
                 }}
                 customActions={[
                     {
                         label: t('feature.receive.add-amount'),
                         icon: 'Plus',
-                        onPress: () => navigation.navigate('ReceiveLightning'),
+                        onPress: () =>
+                            navigation.navigate('ReceiveLightning', {
+                                federationId,
+                            }),
                     },
                 ]}
             />

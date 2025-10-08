@@ -42,7 +42,7 @@ export const ChatAvatar: React.FC<Props> = props => {
                   : room.broadcastOnly
                     ? SpeakerphoneIcon
                     : SocialPeopleIcon
-        src = room.avatarUrl
+        src = room.avatarUrl ?? undefined
         avatarProps = rest
     } else {
         const { user, ...rest } = props

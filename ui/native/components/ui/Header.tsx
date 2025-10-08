@@ -4,7 +4,7 @@ import React, { memo } from 'react'
 import { View, ViewStyle } from 'react-native'
 
 import { reset } from '../../state/navigation'
-import { NavigationHook } from '../../types/navigation'
+import { NavigationHook, TabsNavigatorParamList } from '../../types/navigation'
 import { PressableIcon } from './PressableIcon'
 
 interface HeaderBase {
@@ -22,6 +22,8 @@ interface HeaderBase {
     closeButton?: boolean
     onClose?: () => void
     inline?: boolean
+    transparent?: boolean
+    closeRoute?: keyof TabsNavigatorParamList
 }
 
 interface HeaderWithBackButton extends HeaderBase {
@@ -51,7 +53,8 @@ const Header: React.FC<HeaderProps> = memo(
         onBackButtonPress,
         closeButton,
         onClose,
-        inline,
+        transparent,
+        closeRoute,
     }: HeaderProps) => {
         const { theme } = useTheme()
         const navigation = useNavigation<NavigationHook>()
@@ -86,7 +89,12 @@ const Header: React.FC<HeaderProps> = memo(
                 testID="HeaderCloseButton"
                 onPress={
                     onClose ||
-                    (() => navigation.dispatch(reset('TabsNavigator')))
+                    (() =>
+                        navigation.dispatch(
+                            reset('TabsNavigator', {
+                                initialRouteName: closeRoute ?? 'Home',
+                            }),
+                        ))
                 }
                 hitSlop={10}
                 svgName="Close"
@@ -104,12 +112,12 @@ const Header: React.FC<HeaderProps> = memo(
         } = theme.components.Header
         const mergedContainerStyle = {
             ...defaultContainerStyle,
-            borderBottomColor: inline
+            borderBottomColor: transparent
                 ? 'transparent'
                 : dark
                   ? theme.colors.primary
                   : defaultContainerStyle.borderBottomColor,
-            shadowColor: inline
+            shadowColor: transparent
                 ? 'transparent'
                 : defaultContainerStyle.shadowColor,
             paddingTop: theme.spacing.lg,
@@ -123,7 +131,11 @@ const Header: React.FC<HeaderProps> = memo(
         return (
             <HeaderRNE
                 backgroundColor={
-                    dark ? theme.colors.primary : theme.colors.secondary
+                    transparent
+                        ? 'transparent'
+                        : dark
+                          ? theme.colors.primary
+                          : theme.colors.secondary
                 }
                 barStyle={dark ? 'light-content' : 'dark-content'}
                 containerStyle={mergedContainerStyle}
@@ -142,7 +154,6 @@ const Header: React.FC<HeaderProps> = memo(
                     ...defaultRightContainerStyle,
                     ...rightContainerStyle,
                 }}
-                edges={inline ? ['left', 'right'] : undefined}
             />
         )
     },

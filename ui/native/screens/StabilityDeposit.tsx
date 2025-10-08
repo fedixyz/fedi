@@ -19,8 +19,10 @@ export type Props = NativeStackScreenProps<
     'StabilityDeposit'
 >
 
-const StabilityDeposit: React.FC<Props> = () => {
+const StabilityDeposit: React.FC<Props> = ({ route }: Props) => {
     const navigation = useNavigation()
+    const { federationId } = route.params
+
     const { theme } = useTheme()
     const { t } = useTranslation()
     const {
@@ -29,7 +31,7 @@ const StabilityDeposit: React.FC<Props> = () => {
         minimumAmount,
         maximumAmount,
         maximumFiatAmount,
-    } = useDepositForm()
+    } = useDepositForm(federationId)
     const [submitAttempts, setSubmitAttempts] = useState(0)
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
@@ -45,6 +47,7 @@ const StabilityDeposit: React.FC<Props> = () => {
         }
         navigation.navigate('StabilityConfirmDeposit', {
             amount,
+            federationId,
         })
         Keyboard.dismiss()
     }
@@ -58,6 +61,8 @@ const StabilityDeposit: React.FC<Props> = () => {
 
     return (
         <AmountScreen
+            showBalance={true}
+            federationId={federationId}
             amount={amount}
             onChangeAmount={onChangeAmount}
             minimumAmount={minimumAmount}

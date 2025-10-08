@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useIsInviteSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectActiveFederation,
+    selectPaymentFederation,
     selectBtcExchangeRate,
     selectCurrency,
     selectFederationBalance,
@@ -32,11 +32,13 @@ interface Props {
 export const PaperEcashForm: React.FC<Props> = ({ onChangeEcashPapers }) => {
     const { t } = useTranslation()
     const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const balance = useAppSelector(selectFederationBalance)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const balance = useAppSelector(s =>
+        selectFederationBalance(s, paymentFederation?.id || ''),
+    )
     const currency = useAppSelector(selectCurrency)
     const exchangeRate = useAppSelector(selectBtcExchangeRate)
-    const includeInvite = useIsInviteSupported()
+    const includeInvite = useIsInviteSupported(paymentFederation?.id || '')
     const [countValue, setCountValue] = useState('1')
     const [msatsValue, setMsatsValue] = useState('10000')
     const [isOptimizedQr, setIsOptimizedQr] = useState(true)
@@ -75,13 +77,13 @@ export const PaperEcashForm: React.FC<Props> = ({ onChangeEcashPapers }) => {
         setIsGenerating(true)
         const ecashPapers: EcashPaper[] = []
         try {
-            if (!activeFederation) throw new Error('No active federation')
+            if (!paymentFederation) throw new Error('No payment federation')
             const count = parseInt(countValue, 10)
             const amount = parseInt(msatsValue) as MSats
             for (let i = 0; i < count; i++) {
                 const { ecash } = await fedimint.generateEcash(
                     amount,
-                    activeFederation.id,
+                    paymentFederation.id,
                     includeInvite,
                 )
                 const frames = dataToFrames(

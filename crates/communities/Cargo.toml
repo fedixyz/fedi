@@ -4,6 +4,7 @@ version = "0.3.0"
 edition = "2024"
 
 [dependencies]
+api-types = { workspace = true }
 fedimint-core = { workspace = true }
 
 anyhow = { workspace = true }

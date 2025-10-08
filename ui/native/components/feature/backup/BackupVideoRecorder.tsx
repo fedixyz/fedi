@@ -5,13 +5,21 @@ import { useBackupRecoveryContext } from '../../../state/contexts/BackupRecovery
 import RecordVideo from './RecordVideo'
 import ReviewVideo from './ReviewVideo'
 
-const BackupVideoRecorder = () => {
+type Props = {
+    onConfirmVideo: (videoFilePath: string) => void
+}
+
+const BackupVideoRecorder = ({ onConfirmVideo }: Props) => {
     const { theme } = useTheme()
     const { state } = useBackupRecoveryContext()
     const { videoFile } = state
     return (
         <View style={styles(theme).container}>
-            {videoFile ? <ReviewVideo /> : <RecordVideo />}
+            {videoFile ? (
+                <ReviewVideo onConfirmVideo={onConfirmVideo} />
+            ) : (
+                <RecordVideo />
+            )}
         </View>
     )
 }

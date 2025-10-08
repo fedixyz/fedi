@@ -12,6 +12,7 @@
         "composite": true,
         "rootDir": "src",
         "outDir": "dist",
+        "jsx": "react-jsx",
         "types": ["node"],
         "resolveJsonModule": true,
         "typeRoots": ["node_modules/@types/", "../node_modules/@types/"]

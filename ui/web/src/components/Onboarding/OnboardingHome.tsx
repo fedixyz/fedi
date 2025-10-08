@@ -5,17 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { ParserDataType } from '@fedi/common/types'
 
 import { Button } from '../../components/Button'
-import { Header, Title } from '../../components/Layout'
+import * as Layout from '../../components/Layout'
 import PublicFederations from '../../components/PublicFederations'
 import { Switcher } from '../../components/Switcher'
 import { Text } from '../../components/Text'
 import { keyframes, styled, theme } from '../../styles'
 import { OmniInput } from '../OmniInput'
-import {
-    OnboardingActions,
-    OnboardingContainer,
-    OnboardingContent,
-} from './components'
 
 type TabValue = 'discover' | 'join' | 'create'
 
@@ -78,11 +73,13 @@ export function OnboardingHome() {
     }
 
     return (
-        <OnboardingContainer>
-            <Header back>
-                <Title subheader>{t('phrases.join-a-federation')}</Title>
-            </Header>
-            <OnboardingContent justify="start">
+        <Layout.Root>
+            <Layout.Header centered>
+                <Layout.Title subheader>
+                    {t('phrases.join-a-federation')}
+                </Layout.Title>
+            </Layout.Header>
+            <Layout.Content>
                 <Content>
                     <TitleWrapper>
                         <Text variant="h2" css={{ marginBottom: 0 }}>
@@ -105,13 +102,13 @@ export function OnboardingHome() {
                     />
                     <Body>{body}</Body>
                 </Content>
-            </OnboardingContent>
-            <OnboardingActions>
+            </Layout.Content>
+            <Layout.Actions>
                 <Button variant="tertiary" onClick={() => push('/home')}>
                     {t('phrases.maybe-later')}
                 </Button>
-            </OnboardingActions>
-        </OnboardingContainer>
+            </Layout.Actions>
+        </Layout.Root>
     )
 }
 

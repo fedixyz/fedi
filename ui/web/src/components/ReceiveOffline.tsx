@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
-import { MSats } from '@fedi/common/types'
+import { Federation, MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import {
     decodeCashuTokens,
@@ -12,7 +11,6 @@ import {
 } from '@fedi/common/utils/cashu'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 
-import { useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { DialogStatus, DialogStatusProps } from './DialogStatus'
 import { Input } from './Input'
@@ -20,11 +18,14 @@ import { QRScanner, ScanResult } from './QRScanner'
 
 interface Props {
     onReceive(amount: MSats): void
+    federationId: Federation['id']
 }
 
-export const ReceiveOffline: React.FC<Props> = ({ onReceive }) => {
+export const ReceiveOffline: React.FC<Props> = ({
+    onReceive,
+    federationId,
+}) => {
     const { t } = useTranslation()
-    const federationId = useAppSelector(selectActiveFederationId)
     const [value, setValue] = useState('')
     const [isRedeeming, setIsRedeeming] = useState(false)
     const [redeemError, setRedeemError] = useState<string | null>(null)
@@ -35,7 +36,7 @@ export const ReceiveOffline: React.FC<Props> = ({ onReceive }) => {
         async (ecash: string) => {
             setIsRedeeming(true)
             try {
-                if (!federationId) throw new Error('No active federation')
+                if (!federationId) throw new Error('No federation ID provided')
                 let msats: MSats
                 if (ecash.startsWith('cashu')) {
                     const tokens = await decodeCashuTokens(ecash)

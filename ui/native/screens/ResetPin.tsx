@@ -1,15 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    Keyboard,
-    KeyboardEvent,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-} from 'react-native'
+import { Platform, ScrollView, StyleSheet, TextInput } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import type { SeedWords } from '@fedi/common/types'
@@ -23,6 +16,7 @@ import { BIP39_WORD_LIST } from '../constants'
 import { usePinContext } from '../state/contexts/PinContext'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
+import { useKeyboard } from '../utils/hooks/keyboard'
 
 const isValidSeedWord = (word: string) => {
     return word.length > 0 && BIP39_WORD_LIST.indexOf(word.toLowerCase()) >= 0
@@ -38,28 +32,8 @@ const ResetPin: React.FC<Props> = ({ navigation }: Props) => {
         new Array(12).fill(''),
     )
     const inputRefs = useRef<Array<TextInput | null>>([])
-    const [keyboardHeight, setKeyboardHeight] = useState<number>(0)
+    const { height: keyboardHeight } = useKeyboard()
     const toast = useToast()
-
-    useEffect(() => {
-        const keyboardShownListener = Keyboard.addListener(
-            'keyboardDidShow',
-            (e: KeyboardEvent) => {
-                setKeyboardHeight(e.endCoordinates.height)
-            },
-        )
-        const keyboardHiddenListener = Keyboard.addListener(
-            'keyboardDidHide',
-            () => {
-                setKeyboardHeight(0)
-            },
-        )
-
-        return () => {
-            keyboardShownListener.remove()
-            keyboardHiddenListener.remove()
-        }
-    }, [])
 
     const handleResetPin = useCallback(async () => {
         if (pin.status !== 'set') return

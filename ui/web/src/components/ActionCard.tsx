@@ -38,7 +38,7 @@ const Container = styled('div', {
     gap: 8,
     width: '100%',
     padding: 24,
-    holoGradient: '400',
+    fediGradient: 'sky-banner',
     borderRadius: 12,
 })
 

@@ -47,7 +47,7 @@ const Loader = styled('div', {
     position: 'relative',
     aspectRatio: '1 / 1',
     borderRadius: '100%',
-    holoGradient: '600',
+    fediGradient: 'sky-heavy',
     animation: `${rotate} 1s linear infinite`,
 
     variants: {

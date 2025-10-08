@@ -7,17 +7,18 @@ import { INVALID_NAME_PLACEHOLDER } from '../constants/matrix'
 import {
     CommonDispatch,
     configureMatrixPushNotifications,
-    selectActiveFederationId,
     selectMatrixAuth,
     selectPaymentFederation,
     sendMatrixPaymentPush,
     sendMatrixPaymentRequest,
+    setLastUsedFederationId,
     setMatrixDisplayName,
 } from '../redux'
 import { getDisplayNameValidator, parseData } from '../utils/chat'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { useMinMaxRequestAmount, useMinMaxSendAmount } from './amount'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
 
@@ -37,6 +38,7 @@ export function usePublishNotificationToken(
     secondaryPermissionGranted: boolean,
     currentToken: string | null,
 ) {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
 
     useEffect(() => {
@@ -76,6 +78,7 @@ export function usePublishNotificationToken(
             log.debug('Publishing push notification token:', newToken)
             dispatch(
                 configureMatrixPushNotifications({
+                    fedimint,
                     token: newToken,
                     appId,
                     appName,
@@ -113,6 +116,7 @@ export function usePublishNotificationToken(
         currentToken,
         secondaryPublish,
         secondaryPermissionGranted,
+        fedimint,
     ])
 
     return null
@@ -145,6 +149,7 @@ export const useChatPaymentPush = (
                         notes,
                     }),
                 ).unwrap()
+                dispatch(setLastUsedFederationId(federationId))
                 onSuccess()
             } catch (err) {
                 toast.error(t, err, 'errors.unknown-error')
@@ -168,10 +173,13 @@ export const useChatPaymentUtils = (
 ) => {
     const toast = useToast()
     const dispatch = useCommonDispatch()
-    const activeFederationId = useCommonSelector(selectActiveFederationId)
-    const [federationId] = useState(activeFederationId)
-    const sendMinMax = useMinMaxSendAmount({ selectedPaymentFederation: true })
-    const requestMinMax = useMinMaxRequestAmount({ ecashRequest: {} })
+    const paymentFederation = useCommonSelector(selectPaymentFederation)
+    const federationId = paymentFederation?.id
+    const sendMinMax = useMinMaxSendAmount({ fedimint, federationId })
+    const requestMinMax = useMinMaxRequestAmount({
+        ecashRequest: {},
+        federationId,
+    })
     const [amount, setAmount] = useState(0 as Sats)
     const [submitAction, setSubmitAction] = useState<null | 'send' | 'request'>(
         null,
@@ -211,6 +219,7 @@ export const useChatPaymentUtils = (
                         notes,
                     }),
                 ).unwrap()
+                dispatch(setLastUsedFederationId(federationId))
                 onSuccess()
             } catch (err) {
                 toast.error(t, err, 'errors.unknown-error')
@@ -295,6 +304,7 @@ export const useDisplayNameForm = (t: TFunction) => {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const toast = useToast()
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const matrixAuth = useCommonSelector(selectMatrixAuth)
     const validator = useMemo(() => getDisplayNameValidator(), [])
@@ -326,7 +336,10 @@ export const useDisplayNameForm = (t: TFunction) => {
         try {
             const trimmedUsername = username.trim()
             await dispatch(
-                setMatrixDisplayName({ displayName: trimmedUsername }),
+                setMatrixDisplayName({
+                    fedimint,
+                    displayName: trimmedUsername,
+                }),
             ).unwrap()
             onSuccess?.()
         } catch (err) {

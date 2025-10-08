@@ -3,14 +3,13 @@ import { Text } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 
 import { useMultispendDepositEventContent } from '@fedi/common/hooks/multispend'
-import { MatrixEvent } from '@fedi/common/types'
-import { MultispendEventContentType } from '@fedi/common/utils/matrix'
+import { MatrixMultispendEvent } from '@fedi/common/types'
 
 import Flex from '../../../ui/Flex'
 import MultispendEventTemplate from './MultispendEventTemplate'
 
 type Props = {
-    event: MatrixEvent<MultispendEventContentType<'depositNotification'>>
+    event: MatrixMultispendEvent<'depositNotification'>
 }
 
 const MultispendDepositEvent: React.FC<Props> = ({ event }) => {

@@ -10,7 +10,6 @@ import {
     RpcCommunity,
     RpcFederation,
     RpcFederationMaybeLoading,
-    RpcFederationPreview,
     RpcInvoice,
     RpcLightningGateway,
     RpcResponse,
@@ -277,6 +276,7 @@ export enum SupportedMetaFields {
     federation_name = 'federation_name',
     default_matrix_rooms = 'default_matrix_rooms',
     default_group_chats = 'default_group_chats',
+    autojoin_communities = 'autojoin_communities',
 }
 
 export type FederationMetadata = RpcFederation['meta']
@@ -294,18 +294,15 @@ export type FederationStatus = 'online' | 'unstable' | 'offline'
 export type LoadingFederation = RpcFederationMaybeLoading & {
     meta?: never
     readonly init_state: 'loading'
-    readonly hasWallet: true
 }
 export type FederationInitFailure = RpcFederationMaybeLoading & {
     meta?: never
     readonly init_state: 'failed'
-    readonly hasWallet: true
 }
 
 export type LoadedFederation = RpcFederation & {
     status: FederationStatus
     readonly init_state: 'ready'
-    readonly hasWallet: true
 }
 
 export type Federation =
@@ -314,24 +311,16 @@ export type Federation =
     | LoadedFederation
 
 export type Community = RpcCommunity & {
-    id: Federation['id']
-    status: 'online'
-    // Added for compatibility with Mods
-    readonly network: undefined
-    readonly hasWallet: false
-    readonly init_state: 'ready'
+    id: RpcCommunity['inviteCode']
 }
 
-export type RpcCommunityPreview = RpcCommunity
+export type CommunityPreview = Community & {
+    // for compatibility with RpcFederationPreview
+    readonly returningMemberStatus: { type: 'unknown' }
+    readonly version: number
+}
 
-export type CommunityPreview = Community
-
-export type JoinPreview = FederationPreview | CommunityPreview
-
-// Check if hasWallet is true to determine if it's a wallet type or community
-export type FederationListItem = Federation | Community
-
-export type LoadedFederationListItem = LoadedFederation | Community
+export type InviteCodeType = 'federation' | 'community'
 
 export type PublicFederation = Pick<LoadedFederation, 'id' | 'name' | 'meta'>
 
@@ -349,10 +338,6 @@ export interface FediMod {
 export interface FederationApiVersion {
     major: number
     minor: number
-}
-
-export type FederationPreview = RpcFederationPreview & {
-    hasWallet: true
 }
 
 // TODO: Create a type that derives the map from the `Event` type in bindings.ts

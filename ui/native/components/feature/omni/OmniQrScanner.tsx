@@ -9,6 +9,7 @@ import {
     useHasBottomTabsNavigation,
 } from '../../../utils/hooks'
 import Flex from '../../ui/Flex'
+import HoloCircle from '../../ui/HoloCircle'
 import NightHoloGradient from '../../ui/NightHoloGradient'
 import SvgImage from '../../ui/SvgImage'
 import QrCodeScanner from '../scan/QrCodeScanner'
@@ -77,7 +78,10 @@ export const OmniQrScanner: React.FC<Props> = ({
                             gap="lg"
                             fullWidth
                             style={style.permissionContent}>
-                            <SvgImage name="AllowCameraAccessIcon" size={72} />
+                            <HoloCircle
+                                size={72}
+                                content={<SvgImage name="Scan" size={32} />}
+                            />
                             <Text style={style.permissionText} medium>
                                 {permissionView.title}
                             </Text>

@@ -9,7 +9,7 @@ import GlobeIcon from '@fedi/common/assets/svgs/globe.svg'
 import ScanSadIcon from '@fedi/common/assets/svgs/scan-sad.svg'
 import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { selectLastUsedFederationId } from '@fedi/common/redux'
 import { AnyParsedData, ParserDataType } from '@fedi/common/types'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { BLOCKED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parser'
@@ -37,7 +37,7 @@ export const OmniConfirmation: React.FC<Props> = ({
     const toast = useToast()
     const { pushWithState } = useRouteStateContext()
     const [isLoading, setIsLoading] = useState(false)
-    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const lastUsedFederationId = useAppSelector(selectLastUsedFederationId)
     const { joinPublicGroup } = useMatrixChatInvites(t)
     const router = useRouter()
 
@@ -54,7 +54,7 @@ export const OmniConfirmation: React.FC<Props> = ({
 
     const handleRedeemToken = async () => {
         if (
-            !activeFederationId ||
+            !lastUsedFederationId ||
             parsedData.type !== ParserDataType.FedimintEcash
         )
             return
@@ -62,7 +62,7 @@ export const OmniConfirmation: React.FC<Props> = ({
         try {
             await fedimint.receiveEcash(
                 parsedData.data.token,
-                activeFederationId,
+                lastUsedFederationId,
             )
             onSuccess(parsedData)
         } catch (err) {
@@ -107,7 +107,7 @@ export const OmniConfirmation: React.FC<Props> = ({
         // If they're not yet a member of a federation, they can only scan certain codes.
         if (
             BLOCKED_PARSER_TYPES_BEFORE_FEDERATION.includes(parsedData.type) &&
-            !activeFederationId
+            !lastUsedFederationId
         ) {
             return {
                 icon: ScanSadIcon,

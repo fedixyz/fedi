@@ -29,7 +29,6 @@ use matrix_sdk::ruma::api::client::room::Visibility;
 pub use matrix_sdk::ruma::api::client::room::create_room::v3 as create_room;
 use matrix_sdk::ruma::api::client::state::send_state_event;
 use matrix_sdk::ruma::api::client::uiaa;
-use matrix_sdk::ruma::directory::PublicRoomsChunk;
 use matrix_sdk::ruma::events::poll::start::PollKind;
 use matrix_sdk::ruma::events::poll::unstable_end::UnstablePollEndEventContent;
 use matrix_sdk::ruma::events::poll::unstable_response::UnstablePollResponseEventContent;
@@ -45,7 +44,7 @@ use matrix_sdk::ruma::events::{
     AnyMessageLikeEventContent, AnySyncTimelineEvent, InitialStateEvent,
 };
 use matrix_sdk::ruma::{EventId, OwnedMxcUri, OwnedRoomId, RoomId, UInt, UserId, assign};
-use matrix_sdk::{Client, RoomInfo, RoomMemberships, SessionChange};
+use matrix_sdk::{Client, RoomMemberships, SessionChange};
 use matrix_sdk_ui::eyeball_im::VectorDiff;
 use matrix_sdk_ui::sync_service::{self, SyncService};
 use matrix_sdk_ui::timeline::{RoomExt, TimelineEventItemId, default_event_filter};
@@ -608,11 +607,15 @@ impl Matrix {
     pub async fn subscribe_room_info(
         &self,
         room_id: &RoomId,
-    ) -> Result<impl Stream<Item = RoomInfo> + use<>> {
-        let mut sub = self.room(room_id).await?.subscribe_info();
+    ) -> Result<impl Stream<Item = RpcSerializedRoomInfo> + use<>> {
+        let room = self.room(room_id).await?;
+        let mut sub = room.subscribe_info();
         // yield first item immediately
         sub.reset();
-        Ok(sub)
+        Ok(sub.then(move |info| {
+            let room = room.clone();
+            async move { RpcSerializedRoomInfo::from_room_and_info(&room, &info).await }
+        }))
     }
 
     pub async fn room_invite_user_by_id(&self, room_id: &RoomId, user_id: &UserId) -> Result<()> {
@@ -720,7 +723,7 @@ impl Matrix {
             .await?)
     }
 
-    pub async fn public_room_info(&self, room_id: &str) -> Result<PublicRoomsChunk> {
+    pub async fn public_room_info(&self, room_id: &str) -> Result<RpcPublicRoomInfo> {
         let response = self
             .client
             .public_rooms_filtered(assign!(get_public_rooms_filtered::Request::default(), {
@@ -733,11 +736,17 @@ impl Matrix {
                 room_network: Default::default(),
             }))
             .await?;
-        response
+        let room = response
             .chunk
             .first()
-            .context("public room not found")
-            .cloned()
+            .context("public room not found")?
+            .clone();
+        Ok(RpcPublicRoomInfo {
+            id: room.room_id.to_string(),
+            name: room.name.clone(),
+            avatar_url: room.avatar_url.as_ref().map(|url| url.to_string()),
+            joined_member_count: room.num_joined_members.into(),
+        })
     }
 
     pub async fn get_public_rooms_filtered(

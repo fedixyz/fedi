@@ -6,10 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    selectActiveFederationId,
-    socialRecoveryDownloadVerificationDoc,
-} from '@fedi/common/redux'
+import { socialRecoveryDownloadVerificationDoc } from '@fedi/common/redux'
 import type { SocialRecoveryQrCode } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -27,9 +24,12 @@ export type Props = NativeStackScreenProps<
     'ScanSocialRecoveryCode'
 >
 
-const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
+const ScanSocialRecoveryCode: React.FC<Props> = ({
+    navigation,
+    route,
+}: Props) => {
     const { theme } = useTheme()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const { federationId } = route.params
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const toast = useToast()
@@ -50,14 +50,13 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
                 try {
                     setDownloading(true)
                     // FIXME: this is getting called over-and-over
-                    if (!activeFederationId)
-                        throw new Error('No active federation')
+                    if (!federationId) throw new Error('No federation ID')
                     const videoPath = await dispatch(
                         socialRecoveryDownloadVerificationDoc({
                             fedimint,
                             recoveryId: qr.recoveryId,
                             peerId: authenticatedGuardian.peerId,
-                            federationId: activeFederationId,
+                            federationId,
                         }),
                     ).unwrap()
                     if (videoPath == null) {
@@ -66,6 +65,7 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
                         navigation.navigate('CompleteRecoveryAssist', {
                             videoPath: videoPath as string,
                             recoveryId: qr.recoveryId,
+                            federationId,
                         })
                     }
                 } catch (e) {
@@ -91,7 +91,7 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
             toast,
             t,
             authenticatedGuardian,
-            activeFederationId,
+            federationId,
             dispatch,
         ],
     )

@@ -89,8 +89,7 @@ export function makeTransactionHistoryCSV(
         },
         {
             name: 'Notes',
-            getValue: tx =>
-                tx.txnNotes || tx.frontendMetadata.initialNotes || '',
+            getValue: tx => tx.txnNotes ?? '',
         },
         {
             name: 'Status',

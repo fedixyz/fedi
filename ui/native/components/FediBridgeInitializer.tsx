@@ -5,10 +5,12 @@ import { Platform } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import SplashScreen from 'react-native-splash-screen'
 
+import { FedimintProvider } from '@fedi/common/components/FedimintProvider'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     refreshOnboardingStatus,
     selectMatrixAuth,
+    setAppFlavor,
     setShouldLockDevice,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
@@ -22,6 +24,7 @@ import { isDev } from '@fedi/common/utils/environment'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint, initializeBridge } from '../bridge'
+import { getAppFlavor } from '../bridge/native'
 import { ErrorScreen } from '../screens/ErrorScreen'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import theme from '../styles/theme'
@@ -57,7 +60,9 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 // Get the device ID, guaranteed to be unique and consistent on the same device
                 const deviceId = await generateDeviceId()
                 log.info('initializing bridge with deviceId', deviceId)
-                await initializeBridge(deviceId)
+                const appFlavor = getAppFlavor()
+                dispatchRef.current(setAppFlavor(appFlavor))
+                await initializeBridge(deviceId, appFlavor)
 
                 const stop = Date.now()
                 log.info('initialized:', stop - start, 'ms OS:', Platform.OS)
@@ -148,7 +153,8 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     useEffect(() => {
         if ((isNightly() || isDev()) && matrixAuth && matrixAuth.userId) {
             const [, homeserver] = matrixAuth.userId.split(':')
-            if (homeserver !== 'staging.m1.8fa.in') {
+            // eslint-disable-next-line
+            if (false && homeserver !== 'staging.m1.8fa.in') {
                 setBridgeError(
                     new Error(
                         'This is an expected nightly only error intentionally forced to ensure clean metrics. Please uninstall & recover from seed.\n',
@@ -159,7 +165,9 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     }, [matrixAuth])
 
     if (bridgeIsReady && !bridgeError) {
-        return <>{children}</>
+        return (
+            <FedimintProvider fedimint={fedimint}>{children}</FedimintProvider>
+        )
     }
 
     if (bridgeError) {

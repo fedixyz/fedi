@@ -10,15 +10,11 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
-import { useCommonSelector } from '@fedi/common/hooks/redux'
-import {
-    selectActiveFederationId,
-    selectActiveFederationHasWallet,
-} from '@fedi/common/redux'
 import {
     selectVisibleCommunityMods,
     setModVisibility,
 } from '@fedi/common/redux/mod'
+import { Community } from '@fedi/common/types'
 import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -30,7 +26,11 @@ import SvgImage from '../../ui/SvgImage'
 import { Tooltip } from '../../ui/Tooltip'
 import ShortcutTile from './ShortcutTile'
 
-const ShortcutsList: React.FC = () => {
+type Props = {
+    communityId: Community['id']
+}
+
+const ShortcutsList: React.FC<Props> = ({ communityId }) => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const fediMods = useAppSelector(selectVisibleCommunityMods)
@@ -38,12 +38,8 @@ const ShortcutsList: React.FC = () => {
     const { t } = useTranslation()
     const [actionsMod, setActionsMod] = useState<FediMod>()
     const dispatch = useAppDispatch()
-    const activeFederationId = useCommonSelector(selectActiveFederationId)
-    const [federationId] = useState(activeFederationId)
     const columns = width / fontScale < 300 ? 2 : 3
     const style = styles(theme, columns)
-
-    const isFederation = useAppSelector(selectActiveFederationHasWallet)
 
     const onSelectFediMod = async (shortcut: Shortcut) => {
         setActionsMod(undefined)
@@ -64,7 +60,7 @@ const ShortcutsList: React.FC = () => {
             setModVisibility({
                 modId,
                 isHiddenCommunity: true,
-                federationId: federationId,
+                federationId: communityId,
             }),
         )
         setActionsMod(undefined)
@@ -136,15 +132,11 @@ const ShortcutsList: React.FC = () => {
 
     return (
         <Flex grow fullWidth>
-            <Text style={style.sectionTitle}>
-                {isFederation
-                    ? t('feature.home.federation-mods-title')
-                    : t('feature.home.community-mods-title')}
+            <Text bold style={style.sectionTitle}>
+                {t('feature.home.community-mods-title')}
             </Text>
-            <Text style={style.servicesSelected}>
-                {isFederation
-                    ? t('feature.home.federation-services-selected')
-                    : t('feature.home.community-services-selected')}
+            <Text caption style={style.servicesSelected}>
+                {t('feature.home.community-services-selected')}
             </Text>
             <Flex
                 row
@@ -168,17 +160,11 @@ const styles = (theme: Theme, columns: number) =>
         },
         sectionTitle: {
             color: theme.colors.night,
-            letterSpacing: -0.16,
             fontSize: 20,
             marginBottom: 4,
         },
         servicesSelected: {
-            fontFamily: 'Albert Sans',
-            fontWeight: '400',
-            fontSize: 14,
-            lineHeight: 18,
             color: theme.colors.darkGrey,
-            letterSpacing: -0.14,
             marginBottom: 12,
         },
         tooltipAction: {

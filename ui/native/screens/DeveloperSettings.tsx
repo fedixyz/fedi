@@ -18,10 +18,10 @@ import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
+    clearAutojoinedCommunitiesAndNotices,
     listGateways,
-    refreshActiveStabilityPool,
+    refreshStabilityPool,
     resetNuxSteps,
-    selectActiveFederation,
     selectFediModShowClearCacheButton,
     selectFediModCacheEnabled,
     selectFediModCacheMode,
@@ -37,7 +37,10 @@ import {
     setOnchainDepositsEnabled,
     setShowFiatTxnAmounts,
     setStableBalanceEnabled,
+    selectPaymentFederation,
+    clearSessionCount,
 } from '@fedi/common/redux'
+import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
 import {
     FediModCacheMode,
@@ -53,6 +56,7 @@ import {
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CheckBox from '../components/ui/CheckBox'
 import Flex from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
@@ -91,7 +95,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const [guardianOnlineStatus, setGuardianOnlineStatus] = useState<
         GuardianStatus[]
     >([])
-    const selectedFiatCurrency = useAppSelector(selectCurrency)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const selectedFiatCurrency = useAppSelector(s =>
+        selectCurrency(s, paymentFederation?.id),
+    )
     const fediModDebugMode = useAppSelector(selectFediModDebugMode)
     const fediModCacheEnabled = useAppSelector(selectFediModCacheEnabled)
     const showClearCacheButton = useAppSelector(
@@ -99,27 +106,32 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     )
     const fediModCacheMode = useAppSelector(selectFediModCacheMode)
     const onchainDepositsEnabled = useAppSelector(selectOnchainDepositsEnabled)
-    const stabilityPoolSupported = useIsStabilityPoolSupported()
+    const stabilityPoolSupported = useIsStabilityPoolSupported(
+        paymentFederation?.id || '',
+    )
     const stableBalanceEnabled = useAppSelector(selectStableBalanceEnabled)
     const showFiatTxnAmounts = useAppSelector(selectShowFiatTxnAmounts)
-    const spBtcUsdPrice = useAppSelector(selectStabilityPoolCycleStartPrice)
+    const spBtcUsdPrice = useAppSelector(s =>
+        selectStabilityPoolCycleStartPrice(s, paymentFederation?.id || ''),
+    )
     const apiBtcUsdPrice = useAppSelector(s => s.currency.btcUsdRate)
     const apiFiatUsdPrices = useAppSelector(s => s.currency.fiatUsdRates)
 
-    const { shareLogs, status: shareLogsStatus } = useShareNativeLogs()
+    const { shareLogs, status: shareLogsStatus } = useShareNativeLogs(
+        paymentFederation?.id,
+    )
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
-    const activeFederation = useAppSelector(selectActiveFederation)
     const authenticatedGuardian = useAppSelector(
         s => s.federation.authenticatedGuardian,
     )
 
     useEffect(() => {
-        if (activeFederation) {
+        if (paymentFederation) {
             fedimint
                 .getAccruedOutstandingFediFeesPerTXType({
-                    federationId: activeFederation.id,
+                    federationId: paymentFederation.id,
                 })
                 .then(res => {
                     const sendFeesMap: FeesMap = {}
@@ -139,13 +151,13 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     ),
                 )
         }
-    }, [activeFederation])
+    }, [paymentFederation])
 
     useEffect(() => {
-        if (activeFederation) {
+        if (paymentFederation) {
             fedimint
                 .getAccruedPendingFediFeesPerTXType({
-                    federationId: activeFederation.id,
+                    federationId: paymentFederation.id,
                 })
                 .then(res => {
                     const sendFeesMap: FeesMap = {}
@@ -165,7 +177,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     ),
                 )
         }
-    }, [activeFederation])
+    }, [paymentFederation])
 
     useEffect(() => {
         fedimint
@@ -178,26 +190,26 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
 
     useEffect(() => {
         const loadGuardianStatus = async () => {
-            if (!activeFederation?.id) return
+            if (!paymentFederation?.id) return
             const status = await getGuardianStatuses(
                 fedimint,
-                activeFederation.id,
+                paymentFederation.id,
             )
             setGuardianOnlineStatus(status)
         }
 
         loadGuardianStatus()
-    }, [activeFederation])
+    }, [paymentFederation])
 
     useEffect(() => {
         const getGatewaysList = async () => {
             setIsLoadingGateways(true)
             try {
-                if (!activeFederation?.id)
+                if (!paymentFederation?.id)
                     throw new Error('No active federation')
                 const _gateways = await reduxDispatch(
                     listGateways({
-                        federationId: activeFederation?.id,
+                        federationId: paymentFederation?.id,
                         fedimint,
                     }),
                 ).unwrap()
@@ -212,19 +224,24 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
 
         getGatewaysList()
-    }, [toast, t, activeFederation, reduxDispatch])
+    }, [toast, t, paymentFederation, reduxDispatch])
 
     useEffect(() => {
         if (stabilityPoolSupported)
-            reduxDispatch(refreshActiveStabilityPool({ fedimint }))
-    }, [reduxDispatch, stabilityPoolSupported])
+            reduxDispatch(
+                refreshStabilityPool({
+                    fedimint,
+                    federationId: paymentFederation?.id || '',
+                }),
+            )
+    }, [paymentFederation?.id, reduxDispatch, stabilityPoolSupported])
 
     const handleSelectGateway = async (gateway: LightningGateway) => {
         try {
-            if (!activeFederation?.id) throw new Error('No active federation')
+            if (!paymentFederation?.id) throw new Error('No active federation')
             await switchGateway(
                 fedimint,
-                activeFederation.id,
+                paymentFederation.id,
                 gateway.nodePubKey,
             )
         } catch (e) {
@@ -376,12 +393,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             <SettingsSection title="App info">
                 <Text style={style.version}>{`Version ${version}`}</Text>
                 <Button
-                    title={t('feature.developer.share-logs')}
-                    containerStyle={style.buttonContainer}
-                    onPress={shareLogs}
-                    loading={shareLogsStatus === 'generating-data'}
-                />
-                <Button
                     title={t('feature.developer.share-state')}
                     containerStyle={style.buttonContainer}
                     onPress={handleShareStorage}
@@ -416,63 +427,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         }}
                     />
                 </View>
-                {/* TODO: Clean up this mess */}
-                {Object.keys(outstandingFediSendFeesMap).length !== 0 ? (
-                    Object.entries(outstandingFediSendFeesMap).map(
-                        ([module, fee]) => (
-                            <View key={`outstanding-send-fees-${module}`}>
-                                <Text
-                                    style={
-                                        style.version
-                                    }>{`Outstanding Send Fees for ${module}: ${fee}`}</Text>
-                            </View>
-                        ),
-                    )
-                ) : (
-                    <Text>No outstanding send fees</Text>
-                )}
-                {Object.keys(outstandingFediReceiveFeesMap).length !== 0 ? (
-                    Object.entries(outstandingFediReceiveFeesMap).map(
-                        ([module, fee]) => (
-                            <View key={`outstanding-receive-fees-${module}`}>
-                                <Text
-                                    style={
-                                        style.version
-                                    }>{`Outstanding Receive Fees for ${module}: ${fee}`}</Text>
-                            </View>
-                        ),
-                    )
-                ) : (
-                    <Text>No outstanding receive fees</Text>
-                )}
-                {Object.keys(pendingFediSendFeesMap).length !== 0 ? (
-                    Object.entries(pendingFediSendFeesMap).map(
-                        ([module, fee]) => (
-                            <View key={`pending-send-fees-${module}`}>
-                                <Text
-                                    style={
-                                        style.version
-                                    }>{`Pending Send Fees for ${module}: ${fee}`}</Text>
-                            </View>
-                        ),
-                    )
-                ) : (
-                    <Text>No pending send fees</Text>
-                )}
-                {Object.keys(pendingFediReceiveFeesMap).length !== 0 ? (
-                    Object.entries(pendingFediReceiveFeesMap).map(
-                        ([module, fee]) => (
-                            <View key={`pending-receive-fees-${module}`}>
-                                <Text
-                                    style={
-                                        style.version
-                                    }>{`Pending Receive Fees for ${module}: ${fee}`}</Text>
-                            </View>
-                        ),
-                    )
-                ) : (
-                    <Text>No pending receive fees</Text>
-                )}
             </SettingsSection>
             <SettingsSection title={t('feature.fedimods.debug-mode')}>
                 <View style={style.switchWrapper}>
@@ -576,28 +530,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     </View>
                 )}
             </SettingsSection>
-            <SettingsSection title="Change your lightning gateway">
-                {isLoadingGateways && <ActivityIndicator />}
-                {gateways.map((gw: LightningGateway, index: number) => (
-                    <View key={gw.nodePubKey}>
-                        <CheckBox
-                            key={index}
-                            checkedIcon={<SvgImage name="RadioSelected" />}
-                            uncheckedIcon={<SvgImage name="RadioUnselected" />}
-                            title={
-                                <Text
-                                    style={style.checkboxText}
-                                    numberOfLines={1}>
-                                    {gw.api}
-                                </Text>
-                            }
-                            checked={gw.active}
-                            onPress={() => handleSelectGateway(gw)}
-                            containerStyle={style.checkboxContainer}
-                        />
-                    </View>
-                ))}
-            </SettingsSection>
             <SettingsSection title={t('words.wallet')}>
                 <View style={style.switchWrapper}>
                     <View style={style.switchLabelContainer}>
@@ -612,26 +544,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         }}
                     />
                 </View>
-                {stabilityPoolSupported && (
-                    <View style={style.switchWrapper}>
-                        <View style={style.switchLabelContainer}>
-                            <Text caption style={style.switchLabel}>
-                                {t('feature.fedimods.stable-balance-enabled')}
-                            </Text>
-                            <Text small style={style.switchLabel}>
-                                {t(
-                                    'feature.fedimods.stable-balance-enabled-info',
-                                )}
-                            </Text>
-                        </View>
-                        <Switch
-                            value={stableBalanceEnabled}
-                            onValueChange={value => {
-                                reduxDispatch(setStableBalanceEnabled(value))
-                            }}
-                        />
-                    </View>
-                )}
                 <View style={style.switchWrapper}>
                     <View style={style.switchLabelContainer}>
                         <Text caption style={style.switchLabel}>
@@ -648,106 +560,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         }}
                     />
                 </View>
-            </SettingsSection>
-            <SettingsSection title="Select a node to simulate Guardian Mode">
-                <CheckBox
-                    checkedIcon={<SvgImage name="RadioSelected" />}
-                    uncheckedIcon={<SvgImage name="RadioUnselected" />}
-                    title={
-                        <Text
-                            caption
-                            style={{
-                                color:
-                                    authenticatedGuardian == null
-                                        ? theme.colors.primary
-                                        : theme.colors.red,
-                            }}>
-                            {authenticatedGuardian == null ? 'None' : 'Reset'}
-                        </Text>
-                    }
-                    checked={!authenticatedGuardian}
-                    onPress={() => {
-                        reduxDispatch(changeAuthenticatedGuardian(null))
-                    }}
-                    containerStyle={style.checkboxContainer}
-                />
-                {activeFederation &&
-                    activeFederation.hasWallet &&
-                    activeFederation.nodes &&
-                    Object.entries(activeFederation.nodes).map(entry => {
-                        const [index, node] = entry
-                        const id = Number(index)
-                        const guardian: Guardian = {
-                            ...node,
-                            peerId: id,
-                            password: `${id + 1}${id + 1}${id + 1}${id + 1}`,
-                        }
-                        return (
-                            <CheckBox
-                                key={id}
-                                checkedIcon={<SvgImage name="RadioSelected" />}
-                                uncheckedIcon={
-                                    <SvgImage name="RadioUnselected" />
-                                }
-                                title={<Text caption>{guardian.name}</Text>}
-                                checked={
-                                    authenticatedGuardian?.name ===
-                                    guardian.name
-                                }
-                                onPress={() => {
-                                    reduxDispatch(
-                                        changeAuthenticatedGuardian(guardian),
-                                    )
-                                }}
-                                containerStyle={style.checkboxContainer}
-                            />
-                        )
-                    })}
-                {authenticatedGuardian && (
-                    <Flex fullWidth>
-                        <Text small>{'Confirm guardian password'}</Text>
-                        <Input
-                            onChangeText={input => {
-                                reduxDispatch(
-                                    changeAuthenticatedGuardian({
-                                        ...authenticatedGuardian,
-                                        password: input,
-                                    }),
-                                )
-                            }}
-                            value={authenticatedGuardian.password}
-                            returnKeyType="done"
-                            autoCapitalize={'none'}
-                            autoCorrect={false}
-                        />
-                    </Flex>
-                )}
-            </SettingsSection>
-
-            <SettingsSection title="Guardian Status">
-                {guardianOnlineStatus.map((n, index) => {
-                    let statusText
-                    let statusStyle
-
-                    if ('online' in n) {
-                        statusText = `Guardian ${n.online.guardian}: Online: ${n.online.latency_ms}ms`
-                        statusStyle = style.onlineStatus
-                    }
-                    if ('error' in n) {
-                        statusText = `Guardian  ${n.error.guardian} Error: ${n.error.error}`
-                        statusStyle = style.errorStatus
-                    }
-                    if ('timeout' in n) {
-                        statusText = `Guardian  ${n.timeout.guardian} Timeout: ${n.timeout.elapsed}`
-                        statusStyle = style.timeoutStatus
-                    }
-
-                    return (
-                        <Text key={index} style={statusStyle}>
-                            {statusText}
-                        </Text>
-                    )
-                })}
             </SettingsSection>
 
             <SettingsSection title="Chat">
@@ -775,22 +587,26 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     }}
                 />
                 <Button
-                    title="Evil Spam Invoices"
+                    title="Reset all auto-join community logic"
                     containerStyle={style.buttonContainer}
-                    onPress={async () => {
-                        if (!activeFederation?.id) return
-                        await fedimint.evilSpamInvoices({
-                            federationId: activeFederation.id,
+                    onPress={() => {
+                        reduxDispatch(clearAutojoinedCommunitiesAndNotices())
+                        toast.show({
+                            content:
+                                'Cleared previously auto-joined communities & notices to display!',
+                            status: 'success',
                         })
                     }}
                 />
                 <Button
-                    title="Evil Spam Address"
+                    title="Reset opt-in sharing state"
                     containerStyle={style.buttonContainer}
-                    onPress={async () => {
-                        if (!activeFederation?.id) return
-                        await fedimint.evilSpamAddress({
-                            federationId: activeFederation.id,
+                    onPress={() => {
+                        reduxDispatch(clearAnalyticsState())
+                        reduxDispatch(clearSessionCount())
+                        toast.show({
+                            content: 'Cleared analytics opt-in sharing state',
+                            status: 'success',
                         })
                     }}
                 />
@@ -806,6 +622,248 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         })
                     }}
                 />
+            </SettingsSection>
+
+            <SettingsSection title="Federation-specific settings">
+                <Text caption style={style.switchLabel}>
+                    {`The settings below can change based on the selected federation`}
+                </Text>
+                <FederationWalletSelector fullWidth />
+                <SettingsSection title="Change your lightning gateway">
+                    {isLoadingGateways && <ActivityIndicator />}
+                    {gateways.map((gw: LightningGateway, index: number) => (
+                        <View key={gw.nodePubKey}>
+                            <CheckBox
+                                key={index}
+                                checkedIcon={<SvgImage name="RadioSelected" />}
+                                uncheckedIcon={
+                                    <SvgImage name="RadioUnselected" />
+                                }
+                                title={
+                                    <Text
+                                        style={style.checkboxText}
+                                        numberOfLines={1}>
+                                        {gw.api}
+                                    </Text>
+                                }
+                                checked={gw.active}
+                                onPress={() => handleSelectGateway(gw)}
+                                containerStyle={style.checkboxContainer}
+                            />
+                        </View>
+                    ))}
+                </SettingsSection>
+                {/* TODO: Clean up this mess */}
+                {Object.keys(outstandingFediSendFeesMap).length !== 0 ? (
+                    Object.entries(outstandingFediSendFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`outstanding-send-fees-${module}`}>
+                                <Text
+                                    style={
+                                        style.version
+                                    }>{`Outstanding Send Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No outstanding send fees</Text>
+                )}
+                {Object.keys(outstandingFediReceiveFeesMap).length !== 0 ? (
+                    Object.entries(outstandingFediReceiveFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`outstanding-receive-fees-${module}`}>
+                                <Text
+                                    style={
+                                        style.version
+                                    }>{`Outstanding Receive Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No outstanding receive fees</Text>
+                )}
+                {Object.keys(pendingFediSendFeesMap).length !== 0 ? (
+                    Object.entries(pendingFediSendFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`pending-send-fees-${module}`}>
+                                <Text
+                                    style={
+                                        style.version
+                                    }>{`Pending Send Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No pending send fees</Text>
+                )}
+                {Object.keys(pendingFediReceiveFeesMap).length !== 0 ? (
+                    Object.entries(pendingFediReceiveFeesMap).map(
+                        ([module, fee]) => (
+                            <View key={`pending-receive-fees-${module}`}>
+                                <Text
+                                    style={
+                                        style.version
+                                    }>{`Pending Receive Fees for ${module}: ${fee}`}</Text>
+                            </View>
+                        ),
+                    )
+                ) : (
+                    <Text>No pending receive fees</Text>
+                )}
+                {stabilityPoolSupported && (
+                    <View style={style.switchWrapper}>
+                        <View style={style.switchLabelContainer}>
+                            <Text caption style={style.switchLabel}>
+                                {t('feature.fedimods.stable-balance-enabled')}
+                            </Text>
+                            <Text small style={style.switchLabel}>
+                                {t(
+                                    'feature.fedimods.stable-balance-enabled-info',
+                                )}
+                            </Text>
+                        </View>
+                        <Switch
+                            value={stableBalanceEnabled}
+                            onValueChange={value => {
+                                reduxDispatch(setStableBalanceEnabled(value))
+                            }}
+                        />
+                    </View>
+                )}
+                <SettingsSection title="Select a node to simulate Guardian Mode">
+                    <CheckBox
+                        checkedIcon={<SvgImage name="RadioSelected" />}
+                        uncheckedIcon={<SvgImage name="RadioUnselected" />}
+                        title={
+                            <Text
+                                caption
+                                style={{
+                                    color:
+                                        authenticatedGuardian == null
+                                            ? theme.colors.primary
+                                            : theme.colors.red,
+                                }}>
+                                {authenticatedGuardian == null
+                                    ? 'None'
+                                    : 'Reset'}
+                            </Text>
+                        }
+                        checked={!authenticatedGuardian}
+                        onPress={() => {
+                            reduxDispatch(changeAuthenticatedGuardian(null))
+                        }}
+                        containerStyle={style.checkboxContainer}
+                    />
+                    {paymentFederation &&
+                        paymentFederation.nodes &&
+                        Object.entries(paymentFederation.nodes).map(entry => {
+                            const [index, node] = entry
+                            const id = Number(index)
+                            const guardian: Guardian = {
+                                ...node,
+                                peerId: id,
+                                password: `${id + 1}${id + 1}${id + 1}${id + 1}`,
+                            }
+                            return (
+                                <CheckBox
+                                    key={id}
+                                    checkedIcon={
+                                        <SvgImage name="RadioSelected" />
+                                    }
+                                    uncheckedIcon={
+                                        <SvgImage name="RadioUnselected" />
+                                    }
+                                    title={<Text caption>{guardian.name}</Text>}
+                                    checked={
+                                        authenticatedGuardian?.name ===
+                                        guardian.name
+                                    }
+                                    onPress={() => {
+                                        reduxDispatch(
+                                            changeAuthenticatedGuardian(
+                                                guardian,
+                                            ),
+                                        )
+                                    }}
+                                    containerStyle={style.checkboxContainer}
+                                />
+                            )
+                        })}
+                    {authenticatedGuardian && (
+                        <Flex fullWidth>
+                            <Text small>{'Confirm guardian password'}</Text>
+                            <Input
+                                onChangeText={input => {
+                                    reduxDispatch(
+                                        changeAuthenticatedGuardian({
+                                            ...authenticatedGuardian,
+                                            password: input,
+                                        }),
+                                    )
+                                }}
+                                value={authenticatedGuardian.password}
+                                returnKeyType="done"
+                                autoCapitalize={'none'}
+                                autoCorrect={false}
+                            />
+                        </Flex>
+                    )}
+
+                    <SettingsSection title="Guardian Status">
+                        {guardianOnlineStatus.map((n, index) => {
+                            let statusText
+                            let statusStyle
+
+                            if ('online' in n) {
+                                statusText = `Guardian ${n.online.guardian}: Online: ${n.online.latency_ms}ms`
+                                statusStyle = style.onlineStatus
+                            }
+                            if ('error' in n) {
+                                statusText = `Guardian  ${n.error.guardian} Error: ${n.error.error}`
+                                statusStyle = style.errorStatus
+                            }
+                            if ('timeout' in n) {
+                                statusText = `Guardian  ${n.timeout.guardian} Timeout: ${n.timeout.elapsed}`
+                                statusStyle = style.timeoutStatus
+                            }
+
+                            return (
+                                <Text key={index} style={statusStyle}>
+                                    {statusText}
+                                </Text>
+                            )
+                        })}
+                    </SettingsSection>
+
+                    <SettingsSection title="Danger zone">
+                        <Button
+                            title={t('feature.developer.share-logs')}
+                            containerStyle={style.buttonContainer}
+                            onPress={shareLogs}
+                            loading={shareLogsStatus === 'generating-data'}
+                        />
+                        <Button
+                            title="Evil Spam Invoices"
+                            containerStyle={style.buttonContainer}
+                            onPress={async () => {
+                                if (!paymentFederation?.id) return
+                                await fedimint.evilSpamInvoices({
+                                    federationId: paymentFederation.id,
+                                })
+                            }}
+                        />
+                        <Button
+                            title="Evil Spam Address"
+                            containerStyle={style.buttonContainer}
+                            onPress={async () => {
+                                if (!paymentFederation?.id) return
+                                await fedimint.evilSpamAddress({
+                                    federationId: paymentFederation.id,
+                                })
+                            }}
+                        />
+                    </SettingsSection>
+                </SettingsSection>
             </SettingsSection>
             <Modal
                 visible={isModalVisible}
@@ -890,7 +948,7 @@ const styles = (theme: Theme) =>
             paddingBottom: theme.spacing.lg,
         },
         sectionTitle: {
-            marginBottom: theme.spacing.md,
+            marginVertical: theme.spacing.md,
         },
         checkboxContainer: {
             margin: 0,

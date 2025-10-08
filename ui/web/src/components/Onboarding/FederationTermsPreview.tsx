@@ -93,7 +93,7 @@ const ContentOverlay = styled('div', {
     justifyContent: 'center',
     display: 'flex',
     flexDirection: 'column',
-    gap: theme.space.md,
+    gap: theme.spacing.md,
 })
 
 export const ExternalTosLink = styled('a', {

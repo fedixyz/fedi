@@ -5,7 +5,6 @@ import { Trans, useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
-import { useCommonSelector } from '@fedi/common/hooks/redux'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectPaymentFederation } from '@fedi/common/redux'
@@ -13,12 +12,14 @@ import type { Sats, Transaction } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { fedimint } from '@fedi/native/bridge'
 
+import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import Flex from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
+import { useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -33,9 +34,12 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
     const toast = useToast()
     const { parsedData } = route.params
 
-    const activeWalletFederationId =
-        useCommonSelector(selectPaymentFederation)?.id ?? ''
-    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
+    const paymentFederationId =
+        useAppSelector(selectPaymentFederation)?.id ?? ''
+    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(
+        t,
+        paymentFederationId,
+    )
     const [isPayingInvoice, setIsPayingInvoice] = useState<boolean>(false)
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const [submitAttempts, setSubmitAttempts] = useState(0)
@@ -48,7 +52,7 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
         sendTo,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, activeWalletFederationId, true, t)
+    } = useOmniPaymentState(fedimint, paymentFederationId, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails
@@ -139,6 +143,7 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
         <>
             <AmountScreen
                 amount={exactAmount ?? (0 as Sats)}
+                subHeader={<FederationWalletSelector />}
                 submitAttempts={submitAttempts}
                 isSubmitting={isPayingInvoice}
                 readOnly={true}

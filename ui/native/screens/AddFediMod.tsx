@@ -60,7 +60,7 @@ const AddFediMod: React.FC = () => {
     const handleSubmit = async () => {
         try {
             const validUrl = new URL(
-                /^https?:\/\//.test(url) ? url : `https://${url}`,
+                /^https?:\/\//i.test(url) ? url : `https://${url}`,
             ).toString()
             dispatch(
                 addCustomMod({
@@ -91,7 +91,7 @@ const AddFediMod: React.FC = () => {
     useDebouncedEffect(
         () => {
             if (url) {
-                constructUrl(/^https?:\/\//.test(url) ? url : `https://${url}`)
+                constructUrl(/^https?:\/\//i.test(url) ? url : `https://${url}`)
                     // If URL construction fails, setIsValidUrl to false
                     .orTee(() => setIsValidUrl(false))
                     // Otherwise, set valid url and start fetching

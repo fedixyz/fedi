@@ -30,8 +30,13 @@ export default function OmniReceiveEcash({
             : null
     }, [parsed])
 
-    const { isFetchingPreview, federationPreview, handleCode, handleJoin } =
-        useFederationPreview(t, fedimint, inviteCode || '')
+    const {
+        isJoining,
+        isFetchingPreview,
+        federationPreview,
+        handleCode,
+        handleJoin,
+    } = useFederationPreview(t, fedimint, inviteCode || '')
 
     useEffect(() => {
         if (!inviteCode) return
@@ -75,6 +80,7 @@ export default function OmniReceiveEcash({
                     onJoin={() => handleJoin(onContinue)}
                     onBack={() => setShowFederationPreview(false)}
                     federation={federationPreview}
+                    isJoining={isJoining}
                 />
             )
         }

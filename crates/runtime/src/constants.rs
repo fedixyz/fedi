@@ -5,7 +5,9 @@ use fedimint_derive_secret::ChildId;
 
 pub const REISSUE_ECASH_TIMEOUT: Duration = Duration::from_secs(60);
 /// 3 days
-pub const ECASH_AUTO_CANCEL_DURATION: Duration = Duration::from_secs(60 * 60 * 24 * 3);
+pub const ECASH_AUTO_CANCEL_DURATION_MAINNET: Duration = Duration::from_secs(60 * 60 * 24 * 3);
+/// 10 minutes
+pub const ECASH_AUTO_CANCEL_DURATION_MUTINYNET: Duration = Duration::from_secs(60 * 10);
 pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 pub const LNURL_CHILD_ID: u64 = 11;
 pub const XMPP_CHILD_ID: u64 = 10;
@@ -35,6 +37,9 @@ pub const DEVICE_REGISTRATION_OVERDUE: Duration = Duration::from_secs(12 * 60 * 
 // In addition to amount threshold, remit fedi fee every 7 days
 pub const FEDI_FEE_REMITTANCE_MAX_DELAY: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
+// App should refresh fee schedules every 24 hours
+pub const FEDI_FEE_SCHEDULE_REFRESH_DELAY: Duration = Duration::from_secs(24 * 60 * 60);
+
 // Fedi file path
 pub const FEDI_FILE_V0_PATH: &str = "./fedi_file.json";
 
@@ -53,9 +58,9 @@ pub const FEDI_FEE_API_URL_MAINNET: &str =
 
 // URL for Fedi fee lightning invoice generator API
 pub const FEDI_INVOICE_API_URL_MUTINYNET: &str =
-    "https://staging.fee-collection.dev.fedibtc.com/v2/generate-invoice";
+    "https://staging.fee-collection.dev.fedibtc.com/v3/generate-invoice";
 pub const FEDI_INVOICE_API_URL_MAINNET: &str =
-    "https://prod.fee-collection.dev.fedibtc.com/v2/generate-invoice";
+    "https://prod.fee-collection.dev.fedibtc.com/v3/generate-invoice";
 
 pub const COMMUNITY_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community");
 
@@ -85,3 +90,5 @@ pub const FEDI_GIFT_EXCLUDED_COMMUNITIES: &[&str] = &[
     // 1 placeholder for QA testing
     "fedi:community10v3xxmmdd46ku6t5090k6et5v90h2unvygazy6r5w3c8xw309ankjum59enkjargw4382um9wf3k7mn5v4h8gtnrdakj7cnswf5kxefk9ucxgv3evyekgd3h8qcrve35vser2dmz89jx2drzxfjkgd34vvergtmjv9mjylglx5n2j",
 ];
+
+pub const NOSTR_COMMUNITY_CREATION_EVENT_KIND: u16 = 30300;

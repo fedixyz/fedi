@@ -2,13 +2,10 @@ import { useNavigation } from '@react-navigation/native'
 import { ListItem, Text, Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, StyleSheet, View } from 'react-native'
+import { Alert, Linking, StyleSheet, View } from 'react-native'
 
+import { useLeaveFederation } from '@fedi/common/hooks/leave'
 import { useDebouncePress } from '@fedi/common/hooks/util'
-import {
-    setActiveFederationId,
-    selectFederationFediModsById,
-} from '@fedi/common/redux/federation'
 import { LoadedFederation } from '@fedi/common/types'
 import {
     getFederationTosUrl,
@@ -16,9 +13,8 @@ import {
     shouldShowSocialRecovery,
 } from '@fedi/common/utils/FederationUtils'
 
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import { fedimint } from '../../../bridge'
 import { useNativeExport } from '../../../utils/hooks/export'
-import { useNativeLeaveFederation } from '../../../utils/hooks/leaveFederation'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import { BetaBadge } from './BetaBadge'
@@ -33,29 +29,47 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const style = styles(theme)
-    const dispatch = useAppDispatch()
     const navigation = useNavigation()
 
-    const { exportTransactionsAsCsv, isExporting } = useNativeExport()
-    const { confirmLeaveFederation } = useNativeLeaveFederation()
+    const { exportTransactionsAsCsv, isExporting } = useNativeExport(
+        federation.id,
+    )
+    const { validateCanLeaveFederation, handleLeaveFederation } =
+        useLeaveFederation({
+            t,
+            fedimint,
+            federationId: federation.id,
+        })
+
+    const handleLeavePressed = () => {
+        if (validateCanLeaveFederation(federation)) {
+            Alert.alert(
+                `${t('feature.federations.leave-federation')} - ${federation.name}`,
+                t('feature.federations.leave-federation-confirmation'),
+                [
+                    {
+                        text: t('words.no'),
+                    },
+                    {
+                        text: t('words.yes'),
+                        onPress: () => handleLeaveFederation(),
+                    },
+                ],
+            )
+        }
+    }
 
     const [isExpanded, setIsExpanded] = useState(false)
 
     const tosUrl = getFederationTosUrl(federation.meta)
     const runSocialBackup = () => {
-        dispatch(setActiveFederationId(federation.id))
-        navigation.navigate('StartSocialBackup')
+        navigation.navigate('StartSocialBackup', {
+            federationId: federation.id,
+        })
     }
 
     // Don't allow double-taps
     const handlePress = useDebouncePress(() => setIsExpanded(!isExpanded), 300)
-
-    // Get the mods for the federation
-    const federationMods = useAppSelector(state =>
-        federation.id ? selectFederationFediModsById(state, federation.id) : [],
-    )
-
-    const hasMods = federationMods.length > 0
 
     return (
         <View style={style.sectionContainer}>
@@ -100,18 +114,6 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
                             })
                         }}
                     />
-                    {hasMods && ( // Conditionally render this item
-                        <SettingsItem
-                            icon="Apps"
-                            label={t('feature.federations.federation-mods')}
-                            onPress={() => {
-                                navigation.navigate('FederationModSettings', {
-                                    type: 'community',
-                                    federationId: federation.id,
-                                })
-                            }}
-                        />
-                    )}
                     <SettingsItem
                         icon="Usd"
                         label={t('words.currency')}
@@ -148,20 +150,16 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
                             onPress={() => Linking.openURL(tosUrl)}
                         />
                     )}
-                    {federation.hasWallet && (
-                        <SettingsItem
-                            icon="TableExport"
-                            label={t(
-                                'feature.backup.export-transactions-to-csv',
-                            )}
-                            onPress={() => exportTransactionsAsCsv(federation)}
-                            disabled={!!isExporting}
-                        />
-                    )}
+                    <SettingsItem
+                        icon="TableExport"
+                        label={t('feature.backup.export-transactions-to-csv')}
+                        onPress={() => exportTransactionsAsCsv(federation)}
+                        disabled={!!isExporting}
+                    />
                     <SettingsItem
                         icon="LeaveFederation"
                         label={t('feature.federations.leave-federation')}
-                        onPress={() => confirmLeaveFederation(federation)}
+                        onPress={handleLeavePressed}
                     />
                 </View>
             </ListItem.Accordion>

@@ -19,7 +19,7 @@ export type Props = NativeStackScreenProps<
 const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { formattedFiat } = route.params
+    const { formattedFiat, federationId } = route.params
 
     const style = styles(theme)
 
@@ -62,7 +62,9 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
             <Button
                 fullWidth
                 containerStyle={style.button}
-                onPress={() => navigation.navigate('StabilityHome')}
+                onPress={() =>
+                    navigation.navigate('StabilityHome', { federationId })
+                }
                 title={
                     <Text medium caption style={style.buttonText}>
                         {t('words.okay')}

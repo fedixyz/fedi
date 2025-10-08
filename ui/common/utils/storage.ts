@@ -3,13 +3,11 @@ import omit from 'lodash/omit'
 
 import { CommonState } from '../redux'
 import { ModVisibility } from '../redux/mod'
-import { Chat } from '../types'
+import { Chat, StoredStateV10, StoredStateV14 } from '../types'
 import {
     AnyStoredState,
     LatestStoredState,
     StorageApi,
-    StoredStateV10,
-    StoredStateV14,
     StoredStateV2,
     StoredStateV3,
     StoredStateV4,
@@ -27,7 +25,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 27,
+        version: 35,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -39,9 +37,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         btcUsdRate: state.currency.btcUsdRate,
         fiatUsdRates: state.currency.fiatUsdRates,
         customFederationCurrencies: state.currency.customFederationCurrencies,
-        activeFederationId: state.federation.activeFederationId,
         authenticatedGuardian: state.federation.authenticatedGuardian,
-        externalMeta: state.federation.externalMeta,
         customFediMods: state.federation.customFediMods,
         nuxSteps: state.nux.steps,
         matrixAuth: state.matrix.auth,
@@ -56,6 +52,17 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         },
         seenFederationRatings: state.federation.seenFederationRatings,
         lastShownSurveyTimestamp: state.support.lastShownSurveyTimestamp,
+        lastSelectedCommunityId: state.federation.lastSelectedCommunityId,
+        recentlyUsedFederationIds: state.federation.recentlyUsedFederationIds,
+        previouslyAutojoinedCommunities:
+            state.federation.previouslyAutojoinedCommunities,
+        autojoinNoticesToDisplay: state.federation.autojoinNoticesToDisplay,
+        analyticsId: state.analytics.analyticsId,
+        hasConsentedToAnalytics: state.analytics.hasConsentedToAnalytics,
+        sessionCount: state.environment.sessionCount,
+        hasSeenAnalyticsConsentModal:
+            state.analytics.hasSeenAnalyticsConsentModal,
+        showFiatTotalBalance: state.currency.showFiatTotalBalance,
     }
 
     return transformedState
@@ -94,13 +101,17 @@ export function hasStorageStateChanged(
         ['environment', 'stableBalanceEnabled'],
         ['environment', 'showFiatTxnAmounts'],
         ['environment', 'deviceId'],
+        ['environment', 'sessionCount'],
         ['currency', 'overrideCurrency'],
         ['currency', 'customFederationCurrencies'],
         ['currency', 'prices'],
-        ['federation', 'activeFederationId'],
+        ['currency', 'showFiatTotalBalance'],
+        ['federation', 'recentlyUsedFederationIds'],
+        ['federation', 'lastSelectedCommunityId'],
         ['federation', 'authenticatedGuardian'],
-        ['federation', 'externalMeta'],
         ['federation', 'seenFederationRatings'],
+        ['federation', 'previouslyAutojoinedCommunities'],
+        ['federation', 'autojoinNoticesToDisplay'],
         ['matrix', 'drafts'],
         // TODO: migrate legacy mods to customGlobalMods
         ['federation', 'customFediMods'],
@@ -112,6 +123,9 @@ export function hasStorageStateChanged(
         ['support', 'supportPermissionGranted'],
         ['support', 'zendeskPushNotificationToken'],
         ['support', 'lastShownSurveyTimestamp'],
+        ['analytics', 'analyticsId'],
+        ['analytics', 'hasConsentedToAnalytics'],
+        ['analytics', 'hasSeenAnalyticsConsentModal'],
     ]
 
     for (const keysToCheck of keysetsToCheck) {
@@ -643,5 +657,80 @@ async function migrateStoredState(
         }
     }
 
+    if (migrationState.version === 27) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { activeFederationId, ...rest } = migrationState
+        migrationState = {
+            ...rest,
+            version: 28,
+            lastUsedFederationId: null,
+            lastSelectedCommunityId: null,
+        }
+    }
+
+    if (migrationState.version === 28) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { externalMeta, version, ...rest } = migrationState
+        migrationState = {
+            ...rest,
+            version: 29,
+        }
+    }
+
+    if (migrationState.version === 29) {
+        migrationState = {
+            ...migrationState,
+            version: 30,
+            previouslyAutojoinedCommunities: {},
+        }
+    }
+
+    if (migrationState.version === 30) {
+        migrationState = {
+            ...migrationState,
+            version: 31,
+            autojoinNoticesToDisplay: [],
+        }
+    }
+
+    if (migrationState.version === 31) {
+        migrationState = {
+            ...migrationState,
+            version: 32,
+            recentlyUsedFederationIds: migrationState.lastUsedFederationId
+                ? [migrationState.lastUsedFederationId]
+                : [],
+        }
+    }
+
+    if (migrationState.version === 32) {
+        migrationState = {
+            ...migrationState,
+            version: 33,
+            analyticsId: null,
+            hasConsentedToAnalytics: null,
+            sessionCount: 0,
+        }
+    }
+
+    if (migrationState.version === 33) {
+        migrationState = {
+            ...migrationState,
+            version: 34,
+            hasSeenAnalyticsConsentModal: false,
+        }
+    }
+
+    if (migrationState.version === 34) {
+        migrationState = {
+            ...migrationState,
+            version: 35,
+            showFiatTotalBalance: false,
+        }
+    }
+
+    // Type assertion needed due to TypeScript's union complexity limits.
+    // The flattened StoredStateV34 and OldStoredState consolidation prevent
+    // deep type recursion, but TypeScript still can't track through all migrations.
     return migrationState
 }

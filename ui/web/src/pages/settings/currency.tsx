@@ -28,7 +28,7 @@ function SettingsCurrencyPage() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back="/settings">
+                <Layout.Header back>
                     <Layout.Title subheader>{t('words.currency')}</Layout.Title>
                 </Layout.Header>
                 <Layout.Content>

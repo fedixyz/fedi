@@ -30,7 +30,7 @@ export type Props = NativeStackScreenProps<
 >
 
 const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
-    const { roomId, amount, notes } = route.params
+    const { roomId, amount, notes, federationId } = route.params
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
@@ -39,11 +39,17 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
     const { theme } = useTheme()
     const toast = useToast()
     const navigation = useNavigation()
-    const selectedFiatCurrency = useAppSelector(selectCurrency)
+    const selectedFiatCurrency = useAppSelector(s =>
+        selectCurrency(s, federationId),
+    )
     const currencyLocale = useAppSelector(selectCurrencyLocale)
     const matrixRoom = useAppSelector(s => selectMatrixRoom(s, roomId))
-    const btcUsdExchangeRate = useAppSelector(selectBtcUsdExchangeRate)
-    const btcExchangeRate = useAppSelector(selectBtcExchangeRate)
+    const btcUsdExchangeRate = useAppSelector(s =>
+        selectBtcUsdExchangeRate(s, federationId),
+    )
+    const btcExchangeRate = useAppSelector(s =>
+        selectBtcExchangeRate(s, selectedFiatCurrency, federationId),
+    )
 
     const handleSubmit = useCallback(async () => {
         setLoading(true)

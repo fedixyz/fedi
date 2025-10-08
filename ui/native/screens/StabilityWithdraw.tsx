@@ -19,7 +19,8 @@ export type Props = NativeStackScreenProps<
     'StabilityWithdraw'
 >
 
-const StabilityWithdraw: React.FC<Props> = () => {
+const StabilityWithdraw: React.FC<Props> = ({ route }: Props) => {
+    const { federationId } = route.params
     const navigation = useNavigation()
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -30,7 +31,7 @@ const StabilityWithdraw: React.FC<Props> = () => {
         maximumAmount,
         maximumFiatAmount,
         inputAmountCents,
-    } = useWithdrawForm()
+    } = useWithdrawForm(federationId)
     const [submitAttempts, setSubmitAttempts] = useState(0)
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
@@ -47,6 +48,7 @@ const StabilityWithdraw: React.FC<Props> = () => {
         navigation.navigate('StabilityConfirmWithdraw', {
             amountSats: amount,
             amountCents: inputAmountCents,
+            federationId,
         })
         Keyboard.dismiss()
     }
@@ -61,6 +63,8 @@ const StabilityWithdraw: React.FC<Props> = () => {
 
     return (
         <AmountScreen
+            showBalance={true}
+            federationId={federationId}
             amount={amount}
             onChangeAmount={onChangeAmount}
             minimumAmount={minimumAmount}

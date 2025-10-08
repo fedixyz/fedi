@@ -5,8 +5,8 @@ import { Linking } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectIsActiveFederationRecovering,
-    selectWalletFederations,
+    selectAreAllFederationsRecovering,
+    selectLoadedFederations,
 } from '@fedi/common/redux'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import {
@@ -43,9 +43,9 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     const toast = useToast()
     const navigation = useNavigation()
     const [isLoading, setIsLoading] = useState(false)
-    const walletFederations = useAppSelector(selectWalletFederations)
-    const recoveryInProgress = useAppSelector(
-        selectIsActiveFederationRecovering,
+    const walletFederations = useAppSelector(selectLoadedFederations)
+    const areAllFederationsRecovering = useAppSelector(
+        selectAreAllFederationsRecovering,
     )
 
     // OmniConfirmation can be rendered ourside of StackNavigator, so `replace`
@@ -116,7 +116,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
         }
         // If recovery has not completed, payment-related codes cannot be scanned.
         if (
-            recoveryInProgress &&
+            areAllFederationsRecovering &&
             BLOCKED_PARSER_TYPES_DURING_RECOVERY.includes(parsedData.type)
         ) {
             return {

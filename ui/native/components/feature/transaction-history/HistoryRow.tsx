@@ -70,7 +70,8 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
             <TouchableOpacity
                 onPress={() => onSelect()}
                 style={[style.container]}
-                hitSlop={4}>
+                hitSlop={4}
+                testID="transaction-item">
                 {icon}
                 <Flex grow gap="xs" fullWidth basis={false}>
                     <Text caption medium>

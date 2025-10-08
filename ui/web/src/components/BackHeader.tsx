@@ -26,8 +26,7 @@ const StyledHeader = styled(Layout.Header, {
 
 const StyledBackButton = styled(IconButton, {
     [`@media (max-width: ${MOBILE_MAX_WIDTH})`]: {
-        position: 'absolute',
-        left: 0,
+        marginRight: 'auto',
     },
 })
 

@@ -1,9 +1,9 @@
 import { PayloadAction, createSelector, createSlice } from '@reduxjs/toolkit'
 import omit from 'lodash/omit'
 
-import { CommonState, federationSlice, selectGlobalCommunityMeta } from '.'
+import { CommonState, federationSlice, selectGlobalCommunityMetadata } from '.'
 import { FediMod } from '../types'
-import { getFederationFediMods } from '../utils/FederationUtils'
+import { getCommunityFediMods } from '../utils/FederationUtils'
 import { deduplicate } from '../utils/fedimods'
 import { upsertRecordEntityId } from '../utils/redux'
 import { loadFromStorage } from './storage'
@@ -124,7 +124,7 @@ export const modSlice = createSlice({
         builder.addCase(
             // When a federation's mods are updated, we need to
             // set the visibility the mods
-            federationSlice.actions.setFederationCustomFediMods,
+            federationSlice.actions.setCommunityCustomFediMods,
             (state, action) => {
                 if (!action.payload?.mods) return
                 for (const mod of action.payload.mods) {
@@ -161,11 +161,10 @@ export const selectCommunityMods = createSelector(
 
 // Global mods
 export const selectGlobalMods = createSelector(
-    (s: CommonState) => selectGlobalCommunityMeta(s),
+    (s: CommonState) => selectGlobalCommunityMetadata(s),
     globalCommunityMeta => {
         if (!globalCommunityMeta) return []
-
-        return getFederationFediMods(globalCommunityMeta)
+        return getCommunityFediMods(globalCommunityMeta)
     },
 )
 
@@ -173,10 +172,10 @@ export const selectGlobalMods = createSelector(
 // to show on new wallet (home) page/screen when user hasn't yet
 // joined a federation
 export const selectCoreMods = createSelector(
-    (s: CommonState) => selectGlobalCommunityMeta(s),
+    (s: CommonState) => selectGlobalCommunityMetadata(s),
     globalCommunityMeta => {
         if (!globalCommunityMeta) return []
-        const mods = getFederationFediMods(globalCommunityMeta)
+        const mods = getCommunityFediMods(globalCommunityMeta)
         const coreMods = ['lngpt', 'catalog', 'swap']
         return mods.filter(mod => coreMods.includes(mod.id))
     },
@@ -213,17 +212,18 @@ export const selectVisibleCustomMods = createSelector(
 )
 
 export const selectVisibleCommunityMods = createSelector(
-    (s: CommonState) => s.federation.activeFederationId, // Get active federation ID
+    (s: CommonState) => s.federation.lastSelectedCommunityId, // Get active community ID
     (s: CommonState) => s.federation.customFediMods, // Get all community mods
     (s: CommonState) => s.mod.modVisibility, // Get mod visibility data
-    (activeFederationId, customFediMods, modVisibility) => {
-        if (!activeFederationId) return [] // If no active federation, return empty array
+    (lastSelectedCommunityId, customFediMods, modVisibility) => {
+        if (!lastSelectedCommunityId) return [] // If no selected community, return empty array
 
         // Get the mods for the active federation
-        const activeFederationMods = customFediMods[activeFederationId] ?? []
+        const selectedCommunityMods =
+            customFediMods[lastSelectedCommunityId] ?? []
 
         // Filter mods based on visibility, excluding those hidden for the current federation
-        return activeFederationMods.filter(mod => {
+        return selectedCommunityMods.filter(mod => {
             const visibility = modVisibility[mod.id]
 
             // If no visibility entry, mod is visible by default
@@ -234,7 +234,7 @@ export const selectVisibleCommunityMods = createSelector(
             // Hide only if isHiddenCommunity is true AND federationId matches the active federation
             if (
                 visibility.isHiddenCommunity &&
-                visibility.federationId === activeFederationId
+                visibility.federationId === lastSelectedCommunityId
             ) {
                 return false
             }

@@ -17,7 +17,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info};
 
 use super::federations_locker::{FederationLockGuard, FederationsLocker};
-use crate::federation_v2::{FederationV2, MultispendNotifications};
+use crate::federation_v2::{FederationPrefetchedInfo, FederationV2, MultispendNotifications};
 use crate::fedi_fee::FediFeeHelper;
 
 // label: * = lock held
@@ -89,7 +89,7 @@ impl FederationStateMachine {
     pub async fn join(
         &self,
         federation_id: String,
-        invite_code: String,
+        info: FederationPrefetchedInfo,
         runtime: Arc<Runtime>,
         locker: &FederationsLocker,
         recover_from_scratch: bool,
@@ -111,7 +111,7 @@ impl FederationStateMachine {
         let federation_arc = FederationV2::join(
             runtime.clone(),
             federation_id,
-            invite_code,
+            info,
             guard,
             recover_from_scratch,
             fedi_fee_helper.clone(),

@@ -51,7 +51,9 @@ const NewMessage: React.FC<Props> = ({ navigation }: Props) => {
                 onUnexpectedSuccess={() =>
                     navigation.canGoBack()
                         ? navigation.goBack()
-                        : navigation.navigate('TabsNavigator')
+                        : navigation.navigate('TabsNavigator', {
+                              initialRouteName: 'Chat',
+                          })
                 }
                 customActions={[
                     {

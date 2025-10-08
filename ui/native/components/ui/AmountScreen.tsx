@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import { useBalanceDisplay } from '@fedi/common/hooks/amount'
-import { selectActiveFederation } from '@fedi/common/redux'
+import { Federation } from '@fedi/common/types'
 import { hexToRgba } from '@fedi/common/utils/color'
 
-import { useAppSelector } from '../../state/hooks'
 import AmountInput, { Props as AmountInputProps } from './AmountInput'
 import Flex from './Flex'
 import KeyboardAwareWrapper from './KeyboardAwareWrapper'
@@ -15,6 +14,7 @@ import { SafeAreaContainer } from './SafeArea'
 
 interface Props extends AmountInputProps {
     showBalance?: boolean
+    federationId?: Federation['id'] // required if showBalance is true
     subHeader?: React.ReactNode | null
     subContent?: React.ReactNode | null
     description?: string
@@ -24,7 +24,8 @@ interface Props extends AmountInputProps {
 }
 
 export const AmountScreen: React.FC<Props> = ({
-    showBalance,
+    showBalance = false,
+    federationId = '',
     subHeader = null,
     subContent = null,
     buttons = [],
@@ -33,11 +34,7 @@ export const AmountScreen: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const balance = activeFederation?.hasWallet
-        ? activeFederation.balance
-        : undefined
-    const balanceDisplay = useBalanceDisplay(t)
+    const balanceDisplay = useBalanceDisplay(t, federationId)
 
     const style = styles(theme)
 
@@ -52,7 +49,7 @@ export const AmountScreen: React.FC<Props> = ({
                 edges={isIndependent ? 'notop' : 'none'}>
                 <View style={style.subHeader}>
                     {subHeader}
-                    {showBalance && typeof balance === 'number' && (
+                    {showBalance && balanceDisplay && (
                         <Text
                             caption
                             style={style.balance}

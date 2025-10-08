@@ -6,10 +6,8 @@ import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import {
-    selectActiveFederation,
     selectPaymentFederation,
-    selectWalletFederations,
-    setActiveFederationId,
+    selectLoadedFederations,
 } from '@fedi/common/redux'
 import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
@@ -18,7 +16,7 @@ import CustomOverlay from '../components/ui/CustomOverlay'
 import Flex from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { useSubmitLogs } from '../utils/hooks/export'
 import { useLaunchZendesk } from '../utils/hooks/support'
@@ -31,10 +29,8 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
-    const activeFederation = useAppSelector(selectActiveFederation)
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const walletFederations = useAppSelector(selectWalletFederations)
-    const dispatch = useAppDispatch()
+    const federations = useAppSelector(selectLoadedFederations)
 
     const [isSelectingFederation, setIsSelectingFederation] = useState(false)
     const [ticketNumber, setTicketNumber] = useState(initialTicketNumber)
@@ -42,7 +38,9 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
     const [dbTaps, setDbTaps] = useState(0)
     const [sendDb, setShouldSendDb] = useState(false)
 
-    const { status, collectAttachmentsAndSubmit } = useSubmitLogs()
+    const { status, collectAttachmentsAndSubmit } = useSubmitLogs(
+        paymentFederation?.id,
+    )
 
     const { launchZendesk } = useLaunchZendesk()
 
@@ -89,11 +87,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
 
     const handleSubmit = useCallback(async () => {
         setHasAttemptedSubmit(true)
-        if (
-            walletFederations.length > 0 &&
-            activeFederation &&
-            !activeFederation.hasWallet
-        ) {
+        if (federations.length > 0 && !paymentFederation) {
             setIsSelectingFederation(true)
             return
         }
@@ -111,16 +105,9 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
         navigation,
         sendDb,
         collectAttachmentsAndSubmit,
-        activeFederation,
-        walletFederations,
+        paymentFederation,
+        federations,
     ])
-
-    const handleChooseWalletFederation = useCallback(() => {
-        if (!paymentFederation) return
-
-        dispatch(setActiveFederationId(paymentFederation?.id))
-        setIsSelectingFederation(false)
-    }, [paymentFederation, dispatch])
 
     return (
         <SafeScrollArea edges="notop">
@@ -200,7 +187,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
             </Flex>
             <CustomOverlay
                 show={isSelectingFederation}
-                onBackdropPress={handleChooseWalletFederation}
+                onBackdropPress={() => setIsSelectingFederation(false)}
                 contents={{
                     title: t('phrases.select-federation'),
                     description: t(
@@ -210,7 +197,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                     buttons: [
                         {
                             text: t('words.continue'),
-                            onPress: handleChooseWalletFederation,
+                            onPress: () => setIsSelectingFederation(false),
                             primary: true,
                         },
                     ],

@@ -2,66 +2,49 @@ import { useNavigation } from '@react-navigation/native'
 import { Button, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useLayoutEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import {
-    Linking,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
-    ScrollView,
-    StyleSheet,
-    View,
-} from 'react-native'
+import { Linking, StyleSheet, View } from 'react-native'
 import Hyperlink from 'react-native-hyperlink'
-import LinearGradient from 'react-native-linear-gradient'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
-import { JoinPreview } from '@fedi/common/types'
+import { RpcFederationPreview } from '@fedi/common/types/bindings'
 import {
     getFederationTosUrl,
     getFederationWelcomeMessage,
-    getIsFederationSupported,
     shouldShowJoinFederation,
 } from '@fedi/common/utils/FederationUtils'
 
 import Flex from '../../ui/Flex'
-import RotatingSvg from '../../ui/RotatingSvg'
 import { SafeAreaContainer } from '../../ui/SafeArea'
-import { SvgImageSize } from '../../ui/SvgImage'
+import ShadowScrollView from '../../ui/ShadowScrollView'
 import EndedFederationPreview from '../federations/EndedPreview'
 import { FederationLogo } from '../federations/FederationLogo'
+import { HelpTextLoadingAnimation } from './HelpTextLoadingAnimation'
 
 type Props = {
-    federation: JoinPreview
+    federation: RpcFederationPreview
     onJoin: (recoverFromScratch?: boolean) => void | Promise<void>
     onBack: () => void
+    isJoining: boolean
 }
 
-const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
+const FederationPreview: React.FC<Props> = ({
+    federation,
+    onJoin,
+    onBack,
+    isJoining,
+}) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
 
     const showJoinFederation = shouldShowJoinFederation(federation.meta)
-    const [isJoining, setIsJoining] = useState(false)
     const [selectedRecoverFromScratch, setSelectedRecoverFromScratch] =
         useState(false)
-    const [showTopShadow, setShowTopShadow] = useState(false)
-    const [showBottomShadow, setShowBottomShadow] = useState(true)
     const tosUrl = getFederationTosUrl(federation.meta)
     const welcomeMessage = getFederationWelcomeMessage(federation.meta)
-    const isSupported = getIsFederationSupported(federation)
     const popupInfo = usePopupFederationInfo(federation.meta)
     const navigation = useNavigation()
     const isReturningMember =
-        federation.hasWallet &&
         federation.returningMemberStatus.type === 'returningMember'
-
-    const handleScroll = ({
-        nativeEvent,
-    }: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const { contentOffset } = nativeEvent
-
-        setShowTopShadow(contentOffset.y > 0)
-        setShowBottomShadow(contentOffset.y < 0)
-    }
 
     useLayoutEffect(() => {
         navigation.setOptions({ headerShown: !isJoining })
@@ -75,11 +58,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
     if (isJoining) {
         return (
             <Flex grow center style={s.loadingContainer}>
-                <RotatingSvg
-                    name="FediLogoIcon"
-                    size={SvgImageSize.md}
-                    containerStyle={s.loadingIcon}
-                />
+                <HelpTextLoadingAnimation />
             </Flex>
         )
     }
@@ -103,42 +82,8 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
         )
     }
 
-    if (!isSupported) {
-        return (
-            <View style={s.container}>
-                <Flex center gap="sm" style={s.unsupportedContainer}>
-                    <FederationLogo federation={federation} size={96} />
-                    <Text h2 medium style={s.welcome}>
-                        {federation?.name}
-                    </Text>
-                    <Flex center style={s.unsupportedBadge}>
-                        <Text caption bold style={s.unsupportedBadgeLabel}>
-                            {t('words.unsupported')}
-                        </Text>
-                    </Flex>
-                    <Text caption style={s.welcomeText}>
-                        {t('feature.onboarding.unsupported-notice')}
-                    </Text>
-                </Flex>
-                <View style={s.buttonsContainer}>
-                    <Button
-                        fullWidth
-                        title={t('words.okay')}
-                        onPress={onBack}
-                        containerStyle={s.button}
-                    />
-                </View>
-            </View>
-        )
-    }
-
-    const handleJoin = async () => {
-        setIsJoining(true)
-        try {
-            await onJoin(selectedRecoverFromScratch)
-        } catch {
-            setIsJoining(false)
-        }
+    const handleJoin = () => {
+        onJoin(selectedRecoverFromScratch)
     }
 
     const joinButtons = tosUrl ? (
@@ -147,14 +92,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                 fullWidth
                 type="clear"
                 title={t('feature.onboarding.i-do-not-accept')}
-                onPress={() =>
-                    (navigation.getState()?.routes?.length || 0) > 1
-                        ? navigation.goBack()
-                        : navigation.reset({
-                              index: 0,
-                              routes: [{ name: 'TabsNavigator' }],
-                          })
-                }
+                onPress={onBack}
                 containerStyle={s.button}
             />
             <Button
@@ -171,11 +109,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
             <Button
                 testID="JoinFederationButton"
                 fullWidth
-                title={
-                    federation.hasWallet
-                        ? t('phrases.join-federation')
-                        : t('phrases.join-community')
-                }
+                title={t('phrases.join-federation')}
                 onPress={handleJoin}
                 containerStyle={s.button}
                 disabled={isJoining}
@@ -186,7 +120,6 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
 
     const welcomeTitle = federation?.name
     const welcomeInstructions =
-        federation.hasWallet &&
         federation.returningMemberStatus.type === 'newMember'
             ? t('feature.onboarding.welcome-instructions-new')
             : isReturningMember
@@ -195,47 +128,27 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
 
     return (
         <SafeAreaContainer edges="notop" style={s.joinPreviewContainer}>
-            <Flex grow shrink style={s.federationInfoContainer}>
-                {showTopShadow && (
-                    <LinearGradient
-                        style={[s.scrollInsetShadow, s.scrollTopShadow]}
-                        colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0)']}
-                    />
-                )}
-                <ScrollView
-                    contentContainerStyle={s.federationInfoScrollView}
-                    onScroll={handleScroll}>
-                    <Flex center>
-                        <FederationLogo federation={federation} size={96} />
-                        <Text h2 medium style={s.welcome}>
-                            {welcomeTitle}
-                        </Text>
-                    </Flex>
+            <ShadowScrollView>
+                <Flex center>
+                    <FederationLogo federation={federation} size={96} />
+                    <Text h2 medium style={s.welcome}>
+                        {welcomeTitle}
+                    </Text>
+                </Flex>
 
-                    <View style={s.roundedCardContainer}>
-                        <Text caption style={s.welcomeText}>
-                            <Trans
-                                components={{
-                                    bold: (
-                                        <Text
-                                            caption
-                                            bold
-                                            style={s.welcomeText}
-                                        />
-                                    ),
-                                }}>
-                                {welcomeMessage ?? welcomeInstructions}
-                            </Trans>
-                        </Text>
-                    </View>
-                </ScrollView>
-                {showBottomShadow && (
-                    <LinearGradient
-                        style={[s.scrollInsetShadow, s.scrollBottomShadow]}
-                        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.05)']}
-                    />
-                )}
-            </Flex>
+                <View style={s.roundedCardContainer}>
+                    <Text caption style={s.welcomeText}>
+                        <Trans
+                            components={{
+                                bold: (
+                                    <Text caption bold style={s.welcomeText} />
+                                ),
+                            }}>
+                            {welcomeMessage ?? welcomeInstructions}
+                        </Trans>
+                    </Text>
+                </View>
+            </ShadowScrollView>
 
             <Flex shrink={false}>
                 {showJoinFederation && isReturningMember && (
@@ -270,7 +183,7 @@ const FederationPreview: React.FC<Props> = ({ federation, onJoin, onBack }) => {
                     </Flex>
                 )}
 
-                {joinButtons}
+                {showJoinFederation && joinButtons}
 
                 {showJoinFederation && tosUrl && (
                     <View style={s.guidance}>
@@ -296,8 +209,15 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.lg,
             paddingTop: 3,
             paddingBottom: 3,
+            transform: [{ scale: 2 }],
         },
-        loadingIcon: { marginBottom: theme.spacing.md },
+        loadingAnimationContainer: {
+            marginBottom: theme.spacing.md,
+            width: 200,
+            height: 200,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
         container: { flex: 1, padding: theme.spacing.xl },
         joinPreviewContainer: {
             gap: theme.spacing.lg,
@@ -332,40 +252,10 @@ const styles = (theme: Theme) =>
             letterSpacing: -0.16,
             textAlign: 'left',
         },
-        unsupportedContainer: {
-            maxWidth: 280,
-            paddingTop: theme.spacing.xl,
-        },
-        unsupportedBadge: {
-            paddingHorizontal: theme.spacing.sm,
-            paddingVertical: theme.spacing.xxs,
-            borderRadius: 30,
-            backgroundColor: theme.colors.red,
-        },
-        unsupportedBadgeLabel: { color: theme.colors.white },
         switchWrapper: {
             padding: theme.spacing.lg,
             borderRadius: 12,
             backgroundColor: theme.colors.offWhite,
-        },
-        scrollTopShadow: {
-            top: 0,
-        },
-        scrollBottomShadow: {
-            bottom: 0,
-        },
-        scrollInsetShadow: {
-            position: 'absolute',
-            height: 40,
-            left: 0,
-            right: 0,
-            backgroundColor: 'transparent',
-        },
-        federationInfoContainer: {
-            position: 'relative',
-        },
-        federationInfoScrollView: {
-            paddingVertical: theme.spacing.xl,
         },
     })
 

@@ -42,7 +42,7 @@ const Container = styled('div', {
     borderRadius: 9999,
     display: 'flex',
     height: 36,
-    holoGradient: '600',
+    fediGradient: 'sky-heavy',
     justifyContent: 'center',
     overflow: 'hidden',
     width: 36,

@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Linking, Pressable, StyleSheet } from 'react-native'
 
 import { supportsSafeOnchainDeposit } from '@fedi/common/redux'
+import { Federation } from '@fedi/common/types'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
-import HoloGradient from '../../ui/HoloGradient'
+import HoloAlert from '../../ui/HoloAlert'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 type RowProps = {
@@ -45,7 +46,11 @@ const InfoRow = ({ icon, title, subtitle, right }: RowProps) => {
     )
 }
 
-const OnchainDepositInfo: React.FC = () => {
+type Props = {
+    federationId: Federation['id']
+}
+
+const OnchainDepositInfo: React.FC<Props> = ({ federationId }) => {
     const [supportsSafeDeposit, setSupportsSafeOnchainDeposit] = useState(false)
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
@@ -86,22 +91,19 @@ const OnchainDepositInfo: React.FC = () => {
     }
 
     useEffect(() => {
-        dispatch(supportsSafeOnchainDeposit({ fedimint }))
+        dispatch(supportsSafeOnchainDeposit({ fedimint, federationId }))
             .unwrap()
             .then(setSupportsSafeOnchainDeposit)
-    }, [dispatch])
+    }, [dispatch, federationId])
 
     return (
-        <HoloGradient
-            level="900"
-            style={style.gradientContainer}
-            gradientStyle={style.gradient}>
+        <HoloAlert containerStyle={style.gradient}>
             <Flex gap="md" style={style.content}>
                 {rows.map((row, idx) => (
                     <InfoRow key={`info-row-onchain-${idx}`} {...row} />
                 ))}
             </Flex>
-        </HoloGradient>
+        </HoloAlert>
     )
 }
 

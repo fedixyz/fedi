@@ -10,7 +10,6 @@ import RNFetchBlob from 'rn-fetch-blob'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { addTempMediaUriEntry, selectTempMediaUriMap } from '@fedi/common/redux'
-import { JSONObject } from '@fedi/common/types/bindings'
 import { SupportedFileSource } from '@fedi/common/types/media'
 import { makeLog } from '@fedi/common/utils/log'
 import {
@@ -64,7 +63,7 @@ export const useDownloadResource = (
         let identifier: string
 
         if (typeof resource === 'object') {
-            identifier = `${resource.eventId}-${resource.timestamp}`
+            identifier = `${resource.id}-${resource.timestamp}`
         } else if (
             !isMxcUri(resource) &&
             !isHttpUri(resource) &&
@@ -96,7 +95,12 @@ export const useDownloadResource = (
             let fileUri: string
 
             // Attempt to copy the resource to the temporary directory and set `fileUri`
-            if (typeof resource === 'object') {
+            // TODO: Ask @ironclad about this code. @manmeet believes we can remove the
+            // temp cache on the frontend due to the cache in the bridge.
+            if (
+                typeof resource === 'object' &&
+                resource.content.info?.mimetype
+            ) {
                 const extension = resource.content.info.mimetype
                     .split('/')
                     .pop()
@@ -104,13 +108,13 @@ export const useDownloadResource = (
                 const path = pathJoin(TemporaryDirectoryPath, fileName)
                 const filePath = await fedimint.matrixDownloadFile(
                     path,
-                    resource.content as JSONObject,
+                    resource.content.source,
                 )
 
                 fileUri = prefixFileUri(filePath)
-            } else if (isFileUri(resource)) {
+            } else if (typeof resource === 'string' && isFileUri(resource)) {
                 fileUri = resource
-            } else {
+            } else if (typeof resource === 'string') {
                 const { path, uri: resolvedUri } = makeRandomTempFilePath(
                     `${resourceHash}.png`,
                 )
@@ -128,6 +132,9 @@ export const useDownloadResource = (
                 }).fetch('GET', urlToFetch)
 
                 fileUri = resolvedUri
+            } else {
+                // TODO: remove me once we fix the types above
+                fileUri = ''
             }
 
             if (await exists(fileUri)) {
@@ -175,9 +182,11 @@ export const useDownloadResource = (
                         : resource.content.body
 
                 try {
+                    const mimetype = resource.content.info?.mimetype
+                    if (!mimetype) throw new Error('Invalid resource')
                     await Share.open({
                         filename,
-                        type: resource.content.info.mimetype,
+                        type: mimetype,
                         url: uriToDownload,
                     })
                 } catch {
@@ -238,6 +247,7 @@ export const useDownloadResource = (
         isError,
         isDownloading,
         handleDownload,
+        handleCopyResource,
         setIsError,
     }
 }

@@ -14,6 +14,8 @@
             "outputs": [".next/**", "!.next/cache/**"]
         },
         "test": {},
+        "test:unit": {},
+        "test:integration": {},
         "lint": {},
         "@fedi/injections#lint": {
             "dependsOn": ["@fedi/common#build"]

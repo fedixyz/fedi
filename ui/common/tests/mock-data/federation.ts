@@ -1,9 +1,8 @@
-import { MSats, FederationListItem } from '@fedi/common/types'
+import { MSats, Federation, Community } from '@fedi/common/types'
 
-export const mockFederation1: FederationListItem = {
+export const mockFederation1: Federation = {
     status: 'online',
     init_state: 'ready',
-    hasWallet: true,
     balance: 2000000 as MSats,
     id: '1',
     network: 'bitcoin',
@@ -20,10 +19,9 @@ export const mockFederation1: FederationListItem = {
     hadReusedEcash: false,
 }
 
-export const mockFederation2: FederationListItem = {
+export const mockFederation2: Federation = {
     status: 'online',
     init_state: 'ready',
-    hasWallet: true,
     balance: 2000000 as MSats,
     id: '2',
     network: 'bitcoin',
@@ -40,12 +38,8 @@ export const mockFederation2: FederationListItem = {
     hadReusedEcash: false,
 }
 
-export const mockCommunity: FederationListItem = {
+export const mockCommunity: Community = {
     id: '1',
-    status: 'online',
-    network: undefined,
-    hasWallet: false,
-    init_state: 'ready',
     inviteCode: 'test',
     name: 'name',
     meta: {},

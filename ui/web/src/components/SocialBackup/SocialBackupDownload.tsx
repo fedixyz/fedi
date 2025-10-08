@@ -91,5 +91,5 @@ const IconContainer = styled('div', {
     maxWidth: 180,
     aspectRatio: '1/1',
     borderRadius: '100%',
-    holoGradient: '600',
+    fediGradient: 'sky',
 })

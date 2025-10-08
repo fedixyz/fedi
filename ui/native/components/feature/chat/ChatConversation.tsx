@@ -1,3 +1,4 @@
+import { RouteProp, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +15,7 @@ import {
 } from 'react-native'
 
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
+import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
     matchAndHidePreviewMedia,
     selectPreviewMedia,
@@ -25,10 +27,10 @@ import {
     selectMatrixRoomIsBlocked,
     selectIsDefaultGroup,
 } from '@fedi/common/redux'
-import { ChatType, MatrixEvent, MatrixEventStatus } from '@fedi/common/types'
+import { ChatType, MatrixEvent } from '@fedi/common/types'
+import { RpcTimelineEventItemId } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 import {
-    MatrixEventContent,
     isImageEvent,
     isMultispendEvent,
     isVideoEvent,
@@ -36,6 +38,7 @@ import {
 } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import { RootStackParamList } from '../../../types/navigation'
 import Flex from '../../ui/Flex'
 import ChatEventCollection from './ChatEventCollection'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
@@ -53,6 +56,10 @@ type MessagesListProps = {
     newMessageBottomOffset: number
     replyBarOffset?: number
 }
+type ChatRoomConversationRouteProp = RouteProp<
+    RootStackParamList,
+    'ChatRoomConversation'
+>
 
 const ChatConversation: React.FC<MessagesListProps> = ({
     type,
@@ -63,6 +70,8 @@ const ChatConversation: React.FC<MessagesListProps> = ({
 }: MessagesListProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const router = useRoute<ChatRoomConversationRouteProp>()
+    const { scrollToMessageId } = router.params
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const myId = useMemo(() => matrixAuth?.userId, [matrixAuth])
     const isBroadcast = !!useAppSelector(s => selectMatrixRoom(s, id))
@@ -72,6 +81,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const [highlightedMessageId, setHighlightedMessageId] = useState<
         string | null
     >(null)
+    const [visibleItems, setVisibleItems] = useState<string[]>([])
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
     const previewMedia = useAppSelector(selectPreviewMedia)
     const hasLoadedEvents = useAppSelector(s =>
@@ -104,8 +114,9 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         const timestamp = Date.now()
 
         visiblePreviewMedia.reverse().forEach(({ media }, index) => {
+            const eventId = `cached-media-${media.fileName}-${index}`
             evts.push({
-                id: `cached-media-${media.fileName}-${index}`,
+                id: eventId as RpcTimelineEventItemId,
                 content: {
                     msgtype: 'xyz.fedi.preview-media' as const,
                     body: media.fileName,
@@ -116,12 +127,12 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                         uri: media.uri,
                     },
                 },
-                status: MatrixEventStatus.sent,
                 roomId: id,
                 timestamp,
-                senderId: myId,
-                eventId: `cached-media-${media.fileName}-${index}`,
-                error: null,
+                sender: myId,
+                localEcho: false,
+                sendState: { kind: 'sent', event_id: eventId },
+                inReply: null,
             })
         })
 
@@ -151,11 +162,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                 ) {
                     const group = eventGroups[groupIndex]
                     const found = group.some(timeFrame =>
-                        timeFrame.some(
-                            event =>
-                                event.eventId === eventId ||
-                                event.id === eventId,
-                        ),
+                        timeFrame.some(event => event.id === eventId),
                     )
                     if (found) {
                         targetGroupIndex = groupIndex
@@ -215,7 +222,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         // Update ref so we don't scroll again
         lastScrolledMessageIdRef.current = lastMessage.id
         // If we sent it, or we're already at the bottom, scroll without asking
-        if (lastMessage.senderId === myId || isScrolledToBottomRef.current) {
+        if (lastMessage.sender === myId || isScrolledToBottomRef.current) {
             return
         }
         // Otherwise, mark that we have new messages
@@ -236,13 +243,13 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         [],
     )
 
-    const renderEventGroup: ListRenderItem<
-        MatrixEvent<MatrixEventContent>[][]
-    > = useCallback(
+    const renderEventGroup: ListRenderItem<MatrixEvent[][]> = useCallback(
         ({ item }) => {
+            const key = item[0].at(-1)?.id
+
             return (
                 <ChatEventCollection
-                    key={item[0].at(-1)?.eventId}
+                    key={key}
                     roomId={id}
                     collection={item}
                     showUsernames={
@@ -255,10 +262,18 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     isPublic={isPublic}
                     onReplyTap={scrollToMessage}
                     highlightedMessageId={highlightedMessageId}
+                    isInViewport={visibleItems.includes(key ?? '')}
                 />
             )
         },
-        [id, type, isPublic, scrollToMessage, highlightedMessageId],
+        [
+            id,
+            type,
+            isPublic,
+            scrollToMessage,
+            highlightedMessageId,
+            visibleItems,
+        ],
     )
 
     // Hide the preview cached media events when the ACTUAL chat image/video events come
@@ -270,6 +285,16 @@ const ChatConversation: React.FC<MessagesListProps> = ({
         )
     }, [events, dispatch])
 
+    useDebouncedEffect(
+        () => {
+            if (scrollToMessageId) {
+                scrollToMessage(scrollToMessageId)
+            }
+        },
+        [scrollToMessageId],
+        300,
+    )
+
     return (
         <>
             {hasLoadedEvents ? (
@@ -277,7 +302,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     data={eventGroups}
                     ref={listRef}
                     renderItem={renderEventGroup}
-                    keyExtractor={item => item[0].at(-1)?.eventId as string}
+                    keyExtractor={item => item[0].at(-1)?.id as string}
                     style={[
                         style.listContainer,
                         {
@@ -329,7 +354,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     inverted={events.length > 0}
                     // adjust this for more/less aggressive loading
                     onEndReachedThreshold={0.1}
-                    onEndReached={handlePaginate}
+                    onEndReached={() => handlePaginate()}
                     refreshing={isPaginating}
                     maintainVisibleContentPosition={{
                         minIndexForVisible: 1,
@@ -340,6 +365,10 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     maxToRenderPerBatch={10}
                     windowSize={10}
                     initialNumToRender={10}
+                    onViewableItemsChanged={({ viewableItems }) => {
+                        setVisibleItems(viewableItems.map(item => item.key))
+                    }}
+                    viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
                 />
             ) : (
                 <Flex justify="center" grow>

@@ -23,6 +23,7 @@ import {
 import { MatrixPowerLevel } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
+import { fedimint } from '../bridge'
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import { ConfirmBlockOverlay } from '../components/feature/chat/ConfirmBlockOverlay'
 import SettingsItem, {
@@ -62,7 +63,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     )
     const shouldShowMultispend = useAppSelector(selectShouldShowMultispend)
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, roomId))
-    const isGroupChat = room?.directUserId === undefined
+    const isGroupChat = !room?.directUserId
     const [isTogglingBroadcastOnly, setIsTogglingBroadcastOnly] =
         useState(false)
 
@@ -82,7 +83,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         // after we leave it.
         try {
             navigation.dispatch(resetToChatsScreen())
-            await dispatch(leaveMatrixRoom({ roomId })).unwrap()
+            await dispatch(leaveMatrixRoom({ fedimint, roomId })).unwrap()
         } catch (err) {
             toast.error(t, err)
         }
@@ -125,7 +126,9 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         try {
             if (!room?.directUserId) return
             setIsBlockingUser(true)
-            await dispatch(ignoreUser({ userId: room.directUserId })).unwrap()
+            await dispatch(
+                ignoreUser({ fedimint, userId: room.directUserId }),
+            ).unwrap()
             setIsBlockingUser(false)
             setIsConfirmingBlock(false)
             show({
@@ -142,7 +145,9 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
             if (!room?.directUserId) return
             setIsBlockingUser(true)
 
-            await dispatch(unignoreUser({ userId: room.directUserId })).unwrap()
+            await dispatch(
+                unignoreUser({ fedimint, userId: room.directUserId }),
+            ).unwrap()
 
             setIsBlockingUser(false)
             setIsConfirmingBlock(false)
@@ -177,6 +182,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         try {
             await dispatch(
                 setMatrixRoomBroadcastOnly({
+                    fedimint,
                     roomId: room.id,
                     broadcastOnly: !room.broadcastOnly,
                 }),
@@ -367,8 +373,8 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                 onDismiss={() => setIsConfirmingBlock(false)}
                 user={{
                     id: room.directUserId ?? '',
-                    displayName: room?.preview?.displayName ?? '',
-                    avatarUrl: room?.preview?.avatarUrl ?? '',
+                    displayName: '', //  room?.preview?.displayName ?? '',
+                    avatarUrl: '', // room?.preview?.avatarUrl ?? '',
                 }}
             />
         </>

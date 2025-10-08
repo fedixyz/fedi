@@ -12,7 +12,10 @@ const ConfirmJoinPublicGroupHeader: React.FC = () => {
             onClose={() => {
                 if (navigation.canGoBack()) navigation.goBack()
                 // If we can't go back, navigate home
-                else navigation.navigate('TabsNavigator')
+                else
+                    navigation.navigate('TabsNavigator', {
+                        initialRouteName: 'Chat',
+                    })
             }}
         />
     )

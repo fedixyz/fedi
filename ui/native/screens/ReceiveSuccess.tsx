@@ -34,6 +34,7 @@ const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
                 </Flex>
             }
             buttonText={t('words.done')}
+            nextScreenProps={{ initialRouteName: 'Federations' }}
         />
     )
 }

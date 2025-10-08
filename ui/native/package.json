@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "25.9.1",
+    "version": "25.10.1",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -8,8 +8,9 @@
     "scripts": {
         "start": "react-native start",
         "dev": "react-native start",
-        "test": "yarn run test:functional",
-        "test:functional": "jest --config='tests/configs/jest-functional.config.js'",
+        "test": "yarn test:unit && yarn test:integration",
+        "test:unit": "jest --config='tests/configs/jest.unit.config.js' ",
+        "test:integration": "jest --config='tests/configs/jest.integration.config.js'",
         "test:android:regtest": "bash scripts/run-detox-tests-android.sh -n regtest",
         "test:android:mainnet": "bash scripts/run-detox-tests-android.sh -n mainnet",
         "test:ios:regtest": "bash scripts/run-detox-tests-ios.sh -n regtest",

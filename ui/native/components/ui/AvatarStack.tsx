@@ -1,17 +1,23 @@
 import { Theme, useTheme } from '@rneui/themed'
 import { StyleSheet, useWindowDimensions, View } from 'react-native'
 
-import { MatrixRoomMember } from '../../types'
-import ChatAvatar from '../feature/chat/ChatAvatar'
 import { AvatarSize } from './Avatar'
 import Flex from './Flex'
 import { getIconSizeMultiplier } from './SvgImage'
 
-const AvatarStack: React.FC<{
-    members: MatrixRoomMember[]
+function AvatarStack<T>({
+    size = AvatarSize.sm,
+    stackDirection = 'ltr',
+    maxFontSizeMultiplier,
+    data,
+    renderAvatar,
+}: {
     size?: AvatarSize
+    stackDirection?: 'ltr' | 'rtl'
     maxFontSizeMultiplier?: number
-}> = ({ members, size = AvatarSize.sm, maxFontSizeMultiplier }) => {
+    data: Array<T>
+    renderAvatar: (item: T, size: number) => React.ReactNode
+}) {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
     const style = styles(theme)
@@ -33,11 +39,11 @@ const AvatarStack: React.FC<{
             style={[
                 style.container,
                 {
-                    width: sizePx + (members.length - 1) * (sizePx / 2),
+                    width: sizePx + (data.length - 1) * (sizePx / 2),
                     height: sizePx,
                 },
             ]}>
-            {members.map((member, i) => (
+            {data.map((item, i) => (
                 <Flex
                     center
                     key={`avatar-stack-${i}`}
@@ -49,8 +55,9 @@ const AvatarStack: React.FC<{
                             height: sizePx,
                             borderRadius: sizePx / 2,
                         },
+                        stackDirection === 'rtl' && { zIndex: data.length - i },
                     ]}>
-                    <ChatAvatar user={member} size={size} />
+                    {renderAvatar(item, sizePx)}
                 </Flex>
             ))}
         </View>

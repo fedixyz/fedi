@@ -30,6 +30,7 @@ jobs:
                   echo "CHANNEL_KEY_IOS=${{ secrets.ZENDESK_CHANNEL_KEY_IOS_DEV }}" >> ui/native/.env
                   echo "ZENDESK_KID=${{ secrets.ZENDESK_KEY_ID_DEV }}" >> ui/native/.env
                   echo "ZENDESK_SECRET_KEY=${{ secrets.ZENDESK_SECRET_DEV }}" >> ui/native/.env
+                  echo "FEDI_ENV=nightly" >> ui/native/.env
 
             - name: Generate release credentials
               env:

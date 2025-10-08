@@ -8,7 +8,6 @@ import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import { MatrixPaymentEvent } from '@fedi/common/types'
 
-import { fedimint } from '../../../bridge'
 import { NavigationHook } from '../../../types/navigation'
 import {
     PaymentEventButtons,
@@ -29,7 +28,6 @@ const ChatBolt11PaymentEvent: React.FC<Props> = ({ event }: Props) => {
     const { messageText, statusIcon, statusText, buttons } =
         useMatrixPaymentEvent({
             event,
-            fedimint,
             t,
             onError: (err: unknown) => toast.error(t, err),
             onViewBolt11: (invoice: string) => {

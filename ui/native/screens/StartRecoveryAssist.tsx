@@ -4,10 +4,14 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
+import { useToast } from '@fedi/common/hooks/toast'
+import { selectGuardianFederation } from '@fedi/common/redux'
+
 import Flex from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
+import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -18,8 +22,19 @@ export type Props = NativeStackScreenProps<
 const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const toast = useToast()
+    const guardianFederation = useAppSelector(selectGuardianFederation)
 
     const style = styles(theme)
+
+    const handleContinue = () => {
+        if (!guardianFederation) {
+            return toast.error(t, 'errors.failed-to-authenticate-guardian')
+        }
+        navigation.navigate('ConfirmRecoveryAssist', {
+            federationId: guardianFederation.id,
+        })
+    }
 
     return (
         <Flex grow align="center" justify="start" style={style.container}>
@@ -69,9 +84,7 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
             <Button
                 title={t('words.continue')}
                 containerStyle={style.continueButton}
-                onPress={() => {
-                    navigation.navigate('ConfirmRecoveryAssist')
-                }}
+                onPress={handleContinue}
             />
         </Flex>
     )

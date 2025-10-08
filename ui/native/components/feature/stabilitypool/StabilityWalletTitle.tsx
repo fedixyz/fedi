@@ -5,28 +5,32 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { selectCurrency } from '@fedi/common/redux'
-import { selectActiveFederation } from '@fedi/common/redux/federation'
+import { LoadedFederation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
-const WalletHeader: React.FC = () => {
+type Props = {
+    federation: LoadedFederation
+}
+const WalletHeader: React.FC<Props> = ({ federation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const selectedCurrency = useAppSelector(selectCurrency)
+    const selectedCurrency = useAppSelector(s =>
+        selectCurrency(s, federation.id),
+    )
 
     const style = styles(theme)
 
-    if (!activeFederation) return null
+    if (!federation) return null
 
     return (
         <Flex row grow align="center" justify="start" gap="sm">
             <SvgImage
-                name="UsdCircle"
-                size={SvgImageSize.md}
-                color={theme.colors.white}
+                name="UsdCircleFilled"
+                size={SvgImageSize.sm}
+                color={theme.colors.mint}
             />
             <Flex row align="center" shrink style={style.labelRow}>
                 <Text
@@ -39,13 +43,6 @@ const WalletHeader: React.FC = () => {
                         'feature.stabilitypool.stable-balance',
                     )}`}
                 </Text>
-
-                <SvgImage
-                    name="ChevronRightSmall"
-                    color={theme.colors.secondary}
-                    dimensions={style.chevronDimensions}
-                    svgProps={{ style: style.chevron }}
-                />
             </Flex>
         </Flex>
     )
@@ -57,7 +54,7 @@ const styles = (theme: Theme) =>
             minWidth: 0,
         },
         title: {
-            color: theme.colors.secondary,
+            color: theme.colors.primary,
             flexShrink: 1,
         },
         chevron: {

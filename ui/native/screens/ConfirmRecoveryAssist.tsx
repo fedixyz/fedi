@@ -14,7 +14,11 @@ export type Props = NativeStackScreenProps<
     'ConfirmRecoveryAssist'
 >
 
-const ConfirmRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
+const ConfirmRecoveryAssist: React.FC<Props> = ({
+    navigation,
+    route,
+}: Props) => {
+    const { federationId } = route.params
     const { t } = useTranslation()
     const { theme } = useTheme()
     const [memberSafetyConfirmed, setMemberSafetyConfirmed] = useState(false)
@@ -63,7 +67,9 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
             <Button
                 title={t('words.continue')}
                 onPress={() => {
-                    navigation.replace('ScanSocialRecoveryCode')
+                    navigation.replace('ScanSocialRecoveryCode', {
+                        federationId,
+                    })
                 }}
                 disabled={
                     !surroundingsSafetyConfirmed || !memberSafetyConfirmed

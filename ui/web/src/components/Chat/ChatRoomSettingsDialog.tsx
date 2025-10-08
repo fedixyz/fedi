@@ -18,6 +18,7 @@ import {
 import { MatrixPowerLevel, MatrixRoom } from '@fedi/common/types'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
+import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 import { Dialog } from '../Dialog'
 import { SettingsMenu, SettingsMenuProps } from '../SettingsMenu'
@@ -67,6 +68,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
             if (!newName) return
             await dispatch(
                 setMatrixRoomName({
+                    fedimint,
                     roomId: room.id,
                     name: newName,
                 }),
@@ -81,7 +83,9 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
         const shouldLeave = confirm(t('feature.chat.leave-group-confirmation'))
         if (!shouldLeave) return
         try {
-            await dispatch(leaveMatrixRoom({ roomId: room.id })).unwrap()
+            await dispatch(
+                leaveMatrixRoom({ fedimint, roomId: room.id }),
+            ).unwrap()
             replace('/chat')
         } catch (err) {
             error(t, 'errors.unknown-error')
@@ -94,6 +98,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
         try {
             await dispatch(
                 setMatrixRoomBroadcastOnly({
+                    fedimint,
                     roomId: room.id,
                     broadcastOnly: !room.broadcastOnly,
                 }),

@@ -77,7 +77,6 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
 
     return (
         <AmountScreen
-            showBalance={false}
             amount={amount}
             onChangeAmount={setAmount}
             submitAttempts={submitAttempts}

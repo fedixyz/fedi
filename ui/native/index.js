@@ -27,6 +27,7 @@ import {
 import App from './App'
 import { name as appName } from './app.json'
 import i18next from './localization/i18n'
+import { store } from './state/store'
 import { logFileApi } from './utils/logfile'
 import {
     handleBackgroundFCMReceived,
@@ -221,5 +222,7 @@ configureLogging(logFileApi)
 AppState.addEventListener('change', state => {
     if (state === 'background' || state === 'inactive') {
         saveLogsToStorage()
+        if (store.getState().support.zendeskInitialized)
+            zendeskCloseMessagingView()
     }
 })

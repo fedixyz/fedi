@@ -3,7 +3,8 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import { theme } from '@fedi/common/constants/theme'
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
-import { JoinPreview, LoadedFederationListItem } from '@fedi/common/types'
+import { LoadedFederation } from '@fedi/common/types'
+import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
 import { FederationAvatar } from './FederationAvatar'
 import { Text } from './Text'
@@ -13,7 +14,7 @@ export default function FederationEndedPreview({
     federation,
 }: {
     popupInfo: ReturnType<typeof usePopupFederationInfo>
-    federation: LoadedFederationListItem | JoinPreview
+    federation: LoadedFederation | RpcFederationPreview
 }) {
     const { t } = useTranslation()
 

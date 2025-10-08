@@ -12,7 +12,6 @@ import { useMatrixUrlPreview } from '@fedi/common/hooks/matrix'
 import { FileUri, HttpUri } from '@fedi/common/types/media'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
-import { fedimint } from '../../../bridge'
 import { useDownloadResource } from '../../../utils/hooks/media'
 import Flex from '../../ui/Flex'
 
@@ -29,7 +28,7 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
     setHasWidePreview,
     hasWidePreview,
 }) => {
-    const urlPreview = useMatrixUrlPreview({ url, fedimint })
+    const urlPreview = useMatrixUrlPreview({ url })
     const [isPressed, setIsPressed] = useState(false)
     const [mediaDimensions, setMediaDimensions] = useState<{
         width: number

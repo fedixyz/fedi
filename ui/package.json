@@ -24,6 +24,8 @@
         "format": "prettier --write '*.{js,json,md,ts}' && turbo run format",
         "format:check": "prettier --check '*.{js,json,md,ts}' && turbo run format:check --parallel",
         "test": "turbo run test",
+        "test:unit": "turbo run test:unit",
+        "test:integration": "turbo run test:integration",
         "test:common": "turbo run test --filter=common",
         "test:injections": "turbo run test --filter=injections",
         "test:native": "turbo run test --filter=native",

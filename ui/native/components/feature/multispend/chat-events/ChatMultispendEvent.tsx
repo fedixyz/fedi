@@ -1,11 +1,10 @@
 import { useTranslation } from 'react-i18next'
 
-import { MatrixEvent } from '@fedi/common/types'
+import { MatrixMultispendEvent } from '@fedi/common/types'
 import {
     isMultispendDepositEvent,
     isMultispendInvitationEvent,
     isMultispendWithdrawalRequestEvent,
-    MatrixEventContentType,
 } from '@fedi/common/utils/matrix'
 
 import MultispendDepositEvent from './MultispendDepositEvent'
@@ -14,7 +13,7 @@ import MultispendInvitationEvent from './MultispendInvitationEvent'
 import MultispendWithdrawalEvent from './MultispendWithdrawalEvent'
 
 type Props = {
-    event: MatrixEvent<MatrixEventContentType<'xyz.fedi.multispend'>>
+    event: MatrixMultispendEvent
     isWide?: boolean
 }
 
@@ -30,10 +29,11 @@ const ChatMultispendEvent: React.FC<Props> = ({ event }) => {
     }
 
     // Default case (TODOs)
+    const body = 'body' in event.content ? event.content.body : ''
     return (
         <MultispendEventTemplate
             heading={t('feature.multispend.message-header')}
-            body={`${event.content.body}: ${event.content.kind}`}
+            body={`${body}: ${event.content.kind}`}
             footer={'TODO: Implement Me'}
         />
     )

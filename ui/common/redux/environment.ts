@@ -2,9 +2,11 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import type { i18n } from 'i18next'
 
 import {
+    checkJoinedFederationsForAutojoinCommunities,
     CommonState,
     fetchSocialRecovery,
     initializeDeviceRegistration,
+    refreshCommunities,
     refreshFederations,
     setShouldMigrateSeed,
     startMatrixClient,
@@ -14,6 +16,7 @@ import {
     RpcNostrPubkey,
     RpcNostrSecret,
     OnboardingMethod,
+    RpcAppFlavor,
 } from '../types/bindings'
 import { FediModCacheMode } from '../types/fediInternal'
 import { I18nLanguage } from '../types/localization'
@@ -46,6 +49,8 @@ const initialState = {
     internetUnreachableBadgeShown: false,
     onboardingCompleted: false,
     onboardingMethod: null as OnboardingMethod | null,
+    appFlavor: undefined as RpcAppFlavor['type'] | undefined,
+    sessionCount: 0,
 }
 
 export type EnvironmentState = typeof initialState
@@ -125,6 +130,12 @@ export const environmentSlice = createSlice({
         ) {
             state.onboardingMethod = action.payload
         },
+        setAppFlavor(state, action: PayloadAction<RpcAppFlavor['type']>) {
+            state.appFlavor = action.payload
+        },
+        clearSessionCount(state) {
+            state.sessionCount = 0
+        },
     },
     extraReducers: builder => {
         builder.addCase(changeLanguage.fulfilled, (state, action) => {
@@ -153,6 +164,9 @@ export const environmentSlice = createSlice({
             if (action.payload.deviceId !== undefined) {
                 state.deviceId = action.payload.deviceId
             }
+            if (action.payload.sessionCount !== undefined) {
+                state.sessionCount = action.payload.sessionCount + 1
+            }
         })
     },
 })
@@ -160,6 +174,7 @@ export const environmentSlice = createSlice({
 /*** Basic actions ***/
 
 export const {
+    clearSessionCount,
     setIsInternetUnreachable,
     setDeveloperMode,
     setFediModDebugMode,
@@ -179,6 +194,7 @@ export const {
     setInternetUnreachableBadgeVisibility,
     setOnboardingCompleted,
     setOnboardingMethod,
+    setAppFlavor,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -195,12 +211,20 @@ export const refreshOnboardingStatus = createAsyncThunk<
         // generate a random display name after matrix client is resolved
         // but only if matrix_setup
         await dispatch(startMatrixClient({ fedimint }))
-        dispatch(getBridgeInfo(fedimint))
+        // we need to await the feature flags before refreshing communities
+        await dispatch(getBridgeInfo(fedimint))
 
-        // wait until after the matrix client is started to refresh federations because
-        // the latest metadata may include new default chats that require
+        // wait until after the matrix client is started to refresh federations & communities
+        // because the latest metadata may include new default chats that require
         // matrix to fetch the room previews
-        await dispatch(refreshFederations(fedimint)).unwrap()
+        await Promise.all([
+            dispatch(refreshFederations(fedimint)).unwrap(),
+            dispatch(refreshCommunities(fedimint)).unwrap(),
+        ])
+
+        // checks already joined federations for any communities to be autojoined
+        // autojoined communities will NOT be set as selected if processed from here
+        dispatch(checkJoinedFederationsForAutojoinCommunities({ fedimint }))
 
         // extract and store the onboarding method if user is onboarded
         dispatch(setOnboardingMethod(status.onboarding_method))
@@ -394,3 +418,5 @@ export const selectOnboardingCompleted = (s: CommonState) =>
 
 export const selectOnboardingMethod = (s: CommonState) =>
     s.environment.onboardingMethod
+
+export const selectAppFlavor = (s: CommonState) => s.environment.appFlavor

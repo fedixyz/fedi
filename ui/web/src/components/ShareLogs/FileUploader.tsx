@@ -168,7 +168,7 @@ export const FileUploader = ({
 const Container = styled('div', {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: theme.space.sm,
+    gap: theme.spacing.sm,
 })
 
 const FileInput = styled('input', {
@@ -187,8 +187,8 @@ const FileTrigger = styled('label', {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: `${theme.space.md} ${theme.space.lg}`,
-    gap: theme.space.sm,
+    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+    gap: theme.spacing.sm,
     cursor: 'pointer',
     transition: 'opacity 100ms ease',
     willChange: 'opacity',

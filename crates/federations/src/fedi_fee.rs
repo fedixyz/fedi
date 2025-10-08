@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail};
+use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use async_recursion::async_recursion;
 use bitcoin::Network;
 use bitcoin::hex::DisplayHex;
@@ -11,20 +12,20 @@ use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_ln_client::OutgoingLightningPayment;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use lightning_invoice::Bolt11Invoice;
 use rpc_types::{LightningSendMetadata, RpcTransactionDirection};
 use runtime::api::TransactionDirection;
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
-    FEDI_FEE_REMITTANCE_MAX_DELAY, FEDI_GIFT_CHILD_ID, FEDI_GIFT_EXCLUDED_COMMUNITIES, MILLION,
+    FEDI_FEE_REMITTANCE_MAX_DELAY, FEDI_FEE_SCHEDULE_REFRESH_DELAY, FEDI_GIFT_CHILD_ID,
+    FEDI_GIFT_EXCLUDED_COMMUNITIES, MILLION,
 };
-use runtime::storage::state::{
-    FediFeeSchedule, FirstCommunityInviteCodeState, ModuleFediFeeSchedule,
-};
+use runtime::storage::state::{FediFeeSchedule, ModuleFediFeeSchedule};
 use stability_pool_client::common::AccountId;
-use tokio::sync::{Mutex, OwnedMutexGuard};
-use tracing::{error, info, instrument, warn};
+use tokio::sync::{Mutex, OwnedMutexGuard, watch};
+use tokio_stream::wrappers::WatchStream;
+use tracing::{error, info, instrument};
 
 use crate::federation_v2::client::ClientExt;
 use crate::federation_v2::db::{
@@ -38,6 +39,7 @@ use crate::federation_v2::{FederationV2, zero_gateway_fees};
 /// instance. That way we have a single source of truth.
 pub struct FediFeeHelper {
     runtime: Arc<Runtime>,
+    fee_schedule_map: watch::Sender<Option<HashMap<Network, FediFeeSchedule>>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -50,71 +52,57 @@ pub enum FediFeeHelperError {
 
 impl FediFeeHelper {
     pub fn new(runtime: Arc<Runtime>) -> Self {
-        Self { runtime }
+        Self {
+            runtime,
+            fee_schedule_map: watch::channel(None).0,
+        }
     }
 
-    /// In a separate task, queries Fedi api to fetch the fee schedule and
-    /// updates the AppState
-    pub async fn fetch_and_update_fedi_fee_schedule(
-        &self,
-        fed_network_map: HashMap<String, Network>,
-    ) {
-        let runtime = self.runtime.clone();
-        self.runtime.task_group.spawn_cancellable(
-            "fetch and update fedi fee schedule",
-            async move {
-                // Fetch fee schedule from Fedi API. Presently the endpoint is different per
-                // network (mainnet, mutinynet etc.). So we iterate through the mapping of
-                // federation => network and collect a set-union of all the networks. Then we
-                // make an API call for each network we need, and finally we update each
-                // federation's FederationInfo within AppState with the correct fee schedule.
-                let networks = fed_network_map.values().cloned().collect::<HashSet<_>>();
-                let api_calls = networks.iter().map(|&network| {
-                    let runtime = &runtime;
-                    async move {
-                        match runtime.fedi_api.fetch_fedi_fee_schedule(network).await {
-                            Ok(fedi_fee_schedule) => (network, Some(fedi_fee_schedule)),
-                            Err(error) => {
-                                error!(%network, ?error, "Failed to fetch fedi fee schedule");
-                                (network, None)
-                            }
+    /// Update fee schedule in background.
+    ///
+    /// Caller should run this method in a task.
+    pub async fn update_fee_schedule_continuously(&self) -> ! {
+        loop {
+            // Fetch fee schedule from Fedi API. Presently the endpoint is different per
+            // network (mainnet, mutinynet etc.).
+            let networks = [Network::Bitcoin, Network::Signet];
+            let api_calls = networks.iter().map(|&network| {
+                let runtime = &self.runtime;
+                async move {
+                    match runtime.fedi_api.fetch_fedi_fee_schedule(network).await {
+                        Ok(fedi_fee_schedule) => (network, Some(fedi_fee_schedule)),
+                        Err(error) => {
+                            error!(%network, ?error, "Failed to fetch fedi fee schedule");
+                            (network, None)
                         }
                     }
-                });
-                let network_fee_schedule_map = futures::future::join_all(api_calls)
-                    .await
-                    .into_iter()
-                    .filter_map(|(network, schedule)| Some((network, schedule?)))
-                    .collect::<HashMap<_, _>>();
-                let app_state_update_res = runtime
-                    .app_state
-                    .with_write_lock(|state| {
-                        state.joined_federations.iter_mut().for_each(|(id, info)| {
-                            // Only proceed if this federation was provided in the input map
-                            let Some(network) = fed_network_map.get(id) else {
-                                warn!(%id, "Federation not provided as input to fee-fetch task");
-                                return;
-                            };
-
-                            // Only proceed if we have fetched a fee schedule for the fed's network
-                            let Some(fedi_fee_schedule) = network_fee_schedule_map.get(network)
-                            else {
-                                return;
-                            };
-
-                            info.fedi_fee_schedule = fedi_fee_schedule.clone();
-                        })
-                    })
-                    .await;
-
-                if let Err(error) = app_state_update_res {
-                    error!(
-                        ?error,
-                        "Failed to update app state with new fedi fee schedule"
-                    )
                 }
-            },
-        );
+            });
+            let network_fee_schedule_map = futures::future::join_all(api_calls)
+                .await
+                .into_iter()
+                .filter_map(|(network, schedule)| Some((network, schedule?)))
+                .collect::<HashMap<_, _>>();
+            self.fee_schedule_map
+                .send_replace(Some(network_fee_schedule_map));
+            fedimint_core::task::sleep(FEDI_FEE_SCHEDULE_REFRESH_DELAY).await;
+        }
+    }
+
+    /// Subscribe to fee schedule updates
+    pub fn subscribe_to_updates(
+        &self,
+    ) -> impl Stream<Item = Option<HashMap<Network, FediFeeSchedule>>> + use<> {
+        WatchStream::new(self.fee_schedule_map.subscribe())
+    }
+
+    /// Get the last fetched fee schedule for the given network if any
+    pub fn maybe_latest_schedule(&self, network: Network) -> Option<FediFeeSchedule> {
+        self.fee_schedule_map
+            .borrow()
+            .as_ref()
+            .and_then(|schedule_map| schedule_map.get(&network))
+            .cloned()
     }
 
     /// For the given federation ID returns the full Fedi fee schedule. If the
@@ -215,13 +203,7 @@ impl FediFeeHelper {
             .app_state
             .with_read_lock(|state| {
                 (
-                    match &state.first_comm_invite_code {
-                        FirstCommunityInviteCodeState::Set(invite_code) => {
-                            Some(invite_code.clone())
-                        }
-                        FirstCommunityInviteCodeState::NeverSet
-                        | FirstCommunityInviteCodeState::Unset => None,
-                    },
+                    state.first_comm_invite_code.clone(),
                     state.joined_communities.keys().cloned().collect::<Vec<_>>(),
                 )
             })
@@ -230,9 +212,7 @@ impl FediFeeHelper {
             .into_iter()
             .filter(|code| {
                 // Exclude "first community" if present, and the default fedi community
-                if first_comm_invite_code
-                    .as_ref()
-                    .is_some_and(|first| first == code)
+                if matches!(&first_comm_invite_code, FirstCommunityInviteCodeState::Set(first) if first == code)
                 {
                     return false;
                 }
@@ -410,10 +390,17 @@ impl FediFeeRemittanceService {
         // We keep division as the very last step to ensure minimal loss in precision.
         // We also perform regular (floor) division to ensure that the invoice is never
         // overestimated.
-        let invoice_amt_numerator =
-            MILLION * (outstanding_fees.msats - gateway_fees.base_msat as u64);
+        let invoice_amt_numerator = MILLION
+            * (outstanding_fees
+                .msats
+                .checked_sub(gateway_fees.base_msat as u64)
+                .ok_or(anyhow!("Accrued fee < base gateway fees!"))?);
         let invoice_amt_denominator = MILLION + gateway_fees.proportional_millionths as u64;
         let invoice_amt = invoice_amt_numerator / invoice_amt_denominator;
+
+        if invoice_amt == 0 {
+            bail!("Fedi fee less gateway fee would be effectively 0");
+        }
 
         let invoice = fed
             .fedi_fee_helper

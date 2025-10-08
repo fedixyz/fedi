@@ -4,6 +4,26 @@ import i18n from '@fedi/native/localization/i18n'
 
 import { themeDefaults } from '../../styles/theme'
 
+// Mock the fetch request in the `fetchCurrencyPrices` thunk only
+const realFetch = global.fetch
+global.fetch = jest.fn((url, options) => {
+    if (url.includes('price-feed.dev.fedibtc.com')) {
+        return Promise.resolve({
+            json: () =>
+                Promise.resolve({
+                    prices: {
+                        'BTC/USD': {
+                            rate: 100000, // 0.1M
+                            timestamp: new Date().toString(),
+                        },
+                    },
+                }),
+        })
+    }
+
+    return realFetch(url, options)
+}) as unknown as jest.Mocked<typeof global.fetch>
+
 jest.mock('buffer', () => {
     const actual = jest.requireActual('buffer')
     return {
@@ -54,10 +74,6 @@ jest.mock('react-native-zendesk-messaging', () => ({
     initialize: jest.fn(),
     showMessaging: jest.fn(),
     closeMessaging: jest.fn(),
-}))
-
-jest.mock('uuid', () => ({
-    v4: () => 'mocked-uuid',
 }))
 
 jest.mock('@react-native-community/netinfo', () => ({
@@ -141,9 +157,11 @@ jest.mock('react-native', () => ({
     Button: jest.requireActual('react-native').Button,
     Dimensions: jest.requireActual('react-native').Dimensions,
     Easing: jest.requireActual('react-native').Easing,
+    FlatList: jest.requireActual('react-native').FlatList,
     Image: jest.requireActual('react-native').Image,
     ImageBackground: jest.requireActual('react-native').ImageBackground,
     Insets: jest.requireActual('react-native').Insets,
+    InteractionManager: jest.requireActual('react-native').InteractionManager,
     Keyboard: jest.requireActual('react-native').Keyboard,
     KeyboardEvent: jest.requireActual('react-native').KeyboardEvent,
     KeyboardAvoidingView:
@@ -157,6 +175,7 @@ jest.mock('react-native', () => ({
     TextInput: jest.requireActual('react-native').TextInput,
     Touchable: jest.requireActual('react-native').Touchable,
     TouchableOpacity: jest.requireActual('react-native').TouchableOpacity,
+    UIManager: jest.requireActual('react-native').UIManager,
     View: jest.requireActual('react-native').View,
     processColor: jest.requireActual('react-native').processColor,
     useWindowDimensions: jest.requireActual('react-native').useWindowDimensions,
@@ -325,3 +344,12 @@ jest.mock('react-native-gesture-handler', () => ({
 }))
 
 jest.mock('react-native-modal', () => jest.requireActual('react-native').Modal)
+
+jest.mock('@react-navigation/elements', () => ({
+    useHeaderHeight: jest.fn(() => 100),
+}))
+
+jest.mock('@react-native-clipboard/clipboard', () => ({
+    getString: jest.fn(),
+    setString: jest.fn(),
+}))

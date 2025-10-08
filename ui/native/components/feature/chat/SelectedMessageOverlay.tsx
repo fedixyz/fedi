@@ -12,13 +12,11 @@ import {
     setSelectedChatMessage,
     setChatReplyingToMessage,
 } from '@fedi/common/redux'
-import { MatrixEvent } from '@fedi/common/types'
 import {
-    getEventId,
     isFileEvent,
     isImageEvent,
+    isTextEvent,
     isVideoEvent,
-    MatrixEventContentType,
 } from '@fedi/common/utils/matrix'
 
 import { fedimint } from '../../../bridge'
@@ -56,19 +54,19 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
             loadResourceInitially: false,
         })
 
-    const isMe = selectedMessage?.senderId === matrixAuth?.userId
+    const isMe = selectedMessage?.sender === matrixAuth?.userId
 
     const closeOverlay = useCallback(() => {
         dispatch(setSelectedChatMessage(null))
     }, [dispatch])
 
     const confirmDeleteMessage = useCallback(async () => {
-        if (!selectedMessage || !selectedMessage.eventId) return
+        if (!selectedMessage || !selectedMessage.id) return
 
         setIsDeleting(true)
 
         try {
-            const event = getEventId(selectedMessage)
+            const event = selectedMessage.id
             await fedimint.matrixDeleteMessage(
                 selectedMessage.roomId,
                 event,
@@ -96,16 +94,10 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     }, [t, toast, closeOverlay, selectedMessage])
 
     const handleEdit = useCallback(() => {
-        if (!selectedMessage || selectedMessage.content.msgtype !== 'm.text')
-            return
+        if (!selectedMessage) return
+        if (!isTextEvent(selectedMessage)) return
 
-        dispatch(
-            setMessageToEdit(
-                selectedMessage as MatrixEvent<
-                    MatrixEventContentType<'m.text'>
-                >,
-            ),
-        )
+        dispatch(setMessageToEdit(selectedMessage))
 
         closeOverlay()
     }, [dispatch, closeOverlay, selectedMessage])
@@ -161,16 +153,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                 justify="center"
                                 style={style.previewMessageContainer}>
                                 <ChatEvent
-                                    event={
-                                        selectedMessage as MatrixEvent<
-                                            MatrixEventContentType<
-                                                | 'm.text'
-                                                | 'm.image'
-                                                | 'm.video'
-                                                | 'm.file'
-                                            >
-                                        >
-                                    }
+                                    event={selectedMessage}
                                     last
                                     fullWidth={false}
                                     isPublic={isPublic}

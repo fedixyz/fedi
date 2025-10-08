@@ -4,14 +4,13 @@ import { StyleSheet } from 'react-native'
 
 import { ChatEventAction, useMatrixFormEvent } from '@fedi/common/hooks/matrix'
 import { MatrixEvent } from '@fedi/common/types'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 
 import Flex from '../../ui/Flex'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import { bubbleGradient } from './ChatEvent'
 
 type Props = {
-    event: MatrixEvent<MatrixEventContentType<'xyz.fedi.form'>>
+    event: MatrixEvent<'xyz.fedi.form'>
     isWide?: boolean
 }
 

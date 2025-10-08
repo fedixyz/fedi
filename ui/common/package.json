@@ -5,7 +5,9 @@
     "scripts": {
         "dev": "tsc --watch",
         "build": "rm -rf dist && tsc",
-        "test": "jest --config='tests/configs/jest-functional.config.js'",
+        "test": "yarn test:unit && yarn test:integration",
+        "test:unit": "jest --config='tests/configs/jest.unit.config.js'",
+        "test:integration": "jest --config='tests/configs/jest.integration.config.js'",
         "lint": "yarn run lint:tsc && yarn run lint:eslint",
         "lint:tsc": "tsc --noEmit",
         "lint:eslint": "eslint . --ext .js,.jsx,.ts,.tsx",

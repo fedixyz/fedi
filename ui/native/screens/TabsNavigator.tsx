@@ -1,8 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { useIsFocused } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
-import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
+import React, { MutableRefObject, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     AppState,
@@ -10,17 +9,12 @@ import {
     Pressable,
     StyleSheet,
     useWindowDimensions,
-    Text,
 } from 'react-native'
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import {
-    useIsStabilityPoolSupported,
-    usePopupFederationInfo,
-} from '@fedi/common/hooks/federation'
-import {
-    refreshActiveStabilityPool,
+    refreshCommunities,
     refreshFederations,
     selectMatrixHasNotifications,
 } from '@fedi/common/redux'
@@ -28,8 +22,8 @@ import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 
 import { fedimint } from '../bridge'
 import ChatHeader from '../components/feature/chat/ChatHeader'
+import FederationsHeader from '../components/feature/federations/FederationsHeader'
 import HomeHeader from '../components/feature/home/HomeHeader'
-import Header from '../components/ui/Header'
 import SvgImage, {
     SvgImageSize,
     getIconSizeMultiplier,
@@ -41,9 +35,9 @@ import {
     TabsNavigatorParamList,
 } from '../types/navigation'
 import ChatScreen from './ChatScreen'
+import Federations from './Federations'
 import Home from './Home'
 import Mods from './Mods'
-import OmniScanner from './OmniScanner'
 
 const MAX_TABS_FONT_SCALE = 1.2
 
@@ -51,31 +45,21 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'TabsNavigator'>
 
 const Tab = createBottomTabNavigator<TabsNavigatorParamList>()
 
-const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
+const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const isFocused = useIsFocused()
     const insets = useSafeAreaInsets()
-    const [offline] = useState(false)
     // TODO: Reimplement unseen logic with matrix
     // const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
     const hasUnreadMessages = useAppSelector(selectMatrixHasNotifications)
     const zendeskMsgCount = useAppSelector(selectZendeskUnreadMessageCount)
-    const isStabilityPoolSupported = useIsStabilityPoolSupported()
-    const popupInfo = usePopupFederationInfo()
     const dispatch = useAppDispatch()
     const appStateRef = useRef<AppStateStatus>(
         AppState.currentState,
     ) as MutableRefObject<AppStateStatus>
     const { fontScale } = useWindowDimensions()
 
-    // If the popup federation has ended, redirect user to end screen.
-    useEffect(() => {
-        if (isFocused && popupInfo?.ended) {
-            navigation.navigate('PopupFederationEnded')
-        }
-    }, [isFocused, navigation, popupInfo])
-
+    // This logic is needed refresh federation metadata
     useEffect(() => {
         // Subscribe to changes in AppState to detect when app goes from
         // background to foreground
@@ -87,16 +71,13 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
                     nextAppState === 'active'
                 ) {
                     dispatch(refreshFederations(fedimint))
-                    // Refresh stabilitypool balance if supported
-                    if (isStabilityPoolSupported) {
-                        dispatch(refreshActiveStabilityPool({ fedimint }))
-                    }
+                    dispatch(refreshCommunities(fedimint))
                 }
                 appStateRef.current = nextAppState
             },
         )
         return () => subscription.remove()
-    }, [dispatch, isStabilityPoolSupported])
+    }, [dispatch])
 
     const style = styles(
         theme,
@@ -105,119 +86,113 @@ const TabsNavigator: React.FC<Props> = ({ navigation, route }: Props) => {
     )
 
     return (
-        <Tab.Navigator
-            initialRouteName={route.params?.initialRouteName || 'Home'}
-            id={TABS_NAVIGATOR_ID}
-            screenOptions={({ route: screenRoute }) => ({
-                freezeOnBlur: true,
-                tabBarButton: props => {
-                    switch (screenRoute.name) {
-                        case 'Home':
-                        case 'Chat':
-                        case 'Mods':
-                        case 'OmniScanner':
-                            return <Pressable {...props} />
-                        default:
-                            return null
-                    }
-                },
-                tabBarIcon: ({ focused }) => {
-                    const svgImageProps = {
-                        maxFontSizeMultiplier: MAX_TABS_FONT_SCALE,
-                        containerStyle: style.tabBarIconContainer,
-                        color: focused
-                            ? theme.colors.primary
-                            : theme.colors.primaryLight,
-                    }
-                    switch (screenRoute.name) {
-                        case 'Home':
-                            return (
-                                <SvgImage name="Community" {...svgImageProps} />
-                            )
-                        case 'Chat':
-                            return (
-                                <SvgImage
-                                    name={focused ? 'ChatFilled' : 'Chat'}
-                                    {...svgImageProps}
-                                />
-                            )
-                        case 'Mods':
-                            return <SvgImage name="Apps" {...svgImageProps} />
-                        case 'OmniScanner':
-                            return <SvgImage name="Scan" {...svgImageProps} />
-                        default:
-                            return null
-                    }
-                },
-                tabBarLabel: ({ focused, children }) => (
-                    <Text
-                        allowFontScaling
-                        numberOfLines={1}
-                        maxFontSizeMultiplier={MAX_TABS_FONT_SCALE}
-                        // @ts-expect-error Android-only prop not in RN types
-                        includeFontPadding={false}
-                        style={{
-                            fontSize: fediTheme.fontSizes.caption, // RN scales visually; height comes from style calc
-                            lineHeight: Math.round(
-                                fediTheme.fontSizes.caption * 1.2,
-                            ),
-                            fontFamily: focused
-                                ? 'AlbertSans-Bold'
-                                : 'AlbertSans-Medium',
+        <>
+            <Tab.Navigator
+                initialRouteName={route.params?.initialRouteName || 'Home'}
+                id={TABS_NAVIGATOR_ID}
+                screenOptions={({ route: screenRoute }) => ({
+                    freezeOnBlur: true,
+                    tabBarButton: props => {
+                        switch (screenRoute.name) {
+                            case 'Home':
+                                return <Pressable {...props} />
+                            case 'Chat':
+                                return <Pressable {...props} />
+                            case 'Mods':
+                                return <Pressable {...props} />
+                            case 'Federations':
+                                return <Pressable {...props} />
+                            default:
+                                return null
+                        }
+                    },
+                    tabBarIcon: ({ focused }) => {
+                        const svgImageProps = {
+                            maxFontSizeMultiplier: MAX_TABS_FONT_SCALE,
+                            containerStyle: style.tabBarIconContainer,
                             color: focused
                                 ? theme.colors.primary
                                 : theme.colors.primaryLight,
-                            textAlign: 'center',
-                        }}>
-                        {children}
-                    </Text>
-                ),
-                tabBarActiveTintColor: theme.colors.primary,
-                tabBarInactiveTintColor: theme.colors.primaryLight,
-                tabBarStyle: style.tabBar,
-                tabBarItemStyle: style.tabBarItem,
-                headerTitleStyle: theme.components.Text.style,
-                tabBarBadgeStyle: style.tabBarBadge,
-            })}>
-            <Tab.Screen
-                name="Home"
-                initialParams={{ offline }}
-                options={() => ({
-                    title: t('words.home'),
-                    header: () => <HomeHeader />,
+                        }
+                        switch (screenRoute.name) {
+                            case 'Home':
+                                return (
+                                    <SvgImage
+                                        name={'Community'}
+                                        {...svgImageProps}
+                                    />
+                                )
+                            case 'Chat':
+                                return (
+                                    <SvgImage
+                                        name={focused ? 'ChatFilled' : 'Chat'}
+                                        {...svgImageProps}
+                                    />
+                                )
+                            case 'Mods':
+                                return (
+                                    <SvgImage
+                                        name={focused ? 'AppsFilled' : 'Apps'}
+                                        {...svgImageProps}
+                                    />
+                                )
+                            case 'Federations':
+                                return (
+                                    <SvgImage
+                                        name={
+                                            focused ? 'WalletFilled' : 'Wallet'
+                                        }
+                                        {...svgImageProps}
+                                    />
+                                )
+                            default:
+                                return null
+                        }
+                    },
+                    tabBarShowLabel: false,
+                    tabBarActiveTintColor: theme.colors.primary,
+                    tabBarInactiveTintColor: theme.colors.primaryLight,
+                    tabBarStyle: style.tabBar,
+                    tabBarItemStyle: style.tabBarItem,
+                    headerTitleStyle: theme.components.Text.style,
+                    tabBarBadgeStyle: style.tabBarBadge,
                 })}>
-                {props => <Home {...props} offline={offline} />}
-            </Tab.Screen>
-
-            <Tab.Screen
-                name="Chat"
-                component={ChatScreen}
-                options={() => ({
-                    title: t('words.chat'),
-                    header: () => <ChatHeader />,
-                    tabBarBadge: hasUnreadMessages ? '' : undefined,
-                })}
-            />
-
-            <Tab.Screen
-                name="Mods"
-                component={Mods}
-                options={() => ({
-                    title: t('words.mods'),
-                    headerShown: false, // this allows us to draw over the header with tooltips
-                    tabBarBadge: zendeskMsgCount > 0 ? '' : undefined,
-                })}
-            />
-
-            <Tab.Screen
-                name="OmniScanner"
-                component={OmniScanner}
-                options={() => ({
-                    title: t('words.scan'),
-                    header: () => <Header empty />,
-                })}
-            />
-        </Tab.Navigator>
+                <Tab.Screen
+                    name="Home"
+                    options={() => ({
+                        title: t('words.home'),
+                        header: () => <HomeHeader />,
+                    })}>
+                    {props => <Home {...props} />}
+                </Tab.Screen>
+                <Tab.Screen
+                    name="Chat"
+                    component={ChatScreen}
+                    options={() => ({
+                        title: t('words.chat'),
+                        header: () => <ChatHeader />,
+                        tabBarBadge: hasUnreadMessages ? '' : undefined,
+                    })}
+                />
+                <Tab.Screen
+                    name="Mods"
+                    component={Mods}
+                    options={() => ({
+                        title: t('words.mods'),
+                        headerShown: false, // this allows us to draw over the header with tooltips
+                        tabBarBadge: zendeskMsgCount > 0 ? '' : undefined,
+                    })}
+                />
+                <Tab.Screen
+                    name="Federations"
+                    component={Federations}
+                    options={() => ({
+                        title: t('words.federations'),
+                        header: () => <FederationsHeader />,
+                    })}
+                />
+            </Tab.Navigator>
+        </>
     )
 }
 
@@ -246,14 +221,11 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
             elevation: 24,
             shadowOpacity: 1,
         },
-        tabBarIconContainer: {
-            paddingBottom: iconPadding,
-            marginTop: 'auto',
-        },
+        tabBarIconContainer: {},
         tabBarBadge: {
             backgroundColor: theme.colors.red,
-            top: 8,
-            left: 2,
+            top: 21,
+            left: 4,
             borderWidth: 2,
             borderColor: theme.colors.secondary,
             width: 12,
@@ -261,9 +233,7 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
             minWidth: 0,
             borderRadius: 6,
         },
-        tabBarItem: {
-            paddingBottom: itemPadding,
-        },
+        tabBarItem: {},
         disabledIcon: {
             opacity: 0.2,
             backgroundColor: theme.colors.grey,

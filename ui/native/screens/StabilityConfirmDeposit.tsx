@@ -36,19 +36,21 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const { amount } = route.params
+    const { amount, federationId = '' } = route.params
     const toast = useToast()
     const [processingDeposit, setProcessingDeposit] = useState<boolean>(false)
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const [showDetails, setShowDetails] = useState<boolean>(false)
-    const depositTime = useAppSelector(s => selectFormattedDepositTime(s, t))
+    const depositTime = useAppSelector(s =>
+        selectFormattedDepositTime(s, federationId, t),
+    )
     const { makeFormattedAmountsFromSats } = useAmountFormatter()
     const { formattedFiat, formattedSats, formattedUsd } =
         makeFormattedAmountsFromSats(amount)
     const { feeBreakdownTitle, makeStabilityPoolFeeContent } =
-        useFeeDisplayUtils(t)
-    const stabilityPoolAverageFeeRate = useAppSelector(
-        selectStabilityPoolAverageFeeRate,
+        useFeeDisplayUtils(t, federationId)
+    const stabilityPoolAverageFeeRate = useAppSelector(s =>
+        selectStabilityPoolAverageFeeRate(s, federationId),
     )
 
     const handleSubmit = async () => {
@@ -59,10 +61,12 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                 increaseStableBalance({
                     fedimint,
                     amount: amountToDeposit,
+                    federationId,
                 }),
             ).unwrap()
             navigation.replace('StabilityDepositInitiated', {
                 amount,
+                federationId,
             })
         } catch (error) {
             setProcessingDeposit(false)

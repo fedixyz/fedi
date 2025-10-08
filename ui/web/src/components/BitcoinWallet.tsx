@@ -5,37 +5,39 @@ import { useTranslation } from 'react-i18next'
 
 import ReceiveArrowIcon from '@fedi/common/assets/svgs/arrow-down.svg'
 import SendArrowIcon from '@fedi/common/assets/svgs/arrow-right.svg'
-import BitcoinIcon from '@fedi/common/assets/svgs/bitcoin.svg'
-import arrowRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
+import BitcoinCircleIcon from '@fedi/common/assets/svgs/bitcoin-circle.svg'
+import TxnHistoryIcon from '@fedi/common/assets/svgs/txn-history.svg'
 import { useBalance } from '@fedi/common/hooks/amount'
-import { selectActiveFederation } from '@fedi/common/redux'
+import { LoadedFederation } from '@fedi/common/types'
 
-import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
 import { Button } from './Button'
 import { Icon } from './Icon'
-import { RequestPaymentDialog } from './RequestPaymentDialog'
-import { SendPaymentDialog } from './SendPaymentDialog'
+import { IconButton } from './IconButton'
 import { Text } from './Text'
 
 const MIN_BALANCE_TO_SEND = 1000
 
-export const BitcoinWallet: React.FC = () => {
+type Props = {
+    federation: LoadedFederation
+}
+
+export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
     const { t } = useTranslation()
-    const { pathname, push } = useRouter()
-    const { formattedBalanceSats, formattedBalanceFiat } = useBalance()
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const { push } = useRouter()
+    const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
+        federation.id,
+    )
 
     return (
         <Container data-testid="bitcoin-wallet">
             <Header>
                 <HeaderLeft>
                     <IconWrapper>
-                        <Icon size="md" icon={BitcoinIcon} />
+                        <Icon size="md" icon={BitcoinCircleIcon} />
                     </IconWrapper>
                     <Name href="/transactions">
-                        <Text weight="bold">{t('words.bitcoin')}</Text>
-                        <Icon icon={arrowRightIcon} size={'xs'} />
+                        <Text weight="medium">{t('words.bitcoin')}</Text>
                     </Name>
                 </HeaderLeft>
                 <HeaderRight>
@@ -51,39 +53,36 @@ export const BitcoinWallet: React.FC = () => {
                     )}
                 </HeaderRight>
             </Header>
-            {activeFederation ? (
-                <Buttons>
-                    <Button
-                        variant="secondary"
-                        width="full"
-                        onClick={() => push('/request')}
-                        icon={ReceiveArrowIcon}>
-                        {t('words.request')}
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        width="full"
-                        onClick={() => push('/send')}
-                        icon={RotatedSendIcon}
-                        disabled={
-                            activeFederation.balance < MIN_BALANCE_TO_SEND
-                        }>
-                        {t('words.send')}
-                    </Button>
-                </Buttons>
-            ) : (
-                <Text variant="body">
-                    {t('feature.wallet.join-federation')}
-                </Text>
-            )}
-            <RequestPaymentDialog
-                open={pathname === '/request'}
-                onOpenChange={() => push('/home')}
-            />
-            <SendPaymentDialog
-                open={pathname === '/send'}
-                onOpenChange={() => push('/home')}
-            />
+            <Buttons>
+                <Button
+                    variant="secondary"
+                    outline
+                    width="full"
+                    onClick={() => push(`/request#id=${federation.id}`)}
+                    icon={ReceiveArrowIcon}
+                    style={{
+                        flex: 1,
+                    }}
+                />
+                <Button
+                    variant="secondary"
+                    outline
+                    width="full"
+                    onClick={() => push(`/send#id=${federation.id}`)}
+                    icon={RotatedSendIcon}
+                    disabled={federation.balance < MIN_BALANCE_TO_SEND}
+                    style={{
+                        flex: 1,
+                    }}
+                />
+                <IconButton
+                    variant="secondary"
+                    outline
+                    icon={TxnHistoryIcon}
+                    size="lg"
+                    onClick={() => push(`/transactions#id=${federation.id}`)}
+                />
+            </Buttons>
         </Container>
     )
 }
@@ -91,8 +90,9 @@ export const BitcoinWallet: React.FC = () => {
 const Container = styled('div', {
     padding: 16,
     borderRadius: 20,
-    color: theme.colors.white,
-    backgroundColor: theme.colors.orange,
+    color: theme.colors.primary,
+    background: `linear-gradient(${theme.colors.white}, ${theme.colors.primary10}), linear-gradient(${theme.colors.white}, ${theme.colors.white})`,
+    border: `1.5px solid ${theme.colors.primaryVeryLight}`,
 })
 
 const Header = styled('div', {
@@ -135,7 +135,7 @@ const Buttons = styled('div', {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    gap: 12,
 
     '@xs': {
         flexDirection: 'column',

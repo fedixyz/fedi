@@ -17,7 +17,7 @@ function SettingsLanguagePage() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back="/settings">
+                <Layout.Header back>
                     <Layout.Title subheader>{t('words.language')}</Layout.Title>
                 </Layout.Header>
                 <Layout.Content>

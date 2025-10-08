@@ -1,4 +1,5 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::pin::pin;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bitcoin::Network;
 use lightning_invoice::Currency;
@@ -38,5 +39,27 @@ impl<T> PoisonedLockExt<T> for std::sync::Mutex<T> {
     #[track_caller]
     fn ensure_lock(&self) -> std::sync::MutexGuard<T> {
         self.lock().expect("The Mutex should never be poisoned")
+    }
+}
+
+// Executes the given future against a timeout duration. If the future takes
+// longer than the timeout, the logger function is invoked. The execution of the
+// future however, is not cancelled or interrupted.
+pub async fn timeout_log_only<F, T, U>(fut: F, duration: Duration, logger: U) -> T
+where
+    F: Future<Output = T>,
+    U: FnOnce(),
+{
+    let mut inner = pin!(fut);
+    let sleep = fedimint_core::task::sleep(duration);
+    tokio::select! {
+        biased;
+        value = &mut inner => {
+            value
+        },
+        () = sleep => {
+            logger();
+            inner.await
+        },
     }
 }

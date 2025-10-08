@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 
 import { setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { formatFileSize } from '@fedi/common/utils/media'
 
 import { useAppDispatch } from '../../../state/hooks'
@@ -12,7 +11,7 @@ import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
-    event: MatrixEvent<MatrixEventContentType<'m.file'>>
+    event: MatrixEvent<'m.file'>
 }
 
 const ChatFileEvent: React.FC<ChatImageEventProps> = ({
@@ -39,7 +38,7 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
                         {event.content.body}
                     </Text>
                     <Text color={theme.colors.darkGrey} caption>
-                        {formatFileSize(event.content.info.size ?? 0)}
+                        {formatFileSize(event.content.info?.size ?? 0)}
                     </Text>
                 </Flex>
             </Flex>

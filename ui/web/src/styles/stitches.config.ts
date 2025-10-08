@@ -1,6 +1,10 @@
 import { CSS, createStitches } from '@stitches/react'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
+import {
+    FediGradientVariant,
+    makeFediGradient,
+} from '@fedi/common/utils/gradients'
 
 export const {
     styled,
@@ -21,6 +25,7 @@ export const {
             primary10: alphaHex(fediTheme.colors.primary, 10),
             primary15: alphaHex(fediTheme.colors.primary, 15),
             primary20: alphaHex(fediTheme.colors.primary, 20),
+            primary50: alphaHex(fediTheme.colors.primary, 50),
             primary80: alphaHex(fediTheme.colors.primary, 80),
             primary90: alphaHex(fediTheme.colors.primary, 90),
 
@@ -34,7 +39,7 @@ export const {
             mono: `"SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace`,
         },
         sizes: intMapToPx(fediTheme.sizes),
-        space: intMapToPx(fediTheme.spacing),
+        spacing: intMapToPx(fediTheme.spacing),
         fontSizes: intMapToPx(fediTheme.fontSizes),
         fontWeights: fediTheme.fontWeights,
     },
@@ -47,10 +52,10 @@ export const {
         standalone: '(display-mode: standalone)',
     },
     utils: {
-        holoGradient: (value: keyof (typeof fediTheme)['holoGradient']) => ({
-            backgroundImage: `radial-gradient(89.9% 222.34% at 7.36% 24.19%, ${fediTheme.holoGradient[
-                value
-            ].join(', ')})`,
+        fediGradient: (value: FediGradientVariant) => ({
+            backgroundImage: `url(data:image/svg+xml;base64,${btoa(
+                makeFediGradient({ variant: value }),
+            )})`,
         }),
         nightGradient: () => ({
             backgroundImage: [

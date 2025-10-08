@@ -16,6 +16,7 @@ const BitcoinRequestHeader: React.FC = () => {
                 </Text>
             }
             closeButton
+            closeRoute="Federations"
         />
     )
 }

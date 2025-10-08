@@ -26,6 +26,8 @@ export const shouldHideNavigation = (
         if (path === routes.shareLogsRoute) return true
 
         if (path === routes.transactionsRoute) return true
+
+        if (path === routes.scanRoute) return true
     }
 
     return false

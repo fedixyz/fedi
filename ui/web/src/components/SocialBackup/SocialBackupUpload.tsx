@@ -3,11 +3,9 @@ import { useTranslation } from 'react-i18next'
 
 import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { useAppSelector } from '../../hooks'
 import { fedimint, readBridgeFile, writeBridgeFile } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
@@ -22,11 +20,15 @@ const VIDEO_FILE_PATH = 'backup-video.webm'
 interface Props {
     videoBlob: Blob
     next(backupBlob: Blob): void
+    federationId: string
 }
 
-export const SocialBackupUpload: React.FC<Props> = ({ videoBlob, next }) => {
+export const SocialBackupUpload: React.FC<Props> = ({
+    videoBlob,
+    next,
+    federationId,
+}) => {
     const { t } = useTranslation()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
     const [error, setError] = useState<unknown>()
     const [backupBlob, setBackupBlob] = useState<Blob>()
     const [hasWaited, setHasWaited] = useState(false)
@@ -35,16 +37,13 @@ export const SocialBackupUpload: React.FC<Props> = ({ videoBlob, next }) => {
     useEffect(() => {
         if (error) return
         async function upload() {
-            if (!activeFederationId) return
+            if (!federationId) return
             try {
                 // Write the video file to the bridge's file system
                 const videoArray = new Uint8Array(await videoBlob.arrayBuffer())
                 await writeBridgeFile(VIDEO_FILE_PATH, videoArray)
                 // Upload the video and backup file
-                await fedimint.uploadBackupFile(
-                    VIDEO_FILE_PATH,
-                    activeFederationId,
-                )
+                await fedimint.uploadBackupFile(VIDEO_FILE_PATH, federationId)
                 // Pull the backup file as a blob and continue to the next screen
                 const path = await fedimint.locateRecoveryFile()
                 const file = await readBridgeFile(path)
@@ -58,7 +57,7 @@ export const SocialBackupUpload: React.FC<Props> = ({ videoBlob, next }) => {
             }
         }
         upload()
-    }, [activeFederationId, videoBlob, error, nextRef])
+    }, [federationId, videoBlob, error, nextRef])
 
     useEffect(() => {
         // TODO: Remove this minimum timeout until uploadBackupFile actually

@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
 import Flex from '../../ui/Flex'
-import HoloGradient from '../../ui/HoloGradient'
+import GradientView from '../../ui/GradientView'
+import HoloCircle from '../../ui/HoloCircle'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
 
@@ -33,16 +34,16 @@ export const PermissionGate: React.FC<Props> = ({
     return (
         <SafeAreaContainer style={style.container} edges="notop">
             <Flex grow center gap="lg">
-                <HoloGradient level="400" gradientStyle={style.iconGradient}>
-                    <SvgImage name={icon} size={SvgImageSize.md} />
-                </HoloGradient>
+                <HoloCircle
+                    content={<SvgImage name={icon} size={SvgImageSize.md} />}
+                    size={72}
+                />
                 <Text h2 medium style={style.title}>
                     {title}:
                 </Text>
-                <HoloGradient
-                    level="100"
-                    style={style.descriptionContainer}
-                    gradientStyle={style.descriptionGradient}>
+                <GradientView
+                    variant="sky-banner"
+                    style={style.descriptionContainer}>
                     <Flex row center gap="sm">
                         {descriptionIcons.map(name => (
                             <SvgImage
@@ -55,7 +56,7 @@ export const PermissionGate: React.FC<Props> = ({
                     <Text medium style={style.descriptionText}>
                         {descriptionText}
                     </Text>
-                </HoloGradient>
+                </GradientView>
                 <Text caption style={style.disclaimer}>
                     {t('feature.permissions.update-later-disclaimer')}
                 </Text>
@@ -78,21 +79,11 @@ const styles = (theme: Theme) =>
         container: {
             width: '100%',
         },
-        iconGradient: {
-            width: 72,
-            height: 72,
-            borderRadius: 72 / 2,
-            justifyContent: 'center',
-            alignItems: 'center',
-            overflow: 'hidden',
-        },
         title: {
             textAlign: 'center',
         },
         descriptionContainer: {
             width: '100%',
-        },
-        descriptionGradient: {
             gap: theme.spacing.sm,
             padding: theme.spacing.lg,
             alignItems: 'center',

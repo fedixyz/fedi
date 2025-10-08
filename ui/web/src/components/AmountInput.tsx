@@ -4,7 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import arrowLeftIcon from '@fedi/common/assets/svgs/arrow-left.svg'
 import switchIcon from '@fedi/common/assets/svgs/switch.svg'
 import { useAmountInput } from '@fedi/common/hooks/amount'
-import { Sats } from '@fedi/common/types'
+import { Federation, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { useMediaQuery } from '../hooks'
@@ -14,6 +14,7 @@ import { Text } from './Text'
 
 interface Props {
     amount: Sats
+    federationId?: Federation['id']
     readOnly?: boolean
     verb?: string
     minimumAmount?: Sats | null
@@ -26,6 +27,7 @@ interface Props {
 
 export const AmountInput: React.FC<Props> = ({
     amount,
+    federationId,
     readOnly,
     verb,
     minimumAmount,
@@ -47,7 +49,13 @@ export const AmountInput: React.FC<Props> = ({
         numpadButtons,
         handleNumpadPress,
         validation,
-    } = useAmountInput(amount, onChangeAmount, minimumAmount, maximumAmount)
+    } = useAmountInput(
+        amount,
+        onChangeAmount,
+        minimumAmount,
+        maximumAmount,
+        federationId,
+    )
     const isSmall = useMediaQuery(config.media.sm)
     const errorElRef = useRef<HTMLDivElement | null>(null)
     const amountInputContainerElRef = useRef<HTMLDivElement | null>(null)

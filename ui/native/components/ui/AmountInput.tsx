@@ -2,7 +2,6 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
-    Keyboard,
     Pressable,
     StyleProp,
     StyleSheet,
@@ -24,6 +23,7 @@ import { Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { useForceBlurOnKeyboardHide } from '../../utils/hooks/keyboard'
 import Flex from './Flex'
 import InvisibleInput from './InvisibleInput'
 import NotesInput from './NotesInput'
@@ -87,25 +87,18 @@ const AmountInput: React.FC<Props> = ({
     const inputRef = useRef<TextInput>(null)
     const { height, width } = useWindowDimensions()
 
+    // For some reason the TextInput inside InvisibleInput does not
+    // automatically blur the input when the keyboard is dismissed
+    // which causes the .focus() event to have no effect so here we
+    // force the blur to make sure .isFocused() returns false
+    useForceBlurOnKeyboardHide(true)
+
     const style = styles(theme, width)
 
     useEffect(() => {
         if (lockToFiat) setIsFiat(true)
     }, [lockToFiat, setIsFiat])
 
-    // For some reason the TextInput inside InvisibleInput does not
-    // automatically blur the input when the keyboard is dismissed
-    // which causes the .focus() event to have no effect so here we
-    // force the blur to make sure .isFocused() returns false
-    useEffect(() => {
-        const keyboardHiddenListener = Keyboard.addListener(
-            'keyboardDidHide',
-            () => inputRef.current?.blur(),
-        )
-        return () => {
-            keyboardHiddenListener.remove()
-        }
-    }, [])
     // Check validation for errors to render with suggestion for amount.
     let error: React.ReactNode | undefined
     if (

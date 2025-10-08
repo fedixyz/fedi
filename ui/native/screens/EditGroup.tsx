@@ -7,6 +7,7 @@ import { StyleSheet, View } from 'react-native'
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectMatrixRoom, setMatrixRoomName } from '@fedi/common/redux'
 
+import { fedimint } from '../bridge'
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import HoloLoader from '../components/ui/HoloLoader'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
@@ -35,6 +36,7 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
         try {
             await dispatch(
                 setMatrixRoomName({
+                    fedimint,
                     roomId: room.id,
                     name: groupName,
                 }),

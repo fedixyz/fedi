@@ -30,7 +30,9 @@ const InfoEntryListItem: React.FC<InfoEntryListItemProps> = ({
                     />
                 </BubbleView>
             </View>
-            <Text style={styles.itemText}>{item.text}</Text>
+            <Text caption style={styles.itemText}>
+                {item.text}
+            </Text>
         </Flex>
     )
 }
@@ -57,8 +59,6 @@ const createIconStyles = (theme: Theme) => {
 const styles = StyleSheet.create({
     itemText: {
         flex: 1,
-        fontSize: 14,
-        fontWeight: '400',
         color: globalTheme.colors.darkGrey,
     },
 })

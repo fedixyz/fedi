@@ -26,6 +26,7 @@ declare module '@rneui/themed' {
             lightOrange: string
             darkGrey: string
             grey: string
+            grey50: string
             lightGrey: string
             extraLightGrey: string
             ghost: string
@@ -101,6 +102,7 @@ declare module '@rneui/themed' {
         outline?: boolean
         night?: boolean
         bubble?: boolean
+        text?: boolean
     }
     export interface CardProps {
         bubble?: boolean

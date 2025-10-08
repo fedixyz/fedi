@@ -4,12 +4,12 @@ import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
-import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
 import {
-    MatrixEvent,
-    MatrixRoomMember,
-    MatrixEventStatus,
-} from '@fedi/common/types'
+    selectCanReply,
+    selectMatrixAuth,
+    selectMatrixRoomMembers,
+} from '@fedi/common/redux'
+import { MatrixRoomMember, MatrixEvent } from '@fedi/common/types'
 import { isMultispendEvent } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
@@ -27,6 +27,7 @@ interface Props {
     events: MatrixEvent[]
     onReplyTap?: (eventId: string) => void
     highlightedMessageId?: string | null
+    isInViewport?: boolean
 }
 
 const ChatEventTimeFrame = memo(
@@ -38,8 +39,11 @@ const ChatEventTimeFrame = memo(
         onSelect,
         onReplyTap,
         highlightedMessageId,
+        isInViewport = true,
     }: Props) => {
         const matrixAuth = useAppSelector(selectMatrixAuth)
+        const canSwipe = useAppSelector(s => selectCanReply(s, roomId))
+
         const { t } = useTranslation()
         const { theme } = useTheme()
         const style = styles(theme)
@@ -56,7 +60,7 @@ const ChatEventTimeFrame = memo(
 
         if (!events.length) return null
 
-        const sentBy = events[0].senderId || ''
+        const sentBy = events[0].sender || ''
 
         const roomMember = roomMembers.find(m => m.id === sentBy)
         const isMe =
@@ -97,8 +101,7 @@ const ChatEventTimeFrame = memo(
 
                     <View style={style.senderMessages}>
                         {events.map((event, eindex) => {
-                            const isPending =
-                                event.status === MatrixEventStatus.pending
+                            const isPending = event.localEcho
 
                             const isVeryRecent = (() => {
                                 if (!event.timestamp) return false
@@ -111,30 +114,39 @@ const ChatEventTimeFrame = memo(
                             const isHighlighted =
                                 !isPending &&
                                 !isVeryRecent &&
-                                (highlightedMessageId === event.eventId ||
+                                (highlightedMessageId === event.id ||
                                     highlightedMessageId === event.id)
 
-                            return (
+                            const content = (
+                                <View
+                                    style={[
+                                        isHighlighted &&
+                                            style.highlightedMessage,
+                                    ]}>
+                                    <ChatEvent
+                                        event={event}
+                                        last={eindex === 0}
+                                        isPublic={isPublic}
+                                        onReplyTap={onReplyTap}
+                                        highlightedMessageId={
+                                            highlightedMessageId
+                                        }
+                                        isInViewport={isInViewport}
+                                    />
+                                </View>
+                            )
+
+                            return canSwipe ? (
                                 <ChatSwipeableEventContainer
-                                    key={`ceci-eb-${event.eventId}`}
+                                    key={`ceci-eb-${event.id}`}
                                     roomId={roomId}
                                     event={event}>
-                                    <View
-                                        style={[
-                                            isHighlighted &&
-                                                style.highlightedMessage,
-                                        ]}>
-                                        <ChatEvent
-                                            event={event}
-                                            last={eindex === 0}
-                                            isPublic={isPublic}
-                                            onReplyTap={onReplyTap}
-                                            highlightedMessageId={
-                                                highlightedMessageId
-                                            }
-                                        />
-                                    </View>
+                                    {content}
                                 </ChatSwipeableEventContainer>
+                            ) : (
+                                <View key={`ceci-eb-${event.id}`}>
+                                    {content}
+                                </View>
                             )
                         })}
                     </View>
@@ -143,6 +155,9 @@ const ChatEventTimeFrame = memo(
         )
     },
     (prev, curr) => {
+        if (prev.isInViewport !== curr.isInViewport) {
+            return false
+        }
         if (prev.highlightedMessageId !== curr.highlightedMessageId) {
             return false
         }

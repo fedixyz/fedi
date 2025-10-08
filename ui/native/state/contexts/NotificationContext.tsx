@@ -13,6 +13,7 @@ import { selectMatrixChatsWithoutDefaultGroupPreviewsList } from '@fedi/common/r
 import { selectSupportPermissionGranted } from '@fedi/common/redux/support'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../../bridge'
 import { useNotificationsPermission } from '../../utils/hooks'
 import { useUpdateZendeskNotificationCount } from '../../utils/hooks/support'
 import { manuallyPublishNotificationToken } from '../../utils/notifications'
@@ -49,7 +50,10 @@ export const NotificationContextProvider: React.FC<{
                 notificationsPermission,
         )
 
-        await manuallyPublishNotificationToken(supportPermissionGranted)
+        await manuallyPublishNotificationToken(
+            supportPermissionGranted,
+            fedimint,
+        )
     }, [notificationsPermission, supportPermissionGranted])
 
     const value = useMemo(

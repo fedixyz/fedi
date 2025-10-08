@@ -1,45 +1,56 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, RefObject } from 'react'
 
 import { MatrixEvent } from '@fedi/common/types'
-import { JSONObject } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
+import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { fedimint, readBridgeFile } from '../lib/bridge/'
 
 const log = makeLog('useLoadMedia')
 
+// === useLoadMedia hook ===
+// This hook is responsible for loading media files from the
+// bridge and then caching them to prevent unnecessary re-fetches
+// and improve performance.
+const mediaCache = new Map<string, string>()
+
 export function useLoadMedia(
-    event: MatrixEvent<
-        MatrixEventContentType<'m.video' | 'm.image' | 'm.file'>
-    >,
+    event: MatrixEvent<'m.video' | 'm.image' | 'm.file'>,
 ) {
     const [src, setSrc] = useState<string | null>(null)
     const [loading, setLoading] = useState<boolean>(false)
     const [error, setError] = useState<boolean>(false)
 
+    const { id, content } = event
+    const { body, source, info } = content
+    const mimeType = info?.mimetype ?? undefined
+
     useEffect(() => {
-        let url: string | null = null
+        let objectUrl: string | null = null
+
+        const cachedUrl = mediaCache.get(id)
+        if (cachedUrl) {
+            setSrc(cachedUrl)
+            return
+        }
 
         const loadMedia = async () => {
             setLoading(true)
-            try {
-                if (event.content.file === null) return
-                const { body, file } = event.content
 
+            try {
                 const mediaPath = await fedimint.matrixDownloadFile(
                     body,
-                    typeof file === 'string'
-                        ? { url: file }
-                        : { file: file as JSONObject },
+                    source,
                 )
-
                 const result = await readBridgeFile(mediaPath)
-                url = URL.createObjectURL(
-                    new Blob([result], { type: event.content.info.mimetype }),
+
+                objectUrl = URL.createObjectURL(
+                    new Blob([result], { type: mimeType }),
                 )
 
-                setSrc(url)
+                mediaCache.set(id, objectUrl)
+
+                setSrc(objectUrl)
             } catch {
                 log.error('failed to load media')
                 setError(true)
@@ -51,9 +62,66 @@ export function useLoadMedia(
         loadMedia()
 
         return () => {
-            url && URL.revokeObjectURL(url)
+            const current = mediaCache.get(id)
+            if (objectUrl && current !== objectUrl) {
+                URL.revokeObjectURL(objectUrl)
+            }
         }
-    }, [event.content])
+    }, [id, body, source, mimeType])
 
     return { error, loading, src }
+}
+
+// === useScaledDimensions hook ===
+// This hook scales images using our scaleAttachment function
+// and then stores the dimensions in a cache to improve performance
+// on the next render.
+interface UseScaledDimensionsParams {
+    id: string
+    originalWidth: number
+    originalHeight: number
+    containerRef: RefObject<HTMLElement>
+}
+
+interface Dimensions {
+    width: number
+    height: number
+}
+
+const cache = new Map<string, Dimensions>()
+
+export function useScaledDimensions({
+    id,
+    originalWidth,
+    originalHeight,
+    containerRef,
+}: UseScaledDimensionsParams) {
+    const [containerWidth, setContainerWidth] = useState<number>(0)
+
+    useEffect(() => {
+        const el = containerRef.current
+        if (!el) return
+
+        setContainerWidth(el.clientWidth)
+    }, [containerRef])
+
+    const dimensions = useMemo(() => {
+        if (!containerWidth) return { width: 0, height: 0 }
+
+        const cached = cache.get(id)
+        if (cached) return cached
+
+        const { width, height } = scaleAttachment(
+            originalWidth,
+            originalHeight,
+            containerWidth,
+            400,
+        )
+
+        const result = { width, height }
+        cache.set(id, result)
+        return result
+    }, [id, containerWidth, originalWidth, originalHeight])
+
+    return dimensions
 }

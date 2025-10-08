@@ -6,10 +6,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import Video, { VideoRef } from 'react-native-video'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    approveSocialRecoveryRequest,
-    selectActiveFederationId,
-} from '@fedi/common/redux'
+import { approveSocialRecoveryRequest } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 import { prefixFileUri } from '@fedi/common/utils/media'
 
@@ -34,10 +31,9 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
 }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const federationId = useAppSelector(selectActiveFederationId)
     const dispatch = useAppDispatch()
     const toast = useToast()
-    const { videoPath, recoveryId } = route.params
+    const { videoPath, recoveryId, federationId } = route.params
     const [isPaused, setIsPaused] = useState(true)
     const [approvalSelected, setApprovalSelected] = useState(false)
     const [denialSelected, setDenialSelected] = useState(false)

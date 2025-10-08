@@ -9,7 +9,8 @@ import {
     Platform,
 } from 'react-native'
 
-import { ReplyMessageData, matrixIdToUsername } from '@fedi/common/utils/matrix'
+import { ReplyMessageData } from '@fedi/common/types/matrix'
+import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 
 type Props = {
     repliedData: ReplyMessageData
@@ -30,21 +31,21 @@ const ChatRepliedMessage: React.FC<Props> = ({
     // Simple display name resolution using existing utility
     const senderName = useMemo(() => {
         return (
-            roomMembers?.find(member => member.id === repliedData?.senderId)
-                ?.displayName || matrixIdToUsername(repliedData?.senderId)
+            roomMembers?.find(member => member.id === repliedData?.sender)
+                ?.displayName || matrixIdToUsername(repliedData?.sender)
         )
-    }, [repliedData?.senderId, roomMembers])
+    }, [repliedData?.sender, roomMembers])
 
     // dynamically adjust truncation length based on message size for better readability
     // longer messages get more characters before truncation to preserve context
     const truncatedBody = useMemo(() => {
-        const body = repliedData.body || 'Message'
+        const body = repliedData.content.body || 'Message'
         const maxLength =
             body.length > 150 ? 200 : body.length > 100 ? 150 : 100
         return body.length > maxLength
             ? `${body.substring(0, maxLength)}...`
             : body
-    }, [repliedData.body])
+    }, [repliedData.content.body])
 
     const handlePressIn = () => {
         Animated.spring(pressAnimation, {
@@ -65,8 +66,8 @@ const ChatRepliedMessage: React.FC<Props> = ({
     }
 
     const handlePress = () => {
-        if (onReplyTap && repliedData.eventId) {
-            onReplyTap(repliedData.eventId)
+        if (onReplyTap && repliedData.id) {
+            onReplyTap(repliedData.id)
         }
     }
 

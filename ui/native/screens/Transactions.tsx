@@ -15,11 +15,15 @@ const log = makeLog('Transactions')
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Transactions'>
 
-const Transactions: React.FC<Props> = () => {
+const Transactions: React.FC<Props> = ({ route }: Props) => {
+    const { federationId } = route.params
     const { t } = useTranslation()
     const toast = useToast()
     const [isLoading, setIsLoading] = useState(false)
-    const { transactions, fetchTransactions } = useTransactionHistory(fedimint)
+    const { transactions, fetchTransactions } = useTransactionHistory(
+        fedimint,
+        federationId,
+    )
 
     useEffect(() => {
         setIsLoading(true)
@@ -37,6 +41,7 @@ const Transactions: React.FC<Props> = () => {
                 transactions={transactions}
                 loading={transactions.length === 0 && isLoading}
                 loadMoreTransactions={() => fetchTransactions({ more: true })}
+                federationId={federationId}
             />
         </Flex>
     )
