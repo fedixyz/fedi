@@ -2,7 +2,6 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 import {
     CommonState,
-    selectActiveFederationId,
     selectFederationMetadata,
     selectLoadedFederations,
     selectStabilityPoolCycleStartPrice,
@@ -25,6 +24,7 @@ const initialState = {
     btcUsdRate: 0 as number,
     fiatUsdRates: {} as Record<string, number | undefined>,
     overrideCurrency: null as SelectableCurrency | null,
+    showFiatTotalBalance: false as boolean,
     currencyLocale: undefined as string | undefined,
     customFederationCurrencies: {} as Record<string, SelectableCurrency>,
 }
@@ -42,6 +42,9 @@ export const currencySlice = createSlice({
             action: PayloadAction<SelectableCurrency | null>,
         ) {
             state.overrideCurrency = action.payload
+        },
+        changeShowFiatTotalBalance(state, action: PayloadAction<boolean>) {
+            state.showFiatTotalBalance = action.payload
         },
         setCurrencyLocale(state, action: PayloadAction<string>) {
             state.currencyLocale = action.payload
@@ -78,6 +81,7 @@ export const currencySlice = createSlice({
             state.fiatUsdRates = action.payload.fiatUsdRates
             state.customFederationCurrencies =
                 action.payload.customFederationCurrencies
+            state.showFiatTotalBalance = action.payload.showFiatTotalBalance
         })
     },
 })
@@ -86,6 +90,7 @@ export const currencySlice = createSlice({
 
 export const {
     changeOverrideCurrency,
+    changeShowFiatTotalBalance,
     setCurrencyLocale,
     resetCurrencyState,
     setFederationCurrency,
@@ -255,10 +260,14 @@ export const selectCurrencyLocale = (s: CommonState) =>
 export const selectOverrideCurrency = (s: CommonState) =>
     s.currency.overrideCurrency
 
-export const selectCurrency = (s: CommonState) => {
-    const federationId = selectActiveFederationId(s)
+export const selectShowFiatTotalBalance = (s: CommonState) =>
+    s.currency.showFiatTotalBalance
 
-    // If no active federation, check for global override first
+export const selectCurrency = (
+    s: CommonState,
+    federationId?: Federation['id'],
+) => {
+    // If no federationId, check for global override first
     if (!federationId) {
         const overrideCurrency = selectOverrideCurrency(s)
         return overrideCurrency || SupportedCurrency.USD
@@ -322,9 +331,10 @@ export const selectBtcUsdExchangeRate = (
 ) => {
     const stabilityPoolPriceCents = selectStabilityPoolCycleStartPrice(
         s,
-        federationId,
+        federationId || '',
     )
-    return stabilityPoolPriceCents
+    // use stability pool price if available, otherwise use fallback rate
+    return federationId && stabilityPoolPriceCents
         ? stabilityPoolPriceCents / 100
         : s.currency.btcUsdRate || 0
 }
@@ -332,10 +342,11 @@ export const selectBtcUsdExchangeRate = (
 export const selectBtcExchangeRate = (
     s: CommonState,
     customCurrency?: SelectableCurrency,
+    federationId?: Federation['id'],
 ) => {
-    const currency = customCurrency ?? selectCurrency(s)
-    const metadata = selectFederationMetadata(s)
-    const btcUsdRate = selectBtcUsdExchangeRate(s)
+    const currency = customCurrency ?? selectCurrency(s, federationId || '')
+    const metadata = selectFederationMetadata(s, federationId || '')
+    const btcUsdRate = selectBtcUsdExchangeRate(s, federationId)
 
     let fiatUsdRate = s.currency.fiatUsdRates[currency] || 0
 

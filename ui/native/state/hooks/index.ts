@@ -8,13 +8,14 @@ import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux'
 import { usePublishNotificationToken } from '@fedi/common/hooks/chat'
 import { usePushNotificationToken } from '@fedi/common/hooks/matrix'
 import {
-    refreshActiveStabilityPool,
+    refreshStabilityPool,
     selectCurrency,
     selectCurrencyLocale,
     selectStableBalance,
     selectStableBalancePending,
 } from '@fedi/common/redux'
 import { selectSupportPermissionGranted } from '@fedi/common/redux/support'
+import { Federation } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -117,23 +118,45 @@ export const useMatrixPushNotifications = () => {
     )
 }
 
-// This hook provides a stability pool function
-// to makes sure to regularly refresh the account balance
-export const useStabilityPool = () => {
-    const dispatch = useAppDispatch()
-    const navigation = useNavigation<NavigationHook>()
-    const stableBalance = useAppSelector(selectStableBalance)
-    const stableBalancePending = useAppSelector(selectStableBalancePending)
+export const useStableBalances = (federationId: Federation['id']) => {
+    const stableBalance = useAppSelector(s =>
+        selectStableBalance(s, federationId),
+    )
+    const stableBalancePending = useAppSelector(s =>
+        selectStableBalancePending(s, federationId),
+    )
     const selectedCurrency = useAppSelector(selectCurrency)
     const currencyLocale = useAppSelector(selectCurrencyLocale)
 
+    const formattedStableBalance = amountUtils.formatFiat(
+        stableBalance,
+        selectedCurrency,
+        { symbolPosition: 'end', locale: currencyLocale },
+    )
+    const formattedStableBalancePending = amountUtils.formatFiat(
+        stableBalancePending,
+        selectedCurrency,
+        { symbolPosition: 'end', locale: currencyLocale },
+    )
+    return { formattedStableBalance, formattedStableBalancePending }
+}
+
+// This hook provides a stability pool function
+// to makes sure to regularly refresh the account balance
+export const useStabilityPool = (federationId: Federation['id']) => {
+    const dispatch = useAppDispatch()
+    const navigation = useNavigation<NavigationHook>()
+    const { formattedStableBalance, formattedStableBalancePending } =
+        useStableBalances(federationId)
+
     const refreshBalance = useCallback(() => {
         dispatch(
-            refreshActiveStabilityPool({
+            refreshStabilityPool({
                 fedimint,
+                federationId,
             }),
         )
-    }, [dispatch])
+    }, [dispatch, federationId])
 
     // Refreshes the active stability pool when the navigator
     // finishes transitioning onto the current screen
@@ -146,17 +169,6 @@ export const useStabilityPool = () => {
 
         return unsubscribe
     }, [refreshBalance, navigation])
-
-    const formattedStableBalance = amountUtils.formatFiat(
-        stableBalance,
-        selectedCurrency,
-        { symbolPosition: 'end', locale: currencyLocale },
-    )
-    const formattedStableBalancePending = amountUtils.formatFiat(
-        stableBalancePending,
-        selectedCurrency,
-        { symbolPosition: 'end', locale: currencyLocale },
-    )
 
     return {
         refreshBalance,

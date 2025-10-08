@@ -1,5 +1,9 @@
 import { MSats } from '@fedi/common/types'
-import { RpcTransaction, RpcLnReceiveState } from '@fedi/common/types/bindings'
+import {
+    RpcTransaction,
+    RpcLnReceiveState,
+    RpcTransactionListEntry,
+} from '@fedi/common/types/bindings'
 
 // Mock transaction factory
 const MOCK_TRANSACTION: RpcTransaction = {
@@ -21,6 +25,19 @@ const MOCK_TRANSACTION: RpcTransaction = {
 
 export const createMockTransaction = (overrides: any = {}): RpcTransaction => {
     return {
+        ...MOCK_TRANSACTION,
+        ...overrides,
+    }
+}
+
+export const createMockTransactionListEntry = (
+    overrides: any = {},
+): RpcTransactionListEntry => {
+    const date = new Date()
+    const createdAt = Math.floor(date.getTime() / 1000) // creates date in seconds
+
+    return {
+        createdAt,
         ...MOCK_TRANSACTION,
         ...overrides,
     }

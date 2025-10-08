@@ -1,7 +1,7 @@
 import React from 'react'
 
-import { selectMatrixAuth } from '@fedi/common/redux'
-import { MatrixEvent } from '@fedi/common/types'
+import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
+import { MatrixEvent, ReplyMessageData } from '@fedi/common/types'
 import {
     isFileEvent,
     isFormEvent,
@@ -9,6 +9,7 @@ import {
     isPaymentEvent,
     isTextEvent,
     isVideoEvent,
+    matrixIdToUsername,
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../hooks'
@@ -17,42 +18,80 @@ import { ChatFileEvent } from './ChatFileEvent'
 import { ChatFormEvent } from './ChatFormEvent'
 import { ChatImageEvent } from './ChatImageEvent'
 import { ChatPaymentEvent } from './ChatPaymentEvent'
+import { ChatRepliedMessage } from './ChatRepliedMessage'
+import { ChatSwipeableEventContainer } from './ChatSwipeableEventContainer'
 import { ChatTextEvent } from './ChatTextEvent'
 import { ChatVideoEvent } from './ChatVideoEvent'
 
 interface Props {
     event: MatrixEvent
+    onReplyTap?: (eventId: string) => void
 }
 
-export const ChatEvent: React.FC<Props> = ({ event }) => {
+export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     const matrixAuth = useAppSelector(selectMatrixAuth)
-
-    const isMe = event.senderId === matrixAuth?.userId
+    const roomMembers = useAppSelector(s => {
+        if (!event.roomId) return []
+        const members = selectMatrixRoomMembers(s, event.roomId)
+        return members || []
+    })
+    const isMe = event.sender === matrixAuth?.userId
 
     // Images and videos require a different wrapper that has a percentage width
     // rather than a "fit-content" width. This allows the image to be scaled
     // properly futher down.
     if (isImageEvent(event)) {
         return (
-            <AttachmentContent isMe={isMe}>
-                <ChatImageEvent event={event} />
-            </AttachmentContent>
+            <ChatSwipeableEventContainer event={event} isMe={isMe}>
+                <AttachmentContent isMe={isMe}>
+                    <ChatImageEvent event={event} />
+                </AttachmentContent>
+            </ChatSwipeableEventContainer>
         )
     }
 
     if (isVideoEvent(event)) {
         return (
-            <AttachmentContent isMe={isMe}>
-                <ChatVideoEvent event={event} />
-            </AttachmentContent>
+            <ChatSwipeableEventContainer event={event} isMe={isMe}>
+                <AttachmentContent isMe={isMe}>
+                    <ChatVideoEvent event={event} />
+                </AttachmentContent>
+            </ChatSwipeableEventContainer>
         )
     }
 
     if (isFileEvent(event)) {
         return (
-            <AttachmentContent isMe={isMe}>
-                <ChatFileEvent event={event} />
-            </AttachmentContent>
+            <ChatSwipeableEventContainer event={event} isMe={isMe}>
+                <AttachmentContent isMe={isMe}>
+                    <ChatFileEvent event={event} />
+                </AttachmentContent>
+            </ChatSwipeableEventContainer>
+        )
+    }
+
+    // Text events are used to render replies
+    if (isTextEvent(event)) {
+        // Used for replies
+        const replyData: ReplyMessageData = event.inReply as ReplyMessageData
+        const senderName =
+            roomMembers?.find(member => member.id === replyData?.sender)
+                ?.displayName || matrixIdToUsername(replyData?.sender)
+
+        return (
+            <ChatSwipeableEventContainer event={event} isMe={isMe}>
+                <TextContent isMe={isMe} isPayment={false} isForm={false}>
+                    {!!replyData && (
+                        <ChatRepliedMessage
+                            data={replyData}
+                            isMe={isMe}
+                            senderName={senderName}
+                            onReplyTap={onReplyTap}
+                        />
+                    )}
+                    <ChatTextEvent event={event} />
+                </TextContent>
+            </ChatSwipeableEventContainer>
         )
     }
 
@@ -60,11 +99,11 @@ export const ChatEvent: React.FC<Props> = ({ event }) => {
         <ChatPaymentEvent event={event} />
     ) : isFormEvent(event) ? (
         <ChatFormEvent event={event} />
-    ) : isTextEvent(event) ? (
-        <ChatTextEvent event={event} />
-    ) : (
-        event.content.body
-    )
+    ) : null
+
+    // Unsupported events are not displayed
+    // e.g. multispend, failedToParseCustom, unknown, unableToDecrypt, etc.
+    if (!content) return null
 
     return (
         <TextContent
@@ -92,7 +131,7 @@ const AttachmentContent = styled('div', {
 
 const TextContent = styled('div', {
     background: theme.colors.blue,
-    borderRadius: theme.sizes.xxs,
+    borderRadius: theme.spacing.md,
     color: theme.colors.white,
     fontSize: theme.fontSizes.caption,
     fontWeight: theme.fontWeights.medium,
@@ -153,6 +192,23 @@ const TextContent = styled('div', {
             css: {
                 background: theme.colors.extraLightGrey,
                 color: theme.colors.darkGrey,
+            },
+        },
+        // Apply speech bubble style to text messages only
+        {
+            isMe: true,
+            isPayment: false,
+            isForm: false,
+            css: {
+                borderBottomRightRadius: theme.spacing.xs,
+            },
+        },
+        {
+            isMe: false,
+            isPayment: false,
+            isForm: false,
+            css: {
+                borderBottomLeftRadius: theme.spacing.xs,
             },
         },
     ],

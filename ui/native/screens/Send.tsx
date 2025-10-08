@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
+import { setPayFromFederationId } from '@fedi/common/redux/federation'
 
 import { fedimint } from '../bridge'
 import {
@@ -12,14 +13,17 @@ import {
     OmniInputAction,
 } from '../components/feature/omni/OmniInput'
 import Flex from '../components/ui/Flex'
+import { useAppDispatch } from '../state/hooks'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Send'>
 
-const Send: React.FC<Props> = ({ navigation }: Props) => {
+const Send: React.FC<Props> = ({ navigation, route }: Props) => {
+    const { federationId = '' } = route.params
     const { t } = useTranslation()
-    const showOfflineWallet = useIsOfflineWalletSupported()
+    const dispatch = useAppDispatch()
+    const showOfflineWallet = useIsOfflineWalletSupported(federationId)
 
     const { navigate } = navigation
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
@@ -30,10 +34,16 @@ const Send: React.FC<Props> = ({ navigation }: Props) => {
             {
                 label: t('feature.send.send-offline'),
                 icon: 'Offline',
-                onPress: () => navigate('SendOfflineAmount'),
+                onPress: async () => {
+                    // set payment federation first, then navigate
+                    if (federationId) {
+                        await dispatch(setPayFromFederationId(federationId))
+                    }
+                    navigate('SendOfflineAmount')
+                },
             },
         ]
-    }, [showOfflineWallet, t, navigate])
+    }, [showOfflineWallet, t, navigate, dispatch, federationId])
 
     useFocusEffect(
         useCallback(() => {

@@ -2,18 +2,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    Keyboard,
-    KeyboardEvent,
-    Platform,
-    StyleSheet,
-    View,
-} from 'react-native'
+import { Platform, StyleSheet, View } from 'react-native'
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
 
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import type { RootStackParamList } from '../types/navigation'
+import { useKeyboard } from '../utils/hooks/keyboard'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -25,7 +20,7 @@ const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const [buttonIsOverlapping, setButtonIsOverlapping] =
         useState<boolean>(false)
-    const [keyboardHeight, setKeyboardHeight] = useState<number>(0)
+    const { height: keyboardHeight } = useKeyboard()
     const [buttonYPosition, setButtonYPosition] = useState<number>(0)
     const [overlapThreshold, setOverlapThreshold] = useState<number>(0)
     const {
@@ -54,26 +49,6 @@ const EnterDisplayName: React.FC<Props> = ({ navigation }: Props) => {
             setButtonIsOverlapping(false)
         }
     }, [buttonIsOverlapping, buttonYPosition, overlapThreshold, keyboardHeight])
-
-    useEffect(() => {
-        const keyboardShownListener = Keyboard.addListener(
-            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-            (e: KeyboardEvent) => {
-                setKeyboardHeight(e.endCoordinates.height)
-            },
-        )
-        const keyboardHiddenListener = Keyboard.addListener(
-            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-            () => {
-                setKeyboardHeight(0)
-            },
-        )
-
-        return () => {
-            keyboardShownListener.remove()
-            keyboardHiddenListener.remove()
-        }
-    }, [])
 
     const handleSubmit = useCallback(() => {
         handleSubmitDisplayName(() => {

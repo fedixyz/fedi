@@ -10,16 +10,21 @@ import {
     ignoreUser,
     kickUser,
     selectMatrixAuth,
+    selectMatrixRoomMultispendStatus,
     selectMatrixRoomSelfPowerLevel,
     setMatrixRoomMemberPowerLevel,
     unignoreUser,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
-import { matrixIdToUsername } from '@fedi/common/utils/matrix'
+import {
+    getMultispendRole,
+    matrixIdToUsername,
+} from '@fedi/common/utils/matrix'
 import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 
+import { fedimint } from '../../../bridge'
 import Flex from '../../ui/Flex'
 import ChatAction from './ChatAction'
 import { ConfirmBlockOverlay } from './ConfirmBlockOverlay'
@@ -59,6 +64,9 @@ const ChatUserActions: React.FC<Props> = ({
     const myPowerLevel = useAppSelector(s =>
         selectMatrixRoomSelfPowerLevel(s, roomId),
     )
+    const multispendStatus = useAppSelector(s =>
+        selectMatrixRoomMultispendStatus(s, roomId),
+    )
     const navigation = useNavigation()
     const dispatch = useAppDispatch()
     const { error, show } = useToast()
@@ -67,13 +75,17 @@ const ChatUserActions: React.FC<Props> = ({
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false)
     const [isBlockingUser, setIsBlockingUser] = useState(false)
 
+    const isMultispendVoter = multispendStatus
+        ? getMultispendRole(multispendStatus, member.id) === 'voter'
+        : false
+
     const handleBlockUser = useCallback(async () => {
         setIsBlockingUser(true)
         try {
             // unblock if already blocked
             if (member.ignored) {
                 await dispatch(
-                    unignoreUser({ userId: member.id, roomId }),
+                    unignoreUser({ fedimint, userId: member.id, roomId }),
                 ).unwrap()
                 show({
                     content: t('feature.chat.unblock-user-success'),
@@ -81,7 +93,7 @@ const ChatUserActions: React.FC<Props> = ({
                 })
             } else {
                 await dispatch(
-                    ignoreUser({ userId: member.id, roomId }),
+                    ignoreUser({ fedimint, userId: member.id, roomId }),
                 ).unwrap()
                 show({
                     content: t('feature.chat.block-user-success'),
@@ -104,7 +116,12 @@ const ChatUserActions: React.FC<Props> = ({
         setLoadingAction(actionId)
         try {
             await dispatch(
-                setMatrixRoomMemberPowerLevel({ roomId, userId, powerLevel }),
+                setMatrixRoomMemberPowerLevel({
+                    fedimint,
+                    roomId,
+                    userId,
+                    powerLevel,
+                }),
             ).unwrap()
             log.info(`Updated user's power level to ${powerLevel}`)
             show({
@@ -172,7 +189,9 @@ const ChatUserActions: React.FC<Props> = ({
         setLoadingAction(actionId)
         try {
             log.info(`removing user ${userId} from room ${roomId}`)
-            await dispatch(kickUser({ roomId, userId, reason })).unwrap()
+            await dispatch(
+                kickUser({ fedimint, roomId, userId, reason }),
+            ).unwrap()
             show({
                 content: t('feature.chat.user-remove-success'),
                 status: 'success',
@@ -193,7 +212,9 @@ const ChatUserActions: React.FC<Props> = ({
         setLoadingAction(actionId)
         try {
             log.info(`Banning user ${userId} from room ${roomId}`)
-            await dispatch(banUser({ roomId, userId, reason })).unwrap()
+            await dispatch(
+                banUser({ fedimint, roomId, userId, reason }),
+            ).unwrap()
             show({
                 content: t('feature.chat.user-ban-success'),
                 status: 'success',
@@ -329,30 +350,31 @@ const ChatUserActions: React.FC<Props> = ({
                     ))}
                 </Flex>
             )}
-            {/* Only show roles if the user is an admin */}
-            {myPowerLevel >= MatrixPowerLevel.Moderator && (
-                <Flex align="start">
-                    <Text caption style={style.sectionTitle}>
-                        {t('phrases.moderation-tools')}
-                    </Text>
-                    {moderationActions.map(action => (
-                        <ChatAction
-                            key={action.id}
-                            leftIcon={
-                                <SvgImage
-                                    name={action.icon}
-                                    color={theme.colors.red}
-                                />
-                            }
-                            label={action.label}
-                            labelColor={theme.colors.red}
-                            onPress={() => action.onPress()}
-                            disabled={getRoleDisabled(member)}
-                            isLoading={loadingAction === action.id}
-                        />
-                    ))}
-                </Flex>
-            )}
+            {/* Only show roles if the user is an admin and if the selected member is not a multispend voter in the current room */}
+            {myPowerLevel >= MatrixPowerLevel.Moderator &&
+                !isMultispendVoter && (
+                    <Flex align="start">
+                        <Text caption style={style.sectionTitle}>
+                            {t('phrases.moderation-tools')}
+                        </Text>
+                        {moderationActions.map(action => (
+                            <ChatAction
+                                key={action.id}
+                                leftIcon={
+                                    <SvgImage
+                                        name={action.icon}
+                                        color={theme.colors.red}
+                                    />
+                                }
+                                label={action.label}
+                                labelColor={theme.colors.red}
+                                onPress={() => action.onPress()}
+                                disabled={getRoleDisabled(member)}
+                                isLoading={loadingAction === action.id}
+                            />
+                        ))}
+                    </Flex>
+                )}
             <ConfirmBlockOverlay
                 show={isConfirmingBlock}
                 confirming={isBlockingUser}

@@ -2,13 +2,14 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederation } from '@fedi/common/redux'
+import { selectPaymentFederation } from '@fedi/common/redux'
 import { MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Button } from '../../components/Button'
 import { ContentBlock } from '../../components/ContentBlock'
+import { FederationWalletSelector } from '../../components/FederationWalletSelector'
 import { PaperEcashForm } from '../../components/PaperEcash/PaperEcashForm'
 import { PaperEcashPaper } from '../../components/PaperEcash/PaperEcashPaper'
 import { Text } from '../../components/Text'
@@ -26,7 +27,7 @@ export interface EcashPaper {
 
 const PaperEcash: React.FC = () => {
     const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
 
     const { t } = useTranslation()
 
@@ -73,7 +74,7 @@ const PaperEcash: React.FC = () => {
             amountUtils.msatToSat(ecashPapers[0]?.amount),
         )
         const oldTitle = document.title
-        document.title = `${activeFederation?.name} ecash - ${amount} SATS - ${count} papers`
+        document.title = `${paymentFederation?.name} ecash - ${amount} SATS - ${count} papers`
         window.print()
         setHasPrinted(true)
         document.title = oldTitle
@@ -92,10 +93,10 @@ const PaperEcash: React.FC = () => {
     const handleCancel = async () => {
         setIsCanceling(true)
         try {
-            if (!activeFederation) throw new Error('No active federation')
+            if (!paymentFederation) throw new Error('No payment federation')
             for (const paper of ecashPapers) {
                 log.info('Canceling paper ecash', paper.ecash)
-                await fedimint.cancelEcash(paper.ecash, activeFederation.id)
+                await fedimint.cancelEcash(paper.ecash, paymentFederation.id)
                 setEcashPapers(prev =>
                     prev.filter(p => p.ecash !== paper.ecash),
                 )
@@ -116,6 +117,7 @@ const PaperEcash: React.FC = () => {
             {!ecashPapers.length && (
                 <ContentBlock>
                     <Text variant="h2">Paper ecash</Text>
+                    <FederationWalletSelector />
                     <PaperEcashForm onChangeEcashPapers={setEcashPapers} />
                 </ContentBlock>
             )}

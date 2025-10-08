@@ -18,15 +18,12 @@ export interface NavigationParams {
     userId?: string
     screen?: string
     ticketNumber?: string
-    [key: string]: string | number | boolean | undefined
+    params?: NavigationParams
+    [key: string]: string | number | boolean | undefined | NavigationParams
 }
 
 export interface NavigationAction {
     type: 'navigate'
     screen: string
     params?: NavigationParams
-    nested?: {
-        screen: string
-        params?: NavigationParams
-    }
 }

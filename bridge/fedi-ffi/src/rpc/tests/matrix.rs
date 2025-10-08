@@ -1,12 +1,16 @@
 use std::pin::pin;
 
-use ::matrix::{RpcTimelineItemContent, SendMessageData};
+use ::matrix::{RpcMsgLikeKind, SendMessageData};
+use bitcoin::hashes::sha256;
 use eyeball_im::VectorDiff;
+use fedimint_core::BitcoinHash;
 use futures::future::try_join;
 use futures::{Stream, StreamExt};
 use imbl::Vector;
 use matrix_sdk::ruma::events::room::message::MessageType;
 use matrix_sdk::timeout::timeout;
+use rand::rngs::SmallRng;
+use rand::{RngCore as _, SeedableRng as _};
 use rpc_types::RpcMediaUploadParams;
 use tracing::warn;
 
@@ -40,14 +44,9 @@ async fn apply_diffs_continuously<T: Clone>(
 fn extract_text_from_item(item: &RpcTimelineItem) -> Option<String> {
     match item {
         RpcTimelineItem::Event(event) => match &event.content {
-            RpcTimelineItemContent::Message(message_type) => Some(message_type.body().to_string()),
-            RpcTimelineItemContent::Json(value) => {
-                Some(value.get("content")?.get("body")?.as_str()?.to_owned())
-            }
-            RpcTimelineItemContent::RedactedMessage | RpcTimelineItemContent::Poll(..) => {
-                unimplemented!()
-            }
-            RpcTimelineItemContent::Unknown => None,
+            RpcMsgLikeKind::Text(txt_like) => Some(txt_like.body.to_string()),
+            RpcMsgLikeKind::Unknown => None,
+            _ => unimplemented!(),
         },
         _ => None,
     }
@@ -162,6 +161,15 @@ pub async fn test_matrix_create_room(_dev_fed: DevFed) -> anyhow::Result<()> {
 }
 
 pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let file_size = std::env::var("MATRIX_TEST_FILE_SIZE_MB")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(1) // 1MB default
+        * 1024
+        * 1024;
+
+    info!("Testing matrix file upload with file size: {}B", file_size);
+
     let td1 = TestDevice::new();
     let td2 = TestDevice::new();
     let matrix = td1.matrix().await?;
@@ -175,7 +183,12 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
     // Prepare attachment data
     let filename = "test.txt".to_string();
     let mime_type = "text/plain".to_string();
-    let data = b"Hello, World!".to_vec();
+
+    // Generate random file content using SmallRng
+    let mut rng = SmallRng::from_entropy();
+    let mut data = vec![0u8; file_size];
+    rng.fill_bytes(&mut data);
+    let data_hash = sha256::Hash::hash(&data);
 
     // Send attachment
     matrix
@@ -187,11 +200,14 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
                 width: None,
                 height: None,
             },
-            data.clone(),
+            data,
         )
         .await?;
     sleep_in_test("wait for attachment to be sent", Duration::from_millis(100)).await;
 
+    if fedimint_core::envs::is_env_var_set("MATRIX_TEST_SKIP_DOWNLOAD") {
+        return Ok(());
+    }
     let timeline = matrix.timeline(&room_id).await?;
     let event = timeline
         .latest_event()
@@ -207,7 +223,8 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
 
     // Assert that the downloaded data matches the original data
     assert_eq!(
-        downloaded_data, data,
+        sha256::Hash::hash(&downloaded_data),
+        data_hash,
         "Downloaded data does not match original data"
     );
 

@@ -1,3 +1,5 @@
+import { RpcAppFlavor } from '@fedi/common/types/bindings'
+import { isDev } from '@fedi/common/utils/environment'
 import { BridgeError } from '@fedi/common/utils/errors'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
@@ -43,9 +45,8 @@ async function fedimintRpc<Type = void>(
     if (parsed.error) {
         log.error(method, parsed)
 
-        // Ignore matrixObservableCancel errors
-        // due to potential race condition
-        if (method === 'matrixObservableCancel') {
+        // Ignore streamCancel method
+        if (method === 'streamCancel') {
             return parsed
         }
 
@@ -59,6 +60,15 @@ async function fedimintRpc<Type = void>(
 }
 
 export const fedimint = new FedimintBridge(fedimintRpc)
+
+export const getAppFlavor = (): RpcAppFlavor['type'] => {
+    const origin = self?.location?.host || ''
+    return isDev()
+        ? 'dev'
+        : origin.includes('app.fedi.xyz')
+          ? 'bravo'
+          : 'nightly'
+}
 
 let initializePromise: Promise<void> | undefined
 export async function initializeBridge(deviceId: string) {

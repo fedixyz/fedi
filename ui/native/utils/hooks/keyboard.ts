@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
     Keyboard,
     KeyboardEvent,
@@ -11,13 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { makeLog } from '@fedi/common/utils/log'
 
 import {
-    ANDROID_INPUT_FOCUS_OFFSET,
     AndroidScreenSize,
     CHAT_KEYBOARD_BEHAVIOR,
     DEFAULT_ANIMATION_DURATION,
     DEFAULT_KEYBOARD_HEIGHT_FALLBACK,
     KEYBOARD_PADDING,
-    SCREEN_SIZE_THRESHOLDS,
 } from '../../constants'
 import { KeyboardContextValue, KeyboardState } from '../../types/keyboard'
 import { getAndroidScreenSize, isAndroidAPI35Plus } from '../layout'
@@ -36,6 +34,22 @@ class KeyboardManager {
     private dimensionSubscription: { remove: () => void } | null = null
     private isInitialized = false
     private cleanupScheduled = false
+
+    private forceBlurTokens = new Set<symbol>()
+
+    private forceBlurIfFocused = () => {
+        const node = TextInput.State.currentlyFocusedInput?.()
+        if (node) TextInput.State.blurTextInput?.(node)
+    }
+
+    private isForceBlurEnabled = () => this.forceBlurTokens.size > 0
+
+    enableForceBlurOnHide = (token: symbol) => {
+        this.forceBlurTokens.add(token)
+    }
+    disableForceBlurOnHide = (token: symbol) => {
+        this.forceBlurTokens.delete(token)
+    }
 
     private isValidHeight(height: unknown): height is number {
         return (
@@ -105,6 +119,35 @@ class KeyboardManager {
         }
     }
 
+    private handleKeyboardWillShow = (e?: KeyboardEvent) => {
+        const duration = e?.duration
+        const height = e?.endCoordinates?.height
+        const hasDuration = typeof duration === 'number' && duration > 0
+        //needed for messageInput / stale height SIM issues on Android
+        if (this.isValidHeight(height)) {
+            this.updateState({
+                isVisible: true,
+                height,
+                animationDuration: hasDuration
+                    ? duration
+                    : this.currentState.animationDuration,
+            })
+        } else if (hasDuration) {
+            this.updateState({ animationDuration: duration })
+        }
+    }
+
+    private handleKeyboardWillHide = (e?: KeyboardEvent) => {
+        const duration = e?.duration
+        if (typeof duration === 'number' && duration > 0) {
+            this.updateState({ animationDuration: duration })
+        }
+        // Opt-in workaround: clear stale focus after dismiss on Android
+        if (Platform.OS === 'android' && this.isForceBlurEnabled()) {
+            this.forceBlurIfFocused()
+        }
+    }
+
     private handleKeyboardHide = (e?: KeyboardEvent) => {
         const duration = e?.duration
         this.updateState({
@@ -115,19 +158,8 @@ class KeyboardManager {
                     ? duration
                     : DEFAULT_ANIMATION_DURATION,
         })
-    }
-
-    private handleKeyboardWillShow = (e?: KeyboardEvent) => {
-        const duration = e?.duration
-        if (typeof duration === 'number' && duration > 0) {
-            this.updateState({ animationDuration: duration })
-        }
-    }
-
-    private handleKeyboardWillHide = (e?: KeyboardEvent) => {
-        const duration = e?.duration
-        if (typeof duration === 'number' && duration > 0) {
-            this.updateState({ animationDuration: duration })
+        if (Platform.OS === 'android' && this.isForceBlurEnabled()) {
+            this.forceBlurIfFocused()
         }
     }
 
@@ -218,104 +250,6 @@ export const useKeyboard = (): KeyboardContextValue => {
         () => ({ ...keyboardState, insets }),
         [keyboardState, insets],
     )
-}
-
-export const useAndroidInputFocus = (): {
-    focusOffset: number
-    handleInputFocus: () => void
-} => {
-    const [focusOffset, setFocusOffset] = useState(0)
-    const { isVisible } = useKeyboard()
-
-    const handleInputFocus = useCallback(() => {
-        if (Platform.OS === 'android')
-            setFocusOffset(ANDROID_INPUT_FOCUS_OFFSET)
-    }, [])
-
-    useEffect(() => {
-        if (!isVisible) setFocusOffset(0)
-    }, [isVisible])
-
-    return { focusOffset, handleInputFocus }
-}
-
-export const useKeyboardStickyPosition = ({
-    enabledOnIOS = false,
-    enabledOnSmallScreens = false,
-    enabledOnMediumScreens = true,
-    enabledOnLargeScreens = true,
-    smallScreenThreshold = SCREEN_SIZE_THRESHOLDS.SMALL_TO_MEDIUM,
-    largeScreenThreshold = SCREEN_SIZE_THRESHOLDS.MEDIUM_TO_LARGE,
-    offsetClosed = 0,
-    offsetOpened = 20,
-}: {
-    enabledOnIOS?: boolean
-    enabledOnSmallScreens?: boolean
-    enabledOnMediumScreens?: boolean
-    enabledOnLargeScreens?: boolean
-    smallScreenThreshold?: number
-    largeScreenThreshold?: number
-    offsetClosed?: number
-    offsetOpened?: number
-} = {}): {
-    isActive: boolean
-    marginBottom: number
-    isKeyboardVisible: boolean
-} => {
-    const {
-        isVisible,
-        screenHeight,
-        height: keyboardHeight,
-        insets,
-    } = useKeyboard()
-
-    const isActive = useMemo(() => {
-        if (Platform.OS === 'ios') return enabledOnIOS
-        if (Platform.OS === 'android') {
-            if (screenHeight < smallScreenThreshold)
-                return enabledOnSmallScreens
-            if (screenHeight < largeScreenThreshold)
-                return enabledOnMediumScreens
-            return enabledOnLargeScreens
-        }
-        return false
-    }, [
-        enabledOnIOS,
-        enabledOnSmallScreens,
-        enabledOnMediumScreens,
-        enabledOnLargeScreens,
-        screenHeight,
-        smallScreenThreshold,
-        largeScreenThreshold,
-    ])
-
-    const marginBottom = useMemo(() => {
-        if (!isActive) return 0
-        if (!isVisible) return offsetClosed
-
-        if (Platform.OS === 'android' && keyboardHeight > 0) {
-            const isEdgeToEdge = isAndroidAPI35Plus()
-            const keyboardOffset = isEdgeToEdge
-                ? keyboardHeight
-                : Math.max(0, keyboardHeight - insets.bottom)
-            return keyboardOffset + offsetOpened
-        }
-
-        return offsetOpened
-    }, [
-        isActive,
-        isVisible,
-        keyboardHeight,
-        insets.bottom,
-        offsetClosed,
-        offsetOpened,
-    ])
-
-    return {
-        isActive,
-        marginBottom,
-        isKeyboardVisible: isVisible,
-    }
 }
 
 export const useChatKeyboardBehavior = (): {
@@ -421,6 +355,15 @@ export const useIosKeyboardOpen = (threshold: number = 80): boolean => {
         inputFocused &&
         (height ?? 0) - insets.bottom > threshold
     )
+}
+
+export const useForceBlurOnKeyboardHide = (enabled = true) => {
+    useEffect(() => {
+        if (!(Platform.OS === 'android') || !enabled) return
+        const token = Symbol('force-blur')
+        keyboardManager.enableForceBlurOnHide(token)
+        return () => keyboardManager.disableForceBlurOnHide(token)
+    }, [enabled])
 }
 
 export { keyboardManager }

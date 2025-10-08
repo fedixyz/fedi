@@ -9,7 +9,7 @@ import {
     MatrixAuth,
     MatrixCreateRoomOptions,
     MatrixError,
-    MatrixEventStatus,
+    MatrixEvent,
     MatrixRoom,
     MatrixRoomListItem,
     MatrixRoomListItemStatus,
@@ -17,10 +17,11 @@ import {
     MatrixRoomMember,
     MatrixRoomPowerLevels,
     MatrixSearchResults,
+    MatrixSendableContent,
     MatrixSyncStatus,
-    MatrixTimelineItem,
     MatrixTimelineStreamUpdates,
     MatrixUser,
+    RpcMatrixEventKind,
 } from '../types'
 import {
     JSONObject,
@@ -31,10 +32,13 @@ import {
     RpcMatrixAccountSession,
     RpcMatrixUserDirectorySearchResponse,
     RpcMultispendGroupStatus,
+    RpcPublicRoomInfo,
     RpcRoomId,
     RpcRoomMember,
     RpcRoomNotificationMode,
+    RpcSerializedRoomInfo,
     RpcSPv2SyncResponse,
+    RpcTimelineItem,
 } from '../types/bindings'
 import {
     DisplayNameValidatorType,
@@ -46,11 +50,9 @@ import {
 import { FedimintBridge, UnsubscribeFn } from './fedimint'
 import { makeLog } from './log'
 import {
-    MatrixEventContent,
     encodeFediMatrixRoomUri,
-    formatMatrixEventContent,
+    isRpcMatrixEvent,
     mxcUrlToHttpUrl,
-    stripReplyFromPreview,
 } from './matrix'
 import { mapStreamUpdate, getNewStreamIds } from './stream'
 
@@ -251,7 +253,7 @@ export class MatrixChatClient {
     // TODO: consider whether other functions are also at risk of this.fedimint being undefined?
     getRoomPreview = async (roomId: string) => {
         let previewInfo: MatrixRoom
-        let previewTimeline: MatrixTimelineItem[]
+        let previewTimeline: MatrixEvent[]
         try {
             const publicRoomInfo = await this.fedimint.matrixPublicRoomInfo({
                 roomId,
@@ -267,9 +269,9 @@ export class MatrixChatClient {
                     roomId,
                 },
             )
-            previewTimeline = previewContent.map(item =>
-                this.serializeTimelineItem(item, roomId),
-            )
+            previewTimeline = previewContent
+                .map(item => this.serializeTimelineItem(item, roomId, true))
+                .filter(item => item !== null)
         } catch (error) {
             log.error('Failed to get room preview timeline', roomId, error)
             throw error
@@ -427,15 +429,17 @@ export class MatrixChatClient {
         return newPowerLevels
     }
 
-    async sendMessage(roomId: string, content: MatrixEventContent) {
+    async sendMessage(roomId: string, content: MatrixSendableContent) {
         const { msgtype, body, ...data } = content
         await this.fedimint.matrixSendMessage({
             roomId,
             data: {
                 msgtype,
                 body,
-                // TODO: Update zod schemas to remove .passthrough() & remove this cast
+                // TODO: fix parsing on the rust side to avoid this nested garbage
+                // TODO: verify the expected type of data
                 data: data as JSONObject,
+                // TODO: add mentions
                 mentions: null,
             },
         })
@@ -449,7 +453,7 @@ export class MatrixChatClient {
      * Also, this leads to duplicate concurrent observables in the room.
      * which breaks everything
      */
-    async sendDirectMessage(userId: string, content: MatrixEventContent) {
+    async sendDirectMessage(userId: string, content: MatrixSendableContent) {
         const roomId = await this.fedimint.matrixRoomCreateOrGetDm({ userId })
         await this.sendMessage(roomId, content)
         await this.observeRoomInfo(roomId)
@@ -909,108 +913,58 @@ export class MatrixChatClient {
     }
 
     // TODO: get type for this from bridge?
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private serializePublicRoomInfo(room: any): MatrixRoom {
+    private serializePublicRoomInfo(room: RpcPublicRoomInfo): MatrixRoom {
         return {
-            id: room.room_id,
-            name: room.name,
-            // We need preview timeline items to determine this, which is a separate call.
-            // For now leave this undefined, and just apply it with a redux selector.
-            notificationCount: undefined,
-            joinedMemberCount: room.num_joined_members || 0,
-            // We need power levels to determine this, which is a separate call.
-            // For now leave this undefined, and just apply it with a redux selector.
-            // broadcastOnly: false,
+            ...room,
+            name: room.name ?? '',
+            isPublic: true,
             // Private rooms don't have previews so these are always true
             isPreview: true,
-            isPublic: true,
-            inviteCode: encodeFediMatrixRoomUri(room.room_id),
+            inviteCode: encodeFediMatrixRoomUri(room.id),
+            directUserId: null,
+            // We need to preview timeline items to determine this, which is a separate call.
+            // For now leave this as zero, and just apply it with a redux selector.
+            // Maybe should delete this from the room type?
+            notificationCount: 0,
+            isMarkedUnread: false,
             // TODO: HACK - move this to bridge
-            roomState: 'Invited',
+            roomState: 'invited',
+            preview: null,
         }
     }
 
-    // TODO: get type for this from bridge?
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private serializeRoomInfo(room: any): MatrixRoom {
-        const directUserId = room.base_info.dm_targets?.[0]
+    private serializeRoomInfo(room: RpcSerializedRoomInfo): MatrixRoom {
+        const adjustedAvatarUrl = room.avatarUrl
+            ? mxcUrlToHttpUrl(room.avatarUrl, 200, 200, 'crop')
+            : undefined
 
-        // Use the Hero avatar for DMs, otherwise use the room avatar
-        const avatarUrl = directUserId
-            ? room.summary?.room_heroes?.[0]?.avatar_url
-            : room.base_info.avatar?.Original?.content?.url
-
-        let preview: MatrixRoom['preview']
-        if (room.latest_event) {
-            const { event, sender_profile } = room.latest_event
-            if (
-                'kind' in event &&
-                ('Decrypted' in event.kind || 'PlainText' in event.kind)
-            ) {
-                const { event: previewEvent } =
-                    'Decrypted' in event.kind
-                        ? event.kind.Decrypted
-                        : event.kind.PlainText
-
-                let timestamp = previewEvent.origin_server_ts
-                let isDeleted = false
-                // Deleted/redacted messages have the redaction timestamp in the unsigned field
-                if (
-                    'unsigned' in previewEvent &&
-                    'redacted_because' in previewEvent.unsigned &&
-                    !!previewEvent.unsigned?.redacted_because
-                ) {
-                    isDeleted = true
-                    timestamp =
-                        previewEvent.unsigned.redacted_because.origin_server_ts
-                }
-
-                // Guard against missing sender_profile or Original content
-                const senderContent = sender_profile?.Original?.content
-                if (senderContent) {
-                    preview = {
-                        eventId: previewEvent.event_id,
-                        senderId: senderContent.id,
-                        displayName: this.ensureDisplayName(
-                            senderContent.displayname,
-                        ),
-                        avatarUrl: senderContent.avatar_url,
-                        body: stripReplyFromPreview(previewEvent.content.body),
-                        isDeleted,
-                        timestamp,
-                    }
-                }
-            }
-        }
-
-        // TODO (cleanup): Remove base_info.name fallback
-        // cached_display_name seems to be the best source of truth for the room name
-        // for both groups and DMS assuming matrix-rust-sdk handles computing it correctly
-        // but since it is a newer field we leave the base_info.name as a fallback temporarily
-        const roomName =
-            room.cached_display_name?.Calculated ||
-            room.cached_display_name?.EmptyWas ||
-            room.base_info.name?.Original?.content?.name
+        const preview = room.preview
+            ? this.serializeTimelineItem(
+                  { value: room.preview, kind: 'event' },
+                  room.id,
+              )
+            : null
 
         return {
-            directUserId,
+            ...room,
             preview,
-            id: room.room_id,
-            name: directUserId ? this.ensureDisplayName(roomName) : roomName,
-            notificationCount: room.read_receipts?.num_unread || 0,
-            isMarkedUnread: room.base_info.is_marked_unread,
-            // TODO: Sometimes non-dm room with 1 user has an avatar of the user, figure out how to stop that
+            // TODO: Move this to bridge?
+            name: room.directUserId
+                ? this.ensureDisplayName(room.name)
+                : room.name,
+            // this ensures we show a different ChatRoomInvite screen for public rooms
+            inviteCode: encodeFediMatrixRoomUri(room.id),
+            // Avoid showing a user's avatar for non-DM rooms that currently
+            // only have one joined member (often just the creator).
+            // In that case, suppress any provided avatar and let the UI fall back.
+            avatarUrl:
+                !room.directUserId && room.joinedMemberCount <= 1
+                    ? null
+                    : (adjustedAvatarUrl ?? null),
             // TODO: Make opaque mxc type, have each component do the conversion with width / height args
-            avatarUrl: avatarUrl
-                ? mxcUrlToHttpUrl(avatarUrl, 200, 200, 'crop')
-                : undefined,
             // We need power levels to determine this, which is a separate call.
             // For now leave this undefined, and just apply it with a redux selector.
             // broadcastOnly: false,
-            isPublic: room.base_info.encryption === null,
-            inviteCode: encodeFediMatrixRoomUri(room.room_id),
-            // TODO: use zod OR export types more strictly...
-            roomState: room.room_state,
         }
     }
 
@@ -1058,99 +1012,25 @@ export class MatrixChatClient {
         }
     }
 
-    // TODO: get type for this from bridge?
+    // filters out virtual items (date dividers, etc.)
     private serializeTimelineItem(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        item: any,
+        item: RpcTimelineItem,
         roomId: string,
-    ): MatrixTimelineItem {
+        _isPreview = false,
+    ): MatrixEvent<RpcMatrixEventKind> | null {
         // Return null for items we don't want. Because observable updates work
         // on indexes, even if we don't want certain events we need to keep them
         // in the event list so that the updates apply properly. If we filtered
         // them out, the indexes would point to the wrong places.
         if (item.kind !== 'event') return null
+        const event = item.value
+        if (event.content.msgtype === 'unknown') return null
 
-        if (
-            item.value.content.kind === 'json' &&
-            item.value.content.value.type !== 'm.room.message' &&
-            // deleted messages are not decrypted so they have this type
-            // we keep them so we can display the 'message deleted' placeholder
-            item.value.content.value.type !== 'm.room.encrypted'
-        )
-            return null
+        if (!event.content) return null
+        const ev = { ...event, roomId }
+        if (!isRpcMatrixEvent(ev)) return null
 
-        // Map the status to an enum, include the error if it failed
-        let status: MatrixEventStatus
-        let error: string | null = null
-        // Send but not acknowledged by the server
-        if (!item.value.localEcho) {
-            status = MatrixEventStatus.sent
-        } else {
-            const kind = item.value.sendState?.kind
-            status =
-                kind === 'sent'
-                    ? MatrixEventStatus.sent
-                    : kind === 'cancelled'
-                      ? MatrixEventStatus.cancelled
-                      : kind === 'sendingFailed'
-                        ? MatrixEventStatus.failed
-                        : MatrixEventStatus.pending
-            if (status === MatrixEventStatus.failed) {
-                error =
-                    typeof item.value.sendState?.error === 'string'
-                        ? item.value.sendState?.error
-                        : 'Unknown error'
-            }
-        }
-
-        const eventContent = item.value.content
-        let content: MatrixEventContent | undefined
-        if (eventContent.kind === 'json') {
-            content = eventContent.value.content
-        } else {
-            content = eventContent.value
-        }
-        /*
-         * We detect and handle redacted messages in two ways:
-         * 1) when a message is deleted in real-time, a timeline update fires a redactedMessage event kind
-         * 2) when we load a timeline and find a deleted message, the event content contains the unsigned.redacted_because fields
-         */
-        if (eventContent.kind === 'redactedMessage') {
-            content = {
-                msgtype: 'xyz.fedi.deleted',
-                body: '',
-                redacts: item.value.eventId,
-            }
-        } else if (
-            'unsigned' in eventContent.value &&
-            'redacted_because' in eventContent.value.unsigned
-        ) {
-            content = {
-                msgtype: 'xyz.fedi.deleted',
-                body: '',
-                ...eventContent.value.unsigned.redacted_because.content,
-            }
-        } else if (eventContent.value.type === 'm.room.encrypted') {
-            content = {
-                msgtype: 'm.room.encrypted',
-                body: '',
-                ...eventContent.value.content,
-            }
-        }
-
-        if (!content) return null
-
-        return {
-            roomId,
-            id: item.value.id,
-            txnId: item.value.txnId,
-            eventId: item.value.eventId,
-            content: formatMatrixEventContent(content),
-            timestamp: item.value.timestamp,
-            senderId: item.value.sender,
-            status,
-            error,
-        }
+        return ev
     }
 
     // Ref: https://github.com/fedibtc/fedi/issues/1184#issuecomment-2137529842

@@ -1,4 +1,3 @@
-import { DrawerNavigationProp } from '@react-navigation/drawer'
 import {
     LinkingOptions,
     NavigatorScreenParams,
@@ -8,7 +7,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 
 import {
     ChatType,
-    FederationPreview,
     ParsedBip21,
     ParsedBitcoinAddress,
     ParsedBolt11,
@@ -19,7 +17,10 @@ import {
     ReceiveSuccessData,
     Sats,
     UsdCents,
+    Federation,
+    Community,
 } from '@fedi/common/types'
+import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
 import { MSats } from '.'
 
@@ -33,36 +34,39 @@ declare global {
     }
 }
 
-export const DRAWER_NAVIGATION_ID = 'ConnectedFederationsDrawer'
 export const MAIN_NAVIGATOR_ID = 'MainStackNavigator'
 export const TABS_NAVIGATOR_ID = 'TabsNavigator'
 
 export type RouteHook = RouteProp<RootStackParamList>
-export type DrawerNavigationHook =
-    DrawerNavigationProp<MainNavigatorDrawerParamList>
 export type NavigationHook = NativeStackNavigationProp<RootStackParamList>
-export type NavigationLinkingConfig = LinkingOptions<
-    RootStackParamList | MainNavigatorDrawerParamList
->
-export type MainNavigatorDrawerParamList = {
+export type MainNavigatorParamList = {
     MainNavigator: NavigatorScreenParams<RootStackParamList>
-    SwitchingFederations: { federationId: string | null }
 }
+export type NavigationLinkingConfig = LinkingOptions<
+    RootStackParamList | MainNavigatorParamList
+>
 export type TabsNavigatorParamList = {
     Chat: undefined
     Home: { offline: boolean }
     Mods: undefined
-    OmniScanner: undefined
+    Federations: undefined
 }
 export type RootStackParamList = {
+    AppSettings: undefined
     AddFediMod: undefined
-    BitcoinRequest: { invoice: string }
+    BitcoinRequest: { invoice: string; federationId?: Federation['id'] }
     BugReportSuccess: undefined
     CameraPermission: { nextScreen: keyof RootStackParamList } | undefined
     ChatImageViewer: { uri: string }
-    ChatRoomConversation: { roomId: string; chatType?: ChatType }
+    ChatsListSearch: { initialQuery?: string }
+    ChatConversationSearch: { roomId: string; initialQuery?: string }
+    ChatRoomConversation: {
+        roomId: string
+        chatType?: ChatType
+        scrollToMessageId?: string
+    }
     ChatSettings: { title?: string }
-    ChatRoomMembers: { roomId: string }
+    ChatRoomMembers: { roomId: string; displayMultispendRoles?: boolean }
     ChatRoomInvite: { roomId: string }
     ChatUserConversation: { userId: string; displayName: string }
     ChatVideoViewer: { uri: string }
@@ -72,22 +76,28 @@ export type RootStackParamList = {
     MigratedDevice: undefined
     MigratedDeviceSuccess: undefined
     CreatePoll: { roomId: string }
-    FederationCurrency: { federationId: string }
+    FederationCurrency: { federationId: Federation['id'] }
     GlobalCurrency: undefined
     GroupMultispend: { roomId: string }
     MultispendConfirmDeposit: {
         roomId: string
         amount: UsdCents
         notes?: string
+        federationId: Federation['id']
     }
     MultispendConfirmWithdraw: {
         roomId: string
         amount: UsdCents
         notes?: string
+        federationId: Federation['id']
     }
     MultispendDeposit: { roomId: string }
     MultispendWithdraw: { roomId: string }
-    CompleteRecoveryAssist: { videoPath: string; recoveryId: string }
+    CompleteRecoveryAssist: {
+        videoPath: string
+        recoveryId: string
+        federationId: Federation['id']
+    }
     CompleteSocialBackup: undefined
     CompleteSocialRecovery: undefined
     ConfirmJoinPublicGroup: { groupId: string }
@@ -97,7 +107,7 @@ export type RootStackParamList = {
         roomId: string
         notes?: string
     }
-    ConfirmRecoveryAssist: undefined
+    ConfirmRecoveryAssist: { federationId: Federation['id'] }
     ConfirmReceiveOffline: { ecash: string; notes?: string }
     ConfirmReceiveCashu: { parsedData: ParsedCashuEcash; notes?: string }
     ConfirmSendLightning: {
@@ -105,7 +115,6 @@ export type RootStackParamList = {
         notes?: string
     }
     ConfirmSendOnChain: { parsedData: ParsedBip21; notes?: string }
-    ConnectedFederationsDrawer: undefined
     CreateGroup: { defaultGroup?: boolean }
     EcashSendCancelled: undefined
     EnterDisplayName: undefined
@@ -113,12 +122,13 @@ export type RootStackParamList = {
     EditGroup: { roomId: string }
     EditProfileSettings: undefined
     Eula: undefined
-    FederationDetails: { federationId: string }
-    FederationModSettings: { type?: string; federationId?: string }
+    CommunityDetails: { communityId: Community['id'] }
+    FederationDetails: { federationId: Federation['id'] }
+    FederationModSettings: { type?: string; federationId: Federation['id'] }
     FederationInvite: { inviteLink: string }
     FederationGreeting: undefined
-    FederationAcceptTerms: { federation: FederationPreview }
-    FediModSettings: { type?: string; federationId?: string }
+    FederationAcceptTerms: { federation: RpcFederationPreview }
+    FediModSettings: { type?: string; federationId?: Federation['id'] }
     HelpCentre: { fromOnboarding: boolean }
     Initializing: undefined
     JoinFederation: { invite?: string }
@@ -134,17 +144,17 @@ export type RootStackParamList = {
         | undefined
     PersonalRecovery: undefined
     PersonalRecoverySuccess: undefined
-    PopupFederationEnded: undefined
     PublicFederations: { from?: string } | undefined
+    PublicCommunities: undefined
     LocateSocialRecovery: undefined
-    Receive: undefined
-    ReceiveLightning: undefined
-    ReceiveLnurl: undefined
+    Receive: { federationId: Federation['id'] }
+    ReceiveLightning: { federationId: Federation['id'] }
+    ReceiveLnurl: { federationId: Federation['id'] }
     ReceiveSuccess: {
         tx: ReceiveSuccessData
         status?: ReceiveSuccessStatus
     }
-    ReceiveOffline: undefined
+    ReceiveOffline: { federationId: Federation['id'] }
     RecoveryWords:
         | {
               nextScreenParams: NavigationArgs
@@ -158,38 +168,49 @@ export type RootStackParamList = {
     RedeemLnurlWithdraw: { parsedData: ParsedLnurlWithdraw }
     LegacyChat: undefined
     LockedDevice: undefined
-    RecordBackupVideo: undefined
+    RecordBackupVideo: { federationId: Federation['id'] }
     GroupChat: { groupId: string }
     RoomSettings: { roomId: string }
     GroupInvite: { groupId: string }
     RecoverFromNonceReuse: undefined
     ScanMemberCode: { inviteToRoomId?: string } | undefined
-    ScanSocialRecoveryCode: undefined
+    ScanSocialRecoveryCode: { federationId: Federation['id'] }
     SelectRecoveryFileSuccess: { fileName: string }
     SelectRecoveryFileFailure: { fileName: string }
-    Send: undefined
+    Send: { federationId?: Federation['id'] }
     SendOfflineAmount: undefined
     SendOfflineQr: { ecash: string; amount: MSats }
     SendOnChainAmount: { parsedData: ParsedBip21 | ParsedBitcoinAddress }
     SendSuccess: { amount: MSats; unit: string }
     Settings: undefined
     ShareLogs: { ticketNumber: string } | undefined
+    OmniScanner: undefined
     FediModBrowser: { url: string }
     Splash: undefined
-    StabilityConfirmDeposit: { amount: Sats }
-    StabilityConfirmWithdraw: { amountSats: Sats; amountCents: UsdCents }
-    StabilityDeposit: undefined
-    StabilityDepositInitiated: { amount: Sats }
-    StabilityHistory: undefined
-    StabilityHome: undefined
-    StabilityWithdraw: undefined
-    StabilityWithdrawInitiated: { formattedFiat: string }
-    StableBalanceIntro: undefined
+    StabilityConfirmDeposit: { amount: Sats; federationId: Federation['id'] }
+    StabilityConfirmWithdraw: {
+        amountSats: Sats
+        amountCents: UsdCents
+        federationId: Federation['id']
+    }
+    StabilityDeposit: { federationId: Federation['id'] }
+    StabilityDepositInitiated: { amount: Sats; federationId: Federation['id'] }
+    StabilityHistory: { federationId: Federation['id'] }
+    StabilityHome: { federationId: Federation['id'] }
+    StabilityWithdraw: { federationId: Federation['id'] }
+    StabilityWithdrawInitiated: {
+        formattedFiat: string
+        federationId: Federation['id']
+    }
+    StableBalanceIntro: { federationId: Federation['id'] }
     StartPersonalBackup: undefined
     StartRecoveryAssist: undefined
-    StartSocialBackup: undefined
+    StartSocialBackup: { federationId: Federation['id'] }
     SocialBackupCloudUpload: undefined
-    SocialBackupProcessing: { videoFilePath: string }
+    SocialBackupProcessing: {
+        videoFilePath: string
+        federationId: Federation['id']
+    }
     SocialBackupSuccess: undefined
     SocialRecoveryQrModal: undefined
     SocialRecoverySuccess: undefined
@@ -197,7 +218,7 @@ export type RootStackParamList = {
     TabsNavigator:
         | { initialRouteName: keyof TabsNavigatorParamList }
         | undefined
-    Transactions: undefined
+    Transactions: { federationId: Federation['id'] }
     UploadAvatarImage: undefined
     DeveloperSettings: undefined
     SetPin: undefined

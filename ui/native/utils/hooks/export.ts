@@ -15,6 +15,7 @@ import {
 } from '@fedi/common/hooks/transactions'
 import { selectFedimintVersion } from '@fedi/common/redux'
 import {
+    Federation,
     LoadedFederation,
     MatrixRoom,
     MatrixRoomMember,
@@ -39,11 +40,15 @@ const shareLogger = makeLog('native/utils/hooks/export/useShareLogs')
 /**
  * for exporting federation and multispend transactions via native share
  */
-export const useNativeExport = () => {
+export const useNativeExport = (federationId?: Federation['id']) => {
     const toast = useToast()
     const { t } = useTranslation()
     const [isExporting, setIsExporting] = useState(false)
-    const exportTransactions = useExportTransactions(fedimint, t)
+    const exportTransactions = useExportTransactions(
+        fedimint,
+        t,
+        federationId || '',
+    )
     const exportMultispendTransactions = useExportMultispendTransactions(t)
 
     const exportData = useCallback(
@@ -117,7 +122,7 @@ export type Status =
     | 'uploading-data'
     | 'submitting-report'
 
-export const useCompressNativeLogs = () => {
+export const useCompressNativeLogs = (federationId?: Federation['id']) => {
     const handleCollectDbContents = (path: string) => readFile(path, 'base64')
 
     const handleCollectExtraFiles = () => ({
@@ -134,14 +139,15 @@ export const useCompressNativeLogs = () => {
         storage,
         handleCollectDbContents,
         handleCollectExtraFiles,
+        federationId,
     })
 }
 
-export const useShareNativeLogs = () => {
+export const useShareNativeLogs = (federationId?: Federation['id']) => {
     const [status, setStatus] =
         useState<Extract<Status, 'idle' | 'generating-data'>>('idle')
 
-    const { compressLogs } = useCompressNativeLogs()
+    const { compressLogs } = useCompressNativeLogs(federationId)
 
     const shareLogs = useCallback(async () => {
         const filename = `fedi-logs-${Math.floor(Date.now() / 1000)}.tar.gz`
@@ -174,10 +180,10 @@ export const useShareNativeLogs = () => {
 /**
  * Hook for collecting attachments for uploading logs with a bug report
  */
-export const useSubmitLogs = () => {
+export const useSubmitLogs = (federationId?: Federation['id']) => {
     const [status, setStatus] = useState<Status>('idle')
     const fedimintVersion = useAppSelector(selectFedimintVersion)
-    const { compressLogs } = useCompressNativeLogs()
+    const { compressLogs } = useCompressNativeLogs(federationId)
 
     const collectAttachmentsAndSubmit = useCallback(
         async (sendDb: boolean, ticketNumber: string) => {

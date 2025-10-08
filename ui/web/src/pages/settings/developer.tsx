@@ -5,7 +5,7 @@ import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
-    selectActiveFederation,
+    selectPaymentFederation,
 } from '@fedi/common/redux'
 import { LightningGateway } from '@fedi/common/types'
 import {
@@ -17,6 +17,7 @@ import { exportUiLogs } from '@fedi/common/utils/log'
 
 import { Button } from '../../components/Button'
 import { ContentBlock } from '../../components/ContentBlock'
+import { FederationWalletSelector } from '../../components/FederationWalletSelector'
 import { Input } from '../../components/Input'
 import * as Layout from '../../components/Layout'
 import { RadioGroup } from '../../components/RadioGroup'
@@ -28,7 +29,7 @@ import { styled } from '../../styles'
 function DeveloperPage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const authenticatedGuardian = useAppSelector(
         s => s.federation.authenticatedGuardian,
     )
@@ -36,10 +37,8 @@ function DeveloperPage() {
     const [guardianPassword, setGuardianPassword] = useState('')
     const toast = useToast()
 
-    const federationId = activeFederation?.id
-    const federationNodes = activeFederation?.hasWallet
-        ? activeFederation.nodes
-        : undefined
+    const federationId = paymentFederation?.id
+    const federationNodes = paymentFederation?.nodes
 
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
@@ -64,9 +63,9 @@ function DeveloperPage() {
 
     const handleDownloadTxHistory = useCallback(async () => {
         try {
-            if (!activeFederation) throw new Error('No active federation')
+            if (!paymentFederation) throw new Error('No payment federation')
             const transactions = await fedimint.listTransactions(
-                activeFederation.id,
+                paymentFederation.id,
             )
             // To download a CSV, create a fake link and click it
             const hiddenElement = document.createElement('a')
@@ -78,13 +77,13 @@ function DeveloperPage() {
                 ),
             )
             hiddenElement.download = makeCSVFilename(
-                `transactions-${activeFederation.name}`,
+                `transactions-${paymentFederation.name}`,
             )
             hiddenElement.click()
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')
         }
-    }, [toast, activeFederation, t, makeFormattedAmountsFromMSats])
+    }, [toast, paymentFederation, t, makeFormattedAmountsFromMSats])
 
     /* Lightning gateways */
 
@@ -167,6 +166,7 @@ function DeveloperPage() {
                     <Layout.Title>Developer Settings</Layout.Title>
                 </Layout.Header>
                 <Layout.Content>
+                    <FederationWalletSelector />
                     <Settings>
                         <Setting>
                             <Text>Lightning gateway</Text>
@@ -217,18 +217,18 @@ function DeveloperPage() {
                             <Text>Evil Spam Testing</Text>
                             <Button
                                 onClick={async () => {
-                                    if (!activeFederation?.id) return
+                                    if (!paymentFederation?.id) return
                                     await fedimint.evilSpamInvoices({
-                                        federationId: activeFederation.id,
+                                        federationId: paymentFederation.id,
                                     })
                                 }}>
                                 Evil Spam Invoices
                             </Button>
                             <Button
                                 onClick={async () => {
-                                    if (!activeFederation?.id) return
+                                    if (!paymentFederation?.id) return
                                     await fedimint.evilSpamAddress({
-                                        federationId: activeFederation.id,
+                                        federationId: paymentFederation.id,
                                     })
                                 }}>
                                 Evil Spam Address

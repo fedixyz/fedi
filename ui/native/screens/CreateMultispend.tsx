@@ -8,7 +8,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectDoesFederationHaveMultispend,
     selectPaymentFederation,
-    selectWalletFederations,
+    selectLoadedFederations,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -42,7 +42,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
     const [isLoading, setIsLoading] = useState(false)
 
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const federations = useAppSelector(selectWalletFederations)
+    const federations = useAppSelector(selectLoadedFederations)
     const doesPaymentFederationHaveMultispend = useAppSelector(s =>
         selectDoesFederationHaveMultispend(s, paymentFederation?.id ?? ''),
     )

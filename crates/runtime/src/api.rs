@@ -9,9 +9,10 @@ use api_types::device_control::response::DevicesForSeedResultV0;
 use api_types::device_control::{DeviceIdentifierV0, DeviceIndexV0, SeedCommitmentV0};
 use api_types::fee_schedule::FeesV0;
 pub use api_types::invoice_generator::TransactionDirection;
-use api_types::invoice_generator::{GenerateInvoiceRequestV2, GenerateInvoiceResponseV2};
+use api_types::invoice_generator::{
+    FirstCommunityInviteCodeState, GenerateInvoiceRequestV3, GenerateInvoiceResponseV3,
+};
 use bitcoin::Network;
-use bitcoin::hashes::{Hash, sha256};
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::secret::RootSecretStrategy;
 use fedimint_core::config::FederationId;
@@ -109,7 +110,7 @@ pub trait IFediApi: MaybeSend + MaybeSync + 'static {
         stable_user_id: String,
         spv2_account_id: Option<AccountId>,
         federation_id: FederationId,
-        first_comm_invite_code: Option<String>,
+        first_comm_invite_code: FirstCommunityInviteCodeState,
         other_comm_invite_codes: Vec<String>,
     ) -> anyhow::Result<Bolt11Invoice>;
 
@@ -222,7 +223,7 @@ impl IFediApi for LiveFediApi {
         stable_user_id: String,
         spv2_account_id: Option<AccountId>,
         federation_id: FederationId,
-        first_comm_invite_code: Option<String>,
+        first_comm_invite_code: FirstCommunityInviteCodeState,
         other_comm_invite_codes: Vec<String>,
     ) -> anyhow::Result<Bolt11Invoice> {
         let api_url = match network {
@@ -233,19 +234,15 @@ impl IFediApi for LiveFediApi {
         let invoice_v2 = fedimint_core::task::timeout(Duration::from_secs(15), async {
             self.client
                 .post(api_url)
-                .json(&GenerateInvoiceRequestV2 {
+                .json(&GenerateInvoiceRequestV3 {
                     amount_msat: amount.msats,
                     module: module.to_string(),
                     tx_direction,
                     stable_id: stable_user_id,
                     spv2_account_id: spv2_account_id.map(|id| id.to_string()),
                     federation_id: federation_id.to_string(),
-                    first_comm_invite_code_hash: first_comm_invite_code
-                        .map(|code| sha256::Hash::hash(code.as_bytes()).to_string()),
-                    other_comm_invite_codes_hashes: other_comm_invite_codes
-                        .into_iter()
-                        .map(|code| sha256::Hash::hash(code.as_bytes()).to_string())
-                        .collect(),
+                    first_comm_invite_code,
+                    other_comm_invite_codes,
                 })
                 .send()
                 .await
@@ -253,7 +250,7 @@ impl IFediApi for LiveFediApi {
         .await
         .context("Request to fetch fee invoice took too long")?
         .context("Fetch fee invoice response error")?
-        .json::<GenerateInvoiceResponseV2>()
+        .json::<GenerateInvoiceResponseV3>()
         .await?;
 
         Ok(Bolt11Invoice::from_str(&invoice_v2.invoice).context("Failed to parse fee invoice")?)

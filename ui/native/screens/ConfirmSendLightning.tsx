@@ -37,7 +37,10 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
     const navigation = useNavigation<NavigationHook>()
     const toast = useToast()
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
+    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(
+        t,
+        paymentFederation?.id || '',
+    )
     const [notes, setNotes] = useState<string>('')
     const { parsedData } = route.params
     const isOffline = useAppSelector(selectIsInternetUnreachable)
@@ -54,7 +57,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         setInputAmount,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, paymentFederation?.id, true, t)
+    } = useOmniPaymentState(fedimint, paymentFederation?.id, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails

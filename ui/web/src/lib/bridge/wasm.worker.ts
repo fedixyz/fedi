@@ -2,7 +2,6 @@
 // request: {token: int, method: string, data: string}
 // response: {event: string, data: string} | {token: int, result: string} | {error: string}
 import { RpcInitOpts } from '@fedi/common/types/bindings'
-import { isDev } from '@fedi/common/utils/environment'
 import { makeLog } from '@fedi/common/utils/log'
 import init, {
     fedimint_initialize,
@@ -12,6 +11,7 @@ import init, {
 } from '@fedi/common/wasm/'
 
 import { getBridgeLogFile, openBridgeLogFile } from './log'
+import { getAppFlavor } from './worker'
 
 const log = makeLog('web/lib/bridge/wasm.worker')
 
@@ -23,17 +23,12 @@ async function workerInit() {
         log.error('fedimint_initialize - deviceId not set')
         throw new Error('Failed to initialize bridge')
     }
-    const origin = self?.location?.host || ''
     const options: RpcInitOpts = {
         dataDir: null,
         deviceIdentifier: deviceId,
         logLevel: null,
         appFlavor: {
-            type: isDev()
-                ? 'dev'
-                : origin.includes('app.fedi.xyz')
-                  ? 'bravo'
-                  : 'nightly',
+            type: getAppFlavor(),
         },
     }
     const initOptsJson = JSON.stringify(options)

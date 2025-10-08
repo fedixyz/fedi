@@ -24,7 +24,7 @@ const Indicator = styled('div', {
     color: theme.colors.primary,
     display: 'flex',
     padding: '$xs $sm',
-    gap: theme.space.sm,
+    gap: theme.spacing.sm,
     justifyContent: 'center',
     position: 'fixed',
     top: '50px',

@@ -7,10 +7,14 @@ import { Text } from './Text'
 
 type Props = {
     label?: string
+    federationId: string
 }
 
-export const RecoveryInProgress: React.FC<Props> = ({ label }) => {
-    const { progress } = useRecoveryProgress(fedimint)
+export const RecoveryInProgress: React.FC<Props> = ({
+    label,
+    federationId,
+}) => {
+    const { progress } = useRecoveryProgress(fedimint, federationId)
 
     return (
         <Container aria-label="recovery-in-progress">

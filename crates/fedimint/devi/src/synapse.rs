@@ -87,6 +87,8 @@ rc_invites:
  per_issuer:
   per_second: 1000
   burst_count: 1000
+
+max_upload_size: 1000M
 "#;
 
 /// Manages a temporary Synapse Matrix server instance

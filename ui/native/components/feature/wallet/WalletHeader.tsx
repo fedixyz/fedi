@@ -4,45 +4,45 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
-import { selectActiveFederation } from '@fedi/common/redux/federation'
+import { LoadedFederation } from '@fedi/common/types'
 
-import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import Balance from './Balance'
 
-const WalletHeader: React.FC = () => {
+type Props = {
+    federation: LoadedFederation
+}
+
+const WalletHeader: React.FC<Props> = ({ federation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
-    const activeFederation = useAppSelector(selectActiveFederation)
 
     const style = styles(theme)
 
-    if (!activeFederation) return null
+    if (!federation) return null
 
     return (
         <Pressable
             style={style.container}
-            onPress={() => navigation.navigate('Transactions')}>
+            onPress={() =>
+                navigation.navigate('Transactions', {
+                    federationId: federation.id,
+                })
+            }>
             <Flex row align="center" gap="sm">
                 <SvgImage
                     name="BitcoinCircle"
-                    size={SvgImageSize.md}
-                    color={theme.colors.white}
+                    size={SvgImageSize.sm}
+                    color={theme.colors.orange}
                 />
-                <Text bold style={style.title}>
+                <Text medium style={style.title}>
                     {t('words.bitcoin')}
                 </Text>
-                <SvgImage
-                    name="ChevronRightSmall"
-                    color={theme.colors.secondary}
-                    containerStyle={{ top: 1 }}
-                    dimensions={{ width: 6, height: 12 }}
-                />
             </Flex>
-            <Balance />
+            <Balance federationId={federation.id} />
         </Pressable>
     )
 }
@@ -55,7 +55,7 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
         },
         title: {
-            color: theme.colors.secondary,
+            color: theme.colors.primary,
         },
     })
 

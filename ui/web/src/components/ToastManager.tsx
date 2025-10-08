@@ -175,7 +175,7 @@ const ToastInner = styled('div', {
     gap: 12,
     padding: 14,
     borderRadius: 16,
-    holoGradient: '400',
+    fediGradient: 'black',
     alignItems: 'center',
     color: theme.colors.white,
 })

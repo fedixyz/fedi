@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context as _, bail};
+use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use either::Either;
 use fedi_social_client::SocialRecoveryState;
 use fedimint_bip39::Bip39RootSecretStrategy;
@@ -16,8 +17,7 @@ use fedimint_derive_secret::DerivableSecret;
 use rand::rngs::OsRng;
 use state::{
     AppStateJson, AppStateJsonBase, AppStateJsonOnboarded, AppStateJsonOnboarding,
-    DeviceIdentifier, FirstCommunityInviteCodeState, OnboardingMethod, OnboardingStage,
-    default_next_federation_prefix,
+    DeviceIdentifier, OnboardingMethod, OnboardingStage, default_next_federation_prefix,
 };
 use tokio::sync::RwLock;
 

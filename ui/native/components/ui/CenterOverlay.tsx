@@ -20,6 +20,7 @@ type CenterOverlayProps = {
     overlayStyle?: StyleProp<ViewStyle>
     children: React.ReactNode
     showCloseButton?: boolean
+    topLayer?: React.ReactNode
 }
 
 const width = Dimensions.get('window').width
@@ -30,6 +31,7 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
     overlayStyle,
     children,
     showCloseButton = false,
+    topLayer,
 }) => {
     const { theme } = useTheme()
     const style = styles(theme)
@@ -52,6 +54,7 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
             animationOut="fadeOut"
             useNativeDriver
             useNativeDriverForBackdrop
+            testID="center-overlay"
             style={style.modalContainer}>
             {/* wraps the modal content for keyboard avoidance - required by react-native-modal */}
             <KeyboardAvoidingView
@@ -73,6 +76,13 @@ const CenterOverlay: React.FC<CenterOverlayProps> = ({
                     )}
                 </View>
             </KeyboardAvoidingView>
+
+            {/* full-screen non-blocking layer for floating UI like (overlay toasts) */}
+            {topLayer ? (
+                <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                    {topLayer}
+                </View>
+            ) : null}
         </Modal>
     )
 }

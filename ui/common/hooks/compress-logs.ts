@@ -4,7 +4,7 @@ import { useTransactionHistory } from '@fedi/common/hooks/transactions'
 import {
     generateReusedEcashProofs,
     selectNostrNpub,
-    selectActiveFederation,
+    selectLoadedFederation,
 } from '@fedi/common/redux'
 import {
     exportLegacyUiLogs,
@@ -12,7 +12,7 @@ import {
     makeLog,
 } from '@fedi/common/utils/log'
 
-import { StorageApi } from '../types'
+import { Federation, StorageApi } from '../types'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeTarGz, File } from '../utils/targz'
 import { useCommonDispatch, useCommonSelector } from './redux'
@@ -24,32 +24,36 @@ export const useCompressLogs = ({
     storage,
     handleCollectDbContents,
     handleCollectExtraFiles,
+    federationId = '',
 }: {
     fedimint: FedimintBridge
     storage: StorageApi
     handleCollectDbContents: (path: string) => Promise<string>
     handleCollectExtraFiles: () => Record<string, () => Promise<string>>
+    federationId?: Federation['id']
 }) => {
     const dispatch = useCommonDispatch()
-    const activeFederation = useCommonSelector(selectActiveFederation)
+    const federation = useCommonSelector(s =>
+        selectLoadedFederation(s, federationId || ''),
+    )
     const npub = useCommonSelector(selectNostrNpub)
 
-    const { fetchTransactions } = useTransactionHistory(fedimint)
+    const { fetchTransactions } = useTransactionHistory(fedimint, federationId)
 
     const compressLogs = useCallback(
         ({ sendDb }: { sendDb: boolean }) => {
             const attachmentPromiseMap: Record<string, Promise<string>> = {}
 
-            if (activeFederation?.hasWallet) {
+            if (federation) {
                 if (sendDb) {
                     attachmentPromiseMap['db.dump'] = (async () => {
                         const dbPath = await fedimint.dumpDb({
-                            federationId: activeFederation.id,
+                            federationId: federation.id,
                         })
                         return await handleCollectDbContents(dbPath)
                     })()
 
-                    if (!activeFederation.recovering)
+                    if (!federation.recovering)
                         attachmentPromiseMap['proofs.json'] = dispatch(
                             generateReusedEcashProofs({ fedimint }),
                         )
@@ -57,7 +61,7 @@ export const useCompressLogs = ({
                             .then(proofs => JSON.stringify(proofs, null, 2))
                 }
 
-                if (!activeFederation.recovering)
+                if (!federation.recovering)
                     attachmentPromiseMap['transactions.json'] =
                         fetchTransactions({
                             limit: 10,
@@ -108,7 +112,7 @@ export const useCompressLogs = ({
             return tryCollectAttachments().then(makeTarGz)
         },
         [
-            activeFederation,
+            federation,
             dispatch,
             fedimint,
             fetchTransactions,

@@ -3,10 +3,11 @@ import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 import { ViewProps } from 'react-native-svg/lib/typescript/fabric/utils'
 
 type Props = {
-    /* Determines whether the flex is a row or column. Defaults to `false` (column) */
+    /**
+     * Determines whether the flex is a row or column. Defaults to `false` (column)
+     * @deprecated use `<Row>` instead
+     */
     row?: boolean
-    /* Column-reverse shorthand */
-    columnReverse?: boolean
     /* Shorthand for alignItems: center + justifyContent: center */
     center?: boolean
     /* alignItems */
@@ -37,7 +38,6 @@ const Flex: React.FC<Props & ViewProps> = ({
     style,
     wrap,
     fullWidth,
-    columnReverse,
     ...props
 }) => {
     const { theme } = useTheme()
@@ -47,7 +47,6 @@ const Flex: React.FC<Props & ViewProps> = ({
     // Direction
     let direction: StyleProp<ViewStyle> = flexStyle.col
     if (row) direction = flexStyle.row
-    if (columnReverse) direction = flexStyle.columnReverse
     styleProp.push(direction)
 
     // Align / Justify
@@ -87,7 +86,6 @@ const flexStyle = StyleSheet.create({
     flex: { display: 'flex' },
     row: { flexDirection: 'row' },
     col: { flexDirection: 'column' },
-    columnReverse: { flexDirection: 'column-reverse' },
     grow: { flexGrow: 1 },
     noGrow: { flexGrow: 0 },
     shrink: { flexShrink: 1 },
@@ -114,3 +112,11 @@ const justifyStyle = StyleSheet.create({
 })
 
 export default Flex
+
+export const Row = (props: Omit<React.ComponentProps<typeof Flex>, 'row'>) => (
+    <Flex row {...props} />
+)
+
+export const Column = (
+    props: Omit<React.ComponentProps<typeof Flex>, 'row'>,
+) => <Flex row={false} {...props} />

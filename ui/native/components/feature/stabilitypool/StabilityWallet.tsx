@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { LinearGradientProps } from 'react-native-linear-gradient'
 
+import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
@@ -15,10 +16,12 @@ import {
     selectStableBalance,
     selectStableBalancePending,
     selectStableBalanceSats,
+    setPayFromFederationId,
 } from '@fedi/common/redux'
+import { LoadedFederation } from '@fedi/common/types'
 
 import { fedimint } from '../../../bridge'
-import { useAppSelector } from '../../../state/hooks'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import WalletButtons from '../../feature/wallet/WalletButtons'
 import { BubbleCard } from '../../ui/BubbleView'
@@ -26,26 +29,41 @@ import Flex from '../../ui/Flex'
 import StabilityWalletBalance from './StabilityWalletBalance'
 import StabilityWalletTitle from './StabilityWalletTitle'
 
-const StabilityWallet: React.FC = () => {
+type Props = {
+    federation: LoadedFederation
+}
+
+const StabilityWallet: React.FC<Props> = ({ federation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
+    const dispatch = useAppDispatch()
     const toast = useToast()
 
     const [hasOpenedStabilityPool] = useNuxStep('hasOpenedStabilityPool')
-    useMonitorStabilityPool(fedimint)
+    useMonitorStabilityPool(fedimint, federation.id)
 
     const stabilityPoolDisabledByFederation =
-        !useIsStabilityPoolEnabledByFederation()
-    const stableBalance = useAppSelector(selectStableBalance)
-    const stableBalanceSats = useAppSelector(selectStableBalanceSats)
-    const stableBalancePending = useAppSelector(selectStableBalancePending)
-    const maxStableBalanceSats = useAppSelector(selectMaxStableBalanceSats)
-    const balance = useAppSelector(selectFederationBalance)
+        !useIsStabilityPoolEnabledByFederation(federation.id)
+    const stableBalance = useAppSelector(s =>
+        selectStableBalance(s, federation.id),
+    )
+    const stableBalanceSats = useAppSelector(s =>
+        selectStableBalanceSats(s, federation.id),
+    )
+    const stableBalancePending = useAppSelector(s =>
+        selectStableBalancePending(s, federation.id),
+    )
+    const maxStableBalanceSats = useAppSelector(s =>
+        selectMaxStableBalanceSats(s, federation.id),
+    )
+    const balance = useAppSelector(s =>
+        selectFederationBalance(s, federation.id),
+    )
 
     const style = styles(theme)
     const gradientProps: LinearGradientProps = {
-        colors: ['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.0)'],
+        colors: [...fediTheme.dayLinearGradient],
         start: { x: 0, y: 0 },
         end: { x: 0, y: 1 },
     }
@@ -72,7 +90,10 @@ const StabilityWallet: React.FC = () => {
                 status: 'error',
             })
         } else {
-            navigation.navigate('StabilityDeposit')
+            dispatch(setPayFromFederationId(federation.id))
+            navigation.navigate('StabilityDeposit', {
+                federationId: federation.id,
+            })
         }
     }
 
@@ -83,7 +104,10 @@ const StabilityWallet: React.FC = () => {
                 status: 'error',
             })
         } else {
-            navigation.navigate('StabilityWithdraw')
+            dispatch(setPayFromFederationId(federation.id))
+            navigation.navigate('StabilityWithdraw', {
+                federationId: federation.id,
+            })
         }
     }
 
@@ -98,6 +122,7 @@ const StabilityWallet: React.FC = () => {
                         hasOpenedStabilityPool
                             ? 'StabilityHome'
                             : 'StableBalanceIntro',
+                        { federationId: federation.id },
                     )
                 }>
                 {/* Icon, title, and chevron grouped together */}
@@ -107,25 +132,29 @@ const StabilityWallet: React.FC = () => {
                     gap="sm"
                     shrink
                     style={style.leftGroup}>
-                    <StabilityWalletTitle />
+                    <StabilityWalletTitle federation={federation} />
                 </Flex>
                 {/* Balance on the right */}
-                <StabilityWalletBalance />
+                <StabilityWalletBalance federationId={federation.id} />
             </Pressable>
 
             <View style={style.buttons}>
                 <WalletButtons
-                    offline={false} //used for 'SendOfflineAmount' - not relevant for StabilityWallet so hardcoded false
-                    left={{
-                        label: t('words.deposit'),
+                    federation={federation}
+                    incoming={{
                         onPress: handleDeposit,
                         disabled: balance === 0,
                     }}
-                    right={{
-                        label: t('words.withdraw'),
+                    outgoing={{
                         onPress: handleWithdraw,
                         disabled:
                             stableBalance === 0 && stableBalancePending === 0,
+                    }}
+                    history={{
+                        onPress: () =>
+                            navigation.navigate('StabilityHistory', {
+                                federationId: federation.id,
+                            }),
                     }}
                 />
             </View>
@@ -136,7 +165,9 @@ const StabilityWallet: React.FC = () => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         card: {
-            backgroundColor: theme.colors.mint,
+            backgroundColor: theme.colors.lightGrey,
+            borderWidth: 1,
+            borderColor: theme.colors.lightGrey,
         },
         header: {
             flexDirection: 'row',

@@ -9,13 +9,11 @@ import {
 } from 'react-native'
 import { SvgUri } from 'react-native-svg'
 
-import { selectIsActiveFederationRecovering } from '@fedi/common/redux'
 import { tryFetchUrlMetadata } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
 import { constructUrl } from '@fedi/common/utils/neverthrow'
 
 import { FediModImages } from '../../../assets/images'
-import { useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut, ShortcutType } from '../../../types'
 import { BubbleView } from '../../ui/BubbleView'
 import Flex from '../../ui/Flex'
@@ -67,11 +65,6 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
             }
         }
     }, [shortcut])
-
-    const recoveryInProgress = useAppSelector(
-        selectIsActiveFederationRecovering,
-    )
-
     const multiplier = Math.min(fontScale, 2)
 
     const style = styles(theme, multiplier)
@@ -144,13 +137,9 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
 
     return (
         <Pressable
-            containerStyle={[
-                style.container,
-                recoveryInProgress ? style.disabled : null,
-            ]}
+            containerStyle={style.container}
             onPress={() => onSelect(shortcut)}
-            onLongPress={() => onHold?.(shortcut)}
-            disabled={recoveryInProgress}>
+            onLongPress={() => onHold?.(shortcut)}>
             <View style={style.iconContainer}>
                 <BubbleView containerStyle={style.bubbleContainer}>
                     {renderIcon()}

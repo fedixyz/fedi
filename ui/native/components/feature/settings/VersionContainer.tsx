@@ -60,6 +60,7 @@ export const VersionContainer = ({
                     numberOfLines={1}
                     caption
                     medium
+                    center
                     color={theme.colors.darkGrey}>
                     {t('phrases.app-version', { version })}
                 </Text>
@@ -69,6 +70,7 @@ export const VersionContainer = ({
                         numberOfLines={1}
                         caption
                         medium
+                        center
                         color={theme.colors.darkGrey}>
                         {t('phrases.fedimint-version', {
                             version: fedimintVersion,

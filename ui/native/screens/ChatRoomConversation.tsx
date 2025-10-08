@@ -62,7 +62,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         async (
             body: string,
             attachments: Array<InputAttachment | InputMedia> = [],
-            repliedEventId?: string | null,
+            repliedEventId?: string,
         ) => {
             if ((!body && !attachments.length) || isSending) return
 
@@ -77,7 +77,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                             fedimint,
                             roomId,
                             body,
-                            repliedEventId: repliedEventId,
+                            repliedEventId,
                             // TODO: support intercepting bolt11 for group chats
                             options: { interceptBolt11: chatType === 'direct' },
                         }),
@@ -117,7 +117,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
             <MessageInput
                 onMessageSubmitted={handleSend}
                 id={roomId || directUserId || ''}
-                isPublic={room?.isPublic}
+                isPublic={room?.isPublic ?? false}
                 onHeightChanged={setMessageInputHeight}
                 onReplyBarHeightChanged={setReplyBarHeight}
             />
@@ -139,7 +139,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                 <ChatConversation
                     type={chatType}
                     id={roomId || ''}
-                    isPublic={room?.isPublic}
+                    isPublic={room?.isPublic ?? false}
                     newMessageBottomOffset={bottomOffset}
                     replyBarOffset={replyBarHeight}
                 />

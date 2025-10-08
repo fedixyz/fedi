@@ -135,13 +135,13 @@ const StatusBackground = styled('div', {
     variants: {
         status: {
             success: {
-                holoGradient: '600',
+                fediGradient: 'sky',
             },
             error: {
                 background: theme.colors.extraLightGrey,
             },
             loading: {
-                holoGradient: '600',
+                fediGradient: 'sky',
                 transition: 'none',
             },
         },

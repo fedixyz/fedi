@@ -18,6 +18,7 @@ import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
+import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 import {
     DropdownSheet,
@@ -48,7 +49,12 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
     ) => {
         try {
             await dispatch(
-                setMatrixRoomMemberPowerLevel({ roomId, userId, powerLevel }),
+                setMatrixRoomMemberPowerLevel({
+                    fedimint,
+                    roomId,
+                    userId,
+                    powerLevel,
+                }),
             ).unwrap()
         } catch (err) {
             error(t, 'errors.unknown-error')

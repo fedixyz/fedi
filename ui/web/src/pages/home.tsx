@@ -1,41 +1,29 @@
-import Link from 'next/link'
-import { useRouter } from 'next/router'
 import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
-import ArrowRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import ProfileIcon from '@fedi/common/assets/svgs/profile.svg'
-import WordListIcon from '@fedi/common/assets/svgs/word-list.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
-    selectActiveFederation,
-    selectActiveFederationChats,
-    selectIsActiveFederationRecovering,
+    selectLastSelectedCommunityChats,
+    selectLastSelectedCommunity,
     selectMatrixAuth,
-    selectActiveFederationHasWallet,
     selectOnboardingMethod,
 } from '@fedi/common/redux'
-import {
-    selectCoreMods,
-    selectVisibleCommunityMods,
-} from '@fedi/common/redux/mod'
-import { selectCanShowSurvey } from '@fedi/common/redux/support'
-import stringUtils from '@fedi/common/utils/StringUtils'
+import { selectVisibleCommunityMods } from '@fedi/common/redux/mod'
+import { getFederationPinnedMessage } from '@fedi/common/utils/FederationUtils'
 
-import { Avatar } from '../components/Avatar'
-import { BitcoinWallet } from '../components/BitcoinWallet'
+import AnalyticsConsentModal from '../components/AnalyticsConsentModal'
+import { DefaultRoomPreview } from '../components/Chat/DefaultRoomPreview'
 import { ContentBlock } from '../components/ContentBlock'
-import { FederationAvatar } from '../components/FederationAvatar'
+import { DisplayNameModal } from '../components/DisplayNameModal'
 import { FediModTiles } from '../components/FediModTiles'
+import PinnedMessage from '../components/Home/PinnedMessage'
 import { Icon } from '../components/Icon'
 import { InstallBanner } from '../components/InstallBanner'
 import * as Layout from '../components/Layout'
 import { Modal } from '../components/Modal'
-import { RecoveryInProgress } from '../components/RecoveryInProgress'
-import SurveyModal from '../components/SurveyModal'
 import { Text } from '../components/Text'
 import {
     useAppSelector,
@@ -46,165 +34,80 @@ import {
 import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 
-const BACKUP_REMINDER_MIN_BALANCE = 1000000 // 1000000 msats or 1000 sats
-
 function HomePage() {
     const { t } = useTranslation()
     const deferredPrompt = useInstallPromptContext()
     const { isIOS } = useDeviceQuery()
     const { showInstallBanner, handleOnDismiss } = useShowInstallPromptBanner()
-    const router = useRouter()
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
 
     const [hasSeenDisplayName, completeSeenDisplayName] =
         useNuxStep('displayNameModal')
-    const [hasPerformedPersonalBackup] = useNuxStep(
-        'hasPerformedPersonalBackup',
-    )
 
     const handleOnInstall = async () => {
         await deferredPrompt?.prompt()
     }
 
-    const recoveryInProgress = useAppSelector(
-        selectIsActiveFederationRecovering,
+    const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
+    const selectedCommunityMods = useAppSelector(selectVisibleCommunityMods)
+    const selectedCommunityChats = useAppSelector(s =>
+        selectLastSelectedCommunityChats(s),
     )
-    const mods = useAppSelector(selectVisibleCommunityMods)
-    const coreMods = useAppSelector(selectCoreMods)
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const newsItems = useAppSelector(s => selectActiveFederationChats(s))
     const onboardingMethod = useAppSelector(selectOnboardingMethod)
-    const canShowSurvey = useAppSelector(selectCanShowSurvey)
     const isNewSeedUser = onboardingMethod !== 'restored'
-
-    // Federations have wallets, communities do not
-    const hasWallet = useAppSelector(selectActiveFederationHasWallet)
-
-    // Get first chat message to use as Federation News for now
-    // Improvement: Show carousel of announcements to show multiple news items
-    const newsItem = newsItems.length > 0 ? newsItems[0] : null
-
-    const showFederation = !activeFederation || hasWallet
+    const pinnedMessage = getFederationPinnedMessage(
+        selectedCommunity?.meta || {},
+    )
 
     // Get rates from cache
     useEffect(() => {
         syncCurrencyRatesAndCache()
     }, [syncCurrencyRatesAndCache])
 
+    // TODO: handle if we can't join fedi global community?
+    if (!selectedCommunity) return null
+
     return (
         <ContentBlock>
             <Layout.Root>
                 <Layout.Content>
                     <Content>
-                        {showFederation && (
-                            <Section>
-                                {recoveryInProgress ? (
-                                    <RecoveryInProgress
-                                        label={t(
-                                            'feature.recovery.recovery-in-progress-balance',
-                                        )}
-                                    />
-                                ) : (
-                                    <BitcoinWallet />
-                                )}
-                            </Section>
+                        {pinnedMessage && (
+                            <PinnedMessage pinnedMessage={pinnedMessage} />
                         )}
 
-                        {!activeFederation && (
-                            <Section>
-                                <Title variant="h2">
-                                    {t(
-                                        showFederation
-                                            ? 'feature.home.federation-news-title'
-                                            : 'feature.home.community-news-title',
-                                    )}
-                                </Title>
+                        {selectedCommunity &&
+                            selectedCommunityChats.length > 0 && (
+                                <Section>
+                                    <Title weight="bold">
+                                        {t('feature.home.community-news-title')}
+                                    </Title>
 
-                                <NewsContainer>
-                                    <NewsItem href="/onboarding">
-                                        <NewsItemIcon>
-                                            <Icon icon={ChatIcon} />
-                                        </NewsItemIcon>
-                                        <NewsItemText>
-                                            {t(
-                                                'feature.home.federation-updates',
-                                            )}
-                                        </NewsItemText>
-                                        <NewsItemArrow>
-                                            <Icon icon={ArrowRightIcon} />
-                                        </NewsItemArrow>
-                                    </NewsItem>
-                                </NewsContainer>
-                            </Section>
-                        )}
-
-                        {activeFederation && newsItem && (
-                            <Section>
-                                <Title variant="h2">
-                                    {t(
-                                        showFederation
-                                            ? 'feature.home.federation-news-title'
-                                            : 'feature.home.community-news-title',
-                                    )}
-                                </Title>
-
-                                <NewsContainer>
-                                    <NewsItem
-                                        href={`/chat/room/${newsItem.id}`}>
-                                        <NewsItemIcon>
-                                            <FederationAvatar
-                                                federation={activeFederation}
-                                                size="sm"
+                                    <NewsContainer>
+                                        {selectedCommunityChats.map(room => (
+                                            <DefaultRoomPreview
+                                                room={room}
+                                                federationOrCommunity={
+                                                    selectedCommunity
+                                                }
+                                                key={`default-chat-${room.id}`}
                                             />
-                                        </NewsItemIcon>
-                                        <NewsItemText>
-                                            <Text variant="body" weight="bold">
-                                                {stringUtils.truncateString(
-                                                    newsItem.name,
-                                                    25,
-                                                )}
-                                            </Text>
-                                            {newsItem.preview && (
-                                                <Text variant="small">
-                                                    {stringUtils.truncateString(
-                                                        stringUtils.stripNewLines(
-                                                            newsItem.preview
-                                                                .body,
-                                                        ),
-                                                        25,
-                                                    )}
-                                                </Text>
-                                            )}
-                                        </NewsItemText>
-                                        <NewsItemArrow>
-                                            <Icon icon={ArrowRightIcon} />
-                                        </NewsItemArrow>
-                                    </NewsItem>
-                                </NewsContainer>
-                            </Section>
-                        )}
+                                        ))}
+                                    </NewsContainer>
+                                </Section>
+                            )}
 
                         <Section>
-                            <Title variant="h2">
-                                {t(
-                                    showFederation
-                                        ? 'feature.home.federation-mods-title'
-                                        : 'feature.home.community-mods-title',
-                                )}
+                            <Title weight="bold">
+                                {t('feature.home.community-mods-title')}
                             </Title>
-                            <SubTitle variant="body">
-                                {t(
-                                    showFederation
-                                        ? 'feature.home.federation-services-selected'
-                                        : 'feature.home.community-services-selected',
-                                )}
+                            <SubTitle variant="caption">
+                                {t('feature.home.community-services-selected')}
                             </SubTitle>
                             <ErrorBoundary fallback={null}>
-                                <FediModTiles
-                                    mods={activeFederation ? mods : coreMods}
-                                />
+                                <FediModTiles mods={selectedCommunityMods} />
                             </ErrorBoundary>
                         </Section>
                     </Content>
@@ -268,38 +171,8 @@ function HomePage() {
                 </ModalContent>
             </Modal>
 
-            {/* Modal - Ask user to backup if their balance is above 1000 sats */}
-            <Modal
-                open={
-                    !!activeFederation &&
-                    activeFederation.balance > BACKUP_REMINDER_MIN_BALANCE &&
-                    !hasPerformedPersonalBackup
-                }
-                onClick={() => router.push('/settings/backup/personal')}
-                title={t('feature.home.backup-wallet-title')}
-                description={t('feature.home.backup-wallet-description')}>
-                <ModalContent aria-label="test">
-                    <ModalIconWrapper>
-                        <Avatar
-                            size="md"
-                            id=""
-                            name="list"
-                            holo
-                            icon={WordListIcon}
-                            css={{ alignSelf: 'center' }}
-                        />
-                    </ModalIconWrapper>
-                    <ModalTextWrapper>
-                        <Text variant="h2">
-                            {t('feature.home.backup-wallet-title')}
-                        </Text>
-                    </ModalTextWrapper>
-                    <Text variant="body" css={{ color: theme.colors.darkGrey }}>
-                        {t('feature.home.backup-wallet-description')}
-                    </Text>
-                </ModalContent>
-            </Modal>
-            {canShowSurvey && <SurveyModal />}
+            <DisplayNameModal />
+            <AnalyticsConsentModal />
         </ContentBlock>
     )
 }
@@ -308,49 +181,31 @@ const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 20,
+
+    '@sm': {
+        marginTop: 12,
+    },
 })
 
 const Section = styled('div', {
-    marginBottom: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
 })
 
-const Title = styled(Text, {})
+const Title = styled(Text, {
+    padding: '4px 0',
+    fontSize: '20px!important',
+})
 
 const SubTitle = styled(Text, {
     color: theme.colors.darkGrey,
 })
 
-const NewsContainer = styled('div', {})
-
-const NewsItem = styled(Link, {
-    alignItems: 'center',
-    background: theme.colors.offWhite100,
-    borderRadius: 20,
-    boxSizing: 'border-box',
-    color: theme.colors.night,
-    display: 'flex',
-    gap: 10,
-    overflow: 'hidden',
-    padding: 15,
-})
-
-const NewsItemIcon = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    minWidth: 30,
-})
-
-const NewsItemText = styled('div', {
+const NewsContainer = styled('div', {
     display: 'flex',
     flexDirection: 'column',
-    flex: 1,
-    textAlign: 'left',
-})
-
-const NewsItemArrow = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    width: 20,
+    gap: 8,
 })
 
 const ModalContent = styled('div', {
@@ -380,7 +235,7 @@ const ModalIconWrapper = styled('div', {
     boxSizing: 'border-box',
     display: 'flex',
     height: 50,
-    holoGradient: '600',
+    fediGradient: 'sky',
     justifyContent: 'center',
     marginBottom: 10,
     padding: 5,

@@ -5,13 +5,13 @@ import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederationId, uploadBackupFile } from '@fedi/common/redux'
+import { uploadBackupFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloProgressCircle from '../components/ui/HoloProgressCircle'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('SocialBackupProcessing')
@@ -27,10 +27,9 @@ const SocialBackupProcessing: React.FC<Props> = ({
 }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
     const dispatch = useAppDispatch()
     const toast = useToast()
-    const { videoFilePath } = route.params
+    const { videoFilePath, federationId } = route.params
     const [percentComplete, setPercentComplete] = useState<number>(0)
     const [uploadStarted, setUploadStarted] = useState(false)
 
@@ -39,12 +38,12 @@ const SocialBackupProcessing: React.FC<Props> = ({
         const startBackupFileUpload = async () => {
             setUploadStarted(true)
             try {
-                if (!activeFederationId) throw new Error('No active federation')
+                if (!federationId) throw new Error('No federation ID')
 
                 await dispatch(
                     uploadBackupFile({
                         fedimint,
-                        federationId: activeFederationId,
+                        federationId,
                         videoFilePath,
                     }),
                 )
@@ -64,7 +63,7 @@ const SocialBackupProcessing: React.FC<Props> = ({
         videoFilePath,
         uploadStarted,
         dispatch,
-        activeFederationId,
+        federationId,
         setUploadStarted,
         t,
     ])

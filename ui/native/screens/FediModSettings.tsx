@@ -12,7 +12,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
-import { selectFederationFediModsById } from '@fedi/common/redux'
+import { selectCommunityModsById } from '@fedi/common/redux'
 import {
     removeCustomMod,
     selectConfigurableMods,
@@ -52,7 +52,7 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
 
     const selectConfigMods = useAppSelector(selectConfigurableMods)
     const federationMods = useAppSelector(state =>
-        federationId ? selectFederationFediModsById(state, federationId) : [],
+        federationId ? selectCommunityModsById(state, federationId) : [],
     )
 
     // Select the correct data based on the type

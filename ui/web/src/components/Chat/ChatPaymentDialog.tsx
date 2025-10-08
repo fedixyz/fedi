@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useBalanceDisplay } from '@fedi/common/hooks/amount'
 import { useChatPaymentUtils } from '@fedi/common/hooks/chat'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectMatrixUser } from '@fedi/common/redux'
@@ -13,6 +12,7 @@ import { styled, theme } from '../../styles'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { Dialog } from '../Dialog'
+import { FederationWalletSelector } from '../FederationWalletSelector'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
 
@@ -31,7 +31,6 @@ export const ChatPaymentDialog: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const onOpenChangeRef = useUpdatingRef(onOpenChange)
-    const balanceDisplay = useBalanceDisplay(t)
     const {
         submitType,
         setSubmitType,
@@ -97,7 +96,7 @@ export const ChatPaymentDialog: React.FC<Props> = ({
                     </>
                 )}
             </MemberContainer>
-            <Balance>{balanceDisplay}</Balance>
+            <FederationWalletSelector />
             <AmountContainer>
                 {open && (
                     <AmountInput
@@ -140,18 +139,12 @@ export const ChatPaymentDialog: React.FC<Props> = ({
     )
 }
 
-const Balance = styled('div', {
-    fontSize: theme.fontSizes.caption,
-    textAlign: 'center',
-    color: theme.colors.darkGrey,
-})
-
 const MemberContainer = styled('div', {
     display: 'flex',
-    gap: theme.space.sm,
+    gap: theme.spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: theme.space.xl,
+    marginBottom: theme.spacing.xl,
 })
 
 const AmountContainer = styled('div', {

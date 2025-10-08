@@ -10,6 +10,7 @@ import {
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { FeeItem } from '@fedi/common/hooks/transactions'
+import { Federation } from '@fedi/common/types'
 
 import Flex from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
@@ -28,6 +29,7 @@ interface Props<T extends { id: string }> {
     makeIcon: (item: T) => React.ReactNode
     onEndReached?: () => void
     onRefresh?: () => void
+    federationId?: Federation['id']
 }
 
 export function HistoryList<T extends { id: string }>({
@@ -40,6 +42,7 @@ export function HistoryList<T extends { id: string }>({
     makeIcon,
     onEndReached,
     onRefresh,
+    federationId = '',
 }: Props<T>): React.ReactElement {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -107,7 +110,7 @@ export function HistoryList<T extends { id: string }>({
                     index,
                 })}
                 initialNumToRender={20}
-                onRefresh={() => onRefresh && onRefresh()}
+                onRefresh={onRefresh ? onRefresh : undefined}
                 refreshing={loading || false}
                 onEndReached={() => onEndReached && onEndReached()}
                 onEndReachedThreshold={0.9}
@@ -125,6 +128,7 @@ export function HistoryList<T extends { id: string }>({
                 showAskFedi={
                     selectedItem ? makeShowAskFedi(selectedItem) : false
                 }
+                federationId={federationId}
             />
         </SafeAreaContainer>
     )

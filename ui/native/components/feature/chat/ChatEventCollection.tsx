@@ -17,6 +17,7 @@ interface Props {
     isPublic?: boolean
     onReplyTap?: (eventId: string) => void
     highlightedMessageId?: string | null
+    isInViewport?: boolean
 }
 
 const ChatEventCollection: React.FC<Props> = memo(
@@ -28,6 +29,7 @@ const ChatEventCollection: React.FC<Props> = memo(
         isPublic,
         onReplyTap,
         highlightedMessageId,
+        isInViewport = true,
     }: Props) => {
         const { theme } = useTheme()
 
@@ -52,10 +54,10 @@ const ChatEventCollection: React.FC<Props> = memo(
                         </Text>
                     </Flex>
                 )}
-                <Flex columnReverse>
+                <Flex style={style.chatEventContainer}>
                     {collection.map(events => (
                         <ChatEventTimeFrame
-                            key={events.at(-1)?.eventId}
+                            key={events.at(-1)?.id}
                             events={events}
                             roomId={roomId}
                             showUsernames={showUsernames}
@@ -63,6 +65,7 @@ const ChatEventCollection: React.FC<Props> = memo(
                             onSelect={onSelect}
                             onReplyTap={onReplyTap}
                             highlightedMessageId={highlightedMessageId}
+                            isInViewport={isInViewport}
                         />
                     ))}
                 </Flex>
@@ -71,6 +74,9 @@ const ChatEventCollection: React.FC<Props> = memo(
     },
     (prev, curr) => {
         if (prev.highlightedMessageId !== curr.highlightedMessageId) {
+            return false
+        }
+        if (prev.isInViewport !== curr.isInViewport) {
             return false
         }
         return isEqual(prev.collection, curr.collection)
@@ -82,6 +88,9 @@ const styles = (theme: Theme) =>
         container: {
             marginBottom: theme.spacing.md,
             color: theme.colors.darkGrey,
+        },
+        chatEventContainer: {
+            flexDirection: 'column-reverse',
         },
         timestampContainer: {
             marginBottom: theme.spacing.md,

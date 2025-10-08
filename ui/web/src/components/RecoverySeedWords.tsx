@@ -84,7 +84,7 @@ export const RecoverySeedWords: React.FC<Props> = ({
 }
 
 const Container = styled('div', {
-    holoGradient: '900',
+    fediGradient: 'sky-heavy',
     padding: 2,
     borderRadius: 20,
 })

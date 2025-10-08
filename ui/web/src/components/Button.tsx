@@ -11,6 +11,7 @@ interface BaseProps {
     icon?: IconProps['icon']
     width?: 'auto' | 'full'
     loading?: boolean
+    outline?: boolean
     disabled?: boolean
     css?: CSSProp
 }
@@ -165,7 +166,7 @@ const ButtonBase = styled('button', {
             outline: {
                 background: 'none',
                 color: theme.colors.primary,
-                border: `2px solid ${theme.colors.primary}`,
+                border: `1.5px solid ${theme.colors.primaryVeryLight}`,
                 '&:hover': {
                     background: theme.colors.primary05,
                 },
@@ -206,6 +207,11 @@ const ButtonBase = styled('button', {
             },
         },
         loading: { true: {} },
+        outline: {
+            true: {
+                border: `1.5px solid ${theme.colors.primaryVeryLight}`,
+            },
+        },
     },
     compoundVariants: [
         {

@@ -4,23 +4,31 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import {
-    selectActiveFederation,
     selectCurrency,
     selectFederationBalance,
+    selectLoadedFederation,
 } from '@fedi/common/redux'
+import { Federation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
-export const StabilityBitcoinBanner: React.FC = () => {
+export type Props = {
+    federationId: Federation['id']
+}
+export const StabilityBitcoinBanner: React.FC<Props> = ({ federationId }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const currency = useAppSelector(selectCurrency)
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const balance = useAppSelector(selectFederationBalance)
+    const currency = useAppSelector(s => selectCurrency(s, federationId))
+    const federation = useAppSelector(s =>
+        selectLoadedFederation(s, federationId),
+    )
+    const balance = useAppSelector(s =>
+        selectFederationBalance(s, federationId),
+    )
 
-    if (!activeFederation || balance > 0) return null
+    if (!federation || balance > 0) return null
 
     const style = styles(theme)
 

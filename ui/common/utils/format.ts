@@ -81,3 +81,31 @@ export function formatCurrencyText<T extends TFunction>(
 ) {
     return `${getCurrencyCode(currency)} - ${formattedCurrencyName(t, currency)}`
 }
+
+/**
+ * Rounds down and formats a large number into a string like "1M", "242K", "2B"
+ */
+export const formatLargeNumber = (
+    n: number,
+    minimumUnit: 'K' | 'M' | 'B' | 'T',
+) => {
+    const units = {
+        T: 1_000_000_000_000,
+        B: 1_000_000_000,
+        M: 1_000_000,
+        K: 1_000,
+    }
+
+    const entries = Object.entries(units)
+    const minIdx = entries.findIndex(([suffix]) => suffix === minimumUnit)
+
+    for (let i = 0; i <= minIdx; ++i) {
+        const [suffix, value] = entries[i]
+        if (Math.abs(n) >= value) {
+            const floored = Math.floor((Math.abs(n) / Number(value)) * 10) / 10
+            return `${Math.sign(n) < 0 ? '-' : ''}${floored % 1 === 0 ? floored.toFixed(0) : floored}${suffix}`
+        }
+    }
+
+    return `${n}`
+}

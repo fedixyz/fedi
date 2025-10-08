@@ -11,26 +11,27 @@ import { v4 as uuidv4 } from 'uuid'
 
 import {
     CommonState,
-    selectActiveFederation,
+    selectLastUsedFederation,
     selectBtcUsdExchangeRate,
-    selectGlobalCommunityMeta,
     selectLoadedFederation,
     selectLoadedFederations,
-    selectWalletFederations,
+    selectCommunity,
+    selectCommunities,
+    selectGlobalCommunityMetadata,
 } from '.'
 import {
     ChatReplyState,
-    FederationListItem,
+    Federation,
     InputMedia,
     MSats,
     MatrixAuth,
     MatrixCreateRoomOptions,
     MatrixError,
     MatrixEvent,
+    MatrixEventContentType,
     MatrixGroupPreview,
     MatrixPaymentEvent,
     MatrixPaymentEventContent,
-    MatrixPaymentStatus,
     MatrixPowerLevel,
     MatrixRoom,
     MatrixRoomListItem,
@@ -39,7 +40,6 @@ import {
     MatrixRoomPowerLevels,
     MatrixSearchResults,
     MatrixSyncStatus,
-    MatrixTimelineItem,
     MatrixTimelineStreamUpdates,
     MatrixUser,
     MultispendActiveInvitation,
@@ -47,6 +47,7 @@ import {
     MultispendRole,
     MultispendTransactionListEntry,
     Sats,
+    SelectableMessageKind,
     UsdCents,
 } from '../types'
 import {
@@ -57,21 +58,22 @@ import {
     MultispendListedEvent,
     NetworkError,
     RpcBackPaginationStatus,
+    RpcMentions,
+    RpcFormResponse,
     RpcMultispendGroupStatus,
     RpcRoomId,
     RpcRoomNotificationMode,
     RpcSPv2SyncResponse,
+    RpcTimelineEventItemId,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
 import {
-    getFederationGroupChats,
+    getDefaultGroupChats,
     shouldShowInviteCode,
 } from '../utils/FederationUtils'
-import { MatrixChatClient } from '../utils/MatrixChatClient'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
-    MatrixEventContentType,
     coerceMultispendTxn,
     filterMultispendEvents,
     consolidatePaymentEvents,
@@ -84,12 +86,14 @@ import {
     isMultispendInvitation,
     isMultispendWithdrawalEvent,
     isPaymentEvent,
-    makeChatFromPreview,
+    makeChatFromUnjoinedRoomPreview,
     matrixIdToUsername,
     mxcUrlToHttpUrl,
     shouldShowUnreadIndicator,
     isMultispendFinancialTransaction,
-    MatrixFormResponse,
+    prepareMentionsDataPayload,
+    hasMentions,
+    isTextEvent,
 } from '../utils/matrix'
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
@@ -97,14 +101,6 @@ import { applyStreamUpdates } from '../utils/stream'
 import { loadFromStorage } from './storage'
 
 const log = makeLog('redux/matrix')
-
-let matrixClient: MatrixChatClient | null = null
-const getMatrixClient = () => {
-    if (!matrixClient) {
-        matrixClient = new MatrixChatClient()
-    }
-    return matrixClient
-}
 
 /*** Initial State ***/
 
@@ -118,7 +114,7 @@ const initialState = {
     roomMembers: {} as Record<MatrixRoom['id'], MatrixRoomMember[] | undefined>,
     roomTimelines: {} as Record<
         MatrixRoom['id'],
-        MatrixTimelineItem[] | undefined
+        (MatrixEvent | null)[] | undefined
     >,
     roomPaginationStatus: {} as Record<
         MatrixRoom['id'],
@@ -156,19 +152,8 @@ const initialState = {
     pushNotificationToken: null as string | null,
     groupPreviews: {} as Record<MatrixRoom['id'], MatrixGroupPreview>,
     drafts: {} as Record<MatrixRoom['id'], string>,
-    selectedChatMessage: null as MatrixEvent<
-        MatrixEventContentType<
-            | 'm.text'
-            | 'm.image'
-            | 'm.video'
-            | 'm.file'
-            | 'm.poll'
-            | 'm.notice'
-            | 'm.emote'
-            | 'xyz.fedi.payment'
-        >
-    > | null,
-    messageToEdit: null as MatrixEvent<MatrixEventContentType<'m.text'>> | null,
+    selectedChatMessage: null as MatrixEvent<SelectableMessageKind> | null,
+    messageToEdit: null as MatrixEvent<'m.text'> | null,
     previewMedia: [] as Array<{
         // whether to show a placeholder ChatEvent for the sent `media`
         visible: boolean
@@ -179,6 +164,8 @@ const initialState = {
         event: null as MatrixEvent | null,
     } satisfies ChatReplyState,
     tempMediaUriMap: {} as Record<string, string>,
+    chatsListSearchQuery: '' as string,
+    chatTimelineSearchQuery: '' as string,
 }
 
 export type MatrixState = typeof initialState
@@ -230,6 +217,7 @@ export const matrixSlice = createSlice({
             state.auth = action.payload
         },
         addMatrixRoomInfo(state, action: PayloadAction<MatrixRoom>) {
+            // Caused by 'form' event in RpcMsgLikeKind in bindings.ts
             state.roomInfo = upsertRecordEntity(state.roomInfo, action.payload)
         },
         handleMatrixRoomListStreamUpdates(
@@ -423,19 +411,13 @@ export const matrixSlice = createSlice({
         },
         setSelectedChatMessage(
             state,
-            action: PayloadAction<MatrixEvent<
-                MatrixEventContentType<
-                    'm.text' | 'm.image' | 'm.video' | 'm.file' | 'm.poll'
-                >
-            > | null>,
+            action: PayloadAction<MatrixEvent<SelectableMessageKind> | null>,
         ) {
             state.selectedChatMessage = action.payload
         },
         setMessageToEdit(
             state,
-            action: PayloadAction<MatrixEvent<
-                MatrixEventContentType<'m.text'>
-            > | null>,
+            action: PayloadAction<MatrixEvent<'m.text'> | null>,
         ) {
             state.messageToEdit = action.payload
         },
@@ -445,27 +427,9 @@ export const matrixSlice = createSlice({
                 ...action.payload.map(media => ({ media, visible: true })),
             ]
         },
-        matchAndRemovePreviewMedia(
-            state,
-            action: PayloadAction<
-                MatrixEventContentType<'m.image' | 'm.video'>
-            >,
-        ) {
-            state.previewMedia = state.previewMedia.filter(
-                cached =>
-                    !doesEventContentMatchPreviewMedia(
-                        cached.media,
-                        action.payload,
-                    ),
-            )
-        },
         matchAndHidePreviewMedia(
             state,
-            action: PayloadAction<
-                Array<
-                    MatrixEvent<MatrixEventContentType<'m.image' | 'm.video'>>
-                >
-            >,
+            action: PayloadAction<Array<MatrixEvent<'m.image' | 'm.video'>>>,
         ) {
             let hasUpdates = false
             const updatedPreviewMedia = state.previewMedia.map(cached => {
@@ -509,6 +473,12 @@ export const matrixSlice = createSlice({
             action: PayloadAction<{ uri: string; hash: string }>,
         ) {
             state.tempMediaUriMap[action.payload.hash] = action.payload.uri
+        },
+        setChatsListSearchQuery(state, action: PayloadAction<string>) {
+            state.chatsListSearchQuery = action.payload
+        },
+        setChatTimelineSearchQuery(state, action: PayloadAction<string>) {
+            state.chatTimelineSearchQuery = action.payload
         },
     },
     extraReducers: builder => {
@@ -605,11 +575,15 @@ export const matrixSlice = createSlice({
         )
         builder.addCase(getMatrixRoomPreview.fulfilled, (state, action) => {
             if (!action.payload) return
-            const existingPreview = state.groupPreviews[action.meta.arg] || {}
-            state.groupPreviews[action.meta.arg] = {
+            const existingPreview =
+                state.groupPreviews[action.meta.arg.roomId] || {}
+            state.groupPreviews[action.meta.arg.roomId] = {
                 ...existingPreview,
                 ...action.payload,
             }
+        })
+        builder.addCase(editMatrixMessage.fulfilled, state => {
+            state.messageToEdit = null
         })
         builder.addMatcher(
             isAnyOf(ignoreUser.fulfilled, unignoreUser.fulfilled),
@@ -632,8 +606,8 @@ export const matrixSlice = createSlice({
         )
         builder.addMatcher(
             isAnyOf(
-                previewGlobalDefaultChats.fulfilled,
                 previewCommunityDefaultChats.fulfilled,
+                previewFederationDefaultChats.fulfilled,
                 previewAllDefaultChats.fulfilled,
             ),
             (state, action) => {
@@ -698,11 +672,12 @@ export const {
     setMessageToEdit,
     addPreviewMedia,
     matchAndHidePreviewMedia,
-    matchAndRemovePreviewMedia,
     updateMatrixRoomMultispendEvent,
     setChatReplyingToMessage,
     clearChatReplyingToMessage,
     addTempMediaUriEntry,
+    setChatsListSearchQuery,
+    setChatTimelineSearchQuery,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -757,17 +732,17 @@ export const matrixRejectMultispendInvitation = createAsyncThunk<
 
 export const observeMultispendEvent = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id']; eventId: string }
->('matrix/observeMultispendEvent', async ({ roomId, eventId }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; eventId: string }
+>('matrix/observeMultispendEvent', async ({ fedimint, roomId, eventId }) => {
+    const client = fedimint.getMatrixClient()
     return client.observeMultispendEvent(roomId, eventId)
 })
 
 export const unobserveMultispendEvent = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id']; eventId: string }
->('matrix/unobserveMultispendEvent', async ({ roomId, eventId }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; eventId: string }
+>('matrix/unobserveMultispendEvent', async ({ fedimint, roomId, eventId }) => {
+    const client = fedimint.getMatrixClient()
     return client.unobserveMultispendEvent(roomId, eventId)
 })
 
@@ -780,7 +755,7 @@ export const startMatrixClient = createAsyncThunk<
     // TODO: when short circuiting on hasStarted, we should try to return
     // the same promise as the existing start call. Otherwise we may show
     // success on a second call, but failure on the first one.
-    const client = getMatrixClient()
+    const client = fedimint.getMatrixClient()
     if (client.hasStarted) {
         log.info('Matrix client already started')
         return
@@ -793,8 +768,8 @@ export const startMatrixClient = createAsyncThunk<
     })
     client.on('roomInfo', room => {
         dispatch(addMatrixRoomInfo(room))
-        if (room.roomState === 'Invited') {
-            dispatch(joinMatrixRoom({ roomId: room.id }))
+        if (room.roomState === 'invited') {
+            dispatch(joinMatrixRoom({ fedimint, roomId: room.id }))
         }
     })
     client.on('roomMember', member => dispatch(addMatrixRoomMember(member)))
@@ -863,14 +838,14 @@ export const startMatrixClient = createAsyncThunk<
     // Start the client
     await client.start(fedimint)
     // preview default chats after matrix is ready
-    dispatch(previewAllDefaultChats())
+    dispatch(previewAllDefaultChats({ fedimint }))
 })
 
 export const setMatrixDisplayName = createAsyncThunk<
     void,
-    { displayName: string }
->('matrix/setMatrixDisplayName', async ({ displayName }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; displayName: string }
+>('matrix/setMatrixDisplayName', async ({ fedimint, displayName }) => {
+    const client = fedimint.getMatrixClient()
     return client.setDisplayName(displayName)
 })
 
@@ -880,128 +855,155 @@ export const uploadAndSetMatrixAvatarUrl = createAsyncThunk<
 >('matrix/setMatrixAvatarUrl', async ({ fedimint, path, mimeType }) => {
     const { contentUri } = await fedimint.matrixUploadMedia({ path, mimeType })
 
-    const client = getMatrixClient()
+    const client = fedimint.getMatrixClient()
     await client.setAvatarUrl(contentUri)
     return contentUri
 })
 
 export const joinMatrixRoom = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id']; isPublic?: boolean }
->('matrix/joinMatrixRoom', async ({ roomId, isPublic = false }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; isPublic?: boolean }
+>('matrix/joinMatrixRoom', async ({ fedimint, roomId, isPublic = false }) => {
+    const client = fedimint.getMatrixClient()
     return client.joinRoom(roomId, isPublic)
 })
 
 export const createMatrixRoom = createAsyncThunk<
     { roomId: MatrixRoom['id'] },
-    { name: MatrixRoom['name']; broadcastOnly?: boolean; isPublic?: boolean }
->('matrix/createMatrixRoom', async ({ name, broadcastOnly, isPublic }) => {
-    const client = getMatrixClient()
-    const roomArgs: MatrixCreateRoomOptions = { name }
-    if (broadcastOnly) {
-        roomArgs.power_level_content_override = {
-            events_default: MatrixPowerLevel.Moderator,
+    {
+        fedimint: FedimintBridge
+        name: MatrixRoom['name']
+        broadcastOnly?: boolean
+        isPublic?: boolean
+    }
+>(
+    'matrix/createMatrixRoom',
+    async ({ fedimint, name, broadcastOnly, isPublic }) => {
+        const client = fedimint.getMatrixClient()
+        const roomArgs: MatrixCreateRoomOptions = { name }
+        if (broadcastOnly) {
+            roomArgs.power_level_content_override = {
+                events_default: MatrixPowerLevel.Moderator,
+            }
         }
-    }
-    if (isPublic === true) {
-        roomArgs.visibility = 'public'
-        roomArgs.initial_state = [
-            {
-                content: {
-                    history_visibility: 'world_readable',
+        if (isPublic === true) {
+            roomArgs.visibility = 'public'
+            roomArgs.initial_state = [
+                {
+                    content: {
+                        history_visibility: 'world_readable',
+                    },
+                    type: 'm.room.history_visibility',
+                    state_key: '',
                 },
-                type: 'm.room.history_visibility',
-                state_key: '',
-            },
-        ]
-    }
-    const { roomId } = await client.createRoom(roomArgs)
-    if (isPublic === true) {
-        // for public rooms set the roomId as the topic so it is filterable for room previews
-        await client.setRoomTopic(roomId, roomId)
-    }
-    return { roomId }
-})
+            ]
+        }
+        const { roomId } = await client.createRoom(roomArgs)
+        if (isPublic === true) {
+            // for public rooms set the roomId as the topic so it is filterable for room previews
+            await client.setRoomTopic(roomId, roomId)
+        }
+        return { roomId }
+    },
+)
 
 export const leaveMatrixRoom = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id'] }
->('matrix/leaveMatrixRoom', async ({ roomId }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] }
+>('matrix/leaveMatrixRoom', async ({ fedimint, roomId }) => {
+    const client = fedimint.getMatrixClient()
     return client.leaveRoom(roomId)
 })
 
 export const observeMatrixRoom = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id'] }
->('matrix/observeMatrixRoom', async ({ roomId }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] }
+>('matrix/observeMatrixRoom', async ({ fedimint, roomId }) => {
+    const client = fedimint.getMatrixClient()
     return client.observeRoom(roomId)
 })
 
 export const unobserveMatrixRoom = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id'] },
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] },
     { state: CommonState }
->('matrix/unobserveMatrixRoom', async ({ roomId }, { dispatch, getState }) => {
-    const state = getState()
+>(
+    'matrix/unobserveMatrixRoom',
+    async ({ fedimint, roomId }, { dispatch, getState }) => {
+        const state = getState()
 
-    // Clear reply if leaving the room we're replying in
-    if (state.matrix.replyingToMessage.roomId === roomId) {
-        dispatch(clearChatReplyingToMessage())
-    }
+        // Clear reply if leaving the room we're replying in
+        if (state.matrix.replyingToMessage.roomId === roomId) {
+            dispatch(clearChatReplyingToMessage())
+        }
 
-    const client = getMatrixClient()
-    return client.unobserveRoom(roomId)
-})
+        const client = fedimint.getMatrixClient()
+        return client.unobserveRoom(roomId)
+    },
+)
 export const observeMultispendAccountInfo = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id'] }
->('matrix/observeMultispendRoomDetails', async ({ roomId }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] }
+>('matrix/observeMultispendRoomDetails', async ({ fedimint, roomId }) => {
+    const client = fedimint.getMatrixClient()
     return client.observeMultispendAccount(roomId)
 })
 
 export const unobserveMultispendAccountInfo = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id'] }
->('matrix/unobserveMultispendRoomDetails', async ({ roomId }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id'] }
+>('matrix/unobserveMultispendRoomDetails', async ({ fedimint, roomId }) => {
+    const client = fedimint.getMatrixClient()
     return client.unobserveMultispendAccount(roomId)
 })
 
 export const inviteUserToMatrixRoom = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id']; userId: MatrixUser['id'] }
->('matrix/inviteUserToMatrixRoom', async ({ roomId, userId }) => {
-    const client = getMatrixClient()
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        userId: MatrixUser['id']
+    }
+>('matrix/inviteUserToMatrixRoom', async ({ fedimint, roomId, userId }) => {
+    const client = fedimint.getMatrixClient()
     return client.inviteUserToRoom(roomId, userId)
 })
 
 export const setMatrixRoomName = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id']; name: MatrixRoom['name'] }
->('matrix/setMatrixRoomName', async ({ roomId, name }) => {
-    const client = getMatrixClient()
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        name: MatrixRoom['name']
+    }
+>('matrix/setMatrixRoomName', async ({ fedimint, roomId, name }) => {
+    const client = fedimint.getMatrixClient()
     return client.setRoomName(roomId, name)
 })
 
 export const setMatrixRoomBroadcastOnly = createAsyncThunk<
     MatrixRoomPowerLevels,
-    { roomId: MatrixRoom['id']; broadcastOnly: boolean }
->('matrix/setMatrixRoomBroadcastOnly', async ({ roomId, broadcastOnly }) => {
-    const client = getMatrixClient()
-    return client.setRoomPowerLevels(roomId, {
-        events_default: broadcastOnly
-            ? MatrixPowerLevel.Moderator
-            : MatrixPowerLevel.Member,
-    })
-})
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        broadcastOnly: boolean
+    }
+>(
+    'matrix/setMatrixRoomBroadcastOnly',
+    async ({ fedimint, roomId, broadcastOnly }) => {
+        const client = fedimint.getMatrixClient()
+        return client.setRoomPowerLevels(roomId, {
+            events_default: broadcastOnly
+                ? MatrixPowerLevel.Moderator
+                : MatrixPowerLevel.Member,
+        })
+    },
+)
 
 export const setMatrixRoomMemberPowerLevel = createAsyncThunk<
     MatrixRoomPowerLevels,
     {
+        fedimint: FedimintBridge
         roomId: MatrixRoom['id']
         userId: MatrixUser['id']
         powerLevel: MatrixPowerLevel
@@ -1009,7 +1011,7 @@ export const setMatrixRoomMemberPowerLevel = createAsyncThunk<
     { state: CommonState }
 >(
     'matrix/setMatrixRoomMemberPowerLevel',
-    async ({ roomId, userId, powerLevel }, { getState }) => {
+    async ({ fedimint, roomId, userId, powerLevel }, { getState }) => {
         const roomMultispendStatus = selectMatrixRoomMultispendStatus(
             getState(),
             roomId,
@@ -1022,8 +1024,104 @@ export const setMatrixRoomMemberPowerLevel = createAsyncThunk<
             throw new Error('errors.admin-promotion-pending-multispend')
         }
 
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
         return client.setRoomMemberPowerLevel(roomId, userId, powerLevel)
+    },
+)
+
+export const sendMatrixMessageWithMentions = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        roomId: string
+        body: string
+        mentions: RpcMentions | null
+        extra?: JSONObject
+    }
+>(
+    'matrix/sendMatrixMessageWithMentions',
+    async ({ fedimint, roomId, body, mentions, extra }) => {
+        await fedimint.matrixSendMessage({
+            roomId,
+            data: {
+                msgtype: 'm.text',
+                body,
+                data: extra ?? {},
+                mentions: hasMentions(mentions) ? mentions : null,
+            },
+        })
+    },
+)
+
+export const sendMatrixReplyWithMentions = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        roomId: string
+        replyToEventId: string
+        body: string
+        mentions: RpcMentions | null
+        extra?: JSONObject
+    }
+>(
+    'matrix/sendMatrixReplyWithMentions',
+    async ({ fedimint, roomId, replyToEventId, body, mentions, extra }) => {
+        await fedimint.matrixSendReply(roomId, replyToEventId, body, {
+            mentions,
+            extra,
+        })
+    },
+)
+
+export const editMatrixMessageWithMentions = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        roomId: string
+        eventId: RpcTimelineEventItemId
+        body: string
+        mentions: RpcMentions | null
+        extra?: JSONObject
+    }
+>(
+    'matrix/editMatrixMessageWithMentions',
+    async ({ fedimint, roomId, eventId, body, mentions, extra }) => {
+        await fedimint.matrixEditMessage(roomId, eventId, body, {
+            mentions,
+            extra,
+        })
+    },
+)
+
+export const editMatrixMessage = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        eventId: RpcTimelineEventItemId
+        body: string
+    },
+    { state: CommonState }
+>(
+    'matrix/editMatrixMessage',
+    async ({ fedimint, roomId, eventId, body }, { getState, dispatch }) => {
+        const state = getState()
+        const selfUserId = selectMatrixAuth(state)?.userId
+        const members = selectMatrixRoomMembers(state, roomId)
+        const { mentions, extra } = prepareMentionsDataPayload(body, members, {
+            excludeUserId: selfUserId,
+        })
+
+        await dispatch(
+            editMatrixMessageWithMentions({
+                fedimint,
+                roomId,
+                eventId,
+                body,
+                mentions,
+                extra,
+            }),
+        ).unwrap()
     },
 )
 
@@ -1033,22 +1131,28 @@ export const sendMatrixMessage = createAsyncThunk<
         fedimint: FedimintBridge
         roomId: MatrixRoom['id']
         body: string
-        repliedEventId?: string | null
+        repliedEventId?: string
         // this allows us to convert a copy-pasted bolt11 invoice
         // into a custom message for smoother payments UX
         // TODO: add support for copy-pasting bolt11 invoices in a groupchat
         options?: { interceptBolt11: boolean }
-    }
+    },
+    { state: CommonState }
 >(
     'matrix/sendMatrixMessage',
-    async ({
-        fedimint,
-        roomId,
-        body,
-        repliedEventId,
-        options = { interceptBolt11: false },
-    }) => {
-        const client = getMatrixClient()
+    async (
+        {
+            fedimint,
+            roomId,
+            body,
+            repliedEventId,
+            options = { interceptBolt11: false },
+        },
+        { getState, dispatch },
+    ) => {
+        const client = fedimint.getMatrixClient()
+        const state = getState()
+        const selfUserId = selectMatrixAuth(state)?.userId
 
         if (options.interceptBolt11) {
             try {
@@ -1064,17 +1168,14 @@ export const sendMatrixMessage = createAsyncThunk<
                         const paymentId = uuidv4()
                         // bolt11 there's no operation ID - cannot get historical value
                         // returned from external invoices - forces current rate fallback
-                        const senderOperationId = undefined
 
                         return client.sendMessage(roomId, {
                             msgtype: 'xyz.fedi.payment',
                             body: `Requested payment of ${amountUtils.formatSats(sats)} SATS. Use the Fedi app to complete this request.`, // TODO: i18n?
                             paymentId,
-                            status: MatrixPaymentStatus.requested,
+                            status: 'requested',
                             amount: decoded.amount,
                             bolt11: decoded.invoice,
-                            senderOperationId,
-                            receiverOperationId: undefined,
                         })
                     }
                 }
@@ -1086,15 +1187,37 @@ export const sendMatrixMessage = createAsyncThunk<
             }
         }
 
+        const members = selectMatrixRoomMembers(state, roomId)
+        const { mentions, extra } = prepareMentionsDataPayload(body, members, {
+            excludeUserId: selfUserId,
+        })
+
         // Handle regular text messages (with or without reply)
         if (repliedEventId) {
-            await fedimint.matrixSendReply(roomId, repliedEventId, body)
-        } else {
-            await client.sendMessage(roomId, {
-                msgtype: 'm.text',
-                body,
-            })
+            const replyToEventId: string = repliedEventId
+            await dispatch(
+                sendMatrixReplyWithMentions({
+                    fedimint,
+                    roomId,
+                    replyToEventId,
+                    body,
+                    mentions,
+                    extra,
+                }),
+            ).unwrap()
+            return
         }
+
+        // Non-reply: send via bridge; add m.mentions/formatted_body when present, else plain m.text.
+        await dispatch(
+            sendMatrixMessageWithMentions({
+                fedimint,
+                roomId,
+                body,
+                mentions,
+                extra,
+            }),
+        ).unwrap()
     },
 )
 
@@ -1104,13 +1227,13 @@ export const sendMatrixDirectMessage = createAsyncThunk<
         fedimint: FedimintBridge
         userId: MatrixUser['id']
         body: string
-        repliedEventId?: string | null
+        repliedEventId?: string
     },
     { state: CommonState }
 >(
     'matrix/sendMatrixDirectMessage',
     async ({ fedimint, userId, body, repliedEventId }, { getState }) => {
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
         const state = getState()
 
         if (repliedEventId) {
@@ -1141,29 +1264,35 @@ export const sendMatrixDirectMessage = createAsyncThunk<
 export const sendMatrixFormResponse = createAsyncThunk<
     void,
     {
+        fedimint: FedimintBridge
         roomId: MatrixRoom['id']
-        formResponse: MatrixFormResponse
+        formResponse: RpcFormResponse
     },
     { state: CommonState }
 >(
     'matrix/sendMatrixFormResponse',
-    async ({ roomId, formResponse }, { getState }) => {
+    async ({ fedimint, roomId, formResponse }, { getState }) => {
         const state = getState()
         const matrixAuth = selectMatrixAuth(state)
         if (!matrixAuth) throw new Error('Not authenticated')
 
         // body MUST contain the exact string value guardianito expects or it will be ignored
         const { responseValue } = formResponse
-        const body = responseValue.toString()
+        const body = responseValue?.toString() ?? ''
         log.debug(
             `sendMatrixFormResponse to room ${roomId} with body ${body} and formResponse ${JSON.stringify(formResponse)}`,
         )
 
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
         await client.sendMessage(roomId, {
             msgtype: 'xyz.fedi.form',
             body,
             formResponse,
+            i18nKeyLabel: formResponse.responseI18nKey,
+            type: formResponse.responseType,
+            // TODO: fix these nulls on the type gen side.
+            options: null,
+            value: null,
         })
     },
 )
@@ -1194,7 +1323,7 @@ export const sendMatrixPaymentPush = createAsyncThunk<
         log.info('sendMatrixPaymentPush', amount, 'sats')
 
         const msats = amountUtils.satToMsat(amount)
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
         const includeInvite = shouldShowInviteCode(federation.meta)
 
         const frontendMetadata = {
@@ -1222,10 +1351,9 @@ export const sendMatrixPaymentPush = createAsyncThunk<
         await client.sendMessage(roomId, {
             msgtype: 'xyz.fedi.payment',
             body: `Sent payment of ${amountUtils.formatSats(amount)} SATS. Use the Fedi app to accept this payment.`, // TODO: i18n? this only shows to matrix clients, not Fedi users
-            status: MatrixPaymentStatus.pushed,
+            status: 'pushed',
             paymentId,
             senderOperationId,
-            receiverOperationId: undefined,
             senderId: matrixAuth.userId,
             recipientId,
             amount: msats,
@@ -1248,28 +1376,25 @@ export const sendMatrixPaymentRequest = createAsyncThunk<
     { state: CommonState }
 >(
     'matrix/sendMatrixDirectPaymentRequestMessage',
-    async ({ federationId, roomId, amount }, { getState }) => {
+    async ({ fedimint, federationId, roomId, amount }, { getState }) => {
         const matrixAuth = selectMatrixAuth(getState())
         if (!matrixAuth) throw new Error('Not authenticated')
 
         log.info('sendMatrixPaymentRequest', amount, 'sats')
 
         const msats = amountUtils.satToMsat(amount)
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
 
         const paymentId = uuidv4()
-        const senderOperationId = undefined
 
         await client.sendMessage(roomId, {
             msgtype: 'xyz.fedi.payment',
             body: `Requested payment of ${amountUtils.formatSats(amount)} SATS. Use the Fedi app to complete this request.`, // TODO: i18n?
             paymentId,
-            status: MatrixPaymentStatus.requested,
+            status: 'requested',
             recipientId: matrixAuth.userId,
             amount: msats,
             federationId,
-            senderOperationId,
-            receiverOperationId: undefined,
         })
     },
 )
@@ -1279,7 +1404,7 @@ export const claimMatrixPayment = createAsyncThunk<
     { fedimint: FedimintBridge; event: MatrixPaymentEvent },
     { state: CommonState }
 >('matrix/claimMatrixPayment', async ({ fedimint, event }, { getState }) => {
-    const client = getMatrixClient()
+    const client = fedimint.getMatrixClient()
     const matrixAuth = selectMatrixAuth(getState())
     if (!matrixAuth) throw new Error('Not authenticated')
 
@@ -1306,7 +1431,7 @@ export const claimMatrixPayment = createAsyncThunk<
     await client.sendMessage(event.roomId, {
         ...event.content,
         body: 'Payment received.', // TODO: i18n?
-        status: MatrixPaymentStatus.received,
+        status: 'received',
         receiverOperationId, // will be undefined for old clients, which is fine
     })
 
@@ -1336,7 +1461,7 @@ export const checkForReceivablePayments = createAsyncThunk<
             ? state.matrix.roomTimelines[roomId]
             : // flattens all timelines into 1 array
               Object.values(state.matrix.roomTimelines).reduce<
-                  MatrixTimelineItem[]
+                  (MatrixEvent | null)[]
               >((result, t) => {
                   if (!t) return result
                   return [...result, ...t]
@@ -1344,7 +1469,7 @@ export const checkForReceivablePayments = createAsyncThunk<
 
         if (!timeline) return
 
-        const walletFederations = selectWalletFederations(state)
+        const walletFederations = selectLoadedFederations(state)
         log.info('Looking for receivable payment events...')
 
         const receivablePayments = getReceivablePaymentEvents(
@@ -1390,7 +1515,7 @@ export const cancelMatrixPayment = createAsyncThunk<
     void,
     { fedimint: FedimintBridge; event: MatrixPaymentEvent }
 >('matrix/cancelMatrixPayment', async ({ fedimint, event }) => {
-    const client = getMatrixClient()
+    const client = fedimint.getMatrixClient()
 
     if (event.content.ecash && event.content.federationId) {
         await fedimint.cancelEcash(
@@ -1402,7 +1527,7 @@ export const cancelMatrixPayment = createAsyncThunk<
     await client.sendMessage(event.roomId, {
         ...event.content,
         body: 'Payment canceled.', // TODO: i18n?
-        status: MatrixPaymentStatus.canceled,
+        status: 'canceled',
     })
 })
 
@@ -1416,7 +1541,7 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
         const matrixAuth = selectMatrixAuth(getState())
         if (!matrixAuth) throw new Error('Not authenticated')
 
-        if (event.content.status !== MatrixPaymentStatus.requested) {
+        if (event.content.status !== 'requested') {
             throw new Error('Can only accept payment requests')
         }
 
@@ -1444,7 +1569,7 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
                 frontendMetadata,
             )
 
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
 
         // send the payment as accepted (not pushed)
         await client.sendMessage(event.roomId, {
@@ -1452,7 +1577,7 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
             body: `Sent payment of ${amountUtils.formatSats(
                 amountUtils.msatToSat(msats),
             )} SATS.`, // TODO: i18n?
-            status: MatrixPaymentStatus.accepted,
+            status: 'accepted',
             senderId: matrixAuth.userId,
             senderOperationId,
             ecash,
@@ -1462,13 +1587,13 @@ export const acceptMatrixPaymentRequest = createAsyncThunk<
 
 export const rejectMatrixPaymentRequest = createAsyncThunk<
     void,
-    { event: MatrixPaymentEvent }
->('matrix/rejectMatrixPaymentRequest', async ({ event }) => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; event: MatrixPaymentEvent }
+>('matrix/rejectMatrixPaymentRequest', async ({ fedimint, event }) => {
+    const client = fedimint.getMatrixClient()
     await client.sendMessage(event.roomId, {
         ...event.content,
         body: 'Payment request rejected.', // TODO: i18n?
-        status: MatrixPaymentStatus.rejected,
+        status: 'rejected',
     })
 })
 
@@ -1487,18 +1612,18 @@ export const checkBolt11PaymentResult = createAsyncThunk<
             const matrixAuth = selectMatrixAuth(getState())
             if (!matrixAuth) throw new Error('Not authenticated')
 
-            const client = getMatrixClient()
+            const client = fedimint.getMatrixClient()
             if (!event.content.bolt11) return
             // if request is canceled, rejected, or received, we can skip this check
-            if (event.content.status !== MatrixPaymentStatus.requested) return
+            if (event.content.status !== 'requested') return
             // Only the sender will get a completed result from the RPC
-            if (event.senderId !== matrixAuth?.userId) return
+            if (event.sender !== matrixAuth?.userId) return
 
-            const activeFederation = selectActiveFederation(getState())
-            if (!activeFederation || !activeFederation.hasWallet) return
+            const lastUsedFederation = selectLastUsedFederation(getState())
+            if (!lastUsedFederation) return
             const result = await fedimint.getPrevPayInvoiceResult(
                 event.content.bolt11,
-                activeFederation.id,
+                lastUsedFederation.id,
             )
             log.info(
                 `bolt11 payment result for ${event.content.bolt11}: `,
@@ -1508,7 +1633,7 @@ export const checkBolt11PaymentResult = createAsyncThunk<
                 await client.sendMessage(event.roomId, {
                     ...event.content,
                     body: `Payment successful.`, // TODO: i18n?
-                    status: MatrixPaymentStatus.received,
+                    status: 'received',
                     senderId: matrixAuth.userId,
                 })
             }
@@ -1518,75 +1643,82 @@ export const checkBolt11PaymentResult = createAsyncThunk<
     },
 )
 
-export const searchMatrixUsers = createAsyncThunk<MatrixSearchResults, string>(
-    'matrix/searchMatrixUsers',
-    async query => {
-        const client = getMatrixClient()
-        return client.userDirectorySearch(query)
-    },
-)
+export const searchMatrixUsers = createAsyncThunk<
+    MatrixSearchResults,
+    { fedimint: FedimintBridge; query: string }
+>('matrix/searchMatrixUsers', async ({ fedimint, query }) => {
+    const client = fedimint.getMatrixClient()
+    return client.userDirectorySearch(query)
+})
 
-export const fetchMatrixProfile = createAsyncThunk<JSONObject, string>(
-    'matrix/fetchMatrixProfile',
-    async userId => {
-        const client = getMatrixClient()
-        return client.fetchMatrixProfile(userId)
-    },
-)
+export const fetchMatrixProfile = createAsyncThunk<
+    JSONObject,
+    { fedimint: FedimintBridge; userId: string }
+>('matrix/fetchMatrixProfile', async ({ fedimint, userId }) => {
+    const client = fedimint.getMatrixClient()
+    return client.fetchMatrixProfile(userId)
+})
 
 export const getMatrixRoomPreview = createAsyncThunk<
     MatrixGroupPreview,
-    string
->('matrix/getMatrixRoomPreview', async roomId => {
-    const client = getMatrixClient()
+    { fedimint: FedimintBridge; roomId: string }
+>('matrix/getMatrixRoomPreview', async ({ fedimint, roomId }) => {
+    const client = fedimint.getMatrixClient()
     return client.getRoomPreview(roomId)
 })
 
-export const refetchMatrixRoomMembers = createAsyncThunk<void, string>(
-    'matrix/refetchRoomMembers',
-    async roomId => {
-        const client = getMatrixClient()
-        return client.refetchRoomMembers(roomId)
-    },
-)
+export const refetchMatrixRoomMembers = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: string }
+>('matrix/refetchRoomMembers', async ({ fedimint, roomId }) => {
+    const client = fedimint.getMatrixClient()
+    return client.refetchRoomMembers(roomId)
+})
 
-export const refetchMatrixRoomList = createAsyncThunk<void, void>(
-    'matrix/refetchRoomList',
-    async () => {
-        const client = getMatrixClient()
-        return client.refetchRoomList()
-    },
-)
+export const refetchMatrixRoomList = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge }
+>('matrix/refetchRoomList', async ({ fedimint }) => {
+    const client = fedimint.getMatrixClient()
+    return client.refetchRoomList()
+})
 
 export const paginateMatrixRoomTimeline = createAsyncThunk<
     null,
-    { roomId: MatrixRoom['id']; limit?: number },
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; limit?: number },
     { state: CommonState }
 >(
     'matrix/paginateMatrixRoomTimeline',
-    ({ roomId, limit = 30 }, { getState }) => {
+    ({ fedimint, roomId, limit = 30 }, { getState }) => {
         const numEvents = getState().matrix.roomTimelines[roomId]?.length || 0
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
         return client.paginateTimeline(roomId, numEvents + limit)
     },
 )
 
 export const sendMatrixReadReceipt = createAsyncThunk<
     void,
-    { roomId: MatrixRoom['id']; eventId: MatrixEvent['id'] }
->('matrix/sendMatrixEventReadReceipt', async ({ roomId, eventId }) => {
-    const client = getMatrixClient()
-    await client.sendReadReceipt(roomId, eventId)
-    await client.markRoomAsUnread(roomId, false)
-})
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        eventId: MatrixEvent['id']
+    }
+>(
+    'matrix/sendMatrixEventReadReceipt',
+    async ({ fedimint, roomId, eventId }) => {
+        const client = fedimint.getMatrixClient()
+        await client.sendReadReceipt(roomId, eventId)
+        await client.markRoomAsUnread(roomId, false)
+    },
+)
 
 export const configureMatrixPushNotifications = createAsyncThunk<
     string,
-    { token: string; appId: string; appName: string }
+    { fedimint: FedimintBridge; token: string; appId: string; appName: string }
 >(
     'matrix/configureMatrixPushNotifications',
-    async ({ token, appId, appName }) => {
-        const client = getMatrixClient()
+    async ({ fedimint, token, appId, appName }) => {
+        const client = fedimint.getMatrixClient()
         if (!client.hasStarted) return token
 
         await client.configureNotificationsPusher(token, appId, appName)
@@ -1596,18 +1728,29 @@ export const configureMatrixPushNotifications = createAsyncThunk<
 
 export const updateMatrixRoomNotificationMode = createAsyncThunk<
     RpcRoomNotificationMode,
-    { roomId: MatrixRoom['id']; mode: RpcRoomNotificationMode }
->('matrix/updateMatrixRoomNotificationMode', async ({ roomId, mode }) => {
-    const client = getMatrixClient()
-    await client.setRoomNotificationMode(roomId, mode)
-    return mode
-})
+    {
+        fedimint: FedimintBridge
+        roomId: MatrixRoom['id']
+        mode: RpcRoomNotificationMode
+    }
+>(
+    'matrix/updateMatrixRoomNotificationMode',
+    async ({ fedimint, roomId, mode }) => {
+        const client = fedimint.getMatrixClient()
+        await client.setRoomNotificationMode(roomId, mode)
+        return mode
+    },
+)
 
 export const ignoreUser = createAsyncThunk<
     boolean,
-    { userId: MatrixUser['id']; roomId?: MatrixRoom['id'] }
->('matrix/ignoreUser', async ({ userId }) => {
-    const client = getMatrixClient()
+    {
+        fedimint: FedimintBridge
+        userId: MatrixUser['id']
+        roomId?: MatrixRoom['id']
+    }
+>('matrix/ignoreUser', async ({ fedimint, userId }) => {
+    const client = fedimint.getMatrixClient()
     await client.ignoreUser(userId)
 
     // TODO: make the ignored list observable to avoid the need
@@ -1621,9 +1764,13 @@ export const ignoreUser = createAsyncThunk<
 
 export const unignoreUser = createAsyncThunk<
     boolean,
-    { userId: MatrixUser['id']; roomId?: MatrixRoom['id'] }
->('matrix/unignoreUser', async ({ userId }) => {
-    const client = getMatrixClient()
+    {
+        fedimint: FedimintBridge
+        userId: MatrixUser['id']
+        roomId?: MatrixRoom['id']
+    }
+>('matrix/unignoreUser', async ({ fedimint, userId }) => {
+    const client = fedimint.getMatrixClient()
     await client.unignoreUser(userId)
 
     // TODO: make the ignored list observable to avoid the need
@@ -1638,6 +1785,7 @@ export const unignoreUser = createAsyncThunk<
 export const fetchMultispendTransactions = createAsyncThunk<
     Promise<MultispendListedEvent[] | undefined>,
     {
+        fedimint: FedimintBridge
         roomId: MatrixRoom['id']
         limit?: number
         more?: boolean
@@ -1647,11 +1795,11 @@ export const fetchMultispendTransactions = createAsyncThunk<
 >(
     'matrix/fetchMultispendTransactions',
     async (
-        { roomId, refresh = false, limit = 100, more = false },
+        { fedimint, roomId, refresh = false, limit = 100, more = false },
         { getState },
     ) => {
         const state = getState()
-        const client = getMatrixClient()
+        const client = fedimint.getMatrixClient()
         if (refresh) {
             const txns = selectRoomMultispendFinancialTransactions(
                 state,
@@ -1685,151 +1833,184 @@ export const fetchMultispendTransactions = createAsyncThunk<
     },
 )
 
-export const listIgnoredUsers = createAsyncThunk<string[], void>(
-    'matrix/listIgnoredUsers',
-    async () => {
-        const client = getMatrixClient()
-        return client.listIgnoredUsers()
-    },
-)
+export const listIgnoredUsers = createAsyncThunk<
+    string[],
+    { fedimint: FedimintBridge }
+>('matrix/listIgnoredUsers', async ({ fedimint }) => {
+    const client = fedimint.getMatrixClient()
+    return client.listIgnoredUsers()
+})
 
 export const kickUser = createAsyncThunk<
     void,
     {
+        fedimint: FedimintBridge
         roomId: MatrixRoom['id']
         userId: MatrixRoomMember['id']
         reason?: string
     }
->('matrix/kickUser', async ({ roomId, userId, reason }) => {
-    const client = getMatrixClient()
+>('matrix/kickUser', async ({ fedimint, roomId, userId, reason }) => {
+    const client = fedimint.getMatrixClient()
     await client.roomKickUser(roomId, userId, reason)
 })
 
 export const banUser = createAsyncThunk<
     void,
     {
+        fedimint: FedimintBridge
         roomId: MatrixRoom['id']
         userId: MatrixRoomMember['id']
         reason?: string
     }
->('matrix/banUser', async ({ roomId, userId, reason }) => {
-    const client = getMatrixClient()
+>('matrix/banUser', async ({ fedimint, roomId, userId, reason }) => {
+    const client = fedimint.getMatrixClient()
     await client.roomBanUser(roomId, userId, reason)
 })
 
 export const unbanUser = createAsyncThunk<
     void,
     {
+        fedimint: FedimintBridge
         roomId: MatrixRoom['id']
         userId: MatrixRoomMember['id']
         reason?: string
     }
->('matrix/unbanUser', async ({ roomId, userId, reason }) => {
-    const client = getMatrixClient()
+>('matrix/unbanUser', async ({ fedimint, roomId, userId, reason }) => {
+    const client = fedimint.getMatrixClient()
     await client.roomUnbanUser(roomId, userId, reason)
-})
-
-export const previewGlobalDefaultChats = createAsyncThunk<
-    MatrixGroupPreview[],
-    void,
-    { state: CommonState }
->('matrix/previewGlobalDefaultChats', async (_, { getState }) => {
-    log.debug('previewGlobalDefaultChats')
-    const client = getMatrixClient()
-    // can't fetch preview until after matrix init + registration
-    if (!selectMatrixAuth(getState())) return []
-    // Check the Fedi Global community for default groups
-    const globalCommunityMeta = selectGlobalCommunityMeta(getState())
-
-    const globalDefaultChatIds = globalCommunityMeta
-        ? getFederationGroupChats(globalCommunityMeta)
-        : []
-    log.info(
-        `Found ${globalDefaultChatIds.length} default groups for global community...`,
-    )
-
-    const globalChatResults = await Promise.allSettled(
-        globalDefaultChatIds.map(client.getRoomPreview),
-    )
-    return globalChatResults.flatMap(preview =>
-        preview.status === 'fulfilled' ? [preview.value] : [],
-    )
 })
 
 export const previewCommunityDefaultChats = createAsyncThunk<
     MatrixGroupPreview[],
-    string,
+    { fedimint: FedimintBridge; communityId: string },
     { state: CommonState }
->('matrix/previewCommunityDefaultChats', async (federationId, { getState }) => {
-    const client = getMatrixClient()
-    // can't fetch preview until after matrix init + registration
-    if (!selectMatrixAuth(getState())) return []
-    const federation = selectLoadedFederation(getState(), federationId)
-    // can't fetch preview if the federation is not loaded yet
-    if (!federation) return []
-    const defaultChats = getFederationGroupChats(federation.meta)
-    log.info(
-        `Found ${defaultChats.length} default groups for federation ${federation.name}...`,
-    )
-    const roomPreviews = await Promise.allSettled(
-        defaultChats.map(client.getRoomPreview),
-    )
-    return roomPreviews.flatMap(preview => {
-        if (preview.status === 'fulfilled') {
-            return [preview.value]
-        } else {
-            log.error('getRoomPreview', preview.reason)
-            return []
-        }
-    })
-})
+>(
+    'matrix/previewCommunityDefaultChats',
+    async ({ fedimint, communityId }, { getState }) => {
+        const client = fedimint.getMatrixClient()
+        // can't fetch preview until after matrix init + registration
+        if (!selectMatrixAuth(getState())) return []
+        const community = selectCommunity(getState(), communityId)
+        // can't fetch preview if the community is not loaded yet
+        if (!community) return []
+        const defaultChats = getDefaultGroupChats(community.meta)
+        log.info(
+            `Found ${defaultChats.length} default groups for community ${community.name}...`,
+        )
+        const roomPreviews = await Promise.allSettled(
+            defaultChats.map(client.getRoomPreview),
+        )
+        return roomPreviews.flatMap(preview => {
+            if (preview.status === 'fulfilled') {
+                return [preview.value]
+            } else {
+                log.error('getRoomPreview', preview.reason)
+                return []
+            }
+        })
+    },
+)
+
+export const previewFederationDefaultChats = createAsyncThunk<
+    MatrixGroupPreview[],
+    { fedimint: FedimintBridge; federationId: string },
+    { state: CommonState }
+>(
+    'matrix/previewFederationDefaultChats',
+    async ({ fedimint, federationId }, { getState }) => {
+        const client = fedimint.getMatrixClient()
+        // can't fetch preview until after matrix init + registration
+        if (!selectMatrixAuth(getState())) return []
+        const federation = selectLoadedFederation(getState(), federationId)
+        // can't fetch preview if the federation is not loaded yet
+        if (!federation) return []
+        const defaultChats = getDefaultGroupChats(federation.meta)
+        log.info(
+            `Found ${defaultChats.length} default groups for federation ${federation.name}...`,
+        )
+        const roomPreviews = await Promise.allSettled(
+            defaultChats.map(client.getRoomPreview),
+        )
+        return roomPreviews.flatMap(preview => {
+            if (preview.status === 'fulfilled') {
+                return [preview.value]
+            } else {
+                log.error('getRoomPreview', preview.reason)
+                return []
+            }
+        })
+    },
+)
 
 /**
  * Fetches the room previews for any default chats configured in the meta
- * of any federations that have been loaded AND the global default chats
+ * of any commmunities andfederations that have been loaded
  */
 export const previewAllDefaultChats = createAsyncThunk<
     MatrixGroupPreview[],
-    void,
+    { fedimint: FedimintBridge },
     { state: CommonState }
->('matrix/previewAllDefaultChats', async (_, { getState, dispatch }) => {
-    dispatch(previewGlobalDefaultChats())
-    const federations = selectLoadedFederations(getState())
-    // Previews default chats for each federation
-    const federationDefaultChatResults = await Promise.allSettled(
-        // For each federation, return a promise that that resolves to
-        // the result of the dispatched previewCommunityDefaultChats action
-        federations.map(f => {
-            const federation = selectLoadedFederation(getState(), f.id)
-            if (!federation) return Promise.reject()
-            return dispatch(
-                previewCommunityDefaultChats(federation.id),
-            ).unwrap()
-        }),
-    )
-    // Collect each federation's default chats list and flatten
-    // them into a single array of roomPreviews
-    const federationChats = federationDefaultChatResults.flatMap(preview =>
-        preview.status === 'fulfilled' ? preview.value : [],
-    )
-    return [...federationChats]
+>(
+    'matrix/previewAllDefaultChats',
+    async ({ fedimint }, { getState, dispatch }) => {
+        log.debug('previewAllDefaultChats')
+        const federations = selectLoadedFederations(getState())
+        const communities = selectCommunities(getState())
+        // Previews default chats for each federation
+        const federationDefaultChatResults = await Promise.allSettled(
+            // For each federation, return a promise that that resolves to
+            // the result of the dispatched previewCommunityDefaultChats action
+            federations.map(f => {
+                log.debug('calling previewFederationDefaultChats for', f.id)
+                return dispatch(
+                    previewFederationDefaultChats({
+                        fedimint,
+                        federationId: f.id,
+                    }),
+                ).unwrap()
+            }),
+        )
+        // Previews default chats for each community
+        const communityDefaultChatResults = await Promise.allSettled(
+            // For each community, return a promise that that resolves to
+            // the result of the dispatched previewCommunityDefaultChats action
+            communities.map(c => {
+                log.debug('calling previewCommunityDefaultChats for', c.id)
+                return dispatch(
+                    previewCommunityDefaultChats({
+                        fedimint,
+                        communityId: c.id,
+                    }),
+                ).unwrap()
+            }),
+        )
+        // Collect each federation & community's default chats list and flatten
+        // them into a single array of roomPreviews
+        const federationChats = federationDefaultChatResults.flatMap(preview =>
+            preview.status === 'fulfilled' ? preview.value : [],
+        )
+        const communityChats = communityDefaultChatResults.flatMap(preview =>
+            preview.status === 'fulfilled' ? preview.value : [],
+        )
+        return [...federationChats, ...communityChats]
+    },
+)
+
+export const observeMatrixSyncStatus = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge }
+>('matrix/observeMatrixSyncStatus', async ({ fedimint }) => {
+    const client = fedimint.getMatrixClient()
+    client.observeSyncStatus()
 })
 
-export const observeMatrixSyncStatus = createAsyncThunk<void>(
-    'matrix/observeMatrixSyncStatus',
-    async () => {
-        const client = getMatrixClient()
-        client.observeSyncStatus()
-    },
-)
-
-export const unsubscribeMatrixSyncStatus = createAsyncThunk<void>(
-    'matrix/unsubscribeMatrixSyncStatus',
-    async () => {
-        const client = getMatrixClient()
-        client.unsubscribeSyncStatus()
-    },
-)
+export const unsubscribeMatrixSyncStatus = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge }
+>('matrix/unsubscribeMatrixSyncStatus', async ({ fedimint }) => {
+    const client = fedimint.getMatrixClient()
+    client.unsubscribeSyncStatus()
+})
 
 /*** Selectors ***/
 
@@ -1865,7 +2046,7 @@ export const selectMatrixRooms = createSelector(
                 broadcastOnly: powerLevels
                     ? getRoomEventPowerLevel(powerLevels, [
                           'm.room.message',
-                          'm.room.encrypted',
+                          'unableToDecrypt',
                       ]) >= MatrixPowerLevel.Moderator
                     : false,
                 isBlocked: room.directUserId
@@ -1877,10 +2058,7 @@ export const selectMatrixRooms = createSelector(
     },
 )
 
-export const selectGroupPreviews = createSelector(
-    (s: CommonState) => s.matrix.groupPreviews,
-    groupPreviews => groupPreviews,
-)
+export const selectGroupPreviews = (s: CommonState) => s.matrix.groupPreviews
 
 // Returns a processed & sorted list of default chats for
 // use in the chats list
@@ -1897,7 +2075,7 @@ const selectDefaultChatsForChatList = createSelector(
             MatrixRoom[]
         >((result, [_, preview]: [RpcRoomId, MatrixGroupPreview]) => {
             const { info, timeline } = preview
-            // don't include previews if we dont have info and timeline
+            // don't include previews if we don't have info and timeline
             if (!info || !timeline) return result
             // don't include previews unless they are default groups
             if (!preview.isDefaultGroup) return result
@@ -1905,7 +2083,7 @@ const selectDefaultChatsForChatList = createSelector(
             if (timeline.filter(t => t !== null).length === 0) return result
             // don't include previews for rooms we are already joined to
             if (roomsList.find(r => r.id === info.id)) return result
-            result.push(makeChatFromPreview(preview))
+            result.push(makeChatFromUnjoinedRoomPreview(preview))
             return result
         }, [])
         // Sorts so merging with the joined rooms list is more efficient
@@ -1962,7 +2140,7 @@ export const selectMatrixUser = (s: CommonState, userId: MatrixUser['id']) =>
 export const selectMatrixChatsWithoutDefaultGroupPreviewsList = createSelector(
     selectMatrixRooms,
     (roomsList): MatrixRoom[] => {
-        const joined = roomsList.filter(r => r.roomState === 'Joined')
+        const joined = roomsList.filter(r => r.roomState === 'joined')
         return orderBy(joined, room => room.preview?.timestamp ?? 0, 'desc')
     },
 )
@@ -1973,7 +2151,7 @@ export const selectMatrixChatsList = createSelector(
     (roomsList, defaultGroupsList): MatrixRoom[] => {
         // don't include rooms that we have not joined yet this should happen
         // automatically but we filter here anyway in case the join fails for some reason
-        const joinedRoomsList = roomsList.filter(r => r.roomState === 'Joined')
+        const joinedRoomsList = roomsList.filter(r => r.roomState === 'joined')
 
         const chatList: MatrixRoom[] = []
         let i = 0 // joinedRoomsList index
@@ -2002,12 +2180,10 @@ export const selectMatrixChatsList = createSelector(
         }
 
         // Add remaining items from either list
-        while (i < joinedRoomsList.length) {
-            chatList.push(joinedRoomsList[i++])
-        }
-        while (j < defaultGroupsList.length) {
-            chatList.push(defaultGroupsList[j++])
-        }
+        chatList.push(
+            ...joinedRoomsList.slice(i),
+            ...defaultGroupsList.slice(j),
+        )
 
         return chatList
     },
@@ -2041,10 +2217,11 @@ export const selectMatrixRoomMultispendStatus = (
     roomId: MatrixRoom['id'],
 ) => s.matrix.roomMultispendStatus[roomId]
 
-export const selectMatrixRoomMembers = (
-    s: CommonState,
-    roomId: MatrixRoom['id'],
-) => s.matrix.roomMembers[roomId] || ([] as MatrixRoomMember[])
+export const selectMatrixRoomMembers = createSelector(
+    (s: CommonState) => s.matrix.roomMembers,
+    (_: CommonState, roomId: MatrixRoom['id']) => roomId,
+    (roomMembers, roomId) => roomMembers[roomId] || ([] as MatrixRoomMember[]),
+)
 
 export const selectActiveMatrixRoomMembers = createSelector(
     selectMatrixRoomMembers,
@@ -2126,6 +2303,11 @@ export const selectMatrixRoomEvents = createSelector(
     },
 )
 
+export const selectRoomTextEvents = createSelector(
+    selectMatrixRoomEvents,
+    events => events.filter(event => isTextEvent(event)),
+)
+
 export const selectMatrixRoomLatestPaymentEvent = createSelector(
     selectMatrixRoomEvents,
     (
@@ -2163,7 +2345,7 @@ export const selectMatrixRoomIsReadOnly = createSelector(
         return (
             getRoomEventPowerLevel(roomPowerLevels, [
                 'm.room.message',
-                'm.room.encrypted',
+                'unableToDecrypt',
             ]) > selfPowerLevel
         )
     },
@@ -2173,6 +2355,16 @@ export const selectMatrixDirectMessageRoom = createSelector(
     (_: CommonState, userId: string) => userId,
     selectMatrixRooms,
     (userId, rooms) => rooms.find(room => room.directUserId === userId),
+)
+
+export const selectCanReply = createSelector(
+    selectMatrixAuth,
+    selectMatrixRoom,
+    selectMatrixRoomIsReadOnly,
+    (auth, room, isReadOnly) => {
+        if (!auth) return false
+        return room?.roomState === 'joined' && !isReadOnly
+    },
 )
 
 const selectMatrixIgnoredUsers = (s: CommonState) => s.matrix.ignoredUsers
@@ -2243,15 +2435,15 @@ export const selectRecentMatrixRoomMembers = createSelector(
 export const selectLatestMatrixRoomEventId = (
     s: CommonState,
     roomId: MatrixRoom['id'],
-): MatrixEvent['eventId'] | undefined => {
+): MatrixEvent['id'] | undefined => {
     const timeline = s.matrix.roomTimelines[roomId]
     if (timeline) {
         for (let i = timeline?.length - 1; i >= 0; i--) {
             const item = timeline[i]
             if (!item) continue
-            const { eventId } = item
-            if (!eventId) continue
-            return eventId
+            const { id } = item
+            if (!id) continue
+            return id
         }
     }
 }
@@ -2261,10 +2453,7 @@ export const selectCanPayFromOtherFeds = createSelector(
     (s: CommonState, chatPayment: MatrixPaymentEvent) => chatPayment,
     (federations, chatPayment): boolean => {
         return !!federations.find(
-            f =>
-                f.hasWallet &&
-                f.balance &&
-                f.balance > chatPayment.content.amount,
+            f => f.balance && f.balance > chatPayment.content.amount,
         )
     },
 )
@@ -2276,7 +2465,6 @@ export const selectCanSendPayment = createSelector(
         return !!federations.find(
             f =>
                 f.id === chatPayment.content.federationId &&
-                f.hasWallet &&
                 f.balance &&
                 f.balance > chatPayment.content.amount,
         )
@@ -2298,17 +2486,17 @@ export const selectCommunityDefaultRoomIds = createSelector(
         selectLoadedFederation(s, federationId),
     federation => {
         if (!federation) return []
-        return getFederationGroupChats(federation.meta)
+        return getDefaultGroupChats(federation.meta)
     },
 )
 
 export const selectDefaultMatrixRoomIds = createSelector(
     (s: CommonState) => selectLoadedFederations(s),
-    (s: CommonState) => selectGlobalCommunityMeta(s),
+    (s: CommonState) => selectGlobalCommunityMetadata(s),
     (federations, globalCommunityMeta) => {
         let defaultMatrixRoomIds: MatrixRoom['id'][] = federations.reduce(
-            (result: MatrixRoom['id'][], f: FederationListItem) => {
-                const defaultRoomIds = getFederationGroupChats(f.meta || {})
+            (result: MatrixRoom['id'][], f: Federation) => {
+                const defaultRoomIds = getDefaultGroupChats(f.meta || {})
                 return [...result, ...defaultRoomIds]
             },
             [],
@@ -2316,7 +2504,7 @@ export const selectDefaultMatrixRoomIds = createSelector(
         // Also check the Fedi Global community for default groups
         if (globalCommunityMeta) {
             const defaultGlobalRoomIds =
-                getFederationGroupChats(globalCommunityMeta)
+                getDefaultGroupChats(globalCommunityMeta)
             defaultMatrixRoomIds = [
                 ...defaultMatrixRoomIds,
                 ...defaultGlobalRoomIds,

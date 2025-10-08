@@ -6,7 +6,7 @@ import ClipboardIcon from '@fedi/common/assets/svgs/clipboard.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
-    selectActiveFederationId,
+    selectLastUsedFederationId,
     selectIsInternetUnreachable,
 } from '@fedi/common/redux'
 import {
@@ -43,6 +43,8 @@ interface Props<T extends ParserDataType, ExpectedData> {
     hideScanner?: boolean
     customActions?: OmniCustomAction[]
     loading?: boolean
+    /** Custom label for the "Paste" action */
+    pasteLabel?: string
 }
 
 export function OmniInput<
@@ -53,13 +55,14 @@ export function OmniInput<
         customActions = [],
         hideScanner = false,
         onUnexpectedSuccess,
+        pasteLabel,
     } = props
 
     const propsRef = useUpdatingRef(props)
     const { t } = useTranslation()
     const toast = useToast()
 
-    const federationId = useAppSelector(selectActiveFederationId)
+    const federationId = useAppSelector(selectLastUsedFederationId)
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
     const emptyString = ''
@@ -193,7 +196,7 @@ export function OmniInput<
                                 disabled={isLoading}
                                 variant="secondary"
                                 icon={ClipboardIcon}>
-                                {t('feature.omni.action-paste')}
+                                {pasteLabel || t('feature.omni.action-paste')}
                             </Button>
                         )
                     }

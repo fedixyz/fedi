@@ -29,24 +29,23 @@ use matrix::SendMessageData;
 use matrix_sdk::ruma::api::client::authenticated_media::get_media_preview;
 use matrix_sdk::ruma::api::client::profile::get_profile;
 use matrix_sdk::ruma::api::client::push::Pusher;
-use matrix_sdk::ruma::directory::PublicRoomsChunk;
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::OwnedEventId;
-use matrix_sdk::RoomInfo;
 use mime::Mime;
 use multispend::db::RpcMultispendGroupStatus;
 use multispend::{
     GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendGroupVoteType,
     MultispendListedEvent, WithdrawRequestWithApprovals, WithdrawalResponseType,
 };
-use nostril::{RpcNostrPubkey, RpcNostrSecret};
+use nostril::{RpcNostrCommunity, RpcNostrPubkey, RpcNostrSecret};
 use rpc_types::error::{ErrorCode, RpcError};
 use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
 use rpc_types::matrix::{
     MatrixInitializeStatus, RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession,
-    RpcMatrixUploadResult, RpcMatrixUserDirectorySearchResponse, RpcRoomId, RpcRoomMember,
-    RpcRoomNotificationMode, RpcSyncIndicator, RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
+    RpcMatrixUploadResult, RpcMatrixUserDirectorySearchResponse, RpcPublicRoomInfo, RpcRoomId,
+    RpcRoomMember, RpcRoomNotificationMode, RpcSerializedRoomInfo, RpcSyncIndicator,
+    RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
 };
 use rpc_types::{
     FrontendMetadata, GuardianStatus, NetworkError, RpcAmount, RpcAppFlavor, RpcCommunity,
@@ -764,6 +763,48 @@ async fn nostrRateFederation(
         .await
 }
 
+#[macro_rules_derive(rpc_method!)]
+async fn nostrCreateCommunity(
+    bridge: &BridgeFull,
+    community_json_str: String,
+) -> anyhow::Result<()> {
+    bridge
+        .nostril
+        .create_community(&serde_json::from_str(&community_json_str)?)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn nostrListCommunities(
+    bridge: &BridgeFull,
+    owner_npub: RpcNostrPubkey,
+) -> anyhow::Result<Vec<RpcNostrCommunity>> {
+    bridge
+        .nostril
+        .list_communities(nostr::key::PublicKey::parse(&owner_npub.hex)?)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn nostrListOurCommunities(bridge: &BridgeFull) -> anyhow::Result<Vec<RpcNostrCommunity>> {
+    bridge.nostril.list_our_communities().await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn nostrEditCommunity(
+    bridge: &BridgeFull,
+    community_hex_uuid: String,
+    new_community_json_str: String,
+) -> anyhow::Result<()> {
+    bridge
+        .nostril
+        .edit_community(
+            &community_hex_uuid,
+            &serde_json::from_str(&new_community_json_str)?,
+        )
+        .await
+}
+
 #[macro_rules_derive(federation_rpc_method!)]
 async fn stabilityPoolAccountInfo(
     federation: Arc<FederationV2>,
@@ -1427,12 +1468,10 @@ async fn matrixRoomLeave(bg_matrix: &BgMatrix, room_id: RpcRoomId) -> anyhow::Re
     matrix.room_leave(&room_id.into_typed()?).await
 }
 
-ts_type_de!(RoomInfoStreamId: RpcStreamId<RoomInfo> = "RpcStreamId<JSONObject>");
-
 #[macro_rules_derive(rpc_method!)]
 async fn matrixRoomSubscribeInfo(
     bg_matrix: &BgMatrix,
-    stream_id: RoomInfoStreamId,
+    stream_id: RpcStreamId<RpcSerializedRoomInfo>,
     room_id: RpcRoomId,
 ) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
@@ -1440,7 +1479,7 @@ async fn matrixRoomSubscribeInfo(
     matrix
         .runtime
         .stream_pool
-        .register_stream(stream_id.0, stream)
+        .register_stream(stream_id, stream)
         .await
 }
 
@@ -1588,15 +1627,13 @@ async fn matrixUserDirectorySearch(
         .await
 }
 
-ts_type_ser!(RpcPublicRoomChunk: PublicRoomsChunk = "JSONObject");
-
 #[macro_rules_derive(rpc_method!)]
 async fn matrixPublicRoomInfo(
     bg_matrix: &BgMatrix,
     room_id: String,
-) -> anyhow::Result<RpcPublicRoomChunk> {
+) -> anyhow::Result<RpcPublicRoomInfo> {
     let matrix = bg_matrix.wait().await;
-    Ok(RpcPublicRoomChunk(matrix.public_room_info(&room_id).await?))
+    matrix.public_room_info(&room_id).await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -1724,7 +1761,7 @@ async fn matrixEditMessage(
 ) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
     matrix
-        .edit_message(&room_id.into_typed()?, &event_id.try_into()?, new_content)
+        .edit_message(&room_id.into_typed()?, &event_id.into(), new_content)
         .await
 }
 
@@ -1737,7 +1774,7 @@ async fn matrixDeleteMessage(
 ) -> anyhow::Result<()> {
     let matrix = bg_matrix.wait().await;
     matrix
-        .delete_message(&room_id.into_typed()?, &event_id.try_into()?, reason)
+        .delete_message(&room_id.into_typed()?, &event_id.into(), reason)
         .await
 }
 
@@ -2247,6 +2284,10 @@ rpc_methods!(RpcMethods {
     nostrEncrypt04,
     nostrDecrypt04,
     nostrRateFederation,
+    nostrCreateCommunity,
+    nostrListCommunities,
+    nostrListOurCommunities,
+    nostrEditCommunity,
     // Stability Pool
     stabilityPoolAccountInfo,
     stabilityPoolNextCycleStartTime,

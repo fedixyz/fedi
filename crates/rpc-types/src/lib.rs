@@ -29,6 +29,7 @@ use crate::error::RpcError;
 pub mod error;
 pub mod event;
 pub mod matrix;
+pub mod multispend;
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -173,7 +174,6 @@ pub struct RpcFederationPreview {
     pub name: String,
     pub meta: BTreeMap<String, String>,
     pub invite_code: String,
-    pub version: u32,
     pub returning_member_status: RpcReturningMemberStatus,
 }
 
@@ -186,7 +186,7 @@ pub struct RpcCommunity {
     pub meta: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum GuardianStatus {
@@ -477,7 +477,7 @@ pub struct RpcTransaction {
     pub id: String,
     pub amount: RpcAmount,
     pub fedi_fee_status: Option<RpcOperationFediFeeStatus>,
-    pub txn_notes: String,
+    pub txn_notes: Option<String>,
     pub tx_date_fiat_info: Option<FiatFXInfo>,
     pub frontend_metadata: FrontendMetadata,
     #[serde(flatten)]
@@ -550,29 +550,6 @@ pub enum RpcTransactionKind {
     SPV2TransferIn {
         state: RpcSPV2TransferInState,
     },
-}
-
-impl RpcTransaction {
-    pub fn new(
-        id: String,
-        amount: RpcAmount,
-        fedi_fee_status: Option<RpcOperationFediFeeStatus>,
-        tx_date_fiat_info: Option<FiatFXInfo>,
-        txn_notes: String,
-        frontend_metadata: FrontendMetadata,
-        kind: RpcTransactionKind,
-    ) -> Self {
-        Self {
-            id,
-            amount,
-            fedi_fee_status,
-            txn_notes,
-            tx_date_fiat_info,
-            frontend_metadata,
-            kind,
-            outcome_time: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

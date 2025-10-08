@@ -1,71 +1,42 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import PlayIcon from '@fedi/common/assets/svgs/play.svg'
 import VideoOff from '@fedi/common/assets/svgs/video-off.svg'
 import { MatrixEvent } from '@fedi/common/types'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
-import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { Icon } from '../../components/Icon'
 import { Text } from '../../components/Text'
-import { useLoadMedia } from '../../hooks/media'
+import { useLoadMedia, useScaledDimensions } from '../../hooks/media'
 import { styled, theme } from '../../styles'
 import { ChatMediaPreview } from './ChatMediaPreview'
 
 interface Props {
-    event: MatrixEvent<MatrixEventContentType<'m.video'>>
+    event: MatrixEvent<'m.video'>
 }
-
-const MAX_HEIGHT = 400
 
 export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
-    const { error, src } = useLoadMedia(event)
-
     const widthRef = useRef<HTMLDivElement>(null)
     const videoRef = useRef<HTMLVideoElement>(null)
+    const { error, src } = useLoadMedia(event)
+    const { id, content } = event
+    const { width, height } = useScaledDimensions({
+        id,
+        originalWidth: content.info?.width ?? 0,
+        originalHeight: content.info?.height ?? 0,
+        containerRef: widthRef,
+    })
 
     const [showMediaPreview, setShowMediaPreview] = useState(false)
-    const [scaledWidth, setScaledWidth] = useState<number>(0)
-    const [scaledHeight, setScaledHeight] = useState<number>(0)
-    const [dataLoaded, setDataLoaded] = useState(false)
 
-    useEffect(() => {
-        if (!src) return
-        if (!widthRef.current) return
-
-        const wrapper = widthRef.current
-        const { width, height } = scaleAttachment(
-            event.content.info.w,
-            event.content.info.h,
-            wrapper.clientWidth,
-            MAX_HEIGHT,
-        )
-
-        setScaledWidth(width)
-        setScaledHeight(height)
-    }, [event.content, src])
-
-    // autoplay is required for iOS so it shows initial video frame
-    // but also means Android will autoplay (which we don't want)
-    useEffect(() => {
-        if (!src) return
-        if (!videoRef.current) return
-
+    const handleOnLoad = () => {
         const video = videoRef.current
+        if (!video) return
 
-        const handleLoad = () => {
-            video.pause()
-            video.currentTime = 0.1
-
-            // Creates a slightly nicer ux by waiting
-            setTimeout(() => setDataLoaded(true), 200)
-        }
-
-        video.addEventListener('loadeddata', handleLoad)
-        return () => video.removeEventListener('loadeddata', handleLoad)
-    }, [src])
+        video.currentTime = 0.1
+        video.pause()
+    }
 
     if (error) {
         return (
@@ -89,33 +60,22 @@ export const ChatVideoEvent: React.FC<Props> = ({ event }) => {
                 src={src}
                 name={event.content.body}
                 trigger={
-                    <VideoWrapper>
-                        {!dataLoaded && (
-                            <VideoPlaceholder
-                                style={{
-                                    width: scaledWidth,
-                                    height: scaledHeight,
-                                }}
-                            />
-                        )}
-                        {dataLoaded && (
-                            <VideoOverlayWrapper>
-                                <PlayButtonIcon icon={PlayIcon} size="md" />
-                            </VideoOverlayWrapper>
-                        )}
-                        {src && (
-                            <Video
-                                ref={videoRef}
-                                autoPlay // required
-                                src={src}
-                                muted
-                                playsInline
-                                preload="metadata"
-                                aria-label="video"
-                                width={scaledWidth}
-                                height={scaledHeight}
-                            />
-                        )}
+                    <VideoWrapper style={{ width, height }}>
+                        <VideoOverlayWrapper>
+                            <PlayButtonIcon icon={PlayIcon} size="md" />
+                        </VideoOverlayWrapper>
+                        <Video
+                            {...(src ? { src } : {})}
+                            ref={videoRef}
+                            muted
+                            playsInline
+                            autoPlay
+                            preload="metadata"
+                            aria-label="video"
+                            width={width}
+                            height={height}
+                            onLoadedData={handleOnLoad}
+                        />
                     </VideoWrapper>
                 }>
                 {src && (
@@ -146,14 +106,9 @@ const VideoWrapper = styled('div', {
     position: 'relative',
 })
 
-const VideoPlaceholder = styled('div', {
-    background: theme.colors.extraLightGrey,
-    borderRadius: theme.sizes.xxs,
-    position: 'absolute',
-})
-
 const Video = styled('video', {
     borderRadius: theme.sizes.xxs,
+    display: 'block',
 })
 
 const VideoOverlayWrapper = styled('div', {

@@ -25,22 +25,33 @@ import type { NavigationHook, RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'StabilityHome'>
 
-const StabilityHome: React.FC<Props> = () => {
+const StabilityHome: React.FC<Props> = ({ route }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const toast = useToast()
+    const { federationId = '' } = route.params
     const { width } = useWindowDimensions()
     const navigation = useNavigation<NavigationHook>()
-    const stableBalance = useAppSelector(selectStableBalance)
-    const stableBalanceSats = useAppSelector(selectStableBalanceSats)
-    const stableBalancePending = useAppSelector(selectStableBalancePending)
+    const stableBalance = useAppSelector(s =>
+        selectStableBalance(s, federationId),
+    )
+    const stableBalanceSats = useAppSelector(s =>
+        selectStableBalanceSats(s, federationId),
+    )
+    const stableBalancePending = useAppSelector(s =>
+        selectStableBalancePending(s, federationId),
+    )
     const stabilityPoolDisabledByFederation =
-        !useIsStabilityPoolEnabledByFederation()
-    const maxStableBalanceSats = useAppSelector(selectMaxStableBalanceSats)
-    const balance = useAppSelector(selectFederationBalance)
+        !useIsStabilityPoolEnabledByFederation(federationId)
+    const maxStableBalanceSats = useAppSelector(s =>
+        selectMaxStableBalanceSats(s, federationId),
+    )
+    const balance = useAppSelector(s =>
+        selectFederationBalance(s, federationId),
+    )
 
     const { formattedStableBalance, formattedStableBalancePending } =
-        useStabilityPool()
+        useStabilityPool(federationId)
 
     const style = styles(theme)
 
@@ -48,7 +59,7 @@ const StabilityHome: React.FC<Props> = () => {
         <SafeAreaView
             style={style.container}
             edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
-            <StabilityBitcoinBanner />
+            <StabilityBitcoinBanner federationId={federationId} />
             <Flex grow center style={style.content}>
                 <Flex grow center fullWidth>
                     <Progress.Circle
@@ -111,7 +122,9 @@ const StabilityHome: React.FC<Props> = () => {
                                     status: 'error',
                                 })
                             } else {
-                                navigation.navigate('StabilityDeposit')
+                                navigation.navigate('StabilityDeposit', {
+                                    federationId,
+                                })
                             }
                         }}
                         title={
@@ -133,7 +146,9 @@ const StabilityHome: React.FC<Props> = () => {
                                     status: 'error',
                                 })
                             } else {
-                                navigation.navigate('StabilityWithdraw')
+                                navigation.navigate('StabilityWithdraw', {
+                                    federationId,
+                                })
                             }
                         }}
                         title={

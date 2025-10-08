@@ -2,18 +2,19 @@ import { useNavigation } from '@react-navigation/native'
 import { ListItem, Text, useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, View } from 'react-native'
+import { Alert, Linking, View } from 'react-native'
 
+import { useLeaveCommunity } from '@fedi/common/hooks/leave'
 import { useDebouncePress } from '@fedi/common/hooks/util'
-import { selectFederationFediModsById } from '@fedi/common/redux/federation'
+import { selectCommunityModsById } from '@fedi/common/redux/federation'
 import { Community } from '@fedi/common/types'
 import {
     getFederationTosUrl,
     shouldShowInviteCode,
 } from '@fedi/common/utils/FederationUtils'
 
+import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
-import { useNativeLeaveFederation } from '../../../utils/hooks/leaveFederation'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import { styles } from './FederationMenu'
@@ -30,7 +31,27 @@ const CommunityMenu = ({ community }: CommunityMenuProps) => {
     const style = styles(theme)
     const navigation = useNavigation()
 
-    const { confirmLeaveFederation } = useNativeLeaveFederation()
+    const { canLeaveCommunity, handleLeave } = useLeaveCommunity({
+        t,
+        fedimint,
+        communityId: community.id,
+    })
+
+    const showLeaveConfirmation = () => {
+        Alert.alert(
+            `${t('feature.federations.leave-community')} - ${community.name}`,
+            t('feature.federations.leave-community-confirmation'),
+            [
+                {
+                    text: t('words.no'),
+                },
+                {
+                    text: t('words.yes'),
+                    onPress: handleLeave,
+                },
+            ],
+        )
+    }
 
     const [isExpanded, setIsExpanded] = useState(false)
 
@@ -41,7 +62,7 @@ const CommunityMenu = ({ community }: CommunityMenuProps) => {
 
     // Get the mods for the federation
     const federationMods = useAppSelector(state =>
-        community.id ? selectFederationFediModsById(state, community.id) : [],
+        community.id ? selectCommunityModsById(state, community.id) : [],
     )
 
     const hasMods = federationMods.length > 0
@@ -74,6 +95,15 @@ const CommunityMenu = ({ community }: CommunityMenuProps) => {
                 onPress={() => handlePress()}
                 isExpanded={isExpanded}>
                 <View key={community.id} style={style.container}>
+                    <SettingsItem
+                        icon="Community"
+                        label={t('feature.communities.community-details')}
+                        onPress={() => {
+                            navigation.navigate('CommunityDetails', {
+                                communityId: community.id,
+                            })
+                        }}
+                    />
                     {hasMods && (
                         <SettingsItem
                             icon="Apps"
@@ -105,11 +135,13 @@ const CommunityMenu = ({ community }: CommunityMenuProps) => {
                             onPress={() => Linking.openURL(tosUrl)}
                         />
                     )}
-                    <SettingsItem
-                        icon="LeaveFederation"
-                        label={t('feature.communities.leave-community')}
-                        onPress={() => confirmLeaveFederation(community)}
-                    />
+                    {canLeaveCommunity && (
+                        <SettingsItem
+                            icon="LeaveFederation"
+                            label={t('feature.communities.leave-community')}
+                            onPress={() => showLeaveConfirmation()}
+                        />
+                    )}
                 </View>
             </ListItem.Accordion>
         </View>

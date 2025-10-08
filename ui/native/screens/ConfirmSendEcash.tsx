@@ -8,12 +8,11 @@ import {
     useAmountFormatter,
     useBalanceDisplay,
 } from '@fedi/common/hooks/amount'
+import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { generateEcash, selectPaymentFederation } from '@fedi/common/redux'
-import { Sats } from '@fedi/common/types'
+import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -23,7 +22,7 @@ import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -38,13 +37,11 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { amount, notes = null } = route.params
-    const dispatch = useAppDispatch()
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
-    const [isLoading, setIsLoading] = useState<boolean>(false)
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const balanceDisplay = useBalanceDisplay(t)
+    const balanceDisplay = useBalanceDisplay(t, paymentFederation?.id || '')
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
-        useFeeDisplayUtils(t)
+        useFeeDisplayUtils(t, paymentFederation?.id || '')
     const { formattedTotalFee, feeItemsBreakdown } = makeEcashFeeContent(
         amountUtils.satToMsat(amount),
     )
@@ -53,37 +50,30 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
         makeFormattedAmountsFromSats(amount)
     const toast = useToast()
 
+    const { generateEcash, isGeneratingEcash } = useSendEcash(
+        fedimint,
+        paymentFederation?.id || '',
+    )
+
     const handleSend = useCallback(async () => {
         Keyboard.dismiss()
-        setIsLoading(true)
         try {
-            if (!paymentFederation?.id) throw new Error('No payment federation')
-            const millis = amountUtils.satToMsat(Number(amount) as Sats)
-            const includeInvite = shouldShowInviteCode(paymentFederation.meta)
-            const { ecash } = await dispatch(
-                generateEcash({
-                    fedimint,
-                    federationId: paymentFederation?.id,
-                    amount: millis,
-                    includeInvite,
-                    frontendMetadata: {
-                        initialNotes: notes,
-                        recipientMatrixId: null,
-                        senderMatrixId: null,
-                    },
-                }),
-            ).unwrap()
-            navigation.dispatch(
-                reset('SendOfflineQr', { ecash, amount: millis }),
-            )
+            const res = await generateEcash(amount, notes ?? undefined)
+            if (res) {
+                navigation.dispatch(
+                    reset('SendOfflineQr', {
+                        ecash: res.ecash,
+                        amount: amountUtils.satToMsat(amount),
+                    }),
+                )
+            }
         } catch (error) {
             log.error('onGenerateEcash', error)
             // Now that we have fees when sending ecash
             // We need to notify the user if they have an insufficient balance to send the desired amount
             toast.error(t, error)
         }
-        setIsLoading(false)
-    }, [amount, dispatch, notes, navigation, toast, t, paymentFederation])
+    }, [amount, notes, navigation, toast, t, generateEcash])
 
     const handleConfirm = useCallback(() => {
         Alert.alert(
@@ -115,7 +105,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
                 onPressFees={() => setShowFeeBreakdown(true)}
                 formattedTotalFee={formattedTotalFee}
                 onSend={handleConfirm}
-                isLoading={isLoading}
+                isLoading={isGeneratingEcash}
                 senderText={t('feature.stabilitypool.bitcoin-balance')}
             />
             <FeeOverlay

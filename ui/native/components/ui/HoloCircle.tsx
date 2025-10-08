@@ -1,9 +1,9 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { ImageBackground, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
-import { Images } from '../../assets/images'
 import Flex from './Flex'
+import GradientView from './GradientView'
 
 export type Props = {
     content: React.ReactNode
@@ -22,13 +22,16 @@ const HoloCircle: React.FC<Props> = ({ content, size }: Props) => {
                 style.container,
                 { height: circleSize, width: circleSize },
             ]}>
-            <ImageBackground
-                source={Images.HoloBackgroundStrong}
+            <GradientView
+                variant="sky"
                 style={[
                     style.holoCircle,
-                    { height: circleSize, width: circleSize },
+                    {
+                        height: circleSize,
+                        width: circleSize,
+                        borderRadius: circleSize * 0.5,
+                    },
                 ]}
-                imageStyle={{ borderRadius: circleSize * 0.5 }}
             />
             <View
                 style={[

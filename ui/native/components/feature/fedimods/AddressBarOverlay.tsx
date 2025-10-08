@@ -9,9 +9,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-    Keyboard,
     Platform,
-    KeyboardEvent,
     StyleSheet,
     View,
     Pressable,
@@ -26,6 +24,7 @@ import {
 } from '@fedi/common/redux'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import { useKeyboard } from '../../../utils/hooks/keyboard'
 import Flex from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import SvgImage from '../../ui/SvgImage'
@@ -41,7 +40,7 @@ export default function AddressBarOverlay({
     const dispatch = useAppDispatch()
     const siteInfo = useAppSelector(selectSiteInfo)
 
-    const [keyboardHeight, setKeyboardHeight] = useState<number>(0)
+    const { isVisible: kbVisible, height: kbHeight } = useKeyboard()
     const [url, setUrl] = useState<string>(siteInfo?.url ?? '')
 
     const style = styles(theme)
@@ -75,30 +74,10 @@ export default function AddressBarOverlay({
     )
 
     useEffect(() => {
-        const keyboardShownListener = Keyboard.addListener(
-            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-            (e: KeyboardEvent) => {
-                setKeyboardHeight(e.endCoordinates.height)
-            },
-        )
-        const keyboardHiddenListener = Keyboard.addListener(
-            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-            () => {
-                setKeyboardHeight(0)
-            },
-        )
-
-        return () => {
-            keyboardShownListener.remove()
-            keyboardHiddenListener.remove()
-        }
-    }, [])
-
-    useEffect(() => {
         if (siteInfo) {
             setUrl(siteInfo.url)
         }
-    }, [siteInfo, setBrowserUrl, addressOverlayOpen])
+    }, [siteInfo, addressOverlayOpen])
 
     return (
         <Overlay
@@ -113,8 +92,8 @@ export default function AddressBarOverlay({
                     bottom: 'additive',
                 }}
                 style={[
-                    keyboardHeight > 0 && Platform.OS === 'ios'
-                        ? { paddingBottom: keyboardHeight + theme.spacing.lg }
+                    kbVisible && Platform.OS === 'ios'
+                        ? { paddingBottom: kbHeight + theme.spacing.lg }
                         : {},
                 ]}>
                 <Flex row align="center" gap="md" fullWidth>

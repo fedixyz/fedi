@@ -57,11 +57,17 @@ jobs:
             - name: Build UI Dependencies
               run: nix develop -c ./scripts/ui/build-deps.sh
 
+            - name: Check code linting
+              run: nix develop -c ./scripts/ci/check-ui-code-linting.sh
+
             - name: Check code formatting
               run: nix develop -c ./scripts/ci/check-ui-code-formatting.sh
 
-            - name: Run linter and test suites
-              run: nix develop -c ./scripts/ci/lint-and-test-ui.sh
+            - name: Run unit tests
+              run: nix develop -c ./scripts/ci/tests-unit.sh
+
+            - name: Run integration tests
+              run: nix develop -c ./scripts/ci/tests-integration.sh
 
             - name: Generate JS bundle for React Native
               run: nix develop -c ./scripts/ci/test-metro.sh

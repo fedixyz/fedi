@@ -1,8 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M4 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-  <path d="M4 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-  <path d="M14 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-  <path d="M14 7l6 0" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-  <path d="M17 4l0 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M9 17C9 15.8954 8.10457 15 7 15C5.89543 15 5 15.8954 5 17C5 18.1046 5.89543 19 7 19V21C4.79086 21 3 19.2091 3 17C3 14.7909 4.79086 13 7 13C9.20914 13 11 14.7909 11 17C11 19.2091 9.20914 21 7 21V19C8.10457 19 9 18.1046 9 17Z" fill="currentColor"/>
+<path d="M16 20V14C16 13.4477 16.4477 13 17 13C17.5523 13 18 13.4477 18 14V20C18 20.5523 17.5523 21 17 21C16.4477 21 16 20.5523 16 20Z" fill="currentColor"/>
+<path d="M14 16L20 16C20.5523 16 21 16.4477 21 17C21 17.5523 20.5523 18 20 18L14 18C13.4477 18 13 17.5523 13 17C13 16.4477 13.4477 16 14 16Z" fill="currentColor"/>
+<path d="M5 5V9H9V5H5ZM11 9C11 10.1046 10.1046 11 9 11H5C3.96435 11 3.113 10.2128 3.01074 9.2041L3 9V5C3 3.89543 3.89543 3 5 3H9L9.2041 3.01074C10.2128 3.113 11 3.96435 11 5V9Z" fill="currentColor"/>
+<path d="M17 3C17.3787 3 17.7251 3.21395 17.8945 3.55273L20.8945 9.55273L20.9443 9.67188C21.0423 9.95389 21.0098 10.2676 20.8506 10.5254C20.6684 10.8202 20.3466 11 20 11H14C13.6534 11 13.3316 10.8202 13.1494 10.5254C12.9673 10.2306 12.9505 9.86265 13.1054 9.55273L16.1054 3.55273L16.1767 3.43164C16.3617 3.16367 16.6685 3 17 3ZM15.6181 9H18.3818L17 6.23633L15.6181 9Z" fill="currentColor"/>
 </svg>

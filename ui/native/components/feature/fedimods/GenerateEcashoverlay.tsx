@@ -4,23 +4,19 @@ import { useTranslation } from 'react-i18next'
 import { RejectionError } from 'webln'
 
 import { useMinMaxSendAmount, useRequestForm } from '@fedi/common/hooks/amount'
-import { useIsInviteSupported } from '@fedi/common/hooks/federation'
+import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import {
-    generateEcash,
-    selectActiveFederation,
-    selectEcashRequest,
-} from '@fedi/common/redux'
-import amountUtils from '@fedi/common/utils/AmountUtils'
+import { selectEcashRequest, selectPaymentFederation } from '@fedi/common/redux'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import { useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
 import AmountInputDisplay from '../../ui/AmountInputDisplay'
 import CustomOverlay from '../../ui/CustomOverlay'
 import Flex from '../../ui/Flex'
+import FederationWalletSelector from '../send/FederationWalletSelector'
 
 const log = makeLog('MakeInvoiceOverlay')
 
@@ -36,22 +32,25 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const ecashRequest = useAppSelector(selectEcashRequest)
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const includeInvite = useIsInviteSupported()
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const onRejectRef = useUpdatingRef(onReject)
     const onAcceptRef = useUpdatingRef(onAccept)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [amountInputKey, setAmountInputKey] = useState(0)
-    const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const { inputAmount, setInputAmount, minimumAmount, exactAmount, reset } =
         useRequestForm({ ecashRequest })
     // Ecash notes are generated from your current balance
     // Instead of an almost-unbound balance from useRequestForm, set the upper bound to the active user's balance
     const { maximumAmount } = useMinMaxSendAmount({
-        selectedPaymentFederation: true,
+        federationId: paymentFederation?.id,
     })
-    const dispatch = useAppDispatch()
+
+    const {
+        generateEcash,
+        isGeneratingEcash,
+        reset: resetGenerateEcash,
+    } = useSendEcash(fedimint, paymentFederation?.id || '')
 
     // Reset form when it appears
     const isShowing = Boolean(ecashRequest)
@@ -60,9 +59,9 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
             reset()
             setSubmitAttempts(0)
             setAmountInputKey(key => key + 1)
-            setIsLoading(false)
+            resetGenerateEcash()
         }
-    }, [isShowing, reset])
+    }, [isShowing, reset, resetGenerateEcash])
 
     const handleAccept = async () => {
         setSubmitAttempts(attempts => attempts + 1)
@@ -71,25 +70,11 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
         }
 
         try {
-            setIsLoading(true)
-            if (!activeFederation) throw new Error()
-            const msats = amountUtils.satToMsat(inputAmount)
+            const res = await generateEcash(inputAmount)
 
-            const res = await dispatch(
-                generateEcash({
-                    fedimint,
-                    federationId: activeFederation.id,
-                    amount: msats,
-                    includeInvite,
-                    frontendMetadata: {
-                        initialNotes: null,
-                        recipientMatrixId: null,
-                        senderMatrixId: null,
-                    },
-                }),
-            ).unwrap()
-
-            onAcceptRef.current(res.ecash)
+            if (res) {
+                onAcceptRef.current(res.ecash)
+            }
         } catch (err) {
             log.error('Failed to generate ecash', err, ecashRequest)
 
@@ -106,7 +91,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
     return (
         <CustomOverlay
             show={isShowing}
-            loading={isLoading}
+            loading={isGeneratingEcash}
             onBackdropPress={() =>
                 onReject(new RejectionError(t('errors.webln-canceled')))
             }
@@ -120,13 +105,14 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
                         style={{
                             paddingTop: theme.spacing.xl,
                         }}>
+                        <FederationWalletSelector />
                         {exactAmount ? (
                             <AmountInputDisplay amount={inputAmount} />
                         ) : (
                             <AmountInput
                                 key={amountInputKey}
                                 amount={inputAmount}
-                                isSubmitting={isLoading}
+                                isSubmitting={isGeneratingEcash}
                                 submitAttempts={submitAttempts}
                                 minimumAmount={minimumAmount}
                                 maximumAmount={maximumAmount}

@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -12,12 +12,10 @@ import {
 import Video, { VideoRef } from 'react-native-video'
 
 import {
-    matchAndRemovePreviewMedia,
     selectPreviewMediaMatchingEventContent,
     setSelectedChatMessage,
 } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -26,17 +24,20 @@ import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatVideoEventProps = {
-    event: MatrixEvent<MatrixEventContentType<'m.video'>>
+    event: MatrixEvent<'m.video'>
+    isInViewport?: boolean
 }
 
 const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     event,
+    isInViewport = true,
 }: ChatVideoEventProps) => {
     // If the user sends a video, try to find the preview image matching the `event.content` to derive the existing URI
     const matchingPreviewVideo = useAppSelector(s =>
         selectPreviewMediaMatchingEventContent(s, event.content),
     )
-    const { uri, isError, setIsError } = useDownloadResource(event)
+    const { uri, isError, setIsError, handleCopyResource } =
+        useDownloadResource(event, { loadResourceInitially: false })
     const [paused, setPaused] = useState(true)
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -44,7 +45,7 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     const dispatch = useAppDispatch()
     const navigation = useNavigation()
 
-    const resolvedUri = uri ?? matchingPreviewVideo?.media?.uri ?? ''
+    const resolvedUri = matchingPreviewVideo?.media?.uri ?? uri ?? ''
 
     const handleLongPress = () => {
         dispatch(setSelectedChatMessage(event))
@@ -53,13 +54,19 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
     const style = styles(theme)
 
     const dimensions = scaleAttachment(
-        event.content.info.w,
-        event.content.info.h,
+        event.content.info?.width ?? 0,
+        event.content.info?.height ?? 0,
         theme.sizes.maxMessageWidth,
         400,
     )
 
     const videoBaseStyle = [style.videoBase, dimensions]
+
+    useEffect(() => {
+        if (resolvedUri || !isInViewport) return
+
+        handleCopyResource()
+    }, [resolvedUri, isInViewport, handleCopyResource])
 
     if (resolvedUri)
         return (
@@ -78,7 +85,6 @@ const ChatVideoEvent: React.FC<ChatVideoEventProps> = ({
                     }}
                     onLoad={() => {
                         videoRef.current?.seek(0)
-                        dispatch(matchAndRemovePreviewMedia(event.content))
                     }}
                     resizeMode="cover"
                     // Prevents videos from being layered over each other

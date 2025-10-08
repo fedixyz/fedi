@@ -10,16 +10,23 @@ import {
     CommonDispatch,
     CommonState,
     refreshHistoricalCurrencyRates,
-    selectActiveFederation,
-    selectActiveFederationId,
+    selectLastUsedFederationId,
     selectBtcExchangeRate,
     selectBtcUsdExchangeRate,
     selectFederationBalance,
     selectFederationStabilityPoolConfig,
     selectReusedEcashFederations,
     selectStabilityPoolFeeSchedule,
+    selectLoadedFederations,
 } from '.'
-import { Federation, MSats, ReceiveEcashResult, Usd, UsdCents } from '../types'
+import {
+    Federation,
+    MSats,
+    ReceiveEcashResult,
+    Sats,
+    Usd,
+    UsdCents,
+} from '../types'
 import {
     FrontendMetadata,
     JSONObject,
@@ -199,34 +206,6 @@ export const generateAddress = createAsyncThunk<
     'wallet/generateAddress',
     async ({ fedimint, federationId, frontendMetadata }) => {
         return fedimint.generateAddress(federationId, frontendMetadata)
-    },
-)
-
-export const generateEcash = createAsyncThunk<
-    { ecash: string; cancelAt: number; operationId: string },
-    {
-        fedimint: FedimintBridge
-        federationId: string
-        amount: MSats
-        includeInvite: boolean
-        frontendMetadata: FrontendMetadata
-    },
-    { state: CommonState }
->(
-    'wallet/generateEcash',
-    async ({
-        fedimint,
-        federationId,
-        amount,
-        includeInvite,
-        frontendMetadata,
-    }) => {
-        return fedimint.generateEcash(
-            amount,
-            federationId,
-            includeInvite,
-            frontendMetadata,
-        )
     },
 )
 
@@ -433,7 +412,7 @@ export const fetchStabilityPoolAvailableLiquidity = createAsyncThunk<
 >(
     'wallet/fetchStabilityPoolAvailableLiquidity',
     async ({ fedimint, federationId }, { getState }) => {
-        const version = selectStabilityPoolVersion(getState())
+        const version = selectStabilityPoolVersion(getState(), federationId)
         if (version === 2) {
             const liquidity =
                 await fedimint.spv2AvailableLiquidity(federationId)
@@ -455,7 +434,7 @@ export const fetchStabilityPoolAverageFeeRate = createAsyncThunk<
 >(
     'wallet/fetchStabilityPoolAverageFeeRate',
     async ({ fedimint, federationId, numCycles }, { getState }) => {
-        const version = selectStabilityPoolVersion(getState())
+        const version = selectStabilityPoolVersion(getState(), federationId)
         if (version === 2) {
             const feeRate = await fedimint.spv2AverageFeeRate(
                 federationId,
@@ -474,16 +453,15 @@ export const fetchStabilityPoolAverageFeeRate = createAsyncThunk<
     },
 )
 
-export const refreshActiveStabilityPool = createAsyncThunk<
+export const refreshStabilityPool = createAsyncThunk<
     void,
-    { fedimint: FedimintBridge },
+    { fedimint: FedimintBridge; federationId: Federation['id'] },
     { state: CommonState }
 >(
-    'wallet/refreshActiveStabilityPool',
-    async ({ fedimint }, { dispatch, getState }) => {
+    'wallet/refreshStabilityPool',
+    async ({ fedimint, federationId }, { dispatch, getState }) => {
         const state = getState()
-        const federationId = state.federation.activeFederationId
-        const stabilityVersion = selectStabilityPoolVersion(getState())
+        const stabilityVersion = selectStabilityPoolVersion(state, federationId)
         if (!federationId) throw new Error('errors.unknown-error')
         // Make sure we have the latest exchange rates every time we refresh stabilitypool
         // so deposits/withdrawal amount conversions are as accurate as possible
@@ -526,16 +504,15 @@ export const increaseStableBalance = createAsyncThunk<
     {
         fedimint: FedimintBridge
         amount: RpcAmount
+        federationId: Federation['id']
     },
     { state: CommonState }
 >(
     'wallet/increaseStableBalance',
-    async ({ fedimint, amount }, { getState }) => {
+    async ({ fedimint, amount, federationId }, { getState }) => {
         const state = getState()
-        const activeFederationId = selectActiveFederation(state)?.id
-        if (!activeFederationId) throw new Error('No active federation')
-        const ecashBalance = selectFederationBalance(state)
-        const feeSchedule = selectStabilityPoolFeeSchedule(state)
+        const ecashBalance = selectFederationBalance(state, federationId)
+        const feeSchedule = selectStabilityPoolFeeSchedule(state, federationId)
         const feeRate = feeSchedule?.sendPpm ?? 0
 
         // Subtract the estimated fedi fee from the available ecash balance
@@ -544,7 +521,10 @@ export const increaseStableBalance = createAsyncThunk<
             (1_000_000 * ecashBalance) / (1_000_000 + feeRate),
         ) as MSats
 
-        const stabilityConfig = selectFederationStabilityPoolConfig(state)
+        const stabilityConfig = selectFederationStabilityPoolConfig(
+            state,
+            federationId,
+        )
         if (!stabilityConfig)
             throw new Error('No stabilitypool in this federation')
 
@@ -559,16 +539,12 @@ export const increaseStableBalance = createAsyncThunk<
         )
 
         if (version === 2) {
-            return handleSpv2Deposit(
-                amountToDeposit,
-                fedimint,
-                activeFederationId,
-            )
+            return handleSpv2Deposit(amountToDeposit, fedimint, federationId)
         } else {
             return handleStabilityPoolDeposit(
                 amountToDeposit,
                 fedimint,
-                activeFederationId,
+                federationId,
             )
         }
     },
@@ -579,18 +555,17 @@ export const decreaseStableBalanceV1 = createAsyncThunk<
     {
         fedimint: FedimintBridge
         amount: RpcAmount
+        federationId: Federation['id']
     },
     { state: CommonState }
 >(
     'wallet/decreaseStableBalanceV1',
-    async ({ fedimint, amount }, { getState }) => {
+    async ({ fedimint, amount, federationId }, { getState }) => {
         const state = getState()
-        const activeFederationId = selectActiveFederation(state)?.id
-        if (!activeFederationId) throw new Error('No active federation')
-        const btcUsdExchangeRate = selectBtcUsdExchangeRate(state)
-        const totalLockedCents = selectTotalLockedCents(state)
-        const stableBalanceCents = selectStableBalanceCents(state)
-        const totalStagedMsats = selectTotalStagedMsats(state)
+        const btcUsdExchangeRate = selectBtcUsdExchangeRate(state, federationId)
+        const totalLockedCents = selectTotalLockedCents(state, federationId)
+        const stableBalanceCents = selectStableBalanceCents(state, federationId)
+        const totalStagedMsats = selectTotalStagedMsats(state, federationId)
 
         const { lockedBps, unlockedAmount } = calculateStabilityPoolWithdrawal(
             amount,
@@ -603,7 +578,7 @@ export const decreaseStableBalanceV1 = createAsyncThunk<
             lockedBps,
             unlockedAmount,
             fedimint,
-            activeFederationId,
+            federationId,
         )
     },
 )
@@ -613,17 +588,16 @@ export const decreaseStableBalanceV2 = createAsyncThunk<
     {
         fedimint: FedimintBridge
         amount: UsdCents
+        federationId: Federation['id']
     },
     { state: CommonState }
 >(
     'wallet/decreaseStableBalanceV2',
-    async ({ fedimint, amount }, { getState }) => {
+    async ({ fedimint, amount, federationId }, { getState }) => {
         const state = getState()
-        const activeFederationId = selectActiveFederation(state)?.id
-        if (!activeFederationId) throw new Error('No active federation')
 
-        const totalLockedCents = selectTotalLockedCents(state)
-        const totalStagedCents = selectTotalStagedCents(state)
+        const totalLockedCents = selectTotalLockedCents(state, federationId)
+        const totalStagedCents = selectTotalStagedCents(state, federationId)
 
         const totalBalanceCents = (totalLockedCents +
             totalStagedCents) as UsdCents
@@ -636,7 +610,7 @@ export const decreaseStableBalanceV2 = createAsyncThunk<
         return handleSpv2Withdrawal(
             amountCents,
             fedimint,
-            activeFederationId,
+            federationId,
             withdrawAll,
         )
     },
@@ -649,14 +623,14 @@ const selectFederationWalletState = (
     federationId?: Federation['id'],
 ) => {
     if (!federationId) {
-        federationId = selectActiveFederationId(s)
+        federationId = selectLastUsedFederationId(s)
     }
     return getFederationWalletState(s.wallet, federationId || '')
 }
 
 export const selectStabilityPoolState = createSelector(
     (s: CommonState) => s,
-    (_: CommonState, federationId?: Federation['id']) => federationId,
+    (_: CommonState, federationId: Federation['id']) => federationId,
     (s, federationId) => {
         return selectFederationWalletState(s, federationId).stabilityPoolState
     },
@@ -665,7 +639,8 @@ export const selectStabilityPoolState = createSelector(
  * Calculates the total amount locked in deposits in msats
  * */
 export const selectTotalLockedMsats = createSelector(
-    selectStabilityPoolState,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStabilityPoolState(s, federationId),
     stabilityPoolState => {
         if (!stabilityPoolState) return 0 as MSats
         return stabilityPoolState.lockedBalance
@@ -676,7 +651,8 @@ export const selectTotalLockedMsats = createSelector(
  * Calculates the total amount locked in deposits in cents
  * */
 export const selectTotalLockedCents = createSelector(
-    selectStabilityPoolState,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStabilityPoolState(s, federationId),
     (stabilityPoolState): UsdCents => {
         if (!stabilityPoolState) return 0 as UsdCents
         const { lockedBalance, currCycleStartPrice } = stabilityPoolState
@@ -690,7 +666,8 @@ export const selectTotalLockedCents = createSelector(
  * Calculates the total amount locked in deposits, converted to the selectedCurrency
  * */
 export const selectTotalLockedFiat = createSelector(
-    selectTotalLockedCents,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectTotalLockedCents(s, federationId),
     (s: CommonState) => selectBtcUsdExchangeRate(s),
     (s: CommonState) => selectBtcExchangeRate(s),
     (totalLockedCents, btcUsdExchangeRate, btcExchangeRate) => {
@@ -705,8 +682,11 @@ export const selectTotalLockedFiat = createSelector(
 /**
  * Calculates the total amount of pending deposits in msats
  * */
-export const selectTotalStagedMsats = (s: CommonState) => {
-    const stabilityPoolState = selectStabilityPoolState(s)
+export const selectTotalStagedMsats = (
+    s: CommonState,
+    federationId: Federation['id'],
+) => {
+    const stabilityPoolState = selectStabilityPoolState(s, federationId)
     return stabilityPoolState?.stagedBalance || (0 as MSats)
 }
 
@@ -714,7 +694,8 @@ export const selectTotalStagedMsats = (s: CommonState) => {
  * Converts total amount of pending deposits in msats to the current USD value in cents
  * */
 export const selectTotalStagedCents = createSelector(
-    selectStabilityPoolState,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStabilityPoolState(s, federationId),
     (stabilityPoolState): UsdCents => {
         if (!stabilityPoolState) return 0 as UsdCents
         const { stagedBalance, currCycleStartPrice } = stabilityPoolState
@@ -728,10 +709,9 @@ export const selectTotalStagedCents = createSelector(
  * Returns the amount of pending withdrawals in cents
  * */
 export const selectUnlockRequest = createSelector(
-    (s: CommonState) => s,
-    (_: CommonState, federationId?: Federation['id']) => federationId,
-    (s, federationId) => {
-        const stabilityPoolState = selectStabilityPoolState(s, federationId)
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStabilityPoolState(s, federationId),
+    stabilityPoolState => {
         if (!stabilityPoolState) return null
         return stabilityPoolState.pendingUnlockRequest
     },
@@ -741,7 +721,8 @@ export const selectUnlockRequest = createSelector(
  * Converts the USD value of pending deposits to selectedCurrency
  * */
 export const selectTotalStagedFiat = createSelector(
-    selectTotalStagedCents,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectTotalStagedCents(s, federationId),
     (s: CommonState) => selectBtcUsdExchangeRate(s),
     (s: CommonState) => selectBtcExchangeRate(s),
     (totalStagedCents, btcUsdExchangeRate, btcExchangeRate) => {
@@ -757,7 +738,8 @@ export const selectTotalStagedFiat = createSelector(
  * Calculates the total stable balance in cents
  * */
 export const selectStableBalanceCents = createSelector(
-    selectStabilityPoolState,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStabilityPoolState(s, federationId),
     stabilityPoolState => {
         if (!stabilityPoolState) return 0 as UsdCents
 
@@ -777,8 +759,10 @@ export const selectStableBalanceCents = createSelector(
  * Converts the total stable balance in cents to the selectedCurrency
  * */
 export const selectStableBalance = createSelector(
-    selectStableBalanceCents,
-    (s: CommonState) => selectBtcUsdExchangeRate(s),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStableBalanceCents(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectBtcUsdExchangeRate(s, federationId),
     (s: CommonState) => selectBtcExchangeRate(s),
     (stableBalanceCents, btcUsdExchangeRate, btcExchangeRate) => {
         return amountUtils.convertCentsToOtherFiat(
@@ -790,7 +774,8 @@ export const selectStableBalance = createSelector(
 )
 
 export const selectStableBalanceSats = createSelector(
-    selectStableBalanceCents,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStableBalanceCents(s, federationId),
     (s: CommonState) => selectBtcUsdExchangeRate(s),
     (stableBalanceCents, btcUsdExchangeRate) => {
         const stableBalanceDollars = stableBalanceCents / 100
@@ -806,9 +791,12 @@ export const selectStableBalanceSats = createSelector(
  * should be POSITIVE if net depositing, and NEGATIVE if net withdrawing
  * */
 export const selectStableBalancePendingCents = createSelector(
-    selectStabilityPoolState,
-    selectUnlockRequest,
-    selectTotalStagedCents,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStabilityPoolState(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectUnlockRequest(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectTotalStagedCents(s, federationId),
     (stabilityPoolState, unlockRequest, stagedBalance) => {
         if (!stabilityPoolState) return 0 as UsdCents
 
@@ -829,8 +817,10 @@ export const selectStableBalancePendingCents = createSelector(
  * Converts the pending stable balance in cents to the selectedCurrency
  * */
 export const selectStableBalancePending = createSelector(
-    selectStableBalancePendingCents,
-    (s: CommonState) => selectBtcUsdExchangeRate(s),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStableBalancePendingCents(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectBtcUsdExchangeRate(s, federationId),
     (s: CommonState) => selectBtcExchangeRate(s),
     (stableBalancePendingCents, btcUsdExchangeRate, btcExchangeRate) => {
         return amountUtils.convertCentsToOtherFiat(
@@ -841,19 +831,35 @@ export const selectStableBalancePending = createSelector(
     },
 )
 
+export const selectStableBalancePendingSats = createSelector(
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStableBalancePendingCents(s, federationId),
+    (s: CommonState) => selectBtcUsdExchangeRate(s),
+    (stableBalancePendingCents, btcUsdExchangeRate) => {
+        const stableBalanceDollars = stableBalancePendingCents / 100
+        return amountUtils.fiatToSat(stableBalanceDollars, btcUsdExchangeRate)
+    },
+)
+
 export const selectWithdrawableStableBalanceCents = createSelector(
-    selectStableBalanceCents,
-    selectTotalStagedCents,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStableBalanceCents(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectTotalStagedCents(s, federationId),
     (stableBalance, pendingDeposits): UsdCents => {
         return (stableBalance + pendingDeposits) as UsdCents
     },
 )
 
 export const selectMinimumWithdrawAmountCents = createSelector(
-    (s: CommonState) => selectStabilityPoolVersion(s),
-    (s: CommonState) => selectFederationStabilityPoolConfig(s),
-    selectStableBalanceCents,
-    selectStableBalancePendingCents,
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStabilityPoolVersion(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectFederationStabilityPoolConfig(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStableBalanceCents(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectStableBalancePendingCents(s, federationId),
     (version, config, stableBalance, stableBalancePending): UsdCents => {
         // For SPv2, we consider 2 cents to be dust
         if (version === 2) return 2 as UsdCents
@@ -878,8 +884,10 @@ export const selectMinimumWithdrawAmountCents = createSelector(
 )
 
 export const selectWithdrawableStableBalanceMsats = createSelector(
-    selectWithdrawableStableBalanceCents,
-    (s: CommonState) => selectBtcUsdExchangeRate(s),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectWithdrawableStableBalanceCents(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectBtcUsdExchangeRate(s, federationId),
     (withdrawableCents, btcUsdExchangeRate): MSats => {
         const usdAmount = withdrawableCents / 100
         return amountUtils.fiatToMsat(usdAmount as Usd, btcUsdExchangeRate)
@@ -887,8 +895,10 @@ export const selectWithdrawableStableBalanceMsats = createSelector(
 )
 
 export const selectMinimumWithdrawAmountMsats = createSelector(
-    selectMinimumWithdrawAmountCents,
-    (s: CommonState) => selectBtcUsdExchangeRate(s),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectMinimumWithdrawAmountCents(s, federationId),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectBtcUsdExchangeRate(s, federationId),
     (minimumWithdrawAmountCents, btcUsdExchangeRate): MSats => {
         const usdAmount = minimumWithdrawAmountCents / 100
         return amountUtils.fiatToMsat(usdAmount as Usd, btcUsdExchangeRate)
@@ -896,7 +906,8 @@ export const selectMinimumWithdrawAmountMsats = createSelector(
 )
 
 export const selectMinimumDepositAmount = createSelector(
-    (s: CommonState) => selectFederationStabilityPoolConfig(s),
+    (s: CommonState, federationId: Federation['id']) =>
+        selectFederationStabilityPoolConfig(s, federationId),
     config => {
         const minimumMsats = config?.min_allowed_seek || 0
         return amountUtils.msatToSat(minimumMsats as MSats)
@@ -907,8 +918,9 @@ export const selectMinimumDepositAmount = createSelector(
  * Get the deposit time from stabilitypool cycle duration in human-readable format
  * */
 export const selectFormattedDepositTime = createSelector(
-    (s: CommonState) => selectFederationStabilityPoolConfig(s),
-    (_: CommonState, t: TFunction) => t,
+    (s: CommonState, federationId: Federation['id'], _t: TFunction) =>
+        selectFederationStabilityPoolConfig(s, federationId),
+    (_: CommonState, _federationId: Federation['id'], t: TFunction) => t,
     (config, t) => {
         if (!config) return 0
         const { secs: seconds } = config.cycle_duration
@@ -937,7 +949,7 @@ export const selectFormattedDepositTime = createSelector(
 
 export const selectStabilityPoolCycleStartPrice = createSelector(
     (s: CommonState) => s,
-    (_: CommonState, federationId?: Federation['id']) => federationId,
+    (_: CommonState, federationId: Federation['id']) => federationId,
     (s, federationId) => {
         const stabilityPoolState = selectStabilityPoolState(s, federationId)
         return stabilityPoolState?.currCycleStartPrice ?? null
@@ -946,43 +958,55 @@ export const selectStabilityPoolCycleStartPrice = createSelector(
 
 export const selectStabilityPoolAverageFeeRate = (
     s: CommonState,
-    federationId?: Federation['id'],
+    federationId: Federation['id'],
 ) => {
-    if (!federationId) {
-        federationId = selectActiveFederationId(s)
-    }
-    return federationId
-        ? selectFederationWalletState(s, federationId).averageFeeRate
-        : null
+    return selectFederationWalletState(s, federationId).averageFeeRate
 }
 
 export const selectStabilityPoolAvailableLiquidity = (
     s: CommonState,
-    federationId?: Federation['id'],
+    federationId: Federation['id'],
 ) => {
     return selectFederationWalletState(s, federationId)
         .stabilityPoolAvailableLiquidity
 }
 
-export const selectStabilityPoolVersion = (s: CommonState) =>
-    selectFederationStabilityPoolConfig(s)?.version
+export const selectStabilityPoolVersion = (
+    s: CommonState,
+    federationId: Federation['id'],
+) => {
+    return selectFederationStabilityPoolConfig(s, federationId)?.version
+}
 
 export const selectSupportsRecurringdLnurl = (
     s: CommonState,
-    federationId?: Federation['id'],
+    federationId: Federation['id'],
 ) => {
-    if (!federationId) {
-        federationId = selectActiveFederationId(s)
-    }
     return selectFederationWalletState(s, federationId).supportsRecurringdLnurl
 }
 
 export const selectLnurlReceiveCode = (
     s: CommonState,
-    federationId?: Federation['id'],
+    federationId: Federation['id'],
 ) => {
-    if (!federationId) {
-        federationId = selectActiveFederationId(s)
-    }
     return selectFederationWalletState(s, federationId).lnurlReceiveCode
 }
+
+export const selectTotalStableBalanceSats = createSelector(
+    (s: CommonState) => s,
+    (s: CommonState) => selectLoadedFederations(s),
+    (state, federations) => {
+        const totalStableBalanceSats = federations.reduce((acc, federation) => {
+            const stableBalanceSats = selectStableBalanceSats(
+                state,
+                federation.id,
+            )
+            const stableBalancePendingSats = selectStableBalancePendingSats(
+                state,
+                federation.id,
+            )
+            return acc + stableBalanceSats + stableBalancePendingSats
+        }, 0) as Sats
+        return totalStableBalanceSats
+    },
+)

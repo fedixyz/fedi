@@ -7,14 +7,13 @@ import { StyleSheet, View } from 'react-native'
 import { useMultispendInvitationEventContent } from '@fedi/common/hooks/multispend'
 import { useCommonSelector } from '@fedi/common/hooks/redux'
 import { selectMatrixRoomMember } from '@fedi/common/redux'
-import { MatrixEvent } from '@fedi/common/types'
+import { MatrixMultispendEvent } from '@fedi/common/types'
 import { RpcMultispendGroupStatus } from '@fedi/common/types/bindings'
-import { MultispendEventContentType } from '@fedi/common/utils/matrix'
 
 import MultispendEventTemplate from './MultispendEventTemplate'
 
 type Props = {
-    event: MatrixEvent<MultispendEventContentType<'groupInvitation'>>
+    event: MatrixMultispendEvent<'groupInvitation'>
 }
 
 const getInvitationStatusText = (

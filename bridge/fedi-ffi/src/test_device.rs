@@ -5,6 +5,7 @@ use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context};
+use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use bitcoin::Network;
 use bridge::onboarding::{BridgeOnboarding, RpcOnboardingStage};
 use bridge::{Bridge, BridgeFull};
@@ -251,7 +252,7 @@ impl IFediApi for MockFediApi {
         _stable_user_id: String,
         _spv2_account_id: Option<AccountId>,
         _federation_id: FederationId,
-        _first_comm_invite_code: Option<String>,
+        _first_comm_invite_code: FirstCommunityInviteCodeState,
         _other_comm_invite_codes: Vec<String>,
     ) -> anyhow::Result<Bolt11Invoice> {
         self.fedi_fee_invoice

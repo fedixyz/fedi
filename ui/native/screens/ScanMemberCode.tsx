@@ -6,6 +6,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { inviteUserToMatrixRoom, selectMatrixRoom } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../bridge'
 import { OmniInput } from '../components/feature/omni/OmniInput'
 import CustomOverlay, {
     CustomOverlayContents,
@@ -50,7 +51,11 @@ const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
                 )
                 setIsLoading(true)
                 await dispatch(
-                    inviteUserToMatrixRoom({ roomId: roomId, userId }),
+                    inviteUserToMatrixRoom({
+                        fedimint,
+                        roomId: roomId,
+                        userId,
+                    }),
                 ).unwrap()
                 toast.show({
                     status: 'info',
@@ -136,7 +141,9 @@ const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
                 onUnexpectedSuccess={() =>
                     navigation.canGoBack()
                         ? navigation.goBack()
-                        : navigation.navigate('TabsNavigator')
+                        : navigation.navigate('TabsNavigator', {
+                              initialRouteName: 'Chat',
+                          })
                 }
             />
             {!!scannedUser && (

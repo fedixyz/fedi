@@ -163,7 +163,7 @@ const styles = (theme: Theme, columns: number) =>
         buffer: { height: theme.sizes.lg },
         listContainer: {
             flexDirection: 'row',
-            marginTop: 4,
+            marginTop: theme.spacing.sm,
             flexWrap: 'wrap',
             justifyContent: 'space-between',
             paddingHorizontal: theme.spacing.sm,

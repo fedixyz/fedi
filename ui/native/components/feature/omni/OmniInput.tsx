@@ -7,7 +7,7 @@ import { StyleSheet, View, ActivityIndicator, Pressable } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { selectLastUsedFederationId } from '@fedi/common/redux'
 import { selectIsInternetUnreachable } from '@fedi/common/redux/environment'
 import {
     AnyParsedData,
@@ -52,7 +52,7 @@ export function OmniInput<
     const propsRef = useUpdatingRef(props)
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const lastUsedFederationId = useAppSelector(selectLastUsedFederationId)
     const toast = useToast()
     const [showActivityIndicator, setShowActivityIndicator] = useState(false)
     const [inputMethod, setInputMethod] = useState<'scan' | 'search'>('scan')
@@ -114,7 +114,7 @@ export function OmniInput<
                     input,
                     fedimint,
                     t,
-                    activeFederationId,
+                    lastUsedFederationId,
                     isInternetUnreachable,
                 )
                 const expectedTypes = propsRef.current
@@ -135,7 +135,13 @@ export function OmniInput<
                 setShowActivityIndicator(false)
             }
         },
-        [propsRef, isParsingRef, t, activeFederationId, isInternetUnreachable],
+        [
+            propsRef,
+            isParsingRef,
+            t,
+            lastUsedFederationId,
+            isInternetUnreachable,
+        ],
     )
 
     const checkForEmptyInput = useCallback(

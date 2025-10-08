@@ -34,14 +34,6 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
     const navigation = useNavigation()
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const {
-        inputAmountCents,
-        inputAmount: amount,
-        setInputAmount: setAmount,
-        minimumAmount,
-        maximumAmount,
-        // withdraw form, since a deposit into multispend is a withdrawal from stable balance
-    } = useWithdrawForm()
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [notes, setNotes] = useState<string>('')
     const [infoTooltip, setInfoTooltip] = useState(false)
@@ -55,7 +47,16 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                 : '',
         ),
     )
-    const { formattedStableBalance } = useStabilityPool()
+    const federationId = matchingFederation?.id || ''
+    const {
+        inputAmountCents,
+        inputAmount: amount,
+        setInputAmount: setAmount,
+        minimumAmount,
+        maximumAmount,
+        // withdraw form, since a deposit into multispend is a withdrawal from stable balance
+    } = useWithdrawForm(federationId)
+    const { formattedStableBalance } = useStabilityPool(federationId)
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)
@@ -76,12 +77,14 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
             roomId: roomId,
             amount: inputAmountCents,
             notes,
+            federationId,
         })
     }
 
     const style = styles(theme)
 
     if (multispendStatus?.status !== 'finalized') return null
+    if (!matchingFederation) return null
 
     return (
         <>
@@ -146,6 +149,9 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                                                     )
                                                                     navigation.navigate(
                                                                         'StabilityHome',
+                                                                        {
+                                                                            federationId,
+                                                                        },
                                                                     )
                                                                 }}
                                                             />
@@ -200,7 +206,9 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                             text: t('words.continue'),
                             onPress: () => {
                                 setInsufficientBalanceOverlay(false)
-                                navigation.navigate('StabilityHome')
+                                navigation.navigate('StabilityHome', {
+                                    federationId,
+                                })
                             },
                             primary: true,
                         },

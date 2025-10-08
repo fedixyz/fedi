@@ -23,6 +23,7 @@ import {
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { TaggedError } from '@fedi/common/utils/errors'
+import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 import { getTxnDirection } from '@fedi/common/utils/wallet'
@@ -55,6 +56,7 @@ export const GROUP_IDS: Record<NOTIFICATION_TYPE, string> = {
 
 export const manuallyPublishNotificationToken = async (
     supportPermissionGranted: boolean,
+    fedimint: FedimintBridge,
 ) => {
     log.info('Manually publishing push notification token...')
 
@@ -79,6 +81,7 @@ export const manuallyPublishNotificationToken = async (
         try {
             await dispatch(
                 configureMatrixPushNotifications({
+                    fedimint,
                     token: fcmToken,
                     appId: DeviceInfo.getBundleId(),
                     appName: DeviceInfo.getApplicationName(),

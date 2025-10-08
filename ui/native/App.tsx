@@ -18,6 +18,7 @@ import { NotificationContextProvider } from './state/contexts/NotificationContex
 import { OmniLinkContextProvider } from './state/contexts/OmniLinkContext'
 import { PinContextProvider } from './state/contexts/PinContext'
 import ProviderComposer from './state/contexts/ProviderComposer'
+import { ToastScopeProvider } from './state/contexts/ToastScopeContext'
 import { initializeNativeStore, store } from './state/store'
 import theme from './styles/theme'
 
@@ -54,16 +55,18 @@ const App = () => {
                         fallback={props => <ErrorScreen {...props} />}>
                         <ReduxProvider store={store}>
                             <FediBridgeInitializer>
-                                <ProviderComposer
-                                    providers={[
-                                        BackupRecoveryProvider,
-                                        OmniLinkContextProvider,
-                                        PinContextProvider,
-                                        NotificationContextProvider,
-                                    ]}>
-                                    {<Router />}
-                                    <InternetIsUnreachableBadge />
-                                </ProviderComposer>
+                                <ToastScopeProvider>
+                                    <ProviderComposer
+                                        providers={[
+                                            BackupRecoveryProvider,
+                                            OmniLinkContextProvider,
+                                            PinContextProvider,
+                                            NotificationContextProvider,
+                                        ]}>
+                                        {<Router />}
+                                        <InternetIsUnreachableBadge />
+                                    </ProviderComposer>
+                                </ToastScopeProvider>
                             </FediBridgeInitializer>
                         </ReduxProvider>
                     </ErrorBoundary>

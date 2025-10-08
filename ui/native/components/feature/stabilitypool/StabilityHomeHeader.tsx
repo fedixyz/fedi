@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native'
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,14 +7,18 @@ import { Pressable, StyleSheet } from 'react-native'
 import { selectCurrency } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import { NavigationHook } from '../../../types/navigation'
+import { NavigationHook, RootStackParamList } from '../../../types/navigation'
 import Header from '../../ui/Header'
 import SvgImage from '../../ui/SvgImage'
 import BetaBanner from './BetaBanner'
 
+type StabilityHomeRouteProp = RouteProp<RootStackParamList, 'StabilityHome'>
+
 const StabilityHomeHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const route = useRoute<StabilityHomeRouteProp>()
+    const { federationId } = route.params
     const navigation = useNavigation<NavigationHook>()
     const selectedCurrency = useAppSelector(selectCurrency)
 
@@ -24,7 +28,11 @@ const StabilityHomeHeader: React.FC = () => {
         <>
             <Header
                 backButton
-                onBackButtonPress={() => navigation.replace('TabsNavigator')}
+                onBackButtonPress={() =>
+                    navigation.replace('TabsNavigator', {
+                        initialRouteName: 'Federations',
+                    })
+                }
                 headerCenter={
                     <Text bold>{`${selectedCurrency} ${t(
                         'words.balance',
@@ -32,7 +40,11 @@ const StabilityHomeHeader: React.FC = () => {
                 }
                 headerRight={
                     <Pressable
-                        onPress={() => navigation.navigate('StabilityHistory')}
+                        onPress={() =>
+                            navigation.navigate('StabilityHistory', {
+                                federationId,
+                            })
+                        }
                         hitSlop={5}
                         style={style.iconContainer}>
                         <SvgImage name="List" />

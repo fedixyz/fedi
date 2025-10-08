@@ -211,24 +211,17 @@ export const setDeepLinkHandler = (handler: DeepLinkHandler): void => {
  */
 const processPendingDeepLinks = (pendingLinks: string[]) => {
     if (pendingLinks.length === 0) return
-
     log.info(`Processing ${pendingLinks.length} pending deep links`)
 
-    // Delay for older devices to ensure everything is ready
-    setTimeout(() => {
-        pendingLinks.forEach(link => {
-            log.info('Processing pending link:', link)
-
-            if (deepLinkHandler) {
-                const handled = deepLinkHandler(link)
-                if (!handled) {
-                    log.warn('Failed to handle pending link:', link)
-                }
-            } else {
-                log.warn('No deep link handler set for:', link)
-            }
-        })
-    }, 800)
+    pendingLinks.forEach(link => {
+        log.info('Processing pending link:', link)
+        if (deepLinkHandler) {
+            const handled = deepLinkHandler(link)
+            if (!handled) log.warn('Failed to handle pending link:', link)
+        } else {
+            log.warn('No deep link handler set for:', link)
+        }
+    })
 }
 
 /**
@@ -328,8 +321,17 @@ export const prefixFediUri = (path: string): string => {
 export const parseFediPath = (uri: string): { screen: string; id?: string } => {
     const pathPart = stripFediPrefix(uri)
     const [screen, ...restParts] = pathPart.split('/')
-    const id = restParts.length > 0 ? restParts.join('/') : undefined
 
+    // Decode each segment so things like %3A → ":"
+    const decodedParts = restParts.map(p => {
+        try {
+            return decodeURIComponent(p)
+        } catch {
+            return p
+        }
+    })
+
+    const id = decodedParts.length > 0 ? decodedParts.join('/') : undefined
     return { screen, id }
 }
 

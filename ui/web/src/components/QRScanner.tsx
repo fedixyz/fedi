@@ -217,7 +217,7 @@ const Container = styled('div', {
     width: '100%',
     aspectRatio: '1 / 1',
     padding,
-    holoGradient: '900',
+    fediGradient: 'sky-heavy',
     borderRadius: 20,
 
     '@sm': {

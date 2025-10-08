@@ -16,7 +16,6 @@ const protectedPrefixes = [
     // These are dynamic keys that are accessed via template strings in the UI
     // There is no way for even typescript to know if these are missing or not
     'feature.settings.currency-names',
-    'feature.federations.connection-status-',
 ]
 
 const uiPath = path.dirname(process.cwd())

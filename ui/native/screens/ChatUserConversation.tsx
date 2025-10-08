@@ -50,7 +50,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
     const navigationReplace = navigation.replace
     useEffect(() => {
         if (userId === matrixAuth?.userId) {
-            navigationReplace('TabsNavigator')
+            navigationReplace('TabsNavigator', { initialRouteName: 'Chat' })
         }
     }, [userId, matrixAuth, navigationReplace])
 
@@ -65,7 +65,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
         async (
             body: string,
             attachments?: Array<InputAttachment | InputMedia>,
-            repliedEventId?: string | null,
+            repliedEventId?: string,
         ) => {
             setIsSending(true)
             try {

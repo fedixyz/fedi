@@ -70,12 +70,6 @@ export const ZENDESK_PUSH_NOTIFICATION_CHANNEL = 'and-notification-channel'
     -----
 */
 
-// Screen size thresholds
-export const SCREEN_SIZE_THRESHOLDS = {
-    SMALL_TO_MEDIUM: 750,
-    MEDIUM_TO_LARGE: 900,
-} as const
-
 // Android screen size categories
 export enum AndroidScreenSize {
     SMALL = 750, // <750px - small phones (5" and under)

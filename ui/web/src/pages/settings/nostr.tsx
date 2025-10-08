@@ -23,7 +23,7 @@ function SettingsNostrPage() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back="/settings">
+                <Layout.Header back>
                     <Layout.Title subheader>
                         {t('feature.nostr.nostr-settings')}
                     </Layout.Title>

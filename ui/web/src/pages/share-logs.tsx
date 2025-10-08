@@ -4,10 +4,8 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import CheckIcon from '@fedi/common/assets/svgs/check.svg'
 import {
-    selectActiveFederation,
     selectPaymentFederation,
-    selectWalletFederations,
-    setActiveFederationId,
+    selectLoadedFederations,
 } from '@fedi/common/redux'
 import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
@@ -20,7 +18,7 @@ import * as Layout from '../components/Layout'
 import ShareLogs from '../components/ShareLogs'
 import Success from '../components/Success'
 import { Text } from '../components/Text'
-import { useAppDispatch, useAppSelector } from '../hooks'
+import { useAppSelector } from '../hooks'
 import { useShareLogs } from '../hooks/export'
 import { styled, theme } from '../styles'
 
@@ -33,10 +31,8 @@ export default function ShareLogsPage() {
     const { status, collectAttachmentsAndSubmit } = useShareLogs()
     const { push } = useRouter()
 
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const walletFederations = useAppSelector(selectWalletFederations)
+    const walletFederations = useAppSelector(selectLoadedFederations)
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const dispatch = useAppDispatch()
 
     const [ticketNumber, setTicketNumber] = useState('')
     const [error, setError] = useState<string | null>(null)
@@ -66,11 +62,7 @@ export default function ShareLogsPage() {
     }, [status])
 
     const handleOnSubmit = async () => {
-        if (
-            walletFederations.length > 0 &&
-            activeFederation &&
-            !activeFederation.hasWallet
-        ) {
+        if (walletFederations.length > 0 && paymentFederation) {
             setIsSelectingFederation(true)
             return
         }
@@ -88,15 +80,6 @@ export default function ShareLogsPage() {
         }
     }
 
-    const handleSelectFederation = () => {
-        if (!paymentFederation) return
-
-        setIsSelectingFederation(false)
-        dispatch(setActiveFederationId(paymentFederation?.id))
-
-        handleOnSubmit()
-    }
-
     if (status === 'success') {
         return (
             <Success
@@ -111,7 +94,7 @@ export default function ShareLogsPage() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back="/settings">
+                <Layout.Header showCloseButton>
                     <Layout.Title subheader>
                         {t('feature.developer.share-logs')}
                     </Layout.Title>
@@ -173,7 +156,7 @@ export default function ShareLogsPage() {
                 )}>
                 <SelectFederationContent>
                     <FederationWalletSelector />
-                    <Button width="full" onClick={handleSelectFederation}>
+                    <Button width="full" onClick={() => handleOnSubmit()}>
                         {t('words.continue')}
                     </Button>
                 </SelectFederationContent>

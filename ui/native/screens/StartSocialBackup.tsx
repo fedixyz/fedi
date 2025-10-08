@@ -14,9 +14,10 @@ export type Props = NativeStackScreenProps<
     'StartSocialBackup'
 >
 
-const StartSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
+const StartSocialBackup: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const { federationId } = route.params
 
     return (
         <Flex grow center style={styles(theme).container}>
@@ -35,7 +36,7 @@ const StartSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 title={t('words.next')}
                 containerStyle={styles(theme).continueButton}
                 onPress={() => {
-                    navigation.navigate('RecordBackupVideo')
+                    navigation.navigate('RecordBackupVideo', { federationId })
                 }}
             />
         </Flex>

@@ -1,15 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    Keyboard,
-    KeyboardEvent,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-} from 'react-native'
+import { Platform, ScrollView, StyleSheet, TextInput } from 'react-native'
 
 import { usePersonalRecovery } from '@fedi/common/hooks/recovery'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -25,6 +18,7 @@ import { usePinContext } from '../state/contexts/PinContext'
 import { useAppSelector } from '../state/hooks'
 import { resetAfterPersonalRecovery } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
+import { useKeyboard } from '../utils/hooks/keyboard'
 
 const isValidSeedWord = (word: string) => {
     return word.length > 0 && BIP39_WORD_LIST.indexOf(word.toLowerCase()) >= 0
@@ -49,27 +43,7 @@ const PersonalRecovery: React.FC<Props> = ({ navigation }: Props) => {
         new Array(12).fill(''),
     )
     const inputRefs = useRef<Array<TextInput | null>>([])
-    const [keyboardHeight, setKeyboardHeight] = useState<number>(0)
-
-    useEffect(() => {
-        const keyboardShownListener = Keyboard.addListener(
-            'keyboardDidShow',
-            (e: KeyboardEvent) => {
-                setKeyboardHeight(e.endCoordinates.height)
-            },
-        )
-        const keyboardHiddenListener = Keyboard.addListener(
-            'keyboardDidHide',
-            () => {
-                setKeyboardHeight(0)
-            },
-        )
-
-        return () => {
-            keyboardShownListener.remove()
-            keyboardHiddenListener.remove()
-        }
-    }, [])
+    const { height: keyboardHeight } = useKeyboard()
 
     const handleRecovery = useCallback(() => {
         if (isOffline) {

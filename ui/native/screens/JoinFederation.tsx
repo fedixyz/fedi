@@ -1,8 +1,9 @@
 import { useIsFocused } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import { Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import {
     useFederationPreview,
@@ -16,8 +17,11 @@ import {
     OmniInput,
     OmniInputAction,
 } from '../components/feature/omni/OmniInput'
+import CommunityPreview from '../components/feature/onboarding/CommunityPreview'
 import FederationPreview from '../components/feature/onboarding/FederationPreview'
+import { HelpTextLoadingAnimation } from '../components/feature/onboarding/HelpTextLoadingAnimation'
 import { CameraPermissionGate } from '../components/feature/permissions/CameraPermissionGate'
+import Flex from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -27,15 +31,19 @@ const log = makeLog('JoinFederation')
 
 const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
+    const { theme } = useTheme()
     const invite = route?.params?.invite
     const isFocused = useIsFocused()
     const hasMatrixAuth = useAppSelector(s => !!selectMatrixAuth(s))
     const { publicFederations } = useLatestPublicFederations()
     const {
         isJoining,
+        setIsJoining,
         isFetchingPreview,
         federationPreview,
         setFederationPreview,
+        communityPreview,
+        setCommunityPreview,
         handleCode,
         handleJoin,
     } = useFederationPreview(t, fedimint, invite || '')
@@ -48,21 +56,40 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     // }, [setFederationPreview])
 
     const goToNextScreen = useCallback(() => {
-        if (!federationPreview) return
-        navigation.replace(hasMatrixAuth ? 'TabsNavigator' : 'EnterDisplayName')
-    }, [federationPreview, hasMatrixAuth, navigation])
+        if (!federationPreview && !communityPreview) return
+        if (hasMatrixAuth) {
+            navigation.replace('TabsNavigator', {
+                initialRouteName: federationPreview ? 'Federations' : 'Home',
+            })
+        } else {
+            navigation.replace('EnterDisplayName')
+        }
+    }, [federationPreview, communityPreview, hasMatrixAuth, navigation])
 
     // If they came here with route state, paste the code for them
     useEffect(() => {
         if (!invite || !isFocused) return
         // skip handling the code if we already have a preview
-        if (federationPreview) return
+        if (federationPreview || communityPreview) return
         handleCode(invite, goToNextScreen)
-    }, [federationPreview, invite, handleCode, isFocused, goToNextScreen])
+    }, [
+        federationPreview,
+        communityPreview,
+        invite,
+        handleCode,
+        isFocused,
+        goToNextScreen,
+    ])
+
+    const style = styles(theme)
 
     const renderQrCodeScanner = () => {
         if (isJoining || isFetchingPreview) {
-            return <ActivityIndicator />
+            return (
+                <Flex grow center style={style.loadingContainer}>
+                    <HelpTextLoadingAnimation />
+                </Flex>
+            )
         } else {
             const customActions: OmniInputAction[] =
                 publicFederations.length > 0
@@ -96,6 +123,7 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     if (federationPreview) {
         return (
             <FederationPreview
+                isJoining={isJoining}
                 onJoin={recoverFromScratch => {
                     if (recoverFromScratch)
                         log.info(
@@ -103,21 +131,58 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
                         )
                     handleJoin(goToNextScreen, recoverFromScratch)
                 }}
-                onBack={() => setFederationPreview(undefined)}
+                onBack={() => {
+                    setIsJoining(false)
+                    setFederationPreview(undefined)
+                    // navigation.getState()?.routes?.length || 0) > 1
+                    //     ? navigation.goBack()
+                    //     : navigation.reset({
+                    //           index: 0,
+                    //           routes: [{ name: 'TabsNavigator' }],
+                    //       }
+                }}
                 federation={federationPreview}
             />
         )
     }
 
-    return <View style={styles().container}>{renderQrCodeScanner()}</View>
+    if (communityPreview) {
+        return (
+            <CommunityPreview
+                isJoining={isJoining}
+                onJoin={() => {
+                    handleJoin(goToNextScreen)
+                }}
+                onBack={() => {
+                    setIsJoining(false)
+                    setCommunityPreview(undefined)
+                    // navigation.getState()?.routes?.length || 0) > 1
+                    //     ? navigation.goBack()
+                    //     : navigation.reset({
+                    //           index: 0,
+                    //           routes: [{ name: 'TabsNavigator' }],
+                    //       }
+                }}
+                community={communityPreview}
+            />
+        )
+    }
+
+    return <View style={style.container}>{renderQrCodeScanner()}</View>
 }
 
-const styles = () =>
+const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
+        },
+        loadingContainer: {
+            paddingHorizontal: theme.spacing.lg,
+            paddingTop: 3,
+            paddingBottom: 3,
+            transform: [{ scale: 2 }],
         },
     })
 

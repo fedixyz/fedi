@@ -4,16 +4,23 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { selectStableBalancePending } from '@fedi/common/redux/wallet'
+import { Federation } from '@fedi/common/types'
 
 import { useAppSelector, useStabilityPool } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 
-const Balance: React.FC = () => {
+type Props = {
+    federationId: Federation['id']
+}
+
+const Balance: React.FC<Props> = ({ federationId }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const stableBalancePending = useAppSelector(selectStableBalancePending)
+    const stableBalancePending = useAppSelector(s =>
+        selectStableBalancePending(s, federationId),
+    )
     const { formattedStableBalance, formattedStableBalancePending } =
-        useStabilityPool()
+        useStabilityPool(federationId)
     const formattedPending =
         stableBalancePending > 0
             ? '+' + formattedStableBalancePending
@@ -51,7 +58,7 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         balanceText: {
             textAlign: 'right',
-            color: theme.colors.secondary,
+            color: theme.colors.primary,
         },
         svgStyle: {
             opacity: 0.7,

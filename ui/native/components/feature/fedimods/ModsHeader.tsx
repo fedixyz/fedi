@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { NavigationHook } from '../../../types/navigation'
+import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
-import { PressableIcon } from '../../ui/PressableIcon'
-import HeaderAvatar from '../chat/HeaderAvatar'
+import MainHeaderButtons from '../../ui/MainHeaderButtons'
+import TotalBalance from '../../ui/TotalBalance'
 
 const ModsHeader: React.FC = () => {
     const { theme } = useTheme()
@@ -20,42 +21,33 @@ const ModsHeader: React.FC = () => {
         navigation.navigate('AddFediMod')
     }
 
-    const handleAvatarPress = () => {
-        navigation.navigate('Settings')
-    }
-
     return (
-        <>
+        <GradientView variant="sky" style={style.container}>
             <Header
-                containerStyle={style.container}
+                transparent
+                containerStyle={style.headerContainer}
                 headerLeft={
                     <Text h2 medium numberOfLines={1} adjustsFontSizeToFit>
-                        {t('words.mods')}
+                        {t('phrases.mini-apps')}
                     </Text>
                 }
-                headerRight={
-                    <>
-                        <PressableIcon
-                            onPress={handleAddPress}
-                            hitSlop={5}
-                            svgName="Plus"
-                        />
-                        <HeaderAvatar onPress={handleAvatarPress} />
-                    </>
-                }
-                rightContainerStyle={style.rightContainer}
+                headerRight={<MainHeaderButtons onAddPress={handleAddPress} />}
             />
-        </>
+            <TotalBalance />
+        </GradientView>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
+            paddingHorizontal: theme.spacing.lg,
+            display: 'flex',
+            gap: theme.spacing.xs,
             paddingBottom: theme.spacing.md,
         },
-        rightContainer: {
-            gap: theme.spacing.lg,
+        headerContainer: {
+            paddingHorizontal: 0,
         },
     })
 

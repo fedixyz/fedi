@@ -21,7 +21,7 @@ export type Props = NativeStackScreenProps<
 const StabilityDepositInitiated: React.FC<Props> = ({ route, navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { amount } = route.params
+    const { amount, federationId } = route.params
     const { convertSatsToFormattedFiat } = useBtcFiatPrice()
     const formattedFiat = convertSatsToFormattedFiat(amount)
 
@@ -66,7 +66,9 @@ const StabilityDepositInitiated: React.FC<Props> = ({ route, navigation }) => {
             <Button
                 fullWidth
                 containerStyle={style.button}
-                onPress={() => navigation.navigate('StabilityHome')}
+                onPress={() =>
+                    navigation.navigate('StabilityHome', { federationId })
+                }
                 title={
                     <Text medium caption style={style.buttonText}>
                         {t('words.okay')}

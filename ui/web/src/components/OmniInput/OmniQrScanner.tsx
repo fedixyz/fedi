@@ -129,7 +129,7 @@ const PermissionIconContainer = styled('div', {
     height: 72,
     borderRadius: '100%',
     backgroundColor: theme.colors.white,
-    holoGradient: '400',
+    fediGradient: 'sky',
     color: theme.colors.night,
 })
 

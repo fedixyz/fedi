@@ -7,7 +7,7 @@ import { selectMatrixAuth } from '@fedi/common/redux'
 import { useAppSelector } from '../../../state/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
 import { BubbleView } from '../../ui/BubbleView'
-import HoloGradient from '../../ui/HoloGradient'
+import GradientView from '../../ui/GradientView'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
@@ -22,10 +22,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
 
     if (!matrixAuth || matrixAuth.avatarUrl == null) {
         return (
-            <HoloGradient
-                level="900"
-                style={style.gradientContainer}
-                gradientStyle={style.gradient}>
+            <GradientView variant="sky-heavy" style={style.gradientContainer}>
                 <Pressable testID="AvatarButton" hitSlop={10} onPress={onPress}>
                     <SvgImage
                         name="ProfileThicker"
@@ -36,7 +33,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
                         }
                     />
                 </Pressable>
-            </HoloGradient>
+            </GradientView>
         )
     }
 
@@ -70,15 +67,13 @@ const styles = (theme: Theme) =>
             borderRadius: 40,
         },
         gradientContainer: {
+            padding: theme.spacing.xxs,
+            alignSelf: 'center',
             borderRadius: 50,
             marginRight: theme.spacing.xs,
             ...theme.styles.subtleShadow,
         },
-        gradient: {
-            padding: theme.spacing.xxs,
-            borderRadius: 50,
-            alignSelf: 'center',
-        },
+        gradient: {},
         iconContainer: {
             padding: theme.spacing.xs,
             backgroundColor: theme.colors.white,

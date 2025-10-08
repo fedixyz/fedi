@@ -10,26 +10,29 @@ import debounce from 'lodash/debounce'
 import type { AnyAction } from 'redux'
 import type { ThunkDispatch } from 'redux-thunk'
 
-import { FederationListItem, StorageApi } from '../types'
+import { Community, StorageApi } from '../types'
 import { RpcFederationMaybeLoading } from '../types/bindings'
 import {
-    coerceFederationListItem,
+    coerceCommunity,
     coerceLoadedFederation,
 } from '../utils/FederationUtils'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { hasStorageStateChanged } from '../utils/storage'
+import { analyticsSlice } from './analytics'
 import { browserSlice } from './browser'
 import { currencySlice, refreshHistoricalCurrencyRates } from './currency'
 import { environmentSlice } from './environment'
 import {
     federationSlice,
     joinFederation,
+    processCommunityMeta,
     processFederationMeta,
     refreshFederations,
     refreshGuardianStatuses,
     tryRejoinFederationsPendingScratchRejoin,
     updateFederationBalance,
+    upsertCommunity,
     upsertFederation,
 } from './federation'
 import {
@@ -80,6 +83,7 @@ export const commonReducers = {
     security: securitySlice.reducer,
     browser: browserSlice.reducer,
     support: supportSlice.reducer,
+    analytics: analyticsSlice.reducer,
 }
 
 type CommonReducers = typeof commonReducers
@@ -141,16 +145,11 @@ export function initializeCommonStore({
             // if (event.init_state !== 'ready') return
             // just in case an erroneous event fires with no id
             if (!event.id) return
-            let federation: FederationListItem
             switch (event.init_state) {
-                // For loading and failes states we just pass it along as-is with hasWallet
+                // For loading and failed states we just pass it along as-is
                 case 'loading':
                 case 'failed':
-                    federation = {
-                        ...event,
-                        hasWallet: true,
-                    }
-                    dispatch(upsertFederation(federation))
+                    dispatch(upsertFederation(event))
                     break
                 // For ready states we prepare the full loaded federation with meta + status updates
                 case 'ready': {
@@ -170,6 +169,7 @@ export function initializeCommonStore({
 
                         dispatch(
                             processFederationMeta({
+                                fedimint,
                                 federation: loadedFederation,
                             }),
                         )
@@ -192,11 +192,9 @@ export function initializeCommonStore({
     const unsubscribeCommunities = fedimint.addListener(
         'communityMetadataUpdated',
         event => {
-            const federation: FederationListItem = coerceFederationListItem(
-                event.newCommunity,
-            )
-            dispatch(upsertFederation(federation))
-            dispatch(processFederationMeta({ federation }))
+            const community: Community = coerceCommunity(event.newCommunity)
+            dispatch(upsertCommunity(community))
+            dispatch(processCommunityMeta({ fedimint, community }))
         },
     )
 
@@ -208,14 +206,14 @@ export function initializeCommonStore({
         },
     )
 
-    const debouncedUpdate = debounce(event => {
+    const updateFederationBalanceDebounced = debounce(event => {
         log.debug('Debounced Balance update', event)
         dispatch(updateFederationBalance(event))
     }, 100) // 100ms delay to maintain trickle effect
 
     // Update balance on bridge events
     const unsubscribeBalance = fedimint.addListener('balance', event => {
-        debouncedUpdate(event)
+        updateFederationBalanceDebounced(event)
     })
 
     // Add or update transactions on bridge events
@@ -275,6 +273,18 @@ export function initializeCommonStore({
     // TODO: Does this logic belong here in redux middleware?
     // This is only called on `roomTimelineUpdate` events, so why not
     // claim ecash in the `MatrixChatClient` (before it touches redux)?
+    const checkForReceivablePaymentsDebounced = debounce(
+        (apiDispatch, roomId) => {
+            apiDispatch(
+                checkForReceivablePayments({
+                    fedimint,
+                    roomId,
+                    receivedPayments,
+                }),
+            )
+        },
+        300,
+    )
     const unsubscribeMatrixPayments = listenerMiddleware.startListening({
         matcher: isAnyOf(
             joinFederation.fulfilled,
@@ -288,13 +298,7 @@ export function initializeCommonStore({
         ) => {
             const roomId =
                 'roomId' in action.payload ? action.payload?.roomId : undefined
-            api.dispatch(
-                checkForReceivablePayments({
-                    fedimint,
-                    roomId,
-                    receivedPayments,
-                }),
-            )
+            checkForReceivablePaymentsDebounced(api.dispatch, roomId)
         },
     })
 

@@ -1,7 +1,6 @@
 import {
     EcashRequest,
     FediInternalVersion,
-    LoadedFederationListItem,
     MSats,
     SupportedCurrency,
 } from '@fedi/common/types'
@@ -29,15 +28,6 @@ class InjectionFediProvider {
     async getAuthenticatedMember(): Promise<{ id: string; username: string }> {
         return this.sendMessage(
             InjectionMessageType.fedi_getAuthenticatedMember,
-            undefined,
-        )
-    }
-
-    async getActiveFederation(): Promise<
-        Pick<LoadedFederationListItem, 'id' | 'name' | 'network'>
-    > {
-        return this.sendMessage(
-            InjectionMessageType.fedi_getActiveFederation,
             undefined,
         )
     }

@@ -12,6 +12,7 @@ import { formatErrorMessage } from '@fedi/common/utils/format'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
+import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 import { CircularLoader } from '../CircularLoader'
 import { EmptyState } from '../EmptyState'
@@ -36,7 +37,9 @@ export const ChatRoomInviteUser: React.FC<Props> = ({ roomId }) => {
     const inviteUser = async (userId: string) => {
         setInvitingUsers(users => [...users, userId])
         try {
-            await dispatch(inviteUserToMatrixRoom({ roomId, userId })).unwrap()
+            await dispatch(
+                inviteUserToMatrixRoom({ fedimint, roomId, userId }),
+            ).unwrap()
         } catch (err) {
             error(t, 'errors.unknown-error')
         }

@@ -6,6 +6,8 @@ export const chatRoute = '/chat'
 export const homeRoute = '/home'
 export const modsRoute = '/mods'
 export const scanRoute = '/scan'
+export const federationsRoute = '/federations'
+export const federationRoute = (id: string) => `${federationsRoute}/${id}`
 export const settingsRoute = '/settings'
 export const transactionsRoute = '/transactions'
 export const sendRoute = '/send'

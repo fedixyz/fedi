@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,12 +10,18 @@ import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import TransactionsList from '../components/TransactionList'
 import { fedimint } from '../lib/bridge'
+import { getHashParams } from '../utils/linking'
 
 const TransactionsPage: React.FC = () => {
     const { t } = useTranslation()
     const toast = useToast()
+    const router = useRouter()
+    const params = getHashParams(router.asPath)
     const [isLoading, setIsLoading] = useState(true)
-    const { transactions, fetchTransactions } = useTransactionHistory(fedimint)
+    const { transactions, fetchTransactions } = useTransactionHistory(
+        fedimint,
+        params.id,
+    )
 
     useEffect(() => {
         fetchTransactions({ more: false })
@@ -33,6 +40,7 @@ const TransactionsPage: React.FC = () => {
                     <TransactionsList
                         transactions={transactions}
                         loading={transactions.length === 0 && isLoading}
+                        federationId={params.id}
                     />
                 </Layout.Content>
             </Layout.Root>

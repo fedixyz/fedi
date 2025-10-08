@@ -2,7 +2,7 @@ import { NativeEventEmitter, NativeModules } from 'react-native'
 import RNFS from 'react-native-fs'
 
 import { FedimintBridgeEventMap } from '@fedi/common/types'
-import { RpcInitOpts } from '@fedi/common/types/bindings'
+import { RpcAppFlavor, RpcInitOpts } from '@fedi/common/types/bindings'
 import { isDev } from '@fedi/common/utils/environment'
 import { BridgeError } from '@fedi/common/utils/errors'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
@@ -57,14 +57,19 @@ export async function unsubscribeFromBridgeEvents(
     subscriptions.forEach(s => s.remove())
 }
 
-export async function initializeBridge(deviceId: string) {
+export const getAppFlavor = (): RpcAppFlavor['type'] => {
+    return isDev() ? 'dev' : isNightly() ? 'nightly' : 'bravo'
+}
+
+export async function initializeBridge(
+    deviceId: string,
+    appFlavor: RpcAppFlavor['type'],
+) {
     const options: RpcInitOpts = {
         dataDir: RNFS.DocumentDirectoryPath,
         deviceIdentifier: deviceId,
         logLevel: 'info',
-        appFlavor: {
-            type: isDev() ? 'dev' : isNightly() ? 'nightly' : 'bravo',
-        },
+        appFlavor: { type: appFlavor },
     }
     log.info(
         'initializing connection to federation',

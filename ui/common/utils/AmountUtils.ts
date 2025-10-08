@@ -133,6 +133,13 @@ class AmountUtils {
     formatSats = (sats: Sats): string => {
         return Intl.NumberFormat().format(sats)
     }
+    formatBtc = (btc: Btc): string => {
+        // always show exactly 2 decimal places
+        return Intl.NumberFormat(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(btc)
+    }
     /**
      * Given a fiat currency amount and the ISO code of the currency,
      * return a string formatted in the user's default locale of the

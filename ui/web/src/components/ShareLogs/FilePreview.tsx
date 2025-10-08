@@ -39,7 +39,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
 const Container = styled('div', {
     position: 'relative',
-    borderRadius: theme.space.xs,
+    borderRadius: theme.spacing.xs,
     width: 44,
     height: 44,
     display: 'grid',
@@ -55,7 +55,7 @@ const CloseButton = styled('button', {
     right: -8,
     width: 16,
     height: 16,
-    borderRadius: theme.space.lg,
+    borderRadius: theme.spacing.lg,
     diplay: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

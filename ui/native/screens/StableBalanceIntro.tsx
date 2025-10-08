@@ -15,7 +15,8 @@ export type Props = NativeStackScreenProps<
     'StableBalanceIntro'
 >
 
-const StableBalanceIntro: React.FC<Props> = ({ navigation }: Props) => {
+const StableBalanceIntro: React.FC<Props> = ({ navigation, route }: Props) => {
+    const { federationId } = route.params
     const { t } = useTranslation()
     const { theme } = useTheme()
 
@@ -36,7 +37,9 @@ const StableBalanceIntro: React.FC<Props> = ({ navigation }: Props) => {
                 containerStyle={style.continueButton}
                 onPress={() => {
                     setHasOpenedStabilityPool()
-                    navigation.navigate('StabilityHome')
+                    navigation.navigate('StabilityHome', {
+                        federationId: federationId,
+                    })
                 }}
             />
         </Flex>

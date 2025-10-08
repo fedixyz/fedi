@@ -15,12 +15,7 @@ import { Text } from '../../components/Text'
 import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
-import { Header, Title } from '../Layout'
-import {
-    OnboardingActions,
-    OnboardingContainer,
-    OnboardingContent,
-} from './components'
+import * as Layout from '../Layout'
 
 export const PersonalRecovery: React.FC = () => {
     const { t } = useTranslation()
@@ -63,21 +58,21 @@ export const PersonalRecovery: React.FC = () => {
     }
 
     return (
-        <OnboardingContainer>
-            <Header back="/onboarding/recover">
-                <Title subheader>
+        <Layout.Root>
+            <Layout.Header back="/onboarding/recover">
+                <Layout.Title subheader>
                     {t('feature.recovery.personal-recovery')}
-                </Title>
-            </Header>
-            <OnboardingContent fullWidth>
+                </Layout.Title>
+            </Layout.Header>
+            <Layout.Content>
                 <Content>
                     <Text>
                         {t('feature.recovery.personal-recovery-instructions')}
                     </Text>
                     <RecoverySeedWords words={words} onChangeWords={setWords} />
                 </Content>
-            </OnboardingContent>
-            <OnboardingActions>
+            </Layout.Content>
+            <Layout.Actions>
                 <Button
                     width="full"
                     onClick={handleRecovery}
@@ -85,8 +80,8 @@ export const PersonalRecovery: React.FC = () => {
                     loading={recoveryInProgress}>
                     {t('feature.recovery.recover-wallet')}
                 </Button>
-            </OnboardingActions>
-        </OnboardingContainer>
+            </Layout.Actions>
+        </Layout.Root>
     )
 }
 
@@ -94,4 +89,5 @@ const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 16,
+    textAlign: 'left',
 })

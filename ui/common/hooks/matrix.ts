@@ -2,6 +2,11 @@ import type { TFunction } from 'i18next'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
+    DEFAULT_PAGINATION_SIZE,
+    ROOM_MENTION,
+    SEARCH_PAGINATION_SIZE,
+} from '../constants/matrix'
+import {
     acceptMatrixPaymentRequest,
     cancelMatrixPayment,
     joinMatrixRoom,
@@ -29,45 +34,48 @@ import {
     observeMultispendAccountInfo,
     unobserveMultispendAccountInfo,
     checkBolt11PaymentResult,
-    clearChatReplyingToMessage,
-    setChatReplyingToMessage,
-    selectReplyingToMessageEventForRoom,
     sendMatrixFormResponse,
     createMatrixRoom,
+    selectMatrixChatsList,
+    setChatsListSearchQuery,
+    selectRoomTextEvents,
+    selectMatrixRoomMembers,
+    setChatTimelineSearchQuery,
 } from '../redux'
 import {
-    MatrixEvent,
     MatrixFormEvent,
     MatrixPaymentEvent,
-    MatrixPaymentStatus,
     MatrixRoom,
+    MatrixRoomMember,
     MatrixUser,
+    MentionSelect,
+    SendableMatrixEvent,
 } from '../types'
 import {
     RpcFederationId,
+    RpcFormOption,
     RpcOperationId,
     RpcTransaction,
 } from '../types/bindings'
-import { FedimintBridge } from '../utils/fedimint'
 import { formatErrorMessage } from '../utils/format'
 import { makeLog } from '../utils/log'
 import {
     decodeFediMatrixUserUri,
-    getReplyMessageData,
-    isReply,
+    getReplyData,
     isValidMatrixUserId,
     makeMatrixPaymentText,
-    MatrixFormOption,
     matrixIdToUsername,
     MatrixUrlMetadata,
     matrixUrlMetadataSchema,
     getLocalizedTextWithFallback,
     stripReplyFromBody,
+    isTextEvent,
 } from '../utils/matrix'
 import { useAmountFormatter } from './amount'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
-import { useUpdatingRef } from './util'
+import { useDebouncedEffect, useUpdatingRef } from './util'
 
 const log = makeLog('common/hooks/matrix')
 /**
@@ -81,7 +89,127 @@ export function usePushNotificationToken() {
     return pushNotificationToken
 }
 
+export function useChatsListSearch(initialQuery?: string) {
+    const dispatch = useCommonDispatch()
+    const chatsListSearchQuery = useCommonSelector(
+        s => s.matrix.chatsListSearchQuery,
+    )
+    const chatsList = useCommonSelector(s => selectMatrixChatsList(s))
+
+    const filteredChatsList = useMemo(() => {
+        if (!chatsListSearchQuery) return chatsList
+        return chatsList.filter(c =>
+            c.name?.toLowerCase().includes(chatsListSearchQuery.toLowerCase()),
+        )
+    }, [chatsList, chatsListSearchQuery])
+
+    // if query is provided by the hook consumer, auto-set it to redux state
+    useEffect(() => {
+        if (initialQuery) {
+            dispatch(setChatsListSearchQuery(initialQuery))
+        }
+    }, [initialQuery, dispatch])
+
+    return {
+        query: chatsListSearchQuery,
+        setQuery: (q: string) => dispatch(setChatsListSearchQuery(q)),
+        clearSearch: () => dispatch(setChatsListSearchQuery('')),
+        filteredChatsList,
+    }
+}
+
+export function useChatTimelineSearchQuery() {
+    const dispatch = useCommonDispatch()
+    const chatTimelineSearchQuery = useCommonSelector(
+        s => s.matrix.chatTimelineSearchQuery,
+    )
+
+    return {
+        query: chatTimelineSearchQuery,
+        setQuery: (q: string) => dispatch(setChatTimelineSearchQuery(q)),
+        clearSearch: () => dispatch(setChatTimelineSearchQuery('')),
+    }
+}
+
+export function useChatTimelineSearch(roomId: MatrixRoom['id']) {
+    const dispatch = useCommonDispatch()
+    const { query, setQuery, clearSearch } = useChatTimelineSearchQuery()
+    const hasTriggeredInitialPagination = useRef(false)
+    const {
+        paginationStatus,
+        isPaginating,
+        canPaginateFurther,
+        handlePaginate,
+    } = useObserveMatrixRoom(roomId)
+    const textEvents = useCommonSelector(s => selectRoomTextEvents(s, roomId))
+    const roomMembers = useCommonSelector(s =>
+        selectMatrixRoomMembers(s, roomId),
+    )
+
+    // Create member lookup for efficient sender name searching
+    const memberLookup = useMemo(() => {
+        return roomMembers.reduce(
+            (acc, member) => {
+                acc[member.id] =
+                    member.displayName || matrixIdToUsername(member.id)
+                return acc
+            },
+            {} as Record<string, string>,
+        )
+    }, [roomMembers])
+
+    const searchResults = useMemo(() => {
+        if (query.trim() === '') return []
+
+        const queryLower = query.toLowerCase()
+
+        return textEvents.filter(event => {
+            let bodyMatch = false
+            if (isTextEvent(event)) {
+                bodyMatch = (event.content as { body: string }).body
+                    .toLowerCase()
+                    .includes(queryLower)
+            }
+
+            // matches search query to sender display names
+            const senderName =
+                memberLookup[event.sender] || matrixIdToUsername(event.sender)
+            const senderMatch = senderName.toLowerCase().includes(queryLower)
+
+            return bodyMatch || senderMatch
+        })
+    }, [textEvents, query, memberLookup])
+
+    const isSearching = isPaginating && query.trim() !== ''
+
+    // do an initial pagination on mount to get a big batch of results to search through
+    // after this the user can click Load More to get more results
+    useDebouncedEffect(
+        () => {
+            if (hasTriggeredInitialPagination.current) return
+            hasTriggeredInitialPagination.current = true
+            handlePaginate(SEARCH_PAGINATION_SIZE)
+        },
+        [dispatch, handlePaginate, hasTriggeredInitialPagination],
+        200,
+    )
+
+    return {
+        query,
+        setQuery,
+        clearSearch,
+        searchResults,
+        handlePaginate,
+        paginationStatus,
+        isPaginating,
+        canPaginateFurther,
+        isSearching,
+        memberLookup,
+    }
+}
+
 export function useMatrixUserSearch() {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const [searchQuery, setSearchQuery] = useState('')
     const [searchedUsers, setSearchedUsers] = useState<MatrixUser[]>([])
@@ -129,7 +257,7 @@ export function useMatrixUserSearch() {
         }
         setIsSearching(true)
         timeoutRef.current = setTimeout(() => {
-            dispatch(searchMatrixUsers(query))
+            dispatch(searchMatrixUsers({ fedimint, query }))
                 .unwrap()
                 .then(res => {
                     // Filter by checking which users from DMs are in the search results
@@ -150,7 +278,7 @@ export function useMatrixUserSearch() {
                 .finally(() => setIsSearching(false))
         }, 500)
         return () => clearTimeout(timeoutRef.current)
-    }, [dispatch, query, contactsList])
+    }, [dispatch, query, contactsList, fedimint])
 
     return {
         query: searchQuery,
@@ -174,6 +302,7 @@ export function useMatrixUserSearch() {
  */
 export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
     const [hasPaginated, setHasPaginated] = useState(false)
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     // latestEventId is used for sending read receipts
     const latestEventId = useCommonSelector(s =>
@@ -188,12 +317,15 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
     const isPaginating = useMemo(() => {
         return paginationStatus === 'paginating'
     }, [paginationStatus])
+    const canPaginateFurther = useMemo(() => {
+        return paginationStatus !== 'timelineStartReached'
+    }, [paginationStatus])
 
     // observeMatrixRoom establishes all of the relevant observables
-    // when unmounting we unobserve the room, but only for groupchats
+    // when unmounting we unobserve the room, but only for group chats
     useEffect(() => {
         if (!matrixStarted) return
-        dispatch(observeMatrixRoom({ roomId }))
+        dispatch(observeMatrixRoom({ fedimint, roomId }))
         return () => {
             // Don't unobserve DMs so ecash gets claimed in the
             // background
@@ -201,26 +333,31 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
             // TODO: remove when background ecash redemption
             // is moved to the bridge
             if (room?.directUserId) return
-            dispatch(unobserveMatrixRoom({ roomId }))
+            dispatch(unobserveMatrixRoom({ fedimint, roomId }))
         }
-    }, [matrixStarted, roomId, dispatch, room?.directUserId])
+    }, [matrixStarted, roomId, dispatch, room?.directUserId, fedimint])
 
     useEffect(() => {
         if (!matrixStarted || !latestEventId) return
-        dispatch(sendMatrixReadReceipt({ roomId, eventId: latestEventId }))
-    }, [matrixStarted, roomId, latestEventId, dispatch])
+        dispatch(
+            sendMatrixReadReceipt({ fedimint, roomId, eventId: latestEventId }),
+        )
+    }, [matrixStarted, roomId, latestEventId, dispatch, fedimint])
 
-    const handlePaginate = useCallback(async () => {
-        // don't paginate if we don't know the pagination status yet
-        if (!paginationStatus) return
-        // don't paginate if we're already paginating
-        if (isPaginating) return
-        // don't paginate if there is nothing else to paginate
-        if (paginationStatus === 'timelineStartReached') return
-        await dispatch(
-            paginateMatrixRoomTimeline({ roomId, limit: 15 }),
-        ).unwrap()
-    }, [paginationStatus, isPaginating, dispatch, roomId])
+    const handlePaginate = useCallback(
+        async (limit: number = DEFAULT_PAGINATION_SIZE) => {
+            // don't paginate if we don't know the pagination status yet
+            if (!paginationStatus) return
+            // don't paginate if we're already paginating
+            if (isPaginating) return
+            // don't paginate if there is nothing else to paginate
+            if (paginationStatus === 'timelineStartReached') return
+            await dispatch(
+                paginateMatrixRoomTimeline({ fedimint, roomId, limit }),
+            ).unwrap()
+        },
+        [paginationStatus, isPaginating, dispatch, roomId, fedimint],
+    )
 
     // this is the initial pagination fetch for most recent events which
     // waits until the pagination status is observed and defined
@@ -235,6 +372,7 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
     return {
         paginationStatus,
         isPaginating,
+        canPaginateFurther,
         handlePaginate,
         showLoading: isPaginating,
     }
@@ -254,13 +392,14 @@ type PaymentThunkAction = ReturnType<
 
 // MUST be in the federation to use
 export function useObserveMultispendAccountInfo(roomId: MatrixRoom['id']) {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     useEffect(() => {
-        dispatch(observeMultispendAccountInfo({ roomId }))
+        dispatch(observeMultispendAccountInfo({ fedimint, roomId }))
         return () => {
-            dispatch(unobserveMultispendAccountInfo({ roomId }))
+            dispatch(unobserveMultispendAccountInfo({ fedimint, roomId }))
         }
-    }, [dispatch, roomId])
+    }, [dispatch, roomId, fedimint])
 }
 
 /**
@@ -269,7 +408,6 @@ export function useObserveMultispendAccountInfo(roomId: MatrixRoom['id']) {
  */
 export function useMatrixPaymentEvent({
     event,
-    fedimint,
     t,
     onError,
     onPayWithForeignEcash,
@@ -277,13 +415,13 @@ export function useMatrixPaymentEvent({
     onCopyBolt11,
 }: {
     event: MatrixPaymentEvent
-    fedimint: FedimintBridge
     t: TFunction
     onError: (err: unknown) => void
     onPayWithForeignEcash?: () => void
     onViewBolt11?: (bolt11: string) => void
     onCopyBolt11?: (bolt11: string) => void
 }) {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const isOffline = useCommonSelector(selectIsInternetUnreachable)
     const toast = useToast()
@@ -305,7 +443,7 @@ export function useMatrixPaymentEvent({
         selectCanPayFromOtherFeds(s, event),
     )
     const eventSender = useCommonSelector(s =>
-        selectMatrixRoomMember(s, event.roomId, event.senderId || ''),
+        selectMatrixRoomMember(s, event.roomId, event.sender || ''),
     )
     const paymentSender = useCommonSelector(s =>
         selectMatrixRoomMember(s, event.roomId, event.content.senderId || ''),
@@ -365,7 +503,7 @@ export function useMatrixPaymentEvent({
         } else if (onPayWithForeignEcash && canPayFromOtherFeds) {
             onPayWithForeignEcash()
             handleDispatchPaymentUpdate(
-                rejectMatrixPaymentRequest({ event }),
+                rejectMatrixPaymentRequest({ fedimint, event }),
                 setIsRejecting,
             )
         } else {
@@ -395,10 +533,10 @@ export function useMatrixPaymentEvent({
 
     const handleRejectRequest = useCallback(async () => {
         handleDispatchPaymentUpdate(
-            rejectMatrixPaymentRequest({ event }),
+            rejectMatrixPaymentRequest({ fedimint, event }),
             setIsRejecting,
         )
-    }, [event, handleDispatchPaymentUpdate])
+    }, [event, fedimint, handleDispatchPaymentUpdate])
 
     const handleAcceptForeignEcash = useCallback(() => {
         if (isOffline) {
@@ -413,7 +551,6 @@ export function useMatrixPaymentEvent({
     const { transaction, isLoading: isLoadingTransaction } =
         useMatrixPaymentTransaction({
             event,
-            fedimint,
         })
 
     const messageText = makeMatrixPaymentText({
@@ -452,23 +589,20 @@ export function useMatrixPaymentEvent({
         }
     }
 
-    if (paymentStatus === MatrixPaymentStatus.received) {
+    if (paymentStatus === 'received') {
         statusIcon = 'check'
         statusText = isBolt11
             ? t('words.complete')
             : isRecipient
               ? t('words.received')
               : t('words.paid')
-    } else if (paymentStatus === MatrixPaymentStatus.rejected) {
+    } else if (paymentStatus === 'rejected') {
         statusIcon = 'reject'
         statusText = t('words.rejected')
-    } else if (paymentStatus === MatrixPaymentStatus.canceled) {
+    } else if (paymentStatus === 'canceled') {
         statusIcon = 'x'
         statusText = t('words.canceled')
-    } else if (
-        paymentStatus === MatrixPaymentStatus.pushed ||
-        paymentStatus === MatrixPaymentStatus.accepted
-    ) {
+    } else if (paymentStatus === 'pushed' || paymentStatus === 'accepted') {
         if (!canClaimPayment) {
             buttons = [
                 {
@@ -488,7 +622,7 @@ export function useMatrixPaymentEvent({
             statusIcon = 'loading'
             statusText = `${t('words.receiving')}...`
         } else if (isSentByMe) {
-            if (paymentStatus === MatrixPaymentStatus.accepted) {
+            if (paymentStatus === 'accepted') {
                 statusIcon = 'check'
                 statusText = t('words.sent')
             }
@@ -505,12 +639,12 @@ export function useMatrixPaymentEvent({
             statusText = t('feature.chat.paid-by-name', {
                 name:
                     paymentSender?.displayName ||
-                    matrixIdToUsername(event.senderId),
+                    matrixIdToUsername(event.sender),
             })
         }
-    } else if (paymentStatus === MatrixPaymentStatus.requested) {
+    } else if (paymentStatus === 'requested') {
         if (isBolt11) {
-            if (event.senderId === matrixAuth?.userId) {
+            if (event.sender === matrixAuth?.userId) {
                 buttons.push({
                     label: t('words.cancel'),
                     handler: handleCancel,
@@ -584,9 +718,10 @@ export function useMatrixFormEvent(
     actionButton: ChatEventAction | undefined
     options: ChatEventAction[]
 } {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const matrixAuth = useCommonSelector(selectMatrixAuth)
-    const isSentByMe = event.senderId === matrixAuth?.userId
+    const isSentByMe = event.sender === matrixAuth?.userId
 
     let actionButton: ChatEventAction | undefined = undefined
     const options: ChatEventAction[] = []
@@ -602,17 +737,18 @@ export function useMatrixFormEvent(
     // if we have the string for the i18n key, use it, otherwise use the body
     let messageText = getLocalizedTextWithFallback(t, i18nKeyLabel, body)
 
-    const onSelectOption = async (option: MatrixFormOption) => {
+    const onSelectOption = async (option: RpcFormOption) => {
         try {
             await dispatch(
                 sendMatrixFormResponse({
+                    fedimint,
                     roomId: event.roomId,
                     formResponse: {
                         responseType: type,
                         responseValue: option.value,
                         responseBody: option.label || option.value || '',
                         responseI18nKey: option.i18nKeyLabel || '',
-                        respondingToEventId: event.eventId,
+                        respondingToEventId: event.id,
                     },
                 }),
             ).unwrap()
@@ -624,13 +760,14 @@ export function useMatrixFormEvent(
         try {
             await dispatch(
                 sendMatrixFormResponse({
+                    fedimint,
                     roomId: event.roomId,
                     formResponse: {
                         responseType: type,
                         responseValue: value || '',
                         responseBody: body,
                         responseI18nKey: i18nKeyLabel,
-                        respondingToEventId: event.eventId,
+                        respondingToEventId: event.id,
                     },
                 }),
             ).unwrap()
@@ -699,6 +836,7 @@ export function useMatrixFormEvent(
 }
 
 export function useMatrixChatInvites(t: TFunction) {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const toast = useToast()
 
@@ -708,7 +846,9 @@ export function useMatrixChatInvites(t: TFunction) {
         try {
             // For now, only public rooms can be joined by scanning
             // TODO: Implement knocking to support non-public rooms
-            await dispatch(joinMatrixRoom({ roomId, isPublic: true })).unwrap()
+            await dispatch(
+                joinMatrixRoom({ fedimint, roomId, isPublic: true }),
+            ).unwrap()
             return true
         } catch (err) {
             const errorMessage = formatErrorMessage(
@@ -735,24 +875,20 @@ export function useObserveMultispendEvent(
     eventId: string,
 ) {
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
 
     useEffect(() => {
-        dispatch(observeMultispendEvent({ roomId, eventId }))
+        dispatch(observeMultispendEvent({ roomId, eventId, fedimint }))
 
         return () => {
-            dispatch(unobserveMultispendEvent({ roomId, eventId }))
+            dispatch(unobserveMultispendEvent({ roomId, eventId, fedimint }))
         }
-    }, [dispatch, roomId, eventId])
+    }, [dispatch, roomId, eventId, fedimint])
 }
 
-export function useMatrixUrlPreview({
-    url,
-    fedimint,
-}: {
-    url: string
-    fedimint: FedimintBridge
-}) {
+export function useMatrixUrlPreview({ url }: { url: string }) {
     const [urlPreview, setUrlPreview] = useState<MatrixUrlMetadata | null>(null)
+    const fedimint = useFedimint()
 
     useEffect(() => {
         fedimint.matrixGetMediaPreview({ url }).then(info => {
@@ -770,15 +906,12 @@ export function useMatrixUrlPreview({
 /**
  * Hook for managing Matrix payment transactions with historical exchange rates
  * @param event - The payment event to fetch transaction data for
- * @param fedimint - The Fedimint bridge instance
  * @returns Transaction state including loading, error, and transaction data
  */
 export function useMatrixPaymentTransaction({
     event,
-    fedimint,
 }: {
     event: MatrixPaymentEvent
-    fedimint: FedimintBridge
 }) {
     // undefined = not yet tried (or loading), null = tried & got nothing, object = got a transaction
     const [transaction, setTransaction] = useState<
@@ -790,6 +923,7 @@ export function useMatrixPaymentTransaction({
 
     const matrixAuth = useCommonSelector(selectMatrixAuth)
     const currentUserId = matrixAuth?.userId
+    const fedimint = useFedimint()
 
     useEffect(() => {
         // skip if we've already tried
@@ -890,160 +1024,28 @@ export function useMatrixPaymentTransaction({
 }
 
 /**
- * Hook for managing replies in a specific room
- */
-export function useMatrixReply(roomId: MatrixRoom['id']) {
-    const dispatch = useCommonDispatch()
-
-    // Get the currently replied event for this room
-    const replyEvent = useCommonSelector(s =>
-        selectReplyingToMessageEventForRoom(s, roomId),
-    )
-
-    // Get the sender's display name for the replied event
-    const replyEventSender = useCommonSelector(s =>
-        replyEvent?.senderId
-            ? selectMatrixUser(s, replyEvent.senderId)
-            : undefined,
-    )
-
-    const startReply = useCallback(
-        (event: MatrixEvent) => {
-            dispatch(
-                setChatReplyingToMessage({
-                    roomId,
-                    event,
-                }),
-            )
-        },
-        [dispatch, roomId],
-    )
-
-    const clearReply = useCallback(() => {
-        dispatch(clearChatReplyingToMessage())
-    }, [dispatch])
-
-    const replyForInput = useMemo(() => {
-        if (!replyEvent) return null
-
-        const senderName =
-            replyEventSender?.displayName || replyEvent.senderId || 'Unknown'
-
-        return {
-            eventId: replyEvent?.eventId || replyEvent?.id,
-            senderName,
-            body: replyEvent.content.body || 'Message',
-            timestamp: replyEvent.timestamp,
-        }
-    }, [replyEvent, replyEventSender])
-
-    const isReplying = useMemo(() => !!replyEvent, [replyEvent])
-
-    return {
-        replyEvent,
-        replyEventSender,
-        replyForInput,
-        isReplying,
-        startReply,
-        clearReply,
-    }
-}
-
-/**
  * Hook for detecting and extracting reply data from timeline events
  * Also handles stripping reply formatting from the current message body
  */
-export function useMatrixRepliedMessage(event: MatrixEvent) {
-    const isReplied = useMemo(() => isReply(event), [event])
-
+export function useMatrixRepliedMessage(event: SendableMatrixEvent) {
     const replyData = useMemo(() => {
-        if (!isReplied) return null
-        return getReplyMessageData(event)
-    }, [event, isReplied])
-
-    // get the original replied-to event from the room timeline
-    const repliedToEvent = useCommonSelector(s => {
-        if (!replyData?.eventId || !event.roomId) return null
-
-        // get the timeline for this room
-        const timeline = s.matrix.roomTimelines[event.roomId]
-        if (!timeline) return null
-
-        // find the original event by ID
-        return (
-            timeline.find(
-                item =>
-                    item !== null &&
-                    (item.eventId === replyData.eventId ||
-                        item.id === replyData.eventId),
-            ) || null
-        )
-    })
-
-    // get the sender's display name for the original message
-    const replySender = useCommonSelector(s =>
-        repliedToEvent?.senderId
-            ? selectMatrixUser(s, repliedToEvent.senderId)
-            : undefined,
-    )
-
-    const repliedDisplayData = useMemo(() => {
-        if (!replyData) return null
-
-        // if we found the original event, use its data
-        if (repliedToEvent) {
-            const content = repliedToEvent.content
-            const body =
-                'body' in content && typeof content.body === 'string'
-                    ? content.body
-                    : 'Message'
-            const formattedBody =
-                'formatted_body' in content &&
-                typeof content.formatted_body === 'string'
-                    ? content.formatted_body
-                    : undefined
-
-            const strippedOriginalBody = stripReplyFromBody(body, formattedBody)
-
-            return {
-                eventId: replyData.eventId,
-                senderId: repliedToEvent.senderId || '',
-                senderDisplayName:
-                    replySender?.displayName ||
-                    repliedToEvent.senderId?.split(':')[0]?.replace('@', '') ||
-                    'Unknown',
-                body: strippedOriginalBody,
-                timestamp: repliedToEvent.timestamp,
-            }
-        }
-
-        return {
-            eventId: replyData.eventId,
-            senderId: '',
-            senderDisplayName: 'Unknown',
-            body: 'Message',
-            timestamp: undefined,
-        }
-    }, [replyData, repliedToEvent, replySender])
+        if (!event.inReply) return null
+        return getReplyData(event)
+    }, [event])
 
     // handle stripping reply formatting from the current event's body
     const strippedEventBody = useMemo(() => {
-        if (!isReplied) return event.content.body
-
-        // only strip if it's a text event with the required fields
-        const content = event.content
-        if (!('body' in content)) return event.content.body
-
-        const originalBody = content.body
         const formattedBody =
-            'formatted_body' in content ? content.formatted_body : undefined
+            'formatted' in event.content
+                ? event.content.formatted?.formattedBody
+                : null
 
-        return stripReplyFromBody(originalBody, formattedBody)
-    }, [event.content, isReplied])
+        return stripReplyFromBody(event.content.body, formattedBody)
+    }, [event.content])
 
     return {
-        isReplied: isReplied,
-        repliedData: repliedDisplayData,
+        isReplied: !!event.inReply,
+        repliedData: replyData,
         strippedBody: strippedEventBody,
     }
 }
@@ -1056,6 +1058,7 @@ export function useCreateMatrixRoom(
     t: TFunction,
     onGroupCreated?: (roomId: MatrixRoom['id']) => void,
 ) {
+    const fedimint = useFedimint()
     const [groupName, setGroupName] = useState(t('feature.chat.new-group'))
     const [broadcastOnly, setBroadcastOnly] = useState(false)
     const [isPublic, setIsPublic] = useState(false)
@@ -1104,6 +1107,7 @@ export function useCreateMatrixRoom(
         try {
             const { roomId } = await dispatch(
                 createMatrixRoom({
+                    fedimint,
                     name: newGroupName,
                     broadcastOnly,
                     isPublic,
@@ -1129,5 +1133,123 @@ export function useCreateMatrixRoom(
         setIsPublic,
         errorMessage,
         createdRoomId,
+    }
+}
+
+/**
+ * Hook for managing mention input with autocomplete suggestions
+ */
+export function useMentionInput(
+    roomMembers: MatrixRoomMember[],
+    cursorPosition: number,
+    excludeUserId?: string,
+): {
+    mentionSuggestions: MatrixRoomMember[]
+    activeMentionQuery: string | null
+    shouldShowSuggestions: boolean
+    detectMentionTrigger: (text: string, position: number) => void
+    insertMention: (
+        member: MentionSelect,
+        currentText: string,
+    ) => { newText: string; newCursorPosition: number }
+    clearMentions: () => void
+} {
+    const [mentionSuggestions, setMentionSuggestions] = useState<
+        MatrixRoomMember[]
+    >([])
+    const [activeMentionQuery, setActiveMentionQuery] = useState<string | null>(
+        null,
+    )
+    const [mentionStartIndex, setMentionStartIndex] = useState<number>(-1)
+
+    const detectMentionTrigger = useCallback(
+        (text: string, position: number) => {
+            // find @ symbol before cursor
+            const before = text.slice(0, position)
+            const match = before.match(/@([a-z0-9._-]*)$/i)
+
+            if (!match) {
+                setActiveMentionQuery(null)
+                setMentionStartIndex(-1)
+                setMentionSuggestions([])
+                return
+            }
+
+            const q = (match[1] || '').toLowerCase()
+            const start = before.length - match[0].length
+
+            setActiveMentionQuery(q)
+            setMentionStartIndex(start)
+
+            // filter room members by query (display name or handle)
+            const filtered = (roomMembers || [])
+                .filter(m => {
+                    if (excludeUserId && m.id === excludeUserId) return false // <-- hide self
+                    const name = (m.displayName || '').toLowerCase()
+                    const handle = matrixIdToUsername(m.id).toLowerCase()
+                    return name.includes(q) || handle.includes(q)
+                })
+                .slice(0, 7)
+            setMentionSuggestions(filtered)
+        },
+        [roomMembers, excludeUserId],
+    )
+
+    const insertMention = useCallback(
+        (member: MentionSelect, currentText: string) => {
+            if (mentionStartIndex === -1) {
+                return {
+                    newText: currentText,
+                    newCursorPosition: cursorPosition,
+                }
+            }
+
+            const beforeMention = currentText.substring(0, mentionStartIndex)
+            const afterCursor = currentText.substring(cursorPosition)
+
+            // use display name when available; special case for @room
+            const displayName =
+                member.id === '@room'
+                    ? ROOM_MENTION
+                    : (member as MatrixRoomMember).displayName ||
+                      (member as MatrixRoomMember).id
+
+            const newText = `${beforeMention}@${displayName} ${afterCursor}`
+            const newCursorPosition =
+                beforeMention.length + displayName.length + 2 // +2 for "@ "
+
+            setActiveMentionQuery(null)
+            setMentionStartIndex(-1)
+            setMentionSuggestions([])
+
+            return { newText, newCursorPosition }
+        },
+        [mentionStartIndex, cursorPosition],
+    )
+
+    const clearMentions = useCallback(() => {
+        setActiveMentionQuery(null)
+        setMentionStartIndex(-1)
+        setMentionSuggestions([])
+    }, [])
+
+    // show if a mention is active and there are suggestions
+    // or if the query could yield @room in the component
+    const shouldShowSuggestions = useMemo(() => {
+        return (
+            activeMentionQuery !== null &&
+            (mentionSuggestions.length > 0 ||
+                (!!activeMentionQuery &&
+                    ROOM_MENTION.startsWith(activeMentionQuery.toLowerCase())))
+        )
+    }, [activeMentionQuery, mentionSuggestions])
+
+    return {
+        mentionSuggestions,
+        activeMentionQuery,
+        shouldShowSuggestions,
+        detectMentionTrigger,
+        insertMention,
+        clearMentions,
     }
 }

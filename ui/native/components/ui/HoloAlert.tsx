@@ -2,10 +2,9 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import { StyleProp, StyleSheet, ViewStyle } from 'react-native'
 
 import Flex from './Flex'
-import HoloGradient from './HoloGradient'
+import GradientView from './GradientView'
 
 interface BaseProps {
-    fullWidth?: boolean
     containerStyle?: StyleProp<ViewStyle>
 }
 
@@ -18,7 +17,6 @@ type ChildProps =
       }
 
 const HoloAlert: React.FC<ChildProps & BaseProps> = ({
-    fullWidth,
     containerStyle,
     ...props
 }) => {
@@ -26,9 +24,7 @@ const HoloAlert: React.FC<ChildProps & BaseProps> = ({
     const style = styles(theme)
 
     return (
-        <HoloGradient
-            gradientStyle={style.holoBorder}
-            style={fullWidth ? style.fullWidth : {}}>
+        <GradientView variant="sky-heavy" style={style.holoBorder}>
             <Flex center style={[style.container, containerStyle]}>
                 {'children' in props ? (
                     props.children
@@ -38,7 +34,7 @@ const HoloAlert: React.FC<ChildProps & BaseProps> = ({
                     </Text>
                 )}
             </Flex>
-        </HoloGradient>
+        </GradientView>
     )
 }
 
@@ -57,9 +53,6 @@ const styles = (theme: Theme) =>
         },
         alertText: {
             color: theme.colors.darkGrey,
-        },
-        fullWidth: {
-            width: '100%',
         },
     })
 

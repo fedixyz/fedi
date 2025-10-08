@@ -16,12 +16,14 @@ interface Props {
     roomId: string
     collection: MatrixEvent[][]
     showUsernames?: boolean
+    onReplyTap?: (eventId: string) => void
 }
 
 export const ChatEventCollection: React.FC<Props> = ({
     roomId,
     collection,
     showUsernames,
+    onReplyTap,
 }) => {
     const { t } = useTranslation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
@@ -38,7 +40,7 @@ export const ChatEventCollection: React.FC<Props> = ({
             </MessageTimestamp>
             <MessageCollection>
                 {collection.map(events => {
-                    const sentBy = events[0].senderId || ''
+                    const sentBy = events[0].sender || ''
                     const roomMember = roomMembers.find(m => m.id === sentBy)
                     const isMe = sentBy === matrixAuth?.userId
                     const hasLeft = roomMember?.membership === 'leave'
@@ -50,7 +52,7 @@ export const ChatEventCollection: React.FC<Props> = ({
                           : roomMember?.displayName || '...'
 
                     return (
-                        <div key={events[0].id}>
+                        <div key={events.at(-1)?.id}>
                             {showUsernames && !isMe && (
                                 <Username>{displayName}</Username>
                             )}
@@ -65,7 +67,10 @@ export const ChatEventCollection: React.FC<Props> = ({
                                         <ErrorBoundary
                                             key={event.id}
                                             fallback={() => <ChatEventError />}>
-                                            <ChatEvent event={event} />
+                                            <ChatEvent
+                                                event={event}
+                                                onReplyTap={onReplyTap}
+                                            />
                                         </ErrorBoundary>
                                     ))}
                                 </Messages>
@@ -113,6 +118,7 @@ const MessageCollection = styled('div', {
     display: 'flex',
     flexDirection: 'column-reverse',
     gap: 12,
+    overflowX: 'hidden',
 })
 
 const MessageTimestamp = styled('div', {

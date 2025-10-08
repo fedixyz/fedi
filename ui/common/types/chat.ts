@@ -1,5 +1,5 @@
 import type { Invoice } from './fedimint'
-import { MatrixEvent, MatrixRoom } from './matrix'
+import { MatrixRoom, MatrixEvent } from './matrix'
 import type { MSats } from './units'
 
 export enum ChatType {
@@ -16,12 +16,14 @@ export interface Chat {
     broadcastOnly: boolean
 }
 
+/** @deprecated must keep for storage migrations */
 export enum ChatMessageStatus {
     sent, // 0
     failed, // 1
     queued, // 2
 }
 
+/** @deprecated must keep for storage migrations */
 export interface ChatMessage {
     id: string
     content: string
@@ -37,6 +39,7 @@ export interface ChatMessage {
     status?: ChatMessageStatus
 }
 
+/** @deprecated must keep for storage migrations */
 export interface ChatPayment {
     amount: MSats
     status: ChatPaymentStatus
@@ -49,6 +52,7 @@ export interface ChatPayment {
     invoice?: Invoice
 }
 
+/** @deprecated must keep for storage migrations */
 export enum ChatPaymentStatus {
     accepted,
     requested,
@@ -57,15 +61,7 @@ export enum ChatPaymentStatus {
     paid,
 }
 
-export interface Key {
-    hex: string
-}
-
-export interface Keypair {
-    publicKey: Key
-    privateKey: Key
-}
-
+/** @deprecated must keep for storage migrations */
 export interface ChatMember {
     /** Unique ID for the member (same as username for xmpp) */
     id: string
@@ -73,6 +69,7 @@ export interface ChatMember {
     publicKeyHex?: string
 }
 
+/** @deprecated must keep for storage migrations */
 export interface ChatGroup {
     id: string
     name: string

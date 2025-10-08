@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,10 +7,10 @@ import { useBalanceDisplay } from '@fedi/common/hooks/amount'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import {
-    selectActiveFederation,
     selectShouldRateFederation,
+    selectLoadedFederation,
 } from '@fedi/common/redux'
-import { ParserDataType, Sats } from '@fedi/common/types'
+import { Federation, ParserDataType, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 
@@ -17,6 +18,7 @@ import { useRouteState } from '../context/RouteStateContext'
 import { useAppSelector, useMediaQuery } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { config, styled } from '../styles'
+import { getHashParams } from '../utils/linking'
 import { AmountInput } from './AmountInput'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
@@ -40,11 +42,13 @@ interface Props {
 
 export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const { t } = useTranslation()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const balance = activeFederation?.hasWallet
-        ? activeFederation.balance
-        : undefined
-    const activeFederationId = activeFederation?.id
+    const router = useRouter()
+    const params = getHashParams(router.asPath)
+    const federationId = params.id as Federation['id']
+    const federation = useAppSelector(s =>
+        selectLoadedFederation(s, federationId),
+    )
+    const balance = federation?.balance
     const sendRouteState = useRouteState('/send')
     const {
         isReadyToPay,
@@ -57,7 +61,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         handleOmniInput,
         handleOmniSend,
         resetOmniPaymentState,
-    } = useOmniPaymentState(fedimint, activeFederationId, false, t)
+    } = useOmniPaymentState(fedimint, federationId, t)
     const shouldRateFederation = useAppSelector(selectShouldRateFederation)
 
     const [showRateFederation, setShowRateFederation] = useState(false)
@@ -69,9 +73,10 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const [submitAttempts, setSubmitAttempts] = useState(0)
 
     const containerRef = useRef<HTMLDivElement | null>(null)
-    const isOfflineWalletSupported = useIsOfflineWalletSupported()
+
+    const isOfflineWalletSupported = useIsOfflineWalletSupported(federationId)
     const isSmall = useMediaQuery(config.media.sm)
-    const balanceDisplay = useBalanceDisplay(t)
+    const balanceDisplay = useBalanceDisplay(t, federationId)
 
     // Reset modal on close and open
     useEffect(() => {
@@ -192,6 +197,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
                     if (shouldRateFederation) setShowRateFederation(true)
                 }}
+                federationId={federationId}
             />
         )
     } else {

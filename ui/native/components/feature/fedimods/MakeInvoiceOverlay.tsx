@@ -55,7 +55,11 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         maximumAmount,
         exactAmount,
         reset,
-    } = useRequestForm({ requestInvoiceArgs, lnurlWithdrawal })
+    } = useRequestForm({
+        requestInvoiceArgs,
+        lnurlWithdrawal,
+        federationId: paymentFederation?.id,
+    })
 
     // Reset form when it appears
     const isShowing = Boolean(requestInvoiceArgs || lnurlWithdrawal)

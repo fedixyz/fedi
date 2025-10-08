@@ -18,7 +18,7 @@ interface MenuItem {
 }
 
 export interface MenuGroup {
-    label: string
+    label?: string
     items: MenuItem[]
 }
 
@@ -39,9 +39,11 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ menu }) => {
         <Menu>
             {menu.map(group => (
                 <MenuGroup key={group.label}>
-                    <MenuGroupName>
-                        <Text>{group.label}</Text>
-                    </MenuGroupName>
+                    {group.label && (
+                        <MenuGroupName>
+                            <Text>{group.label}</Text>
+                        </MenuGroupName>
+                    )}
                     <MenuGroupItems>
                         {group.items.map(item => {
                             const linkProps = item.href

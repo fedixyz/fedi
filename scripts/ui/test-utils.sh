@@ -15,8 +15,9 @@ while true; do
 
     case $input in
         a)
-            echo "Running tests for all UI workspaces"
-            $REPO_ROOT/scripts/ui/run-ui-tests.sh || true
+            echo "Running unit and integration tests for all UI workspaces"
+            $REPO_ROOT/scripts/ui/run-unit-tests.sh || true
+            $REPO_ROOT/scripts/ui/run-integration-tests.sh || true
             ;;
         c)
             echo "Running tests for common workspace only"

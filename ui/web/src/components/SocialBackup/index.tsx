@@ -1,8 +1,7 @@
+import { useRouter } from 'next/router'
 import React, { useEffect, useState } from 'react'
 
-import { selectActiveFederationId } from '@fedi/common/redux'
-
-import { useAppSelector } from '../../hooks'
+import { getHashParams } from '../../utils/linking'
 import * as Layout from '../Layout'
 import { SocialBackupDownload } from './SocialBackupDownload'
 import { SocialBackupIntro } from './SocialBackupIntro'
@@ -10,7 +9,9 @@ import { SocialBackupRecord } from './SocialBackupRecord'
 import { SocialBackupUpload } from './SocialBackupUpload'
 
 export const SocialBackup: React.FC = () => {
-    const activeFederationId = useAppSelector(selectActiveFederationId)
+    const router = useRouter()
+    const params = getHashParams(router.asPath)
+    const federationId = params.id
     const [step, setStep] = useState<
         'intro' | 'record' | 'upload' | 'download' | 'complete'
     >('intro')
@@ -21,7 +22,7 @@ export const SocialBackup: React.FC = () => {
     useEffect(() => {
         setStep('intro')
         setVideoBlob(null)
-    }, [activeFederationId])
+    }, [federationId])
 
     let content: React.ReactNode = null
     if (step === 'intro') {
@@ -39,6 +40,7 @@ export const SocialBackup: React.FC = () => {
         content = (
             <SocialBackupUpload
                 videoBlob={videoBlob}
+                federationId={federationId}
                 next={blob => {
                     setBackupBlob(blob)
                     setStep('download')

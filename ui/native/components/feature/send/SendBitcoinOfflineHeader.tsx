@@ -16,6 +16,7 @@ const SendBitcoinOfflineHeader: React.FC = () => {
                 </Text>
             }
             closeButton
+            closeRoute="Federations"
         />
     )
 }

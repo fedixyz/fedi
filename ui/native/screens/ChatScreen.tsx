@@ -1,6 +1,6 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { useNavigation } from '@react-navigation/native'
-import { Button, FAB, Image, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Image, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
@@ -20,8 +20,6 @@ import FirstTimeCommunityEntryOverlay, {
     FirstTimeCommunityEntryItem,
 } from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
 import Flex from '../components/ui/Flex'
-import SvgImage from '../components/ui/SvgImage'
-import { Tooltip } from '../components/ui/Tooltip'
 import { useAppSelector } from '../state/hooks'
 import { MatrixSyncStatus } from '../types'
 import {
@@ -46,8 +44,6 @@ const ChatScreen: React.FC<Props> = () => {
     const onboardingMethod = useAppSelector(selectOnboardingMethod)
 
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
-    const [hasOpenedNewChat, completeOpenedNewChat] =
-        useNuxStep('hasOpenedNewChat')
 
     const [hasSeenChat, completeSeenChat] = useNuxStep('chatModal')
 
@@ -117,15 +113,6 @@ const ChatScreen: React.FC<Props> = () => {
                         source={Images.IllustrationChat}
                         style={style.emptyImage}
                     />
-                    <Tooltip
-                        shouldShow={isChatEmpty && !hasOpenedNewChat}
-                        delay={1200}
-                        text={t('feature.chat.new-chat')}
-                        orientation="above"
-                        side="right"
-                        horizontalOffset={44}
-                        verticalOffset={78}
-                    />
                 </>
             ) : (
                 <ErrorBoundary
@@ -138,26 +125,6 @@ const ChatScreen: React.FC<Props> = () => {
                     )}>
                     <ChatsList />
                 </ErrorBoundary>
-            )}
-
-            {!needsChatRegistration && (
-                <FAB
-                    icon={
-                        <SvgImage
-                            name="Plus"
-                            color={theme.colors.secondary}
-                            maxFontSizeMultiplier={1}
-                        />
-                    }
-                    color={theme.colors.blue}
-                    style={style.actionButton}
-                    size="large"
-                    placement="right"
-                    onPress={() => {
-                        navigation.navigate('NewMessage')
-                        completeOpenedNewChat()
-                    }}
-                />
             )}
 
             <FirstTimeCommunityEntryOverlay

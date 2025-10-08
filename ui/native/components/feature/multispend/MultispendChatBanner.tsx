@@ -8,7 +8,7 @@ import { selectMatrixRoomMultispendStatus } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
-import HoloGradient from '../../ui/HoloGradient'
+import GradientView from '../../ui/GradientView'
 import SvgImage from '../../ui/SvgImage'
 
 type Props = {
@@ -62,10 +62,7 @@ const MultispendChatBanner: React.FC<Props> = ({ roomId }) => {
     return (
         <Pressable
             onPress={() => navigation.navigate('GroupMultispend', { roomId })}>
-            <HoloGradient
-                style={style.container}
-                gradientStyle={style.contentContainer}
-                level="m500">
+            <GradientView variant="sky-banner" style={style.container}>
                 <Flex gap="xs">
                     <Flex row align="center" gap="xs">
                         <SvgImage name="MultispendGroup" size={16} />
@@ -76,7 +73,7 @@ const MultispendChatBanner: React.FC<Props> = ({ roomId }) => {
                     {statusBadge}
                 </Flex>
                 <SvgImage name="ChevronRight" color={theme.colors.grey} />
-            </HoloGradient>
+            </GradientView>
         </Pressable>
     )
 }
@@ -84,9 +81,6 @@ const MultispendChatBanner: React.FC<Props> = ({ roomId }) => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            display: 'flex',
-        },
-        contentContainer: {
             display: 'flex',
             flexDirection: 'row',
             justifyContent: 'space-between',

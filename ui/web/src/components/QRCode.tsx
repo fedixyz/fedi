@@ -61,7 +61,7 @@ export const QRCode: React.FC<Props> = ({ data, logoOverrideUrl }) => {
 const Container = styled('div', {
     width: '100%',
     aspectRatio: '1 / 1',
-    holoGradient: '900',
+    fediGradient: 'sky-heavy',
     padding: 4,
     borderRadius: 20,
 })

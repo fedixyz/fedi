@@ -13,12 +13,11 @@ import {
     selectRegisteredDevices,
     selectSocialRecoveryQr,
     selectSocialRecoveryState,
-    selectActiveFederationId,
     transferExistingWallet,
     refreshOnboardingStatus,
     setDeviceIndexRequired,
 } from '../redux'
-import { SeedWords } from '../types'
+import { Federation, SeedWords } from '../types'
 import { RpcRegisteredDevice } from '../types/bindings'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
@@ -190,16 +189,14 @@ export function useDeviceRegistration(t: TFunction, fedimint: FedimintBridge) {
 
 export function useRecoveryProgress(
     fedimint: FedimintBridge,
-    fedimintId?: string,
+    federationId: Federation['id'],
 ) {
     const [progress, setProgress] = useState<number | undefined>(undefined)
-    const activeFederationId = useCommonSelector(selectActiveFederationId)
-    const federationIdToUse = fedimintId || activeFederationId
-
     useEffect(() => {
+        if (!federationId) return
         const unsubscribe = fedimint.addListener('recoveryProgress', event => {
             log.info('recovery progress', event)
-            if (event.federationId === federationIdToUse) {
+            if (event.federationId === federationId) {
                 if (event.total === 0) {
                     setProgress(undefined)
                 } else {
@@ -211,7 +208,7 @@ export function useRecoveryProgress(
         return () => {
             unsubscribe()
         }
-    }, [fedimint, federationIdToUse])
+    }, [fedimint, federationId])
 
     return {
         progress,

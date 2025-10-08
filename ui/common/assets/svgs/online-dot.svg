@@ -1,6 +1,6 @@
 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g id="Ellipse 665" filter="url(#filter0_d_3970_53713)">
-<circle cx="10" cy="10" r="6" fill="#00A829"/>
+<circle cx="10" cy="10" r="6" fill="currentColor"/>
 </g>
 <defs>
 <filter id="filter0_d_3970_53713" x="0" y="0" width="20" height="20" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">

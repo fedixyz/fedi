@@ -12,6 +12,7 @@ import {
     isDeletedEvent,
     isEncryptedEvent,
     isFileEvent,
+    isFederationInviteEvent,
     isFormEvent,
     isImageEvent,
     isMultispendEvent,
@@ -29,6 +30,7 @@ import ChatBolt11PaymentEvent from './ChatBolt11PaymentEvent'
 import ChatDeletedEvent from './ChatDeletedEvent'
 import ChatEmbeddedLinkPreview from './ChatEmbeddedLinkPreview'
 import ChatEncryptedEvent from './ChatEncryptedEvent'
+import ChatFederationInviteEvent from './ChatFederationInviteEvent'
 import ChatFileEvent from './ChatFileEvent'
 import ChatFormEvent from './ChatFormEvent'
 import ChatImageEvent from './ChatImageEvent'
@@ -36,6 +38,7 @@ import ChatPaymentEvent from './ChatPaymentEvent'
 import ChatPollEvent from './ChatPollEvent'
 import ChatPreviewMediaEvent from './ChatPreviewMediaEvent'
 import ChatTextEvent from './ChatTextEvent'
+import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import ChatVideoEvent from './ChatVideoEvent'
 import { MessageItemError } from './MessageItemError'
 
@@ -46,6 +49,7 @@ type Props = {
     isPublic?: boolean
     onReplyTap?: (eventId: string) => void
     highlightedMessageId?: string | null
+    isInViewport?: boolean
 }
 
 const ChatEvent: React.FC<Props> = ({
@@ -55,13 +59,15 @@ const ChatEvent: React.FC<Props> = ({
     // Defaults to true so we don't default to loading chat events with media
     isPublic = true,
     onReplyTap,
+    isInViewport,
 }: Props) => {
     const { theme } = useTheme()
     const [hasWidePreview, setHasWidePreview] = useState(false)
     const matrixAuth = useAppSelector(selectMatrixAuth)
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
     const isMe =
-        event.senderId === matrixAuth?.userId && !isMultispendEvent(event)
+        event.sender === matrixAuth?.userId && !isMultispendEvent(event)
     const isQueued = false
     const isText = isTextEvent(event)
 
@@ -113,6 +119,11 @@ const ChatEvent: React.FC<Props> = ({
                                     event={event}
                                     isWide={hasWidePreview}
                                     onReplyTap={onReplyTap}
+                                    onMentionPress={userId =>
+                                        requestAnimationFrame(() =>
+                                            setSelectedUserId(userId),
+                                        )
+                                    }
                                 />
                             ) : isEncryptedEvent(event) ? (
                                 <ChatEncryptedEvent event={event} />
@@ -123,17 +134,25 @@ const ChatEvent: React.FC<Props> = ({
                             ) : isFormEvent(event) ? (
                                 <ChatFormEvent event={event} />
                             ) : isImageEvent(event) ? (
-                                <ChatImageEvent event={event} />
+                                <ChatImageEvent
+                                    event={event}
+                                    isInViewport={isInViewport}
+                                />
                             ) : isFileEvent(event) ? (
                                 <ChatFileEvent event={event} />
                             ) : isVideoEvent(event) ? (
-                                <ChatVideoEvent event={event} />
+                                <ChatVideoEvent
+                                    event={event}
+                                    isInViewport={isInViewport}
+                                />
                             ) : isDeletedEvent(event) ? (
                                 <ChatDeletedEvent event={event} />
                             ) : isPreviewMediaEvent(event) ? (
                                 <ChatPreviewMediaEvent event={event} />
                             ) : isPollEvent(event) ? (
                                 <ChatPollEvent event={event} />
+                            ) : isFederationInviteEvent(event) ? (
+                                <ChatFederationInviteEvent event={event} />
                             ) : isMultispendEvent(event) ? (
                                 <ChatMultispendEvent event={event} />
                             ) : null}
@@ -161,6 +180,11 @@ const ChatEvent: React.FC<Props> = ({
                     </Flex>
                 </Flex>
             </View>
+            <ChatUserActionsOverlay
+                onDismiss={() => setSelectedUserId(null)}
+                selectedUserId={selectedUserId}
+                roomId={event.roomId}
+            />
         </ErrorBoundary>
     )
 }
@@ -198,10 +222,23 @@ const styles = (theme: Theme) =>
     })
 
 const areEqual = (
-    { event: prevEvent, highlightedMessageId: prevHighlighted }: Props,
-    { event: currEvent, highlightedMessageId: currHighlighted }: Props,
+    {
+        event: prevEvent,
+        highlightedMessageId: prevHighlighted,
+        isInViewport: prevIsInViewport,
+    }: Props,
+    {
+        event: currEvent,
+        highlightedMessageId: currHighlighted,
+        isInViewport: currIsInViewport,
+    }: Props,
 ) => {
     if (prevHighlighted !== currHighlighted) {
+        return false
+    }
+    if (prevEvent.localEcho !== currEvent.localEcho) return false
+
+    if (prevIsInViewport !== currIsInViewport) {
         return false
     }
 
@@ -214,7 +251,10 @@ const areEqual = (
         return arePollEventsEqual(prevEvent, currEvent)
     } else {
         return (
-            prevEvent.eventId === currEvent.eventId &&
+            prevEvent.content.msgtype === currEvent.content.msgtype &&
+            prevEvent.id === currEvent.id &&
+            'body' in prevEvent.content &&
+            'body' in currEvent.content &&
             prevEvent.content.body === currEvent.content.body
         )
     }

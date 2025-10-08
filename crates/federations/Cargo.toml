@@ -8,6 +8,7 @@ edition = "2024"
 test-support = []
 
 [dependencies]
+api-types = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-client = { workspace = true }
 fedimint-client-module = { workspace = true }

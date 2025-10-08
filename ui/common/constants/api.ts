@@ -1,7 +1,7 @@
 // When working on the API endpoints locally, comment out which one you want to
-// use. Otherwise it'll default to the production endpoint.
+// use. Otherwise it'll default to staging
 export const API_ORIGIN =
-    process.env.NODE_ENV === 'development'
+    process.env.FEDI_ENV === 'nightly' || process.env.NODE_ENV === 'development'
         ? 'https://fedi-ashen.vercel.app'
         : 'https://app.fedi.xyz'
 // export const API_ORIGIN = '' // Local PWA (relative path)

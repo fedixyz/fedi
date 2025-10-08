@@ -36,7 +36,10 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
     const { parsedData, notes: notesParam } = route.params
     const [notes, setNotes] = useState<string>(notesParam || '')
     const [unit] = useState('sats')
-    const { feeBreakdownTitle, makeOnchainFeeContent } = useFeeDisplayUtils(t)
+    const { feeBreakdownTitle, makeOnchainFeeContent } = useFeeDisplayUtils(
+        t,
+        paymentFederation?.id || '',
+    )
     const {
         isReadyToPay,
         inputAmount,
@@ -44,7 +47,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
         sendTo,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, paymentFederation?.id, true, t)
+    } = useOmniPaymentState(fedimint, paymentFederation?.id, t)
     const { makeFormattedAmountsFromSats } = useAmountFormatter()
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(inputAmount)

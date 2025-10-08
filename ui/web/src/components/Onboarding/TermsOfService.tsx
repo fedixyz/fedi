@@ -4,16 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from '../../hooks'
 import { config } from '../../styles'
 import { Button } from '../Button'
-import { Header, Title } from '../Layout'
+import * as Layout from '../Layout'
 import { Text } from '../Text'
 import FederationTermsPreview, {
     ExternalTosLink,
 } from './FederationTermsPreview'
-import {
-    OnboardingActions,
-    OnboardingContainer,
-    OnboardingContent,
-} from './components'
 
 interface TermsOfServiceProps {
     tosUrl: string
@@ -36,15 +31,15 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({
     }, [onAccept])
 
     return (
-        <OnboardingContainer>
+        <Layout.Root>
             {isSm && (
-                <Header back="/">
-                    <Title subheader>
+                <Layout.Header back="/">
+                    <Layout.Title subheader>
                         {t('feature.federations.join-federation')}
-                    </Title>
-                </Header>
+                    </Layout.Title>
+                </Layout.Header>
             )}
-            <OnboardingContent fullWidth>
+            <Layout.Content fullWidth>
                 <Text variant="h2" weight="medium" css={{ marginBottom: 16 }}>
                     {t('feature.onboarding.terms-and-conditions')}
                 </Text>
@@ -59,8 +54,8 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({
                     rel="noopener noreferrer">
                     {t('phrases.open-in-browser')}
                 </ExternalTosLink>
-            </OnboardingContent>
-            <OnboardingActions>
+            </Layout.Content>
+            <Layout.Content>
                 <Button
                     width="full"
                     href="/"
@@ -75,7 +70,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({
                     loading={isAccepting}>
                     {t('feature.onboarding.i-accept')}
                 </Button>
-            </OnboardingActions>
-        </OnboardingContainer>
+            </Layout.Content>
+        </Layout.Root>
     )
 }

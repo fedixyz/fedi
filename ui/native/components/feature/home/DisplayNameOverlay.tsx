@@ -8,7 +8,7 @@ import { selectMatrixAuth } from '@fedi/common/redux'
 import { useAppSelector } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
 import Flex from '../../ui/Flex'
-import HoloGradient from '../../ui/HoloGradient'
+import HoloCircle from '../../ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type DisplayNameOverlayProps = {
@@ -27,9 +27,10 @@ const DisplayNameOverlay: React.FC<DisplayNameOverlayProps> = ({
     return (
         <CenterOverlay show={show} onBackdropPress={onDismiss}>
             <Flex align="center">
-                <HoloGradient level="400" gradientStyle={styles.iconGradient}>
-                    <SvgImage name="Profile" size={SvgImageSize.lg} />
-                </HoloGradient>
+                <HoloCircle
+                    content={<SvgImage name="Profile" size={SvgImageSize.lg} />}
+                    size={64}
+                />
 
                 <Text h2 medium style={styles.title}>
                     {t('feature.home.display-name')}
@@ -92,14 +93,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         lineHeight: 18,
         textAlign: 'center',
-    },
-    iconGradient: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
     },
 })
 

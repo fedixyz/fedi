@@ -211,7 +211,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                         <View style={style.contentWrapper}>
                             <View style={style.imageWrapper}>
                                 <Image
-                                    source={Images.CommunityCreate}
+                                    source={Images.FederationCreate}
                                     style={style.fullWidthImage}
                                     resizeMode="cover"
                                 />
@@ -224,7 +224,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                         <Flex fullWidth style={style.buttonsContainer}>
                             <Button
                                 fullWidth
-                                title={'Create My Community'}
+                                title={t('phrases.create-my-federation')}
                                 onPress={() =>
                                     Linking.openURL(
                                         'https://support.fedi.xyz/hc/en-us/sections/18214787528082-Federation-Setup',
@@ -246,7 +246,14 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                             {t('phrases.maybe-later')}
                         </Text>
                     }
-                    onPress={() => navigation.navigate('TabsNavigator')}
+                    onPress={() =>
+                        navigation.navigate('TabsNavigator', {
+                            initialRouteName:
+                                joinedFederationIds.length > 0
+                                    ? 'Federations'
+                                    : 'Home',
+                        })
+                    }
                 />
             </View>
         </SafeAreaContainer>

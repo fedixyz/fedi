@@ -1,98 +1,83 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
-import { selectActiveFederation } from '@fedi/common/redux'
+import { selectLastSelectedCommunity } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import {
-    DRAWER_NAVIGATION_ID,
-    DrawerNavigationHook,
-    NavigationHook,
-} from '../../../types/navigation'
+import { NavigationHook } from '../../../types/navigation'
 import { isNightly } from '../../../utils/device-info'
+import Flex from '../../ui/Flex'
+import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
-import { PressableIcon } from '../../ui/PressableIcon'
-import HeaderAvatar from '../chat/HeaderAvatar'
-import FederationSelector from '../federations/FederationSelector'
-import FederationSelectorPlaceholder from '../federations/FederationSelectorPlaceholder'
-import { PopupFederationCountdown } from '../federations/PopupFederationCountdown'
-import { NetworkBanner } from '../wallet/NetworkBanner'
+import MainHeaderButtons from '../../ui/MainHeaderButtons'
+import TotalBalance from '../../ui/TotalBalance'
+import CommunitySelector from '../federations/CommunitySelector'
+import SelectedCommunity from '../federations/SelectedCommunity'
 
 const HomeHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
-    const popupInfo = usePopupFederationInfo()
     const showNightlyBanner = useMemo(() => isNightly(), [])
-    const activeFederation = useAppSelector(selectActiveFederation)
+    const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
 
     const style = styles(theme)
 
-    const drawerNavigator = navigation.getParent(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        DRAWER_NAVIGATION_ID as any,
-    ) as DrawerNavigationHook
-
-    const openFederationsDrawer = () => {
-        drawerNavigator.openDrawer()
+    const openJoinCommunity = () => {
+        // TODO: make sure there is a back button on this next screen to match designs
+        navigation.navigate('PublicCommunities')
     }
-    const openSettings = useCallback(() => {
-        return navigation.navigate('Settings')
-    }, [navigation])
 
     return (
-        <>
-            <Header
-                containerStyle={style.container}
-                headerLeft={
-                    <PressableIcon
-                        testID="HomeHeaderHamburger"
-                        onPress={openFederationsDrawer}
-                        hitSlop={10}
-                        maxFontSizeMultiplier={1.5}
-                        svgName="HamburgerIcon"
+        <GradientView variant="sky" style={style.container}>
+            <Flex gap="md" style={style.contentContainer}>
+                <Flex gap="xs">
+                    <Header
+                        transparent
+                        containerStyle={style.headerContainer}
+                        headerLeft={<CommunitySelector />}
+                        headerRight={
+                            <MainHeaderButtons onAddPress={openJoinCommunity} />
+                        }
                     />
-                }
-                headerRight={
-                    <HeaderAvatar
-                        testID="AvatarButton"
-                        onPress={openSettings}
-                    />
-                }
-                headerCenter={
-                    activeFederation ? (
-                        <FederationSelector />
-                    ) : (
-                        <FederationSelectorPlaceholder />
-                    )
-                }
-                centerContainerStyle={style.centerContainer}
-            />
-            <NetworkBanner />
-            {popupInfo && <PopupFederationCountdown />}
-            {showNightlyBanner && (
-                <View style={style.nightly}>
-                    <Text small style={style.nightlyText} adjustsFontSizeToFit>
-                        {t('feature.developer.nightly')}
-                    </Text>
-                </View>
-            )}
-        </>
+                    <TotalBalance />
+                </Flex>
+                {/* TODO: restore this on federations screen */}
+                {/* <NetworkBanner /> */}
+                {showNightlyBanner && (
+                    <View style={style.nightly}>
+                        <Text
+                            small
+                            style={style.nightlyText}
+                            adjustsFontSizeToFit>
+                            {t('feature.developer.nightly')}
+                        </Text>
+                    </View>
+                )}
+                {selectedCommunity && (
+                    <SelectedCommunity community={selectedCommunity} />
+                )}
+            </Flex>
+        </GradientView>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            paddingBottom: theme.spacing.md,
-            justifyContent: 'space-between',
+            borderBottomLeftRadius: 16,
+            borderBottomRightRadius: 16,
         },
-        centerContainer: {
-            maxWidth: '80%',
+        contentContainer: {
+            paddingHorizontal: theme.spacing.lg,
+            paddingBottom: theme.spacing.lg,
+        },
+        headerContainer: {
+            justifyContent: 'center',
+            paddingHorizontal: 0,
         },
         nightly: {
             position: 'absolute',

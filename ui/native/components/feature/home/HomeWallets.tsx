@@ -1,19 +1,20 @@
 import { useShouldShowStabilityPool } from '@fedi/common/hooks/federation'
+import { LoadedFederation } from '@fedi/common/types/fedimint'
 
 import Flex from '../../ui/Flex'
 import StabilityWallet from '../stabilitypool/StabilityWallet'
 import BitcoinWallet from '../wallet/BitcoinWallet'
 
 type Props = {
-    offline: boolean
+    federation: LoadedFederation
 }
-const HomeWallets = ({ offline }: Props) => {
-    const showStabilityWallet = useShouldShowStabilityPool()
+const HomeWallets = ({ federation }: Props) => {
+    const showStabilityWallet = useShouldShowStabilityPool(federation.id)
 
     return (
         <Flex gap="lg">
-            <BitcoinWallet offline={offline} />
-            {showStabilityWallet && <StabilityWallet />}
+            <BitcoinWallet federation={federation} />
+            {showStabilityWallet && <StabilityWallet federation={federation} />}
         </Flex>
     )
 }

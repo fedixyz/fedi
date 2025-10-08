@@ -8,10 +8,12 @@ anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bech32 = { workspace = true }
+fedimint-derive-secret = { workspace = true }
 futures = "0.3"
 tracing = { workspace = true }
 ts-rs = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
+rand = { workspace = true }
 reqwest = { workspace = true }
 runtime = { workspace = true }
 rpc-types = { workspace = true }

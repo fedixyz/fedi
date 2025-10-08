@@ -1,25 +1,26 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
+// import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import WordListIcon from '@fedi/common/assets/svgs/word-list.svg'
 
 import { ActionCard } from '../../components/ActionCard'
 import { Button } from '../../components/Button'
 import { styled } from '../../styles'
-import { Header, Title } from '../Layout'
-import { OnboardingContainer, OnboardingContent } from './components'
+import * as Layout from '../Layout'
 
 export const WalletRecovery: React.FC = () => {
     const { t } = useTranslation()
 
     return (
-        <OnboardingContainer>
-            <Header back="/">
-                <Title subheader>{t('feature.recovery.choose-method')}</Title>
-            </Header>
+        <Layout.Root>
+            <Layout.Header back="/">
+                <Layout.Title subheader>
+                    {t('feature.recovery.choose-method')}
+                </Layout.Title>
+            </Layout.Header>
 
-            <OnboardingContent gap="md" fullWidth>
+            <Layout.Content fullWidth centered>
                 <Cards>
                     <ActionCard
                         icon={WordListIcon}
@@ -33,7 +34,8 @@ export const WalletRecovery: React.FC = () => {
                             </Button>
                         }
                     />
-                    <ActionCard
+                    {/* Disabled until social recovery is supported on web */}
+                    {/* <ActionCard
                         icon={SocialPeopleIcon}
                         title={t('feature.recovery.social-recovery')}
                         description={t(
@@ -44,19 +46,19 @@ export const WalletRecovery: React.FC = () => {
                                 {t('feature.recovery.start-social-recovery')}
                             </Button>
                         }
-                    />
+                    /> */}
                 </Cards>
-            </OnboardingContent>
-        </OnboardingContainer>
+            </Layout.Content>
+        </Layout.Root>
     )
 }
 
 const Cards = styled('div', {
-    flex: 1,
+    alignItems: 'center',
     display: 'flex',
+    flex: 1,
     flexDirection: 'column',
     justifyContent: 'center',
-    alignItems: 'center',
-    maxWidth: 360,
     gap: 16,
+    padding: 20,
 })

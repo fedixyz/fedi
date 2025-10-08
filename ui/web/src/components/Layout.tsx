@@ -3,7 +3,6 @@ import { useRouter } from 'next/router'
 import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
 import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 
-import { homeRoute } from '../constants/routes'
 import { useMediaQuery } from '../hooks'
 import { config, keyframes, styled, theme } from '../styles'
 import { Icon } from './Icon'
@@ -13,42 +12,42 @@ import { ShadowScroller } from './ShadowScroller'
 type Props = {
     back?: string | boolean
     showCloseButton?: boolean
+    centered?: boolean
 }
 
 export function Header({
     children,
     back,
     showCloseButton,
+    centered,
     ...props
 }: React.ComponentProps<typeof HeaderContainer> & Props) {
     const isSm = useMediaQuery(config.media.sm)
     const router = useRouter()
 
     return (
-        <HeaderContainer displaceBackIcon={!!back} {...props}>
-            {!!back && isSm ? (
-                <IconButton
-                    icon={ChevronLeft}
-                    size="md"
-                    onClick={
-                        // provide string to specify next route on back
-                        // or provide boolean to call router history back
-                        // (both supported for backwards compatibility)
-                        typeof back === 'string'
-                            ? () => router.push(back)
-                            : () => router.back()
-                    }
-                />
-            ) : null}
-            <HeaderContent>
-                {children}
-                {showCloseButton && (
-                    <Icon
-                        icon={CloseIcon}
-                        onClick={() => router.replace(homeRoute)}
+        <HeaderContainer {...props}>
+            {back && isSm && (
+                <ButtonWrapper isBack>
+                    <IconButton
+                        icon={ChevronLeft}
+                        size="md"
+                        onClick={
+                            // provide string to specify next route on back
+                            // or provide boolean to call router history back
+                            typeof back === 'string'
+                                ? () => router.push(back)
+                                : () => router.back()
+                        }
                     />
-                )}
-            </HeaderContent>
+                </ButtonWrapper>
+            )}
+            <HeaderContent centered={centered}>{children}</HeaderContent>
+            {showCloseButton && (
+                <ButtonWrapper isClose>
+                    <Icon icon={CloseIcon} onClick={() => router.back()} />
+                </ButtonWrapper>
+            )}
         </HeaderContainer>
     )
 }
@@ -61,41 +60,57 @@ export const Root = styled('div', {
 })
 
 export const HeaderContainer = styled('div', {
-    display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    display: 'flex',
     height: 64,
+    position: 'relative',
+    width: '100%',
+})
 
-    '@sm': {
-        alignItems: 'center',
-        padding: '0 16px',
-    },
+export const ButtonWrapper = styled('div', {
+    alignItems: 'center',
+    cursor: 'pointer',
+    display: 'flex',
+    height: '100%',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    width: 50,
 
     variants: {
-        padded: {
+        isBack: {
             true: {
-                padding: 16,
+                left: 0,
             },
         },
-        displaceBackIcon: {
+        isClose: {
             true: {
-                '@sm': {
-                    // Makes up for the space taken by the back button
-                    // 32px width + 8px gap
-                    marginRight: 40,
-                },
+                right: 0,
             },
         },
     },
 })
 
 const HeaderContent = styled('div', {
+    alignItems: 'center',
     display: 'flex',
     flex: 1,
     justifyContent: 'space-between',
-    alignItems: 'center',
     gap: 8,
     height: '100%',
+    width: '100%',
+
+    '@sm': {
+        padding: '0 16px',
+    },
+
+    variants: {
+        centered: {
+            true: {
+                justifyContent: 'center',
+            },
+        },
+    },
 })
 
 export const Title = styled('h1', {

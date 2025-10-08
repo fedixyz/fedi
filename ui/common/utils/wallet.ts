@@ -145,23 +145,11 @@ export const makeTxnDetailTitleText = (
             return t('feature.send.you-sent')
         }
     }
-    if (txn.kind === 'lnReceive') {
+    if (txn.kind === 'lnReceive' || txn.kind === 'lnRecurringdReceive') {
         switch (txn.state?.type) {
             case 'waitingForPayment':
                 return t('phrases.receive-pending')
             case 'claimed':
-                return t('feature.receive.you-received')
-            case 'canceled':
-                return t('words.expired')
-            default:
-                return t('phrases.receive-pending')
-        }
-    } else if (txn.kind === 'lnRecurringdReceive') {
-        switch (txn.state?.type) {
-            case 'waitingForPayment':
-                return t('phrases.receive-pending')
-            case 'claimed':
-            case 'created': // Remove this once bug is fixed
                 return t('feature.receive.you-received')
             case 'canceled':
                 return t('words.expired')
@@ -192,13 +180,6 @@ export const makeTxnDetailTitleText = (
     } else {
         return t('feature.receive.you-received')
     }
-}
-
-export const makeTxnNotesText = (txn: TransactionListEntry): string => {
-    // always render user-submitted notes first
-    if (txn.txnNotes) return txn.txnNotes
-
-    return ''
 }
 
 export const makeTxnAmountText = (

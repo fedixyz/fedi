@@ -9,19 +9,24 @@ import {
     selectCurrency,
     selectCurrencyLocale,
     selectFederationBalance,
+    selectLoadedFederations,
     selectMaxInvoiceAmount,
     selectMaxStableBalanceSats,
     selectMinimumDepositAmount,
     selectMinimumWithdrawAmountMsats,
     selectMultispendBalance,
+    selectOverrideCurrency,
     selectPaymentFederation,
-    selectPaymentFederationBalance,
     selectShowFiatTxnAmounts,
     selectStabilityPoolAvailableLiquidity,
     selectStableBalanceSats,
+    selectShowFiatTotalBalance,
+    selectTotalBalanceMsats,
     selectWithdrawableStableBalanceCents,
     selectWithdrawableStableBalanceMsats,
     setAmountInputType,
+    changeShowFiatTotalBalance,
+    selectTotalStableBalanceSats,
 } from '@fedi/common/redux'
 import {
     FiatFXInfo,
@@ -32,6 +37,7 @@ import {
 import {
     Btc,
     EcashRequest,
+    Federation,
     Invoice,
     MSats,
     NonGenericCurrency,
@@ -66,7 +72,6 @@ interface SendAmountArgs {
     bip21Payment?: ParsedBip21['data'] | null
     invoice?: Invoice | null
     lnurlPayment?: ParsedLnurlPay['data'] | null
-    selectedPaymentFederation?: boolean
     cashuMeltSummary?: MeltSummary | null
     t?: TFunction
 }
@@ -74,6 +79,7 @@ interface SendAmountArgs {
 export type FormattedAmounts = {
     formattedFiat: string
     formattedSats: string
+    formattedBtc?: string
     formattedUsd: string
     formattedPrimaryAmount: string
     formattedSecondaryAmount: string
@@ -90,14 +96,19 @@ export const numpadButtons = [
 
 export type NumpadButtonValue = (typeof numpadButtons)[number]
 
-export const useBtcFiatPrice = (currency?: SelectableCurrency) => {
-    const selectedFiatCurrency = useCommonSelector(selectCurrency)
+export const useBtcFiatPrice = (
+    currency?: SelectableCurrency,
+    federationId?: Federation['id'],
+) => {
+    const selectedFiatCurrency = useCommonSelector(s =>
+        selectCurrency(s, federationId),
+    )
     const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const exchangeRate: number = useCommonSelector(s =>
-        selectBtcExchangeRate(s, currency),
+        selectBtcExchangeRate(s, currency, federationId),
     )
-    const btcUsdExchangeRate: number = useCommonSelector(
-        selectBtcUsdExchangeRate,
+    const btcUsdExchangeRate: number = useCommonSelector(s =>
+        selectBtcUsdExchangeRate(s, federationId),
     )
 
     const fiatCurrency = currency ?? selectedFiatCurrency
@@ -194,9 +205,17 @@ export const useAmountFormatter = (currency?: SelectableCurrency) => {
                 symbolPosition === 'none'
                     ? amountUtils.formatSats(amount)
                     : `${amountUtils.formatSats(amount)} SATS`
+
+            const amountBtc = amountUtils.satToBtc(amount)
+            const formattedBtc =
+                symbolPosition === 'none'
+                    ? amountUtils.formatBtc(amountBtc)
+                    : `${amountUtils.formatBtc(amountBtc)} BTC`
+
             return {
                 formattedFiat,
                 formattedSats,
+                formattedBtc,
                 formattedUsd,
                 formattedPrimaryAmount: showFiatTxnAmounts
                     ? formattedFiat
@@ -289,10 +308,56 @@ export const useAmountFormatter = (currency?: SelectableCurrency) => {
 }
 
 /**
+ * Provides state for rendering the total balance across all federations.
+ */
+export function useTotalBalance() {
+    const dispatch = useCommonDispatch()
+    const loadedFederations = useCommonSelector(selectLoadedFederations)
+    const totalBalanceMsats = useCommonSelector(s =>
+        selectTotalBalanceMsats(s),
+    ) as MSats
+    const totalStableBalanceSats = useCommonSelector(s =>
+        selectTotalStableBalanceSats(s),
+    )
+    const totalStableBalanceMsats = amountUtils.satToMsat(
+        totalStableBalanceSats,
+    )
+    const overrideCurrency = useCommonSelector(selectOverrideCurrency)
+    const showFiatTotalBalance = useCommonSelector(selectShowFiatTotalBalance)
+    const currencyToUse = overrideCurrency ?? SupportedCurrency.USD
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter(currencyToUse)
+    const combinedMsats = (totalBalanceMsats + totalStableBalanceMsats) as MSats
+    const { formattedBtc, formattedSats, formattedFiat } =
+        makeFormattedAmountsFromMSats(combinedMsats)
+
+    const changeDisplayCurrency = () => {
+        // if the user has an override currency, tapping total balance does nothing
+        if (overrideCurrency) return
+        // otherwise toggle between fiat and sats
+        dispatch(changeShowFiatTotalBalance(!showFiatTotalBalance))
+    }
+
+    return {
+        totalBalanceSats: formattedSats,
+        // always show fiat if the user has an override currency
+        formattedBalance: overrideCurrency
+            ? formattedFiat
+            : showFiatTotalBalance
+              ? formattedFiat
+              : totalBalanceMsats > 1_000_000_000 // if over 1M sats, show BTC unit instead
+                ? formattedBtc
+                : formattedSats,
+        shouldHideTotalBalance: loadedFederations.length === 0,
+        changeDisplayCurrency,
+    }
+}
+/**
  * Provides state for rendering a balance amount in fiat and sats.
  */
-export function useBalance() {
-    const balance = useCommonSelector(selectFederationBalance) as MSats
+export function useBalance(federationId: string) {
+    const balance = useCommonSelector(s =>
+        selectFederationBalance(s, federationId),
+    ) as MSats
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
 
     const {
@@ -318,11 +383,14 @@ export function useAmountInput(
     onChangeAmount?: (amount: Sats) => void,
     minimumAmount?: Sats | null,
     maximumAmount?: Sats | null,
+    federationId?: Federation['id'],
 ) {
     const dispatch = useCommonDispatch()
-    const btcToFiatRate = useCommonSelector(selectBtcExchangeRate)
+    const currency = useCommonSelector(s => selectCurrency(s, federationId))
+    const btcToFiatRate = useCommonSelector(s =>
+        selectBtcExchangeRate(s, currency, federationId || ''),
+    )
     const btcToFiatRateRef = useUpdatingRef(btcToFiatRate)
-    const currency = useCommonSelector(selectCurrency)
     const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const defaultAmountInputType = useCommonSelector(selectAmountInputType)
 
@@ -725,8 +793,11 @@ export function useMinMaxRequestAmount({
     lnurlWithdrawal,
     requestInvoiceArgs,
     ecashRequest,
-}: RequestAmountArgs = {}) {
-    const maxInvoiceAmount = useCommonSelector(selectMaxInvoiceAmount)
+    federationId,
+}: RequestAmountArgs & { federationId?: Federation['id'] } = {}) {
+    const maxInvoiceAmount = useCommonSelector(s =>
+        selectMaxInvoiceAmount(s, federationId || ''),
+    )
 
     return useMemo(() => {
         let minimumAmount = 1 as Sats
@@ -787,19 +858,21 @@ export function useMinMaxSendAmount(
         invoice,
         lnurlPayment,
         cashuMeltSummary,
-        selectedPaymentFederation,
         btcAddress,
         fedimint,
-    }: SendAmountArgs & { fedimint?: FedimintBridge } = {},
+        federationId,
+    }: SendAmountArgs & {
+        fedimint?: FedimintBridge
+        federationId?: Federation['id']
+    } = {},
     // TODO: Remove this option in favor of always using payFromFederation once
     // https://github.com/fedibtc/fedi/issues/4070 is finished
 ) {
     const [maxAmountOnchain, setMaxAmountOnchain] = useState<Sats | null>(null)
     const paymentFederation = useCommonSelector(selectPaymentFederation)
+    const federationIdToUse = federationId || paymentFederation?.id || ''
     const balance = useCommonSelector(s =>
-        selectedPaymentFederation
-            ? selectPaymentFederationBalance(s)
-            : selectFederationBalance(s),
+        selectFederationBalance(s, federationIdToUse),
     )
 
     const invoiceAmount = invoice?.amount
@@ -882,10 +955,12 @@ export function useMinMaxSendAmount(
 /**
  * Get the minimum and maximum amount you can withdraw from the stable balance
  */
-export function useMinMaxWithdrawAmount() {
-    const minimumMsats = useCommonSelector(selectMinimumWithdrawAmountMsats)
-    const withdrawableMsats = useCommonSelector(
-        selectWithdrawableStableBalanceMsats,
+export function useMinMaxWithdrawAmount(federationId: Federation['id']) {
+    const minimumMsats = useCommonSelector(s =>
+        selectMinimumWithdrawAmountMsats(s, federationId),
+    )
+    const withdrawableMsats = useCommonSelector(s =>
+        selectWithdrawableStableBalanceMsats(s, federationId),
     )
     const minimumAmount = amountUtils.msatToSat(minimumMsats)
     const maximumAmount = amountUtils.msatToSat(withdrawableMsats)
@@ -896,14 +971,22 @@ export function useMinMaxWithdrawAmount() {
 /**
  * Get the minimum and maximum amount you can deposit to the stable balance
  */
-export function useMinMaxDepositAmount() {
-    const minimumAmount = useCommonSelector(selectMinimumDepositAmount)
-    const balanceMSats = useCommonSelector(selectFederationBalance)
+export function useMinMaxDepositAmount(federationId: Federation['id']) {
+    const minimumAmount = useCommonSelector(s =>
+        selectMinimumDepositAmount(s, federationId),
+    )
+    const balanceMSats = useCommonSelector(s =>
+        selectFederationBalance(s, federationId),
+    )
     const balanceSats = amountUtils.msatToSat(balanceMSats)
-    const stableBalanceSats = useCommonSelector(selectStableBalanceSats)
-    const maxStableBalanceSats = useCommonSelector(selectMaxStableBalanceSats)
-    const stabilityPoolAvailableLiquidity = useCommonSelector(
-        selectStabilityPoolAvailableLiquidity,
+    const stableBalanceSats = useCommonSelector(s =>
+        selectStableBalanceSats(s, federationId),
+    )
+    const maxStableBalanceSats = useCommonSelector(s =>
+        selectMaxStableBalanceSats(s, federationId),
+    )
+    const stabilityPoolAvailableLiquidity = useCommonSelector(s =>
+        selectStabilityPoolAvailableLiquidity(s, federationId),
     )
     const availableLiquiditySats = stabilityPoolAvailableLiquidity
         ? amountUtils.msatToSat(stabilityPoolAvailableLiquidity)
@@ -933,7 +1016,9 @@ export function useMinMaxDepositAmount() {
  * a Lightning invoice. Optionally provide a set of WebLN requestInvoice args
  * or an LNURL withdrawal.
  */
-export function useRequestForm(args: RequestAmountArgs = {}) {
+export function useRequestForm(
+    args: RequestAmountArgs & { federationId?: Federation['id'] } = {},
+) {
     const { minimumAmount, maximumAmount } = useMinMaxRequestAmount(args)
     const [inputAmount, setInputAmount] = useState(
         getDefaultRequestAmount(args),
@@ -1027,21 +1112,24 @@ export function useSendForm({
     bip21Payment,
     invoice,
     lnurlPayment,
-    selectedPaymentFederation,
     cashuMeltSummary,
     t,
     fedimint,
-}: SendAmountArgs & { fedimint?: FedimintBridge }) {
+    federationId,
+}: SendAmountArgs & {
+    fedimint?: FedimintBridge
+    federationId?: Federation['id']
+}) {
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
     if (!t) throw new Error('useSendForm requires a t function')
     const { minimumAmount, maximumAmount } = useMinMaxSendAmount({
         invoice,
         lnurlPayment,
         btcAddress,
-        selectedPaymentFederation,
         cashuMeltSummary,
         t,
         fedimint,
+        federationId,
     })
     const minimumAmountRef = useUpdatingRef(minimumAmount)
 
@@ -1093,14 +1181,15 @@ export function useSendForm({
  * Provide all the state necessary to implement a stabilitypool withdrawal form
  * that decreases the stable USD balance in the wallet
  */
-export function useWithdrawForm() {
+export function useWithdrawForm(federationId: Federation['id']) {
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
     const [inputFiatAmount, setInputFiatAmount] = useState<UsdCents>(
         0 as UsdCents,
     )
-    const { minimumAmount, maximumAmount } = useMinMaxWithdrawAmount()
-    const maximumFiatCents = useCommonSelector(
-        selectWithdrawableStableBalanceCents,
+    const { minimumAmount, maximumAmount } =
+        useMinMaxWithdrawAmount(federationId)
+    const maximumFiatCents = useCommonSelector(s =>
+        selectWithdrawableStableBalanceCents(s, federationId),
     )
 
     const { convertCentsToFormattedFiat, convertSatsToCents } =
@@ -1125,10 +1214,11 @@ export function useWithdrawForm() {
  * Provide all the state necessary to implement a stabilitypool deposit form
  * that increases the stable USD balance in the wallet
  */
-export function useDepositForm() {
+export function useDepositForm(federationId: Federation['id']) {
     const { convertSatsToFormattedFiat } = useBtcFiatPrice()
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
-    const { minimumAmount, maximumAmount } = useMinMaxDepositAmount()
+    const { minimumAmount, maximumAmount } =
+        useMinMaxDepositAmount(federationId)
     const maximumFiatAmount = convertSatsToFormattedFiat(maximumAmount)
 
     return {
@@ -1144,8 +1234,12 @@ export function useDepositForm() {
  * Provide all the state necessary to implement a multispend withdrawal form
  * that transfers stable balance from a multispend account to a personal account
  */
-export function useMultispendWithdrawForm(roomId: RpcRoomId) {
-    const { inputAmount, inputAmountCents, setInputAmount } = useWithdrawForm()
+export function useMultispendWithdrawForm(
+    roomId: RpcRoomId,
+    federationId: Federation['id'],
+) {
+    const { inputAmount, inputAmountCents, setInputAmount } =
+        useWithdrawForm(federationId)
     const { convertCentsToSats } = useBtcFiatPrice()
     const multispendBalancePrecise = useCommonSelector(s =>
         selectMultispendBalance(s, roomId),
@@ -1170,9 +1264,13 @@ export function useMultispendWithdrawForm(roomId: RpcRoomId) {
 /**
  * Provides a string displaying the balance as both fiat and sat.
  */
-export function useBalanceDisplay(t: TFunction) {
-    const { formattedBalance } = useBalance()
+export function useBalanceDisplay(
+    t: TFunction,
+    federationId: Federation['id'],
+) {
+    const { formattedBalance } = useBalance(federationId)
 
+    if (!federationId) return ''
     return `${t('words.balance')}: ${formattedBalance}`
 }
 

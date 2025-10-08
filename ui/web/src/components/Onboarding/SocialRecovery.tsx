@@ -15,14 +15,9 @@ import { Button } from '../Button'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { HoloLoader } from '../HoloLoader'
 import { IconButton } from '../IconButton'
-import { Header, Title } from '../Layout'
+import * as Layout from '../Layout'
 import { QRCode } from '../QRCode'
 import { Text } from '../Text'
-import {
-    OnboardingActions,
-    OnboardingContainer,
-    OnboardingContent,
-} from './components'
 
 const log = makeLog('SocialRecovery')
 
@@ -237,16 +232,18 @@ export const SocialRecovery: React.FC = () => {
     }
 
     return (
-        <OnboardingContainer>
-            <Header back="/onboarding/recover">
-                <Title subheader>{t('feature.recovery.social-recovery')}</Title>
-            </Header>
-            <OnboardingContent gap="md" fullWidth>
+        <Layout.Root>
+            <Layout.Header back="/onboarding/recover">
+                <Layout.Title subheader>
+                    {t('feature.recovery.social-recovery')}
+                </Layout.Title>
+            </Layout.Header>
+            <Layout.Content fullWidth>
                 <Content>{content}</Content>
-            </OnboardingContent>
-            {actions && <OnboardingActions>{actions}</OnboardingActions>}
+            </Layout.Content>
+            {actions && <Layout.Actions>{actions}</Layout.Actions>}
             {extra}
-        </OnboardingContainer>
+        </Layout.Root>
     )
 }
 
@@ -277,6 +274,7 @@ const Content = styled('div', {
     flexDirection: 'column',
     textAlign: 'center',
     gap: 16,
+    padding: 20,
 })
 
 const QRCodeContainer = styled('div', {

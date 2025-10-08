@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router'
 import { useTranslation } from 'react-i18next'
 
 import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
@@ -12,17 +13,20 @@ import { styled } from '../../../styles'
 
 function BackupPage() {
     const { t } = useTranslation()
-    const canSocialBackup = useIsSocialRecoverySupported()
+    const router = useRouter()
+    const federationId = (router.query.federationId as string) || ''
+    const canSocialBackup = useIsSocialRecoverySupported(federationId)
+
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back="/settings">
+                <Layout.Header back>
                     <Layout.Title subheader>
                         {t('feature.backup.choose-method')}
                     </Layout.Title>
                 </Layout.Header>
                 <Layout.Content>
-                    <ActionCards>
+                    <Content>
                         <ActionCard
                             icon={WordListIcon}
                             title={t('feature.backup.personal-backup')}
@@ -51,14 +55,14 @@ function BackupPage() {
                                 }
                             />
                         )}
-                    </ActionCards>
+                    </Content>
                 </Layout.Content>
             </Layout.Root>
         </ContentBlock>
     )
 }
 
-const ActionCards = styled('div', {
+const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',

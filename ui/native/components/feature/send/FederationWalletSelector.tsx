@@ -7,7 +7,7 @@ import { ScrollView } from 'react-native-gesture-handler'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import {
     selectPaymentFederation,
-    selectWalletFederations,
+    selectLoadedFederations,
     setPayFromFederationId,
 } from '@fedi/common/redux'
 
@@ -29,7 +29,7 @@ const FederationWalletSelector: React.FC<{
     const { t } = useTranslation()
     const style = styles(theme)
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const federations = useAppSelector(selectWalletFederations)
+    const federations = useAppSelector(selectLoadedFederations)
 
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
     const {

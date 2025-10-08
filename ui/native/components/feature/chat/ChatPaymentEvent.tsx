@@ -9,7 +9,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { MSats, MatrixPaymentEvent } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { fedimint } from '../../../bridge'
 import { NavigationHook } from '../../../types/navigation'
 import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
@@ -133,7 +132,6 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
         transaction,
     } = useMatrixPaymentEvent({
         event,
-        fedimint,
         t,
         onError: (err: unknown) => toast.error(t, err),
         onPayWithForeignEcash: () => {

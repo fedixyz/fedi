@@ -10,6 +10,8 @@ import {
     HTML_TAG_REGEX,
     MX_REPLY_REGEX,
     QUOTE_USER_REGEX,
+    MATRIX_URL_BASE,
+    ROOM_MENTION,
 } from '../constants/matrix'
 import { FormattedAmounts } from '../hooks/amount'
 import {
@@ -17,34 +19,38 @@ import {
     LoadedFederation,
     MSats,
     MatrixEvent,
+    MatrixEventContentType,
+    MatrixEventKind,
     MatrixFormEvent,
     MatrixGroupPreview,
+    MatrixMentions,
+    MatrixMultispendEvent,
     MatrixPaymentEvent,
-    MatrixPaymentStatus,
     MatrixRoom,
     MatrixRoomMember,
     MatrixRoomPowerLevels,
-    MatrixTimelineItem,
     MatrixUser,
+    MentionExtractionResult,
+    MentionParsingResult,
     MultispendDepositEvent,
     MultispendListedInvitationEvent,
     MultispendRole,
     MultispendTransactionListEntry,
     MultispendWithdrawalEvent,
+    ReplyMessageData,
+    RpcMatrixEventKind,
+    RpcMatrixEventKinds,
 } from '../types'
 import {
-    WithdrawalResponseType,
     GroupInvitation,
-    MultispendGroupVoteType,
-    MultispendEvent,
     RpcMultispendGroupStatus,
-    RpcTimelineEventItemId,
     RpcUserId,
     MultispendListedEvent,
     RpcTransaction,
     SendMessageData,
     RpcMentions,
     JSONObject,
+    RpcTimelineItemEvent,
 } from '../types/bindings'
 import { makeLog } from './log'
 import { constructUrl } from './neverthrow'
@@ -110,16 +116,6 @@ export const mxcHttpUrlToDownloadUrl = (url: string) => {
         )
 }
 
-const encryptedFileSchema = z
-    .object({
-        hashes: z.object({
-            sha256: z.string(),
-        }),
-        url: z.string().url(),
-        v: z.literal('v2'),
-    })
-    // Don't strip off additional decryption keys from the file object
-    .passthrough()
 /**
  * Filter out payment events that aren't the initial push or request
  * since we only render the original event. Keep track of the latest
@@ -135,10 +131,7 @@ export const consolidatePaymentEvents = (events: MatrixEvent[]) => {
         // Always set the newest event to the payment ID record map
         latestPayments[event.content.paymentId] = event
         // Only return the payment events that are the initial push or request
-        return [
-            MatrixPaymentStatus.pushed,
-            MatrixPaymentStatus.requested,
-        ].includes(event.content.status)
+        return ['pushed', 'requested'].includes(event.content.status)
     })
     const consolidatedEvents = filteredEvents.map(event => {
         if (!isPaymentEvent(event)) return event
@@ -171,321 +164,6 @@ export const filterMultispendEvents = (events: MatrixEvent[]) => {
     )
 }
 
-export type MatrixEncryptedFile = z.infer<typeof encryptedFileSchema>
-
-const groupInvitationSchema = z.object({
-    federationInviteCode: z.string(),
-    federationName: z.string(),
-    signers: z.array(z.string()),
-    threshold: z.number(),
-}) satisfies z.ZodType<GroupInvitation>
-
-const multispendGroupVoteTypeSchema = z.union([
-    z.object({
-        kind: z.literal('accept'),
-        memberPubkey: z.string(),
-    }),
-    z.object({
-        kind: z.literal('reject'),
-    }),
-]) satisfies z.ZodType<MultispendGroupVoteType>
-
-const withdrawalResponseTypeSchema = z.union([
-    z.object({
-        kind: z.literal('approve'),
-        signature: z.string(),
-    }),
-    z.object({
-        kind: z.literal('reject'),
-    }),
-    z.object({
-        kind: z.literal('complete'),
-        fiatAmount: z.number(),
-        txid: z.string(),
-    }),
-]) satisfies z.ZodType<WithdrawalResponseType>
-
-const multispendEventSchemas = {
-    groupInvitation: z.object({
-        kind: z.literal('groupInvitation'),
-        invitation: groupInvitationSchema,
-        proposerPubkey: z.string(),
-    }) satisfies z.ZodType<
-        Extract<MultispendEvent, { kind: 'groupInvitation' }>
-    >,
-    groupInvitationVote: z.object({
-        kind: z.literal('groupInvitationVote'),
-        invitation: z.string(),
-        vote: multispendGroupVoteTypeSchema,
-    }) satisfies z.ZodType<
-        Extract<MultispendEvent, { kind: 'groupInvitationVote' }>
-    >,
-    groupInvitationCancel: z.object({
-        kind: z.literal('groupInvitationCancel'),
-        invitation: z.string(),
-    }) satisfies z.ZodType<
-        Extract<MultispendEvent, { kind: 'groupInvitationCancel' }>
-    >,
-    groupReannounce: z.object({
-        kind: z.literal('groupReannounce'),
-        invitationId: z.string(),
-        invitation: groupInvitationSchema,
-        proposer: z.string(),
-        pubkeys: z.record(z.string(), z.string().optional()),
-        rejections: z.array(z.string()),
-    }) satisfies z.ZodType<
-        Extract<MultispendEvent, { kind: 'groupReannounce' }>
-    >,
-    depositNotification: z.object({
-        kind: z.literal('depositNotification'),
-        fiatAmount: z.number(),
-        txid: z.string(),
-        description: z.string(),
-    }) satisfies z.ZodType<
-        Extract<MultispendEvent, { kind: 'depositNotification' }>
-    >,
-    withdrawalRequest: z.object({
-        kind: z.literal('withdrawalRequest'),
-        // TODO: get a better type from the bridge for this
-        request: z.object({ transfer_amount: z.number() }),
-        description: z.string(),
-    }) satisfies z.ZodType<
-        Extract<MultispendEvent, { kind: 'withdrawalRequest' }>
-    >,
-    withdrawalResponse: z.object({
-        kind: z.literal('withdrawalResponse'),
-        request: z.string(),
-        response: withdrawalResponseTypeSchema,
-    }) satisfies z.ZodType<
-        Extract<MultispendEvent, { kind: 'withdrawalResponse' }>
-    >,
-}
-const baseTextMessageContent = z.object({
-    msgtype: z.string(),
-    body: z.string(),
-    format: z.literal('org.matrix.custom.html').optional(),
-    formatted_body: z.string().optional(),
-})
-
-const formTypeSchema = z.enum(['text', 'radio', 'button'])
-const formOptionSchema = z.object({
-    value: z.string(),
-    label: z.string().optional(),
-    i18nKeyLabel: z.string().nullable().optional(),
-})
-const formResponseSchema = z.object({
-    responseType: formTypeSchema.optional(),
-    responseValue: z.union([z.boolean(), z.string(), z.number()]),
-    responseBody: z.string().optional(),
-    responseI18nKey: z.string().optional(),
-    respondingToEventId: z.string().optional(),
-})
-export type MatrixFormOption = z.infer<typeof formOptionSchema>
-export type MatrixFormResponse = z.infer<typeof formResponseSchema>
-
-// Reply-related fields that can be added to any message, follows matrix spec:
-// https://spec.matrix.org/v1.15/client-server-api/#forming-relationships-between-events
-// https://spec.matrix.org/v1.15/client-server-api/#rich-replies
-const replyRelation = z.object({
-    'm.relates_to': z
-        .object({
-            rel_type: z.string().optional(),
-            event_id: z.string().optional(),
-            key: z.string().optional(), // for reactions
-            'm.in_reply_to': z
-                .object({
-                    event_id: z.string(),
-                })
-                .optional(),
-        })
-        .optional(),
-})
-
-const contentSchemas = {
-    /* Matrix standard events, not an exhaustive list */
-    'm.text': baseTextMessageContent
-        .extend({
-            msgtype: z.literal('m.text'),
-        })
-        .merge(replyRelation),
-    'm.notice': baseTextMessageContent
-        .extend({
-            msgtype: z.literal('m.notice'),
-        })
-        .merge(replyRelation),
-    'm.emote': baseTextMessageContent
-        .extend({
-            msgtype: z.literal('m.emote'),
-        })
-        .merge(replyRelation),
-    'm.image': z.object({
-        msgtype: z.literal('m.image'),
-        body: z.string(),
-        info: z.object({
-            mimetype: z.string(),
-            size: z.number(),
-            w: z.number(),
-            h: z.number(),
-        }),
-        file: encryptedFileSchema,
-    }),
-    'm.video': z.object({
-        msgtype: z.literal('m.video'),
-        body: z.string(),
-        info: z.object({
-            mimetype: z.string(),
-            size: z.number(),
-            w: z.number(),
-            h: z.number(),
-        }),
-        file: encryptedFileSchema,
-    }),
-    'm.file': z.object({
-        msgtype: z.literal('m.file'),
-        body: z.string(),
-        info: z.object({
-            mimetype: z.string(),
-            size: z.number(),
-        }),
-        file: encryptedFileSchema,
-    }),
-    /* This event is defined by Matrix, but we extend it with the `msgtype` for simpler parsing */
-    'm.room.encrypted': z.object({
-        msgtype: z.literal('m.room.encrypted'),
-        body: z.string(),
-        algorithm: z.string(),
-        ciphertext: z.string(),
-        device_id: z.string(),
-        sender_key: z.string(),
-        session_id: z.string(),
-    }),
-    'm.poll': z.object({
-        msgtype: z.literal('m.poll'),
-        body: z.string(),
-        answers: z.array(z.object({ id: z.string(), text: z.string() })),
-        endTime: z.nullable(z.number()),
-        hasBeenEdited: z.boolean(),
-        kind: z.enum(['disclosed', 'undisclosed']),
-        maxSelections: z.number(),
-        votes: z.record(z.array(z.string())),
-    }),
-    /**
-     * Fedi custom events
-     *
-     * WARNING: Any non-backwards compatible changes to these will cause old
-     * messages to not render properly anymore. They will fail validation, and
-     * be sent to the frontend as "m.unknown" with only the body intact. New
-     * fields should either be `.optional()`, or consider making a new type.
-     */
-    'xyz.fedi.payment': z.object({
-        msgtype: z.literal('xyz.fedi.payment'),
-        body: z.string(),
-        status: z.nativeEnum(MatrixPaymentStatus),
-        /**
-         * Client-side generated unique identifier for the payment, used across
-         * multiple events to indicate updates to the same payment.
-         */
-        paymentId: z.string(),
-        /**
-         * The matrix id of the user who will receive this payment.
-         */
-        recipientId: z.string().optional(),
-        /**
-         * The operation ID returned by the federation when minting ecash for the sender.
-         * Present on 'pushed' events from NEW clients for transaction history.
-         * Optional for backward compatibility with OLD clients.
-         */
-        senderOperationId: z.string().optional(),
-        /**
-         * The operation ID returned by the federation when the receiver redeems ecash.
-         * Added when the payment is received.
-         */
-        receiverOperationId: z.string().optional(),
-        /**
-         * The amount of the payment, either requested or sent.
-         */
-        amount: z.number(),
-        /**
-         * The matrix id of the user who sent the payment.
-         *
-         * TODO: Validation that this exists for certain MatrixPaymentStatus.
-         */
-        senderId: z.string().optional(),
-        /**
-         * The ecash token attached to the payment.
-         *
-         * TODO: Validation that this exists for certain MatrixPaymentStatus.
-         * TODO: Encrypt this using some information from the intended recipient,
-         * to enable payments in group chats.
-         */
-        ecash: z.string().optional(),
-        /**
-         * The federation this payment was made in, or is expected to be received in.
-         *
-         * TODO: Potentially make this optional, allow anyone to pay to using any
-         * federation they have in common, or via bolt11 (see more below.)
-         */
-        federationId: z.string().optional(),
-        // TODO: Attach bolt11 to payment requests, and allow to pay that way
-        // if no federations in common?
-        bolt11: z.string().optional(),
-        // TODO: Attach invite code for federations you belong to that have
-        // invites enabled, and allow people to join to accept ecash?
-        inviteCode: z.string().optional(),
-    }),
-    'xyz.fedi.form': z.object({
-        msgtype: z.literal('xyz.fedi.form'),
-
-        // Fallback text for clients that don't support this msgtype
-        body: z.string(),
-        // text the user sees, translated to their selected language
-        i18nKeyLabel: z.string().optional(),
-        // HTML-like form inputs
-        type: formTypeSchema.optional(),
-        // single-select options
-        options: z.array(formOptionSchema).optional(),
-        // this is what the chatbot expects to be sent as a response
-        value: z.string().optional(),
-        // This is for the user to send response messages back to guardianito
-        formResponse: formResponseSchema.optional(),
-    }),
-    'xyz.fedi.deleted': z.object({
-        msgtype: z.literal('xyz.fedi.deleted'),
-        body: z.string(),
-        redacts: z.string(),
-        reason: z.string().optional(),
-    }),
-    // Artificial preview media event. Is manually generated and will not appear on chat servers.
-    'xyz.fedi.preview-media': z.object({
-        msgtype: z.literal('xyz.fedi.preview-media'),
-        body: z.string(),
-        info: z.object({
-            mimetype: z.string(),
-            w: z.number(),
-            h: z.number(),
-            uri: z.string(),
-        }),
-    }),
-    'xyz.fedi.multispend': z
-        .object({
-            msgtype: z.literal('xyz.fedi.multispend'),
-            body: z.string(),
-        })
-        .and(
-            // for each multispend event kind, it will reference the corresponding
-            // type in the multispendEventSchemas object
-            z.discriminatedUnion('kind', [
-                multispendEventSchemas.groupInvitation,
-                multispendEventSchemas.groupInvitationVote,
-                multispendEventSchemas.groupInvitationCancel,
-                multispendEventSchemas.groupReannounce,
-                multispendEventSchemas.depositNotification,
-                multispendEventSchemas.withdrawalRequest,
-                multispendEventSchemas.withdrawalResponse,
-            ]),
-        ),
-}
-
 export const matrixUrlMetadataSchema = z.object({
     'matrix:image:size': z.number().nullish(),
     'og:description': z.string().nullish(),
@@ -502,24 +180,13 @@ export const matrixUrlMetadataSchema = z.object({
 
 export type MatrixUrlMetadata = z.infer<typeof matrixUrlMetadataSchema>
 
-type MatrixEventUnknownContent = {
-    msgtype: 'm.unknown'
-    body: string
-    originalContent: MatrixEventContent
+export type MatrixEventContent = MatrixEvent['content']
+
+export const isRpcMatrixEvent = (
+    item: RpcTimelineItemEvent & { roomId: string },
+): item is MatrixEvent<RpcMatrixEventKind> => {
+    return RpcMatrixEventKinds.includes(item.content.msgtype)
 }
-
-export type MultispendMatrixEvent =
-    MatrixEventContentType<'xyz.fedi.multispend'>
-
-export type MultispendEventContentType<T extends MultispendEvent['kind']> =
-    Extract<MultispendMatrixEvent, { kind: T }>
-
-export type MatrixEventContentType<T extends keyof typeof contentSchemas> =
-    z.infer<(typeof contentSchemas)[T]>
-
-export type MatrixEventContent =
-    | z.infer<(typeof contentSchemas)[keyof typeof contentSchemas]>
-    | MatrixEventUnknownContent
 
 export type RepliableMatrixEventContent = MatrixEventContent & {
     'm.relates_to'?: {
@@ -532,52 +199,6 @@ export type RepliableMatrixEventContent = MatrixEventContent & {
     }
     formatted_body?: string
     format?: 'org.matrix.custom.html'
-}
-
-export type ReplyMessageData = {
-    eventId: string
-    senderId: string
-    senderDisplayName?: string
-    body: string
-    timestamp?: number
-}
-export type MatrixRelatesTo =
-    | {
-          rel_type?: string
-          event_id: string
-          key?: string // for reactions
-          'm.in_reply_to'?: {
-              event_id: string
-          }
-      }
-    | undefined
-
-export function getEventId(event: MatrixEvent): RpcTimelineEventItemId {
-    return event.eventId
-        ? { eventId: event.eventId }
-        : { transactionId: event.txnId || '' }
-}
-
-export function formatMatrixEventContent(
-    content: MatrixEventContent,
-): MatrixEventContent {
-    try {
-        const msgType = (content as { msgtype: keyof typeof contentSchemas })
-            .msgtype
-
-        const schema = contentSchemas[msgType]
-        if (!schema) throw new Error('Unknown message type')
-        return schema.parse(content)
-    } catch (err) {
-        log.warn('Failed to parse matrix event content', err, content)
-        return {
-            msgtype: 'm.unknown',
-            body:
-                (content as { body: string | undefined })?.body ||
-                'Unknown message type',
-            originalContent: content,
-        }
-    }
 }
 
 /**
@@ -604,7 +225,7 @@ export function makeMatrixEventGroups(
             Math.abs(lastEvent.timestamp - event.timestamp) <= 60_000
         ) {
             let isSameSender = false
-            if (lastEvent.senderId === event.senderId) {
+            if (lastEvent.sender === event.sender) {
                 isSameSender = true
             }
 
@@ -627,37 +248,29 @@ export function makeMatrixEventGroups(
     return eventGroups
 }
 
-export function makeChatFromPreview(preview: MatrixGroupPreview) {
+// Default chats are displayed as "fake groupchats" in the chats list because
+// users aren't actually joined to these rooms, so we need to construct the chat
+// object using the public room info and preview content that are fetched using
+// separate non-observable RPCs in MatrixChatClient.getRoomPreview.
+// To disambiguate:
+//    MatrixGroupPreview "preview" param
+//      > the full info + timeline of a public unjoined room
+//    MatrixRoom "preview" field
+//      > the truncated preview text shown under the name of the room on the ChatsList screen
+export function makeChatFromUnjoinedRoomPreview(preview: MatrixGroupPreview) {
     const { info, timeline } = preview
 
-    // filter out null values added by MatrixChatClient.serializeTimelineItem
-    const messages = timeline.filter(t => t !== null)
-
-    const previewContent: MatrixTimelineItem = messages.reduce(
-        (latest, current) => {
-            return (latest?.timestamp || 0) > (current?.timestamp || 0)
-                ? latest
-                : current
-        },
-        messages[0],
-    )
+    const chatPreview: MatrixEvent = timeline.reduce((latest, current) => {
+        return (latest?.timestamp || 0) > (current?.timestamp || 0)
+            ? latest
+            : current
+    }, timeline[0])
     const chat: MatrixRoom = {
         ...info,
+        preview: chatPreview,
         // all previews are default rooms which should be broadcast only
         // TODO: allow non-default, non-broadcast only previewing of rooms
         broadcastOnly: true,
-    }
-    if (previewContent) {
-        chat.preview = {
-            eventId: previewContent?.id,
-            body: previewContent?.content.body || '',
-            timestamp: previewContent?.timestamp || 0,
-            // TODO: get this from members list if we have them
-            displayName: previewContent?.senderId || '',
-            senderId: previewContent?.senderId || '',
-            // TODO: handle if deleted messages are returned in public group previews
-            isDeleted: false,
-        }
     }
 
     return chat
@@ -701,7 +314,7 @@ export const makeMatrixPaymentText = ({
     makeFormattedAmountsFromTxn: (txn: RpcTransaction) => FormattedAmounts
 }): string => {
     const {
-        senderId: eventSenderId,
+        sender: eventSenderId,
         content: {
             recipientId: paymentRecipientId,
             senderId: paymentSenderId,
@@ -779,12 +392,12 @@ export function isBolt11PaymentEvent(
 ): event is MatrixPaymentEvent {
     return (
         (isPaymentEvent(event) && !!event.content.bolt11) ||
-        isBolt11(event.content.body)
+        (isTextEvent(event) && isBolt11(event.content.body))
     )
 }
 
 export function getReceivablePaymentEvents(
-    timeline: MatrixTimelineItem[],
+    timeline: (MatrixEvent | null)[],
     myId: string,
     myFederations: LoadedFederation[],
 ) {
@@ -813,11 +426,7 @@ export function getReceivablePaymentEvents(
         latestPayments[item.content.paymentId] = item
     })
     return Object.values(latestPayments).reduce((prev, event) => {
-        if (
-            [MatrixPaymentStatus.accepted, MatrixPaymentStatus.pushed].includes(
-                event.content.status,
-            )
-        ) {
+        if (['accepted', 'pushed'].includes(event.content.status)) {
             prev.push(event)
         }
         return prev
@@ -921,61 +530,68 @@ export function shouldShowUnreadIndicator(
 
 export function isDeletedEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'xyz.fedi.deleted'>> {
-    return event.content.msgtype === 'xyz.fedi.deleted'
+): event is MatrixEvent<'redacted'> {
+    return event.content.msgtype === 'redacted'
 }
 
 export function isTextEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'m.text'>> {
+): event is MatrixEvent<'m.text'> {
     return event.content.msgtype === 'm.text'
 }
 
 export function isImageEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'m.image'>> {
+): event is MatrixEvent<'m.image'> {
     return event.content.msgtype === 'm.image'
 }
 
 export function isPreviewMediaEvent(
+    // Includes fake internal events
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'xyz.fedi.preview-media'>> {
+): event is MatrixEvent<'xyz.fedi.preview-media'> {
     return event.content.msgtype === 'xyz.fedi.preview-media'
 }
 
 export function isFileEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'m.file'>> {
+): event is MatrixEvent<'m.file'> {
     return event.content.msgtype === 'm.file'
 }
 
 export function isVideoEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'m.video'>> {
+): event is MatrixEvent<'m.video'> {
     return event.content.msgtype === 'm.video'
 }
 
 export function isEncryptedEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'m.room.encrypted'>> {
-    return event.content.msgtype === 'm.room.encrypted'
+): event is MatrixEvent<'unableToDecrypt'> {
+    return event.content.msgtype === 'unableToDecrypt'
 }
 
 export function isPollEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'m.poll'>> {
+): event is MatrixEvent<'m.poll'> {
     return event.content.msgtype === 'm.poll'
+}
+
+export function isFederationInviteEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<'xyz.fedi.federationInvite'> {
+    return event.content.msgtype === 'xyz.fedi.federationInvite'
 }
 
 export function isMultispendEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MatrixEventContentType<'xyz.fedi.multispend'>> {
+): event is MatrixEvent<'xyz.fedi.multispend'> {
     return event.content.msgtype === 'xyz.fedi.multispend'
 }
 
 export function isMultispendWithdrawalResponseEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MultispendEventContentType<'withdrawalResponse'>> {
+): event is MatrixMultispendEvent<'withdrawalResponse'> {
     return (
         event.content.msgtype === 'xyz.fedi.multispend' &&
         event.content.kind === 'withdrawalResponse'
@@ -984,7 +600,7 @@ export function isMultispendWithdrawalResponseEvent(
 
 export function isMultispendWithdrawalRequestEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MultispendEventContentType<'withdrawalRequest'>> {
+): event is MatrixMultispendEvent<'withdrawalRequest'> {
     return (
         event.content.msgtype === 'xyz.fedi.multispend' &&
         event.content.kind === 'withdrawalRequest'
@@ -993,7 +609,7 @@ export function isMultispendWithdrawalRequestEvent(
 
 export function isMultispendDepositEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MultispendEventContentType<'depositNotification'>> {
+): event is MatrixMultispendEvent<'depositNotification'> {
     return (
         event.content.msgtype === 'xyz.fedi.multispend' &&
         event.content.kind === 'depositNotification'
@@ -1002,7 +618,7 @@ export function isMultispendDepositEvent(
 
 export function isMultispendInvitationEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MultispendEventContentType<'groupInvitation'>> {
+): event is MatrixMultispendEvent<'groupInvitation'> {
     return (
         event.content.msgtype === 'xyz.fedi.multispend' &&
         event.content.kind === 'groupInvitation'
@@ -1011,7 +627,7 @@ export function isMultispendInvitationEvent(
 
 export function isMultispendInvitationVoteEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MultispendEventContentType<'groupInvitationVote'>> {
+): event is MatrixMultispendEvent<'groupInvitationVote'> {
     return (
         event.content.msgtype === 'xyz.fedi.multispend' &&
         event.content.kind === 'groupInvitationVote'
@@ -1020,7 +636,7 @@ export function isMultispendInvitationVoteEvent(
 
 export function isMultispendInvitationCancelEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MultispendEventContentType<'groupInvitationCancel'>> {
+): event is MatrixMultispendEvent<'groupInvitationCancel'> {
     return (
         event.content.msgtype === 'xyz.fedi.multispend' &&
         event.content.kind === 'groupInvitationCancel'
@@ -1029,7 +645,7 @@ export function isMultispendInvitationCancelEvent(
 
 export function isMultispendReannounceEvent(
     event: MatrixEvent,
-): event is MatrixEvent<MultispendEventContentType<'groupReannounce'>> {
+): event is MatrixMultispendEvent<'groupReannounce'> {
     return (
         event.content.msgtype === 'xyz.fedi.multispend' &&
         event.content.kind === 'groupReannounce'
@@ -1043,14 +659,14 @@ export const doesEventContentMatchPreviewMedia = (
     media: InputMedia,
     content: MatrixEventContentType<'m.video' | 'm.image'>,
 ) =>
-    content.info.mimetype === media.mimeType &&
-    content.info.w === media.width &&
-    content.info.h === media.height &&
+    content.info?.mimetype === media.mimeType &&
+    content.info?.width === media.width &&
+    content.info?.height === media.height &&
     content.body === media.fileName
 
 export const arePollEventsEqual = (
-    prev: MatrixEvent<MatrixEventContentType<'m.poll'>>,
-    curr: MatrixEvent<MatrixEventContentType<'m.poll'>>,
+    prev: MatrixEvent<'m.poll'>,
+    curr: MatrixEvent<'m.poll'>,
 ) => {
     if (
         prev.id !== curr.id ||
@@ -1267,72 +883,55 @@ export function isWithdrawalRequestApproved(
     return false
 }
 
+export function sortMultispendRoomMembers(
+    members: MatrixRoomMember[],
+    multispendStatus: RpcMultispendGroupStatus,
+) {
+    return members.sort((a, b) => {
+        if (!multispendStatus) return 0
+
+        const roleA = getMultispendRole(multispendStatus, a.id)
+        const roleB = getMultispendRole(multispendStatus, b.id)
+        const roleAPower = roleA === 'proposer' ? 2 : roleA === 'voter' ? 1 : 0
+        const roleBPower = roleB === 'proposer' ? 2 : roleB === 'voter' ? 1 : 0
+
+        return roleBPower - roleAPower
+    })
+}
+
 export function isRepliableContent(
-    content: unknown,
-): content is RepliableMatrixEventContent {
-    return (
-        content !== null &&
-        typeof content === 'object' &&
-        content !== undefined &&
-        'm.relates_to' in content &&
-        content['m.relates_to'] !== null &&
-        typeof content['m.relates_to'] === 'object'
-    )
+    reply: MatrixEvent['inReply'] | undefined,
+): reply is ReplyMessageData {
+    if (!reply) return false
+    if (reply.kind !== 'ready') return false
+    if (!('body' in reply.content)) return false
+
+    return true
+    // content !== null &&
+    // typeof content === 'object' &&
+    // content !== undefined &&
+    // 'm.relates_to' in content &&
+    // content['m.relates_to'] !== null &&
+    // typeof content['m.relates_to'] === 'object'
 }
 
 export function isReply(event: MatrixEvent): boolean {
-    if (!isRepliableContent(event.content)) {
-        return false
-    }
-
-    if (event.content['m.relates_to']?.['m.in_reply_to']) {
-        return true
-    }
-
-    return false
+    return !!event.inReply
 }
 
-export function getReplyMessageData(
-    event: MatrixEvent,
-): ReplyMessageData | null {
-    if (!isRepliableContent(event.content)) {
+export const getReplyData = (event: MatrixEvent): ReplyMessageData | null => {
+    if (!event.inReply) {
         return null
     }
-
-    if (event.content['m.relates_to']?.['m.in_reply_to']) {
-        const eventId = event.content['m.relates_to']['m.in_reply_to'].event_id
-
-        return {
-            eventId,
-            senderId: '',
-            senderDisplayName: undefined,
-            body: 'Reply message',
-            timestamp: undefined,
-        }
-    }
-
+    if (isRepliableContent(event.inReply)) return event.inReply
     return null
 }
 
 export function getReplyEventId(event: MatrixEvent): string | null {
-    if (!isRepliableContent(event.content)) {
-        return null
-    }
+    const replyData = getReplyData(event)
+    if (!replyData) return null
 
-    if (event.content['m.relates_to']?.['m.in_reply_to']?.event_id) {
-        return event.content['m.relates_to']['m.in_reply_to'].event_id
-    }
-
-    return null
-}
-
-// helper function to check if an event is replying to a specific event
-export function isReplyToEvent(
-    event: MatrixEvent,
-    targetEventId: string,
-): boolean {
-    const replyEventId = getReplyEventId(event)
-    return replyEventId === targetEventId
+    return replyData.id
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -1379,7 +978,7 @@ function findLastQuoteLineIndex(lines: string[]): {
 
 export function stripReplyFromBody(
     body: string,
-    formattedBody?: string,
+    formattedBody?: string | null,
 ): string {
     // strip mx-reply content if present
     if (formattedBody?.includes('<mx-reply>')) {
@@ -1424,15 +1023,6 @@ export function stripReplyFromBody(
     return decodeHtmlEntities(body)
 }
 
-// helper to strip reply formatting from preview text
-export const stripReplyFromPreview = (text: string): string => {
-    // Check if this looks like a reply (starts with >)
-    if (text.startsWith('>')) {
-        return stripReplyFromBody(text)
-    }
-    return text
-}
-
 /** Normalize a plain string or a full SendMessageData into SendMessageData */
 export const toSendMessageData = (
     x: string | SendMessageData,
@@ -1446,3 +1036,419 @@ export const toSendMessageData = (
               mentions: opts?.mentions ?? null,
           }
         : x
+
+const labelKeys = ['displayName', 'username', 'name'] as const
+
+function getStringProp(
+    obj: unknown,
+    key: (typeof labelKeys)[number],
+): string | null {
+    if (obj == null || typeof obj !== 'object') return null
+    const val = (obj as Record<string, unknown>)[key]
+    return typeof val === 'string' && val.trim().length > 0 ? val : null
+}
+
+/**
+ * Returns the best-available, non-empty label for a Matrix user.
+ * Falls back in order: displayName → username → name → ''.
+ */
+export const getUserLabel = (u: MatrixUser): string => {
+    for (const key of labelKeys) {
+        const v = getStringProp(u, key)
+        if (v) return v
+    }
+    return ''
+}
+
+// Minimal HTML escaping for formatted_body
+const escapeHtml = (s: string) =>
+    s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/&apos;/g, "'")
+
+// minimal HTML un-escaping for formatted_body
+export const unescapeHtml = (s: string) =>
+    s
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, '&')
+        .replace(/&apos;/g, "'")
+
+const anchorForUser = (userId: string, display: string) =>
+    `<a href="${MATRIX_URL_BASE}${userId}">${escapeHtml(display)}</a>`
+
+/**
+ * Detect @mentions in plain text, match against room members,
+ * build m.mentions + formatted_body (with matrix.to links).
+ */
+export function parseMentionsFromText(
+    body: string,
+    roomMembers: MatrixRoomMember[],
+): MentionParsingResult {
+    const byHandle = new Map<string, MatrixRoomMember>() // localpart (no spaces)
+    const byDisplay = new Map<string, MatrixRoomMember>() // display name (may have spaces)
+
+    for (const m of roomMembers) {
+        const local = m.id.replace(/^@/, '').split(':', 1)[0]
+        byHandle.set(local.toLowerCase(), m)
+        const dn = (m.displayName || '').trim()
+        if (dn) byDisplay.set(dn.toLowerCase(), m)
+    }
+
+    const userIds = new Set<string>()
+    let hasRoom = false
+
+    // check delimiter
+    const isDelim = (ch?: string) => !ch || /\s|[.,;:()"'`<>]/.test(ch)
+
+    // longest-first list of display names for matching
+    const displayNames = Array.from(byDisplay.keys()).sort(
+        (a, b) => b.length - a.length,
+    )
+
+    let i = 0
+    let out = ''
+    let plainBuf = ''
+
+    const flushPlain = () => {
+        if (plainBuf) {
+            out += escapeHtml(plainBuf)
+            plainBuf = ''
+        }
+    }
+
+    while (i < body.length) {
+        const ch = body[i]
+
+        if (ch === '@' && (i === 0 || isDelim(body[i - 1]))) {
+            const after = body.slice(i + 1)
+            const afterLower = after.toLowerCase()
+
+            // Try multi-word display name mention first (greedy, longest-first)
+            let matchedName: string | null = null
+            let matchedMember: MatrixRoomMember | undefined
+
+            for (const name of displayNames) {
+                if (
+                    afterLower.startsWith(name) &&
+                    isDelim(body[i + 1 + name.length])
+                ) {
+                    matchedName = after.substr(0, name.length) // preserve original casing for display
+                    matchedMember = byDisplay.get(name)
+                    break
+                }
+            }
+
+            if (matchedName && matchedMember) {
+                userIds.add(matchedMember.id)
+                const display =
+                    (matchedMember.displayName || '').trim() || matchedName
+                flushPlain()
+                out += anchorForUser(matchedMember.id, `@${display}`)
+                i += 1 + matchedName.length
+                continue
+            }
+
+            // fallback to handle
+            const handleMatch = after.match(/^[a-z0-9._-]{1,64}/i)
+            if (handleMatch) {
+                const raw = handleMatch[0]
+                const handle = raw.toLowerCase()
+
+                if (handle === ROOM_MENTION || handle === 'everyone') {
+                    hasRoom = true
+                    flushPlain()
+                    out += `@${raw}` // keep as plain text (Matrix convention)
+                    i += 1 + raw.length
+                    continue
+                }
+
+                const m = byHandle.get(handle)
+                if (m) {
+                    userIds.add(m.id)
+                    const display = (m.displayName || '').trim() || m.id
+                    flushPlain()
+                    out += anchorForUser(m.id, `@${display}`)
+                    i += 1 + raw.length
+                    continue
+                }
+
+                // not a known handle — leave as typed
+                flushPlain()
+                out += `@${raw}`
+                i += 1 + raw.length
+                continue
+            }
+
+            // lone '@' or not a valid token; emit as-is
+            flushPlain()
+            out += '@'
+            i += 1
+            continue
+        }
+
+        // Regular character — buffer until we need to insert an anchor or finish
+        plainBuf += ch
+        i += 1
+    }
+
+    // flush any trailing plain text
+    flushPlain()
+
+    const mentions: MatrixMentions = {}
+    if (userIds.size) mentions.user_ids = Array.from(userIds)
+    if (hasRoom) mentions.room = true
+
+    return { mentions, formattedBody: out }
+}
+
+/**
+ * Read mentions from a Matrix event (m.mentions + anchors in formatted_body).
+ */
+export function extractMentionsFromEvent(
+    event: MatrixEvent,
+): MentionExtractionResult {
+    const content = (event.content ?? {}) as Partial<{
+        'm.mentions': MatrixMentions
+        formatted_body: string
+    }>
+    const mentionsField = content['m.mentions']
+    const mentionedUserIds = mentionsField?.user_ids
+        ? [...mentionsField.user_ids]
+        : []
+    const hasRoomMention = !!mentionsField?.room
+    const formattedMentions: {
+        userId: string
+        displayName: string
+        startIndex: number
+        endIndex: number
+    }[] = []
+
+    if (typeof content.formatted_body === 'string') {
+        // Accept encoded user IDs after "#/" and decode them.
+        // Example: <a href="https://matrix.to/#/%40alice%3Aserver">...</a>
+        const re = /<a\s+href="[^"]*#\/([^"]+)"[^>]*>(.*?)<\/a>/gi
+        let matchExec: RegExpExecArray | null
+        while ((matchExec = re.exec(content.formatted_body))) {
+            const decoded = safeDecode(matchExec[1])
+            if (!decoded?.startsWith('@') || !decoded.includes(':')) continue
+
+            formattedMentions.push({
+                userId: decoded,
+                displayName: matchExec[2]?.replace(/<[^>]*>/g, '') || decoded,
+                startIndex: matchExec.index,
+                endIndex: matchExec.index + matchExec[0].length,
+            })
+        }
+    }
+
+    return { mentionedUserIds, hasRoomMention, formattedMentions }
+}
+
+export function isUserMentioned(event: MatrixEvent, userId: string): boolean {
+    const res = extractMentionsFromEvent(event)
+    return res.hasRoomMention || res.mentionedUserIds.includes(userId)
+}
+
+// strip only the <mx-reply> wrapper, keep the rest of the HTML intact
+export function stripReplyFromFormattedBody(
+    formattedBody?: string,
+): string | undefined {
+    if (!formattedBody) return undefined
+    return formattedBody
+        .replace(MX_REPLY_REGEX, '')
+        .replace(/^\s*(?:<br\s*\/?>)+/i, '')
+        .trim()
+}
+
+// builds the 'data' payload for fedimint JSON message/edit/reply calls when mentions are present
+export const prepareMentionsDataPayload = (
+    body: string,
+    members: MatrixRoomMember[],
+    opts?: { excludeUserId?: string },
+): { mentions: RpcMentions | null; extra: JSONObject } => {
+    const { mentions, formattedBody } = parseMentionsFromText(body, members)
+    const hadAnchors = /<a\s/i.test(formattedBody)
+
+    let rpcMentions = toRpcMentions(mentions)
+
+    // remove self from m.mentions (but keep the anchor in HTML)
+    if (rpcMentions && opts?.excludeUserId) {
+        const users = (rpcMentions.users ?? []).filter(
+            u => u !== opts.excludeUserId,
+        )
+        const filtered: RpcMentions = { ...rpcMentions, users }
+        rpcMentions = users.length > 0 || !!filtered.room ? filtered : null
+    }
+
+    // If no mentions remain after filtering:
+    // - If the original had anchors, still include formatted_body to keep styled links.
+    // - Otherwise, no extra payload.
+    if (!rpcMentions) {
+        return hadAnchors
+            ? {
+                  mentions: null,
+                  extra: {
+                      format: 'org.matrix.custom.html',
+                      formatted_body: formattedBody,
+                  },
+              }
+            : { mentions: null, extra: {} }
+    }
+
+    // Mentions remain -> include both m.mentions and formatted_body
+    return {
+        mentions: rpcMentions,
+        extra: {
+            format: 'org.matrix.custom.html',
+            formatted_body: formattedBody,
+        },
+    }
+}
+
+export const hasMentions = (m: RpcMentions | null) =>
+    !!m && (m.users.length > 0 || m.room)
+
+// Convert MatrixMentions (snake_case) to RpcMentions (camelCase)
+const toRpcMentions = (
+    m: { user_ids?: string[]; room?: boolean } | null,
+): RpcMentions | null => {
+    if (!m) return null
+    const users = Array.isArray(m.user_ids) ? m.user_ids.filter(Boolean) : []
+    const room = !!m.room
+    if (users.length === 0 && !room) return null
+    return { users, room }
+}
+
+const safeDecode = (s: string): string | null => {
+    try {
+        return decodeURIComponent(s)
+    } catch {
+        return null
+    }
+}
+
+export type LinkRun = { type: 'link'; text: string; href: string }
+export type TextRun = { type: 'text'; text: string }
+export type HtmlRun = LinkRun | TextRun
+
+/**
+ * Type guard for m.text content that includes Matrix HTML formatting.
+ */
+export function isHtmlFormattedContent(
+    c: MatrixEventContentType<'m.text'> | RepliableMatrixEventContent,
+): c is RepliableMatrixEventContent & {
+    format: 'org.matrix.custom.html'
+    formatted_body?: string
+} {
+    if (typeof c !== 'object' || c === null) return false
+
+    if (!('format' in c)) return false
+    const format = (c as { format?: unknown }).format
+    if (format !== 'org.matrix.custom.html') return false
+
+    // formatted_body may be absent or a string
+    if ('formatted_body' in c) {
+        const fb = (c as { formatted_body?: unknown }).formatted_body
+        if (typeof fb !== 'undefined' && typeof fb !== 'string') return false
+    }
+
+    return true
+}
+
+/**
+ * Split HTML into link/text runs, converting <br/> to "\n" and unescaping entities.
+ * Strips any nested tags from anchor text.
+ */
+export const splitHtmlRuns = (html: string): HtmlRun[] => {
+    const anchorRe = /<a\s+href="([^"]+)"[^>]*>(.*?)<\/a>/gi
+    const brRe = /<br\s*\/?>/gi
+    const runs: HtmlRun[] = []
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = anchorRe.exec(html))) {
+        if (m.index > last) {
+            const chunk = html.slice(last, m.index)
+            const pieces = chunk.split(brRe)
+            pieces.forEach((p, idx) => {
+                if (p) runs.push({ type: 'text', text: unescapeHtml(p) })
+                if (idx < pieces.length - 1)
+                    runs.push({ type: 'text', text: '\n' })
+            })
+        }
+        runs.push({
+            type: 'link',
+            href: m[1],
+            text: unescapeHtml(m[2].replace(/<[^>]*>/g, '')),
+        })
+        last = m.index + m[0].length
+    }
+    if (last < html.length) {
+        const tail = html.slice(last)
+        const pieces = tail.split(brRe)
+        pieces.forEach((p, idx) => {
+            if (p) runs.push({ type: 'text', text: unescapeHtml(p) })
+            if (idx < pieces.length - 1) runs.push({ type: 'text', text: '\n' })
+        })
+    }
+    return runs
+}
+
+/**
+ * Split plain text into runs, marking @room/@everyone tokens as 'everyone' runs.
+ */
+export const splitEveryoneRuns = (
+    text: string,
+): Array<{ type: 'text' | 'everyone'; text: string }> => {
+    const re = new RegExp(`@(?:everyone|${ROOM_MENTION})\\b`, 'gi')
+    const out: Array<{ type: 'text' | 'everyone'; text: string }> = []
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text))) {
+        if (m.index > last)
+            out.push({ type: 'text', text: text.slice(last, m.index) })
+        out.push({ type: 'everyone', text: m[0] })
+        last = m.index + m[0].length
+    }
+    if (last < text.length) out.push({ type: 'text', text: text.slice(last) })
+    return out
+}
+
+// Maps some message types to special preview message
+// local keys
+const PreviewTextMap = {
+    failedToParseCustom: 'feature.chat.new-message',
+    unknown: 'feature.chat.new-message',
+    unableToDecrypt: 'feature.chat.new-message',
+    'xyz.fedi.multispend': 'feature.chat.multispend-preview',
+    redacted: 'feature.chat.message-deleted',
+} as const satisfies Partial<Record<MatrixEventKind, ResourceKey>>
+
+const isKeyOfPreviewTextMap = (
+    event: MatrixEvent,
+): event is MatrixEvent<keyof typeof PreviewTextMap> =>
+    event.content.msgtype in PreviewTextMap
+
+export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
+    if (room.isBlocked) return t('feature.chat.user-is-blocked')
+
+    const preview = room.preview
+
+    // HACK: public rooms don't show a preview message so you have to click into it to paginate backwards
+    // TODO: Replace with proper room previews
+    if (!preview && room.isPublic && room.broadcastOnly)
+        return t('feature.chat.click-here-for-announcements')
+
+    if (!preview) return t('feature.chat.no-messages')
+
+    if (isKeyOfPreviewTextMap(preview))
+        return t(PreviewTextMap[preview.content.msgtype])
+
+    return preview.content.body
+}

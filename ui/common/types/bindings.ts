@@ -154,6 +154,10 @@ export type FeatureCatalog = {
    * environment.
    */
   matrix: MatrixFeatureConfig;
+  /**
+   * Config for which invite code to use for joining the global community
+   */
+  global_community: GlobalCommunityFeatureConfig;
 };
 
 export type FiatFXInfo = {
@@ -180,6 +184,8 @@ export type FrontendMetadata = {
   recipientMatrixId: string | null;
   senderMatrixId: string | null;
 };
+
+export type GlobalCommunityFeatureConfig = { invite_code: string };
 
 export type GroupInvitation = {
   signers: Array<RpcUserId>;
@@ -336,8 +342,6 @@ export type RecoveryProgressEvent = {
   total: number;
 };
 
-export type RoomInfoStreamId = RpcStreamId<JSONObject>;
-
 export type RpcAmount = MSats;
 
 export type RpcAppFlavor =
@@ -345,6 +349,20 @@ export type RpcAppFlavor =
   | { type: "nightly" }
   | { type: "bravo" }
   | { type: "tests" };
+
+export type RpcAudioInfo = {
+  duration: number | null;
+  mimetype: string | null;
+  size: number | null;
+};
+
+export type RpcAudioMessageContent = {
+  info: RpcAudioInfo | null;
+  body: string;
+  formatted: RpcFormattedBody | null;
+  filename: string | null;
+  source: RpcMediaSource;
+};
 
 export type RpcBackPaginationStatus =
   | "idle"
@@ -433,7 +451,6 @@ export type RpcFederationPreview = {
   name: string;
   meta: { [key in string]?: string };
   inviteCode: string;
-  version: number;
   returningMemberStatus: RpcReturningMemberStatus;
 };
 
@@ -450,10 +467,71 @@ export type RpcFeeDetails = {
 
 export type RpcFiatAmount = number;
 
+export type RpcFileInfo = {
+  mimetype: string | null;
+  size: number | null;
+  thumbnailInfo: RpcThumbnailInfo | null;
+  thumbnailSource: RpcMediaSource | null;
+};
+
+export type RpcFileMessageContent = {
+  info: RpcFileInfo | null;
+  body: string;
+  formatted: RpcFormattedBody | null;
+  filename: string | null;
+  source: RpcMediaSource;
+};
+
+export type RpcFormMessageContent = {
+  body: string;
+  i18nKeyLabel: string | null;
+  type: RpcFormType | null;
+  options: Array<RpcFormOption> | null;
+  value: string | null;
+  formResponse: RpcFormResponse | null;
+};
+
+export type RpcFormOption = {
+  value: string;
+  label: string | null;
+  i18nKeyLabel: string | null;
+};
+
+export type RpcFormResponse = {
+  responseType: RpcFormType | null;
+  responseValue: RpcFormResponseValue;
+  responseBody: string | null;
+  responseI18nKey: string | null;
+  respondingToEventId: string | null;
+};
+
+export type RpcFormResponseValue = string | number | boolean;
+
+export type RpcFormType = "text" | "radio" | "button";
+
+export type RpcFormattedBody = { format: string; formattedBody: string };
+
 export type RpcGenerateEcashResponse = {
   ecash: string;
   cancelAt: number;
   operationId: RpcOperationId;
+};
+
+export type RpcImageInfo = {
+  height: number | null;
+  width: number | null;
+  mimetype: string | null;
+  size: number | null;
+  thumbnailInfo: RpcThumbnailInfo | null;
+  thumbnailSource: RpcMediaSource | null;
+};
+
+export type RpcImageMessageContent = {
+  info: RpcImageInfo | null;
+  body: string;
+  formatted: RpcFormattedBody | null;
+  filename: string | null;
+  source: RpcMediaSource;
 };
 
 export type RpcInitOpts = {
@@ -526,6 +604,21 @@ export type RpcMatrixMembership =
   | "leave"
   | "unknown";
 
+export type RpcMatrixPaymentStatus =
+  | "pushed"
+  | "requested"
+  | "accepted"
+  | "rejected"
+  | "canceled"
+  | "received";
+
+export type RpcMatrixRoomState =
+  | "joined"
+  | "left"
+  | "invited"
+  | "banned"
+  | "knocked";
+
 export type RpcMatrixUploadResult = { contentUri: string };
 
 export type RpcMatrixUserDirectorySearchResponse = {
@@ -539,9 +632,16 @@ export type RpcMatrixUserDirectorySearchUser = {
   avatarUrl: string | null;
 };
 
+export type RpcMediaContent = {
+  body: string;
+  formatted: RpcFormattedBody | null;
+  filename: string | null;
+  source: RpcMediaSource;
+};
+
 export type RpcMediaPreviewResponse = JSONObject;
 
-export type RpcMediaSource = JSONObject;
+export type RpcMediaSource = Opaque<unknown, "MediaSource">;
 
 export type RpcMediaUploadParams = {
   width: number | null;
@@ -718,7 +818,7 @@ export type RpcMethods = {
   matrixUnignoreUser: [matrixUnignoreUser, null];
   matrixListIgnoredUsers: [matrixListIgnoredUsers, Array<RpcUserId>];
   matrixRoomPreviewContent: [matrixRoomPreviewContent, Array<RpcTimelineItem>];
-  matrixPublicRoomInfo: [matrixPublicRoomInfo, RpcPublicRoomChunk];
+  matrixPublicRoomInfo: [matrixPublicRoomInfo, RpcPublicRoomInfo];
   matrixRoomMarkAsUnread: [matrixRoomMarkAsUnread, null];
   matrixEditMessage: [matrixEditMessage, null];
   matrixDeleteMessage: [matrixDeleteMessage, null];
@@ -783,6 +883,24 @@ export type RpcMethods = {
 };
 
 export type RpcModuleFediFeeSchedule = { sendPpm: number; receivePpm: number };
+
+export type RpcMsgLikeKind =
+  | ({ msgtype: "m.text" } & RpcTextLikeContent)
+  | ({ msgtype: "m.notice" } & RpcTextLikeContent)
+  | ({ msgtype: "m.emote" } & RpcTextLikeContent)
+  | ({ msgtype: "m.file" } & RpcFileMessageContent)
+  | ({ msgtype: "m.image" } & RpcImageMessageContent)
+  | ({ msgtype: "m.video" } & RpcVideoMessageContent)
+  | ({ msgtype: "m.audio" } & RpcAudioMessageContent)
+  | ({ msgtype: "m.poll" } & RpcPollResult)
+  | ({ msgtype: "xyz.fedi.federationInvite" } & RpcTextLikeContent)
+  | ({ msgtype: "xyz.fedi.payment" } & RpcPaymentMessageContent)
+  | ({ msgtype: "xyz.fedi.form" } & RpcFormMessageContent)
+  | ({ msgtype: "xyz.fedi.multispend" } & MultispendEvent)
+  | { msgtype: "failedToParseCustom"; msg_type: string; error: string }
+  | { msgtype: "unknown" }
+  | { msgtype: "redacted" }
+  | { msgtype: "unableToDecrypt" };
 
 export type RpcMultispendGroupStatus =
   | { status: "inactive" }
@@ -849,6 +967,21 @@ export type RpcPayAddressResponse = { txid: string };
 
 export type RpcPayInvoiceResponse = { preimage: string };
 
+export type RpcPaymentMessageContent = {
+  body: string;
+  status: RpcMatrixPaymentStatus;
+  paymentId: string;
+  recipientId?: string;
+  senderOperationId?: string;
+  receiverOperationId?: string;
+  amount: number;
+  senderId?: string;
+  ecash?: string;
+  federationId?: string;
+  bolt11?: string;
+  inviteCode?: string;
+};
+
 export type RpcPeerId = number;
 
 export type RpcPollKind = "undisclosed" | "disclosed";
@@ -862,10 +995,10 @@ export type RpcPollResponseData = {
 export type RpcPollResult = {
   body: string;
   kind: RpcPollKind;
-  maxSelections: bigint;
+  maxSelections: number;
   answers: Array<RpcPollResultAnswer>;
   votes: { [key in string]?: Array<string> };
-  endTime: bigint | null;
+  endTime: number | null;
   hasBeenEdited: boolean;
   msgtype: string;
 };
@@ -876,7 +1009,12 @@ export type RpcPrevPayInvoiceResult = { completed: boolean };
 
 export type RpcPublicKey = string;
 
-export type RpcPublicRoomChunk = JSONObject;
+export type RpcPublicRoomInfo = {
+  id: string;
+  name: string | null;
+  avatarUrl: string | null;
+  joinedMemberCount: number;
+};
 
 export type RpcPusher = JSONObject;
 
@@ -985,6 +1123,20 @@ export type RpcSPv2SyncResponse = {
   pendingUnlockRequest: number | null;
 };
 
+export type RpcSerializedRoomInfo = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  preview: RpcTimelineItemEvent | null;
+  directUserId: string | null;
+  notificationCount: number;
+  isMarkedUnread: boolean;
+  joinedMemberCount: number;
+  isPreview: boolean;
+  isPublic: boolean | null;
+  roomState: RpcMatrixRoomState;
+};
+
 export type RpcSignature = string;
 
 export type RpcSignedLnurlMessage = { signature: string; pubkey: RpcPublicKey };
@@ -1041,9 +1193,25 @@ export type RpcStreamUpdate<T> = {
 
 export type RpcSyncIndicator = "hide" | "show";
 
-export type RpcTimelineEventItemId =
-  | { transactionId: string }
-  | { eventId: string };
+export type RpcTextLikeContent = {
+  body: string;
+  formatted: RpcFormattedBody | null;
+};
+
+export type RpcThumbnailInfo = {
+  height: number | null;
+  width: number | null;
+  mimetype: string | null;
+  size: number | null;
+};
+
+export type RpcTimelineDetails<T> =
+  | { kind: "unavailable" }
+  | { kind: "pending" }
+  | ({ kind: "ready" } & T)
+  | { kind: "error" };
+
+export type RpcTimelineEventItemId = Opaque<string, "RpcTimelineEventItemId">;
 
 /**
  * This type represents the "send state" of a local event timeline item.
@@ -1073,29 +1241,21 @@ export type RpcTimelineItem =
   | { kind: "unknown" }
   | { kind: "timelineStart" };
 
-export type RpcTimelineItemContent =
-  | { kind: "message"; value: JSONObject }
-  | { kind: "json"; value: JSONValue }
-  | { kind: "redactedMessage" }
-  | { kind: "poll"; value: RpcPollResult }
-  | { kind: "unknown" };
-
 export type RpcTimelineItemEvent = {
-  id: string;
-  txnId: string | null;
-  eventId: string | null;
-  content: RpcTimelineItemContent;
+  id: RpcTimelineEventItemId;
+  content: RpcMsgLikeKind;
   localEcho: boolean;
   timestamp: number;
   sender: string;
   sendState: RpcTimelineEventSendState | null;
+  inReply: RpcTimelineDetails<RpcTimelineItemEvent> | null;
 };
 
 export type RpcTransaction = {
   id: string;
   amount: RpcAmount;
   fediFeeStatus: RpcOperationFediFeeStatus | null;
-  txnNotes: string;
+  txnNotes: string | null;
   txDateFiatInfo: FiatFXInfo | null;
   frontendMetadata: FrontendMetadata;
   /**
@@ -1174,7 +1334,7 @@ export type RpcTransactionListEntry = {
   id: string;
   amount: RpcAmount;
   fediFeeStatus: RpcOperationFediFeeStatus | null;
-  txnNotes: string;
+  txnNotes: string | null;
   txDateFiatInfo: FiatFXInfo | null;
   frontendMetadata: FrontendMetadata;
   /**
@@ -1218,6 +1378,24 @@ export type RpcTransferRequestId = string;
 export type RpcUserId = string;
 
 export type RpcVecDiffStreamId<T> = RpcStreamId<Array<VectorDiff<T>>>;
+
+export type RpcVideoInfo = {
+  duration: number | null;
+  height: number | null;
+  width: number | null;
+  mimetype: string | null;
+  size: number | null;
+  thumbnailInfo: RpcThumbnailInfo | null;
+  thumbnailSource: RpcMediaSource | null;
+};
+
+export type RpcVideoMessageContent = {
+  info: RpcVideoInfo | null;
+  body: string;
+  formatted: RpcFormattedBody | null;
+  filename: string | null;
+  source: RpcMediaSource;
+};
 
 export type SPv2DepositEvent = {
   federationId: RpcFederationId;
@@ -1677,7 +1855,7 @@ export type matrixRoomSetPowerLevels = {
 export type matrixRoomSetTopic = { roomId: RpcRoomId; topic: string };
 
 export type matrixRoomSubscribeInfo = {
-  streamId: RoomInfoStreamId;
+  streamId: RpcStreamId<RpcSerializedRoomInfo>;
   roomId: RpcRoomId;
 };
 

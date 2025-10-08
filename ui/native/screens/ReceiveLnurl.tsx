@@ -4,26 +4,24 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
-import { useLnurlReceiveCode } from '@fedi/common/hooks/pay'
-import { selectActiveFederationId } from '@fedi/common/redux'
+import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
 
 import { fedimint } from '../bridge'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import { SafeScrollArea } from '../components/ui/SafeArea'
-import { useAppSelector } from '../state/hooks'
 import { BitcoinOrLightning, BtcLnUri } from '../types'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'ReceiveLnurl'>
 
-const ReceiveLnurl: React.FC<Props> = () => {
+const ReceiveLnurl: React.FC<Props> = ({ route }) => {
+    const { federationId = '' } = route.params
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const activeFederationId = useAppSelector(selectActiveFederationId)
 
     const { lnurlReceiveCode, isLoading } = useLnurlReceiveCode(
         fedimint,
-        activeFederationId || '',
+        federationId || '',
     )
 
     const style = styles(theme)
@@ -56,7 +54,7 @@ const ReceiveLnurl: React.FC<Props> = () => {
                         })
                     }
                     type={BitcoinOrLightning.lnurl}
-                    transactionId={lnurlReceiveCode}
+                    federationId={federationId}
                 />
             )}
         </SafeScrollArea>

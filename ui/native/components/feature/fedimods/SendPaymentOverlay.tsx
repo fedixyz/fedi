@@ -44,8 +44,11 @@ interface Props {
 export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(t)
     const paymentFederation = useAppSelector(selectPaymentFederation)
+    const { feeBreakdownTitle, makeLightningFeeContent } = useFeeDisplayUtils(
+        t,
+        paymentFederation?.id || '',
+    )
     const lnurlPayment = useAppSelector(selectLnurlPayment)
     const invoice = useAppSelector(selectInvoiceToPay)
     const siteInfo = useAppSelector(selectSiteInfo)
@@ -67,7 +70,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         feeDetails,
         handleOmniInput,
         isLoading: isOmniPaymentLoading,
-    } = useOmniPaymentState(fedimint, paymentFederation?.id, true, t)
+    } = useOmniPaymentState(fedimint, paymentFederation?.id, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails

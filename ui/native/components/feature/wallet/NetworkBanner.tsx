@@ -4,23 +4,25 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import { selectActiveFederation } from '@fedi/common/redux'
+import { selectLoadedFederation } from '@fedi/common/redux'
+import { Federation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
-export const NetworkBanner: React.FC = () => {
+export type Props = {
+    federationId: Federation['id']
+}
+
+export const NetworkBanner: React.FC<Props> = ({ federationId }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const activeFederation = useAppSelector(selectActiveFederation)
-
-    if (
-        !activeFederation ||
-        !activeFederation.hasWallet ||
-        activeFederation.network === 'bitcoin'
+    const federation = useAppSelector(s =>
+        selectLoadedFederation(s, federationId),
     )
-        return null
+
+    if (!federation || federation.network === 'bitcoin') return null
 
     const style = styles(theme)
     return (
@@ -38,7 +40,7 @@ export const NetworkBanner: React.FC = () => {
                 adjustsFontSizeToFit
                 numberOfLines={1}>
                 {t('feature.wallet.network-notice', {
-                    network: capitalize(activeFederation.network ?? 'unknown'),
+                    network: capitalize(federation.network ?? 'unknown'),
                 })}
             </Text>
         </Flex>

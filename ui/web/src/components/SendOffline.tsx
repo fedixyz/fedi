@@ -3,13 +3,12 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMinMaxSendAmount } from '@fedi/common/hooks/amount'
-import { useIsInviteSupported } from '@fedi/common/hooks/federation'
+import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectActiveFederation } from '@fedi/common/redux'
-import { Sats } from '@fedi/common/types'
+import { Federation, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { useAppSelector, useWarnBeforeUnload } from '../hooks'
+import { useWarnBeforeUnload } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 import { AmountInput } from './AmountInput'
@@ -22,19 +21,21 @@ import { Text } from './Text'
 interface Props {
     onEcashGenerated(): void
     onPaymentSent(): void
+    federationId: Federation['id']
 }
 
 export const SendOffline: React.FC<Props> = ({
     onEcashGenerated,
     onPaymentSent,
+    federationId,
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
-    const activeFederation = useAppSelector(selectActiveFederation)
-    const includeInvite = useIsInviteSupported()
-    const { minimumAmount, maximumAmount } = useMinMaxSendAmount()
+    const { minimumAmount, maximumAmount } = useMinMaxSendAmount({
+        fedimint,
+        federationId,
+    })
     const [amount, setAmount] = useState(0 as Sats)
-    const [isGeneratingEcash, setIsGeneratingEcash] = useState(false)
     const [offlinePayment, setOfflinePayment] = useState<string | null>(null)
     const [qrFrames, setQrFrames] = useState<string[] | null>(null)
     const [hasConfirmedPayment, setHasConfirmedPayment] = useState(false)
@@ -42,7 +43,10 @@ export const SendOffline: React.FC<Props> = ({
     const [maxSendEcashAmount, setMaxSendEcashAmount] =
         useState<Sats>(maximumAmount)
 
-    const federationId = activeFederation?.id
+    const { generateEcash, isGeneratingEcash } = useSendEcash(
+        fedimint,
+        federationId,
+    )
 
     useWarnBeforeUnload(
         Boolean((!hasConfirmedPayment && offlinePayment) || isGeneratingEcash),
@@ -58,20 +62,16 @@ export const SendOffline: React.FC<Props> = ({
         setSubmitAttempts(attempt => attempt + 1)
         if (amount > maximumAmount || amount < minimumAmount) return
 
-        setIsGeneratingEcash(true)
         try {
-            const { ecash } = await fedimint.generateEcash(
-                amountUtils.satToMsat(amount),
-                federationId,
-                includeInvite,
-            )
-            onEcashGenerated()
-            setOfflinePayment(ecash)
-            setQrFrames(dataToFrames(Buffer.from(ecash, 'base64')))
+            const res = await generateEcash(amount)
+            if (res) {
+                onEcashGenerated()
+                setOfflinePayment(res.ecash)
+                setQrFrames(dataToFrames(Buffer.from(res.ecash, 'base64')))
+            }
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')
         }
-        setIsGeneratingEcash(false)
     }, [
         federationId,
         amount,
@@ -80,17 +80,17 @@ export const SendOffline: React.FC<Props> = ({
         toast,
         onEcashGenerated,
         t,
-        includeInvite,
+        generateEcash,
     ])
 
     useEffect(() => {
-        if (!activeFederation) return
+        if (!federationId) return
 
         fedimint
-            .calculateMaxGenerateEcash(activeFederation.id)
+            .calculateMaxGenerateEcash(federationId)
             .then(max => setMaxSendEcashAmount(amountUtils.msatToSat(max)))
             .catch(() => setMaxSendEcashAmount(maximumAmount))
-    }, [amount, maximumAmount, activeFederation])
+    }, [amount, maximumAmount, federationId])
 
     if (offlinePayment && qrFrames) {
         return (
@@ -116,6 +116,7 @@ export const SendOffline: React.FC<Props> = ({
                 <AmountContainer>
                     <AmountInput
                         amount={amount}
+                        federationId={federationId}
                         onChangeAmount={handleChangeAmount}
                         readOnly={isGeneratingEcash}
                         verb={t('words.send')}

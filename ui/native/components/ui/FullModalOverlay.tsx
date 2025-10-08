@@ -4,8 +4,6 @@ import {
     Animated,
     Easing,
     Insets,
-    Keyboard,
-    KeyboardEvent,
     Platform,
     ScrollView,
     StyleSheet,
@@ -14,6 +12,7 @@ import {
 import Modal from 'react-native-modal'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useKeyboard } from '../../utils/hooks/keyboard'
 import Flex from './Flex'
 import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
 
@@ -52,7 +51,7 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
     const insets = useSafeAreaInsets()
     const animatedTranslateY = useRef(new Animated.Value(0)).current
     const { height: viewportHeight } = useWindowDimensions()
-    const [keyboardHeight, setKeyboardHeight] = useState<number>(0)
+    const { height: keyboardHeight } = useKeyboard()
     const [isShowing, setIsShowing] = useState(false)
 
     const overlayHeight = useMemo(
@@ -73,26 +72,6 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
         buttons = [],
     } = contents
     const style = styles(theme, insets)
-
-    useEffect(() => {
-        const keyboardShownListener = Keyboard.addListener(
-            'keyboardDidShow',
-            (e: KeyboardEvent) => {
-                setKeyboardHeight(e.endCoordinates.height)
-            },
-        )
-        const keyboardHiddenListener = Keyboard.addListener(
-            'keyboardDidHide',
-            () => {
-                setKeyboardHeight(0)
-            },
-        )
-
-        return () => {
-            keyboardShownListener.remove()
-            keyboardHiddenListener.remove()
-        }
-    }, [])
 
     useEffect(() => {
         if (show) return setIsShowing(true)

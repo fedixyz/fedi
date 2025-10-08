@@ -9,7 +9,6 @@ import {
     setSelectedChatMessage,
 } from '@fedi/common/redux'
 import { RpcPollResultAnswer } from '@fedi/common/types/bindings'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 
 import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -20,7 +19,7 @@ import SvgImage from '../../ui/SvgImage'
 import { bubbleGradient } from './ChatEvent'
 
 type Props = {
-    event: MatrixEvent<MatrixEventContentType<'m.poll'>>
+    event: MatrixEvent<'m.poll'>
 }
 
 const ChatPollEvent: React.FC<Props> = ({ event }) => {
@@ -35,11 +34,11 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
     )
 
     const myId = useMemo(() => matrixAuth?.userId ?? '', [matrixAuth])
-    const isMe = useMemo(() => event.senderId === myId, [event.senderId, myId])
+    const isMe = useMemo(() => event.sender === myId, [event.sender, myId])
 
     const hasVoted = useMemo(() => {
         return Object.values(event.content.votes).some(vote =>
-            vote.includes(myId),
+            vote?.includes(myId),
         )
     }, [event.content.votes, myId])
 
@@ -60,14 +59,14 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
     }, [dispatch, event, isMe])
 
     const handleRespondToPoll = useCallback(async () => {
-        if (!event.eventId) return
+        if (!event.id) return
 
         await fedimint.matrixRespondToPoll(
             event.roomId,
-            event.eventId,
+            event.id,
             selections.map(s => s.id),
         )
-    }, [event.roomId, event.eventId, selections])
+    }, [event.roomId, event.id, selections])
 
     const handleEndPoll = useCallback(async () => {
         Alert.alert(
@@ -81,12 +80,9 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                 {
                     text: t('feature.chat.end-poll-confirmation'),
                     onPress: async () => {
-                        if (!event.eventId) return
+                        if (!event.id) return
 
-                        await fedimint.matrixEndPoll(
-                            event.roomId,
-                            event.eventId,
-                        )
+                        await fedimint.matrixEndPoll(event.roomId, event.id)
                     },
                 },
             ],
@@ -172,7 +168,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
 }
 
 const PollVotes: React.FC<{
-    event: MatrixEvent<MatrixEventContentType<'m.poll'>>
+    event: MatrixEvent<'m.poll'>
     isMe: boolean
 }> = ({ event, isMe }) => {
     const { theme } = useTheme()
@@ -182,7 +178,7 @@ const PollVotes: React.FC<{
             let total = 0
 
             for (const votes of Object.values(event.content.votes)) {
-                total += votes.length
+                total += votes?.length ?? 0
             }
 
             return `${Math.round((count / total) * 100)}%`
@@ -199,7 +195,7 @@ const PollVotes: React.FC<{
                 const answer = event.content.answers.find(
                     ans => ans.id === id,
                 ) as RpcPollResultAnswer
-                const percentage = votePercentage(votes.length)
+                const percentage = votePercentage(votes?.length ?? 0)
 
                 return (
                     <Flex key={`vote-${id}-${answer.text}`} gap="sm">
@@ -241,7 +237,7 @@ const PollVotes: React.FC<{
 }
 
 const PollAnswers: React.FC<{
-    event: MatrixEvent<MatrixEventContentType<'m.poll'>>
+    event: MatrixEvent<'m.poll'>
     selections: Array<RpcPollResultAnswer>
     setSelections: Dispatch<SetStateAction<Array<RpcPollResultAnswer>>>
     hasVoted: boolean
@@ -254,7 +250,7 @@ const PollAnswers: React.FC<{
     )
     const style = styles(theme)
 
-    const isMe = event.senderId === myId
+    const isMe = event.sender === myId
     const textStyle = isMe ? style.outgoingText : style.incomingText
     const radioColor = isMe ? theme.colors.white : theme.colors.primary
 
@@ -295,7 +291,8 @@ const PollAnswers: React.FC<{
                     key={`poll-ans-${event.id}-${answer.id}`}
                     checked={
                         hasVoted
-                            ? event.content.votes[answer.id].includes(myId)
+                            ? (event.content.votes[answer.id]?.includes(myId) ??
+                              false)
                             : selections.some(s => s.id === answer.id)
                     }
                     disabled={isReadOnly || hasVoted}

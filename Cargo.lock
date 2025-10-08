@@ -786,15 +786,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef49f5882e4b6afaac09ad239a4f8c70a24b8f2b0897edb1f706008efd109cf4"
 
 [[package]]
-name = "atomic-polyfill"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cf2bce30dfe09ef0bfaef228b9d414faaf7e563035494d7fe092dba54b300f4"
-dependencies = [
- "critical-section",
-]
-
-[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1467,12 +1458,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "btparse"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "387e80962b798815a2b5c4bcfdb6bf626fa922ffe9f74e373103b858738e9f31"
-
-[[package]]
 name = "bug-report"
 version = "0.3.0"
 dependencies = [
@@ -1522,6 +1507,9 @@ name = "bytes"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bytesize"
@@ -1749,17 +1737,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "color-backtrace"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2123a5984bd52ca861c66f66a9ab9883b27115c607f801f86c1bc2a84eb69f0f"
-dependencies = [
- "backtrace",
- "btparse",
- "termcolor",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1779,6 +1756,7 @@ name = "communities"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "api-types",
  "bech32",
  "fedimint-core",
  "futures",
@@ -2521,7 +2499,7 @@ dependencies = [
 [[package]]
 name = "devimint"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
@@ -2556,7 +2534,7 @@ dependencies = [
  "fs-lock",
  "futures",
  "hex",
- "iroh-base 0.35.0",
+ "iroh-base",
  "itertools 0.14.0",
  "nix",
  "rand 0.8.5",
@@ -2996,6 +2974,7 @@ name = "federations"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "api-types",
  "async-recursion",
  "async-stream",
  "async-trait",
@@ -3090,6 +3069,7 @@ name = "fedi-ffi"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "api-types",
  "async-trait",
  "bech32",
  "bip39",
@@ -3248,7 +3228,7 @@ dependencies = [
 [[package]]
 name = "fedimint-aead"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3281,7 +3261,7 @@ dependencies = [
 [[package]]
 name = "fedimint-api-client"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -3293,9 +3273,8 @@ dependencies = [
  "fedimint-core",
  "fedimint-logging",
  "futures",
- "iroh 0.35.0",
- "iroh 0.90.0",
- "iroh-base 0.35.0",
+ "iroh",
+ "iroh-base",
  "itertools 0.14.0",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -3319,7 +3298,7 @@ dependencies = [
 [[package]]
 name = "fedimint-bip39"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "bip39",
  "fedimint-client",
@@ -3331,7 +3310,7 @@ dependencies = [
 [[package]]
 name = "fedimint-bitcoind"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3345,7 +3324,7 @@ dependencies = [
 [[package]]
 name = "fedimint-build"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "serde_json",
 ]
@@ -3353,7 +3332,7 @@ dependencies = [
 [[package]]
 name = "fedimint-cli"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3393,7 +3372,7 @@ dependencies = [
 [[package]]
 name = "fedimint-client"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -3421,7 +3400,7 @@ dependencies = [
 [[package]]
 name = "fedimint-client-module"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "aquamarine 0.5.0",
@@ -3451,7 +3430,7 @@ dependencies = [
 [[package]]
 name = "fedimint-core"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
@@ -3480,7 +3459,7 @@ dependencies = [
  "hex",
  "hex-conservative 0.3.0",
  "imbl",
- "iroh-base 0.35.0",
+ "iroh-base",
  "itertools 0.14.0",
  "js-sys",
  "jsonrpsee-core",
@@ -3529,7 +3508,7 @@ dependencies = [
 [[package]]
 name = "fedimint-cursed-redb"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3547,7 +3526,7 @@ dependencies = [
 [[package]]
 name = "fedimint-db-locked"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3560,7 +3539,7 @@ dependencies = [
 [[package]]
 name = "fedimint-derive"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "itertools 0.14.0",
  "proc-macro2",
@@ -3571,7 +3550,7 @@ dependencies = [
 [[package]]
 name = "fedimint-derive-secret"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "bitcoin_hashes 0.14.0",
@@ -3584,7 +3563,7 @@ dependencies = [
 [[package]]
 name = "fedimint-eventlog"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3601,7 +3580,7 @@ dependencies = [
 [[package]]
 name = "fedimint-gateway-common"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "bitcoin",
  "clap",
@@ -3619,7 +3598,7 @@ dependencies = [
 [[package]]
 name = "fedimint-hkdf"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "bitcoin_hashes 0.14.0",
 ]
@@ -3627,7 +3606,7 @@ dependencies = [
 [[package]]
 name = "fedimint-ln-client"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "aquamarine 0.5.0",
@@ -3660,7 +3639,7 @@ dependencies = [
 [[package]]
 name = "fedimint-ln-common"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -3678,7 +3657,7 @@ dependencies = [
 [[package]]
 name = "fedimint-ln-server"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3702,7 +3681,7 @@ dependencies = [
 [[package]]
 name = "fedimint-lnv2-client"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "aquamarine 0.5.0",
@@ -3732,7 +3711,7 @@ dependencies = [
 [[package]]
 name = "fedimint-lnv2-common"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3752,7 +3731,7 @@ dependencies = [
 [[package]]
 name = "fedimint-lnv2-server"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3777,7 +3756,7 @@ dependencies = [
 [[package]]
 name = "fedimint-logging"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "console-subscriber",
@@ -3790,7 +3769,7 @@ dependencies = [
 [[package]]
 name = "fedimint-meta-client"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3812,7 +3791,7 @@ dependencies = [
 [[package]]
 name = "fedimint-meta-common"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "fedimint-core",
@@ -3827,7 +3806,7 @@ dependencies = [
 [[package]]
 name = "fedimint-meta-server"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3847,7 +3826,7 @@ dependencies = [
 [[package]]
 name = "fedimint-metrics"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
@@ -3860,7 +3839,7 @@ dependencies = [
 [[package]]
 name = "fedimint-mint-client"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "aquamarine 0.5.0",
@@ -3898,7 +3877,7 @@ dependencies = [
 [[package]]
 name = "fedimint-mint-common"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "bitcoin_hashes 0.14.0",
@@ -3912,7 +3891,7 @@ dependencies = [
 [[package]]
 name = "fedimint-mint-server"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3936,7 +3915,7 @@ dependencies = [
 [[package]]
 name = "fedimint-portalloc"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "dirs 6.0.0",
@@ -3951,7 +3930,7 @@ dependencies = [
 [[package]]
 name = "fedimint-rocksdb"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3967,7 +3946,7 @@ dependencies = [
 [[package]]
 name = "fedimint-server"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
@@ -3990,9 +3969,9 @@ dependencies = [
  "group",
  "hex",
  "hyper 1.6.0",
- "iroh 0.35.0",
- "iroh-base 0.35.0",
- "iroh-relay 0.35.0",
+ "iroh",
+ "iroh-base",
+ "iroh-relay",
  "itertools 0.14.0",
  "jsonrpsee",
  "parity-scale-codec",
@@ -4020,7 +3999,7 @@ dependencies = [
 [[package]]
 name = "fedimint-server-bitcoin-rpc"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4036,7 +4015,7 @@ dependencies = [
 [[package]]
 name = "fedimint-server-core"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4053,7 +4032,7 @@ dependencies = [
 [[package]]
 name = "fedimint-server-ui"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4076,7 +4055,7 @@ dependencies = [
 [[package]]
 name = "fedimint-tbs"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "bls12_381",
  "fedimint-core",
@@ -4091,7 +4070,7 @@ dependencies = [
 [[package]]
 name = "fedimint-testing-core"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "fedimint-client",
@@ -4153,7 +4132,7 @@ dependencies = [
 [[package]]
 name = "fedimint-tpe"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "bitcoin_hashes 0.14.0",
  "bls12_381",
@@ -4168,7 +4147,7 @@ dependencies = [
 [[package]]
 name = "fedimint-unknown-common"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "fedimint-core",
@@ -4179,7 +4158,7 @@ dependencies = [
 [[package]]
 name = "fedimint-unknown-server"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4194,7 +4173,7 @@ dependencies = [
 [[package]]
 name = "fedimint-wallet-client"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "aquamarine 0.5.0",
@@ -4224,7 +4203,7 @@ dependencies = [
 [[package]]
 name = "fedimint-wallet-common"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -4240,7 +4219,7 @@ dependencies = [
 [[package]]
 name = "fedimint-wallet-server"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4268,7 +4247,7 @@ dependencies = [
 [[package]]
 name = "fedimintd"
 version = "0.8.0"
-source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi2#d3c52b4deb904e431463cc1c89c53630969866f4"
+source = "git+https://github.com/fedibtc/fedimint?tag=v0.8.0-fedi17#a17188aa03bf3f5e1caad1660fae5509d6d083dc"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -4864,15 +4843,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash32"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67"
-dependencies = [
- "byteorder",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4924,20 +4894,6 @@ dependencies = [
  "flate2",
  "nom",
  "num-traits",
-]
-
-[[package]]
-name = "heapless"
-version = "0.7.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f"
-dependencies = [
- "atomic-polyfill",
- "hash32",
- "rustc_version",
- "serde",
- "spin 0.9.8",
- "stable_deref_trait",
 ]
 
 [[package]]
@@ -5664,8 +5620,7 @@ dependencies = [
 [[package]]
 name = "iroh"
 version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ca758f4ce39ae3f07de922be6c73de6a48a07f39554e78b5745585652ce38f5"
+source = "git+https://github.com/elsirion/iroh?branch=v0.35.0-no-holepunch#0674d2ca472f9c5fbef507ea119cb4d2dd126ae2"
 dependencies = [
  "aead",
  "anyhow",
@@ -5686,18 +5641,18 @@ dependencies = [
  "http 1.3.1",
  "igd-next",
  "instant",
- "iroh-base 0.35.0",
- "iroh-metrics 0.34.0",
- "iroh-quinn 0.13.0",
+ "iroh-base",
+ "iroh-metrics",
+ "iroh-quinn",
  "iroh-quinn-proto",
  "iroh-quinn-udp",
- "iroh-relay 0.35.0",
+ "iroh-relay",
  "n0-future",
  "netdev",
- "netwatch 0.5.0",
+ "netwatch",
  "pin-project",
  "pkarr",
- "portmapper 0.5.0",
+ "portmapper",
  "rand 0.8.5",
  "rcgen",
  "reqwest 0.12.22",
@@ -5724,71 +5679,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh"
-version = "0.90.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9436f319c2d24bca1b28a2fab4477c8d2ac795ab2d3aeda142d207b38ec068f4"
-dependencies = [
- "aead",
- "backon",
- "bytes",
- "cfg_aliases",
- "crypto_box",
- "data-encoding",
- "der",
- "derive_more 1.0.0",
- "ed25519-dalek",
- "futures-buffered",
- "futures-util",
- "getrandom 0.3.3",
- "hickory-resolver",
- "http 1.3.1",
- "igd-next",
- "instant",
- "iroh-base 0.90.0",
- "iroh-metrics 0.35.0",
- "iroh-quinn 0.14.0",
- "iroh-quinn-proto",
- "iroh-quinn-udp",
- "iroh-relay 0.90.0",
- "n0-future",
- "n0-snafu",
- "n0-watcher",
- "nested_enum_utils",
- "netdev",
- "netwatch 0.6.0",
- "pin-project",
- "pkarr",
- "portmapper 0.6.1",
- "rand 0.8.5",
- "reqwest 0.12.22",
- "ring 0.17.14",
- "rustls 0.23.30",
- "rustls-pki-types",
- "rustls-webpki 0.103.4",
- "serde",
- "smallvec",
- "snafu",
- "spki",
- "strum 0.26.3",
- "stun-rs",
- "surge-ping",
- "time",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
- "url",
- "wasm-bindgen-futures",
- "webpki-roots 0.26.11",
- "z32",
-]
-
-[[package]]
 name = "iroh-base"
 version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f91ac4aaab68153d726c4e6b39c30f9f9253743f0e25664e52f4caeb46f48d11"
+source = "git+https://github.com/elsirion/iroh?branch=v0.35.0-no-holepunch#0674d2ca472f9c5fbef507ea119cb4d2dd126ae2"
 dependencies = [
  "curve25519-dalek",
  "data-encoding",
@@ -5802,24 +5695,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-base"
-version = "0.90.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e0090050c4055b21e61cbcb856f043a2b24ad22c65d76bab91f121b4c7bece3"
-dependencies = [
- "curve25519-dalek",
- "data-encoding",
- "derive_more 1.0.0",
- "ed25519-dalek",
- "n0-snafu",
- "nested_enum_utils",
- "rand_core 0.6.4",
- "serde",
- "snafu",
- "url",
-]
-
-[[package]]
 name = "iroh-metrics"
 version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5827,20 +5702,6 @@ checksum = "f70466f14caff7420a14373676947e25e2917af6a5b1bec45825beb2bf1eb6a7"
 dependencies = [
  "iroh-metrics-derive",
  "itoa",
- "serde",
- "snafu",
- "tracing",
-]
-
-[[package]]
-name = "iroh-metrics"
-version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8922c169f1b84d39d325c02ef1bbe1419d4de6e35f0403462b3c7e60cc19634"
-dependencies = [
- "iroh-metrics-derive",
- "itoa",
- "postcard",
  "serde",
  "snafu",
  "tracing",
@@ -5863,26 +5724,6 @@ name = "iroh-quinn"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76c6245c9ed906506ab9185e8d7f64857129aee4f935e899f398a3bd3b70338d"
-dependencies = [
- "bytes",
- "cfg_aliases",
- "iroh-quinn-proto",
- "iroh-quinn-udp",
- "pin-project-lite",
- "rustc-hash 2.1.1",
- "rustls 0.23.30",
- "socket2 0.5.10",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
- "web-time",
-]
-
-[[package]]
-name = "iroh-quinn"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cde160ebee7aabede6ae887460cd303c8b809054224815addf1469d54a6fcf7"
 dependencies = [
  "bytes",
  "cfg_aliases",
@@ -5935,8 +5776,7 @@ dependencies = [
 [[package]]
 name = "iroh-relay"
 version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c63f122cdfaa4b4e0e7d6d3921d2b878f42a0c6d3ee5a29456dc3f5ab5ec931f"
+source = "git+https://github.com/elsirion/iroh?branch=v0.35.0-no-holepunch#0674d2ca472f9c5fbef507ea119cb4d2dd126ae2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -5949,9 +5789,9 @@ dependencies = [
  "http-body-util",
  "hyper 1.6.0",
  "hyper-util",
- "iroh-base 0.35.0",
- "iroh-metrics 0.34.0",
- "iroh-quinn 0.13.0",
+ "iroh-base",
+ "iroh-metrics",
+ "iroh-quinn",
  "iroh-quinn-proto",
  "lru 0.12.5",
  "n0-future",
@@ -5968,54 +5808,6 @@ dependencies = [
  "strum 0.26.3",
  "stun-rs",
  "thiserror 2.0.12",
- "tokio",
- "tokio-rustls 0.26.2",
- "tokio-util",
- "tokio-websockets",
- "tracing",
- "url",
- "webpki-roots 0.26.11",
- "ws_stream_wasm",
- "z32",
-]
-
-[[package]]
-name = "iroh-relay"
-version = "0.90.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3f3cdbdaebc92835452e4e1d0d4b36118206b0950089b7bc3654f13e843475b"
-dependencies = [
- "bytes",
- "cfg_aliases",
- "data-encoding",
- "derive_more 1.0.0",
- "getrandom 0.3.3",
- "hickory-resolver",
- "http 1.3.1",
- "http-body-util",
- "hyper 1.6.0",
- "hyper-util",
- "iroh-base 0.90.0",
- "iroh-metrics 0.35.0",
- "iroh-quinn 0.14.0",
- "iroh-quinn-proto",
- "lru 0.13.0",
- "n0-future",
- "n0-snafu",
- "nested_enum_utils",
- "num_enum",
- "pin-project",
- "pkarr",
- "postcard",
- "rand 0.8.5",
- "reqwest 0.12.22",
- "rustls 0.23.30",
- "rustls-pki-types",
- "rustls-webpki 0.103.4",
- "serde",
- "sha1",
- "snafu",
- "strum 0.26.3",
  "tokio",
  "tokio-rustls 0.26.2",
  "tokio-util",
@@ -6768,7 +6560,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "anymap2",
  "aquamarine 0.6.0",
@@ -6822,7 +6614,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-base"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "as_variant",
  "async-trait",
@@ -6849,7 +6641,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-common"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "eyeball-im",
  "futures-core",
@@ -6872,7 +6664,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-crypto"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "aes",
  "aquamarine 0.6.0",
@@ -6912,7 +6704,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-indexeddb"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6942,7 +6734,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-sqlite"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "as_variant",
  "async-trait",
@@ -6967,7 +6759,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-store-encryption"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -6987,7 +6779,7 @@ dependencies = [
 [[package]]
 name = "matrix-sdk-ui"
 version = "0.13.0"
-source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi1#b413e57fff1632db9c4f57c5d2aeed8de1a2b0ab"
+source = "git+https://github.com/fedibtc/matrix-rust-sdk?tag=v0.13.0-fedi7#e3accf2608866c3ad0c711d18e9ced79f4cec40b"
 dependencies = [
  "as_variant",
  "async-rx",
@@ -7252,30 +7044,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "n0-snafu"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4fed465ff57041f29db78a9adc8864296ef93c6c16029f9e192dc303404ebd0"
-dependencies = [
- "anyhow",
- "btparse",
- "color-backtrace",
- "snafu",
- "tracing-error",
-]
-
-[[package]]
-name = "n0-watcher"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f216d4ebc5fcf9548244803cbb93f488a2ae160feba3706cd17040d69cf7a368"
-dependencies = [
- "derive_more 1.0.0",
- "n0-future",
- "snafu",
-]
-
-[[package]]
 name = "negentropy"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7423,41 +7191,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "netwatch"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a829a830199b14989f9bccce6136ab928ab48336ab1f8b9002495dbbbb2edbe"
-dependencies = [
- "atomic-waker",
- "bytes",
- "cfg_aliases",
- "derive_more 1.0.0",
- "iroh-quinn-udp",
- "js-sys",
- "libc",
- "n0-future",
- "n0-watcher",
- "nested_enum_utils",
- "netdev",
- "netlink-packet-core",
- "netlink-packet-route 0.23.0",
- "netlink-proto",
- "netlink-sys",
- "pin-project-lite",
- "serde",
- "snafu",
- "socket2 0.5.10",
- "time",
- "tokio",
- "tokio-util",
- "tracing",
- "web-sys",
- "windows 0.59.0",
- "windows-result",
- "wmi",
-]
-
-[[package]]
 name = "new_debug_unreachable"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7562,8 +7295,10 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bech32",
+ "fedimint-derive-secret",
  "futures",
  "nostr-sdk",
+ "rand 0.8.5",
  "reqwest 0.12.22",
  "rpc-types",
  "runtime",
@@ -8325,41 +8060,10 @@ dependencies = [
  "futures-util",
  "hyper-util",
  "igd-next",
- "iroh-metrics 0.34.0",
+ "iroh-metrics",
  "libc",
  "nested_enum_utils",
- "netwatch 0.5.0",
- "num_enum",
- "rand 0.8.5",
- "serde",
- "smallvec",
- "snafu",
- "socket2 0.5.10",
- "time",
- "tokio",
- "tokio-util",
- "tower-layer",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "portmapper"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d82975dc029c00d566f4e0f61f567d31f0297a290cb5416b5580dd8b4b54ade"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "derive_more 1.0.0",
- "futures-lite",
- "futures-util",
- "hyper-util",
- "igd-next",
- "iroh-metrics 0.35.0",
- "libc",
- "nested_enum_utils",
- "netwatch 0.6.0",
+ "netwatch",
  "num_enum",
  "rand 0.8.5",
  "serde",
@@ -8407,7 +8111,6 @@ dependencies = [
  "cobs",
  "embedded-io 0.4.0",
  "embedded-io 0.6.1",
- "heapless",
  "postcard-derive",
  "serde",
 ]
@@ -9308,7 +9011,7 @@ dependencies = [
 [[package]]
 name = "ruma"
 version = "0.12.5"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "assign",
  "js_int",
@@ -9324,7 +9027,7 @@ dependencies = [
 [[package]]
 name = "ruma-client-api"
 version = "0.20.4"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "as_variant",
  "assign",
@@ -9347,7 +9050,7 @@ dependencies = [
 [[package]]
 name = "ruma-common"
 version = "0.15.4"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "as_variant",
  "base64 0.22.1",
@@ -9379,7 +9082,7 @@ dependencies = [
 [[package]]
 name = "ruma-events"
 version = "0.30.4"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "as_variant",
  "indexmap 2.10.0",
@@ -9403,7 +9106,7 @@ dependencies = [
 [[package]]
 name = "ruma-federation-api"
 version = "0.11.2"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "http 1.3.1",
  "js_int",
@@ -9417,7 +9120,7 @@ dependencies = [
 [[package]]
 name = "ruma-html"
 version = "0.4.1"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "as_variant",
  "html5ever",
@@ -9429,7 +9132,7 @@ dependencies = [
 [[package]]
 name = "ruma-identifiers-validation"
 version = "0.10.1"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "js_int",
  "thiserror 2.0.12",
@@ -9438,7 +9141,7 @@ dependencies = [
 [[package]]
 name = "ruma-macros"
 version = "0.15.2"
-source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi1#fd1d707707d38d4cb557ead7e1f145d907f98ad9"
+source = "git+https://github.com/fedibtc/ruma?tag=v0.12.5-fedi4#107c070842d2f9ee741e640b2958030b5255adf4"
 dependencies = [
  "cfg-if",
  "proc-macro-crate 3.3.0",
@@ -10166,7 +9869,6 @@ version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320b01e011bf8d5d7a4a4a4be966d9160968935849c83b918827f6a435e7f627"
 dependencies = [
- "backtrace",
  "snafu-derive",
 ]
 
@@ -10176,7 +9878,7 @@ version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1961e2ef424c1424204d3a5d6975f934f56b6d50ff5732382d84ebf460e147f7"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.104",
@@ -12086,16 +11788,6 @@ checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
 dependencies = [
  "once_cell",
  "valuable",
-]
-
-[[package]]
-name = "tracing-error"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b1581020d7a273442f5b45074a6a57d5757ad0a47dac0e9f0bd57b81936f3db"
-dependencies = [
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

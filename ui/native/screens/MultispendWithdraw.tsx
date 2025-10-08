@@ -37,13 +37,6 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
     const navigation = useNavigation()
     const { theme } = useTheme()
     const { t } = useTranslation()
-    const {
-        inputAmountCents,
-        inputAmount: amount,
-        minimumAmount,
-        maximumAmount,
-        setInputAmount: setAmount,
-    } = useMultispendWithdrawForm(roomId)
     const [submitAttempts, setSubmitAttempts] = useState(0)
     const [notes, setNotes] = useState<string>('')
     const matchingFederation = useAppSelector(s =>
@@ -54,6 +47,13 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
                 : '',
         ),
     )
+    const {
+        inputAmountCents,
+        inputAmount: amount,
+        minimumAmount,
+        maximumAmount,
+        setInputAmount: setAmount,
+    } = useMultispendWithdrawForm(roomId, matchingFederation?.id || '')
     const matrixRoom = useAppSelector(s => selectMatrixRoom(s, roomId))
     const selectedFiatCurrency = useAppSelector(selectCurrency)
     const { formattedMultispendBalance } = useMultispendDisplayUtils(t, roomId)
@@ -77,6 +77,7 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
             roomId: roomId,
             amount: inputAmountCents,
             notes,
+            federationId: matchingFederation?.id || '',
         })
     }
 

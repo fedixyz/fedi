@@ -20,15 +20,13 @@ import {
 
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectActiveFederation,
     selectCurrency,
     selectFediModDebugMode,
-    selectIsActiveFederationRecovering,
     selectLanguage,
     selectMatrixAuth,
     selectNostrNpub,
     selectPaymentFederation,
-    selectWalletFederations,
+    selectLoadedFederations,
     resetBrowserOverlayState,
     setEcashRequest,
     setInvoiceToPay,
@@ -43,6 +41,7 @@ import {
     selectIsInternetUnreachable,
     selectFediModCacheMode,
     selectFediModCacheEnabled,
+    selectAreAllFederationsRecovering,
 } from '@fedi/common/redux'
 import {
     AnyParsedData,
@@ -110,7 +109,6 @@ type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 const FediModBrowser: React.FC<Props> = ({ route }) => {
     const { url } = route.params
     const { t } = useTranslation()
-    const activeFederation = useAppSelector(selectActiveFederation)
     const dispatch = useAppDispatch()
     const nostrPublic = useAppSelector(selectNostrNpub)
     const paymentFederation = useAppSelector(selectPaymentFederation)
@@ -121,11 +119,11 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const currency = useAppSelector(selectCurrency)
     const language = useAppSelector(selectLanguage)
     const toast = useToast()
-    const recoveryInProgress = useAppSelector(
-        selectIsActiveFederationRecovering,
+    const areAllFederationsRecovering = useAppSelector(
+        selectAreAllFederationsRecovering,
     )
     const siteInfo = useAppSelector(selectSiteInfo)
-    const walletFederations = useAppSelector(selectWalletFederations)
+    const walletFederations = useAppSelector(selectLoadedFederations)
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
     const webview = useRef<WebView>() as MutableRefObject<WebView>
     const overlayResolveRef = useRef<
@@ -147,17 +145,17 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const handleParsedLink = (parsedLink: AnyParsedData) => {
         switch (parsedLink.type) {
             case ParserDataType.LnurlWithdraw:
-                recoveryInProgress
+                areAllFederationsRecovering
                     ? setShowRecoveryInProgress(true)
                     : dispatch(setLnurlWithdrawal(parsedLink.data))
                 return true
             case ParserDataType.Bolt11:
-                recoveryInProgress
+                areAllFederationsRecovering
                     ? setShowRecoveryInProgress(true)
                     : dispatch(setInvoiceToPay(parsedLink.data))
                 return true
             case ParserDataType.LnurlPay:
-                recoveryInProgress
+                areAllFederationsRecovering
                     ? setShowRecoveryInProgress(true)
                     : dispatch(setLnurlPayment(parsedLink.data))
                 return true
@@ -205,7 +203,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         },
         [InjectionMessageType.webln_makeInvoice]: async data => {
             log.info('webln.makeInvoice', data)
-            if (recoveryInProgress) {
+            if (areAllFederationsRecovering) {
                 setShowRecoveryInProgress(true)
                 throw Error(t('errors.unknown-error'))
             }
@@ -238,7 +236,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         },
         [InjectionMessageType.webln_sendPayment]: async data => {
             log.info('webln.sendPayment', data)
-            if (recoveryInProgress) {
+            if (areAllFederationsRecovering) {
                 setShowRecoveryInProgress(true)
                 throw Error(t('errors.unknown-error'))
             }
@@ -366,14 +364,14 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         },
         [InjectionMessageType.fedi_receiveEcash]: async ecash => {
             log.info('fedi.receiveEcash', ecash)
-            if (activeFederation?.id === undefined) {
+            if (paymentFederation?.id === undefined) {
                 log.error('fedi.receiveEcash', 'No active federation')
                 throw new Error('No active federation')
             }
             try {
                 const res = await fedimint.receiveEcash(
                     ecash,
-                    activeFederation.id,
+                    paymentFederation.id,
                 )
                 return { msats: res[0] }
             } catch (err) {
@@ -393,28 +391,13 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 username: member.displayName,
             }
         },
-        [InjectionMessageType.fedi_getActiveFederation]: async () => {
-            log.info('fedi.getActiveFederation')
-
-            if (!activeFederation) {
-                throw new Error('No active federation')
-            }
-
-            return {
-                id: activeFederation.id,
-                name: activeFederation.name,
-                network: activeFederation.hasWallet
-                    ? activeFederation.network
-                    : undefined,
-            }
-        },
         [InjectionMessageType.fedi_getCurrencyCode]: async () => {
-            log.info('fedi.getActiveFederation')
+            log.info('fedi.fedi_getCurrencyCode')
 
             return getCurrencyCode(currency)
         },
         [InjectionMessageType.fedi_getLanguageCode]: async () => {
-            log.info('fedi.getActiveFederation')
+            log.info('fedi.fedi_getLanguageCode')
 
             return language ?? 'en'
         },
@@ -436,7 +419,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             req.url,
             fedimint,
             t,
-            activeFederation?.id,
+            paymentFederation?.id,
             isInternetUnreachable,
         )
             .then(parsed => {

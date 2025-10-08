@@ -10,10 +10,12 @@ import type {
 import {
     FrontendMetadata,
     GuardianStatus,
+    JSONObject,
     RpcAmount,
     RpcFederationId,
     RpcFeeDetails,
     RpcMediaSource,
+    RpcMentions,
     RpcOperationId,
     RpcPayAddressResponse,
     RpcRoomId,
@@ -23,6 +25,7 @@ import {
     RpcTransactionListEntry,
 } from '../types/bindings'
 import { BridgeError } from '../utils/errors'
+import { MatrixChatClient } from './MatrixChatClient'
 import { isDev } from './environment'
 import { makeLog } from './log'
 import { toSendMessageData } from './matrix'
@@ -52,6 +55,14 @@ export class FedimintBridge {
             payload: object,
         ) => Promise<T>,
     ) {}
+
+    matrixClient: MatrixChatClient | null = null
+    getMatrixClient() {
+        if (!this.matrixClient) {
+            this.matrixClient = new MatrixChatClient()
+        }
+        return this.matrixClient
+    }
 
     async rpcTyped<
         M extends bindings.RpcMethodNames,
@@ -652,15 +663,20 @@ export class FedimintBridge {
         return this.rpcTyped('matrixSendAttachment', args)
     }
 
+    // TODO: Make this match sendMessage
     async matrixEditMessage(
         roomId: RpcRoomId,
         eventId: RpcTimelineEventItemId,
         newContent: string,
+        options?: { mentions?: RpcMentions | null; extra?: JSONObject },
     ) {
         return this.rpcTyped('matrixEditMessage', {
             roomId,
             eventId,
-            newContent: toSendMessageData(newContent),
+            newContent: toSendMessageData(newContent, {
+                mentions: options?.mentions ?? null,
+                extra: options?.extra,
+            }),
         })
     }
 
@@ -692,15 +708,20 @@ export class FedimintBridge {
         })
     }
 
+    // TODO: Make this match sendMessage
     async matrixSendReply(
         roomId: RpcRoomId,
         replyToEventId: string,
         message: string,
+        options?: { mentions?: RpcMentions | null; extra?: JSONObject },
     ) {
         return this.rpcTyped('matrixSendReply', {
             roomId,
             replyToEventId,
-            data: toSendMessageData(message),
+            data: toSendMessageData(message, {
+                mentions: options?.mentions ?? null,
+                extra: options?.extra,
+            }),
         })
     }
 

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, bail};
+use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::update_merge::UpdateMerge;
@@ -15,7 +16,7 @@ use rpc_types::event::{Event, EventSink, TypedEventExt};
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_GIFT_EXCLUDED_COMMUNITIES};
 use runtime::storage::AppState;
-use runtime::storage::state::{CommunityInfo, CommunityJson, FirstCommunityInviteCodeState};
+use runtime::storage::state::{CommunityInfo, CommunityJson};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 use tracing::info;

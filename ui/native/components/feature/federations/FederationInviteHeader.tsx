@@ -31,7 +31,9 @@ const FederationInviteHeader: React.FC = () => {
                     onPress={() =>
                         navigation.canGoBack()
                             ? navigation.goBack()
-                            : navigation.navigate('TabsNavigator')
+                            : navigation.navigate('TabsNavigator', {
+                                  initialRouteName: 'Federations',
+                              })
                     }
                     hitSlop={5}
                     style={{

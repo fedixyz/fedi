@@ -8,8 +8,28 @@ export function getSurveyLanguage(language: I18nLanguage): string {
             return 'es'
         case 'fr':
             return 'fr'
+        case 'id':
+            return 'id'
         case 'pt':
-            return 'pt'
+            // Redirects to pt-br because Brazilians are the majority of portugese speakers
+            // and also because brazilians are more based
+            return 'pt-br'
+        case 'tl':
+            return 'tl'
+        case 'ar':
+        case 'ara':
+            return 'ar'
+        case 'rn':
+        case 'rw':
+            return 'rw'
+        case 'so':
+            return 'so'
+        case 'am':
+            return 'am'
+        case 'sw':
+            return 'sw'
+        case 'uk':
+            return 'uk'
         default:
             return 'en'
     }

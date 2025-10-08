@@ -1,20 +1,23 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::{Context, bail};
+use bitcoin::Network;
 use device_registration::DeviceRegistrationService;
 use federation_sm::{FederationState, FederationStateMachine};
-use federation_v2::FederationV2;
+use federation_v2::{FederationPrefetchedInfo, FederationV2};
 use federations_locker::FederationsLocker;
 use fedimint_core::config::FederationIdPrefix;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_mint_client::OOBNotes;
+use futures::StreamExt;
 use rpc_types::{RpcAmount, RpcEcashInfo, RpcFederationId, RpcFederationPreview};
 use runtime::bridge_runtime::Runtime;
-use runtime::storage::state::FederationInfo;
-use runtime::utils::PoisonedLockExt as _;
-use tracing::error;
+use runtime::storage::state::{FederationInfo, FediFeeSchedule};
+use runtime::utils::{PoisonedLockExt as _, timeout_log_only};
+use tracing::{error, warn};
 
 use crate::federation_v2::MultispendNotifications;
 use crate::fedi_fee::FediFeeHelper;
@@ -31,6 +34,7 @@ pub struct Federations {
     federations_locker: FederationsLocker,
     multispend_services: Arc<dyn MultispendNotifications>,
     device_registration_service: Arc<DeviceRegistrationService>,
+    last_federation_preview_info: Mutex<Option<FederationPrefetchedInfo>>,
 }
 
 impl Federations {
@@ -46,6 +50,7 @@ impl Federations {
             federations_locker: Default::default(),
             multispend_services,
             device_registration_service,
+            last_federation_preview_info: Mutex::new(None),
         }
     }
 
@@ -67,29 +72,58 @@ impl Federations {
             federations.insert(federation_id.clone(), fed_sm.clone());
 
             let this = self.clone();
-            futures.push(async move {
-                load_federation(
-                    this.runtime.clone(),
-                    this.fedi_fee_helper.clone(),
-                    &this.federations_locker,
-                    federation_id.clone(),
-                    federation_info,
-                    this.multispend_services.clone(),
-                    this.device_registration_service.clone(),
-                    fed_sm,
-                )
-                .await
-            });
+            let fed_id_clone = federation_id.clone();
+            futures.push(timeout_log_only(
+                async move {
+                    load_federation(
+                        this.runtime.clone(),
+                        this.fedi_fee_helper.clone(),
+                        &this.federations_locker,
+                        federation_id.clone(),
+                        federation_info,
+                        this.multispend_services.clone(),
+                        this.device_registration_service.clone(),
+                        fed_sm,
+                    )
+                    .await
+                },
+                Duration::from_secs(10),
+                move || {
+                    error!(fed_id_clone, "found federation slow-loading culprit");
+                },
+            ));
         }
         drop(federations);
 
-        // FIXME: update after each federation is loaded.
+        self.runtime
+            .task_group
+            .clone()
+            .spawn_cancellable("load federations", async move {
+                futures::future::join_all(futures).await;
+            });
+
         let this = self.clone();
         self.runtime.task_group.clone().spawn_cancellable(
-            "load federation and update fedi fee schedule",
+            "fedi fee schedule fetcher",
             async move {
-                futures::future::join_all(futures).await;
-                this.update_fedi_fees_schedule().await;
+                this.fedi_fee_helper
+                    .update_fee_schedule_continuously()
+                    .await;
+            },
+        );
+
+        let this = self.clone();
+        self.runtime.task_group.clone().spawn_cancellable(
+            "fedi fee schedule updater",
+            async move {
+                let mut updates = this.fedi_fee_helper.subscribe_to_updates();
+
+                while let Some(maybe_new_schedule) = updates.next().await {
+                    let Some(new_schedule_map) = maybe_new_schedule else {
+                        continue;
+                    };
+                    this.update_fedi_fees_schedule(new_schedule_map).await
+                }
             },
         );
     }
@@ -98,16 +132,18 @@ impl Federations {
         &self,
         invite_code: &str,
     ) -> anyhow::Result<RpcFederationPreview> {
-        let invite_code = invite_code.to_lowercase();
         let root_mnemonic = self.runtime.app_state.root_mnemonic().await;
         let device_index = self.runtime.app_state.device_index().await;
-        FederationV2::federation_preview(
-            &invite_code,
+        let info = FederationPrefetchedInfo::fetch(
+            invite_code,
             &root_mnemonic,
             device_index,
             self.runtime.feature_catalog.override_localhost.is_some(),
         )
-        .await
+        .await?;
+        let preview = FederationV2::federation_preview(&info).await;
+        *self.last_federation_preview_info.ensure_lock() = Some(info);
+        preview
     }
 
     /// Joins federation from invite code
@@ -128,10 +164,25 @@ impl Federations {
             .entry(federation_id.clone())
             .or_insert_with(FederationStateMachine::prepare_for_join)
             .clone();
+
+        let last_info = self.last_federation_preview_info.ensure_lock().take();
+        let info = if let Some(last_info) = last_info
+            && last_info.federation_id == invite_code.federation_id()
+        {
+            last_info
+        } else {
+            FederationPrefetchedInfo::fetch(
+                &invite_code_string,
+                &self.runtime.app_state.root_mnemonic().await,
+                self.runtime.app_state.device_index().await,
+                self.runtime.feature_catalog.override_localhost.is_some(),
+            )
+            .await?
+        };
         let federation_arc = fed_sm
             .join(
                 federation_id,
-                invite_code_string,
+                info,
                 self.runtime.clone(),
                 &self.federations_locker,
                 recover_from_scratch,
@@ -221,24 +272,39 @@ impl Federations {
         }
     }
 
-    async fn update_fedi_fees_schedule(&self) {
-        // Spawn a new task to asynchronously fetch the fee schedule and update app
-        // state
-        let fed_network_map = self
-            .federations
-            .ensure_lock()
-            .iter()
-            .filter_map(|(id, fed_sm)| match fed_sm.get_state() {
-                Some(FederationState::Ready(fed) | FederationState::Recovering(fed)) => {
-                    Some((id.clone(), fed.get_network()?))
-                }
-                _ => None,
-            })
-            .collect();
+    async fn update_fedi_fees_schedule(&self, new_schedule: HashMap<Network, FediFeeSchedule>) {
+        let app_state_update_res = self
+            .runtime
+            .app_state
+            .with_write_lock(|state| {
+                state.joined_federations.iter_mut().for_each(|(id, info)| {
+                    // Only proceed if we know this federation's network
+                    let Some(network) = info.network else {
+                        warn!(%id, "Federation's network is not stored on disk");
+                        return;
+                    };
 
-        self.fedi_fee_helper
-            .fetch_and_update_fedi_fee_schedule(fed_network_map)
+                    // Only proceed if we have fetched a fee schedule for the fed's network
+                    // For any network other than mainnet, use the signet fee schedule
+                    let fedi_fee_schedule = match network {
+                        Network::Bitcoin => new_schedule.get(&network),
+                        _ => new_schedule.get(&Network::Signet),
+                    };
+                    let Some(fedi_fee_schedule) = fedi_fee_schedule else {
+                        return;
+                    };
+
+                    info.fedi_fee_schedule = fedi_fee_schedule.clone();
+                })
+            })
             .await;
+
+        if let Err(error) = app_state_update_res {
+            error!(
+                ?error,
+                "Failed to update app state with new fedi fee schedule"
+            )
+        }
     }
 }
 

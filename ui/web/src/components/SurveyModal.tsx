@@ -87,7 +87,7 @@ const IconWrapper = styled('div', {
     borderRadius: '50%',
     width: 48,
     height: 48,
-    holoGradient: '600',
+    fediGradient: 'sky',
 })
 
 export default SurveyModal

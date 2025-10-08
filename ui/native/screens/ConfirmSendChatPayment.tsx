@@ -35,17 +35,17 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
     const { t } = useTranslation()
     const { amount, roomId, notes } = route.params
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
+    const paymentFederation = useAppSelector(selectPaymentFederation)
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
-        useFeeDisplayUtils(t)
+        useFeeDisplayUtils(t, paymentFederation?.id || '')
     const { formattedTotalFee, feeItemsBreakdown } = makeEcashFeeContent(
         amountUtils.satToMsat(amount),
     )
-    const balanceDisplay = useBalanceDisplay(t)
+    const balanceDisplay = useBalanceDisplay(t, paymentFederation?.id || '')
     const { makeFormattedAmountsFromSats } = useAmountFormatter()
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(amount)
 
-    const paymentFederation = useAppSelector(selectPaymentFederation)
     const existingRoom = useAppSelector(s => selectMatrixRoom(s, roomId))
     const { isProcessing, handleSendPayment } = useChatPaymentPush(
         t,
@@ -103,7 +103,9 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
                             <ChatAvatar
                                 user={{
                                     ...existingRoom,
-                                    displayName: existingRoom.name,
+                                    displayName: existingRoom.name ?? '',
+                                    avatarUrl:
+                                        existingRoom.avatarUrl ?? undefined,
                                 }}
                             />
                             <Text caption style={style.darkGrey}>

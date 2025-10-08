@@ -1,5 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -10,12 +11,10 @@ import {
 } from 'react-native'
 
 import {
-    matchAndRemovePreviewMedia,
     selectPreviewMediaMatchingEventContent,
     setSelectedChatMessage,
 } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
-import { MatrixEventContentType } from '@fedi/common/utils/matrix'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -24,23 +23,28 @@ import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
-    event: MatrixEvent<MatrixEventContentType<'m.image'>>
+    event: MatrixEvent<'m.image'>
+    isInViewport?: boolean
 }
 
 const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     event,
+    isInViewport = true,
 }: ChatImageEventProps) => {
     // If the user sends an image, try to find the preview image matching the `event.content` to derive the existing URI
     const matchingPreviewImage = useAppSelector(s =>
         selectPreviewMediaMatchingEventContent(s, event.content),
     )
-    const { uri, isError } = useDownloadResource(event)
+    const { uri, isError, setIsError, handleCopyResource } =
+        useDownloadResource(event, {
+            loadResourceInitially: false,
+        })
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const navigation = useNavigation()
 
-    const resolvedUri = uri ?? matchingPreviewImage?.media.uri ?? ''
+    const resolvedUri = matchingPreviewImage?.media.uri ?? uri ?? ''
 
     const handleLongPress = () => {
         dispatch(setSelectedChatMessage(event))
@@ -49,13 +53,19 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     const style = styles(theme)
 
     const dimensions = scaleAttachment(
-        event.content.info.w,
-        event.content.info.h,
+        event.content.info?.width || 1, // Should't be falsy, but fallback to 1 to avoid division by zero
+        event.content.info?.height || 1,
         theme.sizes.maxMessageWidth,
         400,
     )
 
     const imageBaseStyle = [style.imageBase, dimensions]
+
+    useEffect(() => {
+        if (resolvedUri || !isInViewport) return
+
+        handleCopyResource()
+    }, [resolvedUri, isInViewport, handleCopyResource])
 
     if (resolvedUri)
         return (
@@ -65,11 +75,9 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
                 }
                 onLongPress={handleLongPress}>
                 <Image
-                    source={{ uri: resolvedUri }}
+                    source={{ uri: resolvedUri, cache: 'force-cache' }}
                     style={imageBaseStyle}
-                    onLoad={() => {
-                        dispatch(matchAndRemovePreviewMedia(event.content))
-                    }}
+                    onError={() => setIsError(true)}
                 />
             </Pressable>
         )

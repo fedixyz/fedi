@@ -20,12 +20,12 @@ module.exports = env => ({
         filename: '[name].js',
     },
     resolve: {
-        extensions: ['.ts'],
+        extensions: ['.ts', '.tsx'],
     },
     module: {
         rules: [
             {
-                test: /\.ts$/,
+                test: /\.(ts|tsx)$/,
                 use: 'ts-loader',
                 exclude: /node_modules/,
             },

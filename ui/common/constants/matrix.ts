@@ -35,3 +35,11 @@ export const MX_REPLY_REGEX = /<mx-reply>[\s\S]*?<\/mx-reply>/g // matches mx-re
 export const BR_TAG_REGEX = /<br\s*\/?>/gi // matches <br>, <br/>, <br /> tags (case insensitive)
 export const HTML_TAG_REGEX = /<[^>]*>/g // matches any HTML tag
 export const QUOTE_USER_REGEX = /^> <@([^>]+)>/ // matches quote line and captures user ID
+
+//mentions
+export const MATRIX_URL_BASE = 'https://matrix.to/#/'
+export const ROOM_MENTION = 'room'
+
+// pagination
+export const DEFAULT_PAGINATION_SIZE = 15
+export const SEARCH_PAGINATION_SIZE = 100

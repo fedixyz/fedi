@@ -1,162 +1,95 @@
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import InviteMembersIcon from '@fedi/common/assets/svgs/invite-members.svg'
 import LanguageIcon from '@fedi/common/assets/svgs/language.svg'
-import LeaveFederationIcon from '@fedi/common/assets/svgs/leave-federation.svg'
 import NostrIcon from '@fedi/common/assets/svgs/nostr.svg'
 import NoteIcon from '@fedi/common/assets/svgs/note.svg'
-import ScrollIcon from '@fedi/common/assets/svgs/scroll.svg'
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
-import TableExportIcon from '@fedi/common/assets/svgs/table-export.svg'
+import SettingsIcon from '@fedi/common/assets/svgs/settings.svg'
 import UsdIcon from '@fedi/common/assets/svgs/usd.svg'
 import UserIcon from '@fedi/common/assets/svgs/user.svg'
-import { useIsInviteSupported } from '@fedi/common/hooks/federation'
-import { useToast } from '@fedi/common/hooks/toast'
-import { useExportTransactions } from '@fedi/common/hooks/transactions'
+import { useLeaveCommunity, useLeaveFederation } from '@fedi/common/hooks/leave'
 import {
-    leaveFederation,
+    selectAlphabeticallySortedCommunities,
     selectAlphabeticallySortedFederations,
-    selectFederation,
     selectMatrixAuth,
-    setActiveFederationId,
 } from '@fedi/common/redux'
-import { FederationListItem, LoadedFederation } from '@fedi/common/types'
-import {
-    getFederationTosUrl,
-    shouldShowSocialRecovery,
-} from '@fedi/common/utils/FederationUtils'
+import { Community, LoadedFederation } from '@fedi/common/types'
 import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
+import { CommunityMenu } from '../../components/CommunityMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ContentBlock } from '../../components/ContentBlock'
 import { CopyInput } from '../../components/CopyInput'
+import { FederationMenu } from '../../components/FederationMenu'
 import { InviteMemberDialog } from '../../components/InviteMemberDialog'
 import * as Layout from '../../components/Layout'
+import { MobileAppDownloadBanner } from '../../components/MobileAppDownloadBanner'
 import { QRCode } from '../../components/QRCode'
-import {
-    MenuGroup,
-    SettingsMenu,
-    SettingsMenuProps,
-} from '../../components/SettingsMenu'
+import { SettingsMenu, SettingsMenuProps } from '../../components/SettingsMenu'
+import { Text } from '../../components/Text'
 import { VersionContainer } from '../../components/VersionContainer'
-import { useAppDispatch, useAppSelector } from '../../hooks'
+import { useAppSelector, useDeviceQuery } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 
-const canLeaveFederation = (federation: FederationListItem): boolean => {
-    return (
-        federation?.hasWallet &&
-        'balance' in federation &&
-        federation?.balance < 100000 // allow leave if balance less than 100 sats
-    )
-}
-
 function AdminPage() {
     const { t } = useTranslation()
-    const dispatch = useAppDispatch()
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
-    const isInviteSupported = useIsInviteSupported()
-    const exportTransactions = useExportTransactions(fedimint, t)
-
-    const toast = useToast()
+    const { isMobile } = useDeviceQuery()
 
     const [invitingFederationId, setInvitingFederationId] = useState<string>('')
-    const [leavingFederationId, setLeavingFederationId] = useState<string>('')
-    const [exportingFederationId, setExportingFederationId] =
-        useState<string>('')
-
-    const leavingFederation = useAppSelector(s =>
-        selectFederation(s, leavingFederationId),
+    const [leavingFederation, setLeavingFederation] =
+        useState<LoadedFederation | null>(null)
+    const [leavingCommunity, setLeavingCommunity] = useState<Community | null>(
+        null,
     )
 
-    const handleConfirmLeaveFederation = useCallback(async () => {
-        if (!leavingFederation) return
+    const { validateCanLeaveFederation, handleLeaveFederation } =
+        useLeaveFederation({
+            t,
+            fedimint,
+            federationId: leavingFederation?.id || '',
+        })
 
-        if (canLeaveFederation(leavingFederation)) {
-            try {
-                await dispatch(
-                    leaveFederation({
-                        fedimint,
-                        federationId: leavingFederation.id,
-                    }),
-                ).unwrap()
-            } catch (err) {
-                toast.error(t, err, 'errors.unknown-error')
-            }
+    const { canLeaveCommunity, handleLeave } = useLeaveCommunity({
+        t,
+        fedimint,
+        communityId: leavingCommunity?.id || '',
+    })
+
+    const handleLeaveFederationPressed = (federation: LoadedFederation) => {
+        if (validateCanLeaveFederation(federation)) {
+            setLeavingFederation(federation)
         }
+    }
 
-        setLeavingFederationId('')
-    }, [leavingFederation, dispatch, toast, t])
-
-    const exportTransactionsAsCsv = async (federation: LoadedFederation) => {
-        setExportingFederationId(federation.id)
-
-        const res = await exportTransactions(federation)
-
-        if (res.success) {
-            const element = document.createElement('a')
-            element.setAttribute('href', res.uri)
-            element.setAttribute('download', res.fileName)
-
-            document.body.appendChild(element)
-            element.click()
-            document.body.removeChild(element)
-        } else {
-            toast.error(t, res.message, 'errors.unknown-error')
+    const handleLeaveCommunityPressed = (community: Community) => {
+        if (canLeaveCommunity) {
+            setLeavingCommunity(community)
         }
+    }
 
-        setExportingFederationId('')
+    const handleConfirmLeaveFederation = () => {
+        if (leavingFederation) {
+            handleLeaveFederation()
+            setLeavingFederation(null)
+        }
+    }
+
+    const handleConfirmLeaveCommunity = () => {
+        if (leavingCommunity) {
+            handleLeave()
+            setLeavingCommunity(null)
+        }
     }
 
     const sortedFederations = useAppSelector(
         selectAlphabeticallySortedFederations,
     )
-
-    const federationMenus: MenuGroup[] = sortedFederations.map(federation => {
-        const tosUrl = getFederationTosUrl(federation.meta) || ''
-
-        return {
-            label: federation.name,
-            items: [
-                {
-                    label: t('feature.federations.invite-members'),
-                    icon: InviteMembersIcon,
-                    onClick: () => setInvitingFederationId(federation.id),
-                    disabled: !isInviteSupported,
-                },
-                {
-                    label: t('feature.backup.social-backup'),
-                    icon: SocialPeopleIcon,
-                    href: `/settings/backup/social`,
-                    onClick: () =>
-                        dispatch(setActiveFederationId(federation.id)),
-                    hidden: !shouldShowSocialRecovery(federation),
-                },
-                {
-                    label: t('feature.federations.federation-terms'),
-                    icon: ScrollIcon,
-                    href: tosUrl,
-                    disabled: !tosUrl,
-                },
-                {
-                    label: t('feature.backup.export-transactions-to-csv'),
-                    icon: TableExportIcon,
-                    onClick: () =>
-                        federation.hasWallet
-                            ? exportTransactionsAsCsv(federation)
-                            : undefined,
-                    disabled: !federation.hasWallet || !!exportingFederationId,
-                },
-                {
-                    label: t('feature.federations.leave-federation'),
-                    icon: LeaveFederationIcon,
-                    onClick: () => setLeavingFederationId(federation.id),
-                },
-            ],
-        }
-    })
+    const sortedCommunities = useAppSelector(
+        selectAlphabeticallySortedCommunities,
+    )
 
     let menu: SettingsMenuProps['menu'] = [
         {
@@ -188,9 +121,13 @@ function AdminPage() {
                     icon: NostrIcon,
                     href: `/settings/nostr`,
                 },
+                {
+                    label: t('feature.settings.app-settings'),
+                    icon: SettingsIcon,
+                    href: `/settings/app`,
+                },
             ],
         },
-        ...federationMenus,
     ]
 
     // Filter out hidden items, filter out groups that have no items left.
@@ -232,7 +169,51 @@ function AdminPage() {
                                 </QRContainer>
                             </Content>
                         )}
+                        {isMobile && <MobileAppDownloadBanner />}
                         <SettingsMenu menu={menu} />
+
+                        {/* Federations Section */}
+                        {sortedFederations.length > 0 && (
+                            <div>
+                                <Text css={{ marginBottom: 16 }}>
+                                    {t('words.federations')}
+                                </Text>
+                                {sortedFederations.map(federation => (
+                                    <FederationMenu
+                                        key={federation.id}
+                                        federation={federation}
+                                        onInviteMembers={
+                                            setInvitingFederationId
+                                        }
+                                        onLeaveFederation={
+                                            handleLeaveFederationPressed
+                                        }
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Communities Section */}
+                        {sortedCommunities.length > 0 && (
+                            <div>
+                                <Text css={{ marginBottom: 16 }}>
+                                    {t('words.communities')}
+                                </Text>
+                                {sortedCommunities.map(community => (
+                                    <CommunityMenu
+                                        key={community.id}
+                                        community={community}
+                                        onInviteMembers={
+                                            setInvitingFederationId
+                                        }
+                                        onLeaveCommunity={
+                                            handleLeaveCommunityPressed
+                                        }
+                                    />
+                                ))}
+                            </div>
+                        )}
+
                         <VersionContainer />
                     </div>
                 </Layout.Content>
@@ -246,19 +227,26 @@ function AdminPage() {
 
             {leavingFederation && (
                 <ConfirmDialog
-                    open={!!leavingFederationId}
-                    title={`${t('feature.federations.leave-federation')} - ${
-                        leavingFederation?.name
-                    }`}
+                    open={!!leavingFederation}
+                    title={`${t('feature.federations.leave-federation')} - ${leavingFederation.name}`}
                     description={t(
-                        canLeaveFederation(leavingFederation)
-                            ? 'feature.federations.leave-federation-confirmation'
-                            : 'feature.federations.leave-federation-withdraw-first',
+                        'feature.federations.leave-federation-confirmation',
                     )}
                     onConfirm={handleConfirmLeaveFederation}
-                    {...(canLeaveFederation(leavingFederation)
-                        ? { onClose: () => setLeavingFederationId('') }
-                        : {})}
+                    onClose={() => setLeavingFederation(null)}
+                    primaryButtonLabel={t('words.okay')}
+                />
+            )}
+
+            {leavingCommunity && (
+                <ConfirmDialog
+                    open={!!leavingCommunity}
+                    title={`${t('feature.communities.leave-community')} - ${leavingCommunity.name}`}
+                    description={t(
+                        'feature.federations.leave-community-confirmation',
+                    )}
+                    onConfirm={handleConfirmLeaveCommunity}
+                    onClose={() => setLeavingCommunity(null)}
                     primaryButtonLabel={t('words.okay')}
                 />
             )}
