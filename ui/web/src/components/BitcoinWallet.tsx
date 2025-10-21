@@ -8,6 +8,7 @@ import SendArrowIcon from '@fedi/common/assets/svgs/arrow-right.svg'
 import BitcoinCircleIcon from '@fedi/common/assets/svgs/bitcoin-circle.svg'
 import TxnHistoryIcon from '@fedi/common/assets/svgs/txn-history.svg'
 import { useBalance } from '@fedi/common/hooks/amount'
+import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { LoadedFederation } from '@fedi/common/types'
 
 import { styled, theme } from '../styles'
@@ -28,6 +29,7 @@ export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
         federation.id,
     )
+    const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
 
     return (
         <Container data-testid="bitcoin-wallet">
@@ -63,6 +65,7 @@ export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
                     style={{
                         flex: 1,
                     }}
+                    disabled={popupInfo?.ended}
                 />
                 <Button
                     variant="secondary"
@@ -70,7 +73,10 @@ export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
                     width="full"
                     onClick={() => push(`/send#id=${federation.id}`)}
                     icon={RotatedSendIcon}
-                    disabled={federation.balance < MIN_BALANCE_TO_SEND}
+                    disabled={
+                        federation.balance < MIN_BALANCE_TO_SEND ||
+                        popupInfo?.ended
+                    }
                     style={{
                         flex: 1,
                     }}
@@ -80,6 +86,7 @@ export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
                     outline
                     icon={TxnHistoryIcon}
                     size="lg"
+                    disabled={popupInfo?.ended}
                     onClick={() => push(`/transactions#id=${federation.id}`)}
                 />
             </Buttons>

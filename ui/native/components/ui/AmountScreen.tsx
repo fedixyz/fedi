@@ -25,13 +25,13 @@ interface Props extends AmountInputProps {
 
 export const AmountScreen: React.FC<Props> = ({
     showBalance = false,
-    federationId = '',
     subHeader = null,
     subContent = null,
     buttons = [],
     isIndependent = true,
     ...amountInputProps
 }) => {
+    const federationId = amountInputProps?.federationId || ''
     const { t } = useTranslation()
     const { theme } = useTheme()
     const balanceDisplay = useBalanceDisplay(t, federationId)

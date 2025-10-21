@@ -526,6 +526,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Fédération et Communauté sont désormais distinctes. Pour gérer votre argent, rendez-vous <federationLink>dans votre fédération</federationLink>.",
+            "autojoined-community-notice-federation": "Fédération et Communauté sont désormais séparées. <communityLink>Accédez à votre communauté ici</communityLink>",
             "community-details": "Détails de la communauté",
             "community-mods": "Mods de la communauté",
             "community-terms": "Conditions de la communauté",
@@ -560,7 +561,6 @@
         },
         "federation": {
             "add-federation": "Ajouter une communauté",
-            "autojoined-community-notice": "Fédération et Communauté sont désormais séparées. <communityLink>Accédez à votre communauté ici</communityLink>",
             "create-info-1": "Une Fédération est gérée par des personnes de confiance appelées gardiens.",
             "create-info-2": "Les Gardiens travaillent ensemble pour assurer la sécurité de la Fédération.",
             "create-info-3": "Ce travail d'équipe protège votre portefeuille, votre vie privée et maintient la force de votre Fédération.",

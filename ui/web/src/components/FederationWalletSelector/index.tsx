@@ -22,7 +22,9 @@ export const FederationWalletSelector: React.FC = () => {
     const federations = useAppSelector(selectLoadedFederations)
     const [isSelectorOpen, setIsSelectorOpen] = useState(false)
 
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        federationId: paymentFederation?.id,
+    })
     const handleSelectFederation = useCallback(
         (fed: Federation) => {
             dispatch(setPayFromFederationId(fed.id))

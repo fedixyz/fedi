@@ -329,6 +329,15 @@ export interface StoredStateV35 extends Omit<StoredStateV34, 'version'> {
     showFiatTotalBalance: boolean
 }
 
+export interface StoredStateV36 extends Omit<StoredStateV35, 'version'> {
+    version: 36
+    surveyCompletions: Record<
+        string,
+        { isCompleted: boolean; timesDismissed: number } | undefined
+    >
+    lastShownSurveyTimestamp: number
+}
+
 /**
  * Consolidated type for older storage versions (0-24).
  * These are grouped together to reduce union type computation that slows down TSC performance.
@@ -380,9 +389,10 @@ export type AnyStoredState =
     | StoredStateCheckpoint1
     | StoredStateV34
     | StoredStateV35
+    | StoredStateV36
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV35
+export type LatestStoredState = StoredStateV36
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

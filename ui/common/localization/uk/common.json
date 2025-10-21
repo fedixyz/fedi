@@ -526,6 +526,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Федерація та Спільнота тепер розділені. Щоб керувати грошима, <federationLink>перейдіть до своєї федерації</federationLink>.",
+            "autojoined-community-notice-federation": "Федерація та Спільнота тепер розділені. <communityLink>Отримайте доступ до своєї спільноти тут</communityLink>",
             "community-details": "Деталі спільноти",
             "community-mods": "Моди спільноти",
             "community-terms": "Умови спільноти",
@@ -560,7 +561,6 @@
         },
         "federation": {
             "add-federation": "Додати федерацію",
-            "autojoined-community-notice": "Федерація та Спільнота тепер розділені. <communityLink>Отримайте доступ до своєї спільноти тут</communityLink>",
             "create-info-1": "Федерацією керують довірені люди, яких називають опікунами.",
             "create-info-2": "Опікуни працюють разом, щоб захистити Федерацію.",
             "create-info-3": "Ця командна робота захищає ваш гаманець, конфіденційність і підтримує міцність вашої Федерації.",

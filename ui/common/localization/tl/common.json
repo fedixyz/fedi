@@ -518,6 +518,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Hiwalay na ngayon ang Federation at Community. Upang pamahalaan ang pera, <federationLink>pumunta sa iyong federation</federationLink>.",
+            "autojoined-community-notice-federation": "Hiwalay na ngayon ang Federation at Community. <communityLink>I-access ang iyong komunidad dito</communityLink>",
             "community-terms-and-conditions": "Mga Tuntunin at Kundisyon ng Komunidad",
             "confirm-exit": "Kumpirmahin ang paglabas",
             "create-info-1": "Ipunin ang iyong mga tao. Magbahagi ng mga serbisyo. Manatiling konektado.",
@@ -547,7 +548,6 @@
         },
         "federation": {
             "add-federation": "Magdagdag",
-            "autojoined-community-notice": "Hiwalay na ngayon ang Federation at Community. <communityLink>I-access ang iyong komunidad dito</communityLink>",
             "create-info-1": "Ang isang Federation ay pinamamahalaan ng mga pinagkakatiwalaang tao na tinatawag na mga tagapag-alaga.",
             "create-info-2": "Ang mga tagapag-alaga ay nagtutulungan upang mapanatiling ligtas at secure ang Federation.",
             "create-info-3": "Pinoprotektahan ng teamwork na ito ang iyong wallet, privacy, at pinapanatiling malakas ang iyong Federation.",

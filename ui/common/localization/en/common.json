@@ -1193,7 +1193,6 @@
             "effective-support-info": "information",
             "enter-ticket-number": "Enter the ticket number given by our team.",
             "friendly-request": "A Quick Note",
-            "give-feedback": "Give feedback",
             "how-to-launch": "If you need help, you may launch the support chat by clicking the button below.",
             "invalid-ticket-number": "Invalid support ticket number. (e.g. #1234)",
             "log-disclaimer": "Do not use this form unless directed by the Fedi Council. Please first report any issues to us <anchor>here</anchor>.",
@@ -1201,8 +1200,6 @@
             "permssion-granted": "Support Center",
             "privacy-policy": "Privacy policy",
             "support-ticket-number": "Your Support Ticket Number",
-            "survey-description": "Just one click to help us improve. We appreciate it.",
-            "survey-title": "Help us help you",
             "title": "Ask Fedi",
             "zendesk-initialization-failed": "We couldn't reach the support chat. Please check your internet connection and try again."
         },

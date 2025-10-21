@@ -2550,7 +2550,7 @@ impl FederationV2 {
     async fn get_transaction_really_inner(
         &self,
         operation_id: OperationId,
-        entry: OperationLogEntry,
+        mut entry: OperationLogEntry,
     ) -> Option<RpcTransaction> {
         let notes = self
             .dbtx()
@@ -2609,6 +2609,14 @@ impl FederationV2 {
                         });
                         frontend_metadata = extra_meta.frontend_metadata;
                         let state = if is_internal_payment {
+                            if entry
+                                .outcome::<serde_json::Value>()
+                                .is_some_and(internal_pay_is_bad_state)
+                            {
+                                // HACK: our code accidentally subscribed using wrong function in
+                                // past.
+                                entry.set_outcome(None);
+                            }
                             self.get_client_operation_outcome(
                                 operation_id,
                                 entry,

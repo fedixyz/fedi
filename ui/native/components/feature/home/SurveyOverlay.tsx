@@ -1,64 +1,34 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Button, useTheme } from '@rneui/themed'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { useNuxStep } from '@fedi/common/hooks/nux'
-import { selectLanguage } from '@fedi/common/redux'
-import {
-    resetSurveyTimestamp,
-    selectSurveyUrl,
-    setCanShowSurvey,
-} from '@fedi/common/redux/support'
-import { getSurveyLanguage } from '@fedi/common/utils/survey'
+import { useSurveyForm } from '@fedi/common/hooks/survey'
 
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
 import Flex from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
 import SvgImage from '../../ui/SvgImage'
 
 const SurveyOverlay = () => {
-    const [hasAcceptedSurvey, completeAcceptSurvey] =
-        useNuxStep('hasAcceptedSurvey')
-
-    const url = useAppSelector(selectSurveyUrl)
-    const language = useAppSelector(selectLanguage)
-    const dispatch = useAppDispatch()
     const navigation = useNavigation()
 
-    const { t } = useTranslation()
     const { theme } = useTheme()
+    const { show, handleDismiss, handleAccept, activeSurvey } = useSurveyForm()
 
-    const handleDismiss = useCallback(() => {
-        dispatch(resetSurveyTimestamp())
-        dispatch(setCanShowSurvey(false))
-    }, [dispatch])
-
-    const handleOpenSurveyLink = useCallback(() => {
-        if (!url) return
-
-        const surveyUrl = new URL(url)
-
-        if (language) {
-            surveyUrl.searchParams.set('lang', getSurveyLanguage(language))
-        }
-
-        handleDismiss()
-        completeAcceptSurvey()
-
+    const handleNavigate = (url: URL) => {
         // wait for the modal's close animation + unmount to finish
         // immediately navigating while the modal is actively unmounting causes the screen to be unresponsive
         setTimeout(() => {
             navigation.navigate('FediModBrowser', {
-                url: surveyUrl.toString(),
+                url: url.toString(),
             })
         }, 500)
-    }, [language, navigation, handleDismiss, completeAcceptSurvey, url])
+    }
+
+    if (!activeSurvey) return null
 
     return (
         <CenterOverlay
-            show={!hasAcceptedSurvey && !!url}
+            show={show}
             onBackdropPress={handleDismiss}
             showCloseButton>
             <Flex gap="lg" align="center" fullWidth>
@@ -67,13 +37,13 @@ const SurveyOverlay = () => {
                     content={<SvgImage name="Tooltip" size={48} />}
                 />
                 <Text h2 medium center>
-                    {t('feature.support.survey-title')}
+                    {activeSurvey.title}
                 </Text>
                 <Text center color={theme.colors.darkGrey}>
-                    {t('feature.support.survey-description')}
+                    {activeSurvey.description}
                 </Text>
-                <Button onPress={handleOpenSurveyLink} fullWidth>
-                    {t('feature.support.give-feedback')}
+                <Button onPress={() => handleAccept(handleNavigate)} fullWidth>
+                    {activeSurvey.buttonText}
                 </Button>
             </Flex>
         </CenterOverlay>

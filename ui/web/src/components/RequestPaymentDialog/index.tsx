@@ -88,14 +88,14 @@ export const RequestPaymentDialog: React.FC<Props> = ({
             setReceivedTransaction(null)
             reset()
         } else {
-            syncCurrencyRatesAndCache()
+            syncCurrencyRatesAndCache(federationId)
             if (!window.matchMedia(config.media.sm).matches) {
                 requestAnimationFrame(() =>
                     containerRef.current?.querySelector('input')?.focus(),
                 )
             }
         }
-    }, [open, syncCurrencyRatesAndCache, reset])
+    }, [open, syncCurrencyRatesAndCache, reset, federationId])
 
     useEffect(() => {
         if (open && lnurlw) setRequestType('lnurlw')

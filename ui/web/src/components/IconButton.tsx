@@ -9,6 +9,7 @@ interface Props extends Omit<IconProps, 'size'> {
     variant?: 'primary' | 'secondary' | 'basic'
     size?: Exclude<IconProps['size'], number | 'xs'>
     outline?: boolean
+    disabled?: boolean
     onClick(): void
 }
 
@@ -18,6 +19,7 @@ export const IconButton: React.FC<Props> = ({
     onClick,
     size = 'sm',
     icon,
+    disabled,
     variant = 'basic',
     outline = false,
     ...props
@@ -28,6 +30,7 @@ export const IconButton: React.FC<Props> = ({
         size: size,
         outline: outline,
         onClick: onClick,
+        disabled,
     }
     return (
         <ButtonBase
@@ -89,6 +92,12 @@ const ButtonBase = styled('button', {
                 width: theme.sizes.xl,
                 height: theme.sizes.xl,
                 padding: `${fediTheme.sizes.xl * 0.2}px`,
+            },
+        },
+        disabled: {
+            true: {
+                opacity: 0.5,
+                pointerEvents: 'none',
             },
         },
         outline: {

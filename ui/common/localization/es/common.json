@@ -527,6 +527,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Federación y Comunidad ahora son cosas separadas. Para administrar tu dinero, <federationLink>ve a tu federación</federationLink>. ",
+            "autojoined-community-notice-federation": "Federación y Comunidad ahora son cosas separadas.. <communityLink>Accede a tu comunidad aquí</communityLink>",
             "community-details": "Detalles de la comunidad",
             "community-mods": "Mini Apps de la Comunidad",
             "community-terms": "Términos de la comunidad",
@@ -561,7 +562,6 @@
         },
         "federation": {
             "add-federation": "Agrega",
-            "autojoined-community-notice": "Federación y Comunidad ahora son cosas separadas.. <communityLink>Accede a tu comunidad aquí</communityLink>",
             "create-info-1": "Una Federación está administrada por personas de confianza llamadas guardianes.",
             "create-info-2": "Los guardianes trabajan juntos para mantener la Federación segura y protegida.",
             "create-info-3": "Este trabajo en equipo protege tu billetera y tu privacidad y mantiene fuerte a tu Federación.",
@@ -928,7 +928,7 @@
             "redeem-lnurl-withdraw": "Canjear retiro con LNURL",
             "reject-payment": "Rechazar pago",
             "request-bitcoin": "Solicita bitcoin",
-            "request-money": "Solicitar dinero.",
+            "request-money": "Solicitar dinero",
             "request-sats": "Solicita {{amount}} sats",
             "request-via-lightning": "Solicita vía Lightning",
             "send-a-lightning-request": "Enviar una solicitud lightning a {{username}}",

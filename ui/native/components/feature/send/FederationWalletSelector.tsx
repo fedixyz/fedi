@@ -5,10 +5,12 @@ import { Pressable, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
+import { useCommonSelector } from '@fedi/common/hooks/redux'
 import {
     selectPaymentFederation,
     selectLoadedFederations,
     setPayFromFederationId,
+    selectCurrency,
 } from '@fedi/common/redux'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -31,7 +33,15 @@ const FederationWalletSelector: React.FC<{
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const federations = useAppSelector(selectLoadedFederations)
 
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const selectedCurrency = useCommonSelector(s =>
+        selectCurrency(s, paymentFederation?.id),
+    )
+
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        currency: selectedCurrency,
+        federationId: paymentFederation?.id,
+    })
+
     const {
         formattedPrimaryAmount: primaryAmountToSendFrom,
         formattedSecondaryAmount: secondaryAmountToSendFrom,
@@ -45,36 +55,6 @@ const FederationWalletSelector: React.FC<{
         },
         [dispatch],
     )
-
-    const renderFederation = (f: LoadedFederation) => {
-        const { formattedPrimaryAmount, formattedSecondaryAmount } =
-            makeFormattedAmountsFromMSats(f?.balance || (0 as MSats))
-        return (
-            <Pressable
-                key={`federation-option-${f.id}`}
-                style={style.tileContainer}
-                onPress={() => handleFederationSelected(f)}>
-                <FederationLogo federation={f} size={32} />
-                <Flex gap="xs" style={style.tileTextContainer}>
-                    <Text bold numberOfLines={1}>
-                        {f?.name || ''}
-                    </Text>
-                    <Text style={{}}>
-                        {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
-                    </Text>
-                </Flex>
-                {paymentFederation?.id === f.id && (
-                    <SvgImage
-                        name="Check"
-                        size={SvgImageSize.sm}
-                        containerStyle={{
-                            marginLeft: 'auto',
-                        }}
-                    />
-                )}
-            </Pressable>
-        )
-    }
 
     if (federations.length === 0) return null
 
@@ -122,12 +102,68 @@ const FederationWalletSelector: React.FC<{
                         <ScrollView
                             style={style.federationsListContainer}
                             contentContainerStyle={style.federationsList}>
-                            {federations.map(renderFederation)}
+                            {federations.map(f => (
+                                <SelectFederationListItem
+                                    key={`federation-option-${f.id}`}
+                                    federation={f}
+                                    isSelected={paymentFederation?.id === f.id}
+                                    handleFederationSelected={
+                                        handleFederationSelected
+                                    }
+                                />
+                            ))}
                         </ScrollView>
                     ),
                 }}
             />
         </Flex>
+    )
+}
+
+const SelectFederationListItem: React.FC<{
+    federation: LoadedFederation
+    isSelected: boolean
+    handleFederationSelected: (f: LoadedFederation) => void
+}> = ({ federation, isSelected, handleFederationSelected }) => {
+    const selectedCurrency = useCommonSelector(s =>
+        selectCurrency(s, federation.id),
+    )
+
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        currency: selectedCurrency,
+        federationId: federation.id,
+    })
+
+    const { formattedPrimaryAmount, formattedSecondaryAmount } =
+        makeFormattedAmountsFromMSats(federation.balance || (0 as MSats))
+
+    const { theme } = useTheme()
+
+    const style = styles(theme)
+    return (
+        <Pressable
+            key={`federation-option-${federation.id}`}
+            style={style.tileContainer}
+            onPress={() => handleFederationSelected(federation)}>
+            <FederationLogo federation={federation} size={32} />
+            <Flex gap="xs" style={style.tileTextContainer}>
+                <Text bold numberOfLines={1}>
+                    {federation.name || ''}
+                </Text>
+                <Text style={{}}>
+                    {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
+                </Text>
+            </Flex>
+            {isSelected && (
+                <SvgImage
+                    name="Check"
+                    size={SvgImageSize.sm}
+                    containerStyle={{
+                        marginLeft: 'auto',
+                    }}
+                />
+            )}
+        </Pressable>
     )
 }
 

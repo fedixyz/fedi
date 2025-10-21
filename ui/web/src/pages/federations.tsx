@@ -7,17 +7,16 @@ import {
     selectLastUsedFederation,
     selectNonFeaturedFederations,
 } from '@fedi/common/redux'
-import { selectCanShowSurvey } from '@fedi/common/redux/support'
 
 import { ContentBlock } from '../components/ContentBlock'
 import FeaturedFederation from '../components/FeaturedFederation'
 import FederationTile from '../components/FederationTile'
+import { Column } from '../components/Flex'
 import * as Layout from '../components/Layout'
 import MainHeaderButtons from '../components/MainHeaderButtons'
 import { RequestPaymentDialog } from '../components/RequestPaymentDialog'
 import { RequireBackupModal } from '../components/RequireBackupModal'
 import { SendPaymentDialog } from '../components/SendPaymentDialog'
-import SurveyModal from '../components/SurveyModal'
 import { useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
@@ -31,9 +30,10 @@ function FederationsPage() {
     // Get federation data
     const federations = useAppSelector(selectNonFeaturedFederations)
     const featuredFederation = useAppSelector(selectLastUsedFederation)
-    const canShowSurvey = useAppSelector(selectCanShowSurvey)
 
     // Get rates from cache
+    // TODO: I don't think this is the right place to call this anymore...
+    // We really just need to sync for a specific federation before a payment is made.
     useEffect(() => {
         syncCurrencyRatesAndCache()
     }, [syncCurrencyRatesAndCache])
@@ -54,7 +54,7 @@ function FederationsPage() {
                     />
                 </Layout.Header>
                 <Layout.Content fullWidth>
-                    <Content>
+                    <Column gap="lg">
                         <FeaturedFederation />
 
                         <FederationsListWrapper>
@@ -65,14 +65,13 @@ function FederationsPage() {
                                 />
                             ))}
                         </FederationsListWrapper>
-                    </Content>
+                    </Column>
                 </Layout.Content>
             </Layout.Root>
 
+            {/* Modal - Ask user to backup if their balance is above 1000 sats */}
             <RequireBackupModal />
 
-            {/* Modal - Ask user to backup if their balance is above 1000 sats */}
-            {canShowSurvey && <SurveyModal />}
             <RequestPaymentDialog
                 open={router.pathname === '/request'}
                 onOpenChange={() => router.push('/federations')}
@@ -84,12 +83,6 @@ function FederationsPage() {
         </ContentBlock>
     )
 }
-
-const Content = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 20,
-})
 
 const FederationsListWrapper = styled('div', {
     flex: 1,

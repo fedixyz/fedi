@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { makeLog } from '@fedi/common/utils/log'
 
+import { theme } from '../constants/theme'
 import {
     joinFederation,
     rateFederation,
@@ -24,6 +25,7 @@ import {
     checkFederationForAutojoinCommunities,
     refreshFederations,
     checkFederationPreview,
+    selectIsInternetUnreachable,
 } from '../redux'
 import {
     CommunityPreview,
@@ -31,6 +33,7 @@ import {
     FederationMetadata,
     InviteCodeType,
     Federation,
+    LoadedFederation,
 } from '../types'
 import { RpcFederationPreview } from '../types/bindings'
 import dateUtils from '../utils/DateUtils'
@@ -574,5 +577,59 @@ export function useFederationInviteCode(
         isError,
         previewResult,
         handleJoin,
+    }
+}
+
+export function useFederationStatus<I>({
+    federationId,
+    t,
+    statusIconMap,
+}: {
+    t: TFunction
+    federationId: string
+    statusIconMap: Record<LoadedFederation['status'], I>
+}) {
+    const federation = useCommonSelector(s =>
+        selectLoadedFederation(s, federationId),
+    )
+
+    const status = federation?.status ?? 'offline'
+    const isInternetUnreachable = useCommonSelector(selectIsInternetUnreachable)
+    const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
+
+    let statusMessage = t('feature.federations.connection-status-offline')
+    let statusIconColor = theme.colors.red
+    let statusWord = t('words.offline')
+    let statusText = t('words.status')
+
+    if (status === 'online') {
+        statusIconColor = theme.colors.success
+        statusWord = t('words.online')
+        statusMessage = t('feature.federations.connection-status-online')
+    } else if (status === 'unstable') {
+        statusWord = t('words.unstable')
+        statusMessage = t('feature.federations.connection-status-unstable')
+    }
+
+    if (popupInfo?.ended) {
+        statusWord = t('words.expired')
+        statusIconColor = theme.colors.red
+        if (popupInfo?.endedMessage) {
+            statusMessage = popupInfo?.endedMessage
+        }
+    }
+
+    if (isInternetUnreachable) {
+        statusMessage = t('feature.federations.please-reconnect')
+        statusText = t('feature.federations.last-known-status')
+    }
+
+    return {
+        status,
+        statusText,
+        statusMessage,
+        statusIcon: statusIconMap[status],
+        statusIconColor,
+        statusWord,
     }
 }

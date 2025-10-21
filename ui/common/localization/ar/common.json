@@ -230,7 +230,6 @@
             "description-placeholder": "ماذا كنت تتوقع وماذا حدث بدلا من ذلك؟",
             "email-label": "البريد الإلكتروني(اختياري )",
             "info-label": "إرسال مجتمعواسم المستخدم مع تقرير الأخطاء. ",
-            "log-disclaimer": "سيتم تضمين سجلات في التطبيق مع تقريرك لمساعدة مطوري فيدي في تشخيص المشكلة. ",
             "report-a-bug": "تقرير a bug ",
             "screenshot-label": "تحميل لقطات الشاشة او التسجيلات. ",
             "submit-generating-data": "جاري إنشاء بيانات التقرير...",
@@ -306,6 +305,7 @@
         },
         "communities": {
             "autojoined-community-notice": "أصبح الاتحاد والمجتمع منفصلين الآن. لإدارة أموالك، <federationLink>تفضل بزيارة اتحادك</federationLink>.",
+            "autojoined-community-notice-federation": "الاتحاد والمجتمع منفصلان الآن. <communityLink>يمكنك الوصول إلى مجتمعك هنا</communityLink>",
             "community-terms-and-conditions": "الشروط والأحكام المجتمعية",
             "confirm-exit": "تأكيد الخروج",
             "create-info-1": "اجمع شملَك. شارك الخدمات. ابقَ على تواصل.",
@@ -327,9 +327,6 @@
             "nightly": "Nightly",
             "share-logs": "شارك السجلات",
             "share-state": "مشاركة حالة التطبيق. "
-        },
-        "federation": {
-            "autojoined-community-notice": "الاتحاد والمجتمع منفصلان الآن. <communityLink>يمكنك الوصول إلى مجتمعك هنا</communityLink>"
         },
         "federations": {
             "add-federation": "إضافة اتحاد. ",
@@ -452,8 +449,7 @@
             "welcome-instructions-new": "كعضو جديد في الاتحاد، سوف تتلقي محفظة جديدة ",
             "welcome-instructions-returning": "باعتبارك عضؤا عائد في الاتحاد، سيتم استعادة محفظتك. قد يستغرق هذا بعد دقائق. ",
             "welcome-instructions-unknown": "يحصل الأعضاء الجدد على محفظة جديدة. سيتم استرداد محفظتهم القديمة للاعضاء العائدين تلقائيا. ",
-            "welcome-to-federation": "مرحبا بكم  {{federation}}",
-            "welcome-to-fedi": "مرحبا بكم في Fedi"
+            "welcome-to-federation": "مرحبا بكم  {{federation}}"
         },
         "parser": {
             "unsupported-bolt11-zero-amount": "لا يتم فواتير الاضاءة بقيمة صفر.قم بإنشاء فاتورة جديدة بمبلغ وحاول مرة اخير ",
@@ -614,7 +610,6 @@
                 "brl": "ريال برازيلي ",
                 "bwp": "بوتسوانا بولا ",
                 "cdf": "الفرنك الكنغولي ",
-                "cfa": "فرنك وسط أفريقيا ",
                 "clp": "البيزو التشيلي ",
                 "cop": "البيزو الكولومبي ",
                 "cup": "البيزو الكوبي ",
@@ -649,7 +644,6 @@
                 "uyu": "البيزو الأوروغواي ",
                 "ves": "بوليفار",
                 "vnd": "فيتنام دونج ",
-                "xaf": "الكاميرون ",
                 "zar": "راند جنوب أفريقيا ",
                 "zmw": "الكواشا الزامبية"
             }

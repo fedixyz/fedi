@@ -1,4 +1,17 @@
+import { z } from 'zod'
+
 import { I18nLanguage } from '../types/localization'
+
+export const activeSurveySchema = z.object({
+    url: z.string().url(),
+    title: z.string(),
+    description: z.string(),
+    buttonText: z.string(),
+    id: z.string(),
+    enabled: z.boolean(),
+})
+
+export type ActiveSurvey = z.infer<typeof activeSurveySchema>
 
 export function getSurveyLanguage(language: I18nLanguage): string {
     switch (language) {

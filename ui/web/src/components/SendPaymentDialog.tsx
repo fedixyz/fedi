@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import OfflineIcon from '@fedi/common/assets/svgs/offline.svg'
 import { useBalanceDisplay } from '@fedi/common/hooks/amount'
+import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import {
@@ -77,6 +78,12 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const isOfflineWalletSupported = useIsOfflineWalletSupported(federationId)
     const isSmall = useMediaQuery(config.media.sm)
     const balanceDisplay = useBalanceDisplay(t, federationId)
+
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+
+    useEffect(() => {
+        syncCurrencyRatesAndCache(federationId)
+    }, [syncCurrencyRatesAndCache, federationId])
 
     // Reset modal on close and open
     useEffect(() => {

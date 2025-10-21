@@ -517,6 +517,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Federasiyo n'Umuryango biratandukanye. Gucunga amafaranga, <federationLink> jya kuri federasiyo yawe </federationLink>.",
+            "autojoined-community-notice-federation": "Federasiyo n'Umuryango biratandukanye. <UmuryangoUhuza> Shyira umuryango wawe hano </communityLink>",
             "community-terms-and-conditions": "Amategeko rusange",
             "confirm-exit": "Emeza gusohoka",
             "create-info-1": "Koranya ubwoko bwawe. Sangira serivisi. Komeza guhuza.",
@@ -545,7 +546,6 @@
         },
         "federation": {
             "add-federation": "Ongeraho umuganda",
-            "autojoined-community-notice": "Federasiyo n'Umuryango biratandukanye. <UmuryangoUhuza> Shyira umuryango wawe hano </communityLink>",
             "create-info-1": "Federasiyo iyobowe nabantu bizewe bita abarinzi.",
             "create-info-2": "Abashinzwe kurinda bafatanya kurinda Federasiyo umutekano n'umutekano.",
             "create-info-3": "Uku gukorera hamwe kurinda ikotomoni yawe, ubuzima bwite, kandi bikomeza Federasiyo yawe.",

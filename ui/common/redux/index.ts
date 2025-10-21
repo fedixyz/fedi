@@ -50,7 +50,8 @@ import {
     setReadyToSave,
     storageSlice,
 } from './storage'
-import { checkSurveyCondition, supportSlice } from './support'
+import { supportSlice } from './support'
+import { surveySlice } from './survey'
 import { toastSlice } from './toast'
 import { transactionsSlice, updateTransaction } from './transactions'
 import { walletSlice } from './wallet'
@@ -67,6 +68,7 @@ export * from './security'
 export * from './toast'
 export * from './wallet'
 export * from './browser'
+export * from './survey'
 
 export const commonReducers = {
     currency: currencySlice.reducer,
@@ -83,6 +85,7 @@ export const commonReducers = {
     security: securitySlice.reducer,
     browser: browserSlice.reducer,
     support: supportSlice.reducer,
+    survey: surveySlice.reducer,
     analytics: analyticsSlice.reducer,
 }
 
@@ -263,7 +266,6 @@ export function initializeCommonStore({
                 dispatch(saveToStorage({ storage }))
             },
         })
-        dispatch(checkSurveyCondition())
         dispatch(setReadyToSave(true))
     })
 

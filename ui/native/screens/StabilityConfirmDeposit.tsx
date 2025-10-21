@@ -44,7 +44,9 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     const depositTime = useAppSelector(s =>
         selectFormattedDepositTime(s, federationId, t),
     )
-    const { makeFormattedAmountsFromSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromSats } = useAmountFormatter({
+        federationId,
+    })
     const { formattedFiat, formattedSats, formattedUsd } =
         makeFormattedAmountsFromSats(amount)
     const { feeBreakdownTitle, makeStabilityPoolFeeContent } =

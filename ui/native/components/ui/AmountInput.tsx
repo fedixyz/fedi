@@ -19,7 +19,7 @@ import Animated, {
 } from 'react-native-reanimated'
 
 import { useAmountInput } from '@fedi/common/hooks/amount'
-import { Sats } from '@fedi/common/types'
+import { Federation, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -49,6 +49,7 @@ export type Props = {
     notesOptional?: boolean
     setNotes?: (notes: string) => void
     content?: React.ReactNode | null
+    federationId?: Federation['id']
 }
 
 const AmountInput: React.FC<Props> = ({
@@ -68,6 +69,7 @@ const AmountInput: React.FC<Props> = ({
     setNotes,
     notesOptional = true,
     content = null,
+    federationId,
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -83,7 +85,13 @@ const AmountInput: React.FC<Props> = ({
         numpadButtons,
         handleNumpadPress,
         currencyLocale,
-    } = useAmountInput(amount, onChangeAmount, minimumAmount, maximumAmount)
+    } = useAmountInput(
+        amount,
+        onChangeAmount,
+        minimumAmount,
+        maximumAmount,
+        federationId,
+    )
     const inputRef = useRef<TextInput>(null)
     const { height, width } = useWindowDimensions()
 

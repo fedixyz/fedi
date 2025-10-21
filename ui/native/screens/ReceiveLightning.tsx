@@ -97,8 +97,8 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
 
     useFocusEffect(
         useCallback(() => {
-            syncCurrencyRatesAndCache()
-        }, [syncCurrencyRatesAndCache]),
+            syncCurrencyRatesAndCache(federationId)
+        }, [syncCurrencyRatesAndCache, federationId]),
     )
 
     // Generate onchain address if needed

@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
@@ -5,7 +6,11 @@ import { useTranslation } from 'react-i18next'
 import { Keyboard } from 'react-native'
 
 import { useChatPaymentUtils } from '@fedi/common/hooks/chat'
-import { selectMatrixDirectMessageRoom } from '@fedi/common/redux'
+import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
+import {
+    selectMatrixDirectMessageRoom,
+    selectPaymentFederation,
+} from '@fedi/common/redux'
 
 import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
@@ -23,6 +28,15 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
     const existingRoom = useAppSelector(s =>
         selectMatrixDirectMessageRoom(s, recipientId),
     )
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+
+    useFocusEffect(
+        useCallback(() => {
+            syncCurrencyRatesAndCache(paymentFederation?.id)
+        }, [syncCurrencyRatesAndCache, paymentFederation?.id]),
+    )
+
     const {
         submitType,
         setSubmitType,
@@ -102,6 +116,7 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
             ]}
             notes={notes}
             setNotes={setNotes}
+            federationId={paymentFederation?.id}
         />
     )
 }

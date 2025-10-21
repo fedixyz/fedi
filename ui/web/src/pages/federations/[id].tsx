@@ -83,8 +83,8 @@ function FederationDetails() {
                                 <Text variant="h2">{federation.name}</Text>
                             </FederationHeader>
                             <FederationPopupCountdown federation={federation} />
+                            <FederationStatus federationId={id} />
                             <FederationDetailStats federation={federation} />
-                            <FederationStatus federation={federation} />
                         </HeaderContent>
                         <ScrollableContent>
                             {federationChats.length > 0 && (

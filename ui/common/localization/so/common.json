@@ -516,6 +516,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Federaalka iyo Bulshadu hadda waa kala go'een. Si aad lacagta u maamusho, <federationLink>u tag federaalkaaga</federationLink>.",
+            "autojoined-community-notice-federation": "Federaalka iyo Bulshadu hadda waa kala go'een. <communityLink>ka gal beeshaada halkan</communityLink>",
             "community-terms-and-conditions": "Shuruudaha & Xaaladaha Bulshada",
             "confirm-exit": "Xaqiiji bixidda",
             "create-info-1": "Dadkaaga soo ururi. La wadaag adeegyada Ku xidhnow.",
@@ -543,7 +544,6 @@
         },
         "federation": {
             "add-federation": "Ku dar",
-            "autojoined-community-notice": "Federaalka iyo Bulshadu hadda waa kala go'een. <communityLink>ka gal beeshaada halkan</communityLink>",
             "create-info-1": "Federaalka waxaa maamula dad la aamini karo oo loo yaqaan ilaaliyaha.",
             "create-info-2": "Ilaaliyaasha ayaa wada shaqeeya si ay Federaalka u ilaaliyaan ammaan iyo ammaan.",
             "create-info-3": "Wadashaqeynta kooxeedku waxay ilaalinaysaa boorsadaada, sirtaada, waxayna ka dhigaysaa xiriirkaaga mid adag.",

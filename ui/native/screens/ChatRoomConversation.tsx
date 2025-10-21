@@ -1,7 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -23,6 +22,7 @@ import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOv
 import MultispendChatBanner from '../components/feature/multispend/MultispendChatBanner'
 import Flex from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 import {
@@ -48,11 +48,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const { shouldShowHeader } = useMultispendDisplayUtils(t, roomId)
     const [replyBarHeight, setReplyBarHeight] = useState(0)
 
-    const insets = useSafeAreaInsets()
-    const extraPadAndroid35 = useImeFooterLift({
-        insetsBottom: insets.bottom,
-        buffer: 20,
-    })
+    const extraPadAndroid35 = useImeFooterLift()
 
     const directUserId = useMemo(() => room?.directUserId, [room])
 
@@ -171,15 +167,14 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     }
 
     return (
-        <>
-            <Flex
-                grow
-                basis={false}
-                style={{ paddingBottom: extraPadAndroid35 }}>
+        <SafeAreaContainer
+            edges={['bottom']}
+            style={{ paddingBottom: extraPadAndroid35 }}>
+            <Flex grow basis={false}>
                 {content}
             </Flex>
             <SelectedMessageOverlay isPublic={!!room.isPublic} />
-        </>
+        </SafeAreaContainer>
     )
 }
 

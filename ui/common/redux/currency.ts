@@ -103,12 +103,17 @@ export const updateHistoricalCurrencyRates = createAsyncThunk<
         fedimint: FedimintBridge
         btcUsdRate: number
         fiatUsdRates: Record<string, number | undefined>
+        federationId?: Federation['id']
     },
     { state: CommonState }
 >(
     'currency/updateHistoricalCurrencyRates',
-    async ({ fedimint, btcUsdRate, fiatUsdRates }, { dispatch, getState }) => {
-        const selectedCurrency = selectCurrency(getState())
+    async (
+        { fedimint, btcUsdRate, fiatUsdRates, federationId },
+        { dispatch, getState },
+    ) => {
+        const s = getState()
+        const selectedCurrency = selectCurrency(s, federationId)
 
         if (
             btcUsdRate === undefined ||
@@ -168,11 +173,11 @@ export const updateHistoricalCurrencyRates = createAsyncThunk<
 
 export const refreshHistoricalCurrencyRates = createAsyncThunk<
     void,
-    { fedimint: FedimintBridge },
+    { fedimint: FedimintBridge; federationId?: Federation['id'] },
     { state: CommonState }
 >(
     'currency/refreshHistoricalCurrencyRates',
-    async ({ fedimint }, { dispatch, getState }) => {
+    async ({ fedimint, federationId }, { dispatch, getState }) => {
         // Check if onboarding is completed first
         const state = getState()
         if (!state.environment.onboardingCompleted) {
@@ -194,6 +199,7 @@ export const refreshHistoricalCurrencyRates = createAsyncThunk<
                     fedimint,
                     btcUsdRate,
                     fiatUsdRates,
+                    federationId,
                 }),
             ).unwrap()
         } catch (_err: unknown) {
@@ -267,13 +273,18 @@ export const selectCurrency = (
     s: CommonState,
     federationId?: Federation['id'],
 ) => {
-    // If no federationId, check for global override first
-    if (!federationId) {
-        const overrideCurrency = selectOverrideCurrency(s)
-        return overrideCurrency || SupportedCurrency.USD
+    // First use global override
+    const overrideCurrency = selectOverrideCurrency(s)
+    if (overrideCurrency) return overrideCurrency
+
+    // Then use federation currency
+    if (federationId) {
+        const federationCurrency = selectFederationCurrency(s, federationId)
+        if (federationCurrency) return federationCurrency
     }
 
-    return selectFederationCurrency(s, federationId)
+    // Fallback to USD
+    return SupportedCurrency.USD
 }
 
 export const selectFederationDefaultCurrency = (

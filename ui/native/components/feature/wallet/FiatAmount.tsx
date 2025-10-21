@@ -2,11 +2,12 @@ import { Text, TextProps, Theme, useTheme } from '@rneui/themed'
 import { StyleSheet } from 'react-native'
 
 import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
-import { Sats } from '@fedi/common/types'
+import { Federation, Sats } from '@fedi/common/types'
 
 type FiatAmountProps = {
     amountSats?: Sats
     textProps?: TextProps
+    federationId?: Federation['id']
 }
 
 const DEFAULT_TEXT_PROPS = {
@@ -16,9 +17,13 @@ const DEFAULT_TEXT_PROPS = {
 const FiatAmount = ({
     amountSats,
     textProps = DEFAULT_TEXT_PROPS,
+    federationId,
 }: FiatAmountProps) => {
     const { theme } = useTheme()
-    const { convertSatsToFormattedFiat } = useBtcFiatPrice()
+    const { convertSatsToFormattedFiat } = useBtcFiatPrice(
+        undefined,
+        federationId,
+    )
 
     let convertedAmount = '0.00'
     if (amountSats) {
