@@ -14,7 +14,6 @@ import {
     selectLastSelectedCommunity,
     selectOnboardingMethod,
 } from '@fedi/common/redux'
-import { selectCanShowSurvey } from '@fedi/common/redux/support'
 import { getFederationPinnedMessage } from '@fedi/common/utils/FederationUtils'
 
 import FirstTimeCommunityEntryOverlay, {
@@ -49,7 +48,6 @@ const Home: React.FC<Props> = () => {
         selectedCommunity?.meta || {},
     )
     const onboardingMethod = useAppSelector(selectOnboardingMethod)
-    const canShowSurvey = useAppSelector(selectCanShowSurvey)
     const shouldShowAutojoinedCommunityNotice = useAppSelector(s =>
         selectShouldShowAutojoinedCommunityNotice(
             s,
@@ -154,7 +152,7 @@ const Home: React.FC<Props> = () => {
                 show={showCommunityOverlay}
                 onDismiss={handleCommunityDismiss}
             />
-            {canShowSurvey && <SurveyOverlay />}
+            <SurveyOverlay />
             <AnalyticsConsentOverlay />
         </View>
     )

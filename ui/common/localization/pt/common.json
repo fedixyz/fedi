@@ -526,6 +526,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Federação e Comunidade agora são separadas. Para gerenciar dinheiro, <federationLink>acesse sua federação</federationLink>.",
+            "autojoined-community-notice-federation": "Federação e Comunidade agora estão separadas. <communityLink>Acesse sua comunidade aqui</communityLink>",
             "community-details": "Detalhes da comunidade",
             "community-mods": "Mods da Comunidade",
             "community-terms": "Termos da Comunidade",
@@ -560,7 +561,6 @@
         },
         "federation": {
             "add-federation": "Adicionar",
-            "autojoined-community-notice": "Federação e Comunidade agora estão separadas. <communityLink>Acesse sua comunidade aqui</communityLink>",
             "create-info-1": "Uma Federação é administrada por pessoas de confiança chamadas guardiões.",
             "create-info-2": "Os guardiões trabalham juntos para manter a Federação segura e protegida.",
             "create-info-3": "Esse trabalho em equipe protege sua carteira, sua privacidade e mantém sua Federação forte.",

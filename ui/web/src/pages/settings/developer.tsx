@@ -5,7 +5,9 @@ import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
+    resetSurveyCompletions,
     selectPaymentFederation,
+    setSurveyTimestamp,
 } from '@fedi/common/redux'
 import { LightningGateway } from '@fedi/common/types'
 import {
@@ -40,7 +42,9 @@ function DeveloperPage() {
     const federationId = paymentFederation?.id
     const federationNodes = paymentFederation?.nodes
 
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        federationId,
+    })
 
     /* Logs */
 
@@ -200,6 +204,21 @@ function DeveloperPage() {
                                     </Button>
                                 </>
                             )}
+                        </Setting>
+                        <Setting>
+                            <Text>Survey Tool</Text>
+                            <Button
+                                onClick={() => {
+                                    dispatch(setSurveyTimestamp(-1))
+                                }}>
+                                Reset survey tool timestamp
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    dispatch(resetSurveyCompletions())
+                                }}>
+                                Reset survey completions
+                            </Button>
                         </Setting>
                         <Setting>
                             <Text>{t('feature.developer.logs')}</Text>

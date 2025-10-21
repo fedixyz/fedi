@@ -5,6 +5,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, Pressable, View } from 'react-native'
 
+import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { selectIsFederationRecovering } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
@@ -35,6 +36,7 @@ const FederationTile: React.FC<{ federation: LoadedFederation }> = ({
     const recoveryInProgress = useAppSelector(s =>
         selectIsFederationRecovering(s, federation.id),
     )
+    const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
 
     const goToFederationDetails = () => {
         navigation.navigate('FederationDetails', {
@@ -47,7 +49,18 @@ const FederationTile: React.FC<{ federation: LoadedFederation }> = ({
             <Pressable
                 style={style.tileContainer}
                 onPress={goToFederationDetails}>
-                <FederationLogo federation={federation} size={48} />
+                <View style={style.logoContainer}>
+                    <FederationLogo federation={federation} size={48} />
+                    {popupInfo?.ended && (
+                        <View style={style.endedIndicator}>
+                            <SvgImage
+                                name="ExclamationCircle"
+                                size={16}
+                                color={theme.colors.red}
+                            />
+                        </View>
+                    )}
+                </View>
                 <Text bold style={style.title}>
                     {federation?.name}
                 </Text>
@@ -76,6 +89,20 @@ const FederationTile: React.FC<{ federation: LoadedFederation }> = ({
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        logoContainer: {
+            position: 'relative',
+            width: 48,
+            height: 48,
+        },
+        endedIndicator: {
+            position: 'absolute',
+            top: -6,
+            right: -6,
+            backgroundColor: theme.colors.white,
+            borderRadius: 1024,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
         tileContainer: {
             width: '100%',
             flexDirection: 'row',

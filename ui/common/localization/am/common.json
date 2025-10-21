@@ -230,7 +230,6 @@
             "description-placeholder": "ምን ጠበቁ እና በምትኩ ምን ተፈጠረ?",
             "email-label": "ኢሜል (አማራጭ)",
             "info-label": "ማህበረሰብ እና የተጠቃሚ ስም Bug ሪፖርት ጋር ይላኩ።",
-            "log-disclaimer": "የ Fedi ገንቢዎች ጉዳዩን እንዲያውቁ ለማገዝ የመተግበሪያ ምዝግብ ማስታወሻዎች ከሪፖርትዎ ጋር ይካተታሉ",
             "report-a-bug": "Bug ሪፖርት አድርግ",
             "screenshot-label": "ቅጽበታዊ ገጽ እይታዎችን ወይም ቅጂዎችን ይስቀሉ",
             "submit-generating-data": "የሪፖርት ውሂብ በመፍጠር ላይ...",
@@ -306,6 +305,7 @@
         },
         "communities": {
             "autojoined-community-notice": "ፌዴሬሽን እና ማህበረሰብ አሁን ተለያይተዋል። ገንዘብን ለማስተዳደር <federationLink>ወደ ፌዴሬሽንህ</federationLink> ይሂዱ።",
+            "autojoined-community-notice-federation": "ፌዴሬሽን እና ማህበረሰብ አሁን ተለያይተዋል። <communityLink>ማህበረሰብዎን እዚህ ይድረሱበት</communityLink>",
             "community-terms-and-conditions": "የማህበረሰብ ውሎች እና ሁኔታዎች",
             "confirm-exit": "መውጣቱን ያረጋግጡ",
             "create-info-1": "ሰዎችህን ሰብስብ። አገልግሎቶችን አጋራ። እንደተገናኙ ይቆዩ።",
@@ -327,9 +327,6 @@
             "nightly": "Nightly",
             "share-logs": "መረጃዎችን አጋራ",
             "share-state": "የመተግበሪያ ሁኔታን ያጋሩ"
-        },
-        "federation": {
-            "autojoined-community-notice": "ፌዴሬሽን እና ማህበረሰብ አሁን ተለያይተዋል። <communityLink>ማህበረሰብዎን እዚህ ይድረሱበት</communityLink>"
         },
         "federations": {
             "add-federation": "ማህበረሰብ ጨምር",
@@ -449,8 +446,7 @@
             "welcome-instructions-new": "አዲስ የፌዴሬሽኑ አባል እንደመሆንዎ መጠን አዲስ የኪስ ቦርሳ ያገኛሉ።",
             "welcome-instructions-returning": "ተመላሽ የፌዴሬሽኑ አባል እንደመሆኖ የኪስ ቦርሳዎ ይመለሳል። ይህ ጥቂት ደቂቃዎችን ሊወስድ ይችላል።",
             "welcome-instructions-unknown": "አዲስ አባላት አዲስ የኪስ ቦርሳ ይቀበላሉ። የሚመለሱ አባላት የድሮ የኪስ ቦርሳቸውን በራስ-ሰር ይመለሳሉ።",
-            "welcome-to-federation": "እንኩአን ደህና መጡ {{federation}}",
-            "welcome-to-fedi": "ወደ Fedi እንኳን በደህና መጡ"
+            "welcome-to-federation": "እንኩአን ደህና መጡ {{federation}}"
         },
         "parser": {
             "unsupported-bolt11-zero-amount": "ዜሮ መጠን lightning ደረሰኞች አይደገፉም። አዲስ የክፍያ መጠየቂያ ደረሰኝ ይፍጠሩ እና እንደገና ይሞክሩ።",
@@ -611,7 +607,6 @@
                 "brl": "የብራዚል ሪል",
                 "bwp": "ቦትስዋና ፑላ",
                 "cdf": "የኮንጐ ፍራንክ",
-                "cfa": "የመካከለኛው አፍሪካ ፍራንክ",
                 "clp": "የቺሊ ፔሶ",
                 "cop": "የኮሎምቢያ ፔሶ",
                 "cup": "የኩባ ፔሶ",
@@ -646,7 +641,6 @@
                 "uyu": "የኡራጓይ ፔሶ",
                 "ves": "ቦሊቫረስ",
                 "vnd": "ቬትናም ዶንግ",
-                "xaf": "ካሜሩን",
                 "zar": "የደቡብ አፍሪካ ራንድ",
                 "zmw": "የዛምቢያ ክዋቻ"
             }

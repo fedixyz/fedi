@@ -47,8 +47,8 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
 
     useFocusEffect(
         useCallback(() => {
-            syncCurrencyRatesAndCache()
-        }, [syncCurrencyRatesAndCache]),
+            syncCurrencyRatesAndCache(federationId)
+        }, [syncCurrencyRatesAndCache, federationId]),
     )
 
     return (

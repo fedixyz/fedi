@@ -183,9 +183,13 @@ export const useBtcFiatPrice = (
         ),
     }
 }
-export const useAmountFormatter = (currency?: SelectableCurrency) => {
+export const useAmountFormatter = (options?: {
+    currency?: SelectableCurrency
+    federationId?: Federation['id']
+}) => {
+    const { currency, federationId } = options ?? {}
     const { convertSatsToFormattedUsd, convertSatsToFormattedFiat } =
-        useBtcFiatPrice(currency)
+        useBtcFiatPrice(currency, federationId)
     const showFiatTxnAmounts = useCommonSelector(selectShowFiatTxnAmounts)
 
     const makeFormattedAmountsFromSats = useCallback(
@@ -249,13 +253,14 @@ export const useAmountFormatter = (currency?: SelectableCurrency) => {
             symbolPosition: AmountSymbolPosition = 'end',
         ): FormattedAmounts => {
             if (txn.txDateFiatInfo) {
-                log.debug(
-                    'makeFormattedAmountsFromTxn - Using historical exchange rate',
-                    {
-                        amountMSats: txn.amount,
-                        txDateFiatInfo: txn.txDateFiatInfo,
-                    },
-                )
+                // Too noisy. Logs for each item in the list. Uncomment if helpful.
+                // log.debug(
+                //     'makeFormattedAmountsFromTxn - Using historical exchange rate',
+                //     {
+                //         amountMSats: txn.amount,
+                //         txDateFiatInfo: txn.txDateFiatInfo,
+                //     },
+                // )
                 const sats = amountUtils.msatToSat(txn.amount)
                 const formattedFiat = convertSatsToFormattedFiat(
                     sats,
@@ -325,7 +330,9 @@ export function useTotalBalance() {
     const overrideCurrency = useCommonSelector(selectOverrideCurrency)
     const showFiatTotalBalance = useCommonSelector(selectShowFiatTotalBalance)
     const currencyToUse = overrideCurrency ?? SupportedCurrency.USD
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter(currencyToUse)
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        currency: currencyToUse,
+    })
     const combinedMsats = (totalBalanceMsats + totalStableBalanceMsats) as MSats
     const { formattedBtc, formattedSats, formattedFiat } =
         makeFormattedAmountsFromMSats(combinedMsats)
@@ -358,7 +365,13 @@ export function useBalance(federationId: string) {
     const balance = useCommonSelector(s =>
         selectFederationBalance(s, federationId),
     ) as MSats
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const selectedCurrency = useCommonSelector(s =>
+        selectCurrency(s, federationId),
+    )
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        currency: selectedCurrency,
+        federationId,
+    })
 
     const {
         formattedFiat,
@@ -425,7 +438,7 @@ export function useAmountInput(
 
     const handleChangeSats = useCallback(
         (value: string) => {
-            const sats = amountUtils.stripSatsValue(value, currencyLocale)
+            const sats = amountUtils.stripSatsValue(value, currency)
             const fiat = amountUtils.satToBtc(sats) * btcToFiatRateRef.current
             onChangeAmount && onChangeAmount(sats)
             setSatsValue(amountUtils.formatSats(sats))
@@ -436,7 +449,7 @@ export function useAmountInput(
                 }),
             )
         },
-        [currencyLocale, btcToFiatRateRef, onChangeAmount, currency],
+        [currency, btcToFiatRateRef, onChangeAmount, currencyLocale],
     )
 
     const handleChangeFiat = useCallback(
@@ -734,7 +747,7 @@ export function useAmountInput(
             satsValue,
             handleChangeFiat,
             handleChangeSats,
-            currencyLocale,
+            currency,
             currency,
         ],
     )

@@ -21,8 +21,8 @@ const Receive: React.FC<Props> = ({ route }) => {
 
     useFocusEffect(
         useCallback(() => {
-            syncCurrencyRatesAndCache()
-        }, [syncCurrencyRatesAndCache]),
+            syncCurrencyRatesAndCache(federationId)
+        }, [syncCurrencyRatesAndCache, federationId]),
     )
     return (
         <Flex grow fullWidth>

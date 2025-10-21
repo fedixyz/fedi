@@ -39,6 +39,8 @@ import {
     setStableBalanceEnabled,
     selectPaymentFederation,
     clearSessionCount,
+    setSurveyTimestamp,
+    resetSurveyCompletions,
 } from '@fedi/common/redux'
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
@@ -578,6 +580,20 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             </SettingsSection>
 
             <SettingsSection title="Danger zone">
+                <Button
+                    title="Reset survey tool timestamp"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(setSurveyTimestamp(-1))
+                    }}
+                />
+                <Button
+                    title="Reset survey completions"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(resetSurveyCompletions())
+                    }}
+                />
                 <Button
                     title="Reset new user experience"
                     containerStyle={style.buttonContainer}

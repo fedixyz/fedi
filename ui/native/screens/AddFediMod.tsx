@@ -52,10 +52,7 @@ const AddFediMod: React.FC = () => {
     const headerHeight = useHeaderHeight()
 
     const iosOffset = Math.max(0, headerHeight - insets.top + theme.spacing.xl)
-    const extraPadAndroid35 = useImeFooterLift({
-        insetsBottom: insets.bottom,
-        buffer: theme.spacing.xxl,
-    })
+    const extraPadAndroid35 = useImeFooterLift()
 
     const handleSubmit = async () => {
         try {

@@ -9,8 +9,13 @@ import {
     useBalanceDisplay,
 } from '@fedi/common/hooks/amount'
 import { useChatPaymentPush } from '@fedi/common/hooks/chat'
+import { useCommonSelector } from '@fedi/common/hooks/redux'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
-import { selectMatrixRoom, selectPaymentFederation } from '@fedi/common/redux'
+import {
+    selectCurrency,
+    selectMatrixRoom,
+    selectPaymentFederation,
+} from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { fedimint } from '../bridge'
@@ -42,7 +47,13 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
         amountUtils.satToMsat(amount),
     )
     const balanceDisplay = useBalanceDisplay(t, paymentFederation?.id || '')
-    const { makeFormattedAmountsFromSats } = useAmountFormatter()
+    const selectedCurrency = useCommonSelector(s =>
+        selectCurrency(s, paymentFederation?.id),
+    )
+    const { makeFormattedAmountsFromSats } = useAmountFormatter({
+        currency: selectedCurrency,
+        federationId: paymentFederation?.id,
+    })
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(amount)
 

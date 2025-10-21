@@ -54,10 +54,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
 
     const style = styles(theme)
     const openIOS = useIosKeyboardOpen(80)
-    const extraPadAndroid35 = useImeFooterLift({
-        insetsBottom: insets.bottom,
-        buffer: theme.spacing.xxl,
-    })
+    const extraPadAndroid35 = useImeFooterLift()
 
     return (
         <KeyboardAwareWrapper>

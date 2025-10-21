@@ -63,10 +63,7 @@ const EditProfileSettings: React.FC = () => {
 
     const style = styles(theme)
 
-    const extraPadAndroid35 = useImeFooterLift({
-        insetsBottom: insets.bottom,
-        buffer: theme.spacing.xxl,
-    })
+    const extraPadAndroid35 = useImeFooterLift()
 
     const handleAvatarPress = useCallback(
         async (_: GestureResponderEvent) => {

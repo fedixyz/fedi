@@ -10,7 +10,7 @@ import Share from 'react-native-share'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
-import { cancelEcash } from '@fedi/common/redux'
+import { cancelEcash, selectPaymentFederation } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
@@ -19,7 +19,7 @@ import HoloAlert from '../components/ui/HoloAlert'
 import QRCode from '../components/ui/QRCode'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppDispatch } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -33,7 +33,10 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
     const { width } = useWindowDimensions()
     const toast = useToast()
     const [index, setIndex] = useState(0)
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const paymentFederation = useAppSelector(selectPaymentFederation)
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        federationId: paymentFederation?.id,
+    })
     const dispatch = useAppDispatch()
 
     const frames = useMemo(() => {

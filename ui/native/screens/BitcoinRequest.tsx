@@ -30,7 +30,9 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
 
     const [isLoading, setIsLoading] = useState<boolean>(true)
     const [decoded, setDecoded] = useState<RpcInvoice | null>(null)
-    const selectedFiatCurrency = useAppSelector(selectCurrency)
+    const selectedFiatCurrency = useAppSelector(s =>
+        selectCurrency(s, federationId ?? undefined),
+    )
 
     useEffect(() => {
         fedimint
@@ -61,6 +63,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
                     )} ${t('words.sats').toUpperCase()}`}</Text>
                     <FiatAmount
                         amountSats={amountUtils.msatToSat(decoded.amount)}
+                        federationId={federationId ?? undefined}
                     />
                     {decoded.description && (
                         <Text small>{decoded.description}</Text>

@@ -317,32 +317,27 @@ export const useChatKeyboardBehavior = (): {
 }
 
 export type ImeFooterLiftOptions = {
-    insetsBottom: number
     buffer?: number
-    threshold?: number
-    subtractSafeAreaBottom?: boolean
-    // gate override (defaults to Android API 35+)
-    gate?: boolean
 }
 
-export const useImeFooterLift = ({
-    insetsBottom,
-    buffer = 0,
-    threshold = 0,
-    subtractSafeAreaBottom = true,
-    gate,
-}: ImeFooterLiftOptions): number => {
-    const { isVisible, height } = useKeyboard()
+// Android API 35+ seems to have some strange behavior where the
+// keyboard openiing does not automatically lift UI content above the
+// keyboard so this hook gives us the keyboard height to add to the bottom
+// plus an optional buffer as needed
+export const useImeFooterLift = (options?: ImeFooterLiftOptions): number => {
+    const { buffer = 0 } = options ?? {}
+    const { isVisible: keyboardIsVisible, height: keyboardHeight } =
+        useKeyboard()
+    // Android only behavior
+    if (Platform.OS !== 'android') return 0
+    // Android API 35+ only
+    if (!isAndroidAPI35Plus()) return 0
     const inputFocused = !!TextInput.State.currentlyFocusedInput?.()
-    const enabled = gate ?? isAndroidAPI35Plus()
+    // only when keyboard is open & input is focused
+    if (!keyboardIsVisible) return 0
+    if (!inputFocused) return 0
 
-    if (!(Platform.OS === 'android' && enabled && isVisible && inputFocused))
-        return 0
-
-    const base = (height ?? 0) - (subtractSafeAreaBottom ? insetsBottom : 0)
-    const delta = Math.max(0, base)
-    if (delta <= threshold) return 0
-    return delta + buffer
+    return keyboardHeight + buffer
 }
 
 // iOS: detect "keyboard open" with a stale-value guard (default 80px)

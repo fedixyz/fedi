@@ -73,6 +73,7 @@ const SendOfflineAmount: React.FC<Props> = () => {
                 ]}
                 notes={notes}
                 setNotes={setNotes}
+                federationId={paymentFederation?.id}
             />
         </SafeScrollArea>
     )

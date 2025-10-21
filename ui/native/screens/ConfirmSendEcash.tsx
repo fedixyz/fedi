@@ -45,7 +45,9 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const { formattedTotalFee, feeItemsBreakdown } = makeEcashFeeContent(
         amountUtils.satToMsat(amount),
     )
-    const { makeFormattedAmountsFromSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromSats } = useAmountFormatter({
+        federationId: paymentFederation?.id,
+    })
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(amount)
     const toast = useToast()

@@ -125,7 +125,9 @@ export const useStableBalances = (federationId: Federation['id']) => {
     const stableBalancePending = useAppSelector(s =>
         selectStableBalancePending(s, federationId),
     )
-    const selectedCurrency = useAppSelector(selectCurrency)
+    const selectedCurrency = useAppSelector(s =>
+        selectCurrency(s, federationId),
+    )
     const currencyLocale = useAppSelector(selectCurrencyLocale)
 
     const formattedStableBalance = amountUtils.formatFiat(

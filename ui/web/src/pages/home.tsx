@@ -1,15 +1,11 @@
 import { useEffect } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 
-import ProfileIcon from '@fedi/common/assets/svgs/profile.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
-import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
     selectLastSelectedCommunityChats,
     selectLastSelectedCommunity,
-    selectMatrixAuth,
-    selectOnboardingMethod,
 } from '@fedi/common/redux'
 import { selectVisibleCommunityMods } from '@fedi/common/redux/mod'
 import { getFederationPinnedMessage } from '@fedi/common/utils/FederationUtils'
@@ -20,10 +16,9 @@ import { ContentBlock } from '../components/ContentBlock'
 import { DisplayNameModal } from '../components/DisplayNameModal'
 import { FediModTiles } from '../components/FediModTiles'
 import PinnedMessage from '../components/Home/PinnedMessage'
-import { Icon } from '../components/Icon'
 import { InstallBanner } from '../components/InstallBanner'
 import * as Layout from '../components/Layout'
-import { Modal } from '../components/Modal'
+import SurveyModal from '../components/SurveyModal'
 import { Text } from '../components/Text'
 import {
     useAppSelector,
@@ -42,9 +37,6 @@ function HomePage() {
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
 
-    const [hasSeenDisplayName, completeSeenDisplayName] =
-        useNuxStep('displayNameModal')
-
     const handleOnInstall = async () => {
         await deferredPrompt?.prompt()
     }
@@ -54,9 +46,6 @@ function HomePage() {
     const selectedCommunityChats = useAppSelector(s =>
         selectLastSelectedCommunityChats(s),
     )
-    const matrixAuth = useAppSelector(selectMatrixAuth)
-    const onboardingMethod = useAppSelector(selectOnboardingMethod)
-    const isNewSeedUser = onboardingMethod !== 'restored'
     const pinnedMessage = getFederationPinnedMessage(
         selectedCommunity?.meta || {},
     )
@@ -136,40 +125,8 @@ function HomePage() {
                 )}
             </Layout.Root>
 
-            {/* Modal - Show user their display name */}
-            <Modal
-                open={
-                    isNewSeedUser &&
-                    !hasSeenDisplayName &&
-                    !!matrixAuth?.displayName
-                }
-                onClick={completeSeenDisplayName}
-                title={t('feature.home.display-name')}
-                description={matrixAuth?.displayName}>
-                <ModalContent aria-label="test">
-                    <ModalIconWrapper>
-                        <Icon icon={ProfileIcon} size="xl" />
-                    </ModalIconWrapper>
-                    <ModalTextWrapper>
-                        <Text variant="h2">
-                            {t('feature.home.display-name')}
-                        </Text>
-                        <Text variant="h2">
-                            &quot;{matrixAuth?.displayName}&quot;
-                        </Text>
-                    </ModalTextWrapper>
-                    <ModalTextWithIcon
-                        variant="body"
-                        css={{ color: theme.colors.darkGrey }}>
-                        <Trans
-                            i18nKey="feature.home.profile-change-icon"
-                            components={{
-                                icon: <ModalIcon icon={ProfileIcon} />,
-                            }}
-                        />
-                    </ModalTextWithIcon>
-                </ModalContent>
-            </Modal>
+            {/* TODO: re-enable survey modal */}
+            <SurveyModal />
 
             <DisplayNameModal />
             <AnalyticsConsentModal />
@@ -206,41 +163,6 @@ const NewsContainer = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-})
-
-const ModalContent = styled('div', {
-    alignItems: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-})
-
-const ModalTextWrapper = styled('div', {
-    marginBottom: 10,
-})
-
-const ModalTextWithIcon = styled(Text, {
-    alignItems: 'center',
-    display: 'flex',
-})
-
-const ModalIcon = styled(Icon, {
-    margin: '0 3px',
-    width: 20,
-})
-
-const ModalIconWrapper = styled('div', {
-    alignItems: 'center',
-    borderRadius: '50%',
-    boxSizing: 'border-box',
-    display: 'flex',
-    height: 50,
-    fediGradient: 'sky',
-    justifyContent: 'center',
-    marginBottom: 10,
-    padding: 5,
-    overflow: 'hidden',
-    width: 50,
 })
 
 export default HomePage

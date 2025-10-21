@@ -2,7 +2,6 @@ import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
     selectMatrixAuth,
@@ -16,6 +15,7 @@ import MessageInput from '../components/feature/chat/MessageInput'
 import NoMessagesNotice from '../components/feature/chat/NoMessagesNotice'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import Flex from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
 import { InputAttachment, InputMedia } from '../types'
@@ -38,11 +38,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
         selectMatrixDirectMessageRoom(s, userId),
     )
     const [isSending, setIsSending] = useState(false)
-    const insets = useSafeAreaInsets()
-    const extraPadAndroid35 = useImeFooterLift({
-        insetsBottom: insets.bottom,
-        buffer: 20,
-    })
+    const extraPadAndroid35 = useImeFooterLift()
 
     const dispatch = useAppDispatch()
 
@@ -100,12 +96,10 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
     }, [handleSend, isSending, userId])
 
     return (
-        <>
-            <Flex
-                grow
-                basis={false}
-                align="stretch"
-                style={{ paddingBottom: extraPadAndroid35 }}>
+        <SafeAreaContainer
+            edges={['bottom']}
+            style={{ paddingBottom: extraPadAndroid35 }}>
+            <Flex grow basis={false} align="stretch">
                 {isSending ? (
                     <Flex grow justify="center">
                         <ActivityIndicator size="large" />
@@ -116,7 +110,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
                 {renderMessageInput()}
             </Flex>
             <SelectedMessageOverlay isPublic={false} />
-        </>
+        </SafeAreaContainer>
     )
 }
 

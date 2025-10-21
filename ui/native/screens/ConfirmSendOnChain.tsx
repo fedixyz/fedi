@@ -48,7 +48,9 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
         handleOmniInput,
         handleOmniSend,
     } = useOmniPaymentState(fedimint, paymentFederation?.id, t)
-    const { makeFormattedAmountsFromSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromSats } = useAmountFormatter({
+        federationId: paymentFederation?.id,
+    })
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromSats(inputAmount)
 

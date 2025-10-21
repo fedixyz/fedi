@@ -1,67 +1,33 @@
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import tooltipIcon from '@fedi/common/assets/svgs/tooltip.svg'
 import { theme } from '@fedi/common/constants/theme'
-import { useNuxStep } from '@fedi/common/hooks/nux'
-import { selectLanguage } from '@fedi/common/redux'
-import {
-    resetSurveyTimestamp,
-    selectSurveyUrl,
-} from '@fedi/common/redux/support'
-import { getSurveyLanguage } from '@fedi/common/utils/survey'
+import { useSurveyForm } from '@fedi/common/hooks/survey'
 
-import { useAppDispatch, useAppSelector } from '../hooks'
 import { styled } from '../styles'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
 
 const SurveyModal = () => {
-    const [hasAcceptedSurvey, completeAcceptSurvey] =
-        useNuxStep('hasAcceptedSurvey')
+    const { show, handleDismiss, handleAccept, activeSurvey } = useSurveyForm()
 
-    const url = useAppSelector(selectSurveyUrl)
-    const language = useAppSelector(selectLanguage)
-    const dispatch = useAppDispatch()
+    const handleOpen = (url: URL) => window.open(url.toString(), '_blank')
 
-    const { t } = useTranslation()
-
-    const handleDismiss = useCallback(() => {
-        dispatch(resetSurveyTimestamp())
-    }, [dispatch])
-
-    const handleOpenSurveyLink = useCallback(() => {
-        if (!url) return
-
-        const surveyUrl = new URL(url)
-
-        if (language) {
-            surveyUrl.searchParams.set('lang', getSurveyLanguage(language))
-        }
-
-        handleDismiss()
-        completeAcceptSurvey()
-
-        window.open(surveyUrl.toString(), '_blank')
-    }, [language, handleDismiss, completeAcceptSurvey, url])
+    if (!activeSurvey) return null
 
     return (
         <Modal
-            open={!hasAcceptedSurvey && !!url}
-            onClick={handleOpenSurveyLink}
+            open={show}
+            onClick={() => handleAccept(handleOpen)}
             onOpenChange={handleDismiss}
-            buttonText={t('feature.support.give-feedback')}
-            title={t('feature.support.survey-title')}
-            description={t('feature.support.survey-description')}
+            buttonText={activeSurvey.buttonText}
+            title={activeSurvey.title}
+            description={activeSurvey.description}
             showCloseButton>
             <ModalContents>
                 <IconWrapper>
                     <Icon icon={tooltipIcon} size="md" />
                 </IconWrapper>
-                <h2>{t('feature.support.survey-title')}</h2>
-                <Description>
-                    {t('feature.support.survey-description')}
-                </Description>
+                <h2>{activeSurvey.title}</h2>
+                <Description>{activeSurvey.description}</Description>
             </ModalContents>
         </Modal>
     )

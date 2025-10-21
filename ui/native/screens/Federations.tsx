@@ -11,7 +11,7 @@ import {
 
 import FeaturedFederation from '../components/feature/federations/FeaturedFederation'
 import FederationTile from '../components/feature/federations/FederationTile'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { resetToJoinFederation } from '../state/navigation'
 import type {
@@ -44,14 +44,14 @@ const Federations: React.FC<Props> = () => {
         <ScrollView
             contentContainerStyle={style.container}
             alwaysBounceVertical={false}>
-            <Flex gap="lg" fullWidth style={style.contentContainer}>
+            <Column gap="lg" fullWidth>
                 <FeaturedFederation />
                 {federations.map(federation => (
                     <View key={federation.id} style={style.tileContainer}>
                         <FederationTile federation={federation} />
                     </View>
                 ))}
-            </Flex>
+            </Column>
         </ScrollView>
     )
 }
@@ -65,9 +65,6 @@ const styles = (theme: Theme) =>
             // paddingHorizontal: theme.spacing.lg,
             paddingBottom: theme.spacing.xl,
             width: '100%',
-        },
-        contentContainer: {
-            // backgroundColor: 'lightblue',
         },
         tileContainer: {
             paddingHorizontal: theme.spacing.lg,

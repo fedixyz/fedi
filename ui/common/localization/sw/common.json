@@ -527,6 +527,7 @@
         },
         "communities": {
             "autojoined-community-notice": "Shirikisho na Jumuiya sasa zimetengana. Ili kudhibiti pesa, <federationLink>nenda kwa shirikisho lako</federationLink>.",
+            "autojoined-community-notice-federation": "Shirikisho na Jumuiya sasa zimetengana. <communityLink>Fikia jumuiya yako hapa</communityLink>",
             "community-details": "Maelezo ya Jumuiya",
             "community-mods": "Mods za Jumuiya",
             "community-terms": "Masharti ya Jumuiya",
@@ -561,7 +562,6 @@
         },
         "federation": {
             "add-federation": "Ongeza shirikisho",
-            "autojoined-community-notice": "Shirikisho na Jumuiya sasa zimetengana. <communityLink>Fikia jumuiya yako hapa</communityLink>",
             "create-info-1": "Shirikisho linasimamiwa na watu wanaoaminika wanaoitwa walinzi.",
             "create-info-2": "Walinzi hufanya kazi kwa pamoja ili kuweka Shirikisho likiwa salama na salama.",
             "create-info-3": "Ushirikiano huu unalinda pochi lako, faragha yako, na kuweka Shirikisho lako imara.",

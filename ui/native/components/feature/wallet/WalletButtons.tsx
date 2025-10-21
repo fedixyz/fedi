@@ -2,9 +2,10 @@ import { Button, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 
+import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { LoadedFederation } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type Override = {
@@ -28,6 +29,8 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
     const { theme } = useTheme()
     const style = styles(theme)
 
+    const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
+
     if (!federation) return null
 
     const handleIncoming = () => {
@@ -43,12 +46,12 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
     }
 
     return (
-        <Flex row center gap="lg">
+        <Row center gap="lg">
             <Button
                 bubble
                 outline
                 size="sm"
-                disabled={incoming.disabled}
+                disabled={incoming.disabled || popupInfo?.ended}
                 onPress={handleIncoming}
                 icon={<SvgImage name="ArrowDown" />}
                 containerStyle={style.buttonContainer}
@@ -58,7 +61,7 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 bubble
                 outline
                 size="sm"
-                disabled={outgoing.disabled}
+                disabled={outgoing.disabled || popupInfo?.ended}
                 onPress={handleOutgoing}
                 icon={<SvgImage name="ArrowUpRight" />}
                 containerStyle={style.buttonContainer}
@@ -68,12 +71,13 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 bubble
                 outline
                 size="sm"
+                disabled={popupInfo?.ended}
                 onPress={handleHistory}
                 icon={<SvgImage name="TxnHistory" />}
                 containerStyle={style.circleButtonContainer}
                 buttonStyle={style.button}
             />
-        </Flex>
+        </Row>
     )
 }
 

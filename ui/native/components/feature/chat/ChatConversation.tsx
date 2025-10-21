@@ -197,7 +197,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     // Animate new message button in and out
     useEffect(() => {
         Animated.timing(animatedNewMessageBottom, {
-            toValue: hasNewMessage ? newMessageBottomOffset : -50,
+            toValue: hasNewMessage ? newMessageBottomOffset : -100,
             duration: 100,
             useNativeDriver: false,
             easing: Easing.linear,

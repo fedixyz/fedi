@@ -25,7 +25,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 35,
+        version: 36,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -51,7 +51,8 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
                 state.support.zendeskPushNotificationToken,
         },
         seenFederationRatings: state.federation.seenFederationRatings,
-        lastShownSurveyTimestamp: state.support.lastShownSurveyTimestamp,
+        lastShownSurveyTimestamp: state.survey.lastShownSurveyTimestamp,
+        surveyCompletions: state.survey.surveyCompletions,
         lastSelectedCommunityId: state.federation.lastSelectedCommunityId,
         recentlyUsedFederationIds: state.federation.recentlyUsedFederationIds,
         previouslyAutojoinedCommunities:
@@ -122,7 +123,8 @@ export function hasStorageStateChanged(
         ['mod', 'modVisibility'],
         ['support', 'supportPermissionGranted'],
         ['support', 'zendeskPushNotificationToken'],
-        ['support', 'lastShownSurveyTimestamp'],
+        ['survey', 'lastShownSurveyTimestamp'],
+        ['survey', 'surveyCompletions'],
         ['analytics', 'analyticsId'],
         ['analytics', 'hasConsentedToAnalytics'],
         ['analytics', 'hasSeenAnalyticsConsentModal'],
@@ -726,6 +728,15 @@ async function migrateStoredState(
             ...migrationState,
             version: 35,
             showFiatTotalBalance: false,
+        }
+    }
+
+    if (migrationState.version === 35) {
+        migrationState = {
+            ...migrationState,
+            version: 36,
+            surveyCompletions: {},
+            lastShownSurveyTimestamp: -1,
         }
     }
 

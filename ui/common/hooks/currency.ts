@@ -14,18 +14,24 @@ const log = makeLog('common/hooks/currency')
 export function useSyncCurrencyRatesAndCache(fedimint: FedimintBridge) {
     const dispatch = useCommonDispatch()
 
-    const syncCurrencyRatesAndCache = useCallback(async () => {
-        try {
-            await dispatch(
-                refreshHistoricalCurrencyRates({ fedimint }),
-            ).unwrap()
+    const syncCurrencyRatesAndCache = useCallback(
+        async (federationId?: string) => {
+            try {
+                await dispatch(
+                    refreshHistoricalCurrencyRates({ fedimint, federationId }),
+                ).unwrap()
 
-            log.info('Successfully refreshed historical currency rates.')
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err)
-            log.warn('Failed to refresh historical currency rates:', message)
-        }
-    }, [dispatch, fedimint])
+                log.info('Successfully refreshed historical currency rates.')
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err)
+                log.warn(
+                    'Failed to refresh historical currency rates:',
+                    message,
+                )
+            }
+        },
+        [dispatch, fedimint],
+    )
 
     return syncCurrencyRatesAndCache
 }

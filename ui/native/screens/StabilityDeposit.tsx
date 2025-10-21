@@ -54,8 +54,8 @@ const StabilityDeposit: React.FC<Props> = ({ route }: Props) => {
 
     useFocusEffect(
         useCallback(() => {
-            syncCurrencyRatesAndCache()
-        }, [syncCurrencyRatesAndCache]),
+            syncCurrencyRatesAndCache(federationId)
+        }, [syncCurrencyRatesAndCache, federationId]),
     )
     const style = styles(theme)
 

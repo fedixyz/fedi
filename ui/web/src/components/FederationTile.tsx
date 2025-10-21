@@ -3,6 +3,8 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import chevronRight from '@fedi/common/assets/svgs/chevron-right.svg'
+import exclamationCircle from '@fedi/common/assets/svgs/exclamation-circle.svg'
+import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { selectIsFederationRecovering } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
@@ -24,11 +26,19 @@ const FederationTile: React.FC<Props> = ({ federation }) => {
     const recoveryInProgress = useAppSelector(s =>
         selectIsFederationRecovering(s, federation.id),
     )
+    const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
 
     return (
         <Container>
             <TileHeader as={Link} href={federationRoute(federation.id)}>
-                <FederationAvatar federation={federation} size="md" />
+                <LogoContainer>
+                    <FederationAvatar federation={federation} size="md" />
+                    {popupInfo?.ended && (
+                        <EndedIndicator>
+                            <Icon icon={exclamationCircle} size="xs" />
+                        </EndedIndicator>
+                    )}
+                </LogoContainer>
                 <Text weight="bold" css={{ color: theme.colors.primary }}>
                     {federation?.name}
                 </Text>
@@ -51,6 +61,24 @@ const FederationTile: React.FC<Props> = ({ federation }) => {
         </Container>
     )
 }
+
+const LogoContainer = styled('div', {
+    position: 'relative',
+    width: 48,
+    height: 48,
+})
+
+const EndedIndicator = styled('div', {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 16,
+    height: 16,
+    backgroundColor: theme.colors.white,
+    borderRadius: 1024,
+    alignItems: 'center',
+    justifyContent: 'center',
+})
 
 const Container = styled('div', {
     display: 'flex',

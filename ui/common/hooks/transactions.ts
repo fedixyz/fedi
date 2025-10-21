@@ -114,7 +114,10 @@ export function useTxnDisplayUtils(
     const { convertCentsToFormattedFiat, convertSatsToFormattedFiat } =
         useBtcFiatPrice(selectedCurrency, federationId)
     const showFiatTxnAmounts = useCommonSelector(selectShowFiatTxnAmounts)
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        currency: selectedCurrency,
+        federationId,
+    })
     const preferredCurrency = showFiatTxnAmounts
         ? selectedCurrency
         : t('words.sats').toUpperCase()
@@ -402,7 +405,9 @@ export function useExportTransactions(
     federationId: Federation['id'],
 ) {
     const { fetchTransactions } = useTransactionHistory(fedimint, federationId)
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        federationId,
+    })
 
     const exportTransactions = useCallback(
         async (federation: LoadedFederation): Promise<ExportResult> => {
@@ -532,7 +537,9 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
     const stabilityPoolAverageFeeRate = useCommonSelector(s =>
         selectStabilityPoolAverageFeeRate(s, federationId),
     )
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
+        federationId,
+    })
     const stabilityConfig = useCommonSelector(s =>
         selectFederationStabilityPoolConfig(s, federationId),
     )
