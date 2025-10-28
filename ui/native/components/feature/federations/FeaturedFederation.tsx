@@ -15,7 +15,11 @@ const FeaturedFederation: React.FC = () => {
     return (
         <View style={style.container}>
             {lastUsedFederation && (
-                <FederationTile federation={lastUsedFederation} />
+                <FederationTile
+                    federation={lastUsedFederation}
+                    expanded
+                    setExpandedWalletId={() => {}}
+                />
             )}
         </View>
     )

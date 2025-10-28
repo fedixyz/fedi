@@ -158,6 +158,10 @@ export type FeatureCatalog = {
    * Config for which invite code to use for joining the global community
    */
   global_community: GlobalCommunityFeatureConfig;
+  /**
+   * Guardianito chatbot API configuration.
+   */
+  guardianito: GuardianitoFeatureConfig;
 };
 
 export type FiatFXInfo = {
@@ -209,6 +213,10 @@ export type GuardianStatus =
   | { online: { guardian: string; latency_ms: number } }
   | { error: { guardian: string; error: string } }
   | { timeout: { guardian: string; elapsed: string } };
+
+export type GuardianitoBot = { bot_user_id: string; bot_room_id: string };
+
+export type GuardianitoFeatureConfig = { api_base_url: string };
 
 export type LogEvent = { log: string };
 
@@ -708,6 +716,7 @@ export type RpcMethods = {
   getRecurringdLnurl: [getRecurringdLnurl, string];
   getNostrPubkey: [getNostrPubkey, RpcNostrPubkey];
   getNostrSecret: [getNostrSecret, RpcNostrSecret];
+  guardianitoGetOrCreateBot: [guardianitoGetOrCreateBot, GuardianitoBot];
   signNostrEvent: [signNostrEvent, string];
   nostrEncrypt: [nostrEncrypt, string];
   nostrDecrypt: [nostrDecrypt, string];
@@ -1702,6 +1711,8 @@ export type getTransaction = {
   federationId: RpcFederationId;
   operationId: RpcOperationId;
 };
+
+export type guardianitoGetOrCreateBot = {};
 
 export type internalExportBridgeState = { path: string };
 

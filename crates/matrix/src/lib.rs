@@ -345,23 +345,22 @@ impl Matrix {
             .session()
             .ok_or_else(|| anyhow::anyhow!("session not found, requires login"))?;
         let meta = session_meta.meta().clone();
-        if cached {
-            if let Some(cached_display_name) = app_state
+        if cached
+            && let Some(cached_display_name) = app_state
                 .with_read_lock(|r| r.matrix_display_name.clone())
                 .await
-            {
-                return Ok(RpcMatrixAccountSession {
-                    user_id: meta.user_id,
-                    device_id: meta.device_id,
-                    avatar_url: self
-                        .client
-                        .account()
-                        .get_cached_avatar_url()
-                        .await?
-                        .map(|x| x.to_string()),
-                    display_name: Some(cached_display_name),
-                });
-            }
+        {
+            return Ok(RpcMatrixAccountSession {
+                user_id: meta.user_id,
+                device_id: meta.device_id,
+                avatar_url: self
+                    .client
+                    .account()
+                    .get_cached_avatar_url()
+                    .await?
+                    .map(|x| x.to_string()),
+                display_name: Some(cached_display_name),
+            });
         }
         let profile = self.client.account().fetch_user_profile().await?;
         let (avatar_url, display_name) = (

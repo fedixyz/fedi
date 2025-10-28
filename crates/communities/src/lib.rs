@@ -10,6 +10,7 @@ use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use fedimint_core::task::TaskGroup;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::update_merge::UpdateMerge;
+use nostril::Nostril;
 use rpc_types::RpcCommunity;
 use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, EventSink, TypedEventExt};
@@ -27,6 +28,7 @@ use tracing::info;
 /// to its Communities struct.
 pub struct Communities {
     pub communities: Mutex<BTreeMap<String, Community>>,
+    pub nostril: Arc<Nostril>,
     pub app_state: AppState,
     pub event_sink: EventSink,
     pub task_group: TaskGroup,
@@ -35,7 +37,7 @@ pub struct Communities {
 }
 
 impl Communities {
-    pub async fn init(runtime: Arc<Runtime>) -> Arc<Self> {
+    pub async fn init(runtime: Arc<Runtime>, nostril: Arc<Nostril>) -> Arc<Self> {
         let http_client = reqwest::Client::new();
 
         let joined_communities = runtime
@@ -65,6 +67,7 @@ impl Communities {
 
         let this = Arc::new(Self {
             communities,
+            nostril,
             app_state: runtime.app_state.clone(),
             event_sink: runtime.event_sink.clone(),
             task_group: runtime.task_group.clone(),

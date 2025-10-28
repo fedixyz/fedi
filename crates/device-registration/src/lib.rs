@@ -156,14 +156,12 @@ pub async fn register_device_with_backoff(
                         if let Some(last_registration_timestamp) = app_state
                             .with_read_lock(|state| state.last_device_registration_timestamp)
                             .await
-                        {
-                            if last_registration_timestamp + DEVICE_REGISTRATION_OVERDUE
+                            && last_registration_timestamp + DEVICE_REGISTRATION_OVERDUE
                                 < fedimint_core::time::now()
-                            {
-                                event_sink.typed_event(&Event::device_registration(
-                                    rpc_types::event::DeviceRegistrationState::Overdue,
-                                ));
-                            }
+                        {
+                            event_sink.typed_event(&Event::device_registration(
+                                rpc_types::event::DeviceRegistrationState::Overdue,
+                            ));
                         }
                         // Return an Err to indicate error is retryable
                         Err(anyhow!("register device failed, retrying"))

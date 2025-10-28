@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
@@ -14,7 +14,7 @@ import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import TotalBalance from '../../ui/TotalBalance'
-import CommunitySelector from '../federations/CommunitySelector'
+import CommunitiesOverlay from '../federations/CommunitiesOverlay'
 import SelectedCommunity from '../federations/SelectedCommunity'
 
 const HomeHeader: React.FC = () => {
@@ -23,6 +23,7 @@ const HomeHeader: React.FC = () => {
     const navigation = useNavigation<NavigationHook>()
     const showNightlyBanner = useMemo(() => isNightly(), [])
     const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
+    const [showCommunities, setShowCommunities] = useState(false)
 
     const style = styles(theme)
 
@@ -32,45 +33,68 @@ const HomeHeader: React.FC = () => {
     }
 
     return (
-        <GradientView variant="sky" style={style.container}>
-            <Flex gap="md" style={style.contentContainer}>
-                <Flex gap="xs">
-                    <Header
-                        transparent
-                        containerStyle={style.headerContainer}
-                        headerLeft={<CommunitySelector />}
-                        headerRight={
-                            <MainHeaderButtons onAddPress={openJoinCommunity} />
-                        }
-                    />
-                    <TotalBalance />
+        <View style={style.container}>
+            <GradientView variant="sky" style={style.gradientHeader}>
+                <Flex gap="md" style={style.contentContainer}>
+                    <Flex gap="xs">
+                        <Header
+                            transparent
+                            containerStyle={style.headerContainer}
+                            headerLeft={
+                                <Text
+                                    h2
+                                    medium
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit>
+                                    {t('words.communities')}
+                                </Text>
+                            }
+                            headerRight={
+                                <MainHeaderButtons
+                                    onAddPress={openJoinCommunity}
+                                    onShowCommunitiesPress={() =>
+                                        setShowCommunities(true)
+                                    }
+                                />
+                            }
+                        />
+                        <TotalBalance />
+                    </Flex>
+                    {/* TODO: restore this on federations screen */}
+                    {/* <NetworkBanner /> */}
+                    {showNightlyBanner && (
+                        <View style={style.nightly}>
+                            <Text
+                                small
+                                style={style.nightlyText}
+                                adjustsFontSizeToFit>
+                                {t('feature.developer.nightly')}
+                            </Text>
+                        </View>
+                    )}
                 </Flex>
-                {/* TODO: restore this on federations screen */}
-                {/* <NetworkBanner /> */}
-                {showNightlyBanner && (
-                    <View style={style.nightly}>
-                        <Text
-                            small
-                            style={style.nightlyText}
-                            adjustsFontSizeToFit>
-                            {t('feature.developer.nightly')}
-                        </Text>
-                    </View>
-                )}
-                {selectedCommunity && (
+            </GradientView>
+            {selectedCommunity && (
+                <View style={style.selectedCommunityContainer}>
                     <SelectedCommunity community={selectedCommunity} />
-                )}
-            </Flex>
-        </GradientView>
+                </View>
+            )}
+
+            <CommunitiesOverlay
+                open={showCommunities}
+                onOpenChange={setShowCommunities}
+            />
+        </View>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            borderBottomLeftRadius: 16,
-            borderBottomRightRadius: 16,
+            borderBottomColor: theme.colors.extraLightGrey,
+            borderBottomWidth: 1,
         },
+        gradientHeader: {},
         contentContainer: {
             paddingHorizontal: theme.spacing.lg,
             paddingBottom: theme.spacing.lg,
@@ -78,6 +102,9 @@ const styles = (theme: Theme) =>
         headerContainer: {
             justifyContent: 'center',
             paddingHorizontal: 0,
+        },
+        selectedCommunityContainer: {
+            padding: theme.spacing.lg,
         },
         nightly: {
             position: 'absolute',

@@ -1,7 +1,7 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { useNavigation } from '@react-navigation/native'
 import { useTheme, type Theme } from '@rneui/themed'
-import React from 'react'
+import React, { useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 
 import {
@@ -28,6 +28,10 @@ const Federations: React.FC<Props> = () => {
     const { theme } = useTheme()
     const navigation = useNavigation()
 
+    const [expandedWalletId, setExpandedWalletId] = useState<string | null>(
+        null,
+    )
+
     // the featured federation is displayed in the FederationsHeader instead to fit in the gradient background
     const loadedFederations = useAppSelector(selectLoadedFederations)
     const federations = useAppSelector(selectNonFeaturedFederations)
@@ -48,7 +52,11 @@ const Federations: React.FC<Props> = () => {
                 <FeaturedFederation />
                 {federations.map(federation => (
                     <View key={federation.id} style={style.tileContainer}>
-                        <FederationTile federation={federation} />
+                        <FederationTile
+                            federation={federation}
+                            expanded={expandedWalletId === federation.id}
+                            setExpandedWalletId={setExpandedWalletId}
+                        />
                     </View>
                 ))}
             </Column>

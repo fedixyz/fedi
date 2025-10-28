@@ -324,6 +324,8 @@ export type InviteCodeType = 'federation' | 'community'
 
 export type PublicFederation = Pick<LoadedFederation, 'id' | 'name' | 'meta'>
 
+export type PublicCommunity = Pick<Community, 'id' | 'name' | 'meta'>
+
 export type SeedWords = RpcResponse<'getMnemonic'>
 
 export interface FediMod {

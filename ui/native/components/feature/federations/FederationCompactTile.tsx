@@ -10,7 +10,8 @@ import { FederationLogo } from './FederationLogo'
 const FederationCompactTile: React.FC<{
     federation?: Pick<LoadedFederation, 'id' | 'meta' | 'name'>
     isLoading?: boolean
-}> = ({ federation, isLoading }) => {
+    textColor?: string
+}> = ({ federation, isLoading, textColor }) => {
     const { theme } = useTheme()
     const style = styles(theme)
 
@@ -23,9 +24,7 @@ const FederationCompactTile: React.FC<{
                     <>
                         <FederationLogo federation={federation} size={32} />
                         {federation?.name && (
-                            <Text color={theme.colors.secondary}>
-                                {federation.name}
-                            </Text>
+                            <Text color={textColor}>{federation.name}</Text>
                         )}
                     </>
                 )}

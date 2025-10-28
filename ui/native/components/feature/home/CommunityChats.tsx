@@ -12,7 +12,7 @@ import { ChatType, MatrixRoom } from '@fedi/common/types'
 import { getDefaultGroupChats } from '@fedi/common/utils/FederationUtils'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import DefaultChatTile from './DefaultChatTile'
 
 const CommunityChats = () => {
@@ -72,7 +72,7 @@ const CommunityChats = () => {
         return null
 
     return (
-        <Flex gap="sm" fullWidth>
+        <Column gap="sm" fullWidth>
             <Text bold style={style.sectionTitle}>
                 {t('feature.chat.community-news')}
             </Text>
@@ -81,10 +81,9 @@ const CommunityChats = () => {
                     key={`chat-tile-${idx}`}
                     room={chat}
                     onSelect={handleOpenChat}
-                    federationOrCommunity={selectedCommunity}
                 />
             ))}
-        </Flex>
+        </Column>
     )
 }
 

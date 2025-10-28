@@ -1,6 +1,6 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useMemo } from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { useMatrixRepliedMessage } from '@fedi/common/hooks/matrix'
 import {
@@ -15,8 +15,7 @@ import {
 } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { OptionalGradient } from '../../ui/OptionalGradient'
-import { bubbleGradient } from './ChatEvent'
+import ChatEventWrapper from './ChatEventWrapper'
 import ChatRepliedMessage from './ChatRepliedMessage'
 import MessageContents from './MessageContents'
 
@@ -77,60 +76,35 @@ const ChatTextEvent: React.FC<Props> = ({
     const isMe = event.sender === matrixAuth?.userId
 
     return (
-        <Pressable
-            onLongPress={handleLongPress}
-            android_ripple={{ color: 'transparent' }}
-            style={({ pressed }) => [pressed && { opacity: 0.8 }]}>
-            <OptionalGradient
-                gradient={isMe ? bubbleGradient : undefined}
-                style={[
-                    style.bubbleInner,
-                    isMe ? style.blueBubble : style.greyBubble,
-                    {
-                        maxWidth: theme.sizes.maxMessageWidth,
-                        alignSelf: isMe ? 'flex-end' : 'flex-start',
-                        // Prevent any layout animations
-                        transform: [{ translateX: 0 }],
-                        ...(isWide && { width: theme.sizes.maxMessageWidth }),
-                    },
-                ]}>
-                {repliedData && onReplyTap && (
-                    <View style={style.replyContainer}>
-                        <ChatRepliedMessage
-                            repliedData={repliedData}
-                            onReplyTap={onReplyTap}
-                            roomMembers={roomMembers}
-                            isFromCurrentUser={isMe}
-                        />
-                    </View>
-                )}
+        <ChatEventWrapper
+            event={event}
+            isWide={isWide}
+            handleLongPress={handleLongPress}>
+            {repliedData && onReplyTap && (
+                <View style={style.replyContainer}>
+                    <ChatRepliedMessage
+                        repliedData={repliedData}
+                        onReplyTap={onReplyTap}
+                        roomMembers={roomMembers}
+                        isFromCurrentUser={isMe}
+                    />
+                </View>
+            )}
 
-                <MessageContents
-                    roomMembers={roomMembers}
-                    content={cleanedContentForDisplay}
-                    sentByMe={isMe}
-                    textStyles={[
-                        isMe ? style.outgoingText : style.incomingText,
-                    ]}
-                    onMentionPress={onMentionPress}
-                    currentUserId={matrixAuth?.userId}
-                />
-            </OptionalGradient>
-        </Pressable>
+            <MessageContents
+                roomMembers={roomMembers}
+                content={cleanedContentForDisplay}
+                sentByMe={isMe}
+                textStyles={[isMe ? style.outgoingText : style.incomingText]}
+                onMentionPress={onMentionPress}
+                currentUserId={matrixAuth?.userId}
+            />
+        </ChatEventWrapper>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        bubbleInner: {
-            padding: 12,
-        },
-        greyBubble: {
-            backgroundColor: theme.colors.extraLightGrey,
-        },
-        blueBubble: {
-            backgroundColor: theme.colors.blue,
-        },
         incomingText: {
             color: theme.colors.primary,
         },

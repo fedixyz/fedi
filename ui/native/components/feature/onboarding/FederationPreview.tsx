@@ -119,12 +119,6 @@ const FederationPreview: React.FC<Props> = ({
     )
 
     const welcomeTitle = federation?.name
-    const welcomeInstructions =
-        federation.returningMemberStatus.type === 'newMember'
-            ? t('feature.onboarding.welcome-instructions-new')
-            : isReturningMember
-              ? t('feature.onboarding.welcome-instructions-returning')
-              : t('feature.onboarding.welcome-instructions-unknown')
 
     return (
         <SafeAreaContainer edges="notop" style={s.joinPreviewContainer}>
@@ -136,18 +130,18 @@ const FederationPreview: React.FC<Props> = ({
                     </Text>
                 </Flex>
 
-                <View style={s.roundedCardContainer}>
-                    <Text caption style={s.welcomeText}>
+                {welcomeMessage && (
+                    <View style={s.roundedCardContainer}>
                         <Trans
                             components={{
                                 bold: (
                                     <Text caption bold style={s.welcomeText} />
                                 ),
                             }}>
-                            {welcomeMessage ?? welcomeInstructions}
+                            {welcomeMessage}
                         </Trans>
-                    </Text>
-                </View>
+                    </View>
+                )}
             </ShadowScrollView>
 
             <Flex shrink={false}>

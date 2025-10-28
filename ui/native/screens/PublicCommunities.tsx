@@ -1,19 +1,18 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme, Image } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Linking, ScrollView, StyleSheet, View } from 'react-native'
 
-import { useLatestPublicFederations } from '@fedi/common/hooks/federation'
+import { useLatestPublicCommunities } from '@fedi/common/hooks/federation'
 import { selectCommunityIds } from '@fedi/common/redux'
-import { Community } from '@fedi/common/types'
 import { Images } from '@fedi/native/assets/images'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
-import { FirstTimeCommunityEntryItem } from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
 import InfoEntryList from '../components/feature/home/InfoEntryList'
 import { Switcher } from '../components/feature/home/Switcher'
 import { OmniInput } from '../components/feature/omni/OmniInput'
+import { FirstTimeOverlayItem } from '../components/feature/onboarding/FirstTimeOverlay'
 import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
@@ -27,44 +26,56 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
-    useLatestPublicFederations()
+    const { isFetchingPublicCommunities } = useLatestPublicCommunities()
     const joinedCommunityIds = useAppSelector(selectCommunityIds)
-    // TODO: implement public communities
-    const publicCommunities: Community[] = []
+    const publicCommunities = useAppSelector(
+        s => s.federation.publicCommunities,
+    )
 
     const style = styles(theme)
 
     type Tab = 'discover' | 'join' | 'create'
 
-    const [activeTab, setActiveTab] = useState<Tab>('join')
+    const [activeTab, setActiveTab] = useState<Tab | null>(null)
+
+    useEffect(() => {
+        if (isFetchingPublicCommunities && publicCommunities.length === 0)
+            return
+        setActiveTab(publicCommunities.length > 0 ? 'discover' : 'join')
+    }, [isFetchingPublicCommunities, publicCommunities])
 
     const switcherOptions: Array<{
         label: string
         value: Tab
         subText: string
-    }> = [
-        // {
-        //     label: t('words.discover'),
-        //     value: 'discover',
-        //     subText: t('feature.communities.guidance-discover'),
-        // },
-        {
-            label: t('words.join'),
-            value: 'join',
-            subText: t('feature.communities.guidance-join'),
-        },
-        // {
-        //     label: t('words.create'),
-        //     value: 'create',
-        //     subText: t('feature.onboarding.description-create'),
-        // },
-    ]
+    }> = []
+
+    if (publicCommunities.length > 0) {
+        switcherOptions.push({
+            label: t('words.discover'),
+            value: 'discover',
+            subText: t('feature.communities.guidance-discover'),
+        })
+    }
+
+    switcherOptions.push({
+        label: t('words.join'),
+        value: 'join',
+        subText: t('feature.communities.guidance-join'),
+    })
+
+    // Include when create community is implemented
+    // {
+    //     label: t('words.create'),
+    //     value: 'create',
+    //     subText: t('feature.onboarding.description-create'),
+    // },
 
     const selectedOption =
         switcherOptions.find(opt => opt.value === activeTab) ??
         switcherOptions[0]
 
-    const createInfoItems: FirstTimeCommunityEntryItem[] = [
+    const createInfoItems: FirstTimeOverlayItem[] = [
         { icon: 'Building', text: t('feature.communities.create-info-1') },
         {
             icon: 'Chat',
@@ -72,6 +83,8 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
         },
         { icon: 'Tool', text: t('feature.communities.create-info-3') },
     ]
+
+    if (!activeTab) return null
 
     return (
         <SafeAreaContainer edges="bottom">
@@ -97,7 +110,7 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
                 </Text>
             </Flex>
 
-            {/* TODO: remove this check when either Discover or Create tabs are ready */}
+            {/* Only show the switcher if there's more than one option */}
             {switcherOptions.length > 1 && (
                 <View style={style.switcherContainer}>
                     <Switcher<Tab>

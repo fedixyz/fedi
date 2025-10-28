@@ -70,6 +70,8 @@ use stability_pool_client::common::{AccountType, FiatAmount, FiatOrAll};
 pub use tokio;
 use tracing::{error, info, instrument, Level};
 
+use crate::guardinito_client::{guardianito_get_or_create_bot, GuardianitoBot};
+
 #[cfg(test)]
 pub mod tests;
 
@@ -701,6 +703,18 @@ async fn getNostrSecret(bridge: &BridgeFull) -> anyhow::Result<RpcNostrSecret> {
 #[macro_rules_derive(rpc_method!)]
 async fn getNostrPubkey(bridge: &BridgeFull) -> anyhow::Result<RpcNostrPubkey> {
     bridge.nostril.get_pub_key().await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn guardianitoGetOrCreateBot(bridge: &BridgeFull) -> anyhow::Result<GuardianitoBot> {
+    let matrix = bridge.matrix.wait().await;
+    let user_id = matrix
+        .client
+        .user_id()
+        .context("matrix user id not available")?
+        .to_string();
+
+    guardianito_get_or_create_bot(&bridge.runtime, &bridge.nostril, user_id).await
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -2278,6 +2292,7 @@ rpc_methods!(RpcMethods {
     // Nostr
     getNostrPubkey,
     getNostrSecret,
+    guardianitoGetOrCreateBot,
     signNostrEvent,
     nostrEncrypt,
     nostrDecrypt,

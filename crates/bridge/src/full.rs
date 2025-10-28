@@ -32,7 +32,7 @@ pub struct BridgeFull {
     pub matrix: Arc<BgMatrix>,
     pub multispend_services: Arc<MultispendServices>,
     pub device_registration_service: Arc<DeviceRegistrationService>,
-    pub nostril: Nostril,
+    pub nostril: Arc<Nostril>,
 }
 
 #[derive(Debug, TS, Serialize, PartialEq)]
@@ -91,8 +91,10 @@ impl BridgeFull {
         let multispend_notifications =
             Arc::new(MultispendNotificationsProvider(multispend_services.clone()));
 
+        let nostril = Arc::new(Nostril::new(&runtime).await);
+
         // Load communities and federations services
-        let communities = Communities::init(runtime.clone()).await;
+        let communities = Communities::init(runtime.clone(), nostril.clone()).await;
         let federations = Arc::new(Federations::new(
             runtime.clone(),
             multispend_notifications,
@@ -100,7 +102,6 @@ impl BridgeFull {
         ));
         federations.load_joined_federations_in_background().await;
 
-        let nostril = Nostril::new(&runtime).await;
         let nostr_pubkey = nostril.get_pub_key().await.unwrap().npub;
 
         let matrix = BgMatrix::new(runtime.clone(), nostr_pubkey, multispend_services.clone());

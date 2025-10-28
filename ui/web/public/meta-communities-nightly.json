@@ -1,0 +1,9 @@
+{
+    "fedi:community10v3xxmmdd46ku6t5090k6et5v90h2unvygazy6r5w3c8xw309a4x76tw943k7mtdw4hxjare9eenxtnpd4sh5mmwv9mhxtnrdakj7vpsxghk6et5vyhx5um0dc386kjjczw": {
+        "public": "true",
+        "invite_code": "fedi:community10v3xxmmdd46ku6t5090k6et5v90h2unvygazy6r5w3c8xw309a4x76tw943k7mtdw4hxjare9eenxtnpd4sh5mmwv9mhxtnrdakj7vpsxghk6et5vyhx5um0dc386kjjczw",
+        "preview_message": "Welcome to Fedi Global Community!",
+        "federation_icon_url": "https://fedi-public-snapshots.s3.us-east-1.amazonaws.com/icons/fedi-global.png",
+        "name": "Fedi Global (Nightly)"
+    }
+}

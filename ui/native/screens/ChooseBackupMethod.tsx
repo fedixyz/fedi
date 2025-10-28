@@ -4,7 +4,6 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
-import { useNuxStep } from '@fedi/common/hooks/nux'
 import { selectDoesAnyFederationHaveSocialBackup } from '@fedi/common/redux'
 
 import HoloCard from '../components/ui/HoloCard'
@@ -27,9 +26,7 @@ const ChooseBackupMethod: React.FC<Props> = ({ navigation }: Props) => {
         selectDoesAnyFederationHaveSocialBackup,
     )
     const showSocialRecovery = doesAnyFederationHaveSocialBackup
-    const [hasPerformedPersonalBackup] = useNuxStep(
-        'hasPerformedPersonalBackup',
-    )
+
     // TODO: Uncomment when bridge function is ready
     // const { locateRecoveryFile } = useBridge()
     //
@@ -56,11 +53,7 @@ const ChooseBackupMethod: React.FC<Props> = ({ navigation }: Props) => {
     }
 
     const handleStartPersonalBackup = () => {
-        if (hasPerformedPersonalBackup) {
-            navigation.navigate('RecoveryWords')
-        } else {
-            navigation.navigate('StartPersonalBackup')
-        }
+        navigation.navigate('RecoveryWords')
     }
 
     return (

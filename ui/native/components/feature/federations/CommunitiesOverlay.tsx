@@ -37,7 +37,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
     const handleQrPress = (c: Community) => {
         //close overlay first so it doesn't crash
         handleDismiss()
-        navigation.navigate('FederationInvite', {
+        navigation.navigate('CommunityInvite', {
             inviteLink: c.inviteCode,
         })
     }

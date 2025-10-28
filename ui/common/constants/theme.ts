@@ -78,6 +78,7 @@ export const theme = {
         md: 32,
         lg: 48,
         xl: 96,
+        extraSmallAvatar: 26,
         smallAvatar: 32,
         mediumAvatar: 48,
         largeAvatar: 88,

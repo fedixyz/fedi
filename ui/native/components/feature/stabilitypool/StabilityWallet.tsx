@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
 import { LinearGradientProps } from 'react-native-linear-gradient'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
@@ -25,15 +25,21 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import WalletButtons from '../../feature/wallet/WalletButtons'
 import { BubbleCard } from '../../ui/BubbleView'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import StabilityWalletBalance from './StabilityWalletBalance'
 import StabilityWalletTitle from './StabilityWalletTitle'
 
 type Props = {
     federation: LoadedFederation
+    expanded: boolean
+    setExpandedWalletId: (id: string | null) => void
 }
 
-const StabilityWallet: React.FC<Props> = ({ federation }) => {
+const StabilityWallet: React.FC<Props> = ({
+    federation,
+    expanded,
+    setExpandedWalletId,
+}) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
@@ -111,35 +117,39 @@ const StabilityWallet: React.FC<Props> = ({ federation }) => {
         }
     }
 
-    return (
-        <BubbleCard
-            linearGradientProps={gradientProps}
-            containerStyle={style.card}>
-            <Pressable
-                style={style.header}
-                onPress={() =>
-                    navigation.navigate(
-                        hasOpenedStabilityPool
-                            ? 'StabilityHome'
-                            : 'StableBalanceIntro',
-                        { federationId: federation.id },
-                    )
-                }>
-                {/* Icon, title, and chevron grouped together */}
-                <Flex
-                    row
-                    align="center"
-                    gap="sm"
-                    shrink
-                    style={style.leftGroup}>
-                    <StabilityWalletTitle federation={federation} />
-                </Flex>
-                {/* Balance on the right */}
-                <StabilityWalletBalance federationId={federation.id} />
-            </Pressable>
+    const handlePress = () => {
+        if (!expanded) {
+            setExpandedWalletId(federation.id)
+        }
+    }
 
-            <View style={style.buttons}>
+    const handleHeaderPress = () => {
+        if (expanded) {
+            navigation.navigate(
+                hasOpenedStabilityPool ? 'StabilityHome' : 'StableBalanceIntro',
+                { federationId: federation.id },
+            )
+        } else {
+            setExpandedWalletId(federation.id)
+        }
+    }
+
+    return (
+        <Pressable onPress={handlePress}>
+            <BubbleCard
+                linearGradientProps={gradientProps}
+                containerStyle={style.card}>
+                <Pressable style={style.header} onPress={handleHeaderPress}>
+                    {/* Icon, title, and chevron grouped together */}
+                    <Row align="center" gap="sm" shrink style={style.leftGroup}>
+                        <StabilityWalletTitle federation={federation} />
+                    </Row>
+                    {/* Balance on the right */}
+                    <StabilityWalletBalance federationId={federation.id} />
+                </Pressable>
+
                 <WalletButtons
+                    expanded={expanded}
                     federation={federation}
                     incoming={{
                         onPress: handleDeposit,
@@ -157,8 +167,8 @@ const StabilityWallet: React.FC<Props> = ({ federation }) => {
                             }),
                     }}
                 />
-            </View>
-        </BubbleCard>
+            </BubbleCard>
+        </Pressable>
     )
 }
 

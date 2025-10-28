@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -9,12 +9,15 @@ import { selectIsMatrixChatEmpty } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
+import CustomOverlay from '../../ui/CustomOverlay'
+import { Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import { Tooltip } from '../../ui/Tooltip'
 import TotalBalance from '../../ui/TotalBalance'
 import { ChatConnectionBadge } from './ChatConnectionBadge'
+import HeaderOverlayOption from './HeaderOverlayOption'
 
 const ChatHeader: React.FC = () => {
     const { theme } = useTheme()
@@ -24,16 +27,27 @@ const ChatHeader: React.FC = () => {
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
     const [hasOpenedNewChat, completeOpenedNewChat] =
         useNuxStep('hasOpenedNewChat')
+    const [optionsOverlayOpen, setOptionsOverlayOpen] = useState(false)
 
     const style = useMemo(() => styles(theme), [theme])
 
-    const goToNewMessage = () => {
-        navigation.navigate('NewMessage')
-        completeOpenedNewChat()
-    }
-
     const handleSearch = () => {
         navigation.navigate('ChatsListSearch', { initialQuery: '' })
+    }
+
+    const handleFindByUsername = () => {
+        setOptionsOverlayOpen(false)
+        navigation.navigate('NewMessage', { initialInputMethod: 'search' })
+    }
+
+    const handleCreateGroup = () => {
+        setOptionsOverlayOpen(false)
+        navigation.navigate('CreateGroup', {})
+    }
+
+    const handleScanOrPaste = () => {
+        setOptionsOverlayOpen(false)
+        navigation.navigate('NewMessage', { initialInputMethod: 'scan' })
     }
 
     return (
@@ -49,7 +63,10 @@ const ChatHeader: React.FC = () => {
                     }
                     headerRight={
                         <MainHeaderButtons
-                            onAddPress={goToNewMessage}
+                            onAddPress={() => {
+                                setOptionsOverlayOpen(true)
+                                completeOpenedNewChat()
+                            }}
                             onSearchPress={handleSearch}
                         />
                     }
@@ -65,6 +82,31 @@ const ChatHeader: React.FC = () => {
                 side="right"
                 horizontalOffset={128}
                 verticalOffset={110}
+            />
+            <CustomOverlay
+                show={optionsOverlayOpen}
+                onBackdropPress={() => setOptionsOverlayOpen(false)}
+                contents={{
+                    body: (
+                        <Column gap="lg">
+                            <HeaderOverlayOption
+                                onPress={handleFindByUsername}
+                                text={t('feature.chat.find-by-username')}
+                                icon="User"
+                            />
+                            <HeaderOverlayOption
+                                onPress={handleCreateGroup}
+                                text={t('feature.chat.create-a-group')}
+                                icon="SocialPeople"
+                            />
+                            <HeaderOverlayOption
+                                onPress={handleScanOrPaste}
+                                text={t('phrases.scan-or-paste')}
+                                icon="Scan"
+                            />
+                        </Column>
+                    ),
+                }}
             />
         </>
     )

@@ -389,7 +389,7 @@ pub async fn wait_for_unique(mut federation: Arc<FederationV2>) -> FederationV2 
             Ok(fed) => return fed,
             Err(fed_arc) => {
                 federation = fed_arc;
-                if attempt % 1000 == 0 {
+                if attempt.is_multiple_of(1000) {
                     info!(attempt, "waiting for RPCs to drop the federation object");
                 }
                 attempt += 1;

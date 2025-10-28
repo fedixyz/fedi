@@ -7,10 +7,10 @@ import { theme as globalTheme } from '@fedi/common/constants/theme'
 import { BubbleView } from '../../ui/BubbleView'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
-import { FirstTimeCommunityEntryItem } from '../federations/FirstTimeCommunityEntryOverlay'
+import { FirstTimeOverlayItem } from '../onboarding/FirstTimeOverlay'
 
 export interface InfoEntryListItemProps {
-    item: FirstTimeCommunityEntryItem
+    item: FirstTimeOverlayItem
     theme: Theme
 }
 const InfoEntryListItem: React.FC<InfoEntryListItemProps> = ({

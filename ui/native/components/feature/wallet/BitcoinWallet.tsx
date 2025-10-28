@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { Pressable, StyleSheet } from 'react-native'
 import { LinearGradientProps } from 'react-native-linear-gradient'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
@@ -22,9 +22,15 @@ import WalletHeader from './WalletHeader'
 
 type Props = {
     federation?: LoadedFederation
+    expanded: boolean
+    setExpandedWalletId: (id: string | null) => void
 }
 
-const BitcoinWallet: React.FC<Props> = ({ federation }: Props) => {
+const BitcoinWallet: React.FC<Props> = ({
+    federation,
+    expanded,
+    setExpandedWalletId,
+}: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
@@ -70,29 +76,42 @@ const BitcoinWallet: React.FC<Props> = ({ federation }: Props) => {
         }
     }
 
+    const handlePress = () => {
+        if (!expanded) {
+            setExpandedWalletId(federation.id)
+        }
+    }
+
     return (
-        <BubbleCard
-            linearGradientProps={gradientProps}
-            containerStyle={style.card}>
-            <WalletHeader federation={federation} />
-            <WalletButtons
-                federation={federation}
-                incoming={{
-                    onPress: handleReceive,
-                    disabled: receivesDisabled,
-                }}
-                outgoing={{
-                    onPress: handleSend,
-                    disabled: federation.balance < 1000,
-                }}
-                history={{
-                    onPress: () =>
-                        navigation.navigate('Transactions', {
-                            federationId: federation.id,
-                        }),
-                }}
-            />
-        </BubbleCard>
+        <Pressable onPress={handlePress}>
+            <BubbleCard
+                linearGradientProps={gradientProps}
+                containerStyle={style.card}>
+                <WalletHeader
+                    federation={federation}
+                    expanded={expanded}
+                    setExpandedWalletId={setExpandedWalletId}
+                />
+                <WalletButtons
+                    expanded={expanded}
+                    federation={federation}
+                    incoming={{
+                        onPress: handleReceive,
+                        disabled: receivesDisabled,
+                    }}
+                    outgoing={{
+                        onPress: handleSend,
+                        disabled: federation.balance < 1000,
+                    }}
+                    history={{
+                        onPress: () =>
+                            navigation.navigate('Transactions', {
+                                federationId: federation.id,
+                            }),
+                    }}
+                />
+            </BubbleCard>
+        </Pressable>
     )
 }
 

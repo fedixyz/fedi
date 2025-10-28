@@ -7,7 +7,6 @@ import { selectMatrixAuth } from '@fedi/common/redux'
 import { useAppSelector } from '../../../state/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
 import { BubbleView } from '../../ui/BubbleView'
-import GradientView from '../../ui/GradientView'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
@@ -22,7 +21,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
 
     if (!matrixAuth || matrixAuth.avatarUrl == null) {
         return (
-            <GradientView variant="sky-heavy" style={style.gradientContainer}>
+            <View style={style.gradientContainer}>
                 <Pressable testID="AvatarButton" hitSlop={10} onPress={onPress}>
                     <SvgImage
                         name="ProfileThicker"
@@ -33,7 +32,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
                         }
                     />
                 </Pressable>
-            </GradientView>
+            </View>
         )
     }
 
@@ -44,7 +43,7 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
                     <Avatar
                         id={matrixAuth.userId}
                         url={matrixAuth.avatarUrl}
-                        size={AvatarSize.sm}
+                        size={AvatarSize.xs}
                         name={matrixAuth.displayName}
                         containerStyle={style.avatarContainer}
                         maxFontSizeMultiplier={
@@ -70,13 +69,11 @@ const styles = (theme: Theme) =>
             padding: theme.spacing.xxs,
             alignSelf: 'center',
             borderRadius: 50,
-            marginRight: theme.spacing.xs,
             ...theme.styles.subtleShadow,
         },
         gradient: {},
         iconContainer: {
             padding: theme.spacing.xs,
-            backgroundColor: theme.colors.white,
             borderRadius: 50,
         },
     })

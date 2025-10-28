@@ -1,33 +1,35 @@
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { useNavigation } from '@react-navigation/native'
 import { Text, useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, Pressable, View } from 'react-native'
 
-import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
+import {
+    usePopupFederationInfo,
+    useShouldShowStabilityPool,
+} from '@fedi/common/hooks/federation'
 import { selectIsFederationRecovering } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
-import {
-    TabsNavigatorParamList,
-    RootStackParamList,
-    NavigationHook,
-} from '../../../types/navigation'
+import { NavigationHook } from '../../../types/navigation'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
-import HomeWallets from '../home/HomeWallets'
 import RecoveryInProgress from '../recovery/RecoveryInProgress'
+import StabilityWallet from '../stabilitypool/StabilityWallet'
+import BitcoinWallet from '../wallet/BitcoinWallet'
 import { FederationLogo } from './FederationLogo'
 
-export type Props = BottomTabScreenProps<
-    TabsNavigatorParamList & RootStackParamList,
-    'Federations'
->
+interface Props {
+    federation: LoadedFederation
+    expanded: boolean
+    setExpandedWalletId: (id: string | null) => void
+}
 
-const FederationTile: React.FC<{ federation: LoadedFederation }> = ({
+const FederationTile: React.FC<Props> = ({
     federation,
+    expanded,
+    setExpandedWalletId,
 }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -37,6 +39,7 @@ const FederationTile: React.FC<{ federation: LoadedFederation }> = ({
         selectIsFederationRecovering(s, federation.id),
     )
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
+    const showStabilityWallet = useShouldShowStabilityPool(federation.id)
 
     const goToFederationDetails = () => {
         navigation.navigate('FederationDetails', {
@@ -81,7 +84,20 @@ const FederationTile: React.FC<{ federation: LoadedFederation }> = ({
                     />
                 </View>
             ) : (
-                <HomeWallets federation={federation} />
+                <>
+                    <BitcoinWallet
+                        federation={federation}
+                        expanded={expanded}
+                        setExpandedWalletId={setExpandedWalletId}
+                    />
+                    {showStabilityWallet && (
+                        <StabilityWallet
+                            federation={federation}
+                            expanded={expanded}
+                            setExpandedWalletId={setExpandedWalletId}
+                        />
+                    )}
+                </>
             )}
         </Flex>
     )

@@ -37,7 +37,7 @@ const CommunityDetailsHeader: React.FC = () => {
                     <PressableIcon
                         svgName="Qr"
                         onPress={() =>
-                            navigation.navigate('FederationInvite', {
+                            navigation.navigate('CommunityInvite', {
                                 inviteLink: community.inviteCode,
                             })
                         }

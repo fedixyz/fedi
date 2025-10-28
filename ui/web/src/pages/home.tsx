@@ -78,9 +78,6 @@ function HomePage() {
                                         {selectedCommunityChats.map(room => (
                                             <DefaultRoomPreview
                                                 room={room}
-                                                federationOrCommunity={
-                                                    selectedCommunity
-                                                }
                                                 key={`default-chat-${room.id}`}
                                             />
                                         ))}

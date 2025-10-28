@@ -100,6 +100,7 @@ export type RootStackParamList = {
     }
     CompleteSocialBackup: undefined
     CompleteSocialRecovery: undefined
+    CommunityInvite: { inviteLink: string }
     ConfirmJoinPublicGroup: { groupId: string }
     ConfirmSendEcash: { amount: Sats; notes?: string }
     ConfirmSendChatPayment: {
@@ -137,7 +138,7 @@ export type RootStackParamList = {
     MultispendTransactions: { roomId: string }
     CreateMultispend: { roomId: string; voters?: string[] }
     AssignMultispendVoters: { roomId: string; voters?: string[] }
-    NewMessage: undefined
+    NewMessage: { initialInputMethod?: 'scan' | 'search' }
     NostrSettings: undefined
     NotificationsPermission:
         | { nextScreen: keyof RootStackParamList }
@@ -157,7 +158,8 @@ export type RootStackParamList = {
     ReceiveOffline: { federationId: Federation['id'] }
     RecoveryWords:
         | {
-              nextScreenParams: NavigationArgs
+              nextScreenParams?: NavigationArgs
+              isFromJoin?: boolean
           }
         | undefined
     RecoveryAssistSuccess: undefined
@@ -203,7 +205,6 @@ export type RootStackParamList = {
         federationId: Federation['id']
     }
     StableBalanceIntro: { federationId: Federation['id'] }
-    StartPersonalBackup: undefined
     StartRecoveryAssist: undefined
     StartSocialBackup: { federationId: Federation['id'] }
     SocialBackupCloudUpload: undefined

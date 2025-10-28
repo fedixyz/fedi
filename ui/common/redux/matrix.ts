@@ -18,7 +18,9 @@ import {
     selectCommunity,
     selectCommunities,
     selectGlobalCommunityMetadata,
+    setGuardianitoBot,
 } from '.'
+import { GUARDIANITO_BOT_DISPLAY_NAME } from '../constants/matrix'
 import {
     ChatReplyState,
     Federation,
@@ -770,6 +772,16 @@ export const startMatrixClient = createAsyncThunk<
         dispatch(addMatrixRoomInfo(room))
         if (room.roomState === 'invited') {
             dispatch(joinMatrixRoom({ fedimint, roomId: room.id }))
+        }
+
+        // Check if this room is a guardianito room and save it in redux
+        if (room.name === GUARDIANITO_BOT_DISPLAY_NAME && room.directUserId) {
+            dispatch(
+                setGuardianitoBot({
+                    bot_user_id: room.directUserId,
+                    bot_room_id: room.id,
+                }),
+            )
         }
     })
     client.on('roomMember', member => dispatch(addMatrixRoomMember(member)))

@@ -4426,10 +4426,10 @@ impl FederationV2 {
     }
 
     pub async fn get_recurringd_api(&self) -> Option<SafeUrl> {
-        if let Ok(url) = std::env::var("TEST_BRIDGE_RECURRINGD_API") {
-            if let Ok(url) = SafeUrl::from_str(&url) {
-                return Some(url);
-            }
+        if let Ok(url) = std::env::var("TEST_BRIDGE_RECURRINGD_API")
+            && let Ok(url) = SafeUrl::from_str(&url)
+        {
+            return Some(url);
         }
 
         self.client
@@ -4475,10 +4475,9 @@ async fn maybe_backfill_federation_network(
             .app_state
             .with_write_lock(|state| {
                 if let Some(fed_info) = state.joined_federations.get_mut(&federation_id.to_string())
+                    && fed_info.network.is_none()
                 {
-                    if fed_info.network.is_none() {
-                        fed_info.network = Some(network);
-                    }
+                    fed_info.network = Some(network);
                 }
             })
             .await;

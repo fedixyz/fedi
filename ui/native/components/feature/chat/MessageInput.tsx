@@ -1,6 +1,6 @@
 import { DocumentPickerResponse, types } from '@react-native-documents/picker'
 import { useNavigation } from '@react-navigation/native'
-import { Input, Theme, useTheme } from '@rneui/themed'
+import { Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -11,7 +11,6 @@ import {
     Platform,
     Pressable,
     StyleSheet,
-    Text,
     TextInput,
     TextInputContentSizeChangeEventData,
     TextInputSelectionChangeEventData,
@@ -22,7 +21,10 @@ import {
 import { Asset, ImageLibraryOptions } from 'react-native-image-picker'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { ROOM_MENTION } from '@fedi/common/constants/matrix'
+import {
+    GUARDIANITO_BOT_DISPLAY_NAME,
+    ROOM_MENTION,
+} from '@fedi/common/constants/matrix'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useMentionInput } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -116,6 +118,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const toast = useToast()
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, id))
+    const isGuardianitoRoom =
+        existingRoom?.name === GUARDIANITO_BOT_DISPLAY_NAME
     const repliedEvent = useAppSelector(s =>
         selectReplyingToMessageEventForRoom(s, id),
     )
@@ -557,6 +561,16 @@ const MessageInput: React.FC<MessageInputProps> = ({
         )
     }
 
+    const renderHelpCommand = () => {
+        return (
+            <View style={style.guardianitoHelpTextContainer}>
+                <Text small style={style.guardianitoHelpText}>
+                    {t('feature.chat.guardianito-help-text')}
+                </Text>
+            </View>
+        )
+    }
+
     const handleSelectionChange = useCallback(
         (e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
             if (forcedSelection !== null) return
@@ -717,6 +731,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 isReadOnly ? { borderTopWidth: 0 } : {},
             ]}>
             {renderReplyBar()}
+            {isGuardianitoRoom && renderHelpCommand()}
             {documentListItems.length > 0 && (
                 <View style={style.attachmentContainer}>
                     {documentListItems.map(
@@ -1162,6 +1177,23 @@ const styles = (theme: Theme, insets: Insets) =>
             elevation: 2,
             left: -(theme.spacing.md + (insets.left || 0)),
             right: -(theme.spacing.md + (insets.right || 0)),
+        },
+        guardianitoHelpTextContainer: {
+            // TODO: clean up his hacky styling along with all of the AI slop in this entire file
+            position: 'relative',
+            marginLeft: -(theme.spacing.md + (insets.left || 0)),
+            marginRight: -(theme.spacing.md + (insets.right || 0)),
+            marginTop: -theme.spacing.sm,
+            paddingTop: theme.spacing.xs,
+            paddingBottom: theme.spacing.xs,
+            paddingHorizontal: theme.spacing.md + (insets.left || 0),
+            backgroundColor: theme.colors.offWhite100,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.primaryVeryLight,
+        },
+        guardianitoHelpText: {
+            color: theme.colors.grey,
+            textAlign: 'left',
         },
     })
 
