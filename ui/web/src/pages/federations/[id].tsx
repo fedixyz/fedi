@@ -95,7 +95,6 @@ function FederationDetails() {
                                     {federationChats.map(room => (
                                         <DefaultRoomPreview
                                             room={room}
-                                            federationOrCommunity={federation}
                                             key={`default-chat-${room.id}`}
                                         />
                                     ))}

@@ -738,10 +738,8 @@ impl StabilityPoolClientModule {
         unlock_amount: FiatOrAll,
         extra_meta: impl Serialize + Clone + MaybeSend + MaybeSync + 'static,
     ) -> anyhow::Result<(OperationId, TransactionId)> {
-        if let FiatOrAll::Fiat(amount) = unlock_amount {
-            if amount.0 == 0 {
-                bail!("Withdrawal amount must be non-0");
-            }
+        if matches!(&unlock_amount, FiatOrAll::Fiat(amount) if amount.0 == 0) {
+            bail!("Withdrawal amount must be non-0");
         }
 
         let operation_id = OperationId::new_random();

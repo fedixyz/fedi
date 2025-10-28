@@ -2,17 +2,18 @@ import Clipboard from '@react-native-clipboard/clipboard'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useFederationInviteCode } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
+import { selectMatrixAuth, setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent, MatrixFederationInviteEvent } from '@fedi/common/types'
 
 import { fedimint } from '../../../bridge'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
-import { OptionalGradient } from '../../ui/OptionalGradient'
 import FederationCompactTile from '../federations/FederationCompactTile'
-import { bubbleGradient } from './ChatEvent'
+import ChatEventWrapper from './ChatEventWrapper'
 import ChatTextEvent from './ChatTextEvent'
 import JoinFederationOverlay from './JoinFederationOverlay'
 
@@ -23,6 +24,9 @@ type Props = {
 const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const dispatch = useAppDispatch()
+    const matrixAuth = useAppSelector(selectMatrixAuth)
+    const isMe = event.sender === matrixAuth?.userId
 
     const [isShowing, setIsShowing] = useState(false)
 
@@ -41,6 +45,10 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
         })
     }
 
+    const handleLongPress = () => {
+        dispatch(setSelectedChatMessage(event))
+    }
+
     const style = styles(theme)
 
     const buttons = [
@@ -57,9 +65,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
         },
     ]
 
-    if (isError) {
-        // Fallback to normal text event if we can't load the federation preview.
-        // this will happen if the invite code is invalid
+    const renderFallback = () => {
         const eventAsText = {
             ...event,
             content: {
@@ -71,18 +77,20 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
         return <ChatTextEvent event={eventAsText} />
     }
 
+    if (isError || isChecking) {
+        // Fallback to normal text event if we are loading or fail to load the preview
+        return renderFallback()
+    }
+
+    const textColor = isMe ? theme.colors.secondary : theme.colors.primary
+
     return (
         <>
-            <OptionalGradient
-                gradient={bubbleGradient}
-                style={[style.blueBubble]}>
+            <ChatEventWrapper event={event} handleLongPress={handleLongPress}>
                 {previewResult ? (
                     <Flex gap="lg">
-                        <Text
-                            small
-                            numberOfLines={2}
-                            color={theme.colors.secondary}>
-                            <Text bold small color={theme.colors.secondary}>
+                        <Text small numberOfLines={2} color={textColor}>
+                            <Text bold small color={textColor}>
                                 {t('feature.federations.federation-invite')}:
                             </Text>{' '}
                             {event.content.body}
@@ -90,10 +98,11 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
                         <FederationCompactTile
                             federation={previewResult.preview}
                             isLoading={isChecking}
+                            textColor={textColor}
                         />
                         <Flex gap="xs">
                             {previewResult.isMember && (
-                                <Text small color={theme.colors.lightGrey}>
+                                <Text small color={textColor}>
                                     {t('phrases.you-are-a-member', {
                                         federationName:
                                             previewResult.preview.name,
@@ -126,10 +135,8 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
                             </Flex>
                         </Flex>
                     </Flex>
-                ) : isChecking ? (
-                    <ActivityIndicator />
                 ) : null}
-            </OptionalGradient>
+            </ChatEventWrapper>
             <JoinFederationOverlay
                 preview={previewResult?.preview}
                 isJoining={isJoining}
@@ -143,10 +150,6 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        buttonContainer: {
-            flex: 1,
-            maxWidth: '50%',
-        },
         buttonText: {
             paddingHorizontal: theme.spacing.lg,
         },
@@ -160,11 +163,12 @@ const styles = (theme: Theme) =>
             color: theme.colors.secondary,
             marginLeft: theme.spacing.sm,
         },
-        blueBubble: {
-            backgroundColor: theme.colors.blue,
-            padding: 12,
+        incomingText: {
+            color: theme.colors.primary,
         },
-        bubbleInner: {},
+        outgoingText: {
+            color: theme.colors.secondary,
+        },
     })
 
 export default ChatFederationInviteEvent

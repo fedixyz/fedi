@@ -267,10 +267,10 @@ async fn handle_websocket(mut socket: WebSocket, device_id: String, state: AppSt
                 }
             }
             Some(event) = rx.recv() => {
-                if let Ok(json) = serde_json::to_string(&event) {
-                    if socket.send(Message::Text(json)).await.is_err() {
-                        break;
-                    }
+                if let Ok(json) = serde_json::to_string(&event)
+                    && socket.send(Message::Text(json)).await.is_err()
+                {
+                    break;
                 }
             }
         }

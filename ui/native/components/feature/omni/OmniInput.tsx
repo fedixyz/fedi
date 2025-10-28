@@ -43,6 +43,8 @@ interface Props<T extends ParserDataType, ExpectedData> {
     customActions?: OmniInputAction[]
     /** Custom label for the "Paste" action */
     pasteLabel?: string
+    /** Whether to start in scan or search input mode */
+    initialInputMethod?: 'scan' | 'search'
 }
 
 export function OmniInput<
@@ -55,7 +57,9 @@ export function OmniInput<
     const lastUsedFederationId = useAppSelector(selectLastUsedFederationId)
     const toast = useToast()
     const [showActivityIndicator, setShowActivityIndicator] = useState(false)
-    const [inputMethod, setInputMethod] = useState<'scan' | 'search'>('scan')
+    const [inputMethod, setInputMethod] = useState<'scan' | 'search'>(
+        props.initialInputMethod || 'scan',
+    )
     const [isParsing, setIsParsing] = useState(false)
     const [unexpectedData, setUnexpectedData] = useState<AnyParsedData>()
     const [invalidData, setInvalidData] = useState<

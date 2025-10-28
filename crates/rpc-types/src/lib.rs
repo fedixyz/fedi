@@ -151,7 +151,6 @@ impl From<Network> for RpcBitcoinNetwork {
             Network::Testnet4 => RpcBitcoinNetwork::Testnet4,
             Network::Signet => RpcBitcoinNetwork::Signet,
             Network::Regtest => RpcBitcoinNetwork::Regtest,
-            _ => RpcBitcoinNetwork::Unknown,
         }
     }
 }

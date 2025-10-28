@@ -32,12 +32,12 @@ pub fn to_unix_time(system_time: SystemTime) -> anyhow::Result<u64> {
 
 pub trait PoisonedLockExt<T> {
     #[track_caller]
-    fn ensure_lock(&self) -> std::sync::MutexGuard<T>;
+    fn ensure_lock(&self) -> std::sync::MutexGuard<'_, T>;
 }
 
 impl<T> PoisonedLockExt<T> for std::sync::Mutex<T> {
     #[track_caller]
-    fn ensure_lock(&self) -> std::sync::MutexGuard<T> {
+    fn ensure_lock(&self) -> std::sync::MutexGuard<'_, T> {
         self.lock().expect("The Mutex should never be poisoned")
     }
 }

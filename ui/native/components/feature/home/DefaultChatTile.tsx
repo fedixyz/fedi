@@ -1,27 +1,22 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { t } from 'i18next'
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
-import { Community, LoadedFederation, MatrixRoom } from '../../../types'
-import { AvatarSize } from '../../ui/Avatar'
+import { MatrixRoom } from '../../../types'
 import { BubbleView } from '../../ui/BubbleView'
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
-import ChatAvatar from '../chat/ChatAvatar'
-import { FederationLogo } from '../federations/FederationLogo'
 
 type DefaultChatTileProps = {
     room?: MatrixRoom
     imageUrl?: string
-    federationOrCommunity: LoadedFederation | Community
     onSelect?: (chat: MatrixRoom) => void
     onLongPress?: (chat: MatrixRoom) => void
 }
 
 const DefaultChatTile = ({
     room,
-    federationOrCommunity,
     onSelect = () => null,
     onLongPress = () => null,
 }: DefaultChatTileProps) => {
@@ -35,38 +30,20 @@ const DefaultChatTile = ({
             </BubbleView>
         )
 
-    const hasNewMessages = room?.notificationCount && room.notificationCount > 0
-
     const subtitle = room.broadcastOnly
         ? t('words.announcements')
         : t('feature.chat.group-chat')
 
     return (
         <BubbleView containerStyle={style.card}>
-            <View
-                style={[
-                    style.unreadIndicator,
-                    hasNewMessages ? { opacity: 1 } : { opacity: 0 },
-                ]}
-            />
             <Pressable
                 style={style.content}
                 onLongPress={() => onLongPress(room)}
                 delayLongPress={300}
                 onPress={() => onSelect(room)}>
-                {federationOrCommunity ? (
-                    <FederationLogo
-                        federation={federationOrCommunity}
-                        size={theme.sizes.mediumAvatar}
-                        shape="hex"
-                    />
-                ) : (
-                    <ChatAvatar
-                        room={room}
-                        size={AvatarSize.md}
-                        maxFontSizeMultiplier={1.2}
-                    />
-                )}
+                <Flex center shrink={false} style={style.chatIcon}>
+                    <SvgImage name="Chat" />
+                </Flex>
                 <Flex grow basis={false}>
                     <Text style={style.title} numberOfLines={1} bold>
                         {room.name || DEFAULT_GROUP_NAME}
@@ -80,13 +57,7 @@ const DefaultChatTile = ({
                         {subtitle}
                     </Text>
                 </Flex>
-                <>
-                    <SvgImage
-                        name="ChevronRightSmall"
-                        color={theme.colors.grey}
-                        dimensions={{ width: 10, height: 18 }}
-                    />
-                </>
+                <SvgImage name="ChevronRight" color={theme.colors.grey} />
             </Pressable>
         </BubbleView>
     )
@@ -94,12 +65,18 @@ const DefaultChatTile = ({
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        chatIcon: {
+            width: 40,
+            height: 40,
+            position: 'relative',
+        },
         card: {
             paddingVertical: theme.spacing.lg,
             paddingHorizontal: theme.spacing.lg,
-            backgroundColor: theme.colors.offWhite100,
+            borderColor: theme.colors.extraLightGrey,
+            borderWidth: 1,
             justifyContent: 'center',
-            borderRadius: 20,
+            borderRadius: 16,
         },
         content: {
             display: 'flex',
@@ -116,15 +93,6 @@ const styles = (theme: Theme) =>
             color: theme.colors.grey,
             lineHeight: 15,
             letterSpacing: -0.12,
-        },
-        unreadIndicator: {
-            position: 'absolute',
-            zIndex: 1,
-            left: 4,
-            backgroundColor: theme.colors.red,
-            height: theme.sizes.unreadIndicatorSize,
-            width: theme.sizes.unreadIndicatorSize,
-            borderRadius: theme.sizes.unreadIndicatorSize * 0.5,
         },
     })
 

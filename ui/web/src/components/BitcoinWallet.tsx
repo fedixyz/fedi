@@ -21,9 +21,15 @@ const MIN_BALANCE_TO_SEND = 1000
 
 type Props = {
     federation: LoadedFederation
+    expanded: boolean
+    setExpandedWalletId: (id: string | null) => void
 }
 
-export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
+export const BitcoinWallet: React.FC<Props> = ({
+    federation,
+    expanded,
+    setExpandedWalletId,
+}) => {
     const { t } = useTranslation()
     const { push } = useRouter()
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
@@ -32,15 +38,27 @@ export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
 
     return (
-        <Container data-testid="bitcoin-wallet">
+        <Container
+            data-testid="bitcoin-wallet"
+            onClick={() => {
+                if (expanded) return
+
+                setExpandedWalletId(federation.id)
+            }}>
             <Header>
                 <HeaderLeft>
                     <IconWrapper>
                         <Icon size="md" icon={BitcoinCircleIcon} />
                     </IconWrapper>
-                    <Name href="/transactions">
-                        <Text weight="medium">{t('words.bitcoin')}</Text>
-                    </Name>
+                    {expanded ? (
+                        <Name href="/transactions">
+                            <Text weight="medium">{t('words.bitcoin')}</Text>
+                        </Name>
+                    ) : (
+                        <Name as="div">
+                            <Text weight="medium">{t('words.bitcoin')}</Text>
+                        </Name>
+                    )}
                 </HeaderLeft>
                 <HeaderRight>
                     {formattedBalanceFiat && (
@@ -55,41 +73,45 @@ export const BitcoinWallet: React.FC<Props> = ({ federation }) => {
                     )}
                 </HeaderRight>
             </Header>
-            <Buttons>
-                <Button
-                    variant="secondary"
-                    outline
-                    width="full"
-                    onClick={() => push(`/request#id=${federation.id}`)}
-                    icon={ReceiveArrowIcon}
-                    style={{
-                        flex: 1,
-                    }}
-                    disabled={popupInfo?.ended}
-                />
-                <Button
-                    variant="secondary"
-                    outline
-                    width="full"
-                    onClick={() => push(`/send#id=${federation.id}`)}
-                    icon={RotatedSendIcon}
-                    disabled={
-                        federation.balance < MIN_BALANCE_TO_SEND ||
-                        popupInfo?.ended
-                    }
-                    style={{
-                        flex: 1,
-                    }}
-                />
-                <IconButton
-                    variant="secondary"
-                    outline
-                    icon={TxnHistoryIcon}
-                    size="lg"
-                    disabled={popupInfo?.ended}
-                    onClick={() => push(`/transactions#id=${federation.id}`)}
-                />
-            </Buttons>
+            {expanded && (
+                <Buttons>
+                    <Button
+                        variant="secondary"
+                        outline
+                        width="full"
+                        onClick={() => push(`/request#id=${federation.id}`)}
+                        icon={ReceiveArrowIcon}
+                        style={{
+                            flex: 1,
+                        }}
+                        disabled={popupInfo?.ended}
+                    />
+                    <Button
+                        variant="secondary"
+                        outline
+                        width="full"
+                        onClick={() => push(`/send#id=${federation.id}`)}
+                        icon={RotatedSendIcon}
+                        disabled={
+                            federation.balance < MIN_BALANCE_TO_SEND ||
+                            popupInfo?.ended
+                        }
+                        style={{
+                            flex: 1,
+                        }}
+                    />
+                    <IconButton
+                        variant="secondary"
+                        outline
+                        icon={TxnHistoryIcon}
+                        size="lg"
+                        disabled={popupInfo?.ended}
+                        onClick={() =>
+                            push(`/transactions#id=${federation.id}`)
+                        }
+                    />
+                </Buttons>
+            )}
         </Container>
     )
 }
@@ -100,12 +122,14 @@ const Container = styled('div', {
     color: theme.colors.primary,
     background: `linear-gradient(${theme.colors.white}, ${theme.colors.primary10}), linear-gradient(${theme.colors.white}, ${theme.colors.white})`,
     border: `1.5px solid ${theme.colors.primaryVeryLight}`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 20,
 })
 
 const Header = styled('div', {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: 20,
 })
 
 const HeaderLeft = styled('div', {

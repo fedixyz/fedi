@@ -108,6 +108,7 @@ itertools = "0.14"
 nostr = { version = "0.43", default-features = false, features = [
   "std",
   "nip44",
+  "nip98",
 ] }
 nostr-sdk = { version = "0.43", features = ["nip44", "nip04"] }
 rand = "0.8"
@@ -204,9 +205,6 @@ fedimint-threshold-crypto = { opt-level = 3 }
 # https://github.com/fedimint/fedimint/pull/6578
 tikv-jemalloc-sys = { opt-level = 3 }
 tikv-jemallocator = { opt-level = 3 }
-# old names (delete after switching)
-jemalloc-sys = { opt-level = 3 }
-jemallocator = { opt-level = 3 }
 
 # ios gets its own profile since it crashes on opt-level 0
 [profile.dev-ios]

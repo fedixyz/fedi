@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet } from 'react-native'
+import { ImageBackground, ScrollView, StyleSheet, View } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
@@ -11,10 +11,13 @@ import {
 } from '@fedi/common/redux'
 import type { SeedWords } from '@fedi/common/types'
 
+import { Images } from '../assets/images'
 import { fedimint } from '../bridge'
-import Flex from '../components/ui/Flex'
+import Flex, { Column, Row } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
+import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'RecoveryWords'>
@@ -40,9 +43,10 @@ const SeedWord = ({ number, word }: SeedWordProps) => {
 }
 
 const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
-    const { nextScreenParams } = route.params || {}
+    const { nextScreenParams, isFromJoin } = route.params || {}
     const { t } = useTranslation()
     const { theme } = useTheme()
+
     const [seedWords, setSeedWords] = useState<SeedWords>([])
 
     const [hasPerformedPersonalBackup, completePersonalBackup] = useNuxStep(
@@ -92,37 +96,80 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
             return navigation.navigate('SetPin')
         }
 
-        navigation.navigate('TabsNavigator')
+        navigation.dispatch(reset(isFromJoin ? 'TabsNavigator' : 'Settings'))
     }
 
     const style = styles(theme)
 
     return (
         <SafeAreaContainer edges="bottom">
-            <Flex grow align="start" style={style.container}>
-                <ScrollView contentContainerStyle={style.scrollView}>
-                    <Text h2 h2Style={style.label}>
-                        {t('feature.backup.recovery-words')}
-                    </Text>
-                    <Text style={style.instructionsText}>
-                        {t('feature.backup.recovery-words-instructions')}
-                    </Text>
-                    <Card containerStyle={style.roundedCardContainer}>
-                        <Flex row>
-                            <Flex grow basis={false} align="start">
-                                {renderFirstSixSeedWords()}
+            <Flex style={style.container}>
+                <ScrollView style={style.content}>
+                    <Column align="center" gap="md" grow style={style.content}>
+                        <ImageBackground
+                            source={Images.HoloBackground}
+                            style={style.iconBackground}>
+                            <SvgImage name="WordList" size={SvgImageSize.lg} />
+                        </ImageBackground>
+                        <Text
+                            style={style.title}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit>
+                            {t('feature.backup.personal-backup-title')}
+                        </Text>
+                        <Text
+                            style={style.instructionsText}
+                            numberOfLines={3}
+                            adjustsFontSizeToFit>
+                            {t('feature.backup.personal-backup-description')}
+                        </Text>
+                        <Column style={style.warning}>
+                            <Row center>
+                                <View style={style.warningIconWrapper}>
+                                    <SvgImage
+                                        name="Warning"
+                                        size={SvgImageSize.xs}
+                                    />
+                                </View>
+                                <Text
+                                    style={style.warningText}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit>
+                                    {t(
+                                        'feature.backup.personal-backup-warning-line-1',
+                                    )}
+                                </Text>
+                            </Row>
+
+                            <Text style={style.warningText}>
+                                {t(
+                                    'feature.backup.personal-backup-warning-line-2',
+                                )}
+                            </Text>
+                        </Column>
+                        <Text style={style.tipText}>
+                            {t('feature.backup.personal-backup-words-tip')}
+                        </Text>
+                        <Card containerStyle={style.roundedCardContainer}>
+                            <Flex row>
+                                <Flex grow basis={false} align="start">
+                                    {renderFirstSixSeedWords()}
+                                </Flex>
+                                <Flex grow basis={false} align="start">
+                                    {renderLastSixSeedWords()}
+                                </Flex>
                             </Flex>
-                            <Flex grow basis={false} align="start">
-                                {renderLastSixSeedWords()}
-                            </Flex>
-                        </Flex>
-                    </Card>
+                        </Card>
+                    </Column>
                 </ScrollView>
-                <Button
-                    title={t('words.done')}
-                    containerStyle={style.continueButton}
-                    onPress={handleContinueOrDone}
-                />
+                <Column gap="md" fullWidth style={style.buttons}>
+                    <Button
+                        title={t(
+                            'feature.backup.personal-backup-button-primary-text',
+                        )}
+                        onPress={handleContinueOrDone}
+                    />
+                </Column>
             </Flex>
         </SafeAreaContainer>
     )
@@ -131,28 +178,54 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            padding: theme.spacing.xl,
+            flex: 1,
         },
-        scrollView: {
-            paddingBottom: theme.spacing.lg,
+        scrollView: {},
+        content: {
+            padding: theme.spacing.lg,
         },
-        continueButton: {
-            width: '100%',
-            marginBottom: theme.spacing.md,
-            marginTop: 'auto',
+        iconBackground: {
+            alignItems: 'center',
+            borderRadius: 1024,
+            display: 'flex',
+            flexDirection: 'row',
+            height: 80,
+            justifyContent: 'center',
+            overflow: 'hidden',
+            width: 80,
+        },
+        title: {
+            fontSize: 24,
+            fontWeight: '600',
         },
         instructionsText: {
-            textAlign: 'left',
+            color: theme.colors.darkGrey,
             fontWeight: '400',
+            textAlign: 'center',
         },
-        label: {
-            marginVertical: theme.spacing.md,
+        warning: {
+            backgroundColor: theme.colors.orange100,
+            borderRadius: 6,
+            padding: theme.spacing.md,
+            width: '100%',
+        },
+        warningText: {
+            color: theme.colors.black,
+            fontSize: 14,
+            textAlign: 'center',
+        },
+        warningIconWrapper: {
+            marginRight: theme.spacing.sm,
+        },
+        tipText: {
+            fontWeight: '700',
+            textAlign: 'center',
         },
         roundedCardContainer: {
             borderRadius: theme.borders.defaultRadius,
+            margin: 0,
+            padding: theme.spacing.lg,
             width: '100%',
-            marginHorizontal: 0,
-            padding: theme.spacing.xl,
         },
         wordContainer: {
             marginVertical: theme.spacing.sm,
@@ -167,6 +240,9 @@ const styles = (theme: Theme) =>
             flex: 1,
             textAlign: 'left',
             fontWeight: '400',
+        },
+        buttons: {
+            padding: theme.spacing.xl,
         },
     })
 

@@ -16,9 +16,9 @@ import {
 
 import { Images } from '../assets/images'
 import ChatsList from '../components/feature/chat/ChatsList'
-import FirstTimeCommunityEntryOverlay, {
-    FirstTimeCommunityEntryItem,
-} from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
+import FirstTimeOverlay, {
+    FirstTimeOverlayItem,
+} from '../components/feature/onboarding/FirstTimeOverlay'
 import Flex from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { MatrixSyncStatus } from '../types'
@@ -49,7 +49,7 @@ const ChatScreen: React.FC<Props> = () => {
 
     useDismissIosNotifications()
 
-    const chatFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
+    const chatFirstTimeOverlayItems: FirstTimeOverlayItem[] = [
         { icon: 'SpeakerPhone', text: t('feature.chat.first-entry-option-1') },
         { icon: 'Wallet', text: t('feature.chat.first-entry-option-2') },
     ]
@@ -127,7 +127,7 @@ const ChatScreen: React.FC<Props> = () => {
                 </ErrorBoundary>
             )}
 
-            <FirstTimeCommunityEntryOverlay
+            <FirstTimeOverlay
                 overlayItems={chatFirstTimeOverlayItems}
                 title={t('feature.chat.first-entry')}
                 show={shouldShowFirstTimeModal}

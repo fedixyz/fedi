@@ -20,6 +20,7 @@ const initialState = {
         communityModal: false,
         chatModal: false,
         modsModal: false,
+        scanModal: false,
         pwaHasDismissedInstallPrompt: false, // pwa only
     },
 }

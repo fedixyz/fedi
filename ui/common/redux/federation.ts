@@ -24,11 +24,13 @@ import {
     LoadedFederation,
     MatrixRoom,
     MSats,
+    PublicCommunity,
     PublicFederation,
     Sats,
     StabilityPoolConfig,
 } from '../types'
 import {
+    GuardianitoBot,
     RpcFederationId,
     RpcFederationPreview,
     RpcLightningGateway,
@@ -67,6 +69,7 @@ const log = makeLog('common/redux/federation')
 const initialState = {
     communities: [] as Community[],
     federations: [] as Federation[],
+    publicCommunities: [] as PublicCommunity[],
     publicFederations: [] as PublicFederation[],
     payFromFederationId: null as Federation['id'] | null,
     recentlyUsedFederationIds: [] as Array<Federation['id']>,
@@ -81,6 +84,7 @@ const initialState = {
     previouslyAutojoinedCommunities: {} as Record<Community['id'], number>,
     // A list of community IDs that were autojoined where a dismissable notice should be displayed to the user
     autojoinNoticesToDisplay: [] as Array<Community['id']>,
+    guardianitoBot: null as GuardianitoBot | null,
 }
 
 export type FederationState = typeof initialState
@@ -204,6 +208,9 @@ export const federationSlice = createSlice({
             if (hasAnyUpdates) {
                 state.federations = [...updatedFederations, ...newFederations]
             }
+        },
+        setPublicCommunities(state, action: PayloadAction<PublicCommunity[]>) {
+            state.publicCommunities = action.payload
         },
         setPublicFederations(state, action: PayloadAction<PublicFederation[]>) {
             state.publicFederations = action.payload
@@ -364,6 +371,9 @@ export const federationSlice = createSlice({
                     id => id !== action.payload.communityId,
                 )
         },
+        setGuardianitoBot(state, action: PayloadAction<GuardianitoBot>) {
+            state.guardianitoBot = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(leaveFederation.fulfilled, (state, action) => {
@@ -424,6 +434,9 @@ export const federationSlice = createSlice({
                 state.customFediMods = omit(state.customFediMods, communityId)
             }
         })
+        builder.addCase(createGuardianitoBot.fulfilled, (state, action) => {
+            state.guardianitoBot = action.payload
+        })
 
         builder.addCase(loadFromStorage.fulfilled, (state, action) => {
             if (!action.payload) return
@@ -466,6 +479,7 @@ export const federationSlice = createSlice({
 export const {
     setCommunities,
     setFederations,
+    setPublicCommunities,
     setPublicFederations,
     upsertCommunity,
     upsertFederation,
@@ -482,6 +496,7 @@ export const {
     clearAutojoinedCommunitiesAndNotices,
     addAutojoinNoticeToDisplay,
     removeAutojoinNoticeToDisplay,
+    setGuardianitoBot,
 } = federationSlice.actions
 
 /*** Async thunk actions */
@@ -1031,6 +1046,17 @@ export const listGateways = createAsyncThunk<
         return gateways
     },
 )
+
+export const createGuardianitoBot = createAsyncThunk<
+    GuardianitoBot,
+    { fedimint: FedimintBridge },
+    { state: CommonState }
+>('federation/createGuardianitoBot', async ({ fedimint }) => {
+    const guardianitoBot = await fedimint.guardianitoGetOrCreateBot()
+    log.debug('createGuardianitoBot guardianitoBot', guardianitoBot)
+
+    return guardianitoBot
+})
 
 /*** Selectors ***/
 
@@ -1678,3 +1704,6 @@ export const selectAutojoinNoticeInfo = createSelector(
         }
     },
 )
+
+export const selectGuardianitoBot = (s: CommonState) =>
+    s.federation.guardianitoBot

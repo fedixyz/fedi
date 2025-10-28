@@ -67,13 +67,6 @@ const FederationPreview: React.FC<Props> = ({
             </>
         )
     } else {
-        const memberStatus = federation.returningMemberStatus.type
-        const welcomeInstructions =
-            memberStatus === 'newMember'
-                ? t('feature.onboarding.welcome-instructions-new')
-                : memberStatus === 'returningMember'
-                  ? t('feature.onboarding.welcome-instructions-returning')
-                  : t('feature.onboarding.welcome-instructions-unknown')
         content = (
             <FederationPreviewOuter>
                 <FederationPreviewInner>
@@ -90,15 +83,13 @@ const FederationPreview: React.FC<Props> = ({
                     <Text variant="h2" weight="medium">
                         {federation.name}
                     </Text>
-                    <CustomWelcomeMessage>
-                        {welcomeMessage ? (
+                    {welcomeMessage && (
+                        <CustomWelcomeMessage>
                             <Trans components={{ bold: <strong /> }}>
                                 {welcomeMessage}
                             </Trans>
-                        ) : (
-                            <Text variant="caption">{welcomeInstructions}</Text>
-                        )}
-                    </CustomWelcomeMessage>
+                        </CustomWelcomeMessage>
+                    )}
                 </FederationPreviewInner>
             </FederationPreviewOuter>
         )

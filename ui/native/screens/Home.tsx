@@ -16,9 +16,6 @@ import {
 } from '@fedi/common/redux'
 import { getFederationPinnedMessage } from '@fedi/common/utils/FederationUtils'
 
-import FirstTimeCommunityEntryOverlay, {
-    FirstTimeCommunityEntryItem,
-} from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
 import AnalyticsConsentOverlay from '../components/feature/home/AnalyticsConsentOverlay'
 import AutojoinedCommunityNotice from '../components/feature/home/AutojoinedCommunityNotice'
 import CommunityChats from '../components/feature/home/CommunityChats'
@@ -26,6 +23,9 @@ import DisplayNameOverlay from '../components/feature/home/DisplayNameOverlay'
 import PinnedMessage from '../components/feature/home/PinnedMessage'
 import ShortcutsList from '../components/feature/home/ShortcutsList'
 import SurveyOverlay from '../components/feature/home/SurveyOverlay'
+import FirstTimeOverlay, {
+    FirstTimeOverlayItem,
+} from '../components/feature/onboarding/FirstTimeOverlay'
 import Flex from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import type {
@@ -42,8 +42,8 @@ const Home: React.FC<Props> = () => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const isFocused = useIsFocused()
-
     const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
+
     const pinnedMessage = getFederationPinnedMessage(
         selectedCommunity?.meta || {},
     )
@@ -58,7 +58,7 @@ const Home: React.FC<Props> = () => {
     const federationCount = useAppSelector(selectFederationIds).length
     const totalCount = joinedCommunityCount + federationCount
 
-    const homeFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
+    const homeFirstTimeOverlayItems: FirstTimeOverlayItem[] = [
         {
             icon: 'Wallet',
             text: t('feature.onboarding.one-time-modal-option-1'),
@@ -146,13 +146,15 @@ const Home: React.FC<Props> = () => {
                 onDismiss={handleDisplayNameDismiss}
             />
 
-            <FirstTimeCommunityEntryOverlay
+            <FirstTimeOverlay
                 overlayItems={homeFirstTimeOverlayItems}
                 title={t('feature.onboarding.one-time-modal-title')}
                 show={showCommunityOverlay}
                 onDismiss={handleCommunityDismiss}
             />
+
             <SurveyOverlay />
+
             <AnalyticsConsentOverlay />
         </View>
     )

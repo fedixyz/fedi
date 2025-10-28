@@ -80,6 +80,10 @@ impl Nostril {
         })
     }
 
+    pub fn keys(&self) -> &Keys {
+        &self.keys
+    }
+
     pub async fn get_pub_key(&self) -> anyhow::Result<RpcNostrPubkey> {
         Ok(RpcNostrPubkey {
             hex: self.keys.public_key().to_hex(),

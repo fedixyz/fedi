@@ -13,6 +13,7 @@ export const getIconSizeMultiplier = (fontScale: number) =>
 
 export type SvgImageName = keyof typeof Svgs
 export enum SvgImageSize {
+    xxs = 'xxs',
     xs = 'xs',
     sm = 'sm',
     md = 'md',

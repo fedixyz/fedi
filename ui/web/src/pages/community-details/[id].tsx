@@ -5,16 +5,18 @@ import { useTranslation } from 'react-i18next'
 import RoomIcon from '@fedi/common/assets/svgs/room.svg'
 import { useLeaveCommunity } from '@fedi/common/hooks/leave'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectCommunity } from '@fedi/common/redux'
+import { selectCommunity, selectDefaultChats } from '@fedi/common/redux'
 import {
     getFederationTosUrl,
     getFederationWelcomeMessage,
 } from '@fedi/common/utils/FederationUtils'
 
 import { Button } from '../../components/Button'
+import { DefaultRoomPreview } from '../../components/Chat/DefaultRoomPreview'
 import { ContentBlock } from '../../components/ContentBlock'
 import { Dialog } from '../../components/Dialog'
 import { FederationAvatar } from '../../components/FederationAvatar'
+import { Column, Row } from '../../components/Flex'
 import { Icon } from '../../components/Icon'
 import * as Layout from '../../components/Layout'
 import { Text } from '../../components/Text'
@@ -29,6 +31,7 @@ function CommunityDetails() {
 
     const id = (query.id as string | undefined) ?? ''
     const community = useAppSelector(s => selectCommunity(s, id))
+    const chats = useAppSelector(s => selectDefaultChats(s, id))
     const toast = useToast()
 
     const { t } = useTranslation()
@@ -62,17 +65,30 @@ function CommunityDetails() {
                     </Layout.Title>
                 </Layout.Header>
                 <Layout.Content>
-                    <Content>
-                        <HeaderContent>
+                    <Column gap="lg" grow>
+                        <Row align="center" gap="lg">
                             <FederationAvatar
                                 federation={community}
                                 size="lg"
                                 css={{ flexShrink: 0 }}
                             />
                             <Text variant="h2">{community.name}</Text>
-                        </HeaderContent>
+                        </Row>
+                        {chats.length > 0 && (
+                            <Column gap="sm" fullWidth>
+                                <Text variant="h2" weight="bold">
+                                    {t('feature.home.community-news-title')}
+                                </Text>
+                                {chats.map(room => (
+                                    <DefaultRoomPreview
+                                        room={room}
+                                        key={`default-chat-${room.id}`}
+                                    />
+                                ))}
+                            </Column>
+                        )}
                         <Text>{welcomeMessage}</Text>
-                    </Content>
+                    </Column>
                     <Actions>
                         {tosUrl && (
                             <Button
@@ -101,7 +117,7 @@ function CommunityDetails() {
                 open={wantsToLeaveCommunity}
                 onOpenChange={handleClose}
                 mobileDismiss="overlay">
-                <LeaveCommunityContent>
+                <Column gap="lg" align="center">
                     <IconContainer>
                         <Icon
                             icon={RoomIcon}
@@ -126,7 +142,7 @@ function CommunityDetails() {
                             {t('words.cancel')}
                         </Button>
                     </LeaveActions>
-                </LeaveCommunityContent>
+                </Column>
             </Dialog>
         </ContentBlock>
     )
@@ -153,19 +169,6 @@ const IconContainer = styled('div', {
     justifyContent: 'center',
 })
 
-const LeaveCommunityContent = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 16,
-})
-
-const HeaderContent = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-})
-
 const Actions = styled('div', {
     display: 'flex',
     flexDirection: 'column',
@@ -175,13 +178,6 @@ const Actions = styled('div', {
         paddingLeft: 16,
         paddingRight: 16,
     },
-})
-
-const Content = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-    flex: 1,
 })
 
 export default CommunityDetails

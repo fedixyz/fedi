@@ -3,6 +3,10 @@ import { z } from 'zod'
 import { DEFAULT_FEDIMODS } from '@fedi/common/constants/fedimods'
 
 import {
+    PUBLIC_COMMUNITIES_META_JSON_URL,
+    FEDIBTC_META_JSON_URL,
+} from '../constants/api'
+import {
     FederationMetadata,
     Community,
     Federation,
@@ -11,6 +15,7 @@ import {
     LightningGateway,
     LoadedFederation,
     MSats,
+    PublicCommunity,
     PublicFederation,
     SupportedMetaFields,
     SelectableCurrency,
@@ -94,17 +99,57 @@ const fetchExternalMetadata = async (
     }
 }
 
+export const fetchPublicCommunities = async (): Promise<PublicCommunity[]> => {
+    const publicCommunities: PublicCommunity[] = []
+
+    try {
+        log.info(
+            'Fetching public communities from',
+            PUBLIC_COMMUNITIES_META_JSON_URL,
+        )
+        const externalMetaJson = await fetchExternalMetadata(
+            PUBLIC_COMMUNITIES_META_JSON_URL,
+        )
+
+        if (!externalMetaJson) throw new Error('No meta JSON to read from')
+        Object.entries<Community['meta'] | undefined>(externalMetaJson).forEach(
+            ([key, value]) => {
+                if (!value) return
+
+                if (
+                    value.public &&
+                    value.public === 'true' &&
+                    value.invite_code &&
+                    value.preview_message
+                ) {
+                    publicCommunities.push({
+                        id: key,
+                        name: value.name || '',
+                        meta: value,
+                    })
+                }
+            },
+        )
+
+        return publicCommunities
+    } catch (error) {
+        log.error('Failed to fetch public federations', error)
+        return []
+    }
+}
+
 /**
  * Fetches any public federations from meta.json
  */
-const FEDIBTC_META_JSON_URL = 'https://meta.dev.fedibtc.com/meta.json'
 export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
     const publicFederations: PublicFederation[] = []
+
     try {
         const externalMetaJson = await fetchExternalMetadata(
             FEDIBTC_META_JSON_URL,
         )
         if (!externalMetaJson) throw new Error('No meta JSON to read from')
+
         Object.entries<Federation['meta'] | undefined>(
             externalMetaJson,
         ).forEach(([key, value]) => {
@@ -131,10 +176,12 @@ export const fetchPublicFederations = async (): Promise<PublicFederation[]> => {
                 })
             }
         })
+
+        return publicFederations
     } catch (error) {
         log.error('Failed to fetch public federations', error)
+        return []
     }
-    return publicFederations
 }
 
 export const getMetaField = (

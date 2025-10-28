@@ -6,6 +6,7 @@ import AppsFilledIcon from '@fedi/common/assets/svgs/apps-filled.svg'
 import AppsIcon from '@fedi/common/assets/svgs/apps.svg'
 import ChatFilledIcon from '@fedi/common/assets/svgs/chat-filled.svg'
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
+import CommunityFilledIcon from '@fedi/common/assets/svgs/community-filled.svg'
 import CommunityIcon from '@fedi/common/assets/svgs/community.svg'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo.svg'
 import WalletFilledIcon from '@fedi/common/assets/svgs/wallet-filled.svg'
@@ -37,7 +38,7 @@ export const Navigation: React.FC = () => {
         {
             path: homeRoute,
             icon: CommunityIcon,
-            activeIcon: CommunityIcon,
+            activeIcon: CommunityFilledIcon,
             available: true,
             hasNotification: false,
         },

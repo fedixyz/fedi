@@ -7,15 +7,21 @@ import { Pressable, StyleSheet } from 'react-native'
 import { LoadedFederation } from '@fedi/common/types'
 
 import { NavigationHook } from '../../../types/navigation'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import Balance from './Balance'
 
 type Props = {
     federation: LoadedFederation
+    expanded: boolean
+    setExpandedWalletId: (id: string | null) => void
 }
 
-const WalletHeader: React.FC<Props> = ({ federation }) => {
+const WalletHeader: React.FC<Props> = ({
+    federation,
+    expanded,
+    setExpandedWalletId,
+}) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
@@ -27,12 +33,16 @@ const WalletHeader: React.FC<Props> = ({ federation }) => {
     return (
         <Pressable
             style={style.container}
-            onPress={() =>
-                navigation.navigate('Transactions', {
-                    federationId: federation.id,
-                })
-            }>
-            <Flex row align="center" gap="sm">
+            onPress={() => {
+                if (expanded) {
+                    navigation.navigate('Transactions', {
+                        federationId: federation.id,
+                    })
+                } else {
+                    setExpandedWalletId(federation.id)
+                }
+            }}>
+            <Row align="center" gap="sm">
                 <SvgImage
                     name="BitcoinCircle"
                     size={SvgImageSize.sm}
@@ -41,7 +51,7 @@ const WalletHeader: React.FC<Props> = ({ federation }) => {
                 <Text medium style={style.title}>
                     {t('words.bitcoin')}
                 </Text>
-            </Flex>
+            </Row>
             <Balance federationId={federation.id} />
         </Pressable>
     )

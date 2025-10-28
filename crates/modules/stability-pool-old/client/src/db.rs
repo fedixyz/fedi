@@ -16,6 +16,7 @@ pub enum DbKeyPrefix {
 pub struct AccountInfoKey;
 
 #[derive(Debug, Encodable, Decodable)]
+#[allow(dead_code)]
 pub struct AccountInfoKeyPrefix;
 
 impl_db_record!(

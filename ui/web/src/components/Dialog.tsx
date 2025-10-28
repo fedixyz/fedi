@@ -21,6 +21,7 @@ interface Props {
     children: React.ReactNode
     size?: 'sm' | 'md' | 'lg'
     disableClose?: boolean
+    hideCloseButton?: boolean
     /**
      * Behaves like a normal dialog when the view is greater than the `sm` breakpoint.
      * If specified, behaves like an overlay on mobile, showing a Back button and a centered header instead of a Close button.
@@ -39,6 +40,7 @@ export const Dialog: React.FC<Props> = ({
     children,
     size,
     disableClose,
+    hideCloseButton,
     mobileDismiss = 'close',
     disablePadding = false,
 }) => {
@@ -97,7 +99,7 @@ export const Dialog: React.FC<Props> = ({
                     )}
                 </Header>
                 <Main>{children}</Main>
-                {!disableClose && !mobileDismissBack && (
+                {!disableClose && !mobileDismissBack && !hideCloseButton && (
                     <CloseButton>
                         <Icon icon={CloseIcon} />
                     </CloseButton>

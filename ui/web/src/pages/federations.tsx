@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
@@ -11,7 +11,6 @@ import {
 import { ContentBlock } from '../components/ContentBlock'
 import FeaturedFederation from '../components/FeaturedFederation'
 import FederationTile from '../components/FederationTile'
-import { Column } from '../components/Flex'
 import * as Layout from '../components/Layout'
 import MainHeaderButtons from '../components/MainHeaderButtons'
 import { RequestPaymentDialog } from '../components/RequestPaymentDialog'
@@ -26,6 +25,9 @@ function FederationsPage() {
     const router = useRouter()
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const [expandedWalletId, setExpandedWalletId] = useState<string | null>(
+        null,
+    )
 
     // Get federation data
     const federations = useAppSelector(selectNonFeaturedFederations)
@@ -54,18 +56,17 @@ function FederationsPage() {
                     />
                 </Layout.Header>
                 <Layout.Content fullWidth>
-                    <Column gap="lg">
+                    <FederationsListWrapper>
                         <FeaturedFederation />
-
-                        <FederationsListWrapper>
-                            {federations.map(federation => (
-                                <FederationTile
-                                    key={federation.id}
-                                    federation={federation}
-                                />
-                            ))}
-                        </FederationsListWrapper>
-                    </Column>
+                        {federations.map(federation => (
+                            <FederationTile
+                                key={federation.id}
+                                federation={federation}
+                                expanded={expandedWalletId === federation.id}
+                                setExpandedWalletId={setExpandedWalletId}
+                            />
+                        ))}
+                    </FederationsListWrapper>
                 </Layout.Content>
             </Layout.Root>
 
@@ -89,8 +90,11 @@ const FederationsListWrapper = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: theme.spacing.lg,
-    paddingLeft: theme.spacing.lg,
-    paddingRight: theme.spacing.lg,
+
+    '@sm': {
+        paddingLeft: theme.spacing.lg,
+        paddingRight: theme.spacing.lg,
+    },
 })
 
 export default FederationsPage

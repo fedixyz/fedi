@@ -12,10 +12,11 @@ import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'NewMessage'>
 
-const NewMessage: React.FC<Props> = ({ navigation }: Props) => {
+const NewMessage: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
     const toast = useToast()
     const { setParsedLink } = useOmniLinkContext()
+    const initialInputMethod = route.params?.initialInputMethod || 'scan'
 
     return (
         <Flex grow fullWidth>
@@ -62,6 +63,7 @@ const NewMessage: React.FC<Props> = ({ navigation }: Props) => {
                         onPress: () => navigation.push('CreateGroup', {}),
                     },
                 ]}
+                initialInputMethod={initialInputMethod}
             />
         </Flex>
     )

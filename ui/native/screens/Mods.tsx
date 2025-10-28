@@ -16,11 +16,11 @@ import { selectOnboardingMethod } from '@fedi/common/redux'
 import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
 import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
-import FirstTimeCommunityEntryOverlay, {
-    FirstTimeCommunityEntryItem,
-} from '../components/feature/federations/FirstTimeCommunityEntryOverlay'
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
 import ShortcutTile from '../components/feature/home/ShortcutTile'
+import FirstTimeOverlay, {
+    FirstTimeOverlayItem,
+} from '../components/feature/onboarding/FirstTimeOverlay'
 import ZendeskBadge from '../components/feature/support/ZendeskBadge'
 import Flex from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
@@ -50,7 +50,7 @@ const Mods: React.FC = () => {
     const shouldShowFirstTimeModal =
         !hasSeenMods && onboardingMethod !== 'restored'
 
-    const modsFirstTimeOverlayItems: FirstTimeCommunityEntryItem[] = [
+    const modsFirstTimeOverlayItems: FirstTimeOverlayItem[] = [
         { icon: 'Apps', text: t('feature.fedimods.first-entry-option-1') },
     ]
 
@@ -147,7 +147,7 @@ const Mods: React.FC = () => {
                     <Text>{t('feature.fedimods.add-mods-homescreen')}</Text>
                 </Flex>
             )}
-            <FirstTimeCommunityEntryOverlay
+            <FirstTimeOverlay
                 overlayItems={modsFirstTimeOverlayItems}
                 title={t('feature.fedimods.first-entry')}
                 show={shouldShowFirstTimeModal}

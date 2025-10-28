@@ -19,9 +19,15 @@ import { Text } from './Text'
 
 type Props = {
     federation: LoadedFederation
+    expanded: boolean
+    setExpandedWalletId: (id: string | null) => void
 }
 
-const FederationTile: React.FC<Props> = ({ federation }) => {
+const FederationTile: React.FC<Props> = ({
+    federation,
+    expanded,
+    setExpandedWalletId,
+}) => {
     const { t } = useTranslation()
     const recoveryInProgress = useAppSelector(s =>
         selectIsFederationRecovering(s, federation.id),
@@ -56,7 +62,11 @@ const FederationTile: React.FC<Props> = ({ federation }) => {
                     />
                 </RecoveryContainer>
             ) : (
-                <BitcoinWallet federation={federation} />
+                <BitcoinWallet
+                    federation={federation}
+                    expanded={expanded}
+                    setExpandedWalletId={setExpandedWalletId}
+                />
             )}
         </Container>
     )

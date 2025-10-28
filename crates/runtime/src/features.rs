@@ -84,6 +84,9 @@ pub struct FeatureCatalog {
 
     /// Config for which invite code to use for joining the global community
     pub global_community: GlobalCommunityFeatureConfig,
+
+    /// Guardianito chatbot API configuration.
+    pub guardianito: GuardianitoFeatureConfig,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -121,6 +124,13 @@ pub struct GlobalCommunityFeatureConfig {
     pub invite_code: String,
 }
 
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct GuardianitoFeatureConfig {
+    #[ts(type = "string")]
+    pub api_base_url: Url,
+}
+
 impl FeatureCatalog {
     pub fn new(runtime_env: RuntimeEnvironment) -> Self {
         match runtime_env {
@@ -150,6 +160,10 @@ impl FeatureCatalog {
             global_community: GlobalCommunityFeatureConfig {
                 invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
             },
+            guardianito: GuardianitoFeatureConfig {
+                api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
+                    .expect("guardianito url must be valid"),
+            },
         }
     }
 
@@ -173,6 +187,10 @@ impl FeatureCatalog {
             global_community: GlobalCommunityFeatureConfig {
                 invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
             },
+            guardianito: GuardianitoFeatureConfig {
+                api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
+                    .expect("guardianito url must be valid"),
+            },
         }
     }
 
@@ -192,6 +210,10 @@ impl FeatureCatalog {
             },
             global_community: GlobalCommunityFeatureConfig {
                 invite_code: FEDI_GLOBAL_COMMUNITY_STAGING.to_string(),
+            },
+            guardianito: GuardianitoFeatureConfig {
+                api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
+                    .expect("guardianito url must be valid"),
             },
         }
     }
@@ -215,6 +237,10 @@ impl FeatureCatalog {
             },
             global_community: GlobalCommunityFeatureConfig {
                 invite_code: FEDI_GLOBAL_COMMUNITY_PROD.to_string(),
+            },
+            guardianito: GuardianitoFeatureConfig {
+                api_base_url: Url::parse("https://prod.guardianito.dev.fedibtc.com")
+                    .expect("guardianito url must be valid"),
             },
         }
     }

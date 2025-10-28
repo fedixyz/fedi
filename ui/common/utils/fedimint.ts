@@ -472,6 +472,10 @@ export class FedimintBridge {
         })
     }
 
+    async guardianitoGetOrCreateBot() {
+        return this.rpcTyped('guardianitoGetOrCreateBot', {})
+    }
+
     async getNostrPubkey() {
         return this.rpcTyped('getNostrPubkey', {})
     }

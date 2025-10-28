@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { selectSocialRecoveryState } from '@fedi/common/redux'
 
 import ChooseBackupMethodHeader from '../components/feature/backup/ChooseBackupMethodHeader'
-import PersonalBackupHeader from '../components/feature/backup/PersonalBackupHeader'
 import RecoveryWordsHeader from '../components/feature/backup/RecoveryWordsHeader'
 import SocialBackupHeader from '../components/feature/backup/SocialBackupHeader'
 import ChatConversationHeader from '../components/feature/chat/ChatConversationHeader'
@@ -18,6 +17,7 @@ import ConfirmJoinPublicGroupHeader from '../components/feature/chat/ConfirmJoin
 import CreatePollHeader from '../components/feature/chat/CreatePollHeader'
 import DefaultChatHeader from '../components/feature/chat/DefaultChatHeader'
 import CommunityDetailsHeader from '../components/feature/federations/CommunityDetailsHeader'
+import CommunityInviteHeader from '../components/feature/federations/CommunityInviteHeader'
 import FederationDetailsHeader from '../components/feature/federations/FederationDetailsHeader'
 import FederationInviteHeader from '../components/feature/federations/FederationInviteHeader'
 import JoinFederationHeader from '../components/feature/federations/JoinFederationHeader'
@@ -90,6 +90,7 @@ import ChatsListSearch from './ChatsListSearch'
 import ChooseBackupMethod from './ChooseBackupMethod'
 import ChooseRecoveryMethod from './ChooseRecoveryMethod'
 import CommunityDetails from './CommunityDetails'
+import CommunityInvite from './CommunityInvite'
 import CompleteRecoveryAssist from './CompleteRecoveryAssist'
 import CompleteSocialBackup from './CompleteSocialBackup'
 import CompleteSocialRecovery from './CompleteSocialRecovery'
@@ -187,7 +188,6 @@ import StabilityHome from './StabilityHome'
 import StabilityWithdraw from './StabilityWithdraw'
 import StabilityWithdrawInitiated from './StabilityWithdrawInitiated'
 import StableBalanceIntro from './StableBalanceIntro'
-import StartPersonalBackup from './StartPersonalBackup'
 import StartRecoveryAssist from './StartRecoveryAssist'
 import StartSocialBackup from './StartSocialBackup'
 import TabsNavigator from './TabsNavigator'
@@ -844,6 +844,13 @@ export const MainNavigator = () => {
                                     header: () => <FederationInviteHeader />,
                                 })}
                             />
+                            <Stack.Screen
+                                name="CommunityInvite"
+                                component={CommunityInvite}
+                                options={() => ({
+                                    header: () => <CommunityInviteHeader />,
+                                })}
+                            />
                             {/* Backup & Recovery */}
                             <Stack.Screen
                                 name="ChooseBackupMethod"
@@ -989,13 +996,6 @@ export const MainNavigator = () => {
                             />
                             {/* Personal Backup */}
                             <Stack.Screen
-                                name="StartPersonalBackup"
-                                component={StartPersonalBackup}
-                                options={() => ({
-                                    header: () => <PersonalBackupHeader />,
-                                })}
-                            />
-                            <Stack.Screen
                                 name="RecoveryWords"
                                 component={RecoveryWords}
                                 options={() => ({
@@ -1042,7 +1042,7 @@ export const MainNavigator = () => {
                                         <CenteredHeader
                                             backButton
                                             title={t(
-                                                'feature.fedimods.add-a-mod',
+                                                'feature.fedimods.add-a-mini-app',
                                             )}
                                         />
                                     ),

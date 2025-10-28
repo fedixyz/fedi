@@ -43,7 +43,7 @@ const CreatePinInstructions: React.FC<Props> = ({ navigation }: Props) => {
                     title={t('words.continue')}
                     onPress={() => {
                         dispatch(setIsBackingUpBeforePin(true))
-                        navigation.navigate('StartPersonalBackup')
+                        navigation.navigate('RecoveryWords')
                     }}
                 />
             </Flex>

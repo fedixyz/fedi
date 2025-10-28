@@ -1,17 +1,24 @@
-import { useRouter } from 'next/router'
-import React from 'react'
+import Link from 'next/link'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
 import ErrorIcon from '@fedi/common/assets/svgs/error.svg'
+import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
+import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
+import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { selectMatrixChatsList } from '@fedi/common/redux'
 
 import * as Layout from '../../components/Layout'
-import { useAppSelector } from '../../hooks'
-import { styled, theme } from '../../styles'
+import { useAppSelector, useMediaQuery } from '../../hooks'
+import { config, styled, theme } from '../../styles'
 import { ContentBlock } from '../ContentBlock'
+import { Dialog } from '../Dialog'
+import { Column, Row } from '../Flex'
 import { Icon } from '../Icon'
-import MainHeaderButtons from '../MainHeaderButtons'
+import MainHeaderButtons, { BubbleButton } from '../MainHeaderButtons'
+import { Popover } from '../Popover'
 import { Text } from '../Text'
 import { ChatListItem } from './ChatListItem'
 
@@ -23,11 +30,26 @@ interface Props {
 export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
     const { t } = useTranslation()
     const rooms = useAppSelector(selectMatrixChatsList)
-    const router = useRouter()
+    const isSm = useMediaQuery(config.media.sm)
 
-    const goToNewChat = () => {
-        router.push('/chat/new')
-    }
+    const [optionsOverlayOpen, setOptionsOverlayOpen] = useState(false)
+
+    const optionsContent = useCallback(() => {
+        return (
+            <Column gap="lg">
+                <ChatAddOption
+                    href="/chat/new/room"
+                    text={t('feature.chat.create-a-group')}
+                    icon={SocialPeopleIcon}
+                />
+                <ChatAddOption
+                    href="/scan"
+                    text={t('phrases.scan-or-paste')}
+                    icon={ScanIcon}
+                />
+            </Column>
+        )
+    }, [t])
 
     return (
         <ContentBlock css={{ maxWidth: 840, padding: 0 }}>
@@ -37,7 +59,31 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
                         <SidebarHeader>
                             <Layout.Title small>{t('words.chat')}</Layout.Title>
 
-                            <MainHeaderButtons onAddPress={goToNewChat} />
+                            {isSm ? (
+                                <>
+                                    <MainHeaderButtons
+                                        onAddPress={() =>
+                                            setOptionsOverlayOpen(true)
+                                        }
+                                    />
+                                    <Dialog
+                                        mobileDismiss="overlay"
+                                        onOpenChange={setOptionsOverlayOpen}
+                                        open={optionsOverlayOpen}
+                                        hideCloseButton>
+                                        {optionsContent()}
+                                    </Dialog>
+                                </>
+                            ) : (
+                                <Row align="center" gap="md">
+                                    <Popover content={optionsContent()}>
+                                        <BubbleButton>
+                                            <Icon icon={PlusIcon} size="sm" />
+                                        </BubbleButton>
+                                    </Popover>
+                                    <MainHeaderButtons />
+                                </Row>
+                            )}
                         </SidebarHeader>
                         <Layout.Content fullWidth>
                             <SidebarList>
@@ -69,6 +115,48 @@ export const ChatBlock: React.FC<Props> = ({ children, isShowingContent }) => {
         </ContentBlock>
     )
 }
+
+function ChatAddOption({
+    href,
+    text,
+    icon,
+}: {
+    href: string
+    icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    text: string
+}) {
+    return (
+        <Link href={href}>
+            <Row align="center" justify="between">
+                <Row align="center" gap="md">
+                    <OptionIcon>
+                        <Icon
+                            icon={icon}
+                            size={24}
+                            color={theme.colors.white.toString()}
+                        />
+                    </OptionIcon>
+                    <Text weight="medium">{text}</Text>
+                </Row>
+                <Icon
+                    icon={ChevronRightIcon}
+                    size={24}
+                    color={theme.colors.grey.toString()}
+                />
+            </Row>
+        </Link>
+    )
+}
+
+const OptionIcon = styled('div', {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    fediGradient: 'black',
+})
 
 const Container = styled('div', {
     position: 'relative',

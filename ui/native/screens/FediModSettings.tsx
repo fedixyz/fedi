@@ -214,7 +214,7 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
             {type === 'fedi' &&
                 mods.length > 0 && ( // Only show the button for 'fedi' type and when mods are present
                     <Button onPress={() => navigation.navigate('AddFediMod')}>
-                        {t('feature.fedimods.add-a-mod')}
+                        {t('feature.fedimods.add-a-mini-app')}
                     </Button>
                 )}
         </SafeAreaContainer>

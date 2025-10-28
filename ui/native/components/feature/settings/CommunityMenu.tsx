@@ -121,7 +121,7 @@ const CommunityMenu = ({ community }: CommunityMenuProps) => {
                             icon="Qr"
                             label={t('feature.federations.invite-members')}
                             onPress={() => {
-                                navigation.navigate('FederationInvite', {
+                                navigation.navigate('CommunityInvite', {
                                     inviteLink: community.inviteCode,
                                 })
                             }}

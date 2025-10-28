@@ -5,15 +5,20 @@ import { StyleSheet } from 'react-native'
 
 import { NavigationHook } from '../../types/navigation'
 import HeaderAvatar from '../feature/chat/HeaderAvatar'
-import Flex from './Flex'
+import { Row } from './Flex'
 import { PressableIcon } from './PressableIcon'
 
 type Props = {
     onAddPress: () => void
     onSearchPress?: () => void
+    onShowCommunitiesPress?: () => void
 }
 
-const MainHeaderButtons: React.FC<Props> = ({ onAddPress, onSearchPress }) => {
+const MainHeaderButtons: React.FC<Props> = ({
+    onAddPress,
+    onSearchPress,
+    onShowCommunitiesPress,
+}) => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
 
@@ -28,69 +33,55 @@ const MainHeaderButtons: React.FC<Props> = ({ onAddPress, onSearchPress }) => {
     }, [navigation])
 
     return (
-        <Flex row align="center" gap="md">
+        <Row align="center" gap="sm">
             {/* TODO: add gradients to bubbleButton styling to match designs */}
+            {onShowCommunitiesPress && (
+                <PressableIcon
+                    containerStyle={style.icon}
+                    onPress={onShowCommunitiesPress}
+                    hitSlop={5}
+                    svgName="HamburgerIcon"
+                    svgProps={{ size: 24 }}
+                />
+            )}
             {onSearchPress && (
                 <PressableIcon
-                    containerStyle={style.bubbleButton}
+                    containerStyle={style.icon}
                     onPress={onSearchPress}
                     hitSlop={5}
                     svgName="Search"
-                    svgProps={{ size: 16 }}
+                    svgProps={{ size: 24 }}
                 />
             )}
             {onAddPress && (
                 <PressableIcon
-                    containerStyle={style.bubbleButton}
+                    containerStyle={style.icon}
                     onPress={onAddPress}
                     hitSlop={5}
                     svgName="Plus"
-                    svgProps={{ size: 16 }}
+                    svgProps={{ size: 24 }}
                 />
             )}
             <HeaderAvatar testID="AvatarButton" onPress={openSettings} />
             <PressableIcon
-                containerStyle={style.bubbleButton}
+                containerStyle={style.icon}
                 onPress={openOmniScanner}
                 hitSlop={5}
                 svgName="Scan"
-                svgProps={{ size: 16 }}
+                svgProps={{ size: 23 }}
             />
-        </Flex>
+        </Row>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            paddingBottom: theme.spacing.md,
-            justifyContent: 'space-between',
-        },
-        centerContainer: {
-            maxWidth: '80%',
-        },
-        nightly: {
-            position: 'absolute',
-            bottom: 0,
-            right: theme.spacing.lg,
-            backgroundColor: theme.colors.primary,
-            paddingHorizontal: theme.spacing.sm,
-            borderTopLeftRadius: 5,
-            borderTopRightRadius: 5,
-        },
-        nightlyText: {
-            fontSize: 10,
-            color: theme.colors.secondary,
-        },
-        bubbleButton: {
-            height: theme.sizes.bubbleButtonSize,
-            width: theme.sizes.bubbleButtonSize,
+        icon: {
             alignItems: 'center',
+            display: 'flex',
+            height: theme.sizes.md,
             justifyContent: 'center',
-            backgroundColor: theme.colors.secondary,
-            borderWidth: 1.5,
-            borderColor: theme.colors.lightGrey,
-            borderRadius: theme.sizes.bubbleButtonSize * 2,
+            width: theme.sizes.md,
         },
     })
 

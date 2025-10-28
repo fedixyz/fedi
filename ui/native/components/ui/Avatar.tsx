@@ -18,12 +18,14 @@ import SvgImage, {
 } from './SvgImage'
 
 export enum AvatarSize {
+    xs = 'xs',
     sm = 'sm',
     md = 'md',
     lg = 'lg',
 }
 
 const svgImageSizeMapping = {
+    [AvatarSize.xs]: SvgImageSize.xxs,
     [AvatarSize.sm]: SvgImageSize.xs,
     [AvatarSize.md]: SvgImageSize.sm,
     [AvatarSize.lg]: SvgImageSize.md,
@@ -56,11 +58,13 @@ const Avatar: React.FC<AvatarProps> = ({
     const { fontScale } = useWindowDimensions()
 
     const customSize =
-        size === AvatarSize.sm
-            ? theme.sizes.smallAvatar
-            : size === AvatarSize.md
-              ? theme.sizes.mediumAvatar
-              : theme.sizes.largeAvatar
+        size === AvatarSize.xs
+            ? theme.sizes.extraSmallAvatar
+            : size === AvatarSize.sm
+              ? theme.sizes.smallAvatar
+              : size === AvatarSize.md
+                ? theme.sizes.mediumAvatar
+                : theme.sizes.largeAvatar
 
     const multiplier = getIconSizeMultiplier(
         Math.min(fontScale, maxFontSizeMultiplier || Infinity),

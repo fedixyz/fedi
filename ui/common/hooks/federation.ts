@@ -13,6 +13,7 @@ import {
     selectPaymentFederation,
     selectStableBalance,
     selectStableBalanceEnabled,
+    setPublicCommunities,
     setPublicFederations,
     setSeenFederationRating,
     supportsSafeOnchainDeposit,
@@ -26,6 +27,9 @@ import {
     refreshFederations,
     checkFederationPreview,
     selectIsInternetUnreachable,
+    createGuardianitoBot,
+    selectGuardianitoBot,
+    setGuardianitoBot,
 } from '../redux'
 import {
     CommunityPreview,
@@ -39,6 +43,7 @@ import { RpcFederationPreview } from '../types/bindings'
 import dateUtils from '../utils/DateUtils'
 import {
     detectInviteCodeType,
+    fetchPublicCommunities,
     fetchPublicFederations,
     getCommunityPreview,
     getFederationPopupInfo,
@@ -51,6 +56,7 @@ import {
     shouldShowSocialRecovery,
 } from '../utils/FederationUtils'
 import { FedimintBridge } from '../utils/fedimint'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
 
@@ -272,6 +278,31 @@ export function usePopupFederationInfo(metadata: FederationMetadata) {
     }
 }
 
+export function useLatestPublicCommunities() {
+    const publicCommunities = useCommonSelector(
+        s => s.federation.publicCommunities,
+    )
+    const dispatch = useCommonDispatch()
+    const [isFetching, setIsFetching] = useState(false)
+
+    const findPublicCommunities = useCallback(async () => {
+        setIsFetching(true)
+        const communities = await fetchPublicCommunities()
+        dispatch(setPublicCommunities(communities))
+        setIsFetching(false)
+    }, [dispatch])
+
+    useEffect(() => {
+        findPublicCommunities()
+    }, [findPublicCommunities])
+
+    return {
+        publicCommunities,
+        findPublicCommunities,
+        isFetchingPublicCommunities: isFetching,
+    }
+}
+
 // Only v2+ federations use secrets derived from single seed
 export function useLatestPublicFederations() {
     const publicFederations = useCommonSelector(
@@ -283,8 +314,8 @@ export function useLatestPublicFederations() {
     const findPublicFederations = useCallback(async () => {
         setIsFetching(true)
         const federations = await fetchPublicFederations()
-        setIsFetching(false)
         dispatch(setPublicFederations(federations))
+        setIsFetching(false)
     }, [dispatch])
 
     useEffect(() => {
@@ -631,5 +662,58 @@ export function useFederationStatus<I>({
         statusIcon: statusIconMap[status],
         statusIconColor,
         statusWord,
+    }
+}
+
+export function useGuardianito(t: TFunction) {
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const dispatch = useCommonDispatch()
+    const myGuardianitoBot = useCommonSelector(selectGuardianitoBot)
+    const [isLoading, setIsLoading] = useState(false)
+    const [isStillLoading, setIsStillLoading] = useState(false)
+
+    // Track if operation is taking longer than 7 seconds
+    useEffect(() => {
+        if (!isLoading) {
+            setIsStillLoading(false)
+            return
+        }
+
+        const timeout = setTimeout(() => {
+            setIsStillLoading(true)
+            // set an empty guardianito bot to show the "Go to Chat" button
+            // if the user comes back to the Create Federation screen
+            dispatch(setGuardianitoBot({ bot_user_id: '', bot_room_id: '' }))
+        }, 7000)
+
+        return () => clearTimeout(timeout)
+    }, [dispatch, isLoading])
+
+    useEffect(() => {
+        if (!isStillLoading) return
+        toast.show({
+            content: t('feature.federation.create-still-loading'),
+            status: 'info',
+        })
+    }, [isStillLoading, toast, t])
+
+    const beginBotCreation = useCallback(async () => {
+        setIsLoading(true)
+        try {
+            await dispatch(createGuardianitoBot({ fedimint })).unwrap()
+        } catch (error) {
+            log.error('Error creating guardianito bot', error)
+        } finally {
+            setIsLoading(false)
+        }
+    }, [dispatch, fedimint])
+
+    return {
+        beginBotCreation,
+        isLoading,
+        myGuardianitoBot,
+        showGoToChatButton:
+            isStillLoading || myGuardianitoBot?.bot_room_id === '',
     }
 }

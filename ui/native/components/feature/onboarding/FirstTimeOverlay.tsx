@@ -8,23 +8,28 @@ import Flex from '../../ui/Flex'
 import { SvgImageName } from '../../ui/SvgImage'
 import InfoEntryList from '../home/InfoEntryList'
 
-export type FirstTimeCommunityEntryItem = {
+export type FirstTimeOverlayItem = {
     icon: SvgImageName
     text: string
 }
 
-type FirstTimeCommunityEntryOverlayProps = {
+type FirstTimeOverlayProps = {
     show: boolean
     onDismiss: () => void
     /** Items to display in the overlay */
-    overlayItems: FirstTimeCommunityEntryItem[]
+    overlayItems: FirstTimeOverlayItem[]
     /** Title text for the overlay header */
     title: string
+    buttonLabel?: string
 }
 
-const FirstTimeCommunityEntryOverlay: React.FC<
-    FirstTimeCommunityEntryOverlayProps
-> = ({ show, onDismiss, overlayItems, title }) => {
+const FirstTimeOverlay: React.FC<FirstTimeOverlayProps> = ({
+    show,
+    onDismiss,
+    overlayItems,
+    title,
+    buttonLabel,
+}) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
 
@@ -38,7 +43,7 @@ const FirstTimeCommunityEntryOverlay: React.FC<
                         <Text style={styles.title}>{title}</Text>
                         <InfoEntryList items={overlayItems} theme={theme} />
                         <Button
-                            title={t('phrases.explore-now')}
+                            title={buttonLabel || t('phrases.explore-now')}
                             onPress={onDismiss}
                             containerStyle={styles.exploreButton}
                         />
@@ -65,4 +70,4 @@ const styles = StyleSheet.create({
     },
 })
 
-export default FirstTimeCommunityEntryOverlay
+export default FirstTimeOverlay

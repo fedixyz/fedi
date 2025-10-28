@@ -1,29 +1,21 @@
 import Link from 'next/link'
 
+import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
 import ArrowRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
-import { Community, LoadedFederation, MatrixRoom } from '@fedi/common/types'
+import { MatrixRoom } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
 import { chatRoomRoute } from '../../constants/routes'
 import { styled, theme } from '../../styles'
-import { FederationAvatar } from '../FederationAvatar'
 import { Icon } from '../Icon'
 import { Text } from '../Text'
 
-export function DefaultRoomPreview({
-    room,
-    federationOrCommunity,
-}: {
-    room: MatrixRoom
-    federationOrCommunity: Community | LoadedFederation
-}) {
+export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
     return (
         <DefaultRoomContainer href={chatRoomRoute(room.id)}>
-            <FederationAvatar
-                federation={federationOrCommunity}
-                size="sm"
-                css={{ flexShrink: 0 }}
-            />
+            <IconContainer>
+                <Icon icon={ChatIcon} />
+            </IconContainer>
             <DefaultRoomText>
                 <Text variant="body" weight="bold">
                     {stringUtils.truncateString(room.name, 25)}
@@ -42,7 +34,10 @@ export function DefaultRoomPreview({
                 )}
             </DefaultRoomText>
             <NewsItemArrow>
-                <Icon icon={ArrowRightIcon} />
+                <Icon
+                    icon={ArrowRightIcon}
+                    color={theme.colors.grey.toString()}
+                />
             </NewsItemArrow>
         </DefaultRoomContainer>
     )
@@ -50,10 +45,9 @@ export function DefaultRoomPreview({
 
 const DefaultRoomContainer = styled(Link, {
     alignItems: 'center',
-    background: theme.colors.offWhite100,
-    borderRadius: 20,
+    borderRadius: 16,
+    border: `solid 1px ${theme.colors.extraLightGrey}`,
     boxSizing: 'border-box',
-    color: theme.colors.night,
     display: 'flex',
     gap: 10,
     overflow: 'hidden',
@@ -71,4 +65,13 @@ const NewsItemArrow = styled('div', {
     alignItems: 'center',
     display: 'flex',
     width: 20,
+})
+
+const IconContainer = styled('div', {
+    alignItems: 'center',
+    display: 'flex',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    flexShrink: 0,
 })

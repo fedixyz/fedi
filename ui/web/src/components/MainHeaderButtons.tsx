@@ -9,6 +9,7 @@ import { selectMatrixAuth } from '@fedi/common/redux'
 import { settingsRoute } from '../constants/routes'
 import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
+import { Row } from './Flex'
 import { Icon } from './Icon'
 import { ProfileIcon } from './ProfileIcon'
 
@@ -25,7 +26,7 @@ const MainHeaderButtons: React.FC<Props> = ({ onAddPress }) => {
     }, [router])
 
     return (
-        <Container>
+        <Row gap="md" align="center">
             {onAddPress && (
                 <BubbleButton onClick={onAddPress}>
                     <Icon icon={PlusIcon} size="sm" />
@@ -37,18 +38,11 @@ const MainHeaderButtons: React.FC<Props> = ({ onAddPress }) => {
             <BubbleButton onClick={openOmniScanner}>
                 <Icon icon={ScanIcon} size="sm" />
             </BubbleButton>
-        </Container>
+        </Row>
     )
 }
 
-const Container = styled('div', {
-    display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-})
-
-const BubbleButton = styled('button', {
+export const BubbleButton = styled('button', {
     height: 36,
     width: 36,
     display: 'flex',

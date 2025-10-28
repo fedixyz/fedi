@@ -26,7 +26,7 @@ import FederationPopupCountdown from '../components/feature/federations/Federati
 import FederationStatus from '../components/feature/federations/FederationStatus'
 import AutojoinedCommunityNotice from '../components/feature/home/AutojoinedCommunityNotice'
 import DefaultChatTile from '../components/feature/home/DefaultChatTile'
-import Flex from '../components/ui/Flex'
+import { Column, Row } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import ShadowScrollView from '../components/ui/ShadowScrollView'
 import { useAppSelector } from '../state/hooks'
@@ -99,16 +99,16 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <SafeAreaContainer edges="notop">
-            <Flex gap="lg" style={style.header}>
-                <Flex row align="center" gap="lg">
+            <Column gap="lg" style={style.header}>
+                <Row align="center" gap="lg">
                     <FederationLogo federation={federation} size={72} />
-                    <Flex grow shrink>
+                    <Column grow shrink>
                         <Text h2 medium maxFontSizeMultiplier={1.2}>
                             {federation.name}
                         </Text>
-                    </Flex>
-                </Flex>
-                <Flex gap="md">
+                    </Column>
+                </Row>
+                <Column gap="md">
                     {shouldShowAutojoinedCommunityNotice && (
                         <AutojoinedCommunityNotice
                             federationId={federationId}
@@ -117,13 +117,13 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                     <FederationPopupCountdown federation={federation} />
                     <FederationStatus federationId={federationId} />
                     <FederationDetailStats federation={federation} />
-                </Flex>
-            </Flex>
+                </Column>
+            </Column>
             <ShadowScrollView
                 style={style.scrollContent}
                 contentContainerStyle={style.scrollContentBody}>
                 {federationChats.length > 0 && (
-                    <Flex gap="sm" fullWidth>
+                    <Column gap="sm" fullWidth>
                         <Text bold h2>
                             {t('feature.chat.federation-news')}
                         </Text>
@@ -132,16 +132,15 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                                 key={`chat-tile-${idx}`}
                                 room={chat}
                                 onSelect={handleOpenChat}
-                                federationOrCommunity={federation}
                             />
                         ))}
-                    </Flex>
+                    </Column>
                 )}
                 {welcomeMessage && (
                     <Text maxFontSizeMultiplier={1.2}>{welcomeMessage}</Text>
                 )}
             </ShadowScrollView>
-            <Flex style={style.actionsContainer} gap="md">
+            <Column style={style.actionsContainer} gap="md">
                 {popupInfo?.ended && (
                     <Button
                         fullWidth
@@ -163,7 +162,7 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                         </Text>
                     </Button>
                 )}
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

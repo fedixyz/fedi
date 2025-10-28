@@ -96,7 +96,7 @@ export const GeneralSettings = () => {
             <SettingsItem
                 icon="Note"
                 label={t('feature.backup.personal-backup')}
-                onPress={() => navigation.navigate('StartPersonalBackup')}
+                onPress={() => navigation.navigate('RecoveryWords')}
             />
             {showSocialRecovery && (
                 <SettingsItem

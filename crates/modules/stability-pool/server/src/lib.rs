@@ -355,10 +355,10 @@ impl ServerModule for StabilityPool {
 
         // Bail if vote is not for next cycle
         let mut current_cycle = dbtx.get_value(&CurrentCycleKey).await;
-        if let Some(Cycle { index, .. }) = current_cycle {
-            if next_cycle_index != index + 1 {
-                bail!("Vote is not for next cycle");
-            }
+        if let Some(cycle) = &current_cycle
+            && next_cycle_index != cycle.index + 1
+        {
+            bail!("Vote is not for next cycle");
         }
 
         // Bail if already received peer's vote for cycle
@@ -1965,11 +1965,7 @@ fn included_seeks_sum_before_fees(
 }
 
 fn ceil_division(dividend: u128, divisor: u128) -> u128 {
-    if dividend % divisor == 0 {
-        dividend / divisor
-    } else {
-        dividend / divisor + 1
-    }
+    dividend.div_ceil(divisor)
 }
 
 /// Remove amount from items in reverse order. If an item's amount hits 0, the

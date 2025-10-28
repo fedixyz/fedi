@@ -12,6 +12,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 bech32 = { workspace = true }
 futures = "0.3"
+nostril = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }
 reqwest = { workspace = true }
