@@ -701,7 +701,10 @@ export function useGuardianito(t: TFunction) {
     const beginBotCreation = useCallback(async () => {
         setIsLoading(true)
         try {
-            await dispatch(createGuardianitoBot({ fedimint })).unwrap()
+            const bot = await dispatch(
+                createGuardianitoBot({ fedimint }),
+            ).unwrap()
+            return bot
         } catch (error) {
             log.error('Error creating guardianito bot', error)
         } finally {

@@ -131,15 +131,23 @@ const FederationPreview: React.FC<Props> = ({
                 </Flex>
 
                 {welcomeMessage && (
-                    <View style={s.roundedCardContainer}>
-                        <Trans
-                            components={{
-                                bold: (
-                                    <Text caption bold style={s.welcomeText} />
-                                ),
-                            }}>
-                            {welcomeMessage}
-                        </Trans>
+                    <View
+                        style={s.roundedCardContainer}
+                        testID="WelcomeMessageContainer">
+                        <Text caption style={s.welcomeText}>
+                            <Trans
+                                components={{
+                                    bold: (
+                                        <Text
+                                            caption
+                                            bold
+                                            style={s.welcomeText}
+                                        />
+                                    ),
+                                }}>
+                                {welcomeMessage}
+                            </Trans>
+                        </Text>
                     </View>
                 )}
             </ShadowScrollView>
