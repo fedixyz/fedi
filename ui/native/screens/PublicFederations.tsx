@@ -107,6 +107,17 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
         navigation.dispatch(resetToChatsScreen())
     }
 
+    const handleContinue = async () => {
+        // we need to call this before navigating in case the existing bot has been deleted
+        // and a new one needs to be created. if one exists and is active this should be fast
+        const bot = await beginBotCreation()
+        if (bot) {
+            navigation.navigate('ChatRoomConversation', {
+                roomId: bot.bot_room_id,
+            })
+        }
+    }
+
     return (
         <SafeAreaContainer edges="bottom">
             {/* HEADER */}
@@ -239,15 +250,9 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                             {myGuardianitoBot?.bot_room_id ? (
                                 <Button
                                     fullWidth
+                                    loading={isLoadingGuardianitoBot}
                                     title={t('words.continue')}
-                                    onPress={() =>
-                                        navigation.navigate(
-                                            'ChatRoomConversation',
-                                            {
-                                                roomId: myGuardianitoBot.bot_room_id,
-                                            },
-                                        )
-                                    }
+                                    onPress={handleContinue}
                                 />
                             ) : showGoToChatButton ? (
                                 <Button
