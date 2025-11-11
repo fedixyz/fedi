@@ -75,7 +75,7 @@ describe('/pages/settings/edit-profile', () => {
             const input = screen.getByDisplayValue('test user')
             await user.type(input, 'test')
 
-            const button = screen.getByRole('button')
+            const button = screen.getByLabelText('save-button')
             user.click(button)
 
             await waitFor(() => expect(onSubmitSpy).toHaveBeenCalled())

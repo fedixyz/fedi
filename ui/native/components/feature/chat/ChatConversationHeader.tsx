@@ -15,7 +15,7 @@ import { useAppSelector } from '../../../state/hooks'
 import { resetToChatsScreen } from '../../../state/navigation'
 import { RootStackParamList } from '../../../types/navigation'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import Header from '../../ui/Header'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
@@ -93,38 +93,34 @@ const ChatConversationHeader: React.FC = () => {
                     // make sure we have joined room and its not just a preview to show admin settings
                     navigateToRoom()
                 }}>
-                <>
-                    {isNameEmpty ? null : avatar}
-                    <Flex row align="center">
+                {isNameEmpty ? null : avatar}
+                <Row align="center" shrink>
+                    <Text
+                        bold
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={
+                            theme.multipliers.headerMaxFontMultiplier
+                        }
+                        style={style.memberText}>
+                        {isNameEmpty
+                            ? t('feature.chat.no-messages-header')
+                            : name}
+                    </Text>
+                    {room?.directUserId ? (
                         <Text
-                            bold
+                            caption
                             numberOfLines={1}
-                            adjustsFontSizeToFit
                             maxFontSizeMultiplier={
                                 theme.multipliers.headerMaxFontMultiplier
                             }
-                            style={style.memberText}>
-                            {isNameEmpty
-                                ? t('feature.chat.no-messages-header')
-                                : name}
+                            style={style.shortIdText}>
+                            {getUserSuffix(room?.directUserId || '')}
                         </Text>
-                        {room?.directUserId && (
-                            <Text
-                                caption
-                                numberOfLines={1}
-                                adjustsFontSizeToFit
-                                maxFontSizeMultiplier={
-                                    theme.multipliers.headerMaxFontMultiplier
-                                }
-                                style={style.shortIdText}>
-                                {getUserSuffix(room.directUserId)}
-                            </Text>
-                        )}
-                    </Flex>
-                </>
+                    ) : null}
+                </Row>
             </Pressable>
         )
-    }, [avatar, name, room, theme, style, navigateToRoom, t])
+    }, [avatar, name, theme, style, navigateToRoom, t, room?.directUserId])
 
     return (
         <>
@@ -134,17 +130,28 @@ const ChatConversationHeader: React.FC = () => {
                 containerStyle={style.container}
                 centerContainerStyle={style.headerCenterContainer}
                 headerCenter={HeaderCenter}
+                rightContainerStyle={style.headerRightContainer}
                 headerRight={
-                    <View style={style.headerRightContainer}>
+                    <View style={style.buttonsContainer}>
                         <Pressable
                             onPress={handleSearch}
                             style={style.headerButton}>
-                            <SvgImage name="Search" />
+                            <SvgImage
+                                name="Search"
+                                maxFontSizeMultiplier={
+                                    theme.multipliers.headerMaxFontMultiplier
+                                }
+                            />
                         </Pressable>
                         <Pressable
                             onPress={() => navigateToRoom()}
                             style={style.headerButton}>
-                            <SvgImage name="Profile" />
+                            <SvgImage
+                                name="Profile"
+                                maxFontSizeMultiplier={
+                                    theme.multipliers.headerMaxFontMultiplier
+                                }
+                            />
                         </Pressable>
                     </View>
                 }
@@ -159,26 +166,29 @@ const styles = (theme: Theme) =>
         container: {
             paddingTop: theme.spacing.xs,
         },
-        headerLeftContainer: {
-            height: theme.sizes.md,
-            borderWidth: 1,
-        },
         headerCenterContainer: {
             flex: 6,
         },
-        memberText: {
-            marginLeft: theme.spacing.sm,
+        headerRightContainer: {
+            minWidth: theme.sizes.md,
         },
         memberContainer: {
             padding: theme.spacing.xs,
             flexDirection: 'row',
-            alignItems: 'center',
+            flexShrink: 1,
+            flexGrow: 1,
             justifyContent: 'center',
+            maxWidth: '70%',
+        },
+        memberText: {
+            marginLeft: theme.spacing.sm,
+            flexShrink: 1,
         },
         shortIdText: {
             marginLeft: theme.spacing.xs,
+            flexShrink: 0,
         },
-        headerRightContainer: {
+        buttonsContainer: {
             flexDirection: 'row',
             alignItems: 'center',
             gap: theme.spacing.sm,

@@ -54,7 +54,9 @@ describe('/components/Chat/ChatConversation', () => {
                     expect(
                         screen.getByLabelText('plus-icon'),
                     ).toBeInTheDocument()
-                    expect(screen.getByRole('button')).toBeInTheDocument()
+                    expect(
+                        screen.getByLabelText('send-button'),
+                    ).toBeInTheDocument()
                 })
             })
         })
@@ -74,7 +76,9 @@ describe('/components/Chat/ChatConversation', () => {
                     expect(
                         screen.queryByLabelText('plus-icon'),
                     ).not.toBeInTheDocument()
-                    expect(screen.queryByRole('button')).toBeInTheDocument()
+                    expect(
+                        screen.getByLabelText('send-button'),
+                    ).toBeInTheDocument()
                 })
             })
         })
@@ -94,7 +98,9 @@ describe('/components/Chat/ChatConversation', () => {
                     expect(
                         screen.queryByLabelText('plus-icon'),
                     ).toBeInTheDocument()
-                    expect(screen.queryByRole('button')).toBeInTheDocument()
+                    expect(
+                        screen.getByLabelText('send-button'),
+                    ).toBeInTheDocument()
                 })
             })
         })
@@ -104,7 +110,7 @@ describe('/components/Chat/ChatConversation', () => {
         it('should not call the onSendMessage function', async () => {
             render(<ChatConversation {...userChatProps} />)
 
-            const button = screen.getByRole('button')
+            const button = screen.getByLabelText('send-button')
             userEvent.click(button)
 
             await waitFor(() => {
@@ -120,7 +126,7 @@ describe('/components/Chat/ChatConversation', () => {
             const input = screen.getByRole('textbox')
             await userEvent.type(input, 'test')
 
-            const button = screen.getByRole('button')
+            const button = screen.getByLabelText('send-button')
             await userEvent.click(button)
 
             await waitFor(() => expect(onSendMessageSpy).toHaveBeenCalled())
@@ -141,7 +147,7 @@ describe('/components/Chat/ChatConversation', () => {
 
             expect(fileUpload.files?.length).toBe(1)
 
-            const button = screen.getByRole('button')
+            const button = screen.getByLabelText('send-button')
             userEvent.click(button)
 
             await waitFor(() => {

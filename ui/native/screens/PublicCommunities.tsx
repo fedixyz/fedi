@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme, Image } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, ScrollView, StyleSheet, View } from 'react-native'
+import { ScrollView, StyleSheet, View } from 'react-native'
 
 import { useLatestPublicCommunities } from '@fedi/common/hooks/federation'
 import { selectCommunityIds } from '@fedi/common/redux'
@@ -65,11 +65,11 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
     })
 
     // Include when create community is implemented
-    // {
-    //     label: t('words.create'),
-    //     value: 'create',
-    //     subText: t('feature.onboarding.description-create'),
-    // },
+    switcherOptions.push({
+        label: t('words.create'),
+        value: 'create',
+        subText: t('feature.onboarding.description-create-community'),
+    })
 
     const selectedOption =
         switcherOptions.find(opt => opt.value === activeTab) ??
@@ -216,33 +216,22 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
                                 theme={theme}
                             />
                         </View>
-                        <Flex fullWidth style={style.buttonsContainer}>
-                            <Button
-                                fullWidth
-                                title={t('phrases.create-my-community')}
-                                onPress={() =>
-                                    Linking.openURL(
-                                        'https://support.fedi.xyz/hc/en-us/sections/18214787528082-Federation-Setup',
-                                    )
-                                }
-                            />
-                        </Flex>
                     </View>
                 )}
             </ScrollView>
 
             <View style={style.footerContainer}>
-                <Button
-                    testID="MaybeLaterButton"
-                    fullWidth
-                    type="clear"
-                    title={
-                        <Text caption medium>
-                            {t('phrases.maybe-later')}
-                        </Text>
-                    }
-                    onPress={() => navigation.navigate('TabsNavigator')}
-                />
+                {activeTab === 'create' && (
+                    <Button
+                        fullWidth
+                        title={t('phrases.create-my-community')}
+                        onPress={() =>
+                            navigation.navigate('FediModBrowser', {
+                                url: 'https://community-generator.fedi.xyz',
+                            })
+                        }
+                    />
+                )}
             </View>
         </SafeAreaContainer>
     )
@@ -260,10 +249,6 @@ const styles = (theme: Theme) =>
             marginBottom: 10,
             paddingLeft: 10,
             paddingRight: 10,
-        },
-        buttonsContainer: {
-            marginBottom: theme.spacing.sm,
-            marginTop: theme.spacing.lg,
         },
         title: {
             textAlign: 'center',

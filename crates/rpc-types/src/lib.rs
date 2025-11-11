@@ -26,10 +26,12 @@ use ts_rs::TS;
 
 use crate::error::RpcError;
 
+pub mod communities;
 pub mod error;
 pub mod event;
 pub mod matrix;
 pub mod multispend;
+pub mod nostril;
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -174,15 +176,6 @@ pub struct RpcFederationPreview {
     pub meta: BTreeMap<String, String>,
     pub invite_code: String,
     pub returning_member_status: RpcReturningMemberStatus,
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct RpcCommunity {
-    pub invite_code: String,
-    pub name: String,
-    pub meta: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -515,7 +508,6 @@ pub enum RpcTransactionKind {
     },
     OnchainWithdraw {
         onchain_address: String,
-        onchain_txid: String,
         onchain_fees: RpcAmount,
         #[ts(type = "number")]
         onchain_fee_rate: u64,
@@ -675,8 +667,10 @@ impl From<WithdrawState> for RpcOnchainWithdrawState {
     fn from(state: WithdrawState) -> Self {
         match state {
             WithdrawState::Created => RpcOnchainWithdrawState::Created,
-            WithdrawState::Succeeded(_) => RpcOnchainWithdrawState::Succeeded,
-            WithdrawState::Failed(_) => RpcOnchainWithdrawState::Failed,
+            WithdrawState::Succeeded(txid) => RpcOnchainWithdrawState::Succeeded {
+                txid: txid.to_string(),
+            },
+            WithdrawState::Failed(error) => RpcOnchainWithdrawState::Failed { error },
         }
     }
 }
@@ -714,8 +708,8 @@ impl RpcOnchainDepositTransactionData {
 #[ts(export)]
 pub enum RpcOnchainWithdrawState {
     Created,
-    Succeeded,
-    Failed,
+    Succeeded { txid: String },
+    Failed { error: String },
 }
 
 impl From<LnReceiveState> for RpcLnReceiveState {
@@ -1232,4 +1226,11 @@ pub struct RpcTransferRequestId(#[ts(type = "string")] pub TransferRequestId);
 #[ts(export)]
 pub struct RpcPrevPayInvoiceResult {
     pub completed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcParseInviteCodeResult {
+    pub federation_id: RpcFederationId,
 }

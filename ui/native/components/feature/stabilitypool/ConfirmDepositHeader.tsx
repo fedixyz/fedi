@@ -3,7 +3,6 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Header from '../../ui/Header'
-import BetaBanner from './BetaBanner'
 
 const ConfirmDepositHeader: React.FC = () => {
     const { t } = useTranslation()
@@ -18,7 +17,6 @@ const ConfirmDepositHeader: React.FC = () => {
                     </Text>
                 }
             />
-            <BetaBanner />
         </>
     )
 }

@@ -4,23 +4,29 @@ export const welcomeRoute = '/'
 // Core pages
 export const chatRoute = '/chat'
 export const homeRoute = '/home'
-export const modsRoute = '/mods'
-export const scanRoute = '/scan'
+export const miniAppsRoute = '/mini-apps'
 export const federationsRoute = '/federations'
+
+export const scanRoute = '/scan'
 export const federationRoute = (id: string) => `${federationsRoute}/${id}`
+export const communitiesRoute = '/communities'
+export const communityRoute = (id: string) => `${communitiesRoute}/${id}`
 export const settingsRoute = '/settings'
 export const transactionsRoute = '/transactions'
 export const sendRoute = '/send'
 export const requestRoute = '/request'
+export const ecashRoute = '/ecash'
 
 // Other pages
 export const onboardingRoute = '/onboarding'
+export const onboardingCommunitiesRoute = `${onboardingRoute}/communities`
 export const shareLogsRoute = '/share-logs'
 
 // Sub pages
 
 // Onboarding
-export const onboardingJoinRoute = `${onboardingRoute}/join`
+export const onboardingJoinRoute = (inviteCode: string) =>
+    `${onboardingRoute}/join?invite_code=${inviteCode}`
 
 // Settings
 export const settingsCurrencyRoute = `${settingsRoute}/currency`
@@ -32,3 +38,4 @@ export const settingsBackupPersonalRoute = `${settingsRoute}/backup/personal`
 // Chat
 export const chatUserRoute = (id: string) => `${chatRoute}/user/${id}`
 export const chatRoomRoute = (id: string) => `${chatRoute}/room/${id}`
+export const chatNewRoomRoute = `${chatRoute}/new/room`

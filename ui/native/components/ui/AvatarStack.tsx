@@ -75,7 +75,7 @@ const styles = (theme: Theme) =>
             borderWidth: 1,
             borderColor: theme.colors.white,
             overflow: 'hidden',
-            backgroundColor: theme.colors.red,
+            backgroundColor: theme.colors.white,
         },
     })
 

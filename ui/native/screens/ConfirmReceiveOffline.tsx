@@ -10,7 +10,7 @@ import {
     selectFederation,
     selectIsFederationRecovering,
     selectIsInternetUnreachable,
-    validateEcash,
+    parseEcash,
 } from '@fedi/common/redux'
 import type { MSats } from '@fedi/common/types'
 import { RpcEcashInfo } from '@fedi/common/types/bindings'
@@ -44,36 +44,34 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
     const toast = useToast()
     const dispatch = useAppDispatch()
     const { ecash } = route.params
-    const [validatedEcash, setValidatedEcash] = useState<RpcEcashInfo | null>(
-        null,
-    )
+    const [parsedEcash, setParsedEcash] = useState<RpcEcashInfo | null>(null)
     const [receiving, setReceiving] = useState(false)
 
     const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     const ecashFederation = useAppSelector(s => {
-        if (validatedEcash?.federation_type === 'joined') {
-            return selectFederation(s, validatedEcash.federation_id)
+        if (parsedEcash?.federation_type === 'joined') {
+            return selectFederation(s, parsedEcash.federation_id)
         }
 
         return null
     })
     const isFederationRecovering = useAppSelector(s => {
-        if (validatedEcash?.federation_type === 'joined') {
-            return selectIsFederationRecovering(s, validatedEcash.federation_id)
+        if (parsedEcash?.federation_type === 'joined') {
+            return selectIsFederationRecovering(s, parsedEcash.federation_id)
         }
 
         return false
     })
 
     const onReceive = useCallback(async () => {
-        if (!validatedEcash || receiving) return
+        if (!parsedEcash || receiving) return
 
         // Don't call multiple times
         setReceiving(true)
         try {
-            // Check to see if the user has joined a federation with a matching `validatedEcash.federationId`
-            if (validatedEcash.federation_type !== 'joined') {
+            // Check to see if the user has joined a federation with a matching `parsedEcash.federationId`
+            if (parsedEcash.federation_type !== 'joined') {
                 throw new Error('errors.unknown-ecash-issuer')
             }
 
@@ -81,7 +79,7 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
                 receiveEcash({
                     fedimint,
                     // If so, join from that federation
-                    federationId: validatedEcash.federation_id,
+                    federationId: parsedEcash.federation_id,
                     ecash,
                 }),
             ).unwrap()
@@ -101,28 +99,28 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
             toast.error(t, e)
             setReceiving(false)
         }
-    }, [ecash, dispatch, navigation, receiving, toast, t, validatedEcash])
+    }, [ecash, dispatch, navigation, receiving, toast, t, parsedEcash])
 
     useEffect(() => {
-        dispatch(validateEcash({ fedimint, ecash }))
+        dispatch(parseEcash({ fedimint, ecash }))
             .unwrap()
-            .then(setValidatedEcash)
+            .then(setParsedEcash)
             .catch(() => {
-                // Should never happen since validateEcash is called in OmniInput,
+                // Should never happen since parseEcash is called in OmniInput,
                 // which is the only way to get here
                 log.error('PANIC: ecash validation failed')
                 toast.error(t, 'errors.invalid-ecash-token')
             })
     }, [ecash, dispatch, toast, t])
 
-    if (validatedEcash && validatedEcash.federation_type !== 'joined') {
+    if (parsedEcash && parsedEcash.federation_type !== 'joined') {
         // Should never happen since you are required to go through the join flow
         // via OmniConfirmation before you hit this screen
         log.error('PANIC: federation_type is not joined')
         return null
     }
 
-    const amount = validatedEcash?.amount ?? (0 as MSats)
+    const amount = parsedEcash?.amount ?? (0 as MSats)
     const amountSats = amountUtils.msatToSat(amount)
 
     const style = styles(theme)
@@ -179,7 +177,7 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
                             <View style={style.recoverySpinner}>
                                 <RecoveryInProgress
                                     size={64}
-                                    federationId={validatedEcash?.federation_id}
+                                    federationId={parsedEcash?.federation_id}
                                 />
                             </View>
                         </Flex>

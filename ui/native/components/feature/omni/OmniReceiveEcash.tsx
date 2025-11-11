@@ -6,7 +6,6 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 import { useFederationPreview } from '@fedi/common/hooks/federation'
 import { RpcEcashInfo } from '@fedi/common/types/bindings'
 
-import { fedimint } from '../../../bridge'
 import Flex from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -36,7 +35,7 @@ export default function OmniReceiveEcash({
         federationPreview,
         handleCode,
         handleJoin,
-    } = useFederationPreview(t, fedimint, inviteCode || '')
+    } = useFederationPreview(t, inviteCode || '')
 
     useEffect(() => {
         if (!inviteCode) return

@@ -13,6 +13,7 @@ import {
     isEncryptedEvent,
     isFileEvent,
     isFederationInviteEvent,
+    isCommunityInviteEvent,
     isFormEvent,
     isImageEvent,
     isMultispendEvent,
@@ -27,6 +28,7 @@ import { useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 import ChatMultispendEvent from '../multispend/chat-events/ChatMultispendEvent'
 import ChatBolt11PaymentEvent from './ChatBolt11PaymentEvent'
+import ChatCommunityInviteEvent from './ChatCommunityInviteEvent'
 import ChatDeletedEvent from './ChatDeletedEvent'
 import ChatEmbeddedLinkPreview from './ChatEmbeddedLinkPreview'
 import ChatEncryptedEvent from './ChatEncryptedEvent'
@@ -153,6 +155,8 @@ const ChatEvent: React.FC<Props> = ({
                                 <ChatPollEvent event={event} />
                             ) : isFederationInviteEvent(event) ? (
                                 <ChatFederationInviteEvent event={event} />
+                            ) : isCommunityInviteEvent(event) ? (
+                                <ChatCommunityInviteEvent event={event} />
                             ) : isMultispendEvent(event) ? (
                                 <ChatMultispendEvent event={event} />
                             ) : null}

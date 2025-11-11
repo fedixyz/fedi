@@ -962,17 +962,22 @@ export const makeTxnDetailItems = (
             truncated: true,
         })
     }
-    if (
-        (txn.kind === 'onchainDeposit' || txn.kind === 'onchainWithdraw') &&
-        'onchain_txid' in txn
-    ) {
-        items.push({
-            label: t('phrases.transaction-id'),
-            value: txn.onchain_txid,
-            copiedMessage: t('phrases.copied-transaction-id'),
-            copyable: true,
-            truncated: true,
-        })
+    if (txn.kind === 'onchainDeposit' || txn.kind === 'onchainWithdraw') {
+        if (txn.state && 'txid' in txn.state) {
+            items.push({
+                label: t('phrases.transaction-id'),
+                value: txn.state.txid,
+                copiedMessage: t('phrases.copied-transaction-id'),
+                copyable: true,
+                truncated: true,
+            })
+        }
+        if (txn.state && 'error' in txn.state) {
+            items.push({
+                label: t('words.reason'),
+                value: txn.state.error,
+            })
+        }
     }
 
     // indicate stabilitypool deposits / withdrawals

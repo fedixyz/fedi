@@ -122,7 +122,9 @@ const CommunityMenu = ({ community }: CommunityMenuProps) => {
                             label={t('feature.federations.invite-members')}
                             onPress={() => {
                                 navigation.navigate('CommunityInvite', {
-                                    inviteLink: community.inviteCode,
+                                    inviteLink:
+                                        community.communityInvite
+                                            .invite_code_str,
                                 })
                             }}
                         />

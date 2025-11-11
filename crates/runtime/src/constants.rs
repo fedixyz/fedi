@@ -63,6 +63,7 @@ pub const FEDI_INVOICE_API_URL_MAINNET: &str =
     "https://prod.fee-collection.dev.fedibtc.com/v3/generate-invoice";
 
 pub const COMMUNITY_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community");
+pub const COMMUNITY_V2_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community2");
 
 pub const RECURRINGD_API_META: &str = "recurringd_api";
 

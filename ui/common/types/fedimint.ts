@@ -311,7 +311,7 @@ export type Federation =
     | LoadedFederation
 
 export type Community = RpcCommunity & {
-    id: RpcCommunity['inviteCode']
+    id: string
 }
 
 export type CommunityPreview = Community & {

@@ -70,7 +70,7 @@ export const FederationLogo: React.FC<Props> = ({
                 ) : (
                     <Image
                         style={[style.iconImage, svgProps, shapeStyle]}
-                        source={{ uri: iconUrl }}
+                        source={{ uri: iconUrl, cache: 'force-cache' }}
                         onError={() => {
                             setShowFallback(true)
                         }}

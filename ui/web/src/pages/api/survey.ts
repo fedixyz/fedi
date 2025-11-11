@@ -6,7 +6,7 @@ import { ActiveSurvey } from '@fedi/common/utils/survey'
 const SURVEY_IDENTIFIER = 'would-you-invite-someone-to-use-fedi_oct-2026'
 
 // Whether the active survey form is enabled or not
-const IS_SURVEY_ENABLED = true
+const IS_SURVEY_ENABLED = process.env.SURVEY_ENABLED === 'true'
 
 // The URL of the active survey form
 const SURVEY_URL =

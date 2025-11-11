@@ -51,7 +51,7 @@ const AvatarCell = styled(Row, {
     borderWidth: 1,
     borderColor: theme.colors.white,
     overflow: 'hidden',
-    backgroundColor: theme.colors.red,
+    backgroundColor: theme.colors.white,
 })
 
 export default AvatarStack

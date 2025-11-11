@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import welcomeBackground from '@fedi/common/assets/images/welcome-bg.png'
@@ -12,9 +12,15 @@ import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import { Text } from '../components/Text'
+import {
+    ecashRoute,
+    onboardingRoute,
+    onboardingJoinRoute,
+} from '../constants/routes'
 import { useAppDispatch } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
+import { getHashParams } from '../utils/linking'
 
 const log = makeLog('WelcomePage')
 
@@ -23,14 +29,7 @@ function WelcomePage() {
     const { query, push } = useRouter()
     const dispatch = useAppDispatch()
     const toast = useToast()
-    const [inviteCode, setInviteCode] = useState<string | null>(null)
     const [loading, setLoading] = useState<boolean>(false)
-
-    useEffect(() => {
-        if (query.invite_code) {
-            setInviteCode(String(query.invite_code))
-        }
-    }, [query.invite_code, push])
 
     const handleOnContinue = async () => {
         try {
@@ -38,13 +37,18 @@ function WelcomePage() {
             await fedimint.completeOnboardingNewSeed()
             await dispatch(refreshOnboardingStatus(fedimint)).unwrap()
 
-            // Return early if no invite code
-            if (!inviteCode) {
-                push('/onboarding')
+            if (query.invite_code) {
+                push(onboardingJoinRoute(String(query.invite_code)))
                 return
             }
 
-            push(`/onboarding/join?invite_code=${inviteCode}`)
+            const params = getHashParams(window.location.hash)
+            if (params?.id) {
+                push(`${ecashRoute}#id=${params.id}`)
+                return
+            }
+
+            push(onboardingRoute)
         } catch (err) {
             log.error('handleOnContinue', err)
             toast.error(t, err, 'errors.unknown-error')
@@ -79,7 +83,7 @@ function WelcomePage() {
                         loading={loading}>
                         {t('feature.onboarding.get-a-wallet')}
                     </Button>
-                    {!inviteCode && (
+                    {!query?.invite_code && (
                         <Button
                             width="full"
                             href="/onboarding/recover"

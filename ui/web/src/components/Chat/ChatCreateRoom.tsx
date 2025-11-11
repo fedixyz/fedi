@@ -1,16 +1,12 @@
-import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
 import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
 import { MatrixRoom } from '@fedi/common/types'
 
-import { useMediaQuery } from '../../hooks'
-import { config, styled, theme } from '../../styles'
+import { styled, theme } from '../../styles'
 import { Button } from '../Button'
-import { Icon } from '../Icon'
 import { Input } from '../Input'
 import * as Layout from '../Layout'
 import { Switch } from '../Switch'
@@ -20,7 +16,7 @@ import { ChatAvatar } from './ChatAvatar'
 export const ChatCreateRoom: React.FC = () => {
     const { t } = useTranslation()
     const { push } = useRouter()
-    const isSm = useMediaQuery(config.media.sm)
+
     const {
         errorMessage,
         handleCreateGroup,
@@ -35,17 +31,11 @@ export const ChatCreateRoom: React.FC = () => {
 
     return (
         <Container>
-            {isSm ? (
-                <Layout.Header back="/chat/new">
-                    <Layout.Title subheader>
-                        {t('feature.chat.create-a-group')}
-                    </Layout.Title>
-                </Layout.Header>
-            ) : (
-                <DesktopBackButton as={Link} href="/chat/new">
-                    <Icon icon={ChevronLeft} size="sm" />
-                </DesktopBackButton>
-            )}
+            <Layout.Header back>
+                <Layout.Title subheader>
+                    {t('feature.chat.create-a-group')}
+                </Layout.Title>
+            </Layout.Header>
             <Inner>
                 <ChatAvatar
                     size="lg"
@@ -122,12 +112,6 @@ const BroadcastSwitchContainer = styled('div', {
     justifyContent: 'space-between',
     gap: 16,
     marginTop: 8,
-})
-
-const DesktopBackButton = styled('button', {
-    position: 'absolute',
-    top: 24,
-    left: 24,
 })
 
 const WarningText = styled(Text, {

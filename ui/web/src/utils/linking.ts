@@ -3,9 +3,11 @@ import {
     chatRoomRoute,
     chatUserRoute,
     homeRoute,
+    onboardingJoinRoute,
     scanRoute,
     sendRoute,
     transactionsRoute,
+    ecashRoute,
 } from '../constants/routes'
 
 const DEEP_LINK_PATH = '/link'
@@ -24,6 +26,11 @@ export const getDeepLinkPath = (link: string): string => {
         const page = params.get('screen')
 
         switch (page) {
+            case 'join': {
+                const inviteCode = params.get('id')
+                if (!inviteCode) return homeRoute
+                return onboardingJoinRoute(inviteCode)
+            }
             case 'room': {
                 const roomId = params.get('id')
                 if (!roomId) return chatRoute
@@ -44,6 +51,13 @@ export const getDeepLinkPath = (link: string): string => {
                 return transactionsRoute
             case 'send':
                 return sendRoute
+            case 'ecash': {
+                const tokenId = params.get('id')
+                if (!tokenId) return '/'
+
+                // Only use # so that ecash token isn't sent to server
+                return `${ecashRoute}#id=${tokenId}`
+            }
             default:
                 return '/'
         }

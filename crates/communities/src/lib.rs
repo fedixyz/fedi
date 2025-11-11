@@ -11,16 +11,15 @@ use fedimint_core::task::TaskGroup;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::update_merge::UpdateMerge;
 use nostril::Nostril;
-use rpc_types::RpcCommunity;
+use rpc_types::communities::{CommunityInvite, RpcCommunity};
 use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, EventSink, TypedEventExt};
 use runtime::bridge_runtime::Runtime;
-use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_GIFT_EXCLUDED_COMMUNITIES};
+use runtime::constants::FEDI_GIFT_EXCLUDED_COMMUNITIES;
 use runtime::storage::AppState;
 use runtime::storage::state::{CommunityInfo, CommunityJson};
-use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
-use tracing::info;
+use tracing::{error, info};
 
 /// Communities is a coordinator-like struct that encapsulates all state and
 /// logic related to the functionality of communities. The Bridge struct
@@ -45,28 +44,27 @@ impl Communities {
             .with_read_lock(|state| state.joined_communities.clone())
             .await
             .into_iter()
-            .map(|(invite, info)| async {
-                (
-                    invite.clone(),
-                    Community::from_local_meta(
-                        invite,
-                        info,
-                        runtime.app_state.clone(),
-                        runtime.event_sink.clone(),
-                        http_client.clone(),
-                    ),
-                )
-            });
-
-        let communities = Mutex::new(
-            futures::future::join_all(joined_communities)
-                .await
-                .into_iter()
-                .collect::<BTreeMap<_, _>>(),
-        );
+            .filter_map(|(invite, info)| {
+                let community_load_res = Community::from_local_meta(
+                    &invite,
+                    info,
+                    runtime.app_state.clone(),
+                    runtime.event_sink.clone(),
+                    http_client.clone(),
+                    nostril.clone(),
+                );
+                match community_load_res {
+                    Ok(community) => Some((invite, community)),
+                    Err(e) => {
+                        error!(%invite, ?e, "Community failed to load, this shouldn't happen");
+                        None
+                    }
+                }
+            })
+            .collect::<BTreeMap<_, _>>();
 
         let this = Arc::new(Self {
-            communities,
+            communities: Mutex::new(joined_communities),
             nostril,
             app_state: runtime.app_state.clone(),
             event_sink: runtime.event_sink.clone(),
@@ -80,26 +78,33 @@ impl Communities {
     }
 
     pub async fn community_preview(&self, invite_code: &str) -> anyhow::Result<RpcCommunity> {
-        Community::preview(invite_code, self.http_client.clone())
-            .await
-            .map(|json| RpcCommunity {
-                invite_code: invite_code.to_owned(),
-                name: json.name,
-                meta: json.meta,
-            })
+        let community_invite = CommunityInvite::from_str(invite_code)?;
+        let community_json = Community::preview(
+            &community_invite,
+            self.http_client.clone(),
+            self.nostril.clone(),
+        )
+        .await?;
+        Ok(RpcCommunity {
+            community_invite: From::from(&community_invite),
+            name: community_json.name,
+            meta: community_json.meta,
+        })
     }
 
     pub async fn join_community(&self, invite_code: &str) -> anyhow::Result<RpcCommunity> {
+        let community_invite = CommunityInvite::from_str(invite_code)?;
         let community = Community::join(
-            invite_code,
+            &community_invite,
             self.app_state.clone(),
             self.event_sink.clone(),
             self.http_client.clone(),
+            self.nostril.clone(),
         )
         .await?;
         let meta = community.meta.read().await.clone();
         let rpc_community = RpcCommunity {
-            invite_code: invite_code.to_owned(),
+            community_invite: From::from(&community_invite),
             name: meta.name.clone(),
             meta: meta.meta.clone(),
         };
@@ -165,10 +170,10 @@ impl Communities {
 
     pub async fn list_communities(&self) -> anyhow::Result<Vec<RpcCommunity>> {
         let communities = self.communities.lock().await.clone();
-        let read_futs = communities.iter().map(|(invite_code, community)| async {
+        let read_futs = communities.values().map(|community| async {
             let meta = community.meta.read().await.clone();
             RpcCommunity {
-                invite_code: invite_code.to_owned(),
+                community_invite: From::from(&community.community_invite),
                 name: meta.name,
                 meta: meta.meta,
             }
@@ -193,100 +198,103 @@ impl Communities {
     }
 }
 
-/// Community invite codes are bech32m encoded with the human-readable part
-/// being "fedi:community". The decoded data is actually a json blob that
-/// follows this schema.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CommunityInvite {
-    pub community_meta_url: String,
-}
-
-impl FromStr for CommunityInvite {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let invite_code = s.to_lowercase();
-
-        // TODO shaurya ok to ignore bech32 variant here?
-        let (hrp, data) = bech32::decode(&invite_code)?;
-        if hrp != COMMUNITY_INVITE_CODE_HRP {
-            bail!("Unexpected hrp: {hrp}");
-        }
-
-        let decoded_str = String::from_utf8(data)?;
-        Ok(serde_json::from_str(&decoded_str)?)
-    }
-}
-
 /// We think of a Community as a Federation without a wallet (fedimint-client).
 /// So a Community affords all the functionality that comes from the root seed
 /// such as chat, mods, npub-related features.
 #[derive(Clone)]
 pub struct Community {
-    pub invite_code: String,
+    pub community_invite: CommunityInvite,
     /// Meta is an RwLock since most of the time we'll be reading it but
     /// occasionally we might update it if the remote data changes.
     pub meta: Arc<RwLock<CommunityJson>>,
     app_state: AppState,
     event_sink: EventSink,
     http_client: reqwest::Client,
+    nostril: Arc<Nostril>,
 }
 
 impl Community {
     /// Decodes the invite code and fetches the community's JSON file.
     pub async fn preview(
-        invite_code: &str,
+        community_invite: &CommunityInvite,
         http_client: reqwest::Client,
+        nostril: Arc<Nostril>,
     ) -> anyhow::Result<CommunityJson> {
-        let community_invite = CommunityInvite::from_str(invite_code)?;
-
-        // Retry the network request closure with backoff and an overall timeout of one
-        // minute
-        fedimint_core::task::timeout(
-            Duration::from_secs(60),
-            fedimint_core::util::retry("fetch community meta", aggressive_backoff(), || {
-                fetch_community_meta_json(
-                    http_client.clone(),
-                    community_invite.community_meta_url.clone(),
+        match community_invite {
+            CommunityInvite::V1(community_invite_v1) => {
+                // Retry the network request closure with backoff and an overall timeout of one
+                // minute
+                fedimint_core::task::timeout(
+                    Duration::from_secs(60),
+                    fedimint_core::util::retry(
+                        "fetch community meta",
+                        aggressive_backoff(),
+                        || {
+                            fetch_community_meta_json(
+                                http_client.clone(),
+                                community_invite_v1.community_meta_url.clone(),
+                            )
+                        },
+                    ),
                 )
-            }),
-        )
-        .await?
+                .await?
+            }
+            CommunityInvite::V2(community_invite_v2) => {
+                fedimint_core::task::timeout(
+                    Duration::from_secs(60),
+                    fedimint_core::util::retry(
+                        "fetch community meta",
+                        aggressive_backoff(),
+                        || nostril.fetch_community(community_invite_v2),
+                    ),
+                )
+                .await?
+            }
+        }
     }
 
     /// Decodes the invite code and fetches the community's JSON file. Then
     /// constructs a Community object and returns it.
     pub async fn join(
-        invite_code: &str,
+        community_invite: &CommunityInvite,
         app_state: AppState,
         event_sink: EventSink,
         http_client: reqwest::Client,
+        nostril: Arc<Nostril>,
     ) -> anyhow::Result<Self> {
+        let meta = RwLock::new(
+            Self::preview(community_invite, http_client.clone(), nostril.clone()).await?,
+        )
+        .into();
         Ok(Community {
-            invite_code: invite_code.to_owned(),
-            meta: RwLock::new(Self::preview(invite_code, http_client.clone()).await?).into(),
+            community_invite: community_invite.clone(),
+            meta,
             app_state,
             event_sink,
             http_client,
+            nostril,
         })
     }
 
     /// Uses the provided CommunityJson meta to construct a Community object and
     /// returns it.
     pub fn from_local_meta(
-        invite_code: String,
+        invite_code: &str,
         info: CommunityInfo,
         app_state: AppState,
         event_sink: EventSink,
         http_client: reqwest::Client,
-    ) -> Self {
-        Community {
-            invite_code,
+        nostril: Arc<Nostril>,
+    ) -> anyhow::Result<Self> {
+        let community_invite = CommunityInvite::from_str(invite_code)?;
+        Ok(Community {
+            community_invite,
             meta: RwLock::new(info.meta).into(),
             app_state,
             event_sink,
             http_client,
-        }
+            nostril,
+        })
     }
 
     /// Re-fetch from network the metadata for this community. If any properties
@@ -294,26 +302,33 @@ impl Community {
     async fn refresh_meta(&self) {
         let meta = self.meta.read().await.clone();
 
-        match Self::preview(&self.invite_code, self.http_client.clone()).await {
+        match Self::preview(
+            &self.community_invite,
+            self.http_client.clone(),
+            self.nostril.clone(),
+        )
+        .await
+        {
             Ok(new_meta) if new_meta != meta => {
                 *self.meta.write().await = new_meta.clone();
                 let _ = self
                     .app_state
                     .with_write_lock(|state| {
-                        state
-                            .joined_communities
-                            .insert(self.invite_code.clone(), CommunityInfo { meta: new_meta })
+                        state.joined_communities.insert(
+                            self.community_invite.to_string(),
+                            CommunityInfo { meta: new_meta },
+                        )
                     })
                     .await;
                 self.event_sink
                     .typed_event(&Event::community_metadata_updated(RpcCommunity {
-                        invite_code: self.invite_code.clone(),
+                        community_invite: From::from(&self.community_invite),
                         name: meta.name,
                         meta: meta.meta,
                     }));
             }
             Ok(_) => (),
-            Err(e) => info!(%e, "Failed to refresh communtiy meta for {}", self.invite_code),
+            Err(e) => info!(%e, "Failed to refresh communtiy meta for {}", self.community_invite),
         }
     }
 }
@@ -340,13 +355,15 @@ async fn fetch_community_meta_json(
 
 #[cfg(test)]
 mod tests {
+    use rpc_types::communities::CommunityInviteV1;
+
     use super::*;
 
     #[test]
     fn test_decode_community_invite() -> anyhow::Result<()> {
         let invite = "fedi:community10v3xxmmdd46ku6t5090k6et5v90h2unvygazy6r5w3c8xw309ankjum59enkjargw4382um9wf3k7mn5v4h8gtnrdakj7jtjdahxxmrpv3zx2a30x33nqvtpvejnzwry8pjrvcm9vvmnqvmyxqcxxvmx89jn2vrp89jz7unpwu386swyqqf";
         assert_eq!(
-            CommunityInvite::from_str(invite)?.community_meta_url,
+            CommunityInviteV1::from_str(invite)?.community_meta_url,
             "https://gist.githubusercontent.com/IroncladDev/4c01afe18d8d6cec703d00c3f9e50a9d/raw"
         );
         Ok(())

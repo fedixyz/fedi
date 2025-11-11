@@ -123,18 +123,16 @@ impl BridgeOnboarding {
             .complete_onboarding(method, self.device_identifier.clone())
             .await
         {
-            Ok(new_state) => {
-                Bridge::try_load_bridge_full(
-                    self.storage.clone(),
-                    self.global_db.clone(),
-                    self.event_sink.clone(),
-                    self.fedi_api.clone(),
-                    new_state,
-                    self.feature_catalog.clone(),
-                    self.device_identifier.clone(),
-                )
-                .await
-            }
+            Ok(new_state) => Ok(Bridge::load_bridge_full(
+                self.storage.clone(),
+                self.global_db.clone(),
+                self.event_sink.clone(),
+                self.fedi_api.clone(),
+                new_state,
+                self.feature_catalog.clone(),
+                self.device_identifier.clone(),
+            )
+            .await),
             Err((given_back_state, err)) => {
                 // put back the stolen stuff
                 *state = Some(given_back_state);

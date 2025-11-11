@@ -105,12 +105,12 @@ getrandom = "0.3.1"
 hex = { version = "0.4.2" }
 impl-tools = "0.10.0"
 itertools = "0.14"
-nostr = { version = "0.43", default-features = false, features = [
+nostr = { version = "0.44", default-features = false, features = [
   "std",
   "nip44",
   "nip98",
 ] }
-nostr-sdk = { version = "0.43", features = ["nip44", "nip04"] }
+nostr-sdk = { version = "0.44", features = ["nip44", "nip04"] }
 rand = "0.8"
 reqwest = { version = "0.12", features = [
   "json",

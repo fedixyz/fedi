@@ -2,6 +2,7 @@ import { useRouter } from 'next/router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import QrCodeIcon from '@fedi/common/assets/svgs/qr.svg'
 import RoomIcon from '@fedi/common/assets/svgs/room.svg'
 import { useLeaveCommunity } from '@fedi/common/hooks/leave'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -13,6 +14,7 @@ import {
 
 import { Button } from '../../components/Button'
 import { DefaultRoomPreview } from '../../components/Chat/DefaultRoomPreview'
+import { CommunityInviteDialog } from '../../components/CommunityInviteDialog'
 import { ContentBlock } from '../../components/ContentBlock'
 import { Dialog } from '../../components/Dialog'
 import { FederationAvatar } from '../../components/FederationAvatar'
@@ -28,6 +30,7 @@ function CommunityDetails() {
     const { query, isReady, push } = useRouter()
 
     const [wantsToLeaveCommunity, setWantsToLeaveCommunity] = useState(false)
+    const [invitingCommunityId, setInvitingCommunityId] = useState('')
 
     const id = (query.id as string | undefined) ?? ''
     const community = useAppSelector(s => selectCommunity(s, id))
@@ -59,7 +62,15 @@ function CommunityDetails() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back>
+                <Layout.Header
+                    back
+                    rightComponent={
+                        <Icon
+                            icon={QrCodeIcon}
+                            size="sm"
+                            onClick={() => setInvitingCommunityId(community.id)}
+                        />
+                    }>
                     <Layout.Title subheader>
                         {t('feature.communities.community-details')}
                     </Layout.Title>
@@ -144,6 +155,12 @@ function CommunityDetails() {
                     </LeaveActions>
                 </Column>
             </Dialog>
+
+            <CommunityInviteDialog
+                open={!!invitingCommunityId}
+                communityId={invitingCommunityId}
+                onClose={() => setInvitingCommunityId('')}
+            />
         </ContentBlock>
     )
 }

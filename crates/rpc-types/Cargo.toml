@@ -30,7 +30,9 @@ matrix-sdk = { workspace = true, default-features = false, features = [
   "rustls-tls",
   "e2e-encryption",
 ] }
+nostr-sdk = { workspace = true }
 runtime = { workspace = true }
+bech32 = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }

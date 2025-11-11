@@ -103,6 +103,10 @@ export class FedimintBridge {
         return this.rpcTyped('federationPreview', { inviteCode })
     }
 
+    async parseInviteCode(inviteCode: string) {
+        return this.rpcTyped('parseInviteCode', { inviteCode })
+    }
+
     async stabilityPoolAverageFeeRate(federationId: string, numCycles: number) {
         return this.rpcTyped('stabilityPoolAverageFeeRate', {
             federationId,
@@ -444,8 +448,8 @@ export class FedimintBridge {
     }
 
     // Parses ecash, works offline
-    async validateEcash(ecash: string) {
-        return this.rpcTyped('validateEcash', {
+    async parseEcash(ecash: string) {
+        return this.rpcTyped('parseEcash', {
             ecash,
         })
     }
@@ -527,6 +531,23 @@ export class FedimintBridge {
             federationId,
             rating,
             includeInviteCode,
+        })
+    }
+
+    async createCommunity(communityJsonStr: string) {
+        return this.rpcTyped('nostrCreateCommunity', {
+            communityJsonStr,
+        })
+    }
+
+    async listCreatedCommunities() {
+        return this.rpcTyped('nostrListOurCommunities', {})
+    }
+
+    async editCommunity(communityHexUuid: string, newCommunityJsonStr: string) {
+        return this.rpcTyped('nostrEditCommunity', {
+            communityHexUuid,
+            newCommunityJsonStr,
         })
     }
 

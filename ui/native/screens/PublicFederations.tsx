@@ -18,10 +18,11 @@ import { selectFederationIds } from '@fedi/common/redux'
 import { Images } from '@fedi/native/assets/images'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
-import InfoEntryList from '../components/feature/home/InfoEntryList'
+import InfoEntryList, {
+    type InfoItem,
+} from '../components/feature/home/InfoEntryList'
 import { Switcher } from '../components/feature/home/Switcher'
 import { OmniInput } from '../components/feature/omni/OmniInput'
-import { FirstTimeOverlayItem } from '../components/feature/onboarding/FirstTimeOverlay'
 import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
@@ -94,13 +95,16 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
         switcherOptions.find(opt => opt.value === activeTab) ??
         switcherOptions[0]
 
-    const createInfoItems: FirstTimeOverlayItem[] = [
-        { icon: 'SocialPeople', text: t('feature.federation.create-info-1') },
+    const createInfoItems: InfoItem[] = [
+        { icon: 'User', text: t('feature.onboarding.create-info-1') },
+        {
+            icon: 'SocialPeople',
+            text: t('feature.onboarding.create-info-3'),
+        },
         {
             icon: 'ShieldHalfFilled',
-            text: t('feature.federation.create-info-3'),
+            text: t('feature.onboarding.create-info-5'),
         },
-        { icon: 'Wallet', text: t('feature.federation.create-info-5') },
     ]
 
     const handleGoToChat = () => {
@@ -246,62 +250,68 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                                 theme={theme}
                             />
                         </View>
-                        <Flex fullWidth style={style.buttonsContainer}>
-                            {myGuardianitoBot?.bot_room_id ? (
-                                <Button
-                                    fullWidth
-                                    loading={isLoadingGuardianitoBot}
-                                    title={t('words.continue')}
-                                    onPress={handleContinue}
-                                />
-                            ) : showGoToChatButton ? (
-                                <Button
-                                    fullWidth
-                                    title={t('phrases.go-to-chat')}
-                                    onPress={handleGoToChat}
-                                />
-                            ) : isLoadingGuardianitoBot ? (
-                                <Button fullWidth disabled>
-                                    <Text
-                                        caption
-                                        medium
-                                        style={{ marginRight: 8 }}>
-                                        {`${t('phrases.please-wait')}...`}
-                                    </Text>
-                                    <ActivityIndicator />
-                                </Button>
-                            ) : (
-                                <Button
-                                    fullWidth
-                                    title={t('phrases.create-my-federation')}
-                                    onPress={beginBotCreation}
-                                />
-                            )}
-                        </Flex>
                     </View>
                 )}
             </ScrollView>
 
-            <View style={style.footerContainer}>
-                <Button
-                    testID="MaybeLaterButton"
-                    fullWidth
-                    type="clear"
-                    title={
-                        <Text caption medium>
-                            {t('phrases.maybe-later')}
-                        </Text>
-                    }
-                    onPress={() =>
-                        navigation.navigate('TabsNavigator', {
-                            initialRouteName:
-                                joinedFederationIds.length > 0
-                                    ? 'Federations'
-                                    : 'Home',
-                        })
-                    }
-                />
-            </View>
+            {activeTab === 'discover' && cameFromSplash && (
+                <View style={style.footerContainer}>
+                    <Button
+                        testID="MaybeLaterButton"
+                        fullWidth
+                        type="clear"
+                        title={
+                            <Text caption medium>
+                                {t('phrases.maybe-later')}
+                            </Text>
+                        }
+                        onPress={() =>
+                            navigation.navigate('TabsNavigator', {
+                                initialRouteName:
+                                    joinedFederationIds.length > 0
+                                        ? 'Federations'
+                                        : 'Home',
+                            })
+                        }
+                    />
+                </View>
+            )}
+
+            {activeTab === 'create' && (
+                <View style={style.footerContainer}>
+                    {activeTab === 'create' ? (
+                        myGuardianitoBot?.bot_room_id ? (
+                            <Button
+                                fullWidth
+                                loading={isLoadingGuardianitoBot}
+                                title={t('words.continue')}
+                                onPress={handleContinue}
+                            />
+                        ) : showGoToChatButton ? (
+                            <Button
+                                fullWidth
+                                title={t('phrases.go-to-chat')}
+                                onPress={handleGoToChat}
+                            />
+                        ) : isLoadingGuardianitoBot ? (
+                            <Button fullWidth disabled>
+                                <Text caption medium style={{ marginRight: 8 }}>
+                                    {`${t('phrases.please-wait')}...`}
+                                </Text>
+                                <ActivityIndicator />
+                            </Button>
+                        ) : (
+                            <Button
+                                fullWidth
+                                title={t(
+                                    'feature.onboarding.create-button-label',
+                                )}
+                                onPress={beginBotCreation}
+                            />
+                        )
+                    ) : null}
+                </View>
+            )}
         </SafeAreaContainer>
     )
 }
@@ -375,7 +385,6 @@ const styles = (theme: Theme) =>
         footerContainer: {
             width: '100%',
             padding: theme.spacing.lg,
-            paddingTop: 2,
             alignItems: 'center',
         },
         imageWrapper: {

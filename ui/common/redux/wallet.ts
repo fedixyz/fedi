@@ -322,12 +322,12 @@ export const receiveEcash = createAsyncThunk<
     })
 })
 
-export const validateEcash = createAsyncThunk<
+export const parseEcash = createAsyncThunk<
     RpcEcashInfo,
     { fedimint: FedimintBridge; ecash: string },
     { state: CommonState }
->('wallet/validateEcash', async ({ fedimint, ecash }) => {
-    return fedimint.validateEcash(ecash)
+>('wallet/parseEcash', async ({ fedimint, ecash }) => {
+    return fedimint.parseEcash(ecash)
 })
 
 export const cancelEcash = createAsyncThunk<
@@ -335,7 +335,7 @@ export const cancelEcash = createAsyncThunk<
     { fedimint: FedimintBridge; ecash: string },
     { state: CommonState }
 >('wallet/cancelEcash', async ({ fedimint, ecash }) => {
-    const decoded = await fedimint.validateEcash(ecash)
+    const decoded = await fedimint.parseEcash(ecash)
 
     // Should never happen since the user is the one who minted the ecash notes
     if (decoded.federation_type !== 'joined') {

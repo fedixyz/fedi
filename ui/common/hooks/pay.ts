@@ -2,13 +2,18 @@ import { TFunction } from 'i18next'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+    joinFederation,
+    receiveEcash,
+    refreshFederations,
     listGateways,
     selectFederation,
+    selectLoadedFederation,
     setLastUsedFederationId,
 } from '../redux'
 import {
     AnyParsedData,
     Invoice,
+    Federation,
     MSats,
     ParsedBip21,
     ParsedBitcoinAddress,
@@ -16,9 +21,16 @@ import {
     ParserDataType,
     Sats,
 } from '../types'
-import { RpcFeeDetails } from '../types/bindings'
+import {
+    RpcEcashInfo,
+    RpcFeeDetails,
+    RpcFederationPreview,
+} from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
-import { shouldShowInviteCode } from '../utils/FederationUtils'
+import {
+    getFederationPreview,
+    shouldShowInviteCode,
+} from '../utils/FederationUtils'
 import {
     MeltSummary,
     decodeCashuTokens,
@@ -387,5 +399,135 @@ export function useSendEcash(fedimint: FedimintBridge, federationId: string) {
         isGeneratingEcash,
         generateEcash,
         reset,
+    }
+}
+
+export function useParseEcash(fedimint: FedimintBridge) {
+    const [ecashToken, setEcashToken] = useState<string>('')
+    const [loading, setLoading] = useState(false) // used for page loader
+    const [parsedEcash, setParsedEcash] = useState<RpcEcashInfo | null>(null)
+    const [federationPreview, setFederationPreview] =
+        useState<RpcFederationPreview | null>(null) // TODO: remove this
+    const [isError, setIsError] = useState(false)
+
+    // Return federation if they have already joined issuing federation
+    const loadedFederation = useCommonSelector(s => {
+        if (parsedEcash?.federation_type === 'joined') {
+            return selectLoadedFederation(s, parsedEcash.federation_id)
+        }
+
+        return null
+    })
+
+    const parseEcashFn = useCallback(
+        async (token: string) => {
+            setEcashToken(token)
+            setIsError(false)
+            setLoading(true)
+
+            try {
+                const parsed = await fedimint.parseEcash(
+                    decodeURIComponent(token),
+                )
+                setParsedEcash(parsed)
+
+                // If user hasn't already joined this federation then get preview
+                if ('federation_invite' in parsed) {
+                    const preview = await getFederationPreview(
+                        parsed.federation_invite as string,
+                        fedimint,
+                    )
+                    setFederationPreview(preview)
+                }
+            } catch (e) {
+                setIsError(true)
+                log.error('Ecash token could not be parsed')
+            } finally {
+                setLoading(false)
+            }
+        },
+        [fedimint],
+    )
+
+    return {
+        parseEcash: parseEcashFn,
+        loading,
+        parsed: parsedEcash,
+        ecashToken,
+        isError,
+        federation: loadedFederation || federationPreview,
+    }
+}
+
+export function useClaimEcash(fedimint: FedimintBridge) {
+    const dispatch = useCommonDispatch()
+
+    const [loading, setLoading] = useState(false)
+    const [claimed, setEcashClaimed] = useState(false)
+    const [isError, setIsError] = useState(false)
+
+    const claimEcash = useCallback(
+        async (parsedEcash: RpcEcashInfo, ecashToken: string) => {
+            if (!parsedEcash) return
+            let joinedFederation: Federation | null = null
+
+            try {
+                setIsError(false)
+                setLoading(true)
+
+                // User isn't part of federation that ecash was sent from
+                // so join the federation first
+                if ('federation_invite' in parsedEcash) {
+                    joinedFederation = await dispatch(
+                        joinFederation({
+                            fedimint,
+                            code: parsedEcash.federation_invite as string,
+                            recoverFromScratch: false,
+                        }),
+                    ).unwrap()
+
+                    // refresh all federations after joining a new one to keep all metadata fresh
+                    dispatch(refreshFederations(fedimint))
+                }
+
+                const federationId =
+                    'federation_id' in parsedEcash
+                        ? parsedEcash.federation_id
+                        : joinedFederation?.id
+
+                if (!federationId) {
+                    log.error('No federation ID found')
+                    throw new Error()
+                }
+
+                const result = await dispatch(
+                    receiveEcash({
+                        fedimint,
+                        federationId,
+                        ecash: decodeURIComponent(ecashToken),
+                    }),
+                ).unwrap()
+
+                if (result.status === 'failed') {
+                    log.error('ReceiveEcash failed')
+                    throw new Error()
+                }
+
+                setEcashClaimed(true)
+            } catch (e) {
+                setIsError(true)
+                log.error('Ecash could not be claimed', e)
+            } finally {
+                setLoading(false)
+            }
+        },
+        [dispatch, fedimint],
+    )
+
+    return {
+        claimEcash,
+        loading,
+        claimed,
+        isError,
     }
 }

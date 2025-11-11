@@ -25,6 +25,7 @@ while true; do
     echo "c - clean UI files"
     echo "n - reinstall node_modules"
     echo "p - reinstall pods"
+    echo "d - open deeplink"
     echo "q - quit"
     
     read -rsn1 input
@@ -96,6 +97,9 @@ while true; do
         p)
             echo "Reinstalling pods"
             $REPO_ROOT/scripts/ui/install-ios-deps.sh || true
+            ;;
+        d)
+            $REPO_ROOT/scripts/ui/open-deeplink.sh || true
             ;;
         q)
             echo "Exiting."

@@ -1,6 +1,5 @@
 import { useRouter } from 'next/router'
 import React from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
     selectMatrixStatus,
@@ -9,6 +8,7 @@ import {
 import { MatrixSyncStatus } from '@fedi/common/types'
 
 import { ChatBlock } from '../../components/Chat/ChatBlock'
+import { ChatList } from '../../components/Chat/ChatList'
 import { ChatNeedRegistration } from '../../components/Chat/ChatNeedRegistration'
 import { ChatNew } from '../../components/Chat/ChatNew'
 import { ChatRoomConversation } from '../../components/Chat/ChatRoomConversation'
@@ -20,7 +20,6 @@ import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 
 function ChatPage() {
-    const { t } = useTranslation()
     const { query, isReady } = useRouter()
     const syncStatus = useAppSelector(selectMatrixStatus)
     const needsChatRegistration = useAppSelector(selectNeedsMatrixRegistration)
@@ -36,7 +35,6 @@ function ChatPage() {
     if (!isReady) return null
 
     let content: React.ReactNode
-    let isShowingContent = true
 
     if (syncStatus === MatrixSyncStatus.initialSync) {
         content = (
@@ -61,15 +59,12 @@ function ChatPage() {
     } else if (chatType === 'room' && chatId) {
         content = <ChatRoomConversation key={chatId} roomId={chatId} />
     } else if (!chatType) {
-        isShowingContent = false
-        content = (
-            <EmptyMessage>{t('feature.chat.select-or-start')}</EmptyMessage>
-        )
+        content = <ChatList />
     } else {
         return <Redirect path="/chat" />
     }
 
-    return <ChatBlock isShowingContent={isShowingContent}>{content}</ChatBlock>
+    return <ChatBlock>{content}</ChatBlock>
 }
 
 const EmptyMessage = styled('div', {

@@ -7,7 +7,6 @@ import { LinearGradientProps } from 'react-native-linear-gradient'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
-import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -46,7 +45,6 @@ const StabilityWallet: React.FC<Props> = ({
     const dispatch = useAppDispatch()
     const toast = useToast()
 
-    const [hasOpenedStabilityPool] = useNuxStep('hasOpenedStabilityPool')
     useMonitorStabilityPool(fedimint, federation.id)
 
     const stabilityPoolDisabledByFederation =
@@ -125,10 +123,9 @@ const StabilityWallet: React.FC<Props> = ({
 
     const handleHeaderPress = () => {
         if (expanded) {
-            navigation.navigate(
-                hasOpenedStabilityPool ? 'StabilityHome' : 'StableBalanceIntro',
-                { federationId: federation.id },
-            )
+            navigation.navigate('StabilityHome', {
+                federationId: federation.id,
+            })
         } else {
             setExpandedWalletId(federation.id)
         }

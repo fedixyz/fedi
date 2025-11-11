@@ -1,6 +1,5 @@
 import React from 'react'
 
-import { styled } from '../../styles'
 import { JoinFederation } from './JoinFederation'
 import { OnboardingCommunities } from './OnboardingCommunities'
 import { OnboardingHome } from './OnboardingHome'
@@ -34,18 +33,5 @@ export const Onboarding: React.FC<Props> = ({ step }) => {
         content = <OnboardingHome />
     }
 
-    return <Container>{content}</Container>
+    return content
 }
-
-const Container = styled('div', {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    minHeight: '60vh',
-    textAlign: 'center',
-
-    '@media (min-height: 1080px)': {
-        minHeight: 640,
-    },
-})

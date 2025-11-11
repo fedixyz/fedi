@@ -8,15 +8,26 @@ $REPO_ROOT/scripts/enforce-nix.sh
 # Install wasm dependencies
 $REPO_ROOT/scripts/ui/install-wasm.sh
 
+# helper to install dependencies with the cache for speed, but if something fails try cleaning it and retrying
+run_with_clean_retry() {
+  local cmd="$1"
+  echo "Running command: $cmd"
+  if ! $cmd; then
+    echo "Command failed, cleaning cache and retrying..."
+    yarn cache clean --force
+    $cmd
+  fi
+}
+
 pushd $REPO_ROOT/ui
 # Install NPM dependencies
 if [[ -n "$CI" ]]; then
   echo "Reinstalling node modules from lockfile (yarn.lock)"
   rm -rf $REPO_ROOT/ui/node_modules
-  yarn install --frozen-lockfile
+  run_with_clean_retry "yarn install --frozen-lockfile"
 else
   echo "Installing node modules"
-  yarn install
+  run_with_clean_retry "yarn install"
 fi
 echo "Finished installing node modules"
 

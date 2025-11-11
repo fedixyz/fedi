@@ -12,7 +12,7 @@ interface Props {
     onClose: () => void
 }
 
-export const InviteMemberDialog: React.FC<Props> = ({
+export const FederationInviteDialog: React.FC<Props> = ({
     federationId,
     onClose,
     ...rest
@@ -34,9 +34,7 @@ export const InviteMemberDialog: React.FC<Props> = ({
 
     return (
         <QRDialog
-            title={`${t('feature.federations.federation-invite')} - ${
-                federation.name
-            }`}
+            title={`${t('feature.federations.federation-invite')}`}
             qrValue={inviteCode.toUpperCase()}
             copyValue={inviteCode}
             onCopyMessage={t('feature.federations.copied-federation-invite')}

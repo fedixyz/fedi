@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use ts_rs::TS;
 
+use crate::communities::CommunityInvite;
 use crate::error::{ErrorCode, RpcError};
 use crate::matrix::ruma_events::AnyMessageLikeEvent;
 use crate::multispend::MultispendEvent;
@@ -1128,6 +1129,8 @@ pub enum RpcMsgLikeKind {
     Emote(RpcTextLikeContent),
     #[serde(rename = "xyz.fedi.federationInvite")]
     FederationInvite(RpcTextLikeContent),
+    #[serde(rename = "xyz.fedi.communityInvite")]
+    CommunityInvite(RpcTextLikeContent),
     #[serde(rename = "m.file")]
     File(RpcFileMessageContent),
     #[serde(rename = "m.image")]
@@ -1178,6 +1181,12 @@ impl From<&RumaMessageType> for RpcMsgLikeKind {
                     && InviteCode::from_str(&content.body).is_ok() =>
             {
                 RpcMsgLikeKind::FederationInvite(content.into())
+            }
+            RumaMessageType::Text(content)
+                if content.body.starts_with("fedi:community")
+                    && CommunityInvite::from_str(&content.body).is_ok() =>
+            {
+                RpcMsgLikeKind::CommunityInvite(content.into())
             }
             RumaMessageType::Text(content) => RpcMsgLikeKind::Text(content.into()),
             RumaMessageType::Notice(content) => {

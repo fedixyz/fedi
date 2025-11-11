@@ -2,7 +2,12 @@ import { PayloadAction, createSelector, createSlice } from '@reduxjs/toolkit'
 import omit from 'lodash/omit'
 
 import { CommonState, federationSlice, selectGlobalCommunityMetadata } from '.'
-import { FediMod } from '../types'
+import {
+    FediMod,
+    FIRST_PARTY_PERMISSIONS,
+    MiniAppPermissionsById,
+    MiniAppPermissionType,
+} from '../types'
 import { getCommunityFediMods } from '../utils/FederationUtils'
 import { deduplicate } from '../utils/fedimods'
 import { upsertRecordEntityId } from '../utils/redux'
@@ -26,6 +31,9 @@ const initialState = {
     customGlobalMods: {} as Record<FediMod['id'], FediMod>,
     // Tracks which mods are visible to the user
     modVisibility: {} as Record<FediMod['id'], ModVisibility>,
+    miniAppPermissions: {
+        ...FIRST_PARTY_PERMISSIONS,
+    } as MiniAppPermissionsById,
 }
 
 export type ModState = typeof initialState
@@ -262,4 +270,29 @@ export const selectAllVisibleMods = createSelector(
     (global, custom) =>
         // Filter out duplicate mods
         deduplicate([...global, ...custom]),
+)
+
+export const selectMiniAppPermissions = createSelector(
+    (s: CommonState) => s.mod.miniAppPermissions,
+    (_: CommonState, miniAppUrl: string | undefined) => miniAppUrl,
+    (miniAppPermissions, miniAppUrl): MiniAppPermissionType[] => {
+        if (!miniAppUrl) return []
+        const url = new URL(miniAppUrl)
+        return miniAppPermissions[url.origin] ?? []
+    },
+)
+
+// determine if the user is browsing a mini-app by comparing domains/subdomains
+export const selectMiniAppByUrl = createSelector(
+    (s: CommonState) => selectConfigurableMods(s),
+    (_: CommonState, url: string) => url,
+    (allMiniApps, url) => {
+        const currentUrl = new URL(url)
+        const matchingMiniApp = allMiniApps.find(miniApp => {
+            const miniAppUrl = new URL(miniApp.url)
+            return miniAppUrl.hostname === currentUrl.hostname
+        })
+
+        return matchingMiniApp
+    },
 )

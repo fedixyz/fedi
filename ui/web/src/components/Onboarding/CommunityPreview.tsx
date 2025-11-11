@@ -78,56 +78,43 @@ const CommunityPreview: React.FC<Props> = ({
     return (
         <Layout.Root>
             <Layout.Content fullWidth={!community}>
-                <FederationPreviewOuter>
-                    <FederationPreviewInner>
-                        <AvatarWrapper>
-                            <FederationAvatar
-                                federation={{
-                                    id: community.id,
-                                    name: community.name,
-                                    meta: community.meta,
-                                }}
-                                size="lg"
-                            />
-                        </AvatarWrapper>
-                        <Text variant="h2" weight="medium">
-                            {community.name}
-                        </Text>
-                        <CustomWelcomeMessage>
-                            {welcomeMessage ? (
-                                <Trans components={{ bold: <strong /> }}>
-                                    {welcomeMessage}
-                                </Trans>
-                            ) : (
-                                <Text variant="caption">
-                                    {welcomeInstructions}
-                                </Text>
-                            )}
-                        </CustomWelcomeMessage>
-                    </FederationPreviewInner>
-                </FederationPreviewOuter>
+                <Content>
+                    <AvatarWrapper>
+                        <FederationAvatar
+                            federation={{
+                                id: community.id,
+                                name: community.name,
+                                meta: community.meta,
+                            }}
+                            size="lg"
+                        />
+                    </AvatarWrapper>
+                    <Text variant="h2" weight="medium">
+                        {community.name}
+                    </Text>
+                    <CustomWelcomeMessage>
+                        {welcomeMessage ? (
+                            <Trans components={{ bold: <strong /> }}>
+                                {welcomeMessage}
+                            </Trans>
+                        ) : (
+                            <Text variant="caption">{welcomeInstructions}</Text>
+                        )}
+                    </CustomWelcomeMessage>
+                </Content>
             </Layout.Content>
             {actions && <Layout.Actions>{actions}</Layout.Actions>}
         </Layout.Root>
     )
 }
 
-const previewRadius = 20
-const previewPadding = 2
-
-const FederationPreviewOuter = styled('div', {
-    padding: previewPadding,
-})
-
-const FederationPreviewInner = styled('div', {
+const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     width: '100%',
     gap: 8,
-    padding: 24,
     background: '#FFF',
-    borderRadius: previewRadius - previewPadding,
 })
 
 const ButtonContainer = styled('div', {

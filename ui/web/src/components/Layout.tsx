@@ -1,18 +1,82 @@
 import { useRouter } from 'next/router'
+import React, { useState } from 'react'
 
 import ChevronLeft from '@fedi/common/assets/svgs/chevron-left.svg'
 import CloseIcon from '@fedi/common/assets/svgs/close.svg'
+import { Community } from '@fedi/common/types'
 
-import { useMediaQuery } from '../hooks'
-import { config, keyframes, styled, theme } from '../styles'
+import { keyframes, styled, theme } from '../styles'
+import { CommunityInviteDialog } from './CommunityInviteDialog'
+import { Row } from './Flex'
 import { Icon } from './Icon'
 import { IconButton } from './IconButton'
+import MainHeaderButtons from './MainHeaderButtons'
+import SelectedCommunity from './SelectedCommunity'
 import { ShadowScroller } from './ShadowScroller'
 
-type Props = {
+type PageHeaderProps = {
+    title: string
+    onAddPress?: () => void
+    onShowCommunitiesPress?: () => void
+    selectedCommunity?: Community
+}
+
+export function PageHeader({
+    title,
+    onAddPress,
+    onShowCommunitiesPress,
+    selectedCommunity,
+}: PageHeaderProps) {
+    const [invitingCommunityId, setInvitingCommunityId] = useState('')
+
+    return (
+        <>
+            <PageHeaderContainer>
+                <PageHeaderGradient justify="between" align="center">
+                    <Title>{title}</Title>
+                    <MainHeaderButtons
+                        onShowCommunitiesPress={onShowCommunitiesPress}
+                        onAddPress={onAddPress}
+                    />
+                </PageHeaderGradient>
+                {selectedCommunity && (
+                    <SelectedCommunityWrapper>
+                        <SelectedCommunity
+                            community={selectedCommunity}
+                            onQrClick={() =>
+                                setInvitingCommunityId(selectedCommunity.id)
+                            }
+                        />
+                    </SelectedCommunityWrapper>
+                )}
+            </PageHeaderContainer>
+            <CommunityInviteDialog
+                open={!!invitingCommunityId}
+                communityId={invitingCommunityId}
+                onClose={() => setInvitingCommunityId('')}
+            />
+        </>
+    )
+}
+
+const PageHeaderContainer = styled('div', {
+    borderBottom: `1px solid ${theme.colors.extraLightGrey}`,
+})
+
+const PageHeaderGradient = styled(Row, {
+    fediGradient: 'sky',
+    padding: '10px 20px',
+})
+
+const SelectedCommunityWrapper = styled('div', {
+    padding: '10px 20px',
+})
+
+type HeaderProps = {
     back?: string | boolean
     showCloseButton?: boolean
     centered?: boolean
+    rightComponent?: React.ReactElement
 }
 
 export function Header({
@@ -20,15 +84,15 @@ export function Header({
     back,
     showCloseButton,
     centered,
+    rightComponent,
     ...props
-}: React.ComponentProps<typeof HeaderContainer> & Props) {
-    const isSm = useMediaQuery(config.media.sm)
+}: React.ComponentProps<typeof HeaderContainer> & HeaderProps) {
     const router = useRouter()
 
     return (
         <HeaderContainer {...props}>
-            {back && isSm && (
-                <ButtonWrapper isBack>
+            {back && (
+                <ButtonWrapper>
                     <IconButton
                         icon={ChevronLeft}
                         size="md"
@@ -42,12 +106,16 @@ export function Header({
                     />
                 </ButtonWrapper>
             )}
+
             <HeaderContent centered={centered}>{children}</HeaderContent>
-            {showCloseButton && (
-                <ButtonWrapper isClose>
+
+            <RightComponentWrapper>
+                {showCloseButton ? (
                     <Icon icon={CloseIcon} onClick={() => router.back()} />
-                </ButtonWrapper>
-            )}
+                ) : rightComponent ? (
+                    rightComponent
+                ) : null}
+            </RightComponentWrapper>
         </HeaderContainer>
     )
 }
@@ -72,23 +140,23 @@ export const ButtonWrapper = styled('div', {
     cursor: 'pointer',
     display: 'flex',
     height: '100%',
+    left: 0,
     justifyContent: 'center',
     position: 'absolute',
     top: 0,
     width: 50,
+})
 
-    variants: {
-        isBack: {
-            true: {
-                left: 0,
-            },
-        },
-        isClose: {
-            true: {
-                right: 0,
-            },
-        },
-    },
+export const RightComponentWrapper = styled('div', {
+    alignItems: 'center',
+    cursor: 'pointer',
+    display: 'flex',
+    height: '100%',
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 5,
+    top: 0,
+    width: 50,
 })
 
 const HeaderContent = styled('div', {
@@ -99,10 +167,7 @@ const HeaderContent = styled('div', {
     gap: 8,
     height: '100%',
     width: '100%',
-
-    '@sm': {
-        padding: '0 16px',
-    },
+    padding: '0 16px',
 
     variants: {
         centered: {
@@ -114,14 +179,9 @@ const HeaderContent = styled('div', {
 })
 
 export const Title = styled('h1', {
-    fontSize: theme.fontSizes.h1,
+    fontSize: theme.fontSizes.h2,
+    fontWeight: theme.fontWeights.medium,
     lineHeight: 1.5,
-    fontWeight: theme.fontWeights.bold,
-
-    '@sm': {
-        fontSize: theme.fontSizes.h2,
-        fontWeight: theme.fontWeights.medium,
-    },
 
     variants: {
         small: {
@@ -132,12 +192,10 @@ export const Title = styled('h1', {
         },
         subheader: {
             true: {
-                '@sm': {
-                    fontSize: theme.fontSizes.body,
-                    fontWeight: theme.fontWeights.bold,
-                    flexGrow: 1,
-                    textAlign: 'center',
-                },
+                fontSize: theme.fontSizes.body,
+                fontWeight: theme.fontWeights.bold,
+                flexGrow: 1,
+                textAlign: 'center',
             },
         },
     },
@@ -149,10 +207,10 @@ const fadeIn = keyframes({
 })
 
 export const Content = styled(ShadowScroller, {
-    flex: 1,
-    width: '100%',
     display: 'flex',
+    flex: 1,
     flexDirection: 'column',
+    width: '100%',
 
     '& > *:first-child': {
         height: '100%',
@@ -165,10 +223,8 @@ export const Content = styled(ShadowScroller, {
         fullWidth: {
             true: {},
             false: {
-                '@sm': {
-                    '& > *:first-child': {
-                        padding: '0 16px 16px',
-                    },
+                '& > *:first-child': {
+                    padding: 20,
                 },
             },
         },
@@ -204,14 +260,7 @@ export const Actions = styled('div', {
     width: '100%',
     paddingTop: 24,
     gap: 16,
-
-    '@sm': {
-        padding: '24px 24px 24px',
-    },
-
-    '@xs': {
-        padding: 16,
-    },
+    padding: '24px 24px 24px',
 
     '@standalone': {
         '.hide-navigation &': {

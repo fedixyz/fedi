@@ -1,4 +1,5 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
+import { decode } from 'html-entities'
 import { useEffect, useState } from 'react'
 import {
     Image,
@@ -15,6 +16,7 @@ import { constructUrl } from '@fedi/common/utils/neverthrow'
 
 import { FediModImages } from '../../../assets/images'
 import { FediMod, Shortcut, ShortcutType } from '../../../types'
+import { stripAndDeduplicateWhitespace } from '../../../utils/strings'
 import { BubbleView } from '../../ui/BubbleView'
 import Flex from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
@@ -42,6 +44,8 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
     const [imageSrc, setImageSrc] = useState<ImageSourcePropType>(
         FediModImages.default,
     )
+
+    const shortcutTitle = decode(stripAndDeduplicateWhitespace(shortcut.title))
 
     useEffect(() => {
         if (isMod(shortcut)) {
@@ -151,7 +155,7 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
                     medium
                     style={style.titleText}
                     adjustsFontSizeToFit>
-                    {shortcut.title}
+                    {shortcutTitle}
                 </Text>
             </Flex>
         </Pressable>

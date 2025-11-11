@@ -644,8 +644,8 @@ async function parseFedimintEcash(
 ): Promise<ParsedFedimintEcash | undefined> {
     try {
         if (raw.startsWith('cashu')) throw new Error()
-        // Since we're already calling `validateEcash`, might as well return the parsed value
-        const ecash = await fedimint.validateEcash(raw)
+        // Since we're already calling `parseEcash`, might as well return the parsed value
+        const ecash = await fedimint.parseEcash(raw)
         return {
             type: ParserDataType.FedimintEcash,
             data: { token: raw, parsed: ecash },

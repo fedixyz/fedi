@@ -60,15 +60,13 @@ const ModsHeader: React.FC = () => {
                     body: (
                         <Column gap="lg">
                             <HeaderOverlayOption
-                                onPress={handleAddMiniApp}
-                                text={t('feature.fedimods.add-a-mini-app')}
+                                onPress={handleGoToMiniAppCatalog}
+                                text={t('feature.fedimods.add-from-catalog')}
                                 icon="Apps"
                             />
                             <HeaderOverlayOption
-                                onPress={handleGoToMiniAppCatalog}
-                                text={t(
-                                    'feature.fedimods.go-to-mini-app-catalog',
-                                )}
+                                onPress={handleAddMiniApp}
+                                text={t('feature.fedimods.enter-site-link')}
                                 icon="ListSearch"
                             />
                         </Column>

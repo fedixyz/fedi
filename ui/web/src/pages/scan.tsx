@@ -6,6 +6,7 @@ import { ParserDataType } from '@fedi/common/types'
 import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import { OmniInput } from '../components/OmniInput'
+import { onboardingJoinRoute } from '../constants/routes'
 import { styled } from '../styles'
 
 function ScanPage() {
@@ -28,9 +29,7 @@ function ScanPage() {
                                 ParserDataType.CommunityInvite,
                             ]}
                             onExpectedInput={({ data }) =>
-                                push(
-                                    `/onboarding/join?invite_code=${data.invite}`,
-                                )
+                                push(onboardingJoinRoute(data.invite))
                             }
                             onUnexpectedSuccess={() => null}
                             customActions={['paste']}

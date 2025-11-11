@@ -6,7 +6,6 @@ import { selectCurrency } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import Header from '../../ui/Header'
-import BetaBanner from './BetaBanner'
 
 const StabilityHistoryHeader: React.FC = () => {
     const { t } = useTranslation()
@@ -22,7 +21,6 @@ const StabilityHistoryHeader: React.FC = () => {
                     )}`}</Text>
                 }
             />
-            <BetaBanner />
         </>
     )
 }

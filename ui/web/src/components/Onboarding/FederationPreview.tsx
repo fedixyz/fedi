@@ -49,14 +49,12 @@ const FederationPreview: React.FC<Props> = ({
 
     if (popupInfo?.ended) {
         content = (
-            <FederationPreviewOuter>
-                <FederationPreviewInner>
-                    <FederationEndedPreview
-                        popupInfo={popupInfo}
-                        federation={federation}
-                    />
-                </FederationPreviewInner>
-            </FederationPreviewOuter>
+            <Content>
+                <FederationEndedPreview
+                    popupInfo={popupInfo}
+                    federation={federation}
+                />
+            </Content>
         )
 
         actions = (
@@ -68,30 +66,28 @@ const FederationPreview: React.FC<Props> = ({
         )
     } else {
         content = (
-            <FederationPreviewOuter>
-                <FederationPreviewInner>
-                    <AvatarWrapper>
-                        <FederationAvatar
-                            federation={{
-                                id: federation.id,
-                                name: federation.name,
-                                meta: federation.meta,
-                            }}
-                            size="lg"
-                        />
-                    </AvatarWrapper>
-                    <Text variant="h2" weight="medium">
-                        {federation.name}
-                    </Text>
-                    {welcomeMessage && (
-                        <CustomWelcomeMessage>
-                            <Trans components={{ bold: <strong /> }}>
-                                {welcomeMessage}
-                            </Trans>
-                        </CustomWelcomeMessage>
-                    )}
-                </FederationPreviewInner>
-            </FederationPreviewOuter>
+            <Content>
+                <AvatarWrapper>
+                    <FederationAvatar
+                        federation={{
+                            id: federation.id,
+                            name: federation.name,
+                            meta: federation.meta,
+                        }}
+                        size="lg"
+                    />
+                </AvatarWrapper>
+                <Text variant="h2" weight="medium">
+                    {federation.name}
+                </Text>
+                {welcomeMessage && (
+                    <CustomWelcomeMessage>
+                        <Trans components={{ bold: <strong /> }}>
+                            {welcomeMessage}
+                        </Trans>
+                    </CustomWelcomeMessage>
+                )}
+            </Content>
         )
 
         actions = showJoinFederation ? (
@@ -116,6 +112,17 @@ const FederationPreview: React.FC<Props> = ({
                 )}
                 {tosUrl ? (
                     <>
+                        <ButtonWrapper>
+                            <Button variant="tertiary" onClick={onBack}>
+                                {t('feature.onboarding.i-do-not-accept')}
+                            </Button>
+                            <Button
+                                width="full"
+                                onClick={handleJoin}
+                                loading={isJoining}>
+                                {t('feature.onboarding.i-accept')}
+                            </Button>
+                        </ButtonWrapper>
                         <Text
                             variant="small"
                             css={{
@@ -133,18 +140,6 @@ const FederationPreview: React.FC<Props> = ({
                                 }}
                             />
                         </Text>
-
-                        <div>
-                            <Button variant="tertiary" onClick={onBack}>
-                                {t('feature.onboarding.i-do-not-accept')}
-                            </Button>
-                            <Button
-                                width="full"
-                                onClick={handleJoin}
-                                loading={isJoining}>
-                                {t('feature.onboarding.i-accept')}
-                            </Button>
-                        </div>
                     </>
                 ) : (
                     <Button
@@ -160,45 +155,41 @@ const FederationPreview: React.FC<Props> = ({
 
     return (
         <Layout.Root>
-            <Layout.Content fullWidth={!federation}>{content}</Layout.Content>
+            <Layout.Content fullWidth>{content}</Layout.Content>
             {actions && <Layout.Actions>{actions}</Layout.Actions>}
         </Layout.Root>
     )
 }
 
-const previewRadius = 20
-const previewPadding = 2
-
-const FederationPreviewOuter = styled('div', {
-    padding: previewPadding,
-})
-
-const FederationPreviewInner = styled('div', {
+const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     width: '100%',
     gap: 8,
-    padding: 24,
-    background: '#FFF',
-    borderRadius: previewRadius - previewPadding,
+    textAlign: 'center',
 })
 
 const CustomWelcomeMessage = styled('div', {
     background: theme.colors.offWhite100,
     padding: 16,
     borderRadius: 16,
-    textAlign: 'center',
+    textAlign: 'left',
     fontSize: theme.fontSizes.caption,
     lineHeight: '20px',
 })
 
-const AvatarWrapper = styled('div', {
-    marginBottom: 16,
-})
+const AvatarWrapper = styled('div', {})
 
 const Link = styled('a', {
     color: theme.colors.link,
+})
+
+const ButtonWrapper = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing.sm,
+    width: '100%',
 })
 
 const RecoverFromScratch = styled('div', {

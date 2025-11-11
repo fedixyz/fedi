@@ -10,7 +10,9 @@ import { OptionalGradient } from '../../ui/OptionalGradient'
 import { bubbleGradient } from './ChatEvent'
 
 type Props = {
-    event: MatrixEvent<'m.text' | 'xyz.fedi.federationInvite'>
+    event: MatrixEvent<
+        'm.text' | 'xyz.fedi.federationInvite' | 'xyz.fedi.communityInvite'
+    >
     isWide?: boolean
     handleLongPress?: () => void
     children: React.ReactNode

@@ -38,7 +38,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
         //close overlay first so it doesn't crash
         handleDismiss()
         navigation.navigate('CommunityInvite', {
-            inviteLink: c.inviteCode,
+            inviteLink: c.communityInvite.invite_code_str,
         })
     }
 

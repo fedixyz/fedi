@@ -28,7 +28,6 @@ import { fedimint } from '../bridge'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import Flex from '../components/ui/Flex'
 import { Pressable } from '../components/ui/Pressable'
-import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { useStoragePermission } from '../utils/hooks'
 import { useImeFooterLift } from '../utils/hooks/keyboard'
@@ -130,55 +129,49 @@ const EditProfileSettings: React.FC = () => {
 
     const content = (
         <>
-            <SafeAreaContainer edges="top">
-                <ScrollView
-                    keyboardShouldPersistTaps="handled"
-                    contentInsetAdjustmentBehavior="never"
-                    contentContainerStyle={{
-                        flexGrow: 1,
-                        paddingHorizontal: theme.spacing.xl,
-                        paddingBottom: theme.spacing.xl,
-                    }}
-                    style={style.container}>
-                    <Pressable
-                        onPress={handleAvatarPress}
-                        containerStyle={style.avatar}>
-                        <Avatar
-                            id={matrixAuth?.userId || ''}
-                            url={profileImageUri ?? matrixAuth?.avatarUrl}
-                            size={AvatarSize.lg}
-                            name={matrixAuth?.displayName}
-                        />
-                        <Text caption>{t('feature.chat.change-avatar')}</Text>
-                    </Pressable>
+            <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentInsetAdjustmentBehavior="never"
+                contentContainerStyle={style.contentContainer}
+                style={style.container}>
+                <Pressable
+                    onPress={handleAvatarPress}
+                    containerStyle={style.avatar}>
+                    <Avatar
+                        id={matrixAuth?.userId || ''}
+                        url={profileImageUri ?? matrixAuth?.avatarUrl}
+                        size={AvatarSize.lg}
+                        name={matrixAuth?.displayName}
+                    />
+                    <Text caption>{t('feature.chat.change-avatar')}</Text>
+                </Pressable>
 
-                    <Flex grow style={style.content}>
-                        <Text
-                            testID="DisplayNameLabel"
-                            caption
-                            style={style.inputLabel}>
-                            {t('feature.chat.display-name')}
+                <Flex grow style={style.content}>
+                    <Text
+                        testID="DisplayNameLabel"
+                        caption
+                        style={style.inputLabel}>
+                        {t('feature.chat.display-name')}
+                    </Text>
+                    <Input
+                        testID="DisplayNameInput"
+                        onChangeText={handleChangeUsername}
+                        value={username}
+                        returnKeyType="done"
+                        keyboardType="visible-password"
+                        containerStyle={style.textInputOuter}
+                        inputContainerStyle={style.textInputInner}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        disabled={isLoading}
+                    />
+                    {errorMessage && (
+                        <Text caption style={style.errorLabel}>
+                            {errorMessage}
                         </Text>
-                        <Input
-                            testID="DisplayNameInput"
-                            onChangeText={handleChangeUsername}
-                            value={username}
-                            returnKeyType="done"
-                            keyboardType="visible-password"
-                            containerStyle={style.textInputOuter}
-                            inputContainerStyle={style.textInputInner}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            disabled={isLoading}
-                        />
-                        {errorMessage && (
-                            <Text caption style={style.errorLabel}>
-                                {errorMessage}
-                            </Text>
-                        )}
-                    </Flex>
-                </ScrollView>
-            </SafeAreaContainer>
+                    )}
+                </Flex>
+            </ScrollView>
 
             <View
                 style={[
@@ -228,6 +221,11 @@ const styles = (theme: Theme) =>
             flex: 1,
             gap: theme.spacing.md,
             width: '100%',
+        },
+        contentContainer: {
+            flexGrow: 1,
+            paddingHorizontal: theme.spacing.xl,
+            paddingBottom: theme.spacing.xl,
         },
         content: {
             marginTop: theme.spacing.md,

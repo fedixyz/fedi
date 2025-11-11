@@ -12,7 +12,6 @@ import { ContentBlock } from '../components/ContentBlock'
 import FeaturedFederation from '../components/FeaturedFederation'
 import FederationTile from '../components/FederationTile'
 import * as Layout from '../components/Layout'
-import MainHeaderButtons from '../components/MainHeaderButtons'
 import { RequestPaymentDialog } from '../components/RequestPaymentDialog'
 import { RequireBackupModal } from '../components/RequireBackupModal'
 import { SendPaymentDialog } from '../components/SendPaymentDialog'
@@ -49,12 +48,10 @@ function FederationsPage() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header>
-                    <Layout.Title>{t('words.wallets')}</Layout.Title>
-                    <MainHeaderButtons
-                        onAddPress={() => router.push('/onboarding')}
-                    />
-                </Layout.Header>
+                <Layout.PageHeader
+                    title={t('words.wallets')}
+                    onAddPress={() => router.push('/onboarding')}
+                />
                 <Layout.Content fullWidth>
                     <FederationsListWrapper>
                         <FeaturedFederation />
@@ -90,6 +87,7 @@ const FederationsListWrapper = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: theme.spacing.lg,
+    padding: 20,
 
     '@sm': {
         paddingLeft: theme.spacing.lg,

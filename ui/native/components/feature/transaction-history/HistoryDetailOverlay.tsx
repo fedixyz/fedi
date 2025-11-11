@@ -40,9 +40,14 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
     const { setScope } = useToastScope()
 
     useEffect(() => {
+        const reset = () => {
+            setScope('global')
+            setShowFeeBreakdown(false)
+        }
+
         if (show) setScope('overlay')
-        else setScope('global')
-        return () => setScope('global')
+        else reset()
+        return reset()
     }, [show, setScope])
 
     const content = useMemo(() => {

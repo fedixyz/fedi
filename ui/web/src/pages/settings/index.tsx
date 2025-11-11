@@ -16,12 +16,13 @@ import {
 import { Community, LoadedFederation } from '@fedi/common/types'
 import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
+import { CommunityInviteDialog } from '../../components/CommunityInviteDialog'
 import { CommunityMenu } from '../../components/CommunityMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ContentBlock } from '../../components/ContentBlock'
 import { CopyInput } from '../../components/CopyInput'
+import { FederationInviteDialog } from '../../components/FederationInviteDialog'
 import { FederationMenu } from '../../components/FederationMenu'
-import { InviteMemberDialog } from '../../components/InviteMemberDialog'
 import * as Layout from '../../components/Layout'
 import { MobileAppDownloadBanner } from '../../components/MobileAppDownloadBanner'
 import { QRCode } from '../../components/QRCode'
@@ -39,6 +40,7 @@ function AdminPage() {
     const { isMobile } = useDeviceQuery()
 
     const [invitingFederationId, setInvitingFederationId] = useState<string>('')
+    const [invitingCommunityId, setInvitingCommunityId] = useState<string>('')
     const [leavingFederation, setLeavingFederation] =
         useState<LoadedFederation | null>(null)
     const [leavingCommunity, setLeavingCommunity] = useState<Community | null>(
@@ -203,9 +205,7 @@ function AdminPage() {
                                     <CommunityMenu
                                         key={community.id}
                                         community={community}
-                                        onInviteMembers={
-                                            setInvitingFederationId
-                                        }
+                                        onInviteMembers={setInvitingCommunityId}
                                         onLeaveCommunity={
                                             handleLeaveCommunityPressed
                                         }
@@ -219,10 +219,16 @@ function AdminPage() {
                 </Layout.Content>
             </Layout.Root>
 
-            <InviteMemberDialog
+            <FederationInviteDialog
                 open={!!invitingFederationId}
                 federationId={invitingFederationId}
                 onClose={() => setInvitingFederationId('')}
+            />
+
+            <CommunityInviteDialog
+                open={!!invitingCommunityId}
+                communityId={invitingCommunityId}
+                onClose={() => setInvitingCommunityId('')}
             />
 
             {leavingFederation && (
