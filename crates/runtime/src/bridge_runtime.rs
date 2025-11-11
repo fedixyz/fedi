@@ -37,11 +37,11 @@ impl Runtime {
         fedi_api: Arc<dyn IFediApi>,
         app_state: AppState,
         feature_catalog: Arc<FeatureCatalog>,
-    ) -> anyhow::Result<Self> {
+    ) -> Self {
         let task_group = TaskGroup::new();
         let stream_pool = RpcStreamPool::new(event_sink.clone(), task_group.clone());
 
-        Ok(Self {
+        Self {
             storage,
             app_state,
             event_sink,
@@ -50,7 +50,7 @@ impl Runtime {
             global_db,
             feature_catalog,
             stream_pool,
-        })
+        }
     }
 
     pub fn bridge_db(&self) -> Database {

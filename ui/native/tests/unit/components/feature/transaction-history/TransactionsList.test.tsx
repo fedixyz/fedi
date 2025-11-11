@@ -1,9 +1,8 @@
 import { cleanup, screen } from '@testing-library/react-native'
 
 import { createMockTransactionListEntry } from '@fedi/common/tests/mock-data/transactions'
-
-import TransactionsList from '../../../../components/feature/transaction-history/TransactionsList'
-import { renderWithProviders } from '../../../utils/render'
+import TransactionsList from '@fedi/native/components/feature/transaction-history/TransactionsList'
+import { renderWithProviders } from '@fedi/native/tests/utils/render'
 
 const txn = createMockTransactionListEntry()
 const txn2 = createMockTransactionListEntry({

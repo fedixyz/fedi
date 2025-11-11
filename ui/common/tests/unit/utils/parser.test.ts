@@ -378,7 +378,7 @@ describe('parseUserInput', () => {
                 return complexBolt11Invoice
             }
         },
-        validateEcash: async (ecash: string) => {
+        parseEcash: async (ecash: string) => {
             if (ecash === simpleV0Ecash) {
                 return { amount: 1 }
             }

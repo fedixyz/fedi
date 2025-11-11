@@ -9,9 +9,9 @@ import { Community } from '@fedi/common/types'
 
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { styled } from '../styles'
+import { CommunityInviteDialog } from './CommunityInviteDialog'
 import CommunityTile from './CommunityTile'
 import { Dialog } from './Dialog'
-import { InviteMemberDialog } from './InviteMemberDialog'
 
 interface Props {
     open: boolean
@@ -31,6 +31,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
 
     const handleQrPress = (c: Community) => {
         setInvitingCommunityId(c.id)
+        onOpenChange(false)
     }
 
     return (
@@ -39,7 +40,8 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
                 title={t('words.communities')}
                 open={open}
                 onOpenChange={onOpenChange}
-                size="md">
+                size="md"
+                mobileDismiss="overlay">
                 <Content>
                     <CommunitiesList>
                         {communities.map((c, i) => (
@@ -54,9 +56,9 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
                 </Content>
             </Dialog>
 
-            <InviteMemberDialog
+            <CommunityInviteDialog
                 open={!!invitingCommunityId}
-                federationId={invitingCommunityId}
+                communityId={invitingCommunityId}
                 onClose={() => setInvitingCommunityId('')}
             />
         </>

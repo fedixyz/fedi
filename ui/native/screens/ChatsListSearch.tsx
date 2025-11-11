@@ -2,8 +2,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FlatList, ListRenderItem, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import {
+    FlatList,
+    KeyboardAvoidingView,
+    ListRenderItem,
+    StyleSheet,
+} from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useChatsListSearch } from '@fedi/common/hooks/matrix'
@@ -11,6 +16,7 @@ import { ChatType, MatrixRoom } from '@fedi/common/types'
 
 import ChatRoomTile from '../components/feature/chat/ChatRoomTile'
 import Flex from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -50,14 +56,16 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
     const style = styles(theme)
 
     return (
-        <SafeAreaView style={style.container} edges={['bottom']}>
+        <SafeAreaContainer style={style.container} edges={['bottom']}>
             {/* only show guidance if the user hasn't typed anything */}
             {!query && (
                 <Text medium caption style={style.guidance}>
                     {t('feature.chat.search-chats-list-guidance')}
                 </Text>
             )}
-            <Flex style={style.resultsContainer}>
+            <KeyboardAvoidingView
+                behavior="padding"
+                style={style.resultsContainer}>
                 {filteredChatsList.length === 0 ? (
                     <Flex
                         align="center"
@@ -77,31 +85,39 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
                         </Text>
                     </Flex>
                 ) : (
-                    <FlatList
-                        data={filteredChatsList}
-                        renderItem={renderChat}
-                        keyExtractor={item => `${item.id}`}
-                        contentContainerStyle={style.listContent}
-                        showsVerticalScrollIndicator={false}
-                    />
+                    <ScrollView style={{ flex: 1 }}>
+                        <FlatList
+                            data={filteredChatsList}
+                            renderItem={renderChat}
+                            keyExtractor={item => `${item.id}`}
+                            contentContainerStyle={style.listContent}
+                            showsVerticalScrollIndicator={false}
+                            scrollEnabled={false}
+                        />
+                    </ScrollView>
                 )}
-            </Flex>
-        </SafeAreaView>
+            </KeyboardAvoidingView>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {},
+        container: {
+            flex: 1,
+        },
         guidance: {
             color: theme.colors.darkGrey,
             paddingVertical: theme.spacing.sm,
             paddingHorizontal: theme.spacing.lg,
         },
-        resultsContainer: {},
+        resultsContainer: {
+            flexGrow: 1,
+        },
         listContent: {
             paddingHorizontal: theme.spacing.sm,
             paddingTop: theme.spacing.sm,
+            flex: 1,
         },
         emptyState: {
             height: '100%',

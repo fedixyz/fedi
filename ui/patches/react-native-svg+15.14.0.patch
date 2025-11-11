@@ -1,0 +1,30 @@
+diff --git a/node_modules/react-native-svg/src/xml.tsx b/node_modules/react-native-svg/src/xml.tsx
+index 073888c..0fbe0ec 100644
+--- a/node_modules/react-native-svg/src/xml.tsx
++++ b/node_modules/react-native-svg/src/xml.tsx
+@@ -323,7 +323,7 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
+         return cdata;
+       }
+       if (/doctype/i.test(source.slice(start, end))) {
+-        return neutral;
++        return doctype;
+       }
+     }
+ 
+@@ -397,6 +397,16 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
+     return neutral;
+   }
+ 
++  function doctype() {
++    const index = source.indexOf('>', i);
++    if (index === -1) {
++      error('expected >');
++    }
++
++    i = index;
++    return neutral;
++  }
++
+   function closingTag() {
+     const tag = getName();
+ 

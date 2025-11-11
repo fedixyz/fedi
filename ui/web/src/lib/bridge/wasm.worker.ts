@@ -1,7 +1,7 @@
 // worker to run bridge in a different thread
 // request: {token: int, method: string, data: string}
 // response: {event: string, data: string} | {token: int, result: string} | {error: string}
-import { RpcInitOpts } from '@fedi/common/types/bindings'
+import { RpcAppFlavor, RpcInitOpts } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 import init, {
     fedimint_initialize,
@@ -11,11 +11,11 @@ import init, {
 } from '@fedi/common/wasm/'
 
 import { getBridgeLogFile, openBridgeLogFile } from './log'
-import { getAppFlavor } from './worker'
 
 const log = makeLog('web/lib/bridge/wasm.worker')
 
 let deviceId: string
+let flavor: RpcAppFlavor['type']
 
 async function workerInit() {
     await init(new URL('@fedi/common/wasm/fedi_wasm_bg.wasm', import.meta.url))
@@ -23,12 +23,18 @@ async function workerInit() {
         log.error('fedimint_initialize - deviceId not set')
         throw new Error('Failed to initialize bridge')
     }
+
+    if (!flavor) {
+        log.error('fedimint_initialize - flavor not set')
+        throw new Error('Failed to initialize bridge')
+    }
+
     const options: RpcInitOpts = {
         dataDir: null,
         deviceIdentifier: deviceId,
         logLevel: null,
         appFlavor: {
-            type: getAppFlavor(),
+            type: flavor,
         },
     }
     const initOptsJson = JSON.stringify(options)
@@ -51,14 +57,15 @@ async function workerInit() {
         dbSyncHandle,
     )
 
+    let parsedJson
     try {
-        const parsedJson = JSON.parse(result)
-        if (parsedJson.error !== undefined) {
-            log.error('fedimint_initialize ', parsedJson)
-            throw new Error('Failed to initialize bridge')
-        }
+        parsedJson = JSON.parse(result)
     } catch (err) {
         log.error('Invalid json from fedimint initialize', err)
+    }
+    if (parsedJson.error !== undefined) {
+        log.error('fedimint_initialize ', parsedJson)
+        throw new Error('Failed to initialize bridge')
     }
 
     postMessage({ event: 'initialized' })
@@ -82,6 +89,12 @@ addEventListener('message', e => {
             throw new Error('deviceId not provided')
         }
         deviceId = data.deviceId
+
+        if (!data.flavor) {
+            throw new Error('flavor not provided')
+        }
+
+        flavor = data.flavor
         return
     }
     if (method == 'getLogs') {

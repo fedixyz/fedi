@@ -1,8 +1,9 @@
 import { useNavigation } from '@react-navigation/native'
-import { Tooltip, useTheme, type Theme } from '@rneui/themed'
-import React, { useState } from 'react'
+import { Divider, Tooltip, useTheme, type Theme } from '@rneui/themed'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+    Image,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -13,7 +14,12 @@ import {
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { selectOnboardingMethod } from '@fedi/common/redux'
-import { selectAllVisibleMods, setModVisibility } from '@fedi/common/redux/mod'
+import {
+    removeCustomMod,
+    selectAllVisibleMods,
+    selectModsVisibility,
+    setModVisibility,
+} from '@fedi/common/redux/mod'
 import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
@@ -22,6 +28,9 @@ import FirstTimeOverlay, {
     FirstTimeOverlayItem,
 } from '../components/feature/onboarding/FirstTimeOverlay'
 import ZendeskBadge from '../components/feature/support/ZendeskBadge'
+import CustomOverlay, {
+    CustomOverlayContents,
+} from '../components/ui/CustomOverlay'
 import Flex from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -39,12 +48,16 @@ const Mods: React.FC = () => {
     const { width, fontScale } = useWindowDimensions()
     const columns = width / fontScale < 300 ? 2 : 3
     const style = styles(theme, columns)
+    const modsVisibility = useAppSelector(selectModsVisibility)
 
     const [actionsMod, setActionsMod] = useState<FediMod>()
     const { launchZendesk } = useLaunchZendesk()
 
     const [hasSeenMods, completeSeenMods] = useNuxStep('modsModal')
     const onboardingMethod = useAppSelector(selectOnboardingMethod)
+
+    const [modToBeRemoved, setModToBeRemoved] = useState<FediMod>()
+    const [isRemovingMod, setIsRemovingMod] = useState<boolean>(false)
 
     // if a new_seed user and it's your first time viewing the page, show overlay
     const shouldShowFirstTimeModal =
@@ -79,6 +92,11 @@ const Mods: React.FC = () => {
         setActionsMod(undefined)
     }
 
+    const handleRemovePress = (fediMod: FediMod) => {
+        setActionsMod(undefined)
+        setModToBeRemoved(fediMod)
+    }
+
     const renderFediModShortcuts = () => {
         const sorted = mods.slice().sort((a, b) => {
             if (a.title.toLowerCase() === 'ask fedi') return -1 // "Ask Fedi" comes first
@@ -87,27 +105,51 @@ const Mods: React.FC = () => {
         })
         return sorted.map((s, i) => {
             const mod = new FediMod(s)
+            const isCustomMod = modsVisibility[mod.id]?.isCustom
+
+            let numActionButtons = 1
+            if (isCustomMod) {
+                numActionButtons++
+            }
+
             return (
                 <View key={i} style={style.shortcut}>
                     <Tooltip
+                        withOverlay
+                        withPointer
+                        closeOnlyOnBackdropPress
+                        overlayColor={theme.colors.overlay}
+                        height={numActionButtons * 40}
+                        width={96}
                         visible={actionsMod?.id === mod.id}
                         onClose={() => setActionsMod(undefined)}
-                        withPointer
+                        containerStyle={style.tooltipPopover}
                         popover={
-                            <Pressable
-                                style={style.tooltipAction}
-                                onPress={() => toggleHideMod(mod.id)}>
-                                <Text style={style.tooltipText}>
-                                    {t('words.hide')}
-                                </Text>
-                                <SvgImage name="Eye" />
-                            </Pressable>
-                        }
-                        closeOnlyOnBackdropPress
-                        withOverlay
-                        overlayColor={theme.colors.overlay}
-                        width={96}
-                        backgroundColor={theme.colors.blue100}>
+                            <>
+                                <Pressable
+                                    style={style.tooltipAction}
+                                    onPress={() => toggleHideMod(mod.id)}>
+                                    <Text style={style.tooltipText}>
+                                        {t('words.hide')}
+                                    </Text>
+                                </Pressable>
+
+                                {isCustomMod && (
+                                    <>
+                                        <Divider orientation="vertical" />
+                                        <Pressable
+                                            style={style.tooltipAction}
+                                            onPress={() =>
+                                                handleRemovePress(mod)
+                                            }>
+                                            <Text style={style.tooltipText}>
+                                                {t('words.remove')}
+                                            </Text>
+                                        </Pressable>
+                                    </>
+                                )}
+                            </>
+                        }>
                         <ShortcutTile
                             shortcut={mod}
                             onSelect={onSelectFediMod}
@@ -129,6 +171,48 @@ const Mods: React.FC = () => {
             <View key={i} style={[style.shortcut, style.buffer]} />
         ))
     }
+
+    const confirmModRemoval: CustomOverlayContents = useMemo(() => {
+        const confirmModDeletion = async () => {
+            if (modToBeRemoved === undefined) {
+                return
+            }
+
+            setIsRemovingMod(true)
+            await dispatch(removeCustomMod({ modId: modToBeRemoved.id }))
+            setModToBeRemoved(undefined)
+            setIsRemovingMod(false)
+        }
+
+        return {
+            headerElement: (
+                <Flex style={style.modRemovalOverlay}>
+                    <Image style={style.modRemovalOverlayBgImage} />
+                    <SvgImage
+                        name="AlertWarningTriangle"
+                        size={64}
+                        color={theme.colors.orange}
+                        containerStyle={style.modRemovalOverlayIcon}
+                    />
+                </Flex>
+            ),
+            title: t('feature.fedimods.delete-confirmation', {
+                miniAppName: modToBeRemoved?.title,
+            }),
+            buttons: [
+                {
+                    text: t('words.cancel'),
+                    onPress: () => setModToBeRemoved(undefined),
+                    primary: false,
+                },
+                {
+                    text: t('words.remove'),
+                    onPress: confirmModDeletion,
+                    primary: true,
+                },
+            ],
+        }
+    }, [t, modToBeRemoved, dispatch, style, theme])
 
     return (
         <Flex grow fullWidth basis={false}>
@@ -153,6 +237,12 @@ const Mods: React.FC = () => {
                 show={shouldShowFirstTimeModal}
                 onDismiss={completeSeenMods}
             />
+            <CustomOverlay
+                show={modToBeRemoved !== undefined}
+                contents={confirmModRemoval}
+                loading={isRemovingMod}
+                onBackdropPress={() => setModToBeRemoved(undefined)}
+            />
         </Flex>
     )
 }
@@ -168,12 +258,39 @@ const styles = (theme: Theme, columns: number) =>
             justifyContent: 'space-between',
             paddingHorizontal: theme.spacing.sm,
         },
+        modRemovalOverlay: {
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: 96,
+            width: 96,
+        },
+        modRemovalOverlayBgImage: {
+            backgroundColor: theme.colors.yellow,
+            opacity: 0.4,
+            width: 96,
+            height: 96,
+            borderRadius: 48,
+            overflow: 'hidden',
+            position: 'absolute',
+        },
+        modRemovalOverlayIcon: {
+            position: 'relative',
+            top: -4, // looks better when centering a triangle in a circle
+        },
         tooltipAction: {
             flexDirection: 'row',
             alignItems: 'center',
-            gap: theme.spacing.sm,
+            flexGrow: 1,
+            padding: theme.spacing.sm,
         },
-        tooltipText: { color: theme.colors.primary },
+        tooltipPopover: {
+            backgroundColor: theme.colors.darkGrey,
+            padding: 0,
+        },
+        tooltipText: {
+            color: theme.colors.white,
+            flexGrow: 1,
+        },
     })
 
 export default Mods

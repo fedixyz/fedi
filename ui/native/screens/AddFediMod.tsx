@@ -29,6 +29,7 @@ import Flex from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { ParserDataType } from '../types'
 import { useImeFooterLift } from '../utils/hooks/keyboard'
+import { stripAndDeduplicateWhitespace } from '../utils/strings'
 
 const log = makeLog('AddFediMod')
 
@@ -43,7 +44,7 @@ const AddFediMod: React.FC = () => {
     const [imageUrl, setImageUrl] = useState('')
     const [isFetching, setIsFetching] = useState(false)
     const [isValidUrl, setIsValidUrl] = useState(false)
-    const [action, setAction] = useState<'scan' | 'enter'>('scan')
+    const [action, setAction] = useState<'scan' | 'enter'>('enter')
 
     const style = styles(theme)
     const scrollRef = useRef<ScrollView>(null)
@@ -59,11 +60,14 @@ const AddFediMod: React.FC = () => {
             const validUrl = new URL(
                 /^https?:\/\//i.test(url) ? url : `https://${url}`,
             ).toString()
+
+            const modTitle = stripAndDeduplicateWhitespace(title)
+
             dispatch(
                 addCustomMod({
                     fediMod: {
                         id: `custom-${Date.now()}`,
-                        title,
+                        title: modTitle,
                         url: validUrl,
                         ...(imageUrl ? { imageUrl } : {}),
                     },
@@ -99,7 +103,6 @@ const AddFediMod: React.FC = () => {
                     .asyncAndThen(tryFetchUrlMetadata)
                     .match(
                         metadata => {
-                            setTitle(metadata.title)
                             setImageUrl(metadata.icon)
                             setIsFetching(false)
                         },
@@ -225,7 +228,10 @@ const AddFediMod: React.FC = () => {
                                     <Image
                                         source={
                                             imageUrl
-                                                ? { uri: imageUrl }
+                                                ? {
+                                                      uri: imageUrl,
+                                                      cache: 'force-cache',
+                                                  }
                                                 : FediModImages.default
                                         }
                                         style={style.previewIcon}

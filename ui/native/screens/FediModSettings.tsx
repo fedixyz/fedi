@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Image,
+    ImageSourcePropType,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -106,12 +107,15 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
             headerElement: (
                 <Image
                     style={style.modTile}
-                    source={{ uri: deletingMod?.imageUrl || '' }}
+                    source={{
+                        uri: deletingMod?.imageUrl || '',
+                        cache: 'force-cache',
+                    }}
                     resizeMode="contain"
                 />
             ),
             title: t('feature.fedimods.delete-confirmation', {
-                fediMod: deletingMod?.title,
+                miniAppTitle: deletingMod?.title,
             }),
             buttons: [
                 {
@@ -240,9 +244,11 @@ const ModRow: React.FC<ModRowProps> = ({
     // use local image if we have it
     // then try image url
     // fallback to default
-    const [imageSrc, setImageSrc] = useState(
+    const [imageSrc, setImageSrc] = useState<ImageSourcePropType>(
         FediModImages[mod.id] ||
-            (mod.imageUrl ? { uri: mod.imageUrl } : FediModImages.default),
+            (mod.imageUrl
+                ? { uri: mod.imageUrl, cache: 'force-cache' }
+                : FediModImages.default),
     )
     const { iconSize } = getDynamicSizes(theme, fontScale)
     const style = styles(theme, fontScale, iconSize)

@@ -739,9 +739,10 @@ export const checkFederationPreview = createAsyncThunk<
 >(
     'federation/getFederationPreview',
     async ({ fedimint, inviteCode }, { getState }) => {
-        const joinedFederation = selectLoadedFederationByInviteCode(
+        const { federationId } = await fedimint.parseInviteCode(inviteCode)
+        const joinedFederation = selectLoadedFederation(
             getState(),
-            inviteCode,
+            federationId,
         )
         if (joinedFederation) {
             return {
@@ -1212,11 +1213,6 @@ export const selectFederation = (s: CommonState, id: string) =>
 
 export const selectLoadedFederation = (s: CommonState, id: string) =>
     selectLoadedFederations(s).find(f => f.id === id)
-
-export const selectLoadedFederationByInviteCode = (
-    s: CommonState,
-    inviteCode: string,
-) => selectLoadedFederations(s).find(f => f.inviteCode === inviteCode)
 
 export const selectLastUsedFederation = createSelector(
     selectLoadedFederations,

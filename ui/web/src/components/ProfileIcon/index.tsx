@@ -2,7 +2,7 @@ import Image from 'next/image'
 
 import UserIcon from '@fedi/common/assets/svgs/profile.svg'
 
-import { styled, theme } from '../../styles'
+import { styled } from '../../styles'
 import { Icon } from '../Icon'
 
 type Props = {
@@ -13,12 +13,7 @@ export const ProfileIcon: React.FC<Props> = ({ url }) => {
     if (url) {
         return (
             <Container>
-                <ProfileImage
-                    src={url}
-                    alt="profile-image"
-                    width={36}
-                    height={36}
-                />
+                <Image src={url} alt="profile-image" width={24} height={24} />
             </Container>
         )
     }
@@ -41,24 +36,18 @@ const Container = styled('div', {
     boxSizing: 'border-box',
     borderRadius: 9999,
     display: 'flex',
-    height: 36,
-    fediGradient: 'sky-heavy',
+    height: 24,
     justifyContent: 'center',
     overflow: 'hidden',
-    width: 36,
+    width: 24,
 })
 
 const Wrapper = styled('div', {
     alignItems: 'center',
-    background: theme.colors.white,
     borderRadius: 9999,
     boxSizing: 'border-box',
     display: 'flex',
     justifyContent: 'center',
     height: 32,
     width: 32,
-})
-
-const ProfileImage = styled(Image, {
-    width: 36,
 })

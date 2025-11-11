@@ -18,12 +18,13 @@ import { ContentBlock } from '../../components/ContentBlock'
 import { Icon } from '../../components/Icon'
 import * as Layout from '../../components/Layout'
 import { Text } from '../../components/Text'
-import { settingsRoute } from '../../constants/routes'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint, writeBridgeFile } from '../../lib/bridge'
 import { theme } from '../../styles'
 
 const EditProfile = () => {
+    const router = useRouter()
+
     const [profileImageData, setProfileImageData] = useState<Uint8Array | null>(
         null,
     )
@@ -42,7 +43,6 @@ const EditProfile = () => {
     } = useDisplayNameForm(t)
 
     const matrixAuth = useAppSelector(selectMatrixAuth)
-    const router = useRouter()
 
     const [isChangingAvatar, setIsChangingAvatar] = useState<boolean>(false)
 
@@ -68,7 +68,7 @@ const EditProfile = () => {
         [t, toast],
     )
 
-    const handleOnDisplayNameSave = useCallback(async () => {
+    const handleOnSave = useCallback(async () => {
         setIsLoading(true)
         await handleSubmitDisplayName(() => {
             toast.show({
@@ -94,7 +94,7 @@ const EditProfile = () => {
         }
 
         setIsLoading(false)
-        router.push(settingsRoute)
+        router.back()
     }, [
         handleSubmitDisplayName,
         profileImageData,
@@ -179,10 +179,11 @@ const EditProfile = () => {
 
                 <Layout.Actions>
                     <Button
+                        aria-label="save-button"
                         width="full"
                         loading={isLoading}
                         disabled={saveButtonDisabled}
-                        onClick={handleOnDisplayNameSave}>
+                        onClick={handleOnSave}>
                         {t('words.save')}
                     </Button>
                 </Layout.Actions>

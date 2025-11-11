@@ -90,7 +90,11 @@ export class IntegrationTestBuilder {
     /**
      * Ensures a chat group created by this user is in the room list
      */
-    async withChatGroupCreated(): Promise<MatrixRoom['id']> {
+    async withChatGroupCreated(
+        groupName = 'test group',
+        isPublic = false,
+        broadcastOnly = false,
+    ): Promise<MatrixRoom['id']> {
         const { store, bridge } = this.context
 
         await this.withChatReady()
@@ -102,7 +106,10 @@ export class IntegrationTestBuilder {
         )
 
         await act(() => {
-            createRoomResult.current.setGroupName('test group')
+            createRoomResult.current.setGroupName(groupName)
+            if (isPublic) createRoomResult.current.setIsPublic(isPublic)
+            if (broadcastOnly)
+                createRoomResult.current.setBroadcastOnly(broadcastOnly)
         })
 
         await act(() => {

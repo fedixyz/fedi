@@ -2,6 +2,7 @@
 use std::collections::BTreeSet;
 use std::panic::PanicHookInfo;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
@@ -21,6 +22,7 @@ use federations::federation_v2::FederationV2;
 use federations::Federations;
 use fedimint_client::db::ChronologicalOperationLogKey;
 use fedimint_core::core::OperationId;
+use fedimint_core::invite_code::InviteCode;
 use fedimint_core::timing::TimeReporter;
 use futures::Future;
 use lightning_invoice::Bolt11Invoice;
@@ -38,7 +40,7 @@ use multispend::{
     GroupInvitation, GroupInvitationWithKeys, MsEventData, MultispendGroupVoteType,
     MultispendListedEvent, WithdrawRequestWithApprovals, WithdrawalResponseType,
 };
-use nostril::{RpcNostrCommunity, RpcNostrPubkey, RpcNostrSecret};
+use rpc_types::communities::RpcCommunity;
 use rpc_types::error::{ErrorCode, RpcError};
 use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
 use rpc_types::matrix::{
@@ -47,15 +49,16 @@ use rpc_types::matrix::{
     RpcRoomMember, RpcRoomNotificationMode, RpcSerializedRoomInfo, RpcSyncIndicator,
     RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
 };
+use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
 use rpc_types::{
-    FrontendMetadata, GuardianStatus, NetworkError, RpcAmount, RpcAppFlavor, RpcCommunity,
-    RpcEcashInfo, RpcEventId, RpcFederation, RpcFederationId, RpcFederationMaybeLoading,
-    RpcFederationPreview, RpcFeeDetails, RpcFiatAmount, RpcGenerateEcashResponse, RpcInvoice,
-    RpcLightningGateway, RpcMediaUploadParams, RpcOperationId, RpcPayAddressResponse,
-    RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey, RpcRecoveryId,
-    RpcRegisteredDevice, RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature,
-    RpcSignedLnurlMessage, RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection,
-    RpcTransactionListEntry, SocialRecoveryQr,
+    FrontendMetadata, GuardianStatus, NetworkError, RpcAmount, RpcAppFlavor, RpcEcashInfo,
+    RpcEventId, RpcFederation, RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview,
+    RpcFeeDetails, RpcFiatAmount, RpcGenerateEcashResponse, RpcInvoice, RpcLightningGateway,
+    RpcMediaUploadParams, RpcOperationId, RpcParseInviteCodeResult, RpcPayInvoiceResponse,
+    RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey, RpcRecoveryId, RpcRegisteredDevice,
+    RpcSPv2CachedSyncResponse, RpcSPv2SyncResponse, RpcSignature, RpcSignedLnurlMessage,
+    RpcStabilityPoolAccountInfo, RpcTransaction, RpcTransactionDirection, RpcTransactionListEntry,
+    SocialRecoveryQr,
 };
 use runtime::api::LiveFediApi;
 use runtime::bridge_runtime::Runtime;
@@ -455,12 +458,13 @@ async fn payAddress(
     // TODO: parse this as bitcoin::Amount
     sats: u64,
     frontend_metadata: FrontendMetadata,
-) -> anyhow::Result<RpcPayAddressResponse> {
+) -> anyhow::Result<RpcOperationId> {
     let address = address.trim().parse().context("Invalid Bitcoin Address")?;
     let amount: Amount = Amount::from_sat(sats);
     federation
         .pay_address(address, amount, frontend_metadata)
         .await
+        .map(Into::into)
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -493,8 +497,20 @@ async fn receiveEcash(
         .map(|(amt, op)| (RpcAmount(amt), RpcOperationId(op)))
 }
 #[macro_rules_derive(rpc_method!)]
-async fn validateEcash(federations: &Federations, ecash: String) -> anyhow::Result<RpcEcashInfo> {
+async fn parseEcash(federations: &Federations, ecash: String) -> anyhow::Result<RpcEcashInfo> {
     federations.validate_ecash(ecash).await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn parseInviteCode(
+    _runtime: Arc<Runtime>,
+    invite_code: String,
+) -> anyhow::Result<RpcParseInviteCodeResult> {
+    let invite = InviteCode::from_str(&invite_code.to_lowercase())?;
+    let federation_id = invite.federation_id().to_string();
+    Ok(RpcParseInviteCodeResult {
+        federation_id: RpcFederationId(federation_id),
+    })
 }
 
 #[macro_rules_derive(rpc_method!)]
@@ -781,10 +797,10 @@ async fn nostrRateFederation(
 async fn nostrCreateCommunity(
     bridge: &BridgeFull,
     community_json_str: String,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<RpcCommunity> {
     bridge
         .nostril
-        .create_community(&serde_json::from_str(&community_json_str)?)
+        .create_community(serde_json::from_str(&community_json_str)?)
         .await
 }
 
@@ -792,7 +808,7 @@ async fn nostrCreateCommunity(
 async fn nostrListCommunities(
     bridge: &BridgeFull,
     owner_npub: RpcNostrPubkey,
-) -> anyhow::Result<Vec<RpcNostrCommunity>> {
+) -> anyhow::Result<Vec<RpcCommunity>> {
     bridge
         .nostril
         .list_communities(nostr::key::PublicKey::parse(&owner_npub.hex)?)
@@ -800,7 +816,7 @@ async fn nostrListCommunities(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn nostrListOurCommunities(bridge: &BridgeFull) -> anyhow::Result<Vec<RpcNostrCommunity>> {
+async fn nostrListOurCommunities(bridge: &BridgeFull) -> anyhow::Result<Vec<RpcCommunity>> {
     bridge.nostril.list_our_communities().await
 }
 
@@ -814,7 +830,7 @@ async fn nostrEditCommunity(
         .nostril
         .edit_community(
             &community_hex_uuid,
-            &serde_json::from_str(&new_community_json_str)?,
+            serde_json::from_str(&new_community_json_str)?,
         )
         .await
 }
@@ -2261,7 +2277,8 @@ rpc_methods!(RpcMethods {
     calculateMaxGenerateEcash,
     generateEcash,
     receiveEcash,
-    validateEcash,
+    parseEcash,
+    parseInviteCode,
     cancelEcash,
     // Transactions
     updateCachedFiatFXInfo,

@@ -598,7 +598,7 @@ export const coerceCommunity = (community: RpcCommunity): Community => {
         // easy to use the invite code for indexing (which will actually guaranteed to be unique)
         //
         // ref: https://thefedi.slack.com/archives/C03RGASQ21W/p1720461259496419?thread_ts=1720211284.294199&cid=C03RGASQ21W
-        id: community.inviteCode,
+        id: community.communityInvite.invite_code_str,
         ...community,
     }
 }

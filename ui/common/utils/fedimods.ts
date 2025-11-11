@@ -10,6 +10,7 @@ import {
     SchemaValidationError,
     UrlConstructError,
 } from '../types/errors'
+import { CommunityMeta } from '../types/fediInternal'
 import { TaggedError } from './errors'
 import {
     constructUrl,
@@ -214,4 +215,38 @@ export const deduplicate = <T extends { id: string }>(arr: T[]) => {
         acc.push(curr)
         return acc
     }, [] as Array<T>)
+}
+
+/**
+ * Stringifies miniApps and default groups then the entire
+ * community object. Also adds version field.
+ *
+ * This allows the injection to use strong types throughout, even
+ * though the bridge expects stringified json in some fields.
+ */
+export const prepareCreateCommunityPayload = (
+    community: CommunityMeta,
+): string => {
+    const patchedCommunity = { ...community }
+
+    const miniAppsString = patchedCommunity.fedimods
+        ? JSON.stringify(patchedCommunity.fedimods)
+        : undefined
+    if (miniAppsString) {
+        Object.assign(patchedCommunity, { fedimods: miniAppsString })
+    }
+
+    const defaultGroupsString = patchedCommunity.default_group_chats
+        ? JSON.stringify(patchedCommunity.default_group_chats)
+        : undefined
+
+    if (defaultGroupsString) {
+        Object.assign(patchedCommunity, {
+            default_group_chats: defaultGroupsString,
+        })
+    }
+
+    Object.assign(patchedCommunity, { version: 1 })
+
+    return JSON.stringify(patchedCommunity)
 }

@@ -94,8 +94,8 @@ use rpc_types::{
     LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
     RpcGenerateEcashResponse, RpcInvoice, RpcJsonClientConfig, RpcLightningGateway,
-    RpcOperationFediFeeStatus, RpcOperationId, RpcPayAddressResponse, RpcPayInvoiceResponse,
-    RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey, RpcReturningMemberStatus, RpcSPDepositState,
+    RpcOperationFediFeeStatus, RpcOperationId, RpcPayInvoiceResponse, RpcPeerId,
+    RpcPrevPayInvoiceResult, RpcPublicKey, RpcReturningMemberStatus, RpcSPDepositState,
     RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState,
     RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection,
     RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata,
@@ -1319,7 +1319,7 @@ impl FederationV2 {
         address: Address<NetworkUnchecked>,
         amount: bitcoin::Amount,
         frontend_meta: FrontendMetadata,
-    ) -> Result<RpcPayAddressResponse> {
+    ) -> Result<OperationId> {
         let wallet = self.client.wallet()?;
         let fedi_fee_ppm = self
             .fedi_fee_helper
@@ -1365,58 +1365,8 @@ impl FederationV2 {
         let _ = self
             .record_tx_date_fiat_info(operation_id, Amount::from_msats(est_total_spend))
             .await;
-        let mut updates = wallet
-            .subscribe_withdraw_updates(operation_id)
-            .await?
-            .into_stream();
-
-        while let Some(update) = updates.next().await {
-            match update {
-                WithdrawState::Succeeded(txid) => {
-                    // TODO shaurya "pay_address" doesn't have a subscribe_ style function
-                    // and isn't included in "subscribe_to_operation". Is that ok?
-                    let _ = self.write_success_send_fedi_fee(operation_id).await;
-                    return Ok(RpcPayAddressResponse {
-                        txid: txid.to_string(),
-                    });
-                }
-                WithdrawState::Failed(e) => {
-                    let _ = self.write_failed_send_fedi_fee(operation_id).await;
-                    return Err(anyhow!("Withdraw failed: {e}"));
-                }
-                _ => {}
-            }
-        }
-
-        unreachable!("Update stream ended without outcome");
-    }
-
-    // Get withdrawal outcome
-    pub async fn get_withdrawal_outcome(
-        &self,
-        operation_id: OperationId,
-    ) -> Option<(WithdrawState, Option<bitcoin::Txid>)> {
-        let Ok(wallet) = self.client.wallet() else {
-            return None;
-        };
-        let mut updates = match wallet.subscribe_withdraw_updates(operation_id).await {
-            Err(_) => return None,
-            Ok(stream) => stream.into_stream(),
-        };
-
-        if let Some(update) = updates.next().await {
-            match update {
-                WithdrawState::Succeeded(txid) => {
-                    return Some((update, Some(txid)));
-                }
-                WithdrawState::Failed(_) => {
-                    return Some((update, None));
-                }
-                WithdrawState::Created => return Some((update, None)),
-            }
-        }
-
-        unreachable!("Update stream ended without outcome");
+        self.subscribe_to_operation(operation_id).await?;
+        Ok(operation_id)
     }
 
     /// Subscribe to updates on all active operations
@@ -1547,12 +1497,16 @@ impl FederationV2 {
             }
             WALLET_OPERATION_TYPE => {
                 let meta = operation.meta::<WalletOperationMeta>();
-                match meta {
-                    WalletOperationMeta {
-                        variant: WalletOperationMetaVariant::Deposit { .. },
-                        ..
-                    } => {
+                match meta.variant {
+                    WalletOperationMetaVariant::Deposit { .. } => {
                         // see subscribe_to_onchain_addresses
+                    }
+                    WalletOperationMetaVariant::Withdraw { .. } => {
+                        self.spawn_cancellable("subscribe_pay_address", move |fed| async move {
+                            if let Err(e) = fed.subscribe_pay_address(operation_id).await {
+                                warn!("subscribe_pay_address error: {e:?}")
+                            }
+                        });
                     }
                     _ => {
                         tracing::debug!(
@@ -1636,6 +1590,31 @@ impl FederationV2 {
         for tweak_data in tweak_idxes.into_values() {
             self.subscribe_deposit(tweak_data.operation_id);
         }
+    }
+
+    pub async fn subscribe_pay_address(&self, op_id: OperationId) -> Result<()> {
+        let mut updates = self
+            .client
+            .wallet()?
+            .subscribe_withdraw_updates(op_id)
+            .await?
+            .into_stream();
+
+        while let Some(update) = updates.next().await {
+            self.update_operation_state(op_id, update.clone()).await;
+            match update {
+                WithdrawState::Created => (),
+                WithdrawState::Succeeded(_) => {
+                    let _ = self.write_success_send_fedi_fee(op_id).await;
+                }
+                WithdrawState::Failed(_) => {
+                    let _ = self.write_failed_send_fedi_fee(op_id).await;
+                }
+            }
+            self.send_transaction_event(op_id).await;
+        }
+
+        Ok(())
     }
 
     pub async fn subscribe_to_ln_pay(
@@ -3114,22 +3093,20 @@ impl FederationV2 {
                         };
                         transaction_amount = RpcAmount(core_amount);
 
-                        let (outcome, txid) = self
-                            .get_withdrawal_outcome(operation_id)
-                            .await
-                            .expect("Expected a withdrawal outcome but got None");
-
-                        let txid_str = match txid {
-                            Some(n) => n.to_string(),
-                            None => "".to_string(),
-                        };
+                        let outcome = self
+                            .get_client_operation_outcome(operation_id, entry, |op_id| async move {
+                                self.client
+                                    .wallet()?
+                                    .subscribe_withdraw_updates(op_id)
+                                    .await
+                            })
+                            .await;
 
                         transaction_kind = RpcTransactionKind::OnchainWithdraw {
                             onchain_address: address.assume_checked().to_string(),
-                            onchain_txid: txid_str,
                             onchain_fees: RpcAmount(Amount::from_sats(fee.amount().to_sat())),
                             onchain_fee_rate: fee.fee_rate.sats_per_kvb,
-                            state: Some(outcome.into()),
+                            state: outcome.map(Into::into),
                         };
                     }
                     WalletOperationMetaVariant::RbfWithdraw { .. } => return None,

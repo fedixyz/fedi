@@ -1,6 +1,6 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { t } from 'i18next'
-import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
 import { MatrixRoom } from '../../../types'
@@ -35,7 +35,7 @@ const DefaultChatTile = ({
         : t('feature.chat.group-chat')
 
     return (
-        <BubbleView containerStyle={style.card}>
+        <View style={style.card}>
             <Pressable
                 style={style.content}
                 onLongPress={() => onLongPress(room)}
@@ -59,7 +59,7 @@ const DefaultChatTile = ({
                 </Flex>
                 <SvgImage name="ChevronRight" color={theme.colors.grey} />
             </Pressable>
-        </BubbleView>
+        </View>
     )
 }
 

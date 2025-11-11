@@ -12,7 +12,10 @@ const JoinFederationHeader: React.FC = () => {
     return (
         <Header
             backButton
-            onBackButtonPress={() => navigation.navigate('PublicFederations')}
+            onBackButtonPress={() => {
+                if (navigation.canGoBack()) navigation.goBack()
+                else navigation.navigate('PublicFederations')
+            }}
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
                     {t('words.welcome')}

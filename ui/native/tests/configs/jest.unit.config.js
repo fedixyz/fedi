@@ -6,7 +6,7 @@ module.exports = {
     // <rootDir> → ui/native
     rootDir: '../..',
 
-    // Match any .test.ts(x) under ui/native/tests/**
+    // Match any .test.ts(x) under ui/native/tests/unit/**
     testMatch: [
         '<rootDir>/tests/unit/**/*.test.ts',
         '<rootDir>/tests/unit/**/*.test.tsx',

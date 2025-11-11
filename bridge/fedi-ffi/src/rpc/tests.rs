@@ -8,9 +8,7 @@ use std::thread::available_parallelism;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail};
-use bech32::{self, Bech32m};
 use bridge::RuntimeExt as _;
-use communities::CommunityInvite;
 use devi::DevFed;
 use devimint::cmd;
 use devimint::util::{FedimintCli, LnCli};
@@ -25,12 +23,13 @@ use fedimint_core::util::{retry, BoxFuture};
 use fedimint_core::Amount;
 use fedimint_logging::TracingSetup;
 use nostr::nips::nip44;
+use rpc_types::communities::{CommunityInvite, CommunityInviteV1};
 use rpc_types::event::TransactionEvent;
 use rpc_types::{
     RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState, RpcReturningMemberStatus,
     RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
 };
-use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, FEDI_FILE_V0_PATH, MILLION};
+use runtime::constants::{FEDI_FILE_V0_PATH, MILLION};
 use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
 use runtime::storage::BRIDGE_DB_PREFIX;
@@ -40,6 +39,7 @@ use tracing::info;
 
 mod matrix;
 mod multispend_tests;
+mod nostr_tests;
 
 // nosemgrep: ban-wildcard-imports
 use crate::rpc::*;
@@ -200,7 +200,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_ecash_cancel,
         test_backup_and_recovery,
         test_backup_and_recovery_from_scratch,
-        test_validate_ecash,
+        test_parse_ecash,
         test_social_backup_and_recovery,
         test_stability_pool,
         test_stability_pool_external_transfer_in,
@@ -218,6 +218,8 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_preview_and_join_community,
         test_list_and_leave_community,
         test_community_meta_bg_refresh,
+        nostr_tests::test_nostr_community_workflow,
+        nostr_tests::test_nostr_community_preview_join_leave,
         test_existing_device_identifier_v2_migration,
         test_nip44_encrypt_and_decrypt,
     ];
@@ -931,11 +933,11 @@ async fn test_backup_and_recovery_inner(from_scratch: bool) -> anyhow::Result<()
     Ok(())
 }
 
-async fn test_validate_ecash(_dev_fed: DevFed) -> anyhow::Result<()> {
+async fn test_parse_ecash(_dev_fed: DevFed) -> anyhow::Result<()> {
     let td = TestDevice::new();
     let bridge = td.bridge_full().await?;
     let v2_ecash = "AgEEsuFO5gD3AwQBmW/h68gy6W5cgnl93aTdduN1OnnFofSCqjth03Q6CA+fXnKlVXQSIVSLqcHzsbhozAuo2q5jPMsO6XMZZZXaYvZyIdXzCUIuDNhdCHkGJWAgAa9M5zsSPPVWDVeCWgkerg0Z+Xv8IQGMh7rsgpLh77NCSVRKA2i4fBYNwPglSbkGs42Yllmz6HJtgmmtl/tdjcyVSR30Nc2cfkZYTJcEEnRjQAGC8ZX5eLYQB8rCAZiX5/gQX2QtjasZMy+BJ67kJ0klVqsS9G1IVWhea6ILISOd9H1MJElma8aHBiWBaWeGjrCXru8Ns7Lz4J18CbxFdHyWEQ==";
-    validateEcash(&bridge.federations, v2_ecash.into()).await?;
+    parseEcash(&bridge.federations, v2_ecash.into()).await?;
     Ok(())
 }
 
@@ -1798,12 +1800,9 @@ async fn test_preview_and_join_community(_dev_fed: DevFed) -> anyhow::Result<()>
     let url = server.url();
 
     let invite_path = "/invite-0";
-    let community_invite = CommunityInvite {
+    let community_invite = CommunityInvite::V1(CommunityInviteV1 {
         community_meta_url: format!("{url}{invite_path}"),
-    };
-    let invite_json_str = serde_json::to_string(&community_invite)?;
-    let invite_bytes = invite_json_str.as_bytes();
-    let invite_code = bech32::encode::<Bech32m>(COMMUNITY_INVITE_CODE_HRP, invite_bytes)?;
+    });
 
     let mock = server
         .mock("GET", invite_path)
@@ -1813,7 +1812,7 @@ async fn test_preview_and_join_community(_dev_fed: DevFed) -> anyhow::Result<()>
         .create_async()
         .await;
 
-    communityPreview(bridge, invite_code.clone()).await?;
+    communityPreview(bridge, community_invite.to_string()).await?;
     mock.assert();
 
     // Calling preview() does not join
@@ -1826,13 +1825,13 @@ async fn test_preview_and_join_community(_dev_fed: DevFed) -> anyhow::Result<()>
         .is_empty());
 
     // Calling join() actually joins
-    joinCommunity(bridge, invite_code.clone()).await?;
+    joinCommunity(bridge, community_invite.to_string()).await?;
     let memory_community = bridge
         .communities
         .communities
         .lock()
         .await
-        .get(&invite_code)
+        .get(&community_invite.to_string())
         .unwrap()
         .clone();
     let app_state_community = bridge
@@ -1840,7 +1839,7 @@ async fn test_preview_and_join_community(_dev_fed: DevFed) -> anyhow::Result<()>
         .app_state
         .with_read_lock(|state| state.joined_communities.clone())
         .await
-        .get(&invite_code)
+        .get(&community_invite.to_string())
         .unwrap()
         .clone();
     assert!(memory_community.meta.read().await.to_owned() == app_state_community.meta);
@@ -1856,12 +1855,9 @@ async fn test_list_and_leave_community(_dev_fed: DevFed) -> anyhow::Result<()> {
     let url = server.url();
 
     let invite_path = "/invite-0";
-    let community_invite = CommunityInvite {
+    let community_invite_0 = CommunityInvite::V1(CommunityInviteV1 {
         community_meta_url: format!("{url}{invite_path}"),
-    };
-    let invite_json_str = serde_json::to_string(&community_invite)?;
-    let invite_bytes = invite_json_str.as_bytes();
-    let invite_code_0 = bech32::encode::<Bech32m>(COMMUNITY_INVITE_CODE_HRP, invite_bytes)?;
+    });
 
     server
         .mock("GET", invite_path)
@@ -1872,12 +1868,9 @@ async fn test_list_and_leave_community(_dev_fed: DevFed) -> anyhow::Result<()> {
         .await;
 
     let invite_path = "/invite-1";
-    let community_invite = CommunityInvite {
+    let community_invite_1 = CommunityInvite::V1(CommunityInviteV1 {
         community_meta_url: format!("{url}{invite_path}"),
-    };
-    let invite_json_str = serde_json::to_string(&community_invite)?;
-    let invite_bytes = invite_json_str.as_bytes();
-    let invite_code_1 = bech32::encode::<Bech32m>(COMMUNITY_INVITE_CODE_HRP, invite_bytes)?;
+    });
 
     server
         .mock("GET", invite_path)
@@ -1891,37 +1884,39 @@ async fn test_list_and_leave_community(_dev_fed: DevFed) -> anyhow::Result<()> {
     assert!(listCommunities(bridge).await?.is_empty());
 
     // Leaving throws error
-    assert!(leaveCommunity(bridge, invite_code_0.clone()).await.is_err());
+    assert!(leaveCommunity(bridge, community_invite_0.to_string())
+        .await
+        .is_err());
 
     // Join community 0
-    joinCommunity(bridge, invite_code_0.clone()).await?;
+    joinCommunity(bridge, community_invite_0.to_string()).await?;
 
     // List contains community 0
     assert!(matches!(
             &listCommunities(bridge).await?[..],
-            [RpcCommunity { invite_code, .. }] if *invite_code == invite_code_0));
+            [RpcCommunity { community_invite, .. }] if *community_invite == From::from(&community_invite_0)));
 
     // Join community 1
-    joinCommunity(bridge, invite_code_1.clone()).await?;
+    joinCommunity(bridge, community_invite_1.to_string()).await?;
 
     // List contains community 0 + community 1
     assert!(matches!(
             &listCommunities(bridge).await?[..], [
-                RpcCommunity { invite_code: invite_0, .. },
-                RpcCommunity { invite_code: invite_1, .. }
-            ] if (*invite_0 == invite_code_0 && *invite_1 == invite_code_1) ||
-            (*invite_0 == invite_code_1 && *invite_1 == invite_code_0)));
+                RpcCommunity { community_invite: invite_0, .. },
+                RpcCommunity { community_invite: invite_1, .. }
+            ] if (*invite_0 == From::from(&community_invite_0) && *invite_1 == From::from(&community_invite_1)) ||
+            (*invite_0 == From::from(&community_invite_1) && *invite_1 == From::from(&community_invite_0))));
 
     // Leave community 0
-    leaveCommunity(bridge, invite_code_0.clone()).await?;
+    leaveCommunity(bridge, community_invite_0.to_string()).await?;
 
     // List contains only community 1
     assert!(matches!(
             &listCommunities(bridge).await?[..],
-            [RpcCommunity { invite_code, .. }] if *invite_code == invite_code_1));
+            [RpcCommunity { community_invite, .. }] if *community_invite == From::from(&community_invite_1)));
 
     // Leave community 1
-    leaveCommunity(bridge, invite_code_1).await?;
+    leaveCommunity(bridge, community_invite_1.to_string()).await?;
 
     // No joined communities
     assert!(listCommunities(bridge).await?.is_empty());
@@ -1937,12 +1932,9 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
     let url = server.url();
 
     let invite_path = "/invite-0";
-    let community_invite = CommunityInvite {
+    let community_invite = CommunityInvite::V1(CommunityInviteV1 {
         community_meta_url: format!("{url}{invite_path}"),
-    };
-    let invite_json_str = serde_json::to_string(&community_invite)?;
-    let invite_bytes = invite_json_str.as_bytes();
-    let invite_code = bech32::encode::<Bech32m>(COMMUNITY_INVITE_CODE_HRP, invite_bytes)?;
+    });
 
     server
         .mock("GET", invite_path)
@@ -1953,13 +1945,13 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
         .await;
 
     // Calling join() actually joins
-    joinCommunity(bridge, invite_code.clone()).await?;
+    joinCommunity(bridge, community_invite.to_string()).await?;
     let memory_community = bridge
         .communities
         .communities
         .lock()
         .await
-        .get(&invite_code)
+        .get(&community_invite.to_string())
         .unwrap()
         .clone();
     let app_state_community = bridge
@@ -1967,7 +1959,7 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
         .app_state
         .with_read_lock(|state| state.joined_communities.clone())
         .await
-        .get(&invite_code)
+        .get(&community_invite.to_string())
         .unwrap()
         .clone();
     assert!(memory_community.meta.read().await.to_owned() == app_state_community.meta);
@@ -1992,7 +1984,7 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
             .communities
             .lock()
             .await
-            .get(&invite_code)
+            .get(&community_invite.to_string())
             .unwrap()
             .clone();
         let app_state_community = bridge
@@ -2000,7 +1992,7 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
             .app_state
             .with_read_lock(|state| state.joined_communities.clone())
             .await
-            .get(&invite_code)
+            .get(&community_invite.to_string())
             .unwrap()
             .clone();
         if memory_community.meta.read().await.to_owned() != app_state_community.meta {
@@ -2030,11 +2022,11 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     let mut td = TestDevice::new();
     let bridge = td.bridge_full().await?;
     let federation = td.join_default_fed().await?;
-    setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 210_000, 0)
+    setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 21_000, 0)
         .await?;
 
     // Receive ecash, verify no pending or outstanding fees
-    let ecash = cli_generate_ecash(Amount::from_msats(2_000_000)).await?;
+    let ecash = cli_generate_ecash(Amount::from_msats(6_000_000)).await?;
     let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
     federation
         .receive_ecash(ecash, FrontendMetadata::default())
@@ -2045,10 +2037,10 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
 
     // Make SP deposit, verify pending fees
-    let amount_to_deposit = Amount::from_msats(1_000_000);
+    let amount_to_deposit = Amount::from_msats(5_000_000);
     stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
     assert_eq!(
-        Amount::from_msats(210_000),
+        Amount::from_msats(105_000),
         federation.get_pending_fedi_fees().await
     );
     assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
@@ -2069,7 +2061,7 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     }
     assert_eq!(Amount::ZERO, federation.get_pending_fedi_fees().await);
     assert_eq!(
-        Amount::from_msats(210_000),
+        Amount::from_msats(105_000),
         federation.get_outstanding_fedi_fees().await
     );
 
@@ -2080,7 +2072,8 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     td.shutdown().await?;
 
     // Mock fee remittance endpoint
-    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(210_000).await?;
+    // some of amount is gateway fees
+    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(102_691).await?;
     let mut mock_fedi_api = MockFediApi::default();
     mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
     td.with_fedi_api(mock_fedi_api.into());
@@ -2108,7 +2101,8 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     }
 
     // Mock fee remittance endpoint
-    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(210_000).await?;
+    // some of amount is gateway fees
+    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(102_691).await?;
     let mut mock_fedi_api = MockFediApi::default();
     mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
     let mut td = TestDevice::new();
@@ -2117,11 +2111,11 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     // Setup bridge, join test federation, set SP send fee ppm
     let bridge = td.bridge_full().await?;
     let federation = td.join_default_fed().await?;
-    setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 210_000, 0)
+    setStabilityPoolModuleFediFeeSchedule(bridge, federation.rpc_federation_id(), 21_000, 0)
         .await?;
 
     // Receive ecash, verify no pending or outstanding fees
-    let ecash = cli_generate_ecash(Amount::from_msats(2_000_000)).await?;
+    let ecash = cli_generate_ecash(Amount::from_msats(10_000_000)).await?;
     let ecash_receive_amount = amount_from_ecash(ecash.clone()).await?;
     federation
         .receive_ecash(ecash, FrontendMetadata::default())
@@ -2132,10 +2126,10 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);
 
     // Make SP deposit, verify pending fees
-    let amount_to_deposit = Amount::from_msats(1_000_000);
+    let amount_to_deposit = Amount::from_msats(5_000_000);
     stabilityPoolDepositToSeek(federation.clone(), RpcAmount(amount_to_deposit)).await?;
     assert_eq!(
-        Amount::from_msats(210_000),
+        Amount::from_msats(105_000),
         federation.get_pending_fedi_fees().await
     );
     assert_eq!(Amount::ZERO, federation.get_outstanding_fedi_fees().await);

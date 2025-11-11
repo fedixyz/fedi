@@ -52,7 +52,11 @@ const App = () => {
             <SafeAreaProvider>
                 <ThemeProvider theme={theme}>
                     <ErrorBoundary
-                        fallback={props => <ErrorScreen {...props} />}>
+                        fallback={props => (
+                            <ReduxProvider store={store}>
+                                <ErrorScreen {...props} />
+                            </ReduxProvider>
+                        )}>
                         <ReduxProvider store={store}>
                             <FediBridgeInitializer>
                                 <ToastScopeProvider>

@@ -2,22 +2,27 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React, { useCallback } from 'react'
 
+import HamburgerIcon from '@fedi/common/assets/svgs/hamburger-icon.svg'
 import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
 import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { settingsRoute } from '../constants/routes'
 import { useAppSelector } from '../hooks'
-import { styled, theme } from '../styles'
+import { styled } from '../styles'
 import { Row } from './Flex'
 import { Icon } from './Icon'
 import { ProfileIcon } from './ProfileIcon'
 
 type Props = {
+    onShowCommunitiesPress?: () => void
     onAddPress?: () => void
 }
 
-const MainHeaderButtons: React.FC<Props> = ({ onAddPress }) => {
+const MainHeaderButtons: React.FC<Props> = ({
+    onShowCommunitiesPress,
+    onAddPress,
+}) => {
     const router = useRouter()
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
@@ -27,42 +32,33 @@ const MainHeaderButtons: React.FC<Props> = ({ onAddPress }) => {
 
     return (
         <Row gap="md" align="center">
+            {onShowCommunitiesPress && (
+                <IconButton onClick={onShowCommunitiesPress}>
+                    <Icon icon={HamburgerIcon} size="sm" />
+                </IconButton>
+            )}
             {onAddPress && (
-                <BubbleButton onClick={onAddPress}>
+                <IconButton onClick={onAddPress}>
                     <Icon icon={PlusIcon} size="sm" />
-                </BubbleButton>
+                </IconButton>
             )}
             <Link href={settingsRoute}>
                 <ProfileIcon url={matrixAuth?.avatarUrl} />
             </Link>
-            <BubbleButton onClick={openOmniScanner}>
+            <IconButton onClick={openOmniScanner}>
                 <Icon icon={ScanIcon} size="sm" />
-            </BubbleButton>
+            </IconButton>
         </Row>
     )
 }
 
-export const BubbleButton = styled('button', {
-    height: 36,
-    width: 36,
-    display: 'flex',
+export const IconButton = styled('button', {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.secondary,
-    border: `1.5px solid ${theme.colors.lightGrey}`,
-    borderRadius: '50%',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
-
-    '&:hover': {
-        backgroundColor: theme.colors.offWhite100,
-        borderColor: theme.colors.primary,
-    },
-
-    '&:focus': {
-        outline: 'none',
-        borderColor: theme.colors.primary,
-    },
+    display: 'flex',
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
 })
 
 export default MainHeaderButtons

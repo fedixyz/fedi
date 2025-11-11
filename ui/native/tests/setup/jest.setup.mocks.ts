@@ -171,6 +171,7 @@ jest.mock('react-native', () => ({
     Pressable: jest.requireActual('react-native').Pressable,
     ScrollView: jest.requireActual('react-native').ScrollView,
     StyleSheet: jest.requireActual('react-native').StyleSheet,
+    Switch: jest.requireActual('react-native').Switch,
     Text: jest.requireActual('react-native').Text,
     TextInput: jest.requireActual('react-native').TextInput,
     Touchable: jest.requireActual('react-native').Touchable,
@@ -222,6 +223,7 @@ jest.mock('@rneui/themed', () => ({
     Input: jest.requireActual('@rneui/themed').Input,
     Text: jest.requireActual('@rneui/themed').Text,
     Overlay: jest.requireActual('@rneui/themed').Overlay,
+    Switch: jest.requireActual('@rneui/themed').Switch,
     useTheme: () => ({
         theme: mockTheme,
     }),
@@ -238,6 +240,8 @@ jest.mock('react-native-gesture-handler', () => ({
 export const mockNavigation = {
     navigate: jest.fn(),
     push: jest.fn(),
+    setOptions: jest.fn(),
+    goBack: jest.fn(),
 }
 export const mockRoute = {}
 jest.mock('@react-navigation/native', () => ({
@@ -252,7 +256,8 @@ export const I18nProvider = ({ children }: any) => {
 }
 
 jest.mock('react-native-linear-gradient', () => ({
-    LinearGradient: ({ children }: any) => {
+    __esModule: true,
+    default: ({ children }: any) => {
         const React = jest.requireActual('react')
         return React.createElement(React.Fragment, null, children)
     },

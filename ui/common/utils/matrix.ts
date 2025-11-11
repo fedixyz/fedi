@@ -583,6 +583,12 @@ export function isFederationInviteEvent(
     return event.content.msgtype === 'xyz.fedi.federationInvite'
 }
 
+export function isCommunityInviteEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<'xyz.fedi.communityInvite'> {
+    return event.content.msgtype === 'xyz.fedi.communityInvite'
+}
+
 export function isMultispendEvent(
     event: MatrixEvent,
 ): event is MatrixEvent<'xyz.fedi.multispend'> {
@@ -1442,7 +1448,7 @@ export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
 
     // HACK: public rooms don't show a preview message so you have to click into it to paginate backwards
     // TODO: Replace with proper room previews
-    if (!preview && room.isPublic && room.broadcastOnly)
+    if (room.isPublic && room.broadcastOnly)
         return t('feature.chat.click-here-for-announcements')
 
     if (!preview) return t('feature.chat.no-messages')

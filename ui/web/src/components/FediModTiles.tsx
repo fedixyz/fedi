@@ -95,17 +95,9 @@ const FediModTile = ({
 const Container = styled('div', {
     alignItems: 'end',
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    justifyContent: 'space-between',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    justifyContent: 'space-evenly',
     width: '100%',
-
-    '@sm': {
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        justifyContent: 'space-evenly',
-    },
-    '@xs': {
-        gridTemplateColumns: 'repeat(2, 1fr)',
-    },
 })
 
 const FediModTileBase = styled('div', {

@@ -59,7 +59,8 @@ while true; do
     echo "a - clean Android build files only ('gradlew clean' + removes android/build, android/app/build, and android/.gradle)"
     echo "n - delete all node_modules folders only"
     echo "f - full clean (all of the above)"
-    echo "r - full clean & rebuild (clean all + reinstall node_modules + pods)"
+    echo "r - full clean & rebuild (full clean + reinstall node_modules + pods)"
+    echo "w - wipe iOS simulator app data (reset to fresh install state)"
     echo "b - back"
     
     read -rsn1 input
@@ -97,6 +98,11 @@ while true; do
             ;;
         b)
             echo "No clean action taken."
+            exit 0
+            ;;
+        w)
+            echo "Wiping iOS simulator app data..."
+            "$REPO_ROOT/scripts/ui/wipe-ios-simulators.sh" || true
             exit 0
             ;;
         *)

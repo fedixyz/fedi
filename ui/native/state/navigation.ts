@@ -146,3 +146,17 @@ export function resetToChatsScreen() {
         }),
     }
 }
+
+export function resetToWallets() {
+    return {
+        ...CommonActions.reset({
+            index: 0,
+            routes: [
+                {
+                    name: 'TabsNavigator',
+                    params: { initialRouteName: 'Federations' },
+                },
+            ],
+        }),
+    }
+}

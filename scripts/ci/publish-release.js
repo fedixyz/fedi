@@ -10,9 +10,9 @@ module.exports = async ({ github, context, core }) => {
     const version = NEW_VERSION;
     const filename = NEW_APK_FILENAME;
 
-    const newTagName = `v${version}`;
+    const newTagName = `${version}`;
     // Drop patch version number for title
-    const newTitle = `Fedi v${version.split('.').slice(0, 2).join('.')} - APK Download`;
+    const newTitle = `Fedi ${version.split('.').slice(0, 2).join('.')} - APK Download`;
     const newDescription = `Download & install Fedi <br><br> Download: [${filename}](${PUBLIC_APK_URL})`;
 
     // Check if a release with the same title exists in the target repo

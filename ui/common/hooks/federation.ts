@@ -329,11 +329,8 @@ export function useLatestPublicFederations() {
     }
 }
 
-export function useFederationPreview(
-    t: TFunction,
-    fedimint: FedimintBridge,
-    invite: string,
-) {
+export function useFederationPreview(t: TFunction, invite: string) {
+    const fedimint = useFedimint()
     const toast = useToast()
     const dispatch = useCommonDispatch()
     const federationIds = useCommonSelector(selectFederationIds)
@@ -427,7 +424,8 @@ export function useFederationPreview(
                     const joinedCommunity = await dispatch(
                         joinCommunity({
                             fedimint,
-                            code: communityPreview.inviteCode,
+                            code: communityPreview.communityInvite
+                                .invite_code_str,
                         }),
                     ).unwrap()
                     // when joining a new community, always set it to selected
@@ -492,15 +490,10 @@ export function useFederationPreview(
 
 export function useFederationMembership(
     t: TFunction,
-    fedimint: FedimintBridge,
     federationId: string,
     inviteCode: string,
 ) {
-    const { handleCode, ...rest } = useFederationPreview(
-        t,
-        fedimint,
-        inviteCode,
-    )
+    const { handleCode, ...rest } = useFederationPreview(t, inviteCode)
     const federations = useCommonSelector(selectFederations)
 
     const isMember = federations.some(
@@ -608,6 +601,59 @@ export function useFederationInviteCode(
         isError,
         previewResult,
         handleJoin,
+    }
+}
+
+export function useCommunityInviteCode(
+    fedimint: FedimintBridge,
+    inviteCode: string,
+) {
+    const dispatch = useCommonDispatch()
+    const communityIds = useCommonSelector(selectCommunityIds)
+
+    const [isJoining, setIsJoining] = useState(false)
+    const [isFetching, setIsFetching] = useState(false)
+    const [joined, setJoined] = useState(false)
+    const [preview, setPreview] = useState<CommunityPreview>()
+
+    const handleJoin = async () => {
+        if (!preview) return
+
+        setIsJoining(true)
+        const joinedCommunity = await dispatch(
+            joinCommunity({
+                fedimint,
+                code: preview.communityInvite.invite_code_str,
+            }),
+        ).unwrap()
+
+        dispatch(setLastSelectedCommunityId(joinedCommunity.id))
+        dispatch(refreshCommunities(fedimint))
+
+        setIsJoining(false)
+    }
+
+    useEffect(() => {
+        const init = async () => {
+            setIsFetching(true)
+            setJoined(communityIds.includes(inviteCode))
+            const communityPreview = await getCommunityPreview(
+                inviteCode,
+                fedimint,
+            )
+            setPreview(communityPreview)
+            setIsFetching(false)
+        }
+
+        init()
+    }, [communityIds, fedimint, inviteCode])
+
+    return {
+        isJoining,
+        isFetching,
+        joined,
+        handleJoin,
+        preview,
     }
 }
 

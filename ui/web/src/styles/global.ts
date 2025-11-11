@@ -43,6 +43,7 @@ export const globalStyles = globalCss({
         lineHeight: 1.5,
         '-webkit-font-smoothing': 'antialiased',
         backgroundAttachment: 'fixed',
+        background: '#F8F8F8',
     },
     'img, picture, video, canvas, svg': {
         display: 'block',

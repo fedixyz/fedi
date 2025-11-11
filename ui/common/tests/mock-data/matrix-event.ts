@@ -71,6 +71,15 @@ export const MOCK_FORM_EVENT = {
     },
 } satisfies MatrixEvent<'xyz.fedi.form'>
 
+const MOCK_FEDERATION_INVITE_EVENT = {
+    ...MOCK_EVENT,
+    content: {
+        msgtype: 'xyz.fedi.federationInvite' as const,
+        body: 'fed11qgqrgvnhwden5te0v9k8q6rp9ekh2arfdeukuet595cr2ttpd3jhq6rzve6zuer9wchxvetyd938gcewvdhk6tcqqysptkuvknc7erjgf4em3zfh90kffqf9srujn6q53d6r056e4apze5cw27h75',
+        formatted: null,
+    },
+} satisfies MatrixEvent<'xyz.fedi.federationInvite'>
+
 // Helper type for overriding matrix event content
 type MockOverride<T extends MatrixEventKind> = Partial<
     Omit<MatrixEvent<T>, 'content'> & {
@@ -91,6 +100,15 @@ export const createMockNonPaymentEvent = (
     overrides: MockOverride<'m.text'> = {},
 ) => {
     return makeEventWithOverrides<'m.text'>(MOCK_NON_PAYMENT_EVENT, overrides)
+}
+
+export const createMockFederationInviteEvent = (
+    overrides: MockOverride<'xyz.fedi.federationInvite'> = {},
+) => {
+    return makeEventWithOverrides<'xyz.fedi.federationInvite'>(
+        MOCK_FEDERATION_INVITE_EVENT,
+        overrides,
+    )
 }
 
 export const createMockFormEvent = (

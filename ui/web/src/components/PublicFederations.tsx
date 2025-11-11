@@ -6,6 +6,7 @@ import { useLatestPublicFederations } from '@fedi/common/hooks/federation'
 import { selectFederationIds } from '@fedi/common/redux'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
+import { onboardingJoinRoute } from '../constants/routes'
 import { useAppSelector } from '../hooks'
 import { theme } from '../styles'
 import { Button } from './Button'
@@ -48,7 +49,13 @@ export default function PublicFederations() {
                                         width="full"
                                         onClick={() =>
                                             router.push(
-                                                `/onboarding/join?invite_code=${encodeURIComponent(String(f.meta.invite_code))}`,
+                                                onboardingJoinRoute(
+                                                    encodeURIComponent(
+                                                        String(
+                                                            f.meta.invite_code,
+                                                        ),
+                                                    ),
+                                                ),
                                             )
                                         }>
                                         {t('words.join')}

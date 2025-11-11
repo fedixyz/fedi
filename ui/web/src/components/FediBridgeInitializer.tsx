@@ -4,10 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
 import { FedimintProvider } from '@fedi/common/components/FedimintProvider'
-import {
-    ANDROID_PLAY_STORE_URL,
-    IOS_APP_STORE_URL,
-} from '@fedi/common/constants/linking'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     initializeDeviceIdWeb,
@@ -29,7 +25,8 @@ import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { version } from '../../package.json'
-import { useAppDispatch, useAppSelector, useDeviceQuery } from '../hooks'
+import { homeRoute, onboardingJoinRoute } from '../constants/routes'
+import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
 import { getAppFlavor } from '../lib/bridge/worker'
 import { keyframes, styled, theme } from '../styles'
@@ -48,7 +45,6 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const { asPath, pathname, query } = useRouter()
-    const { isMobile, isIOS } = useDeviceQuery()
 
     const hasLoadedStorage = useAppSelector(selectStorageIsReady)
     const socialRecoveryId = useAppSelector(selectSocialRecoveryQr)
@@ -194,16 +190,6 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
 
     // Handle deep links
     if (isDeepLink(asPath)) {
-        // if the user is on mobile and has not completed onboarding
-        // then redirect them to the app store
-        if (!onboardingCompleted && isMobile) {
-            return (
-                <Redirect
-                    path={isIOS ? IOS_APP_STORE_URL : ANDROID_PLAY_STORE_URL}
-                />
-            )
-        }
-
         return <Redirect path={getDeepLinkPath(asPath)} />
     }
 
@@ -215,7 +201,9 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         pathname !== '/' &&
         !asPath.includes('recover')
     ) {
-        return <Redirect path="/" />
+        // Preserve any query string or hash params when redirecting to Welcome page
+        const params = window.location.search || window.location.hash
+        return <Redirect path={`/${params}`} />
     }
 
     // If invite code in query string but user has already onboarded
@@ -223,15 +211,15 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     if (query.invite_code && pathname === '/' && onboardingCompleted) {
         return (
             <Redirect
-                path={`/onboarding/join?invite_code=${query.invite_code}`}
+                path={`${onboardingJoinRoute(String(query.invite_code))}`}
             />
         )
     }
 
     // If user has onboarded and no invite code in query string then
     // redirect user to /home
-    if (onboardingCompleted && !query.invite_code && asPath === '/') {
-        return <Redirect path="/home" />
+    if (onboardingCompleted && !query.invite_code && pathname === '/') {
+        return <Redirect path={homeRoute} />
     }
 
     return <FedimintProvider fedimint={fedimint}>{children}</FedimintProvider>

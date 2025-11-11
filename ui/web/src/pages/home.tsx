@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
@@ -12,6 +13,7 @@ import { getFederationPinnedMessage } from '@fedi/common/utils/FederationUtils'
 
 import AnalyticsConsentModal from '../components/AnalyticsConsentModal'
 import { DefaultRoomPreview } from '../components/Chat/DefaultRoomPreview'
+import CommunitiesOverlay from '../components/CommunitiesOverlay'
 import { ContentBlock } from '../components/ContentBlock'
 import { DisplayNameModal } from '../components/DisplayNameModal'
 import { FediModTiles } from '../components/FediModTiles'
@@ -20,6 +22,7 @@ import { InstallBanner } from '../components/InstallBanner'
 import * as Layout from '../components/Layout'
 import SurveyModal from '../components/SurveyModal'
 import { Text } from '../components/Text'
+import { onboardingCommunitiesRoute } from '../constants/routes'
 import {
     useAppSelector,
     useDeviceQuery,
@@ -31,6 +34,7 @@ import { styled, theme } from '../styles'
 
 function HomePage() {
     const { t } = useTranslation()
+    const { push } = useRouter()
     const deferredPrompt = useInstallPromptContext()
     const { isIOS } = useDeviceQuery()
     const { showInstallBanner, handleOnDismiss } = useShowInstallPromptBanner()
@@ -40,6 +44,8 @@ function HomePage() {
     const handleOnInstall = async () => {
         await deferredPrompt?.prompt()
     }
+
+    const [showCommunities, setShowCommunities] = useState(false)
 
     const selectedCommunity = useAppSelector(selectLastSelectedCommunity)
     const selectedCommunityMods = useAppSelector(selectVisibleCommunityMods)
@@ -61,6 +67,12 @@ function HomePage() {
     return (
         <ContentBlock>
             <Layout.Root>
+                <Layout.PageHeader
+                    title={t('words.communities')}
+                    onAddPress={() => push(onboardingCommunitiesRoute)}
+                    onShowCommunitiesPress={() => setShowCommunities(true)}
+                    selectedCommunity={selectedCommunity}
+                />
                 <Layout.Content>
                     <Content>
                         {pinnedMessage && (
@@ -127,6 +139,11 @@ function HomePage() {
 
             <DisplayNameModal />
             <AnalyticsConsentModal />
+
+            <CommunitiesOverlay
+                open={showCommunities}
+                onOpenChange={setShowCommunities}
+            />
         </ContentBlock>
     )
 }
@@ -135,10 +152,6 @@ const Content = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     gap: 20,
-
-    '@sm': {
-        marginTop: 12,
-    },
 })
 
 const Section = styled('div', {

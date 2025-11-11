@@ -14,7 +14,6 @@ const initialState = {
         hasViewedMemberQr: false,
         hasOpenedNewChat: false,
         hasPerformedPersonalBackup: false,
-        hasOpenedStabilityPool: false,
         hasSeenMultispendIntro: false,
         displayNameModal: false,
         communityModal: false,

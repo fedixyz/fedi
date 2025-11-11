@@ -34,7 +34,14 @@ const CommunityTile: React.FC<CommunityTileProps> = ({
             </CommunityInfo>
             {showInviteCode && (
                 <IconContainer>
-                    <Icon icon={QRIcon} size="sm" onClick={onSelectQr} />
+                    <Icon
+                        icon={QRIcon}
+                        size="sm"
+                        onClick={(e: React.MouseEvent<SVGElement>) => {
+                            e.stopPropagation()
+                            onSelectQr()
+                        }}
+                    />
                 </IconContainer>
             )}
         </Container>

@@ -1,12 +1,14 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet } from 'react-native'
+import { StyleSheet, Pressable } from 'react-native'
 
 import { Community } from '@fedi/common/types'
+import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 
 import { NavigationHook } from '../../../types/navigation'
-import { Pressable } from '../../ui/Pressable'
+import { Row } from '../../ui/Flex'
+import { PressableIcon } from '../../ui/PressableIcon'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from './FederationLogo'
 
@@ -15,6 +17,8 @@ export type Props = { community: Community }
 const SelectedCommunity: React.FC<Props> = ({ community }) => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
+    const showInviteCode = shouldShowInviteCode(community?.meta || {})
+
     const style = styles(theme)
 
     const goToCommunityDetails = () => {
@@ -23,20 +27,33 @@ const SelectedCommunity: React.FC<Props> = ({ community }) => {
         })
     }
 
+    const goToCommunityInvite = () => {
+        navigation.navigate('CommunityInvite', {
+            inviteLink: community.communityInvite.invite_code_str,
+        })
+    }
+
     return (
-        <Pressable
-            containerStyle={style.tileContainer}
-            onPress={goToCommunityDetails}>
-            <FederationLogo federation={community} size={56} />
-            <Text h2 bold numberOfLines={2} h2Style={style.title}>
-                {community?.name}
-            </Text>
-            <SvgImage
-                name="ChevronRight"
-                color={theme.colors.grey}
-                containerStyle={style.icon}
-                size={SvgImageSize.sm}
-            />
+        <Pressable onPress={goToCommunityDetails}>
+            <Row align="center" fullWidth gap="md">
+                <FederationLogo federation={community} size={56} />
+                <Text h2 bold numberOfLines={2} h2Style={style.title}>
+                    {community?.name}
+                </Text>
+                {showInviteCode && (
+                    <PressableIcon
+                        svgName="Qr"
+                        containerStyle={style.icon}
+                        onPress={goToCommunityInvite}
+                    />
+                )}
+                <SvgImage
+                    name="ChevronRight"
+                    color={theme.colors.grey}
+                    containerStyle={style.icon}
+                    size={SvgImageSize.sm}
+                />
+            </Row>
         </Pressable>
     )
 }
@@ -45,9 +62,6 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         tileContainer: {
             width: '100%',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: theme.spacing.lg,
             paddingVertical: 0,
             paddingHorizontal: 0,
             minWidth: 0,

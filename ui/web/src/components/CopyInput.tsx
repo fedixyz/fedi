@@ -1,21 +1,20 @@
+import * as RadixLabel from '@radix-ui/react-label'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 
-import { styled } from '../styles'
+import { styled, theme } from '../styles'
 import { Icon } from './Icon'
-import { Input } from './Input'
 import { Text } from './Text'
 
 interface Props {
     value: string
-    label?: React.ReactNode
     onCopyMessage?: string
 }
 
-export const CopyInput: React.FC<Props> = ({ value, label, onCopyMessage }) => {
+export const CopyInput: React.FC<Props> = ({ value, onCopyMessage }) => {
     const { t } = useTranslation()
     const toast = useToast()
 
@@ -35,26 +34,53 @@ export const CopyInput: React.FC<Props> = ({ value, label, onCopyMessage }) => {
     }, [value, onCopyMessage, t, toast])
 
     return (
-        <Input
-            value={value}
-            label={label}
-            textOverflow="ellipsis"
-            adornment={
+        <Container>
+            <InputWrap>
+                <TextInput value={value} />
                 <CopyButton onClick={handleCopy}>
-                    <Icon icon={CopyIcon} />
+                    <Icon icon={CopyIcon} size={16} />
                     <Text variant="small" weight="medium">
                         {t('words.copy')}
                     </Text>
                 </CopyButton>
-            }
-            readOnly
-        />
+            </InputWrap>
+        </Container>
     )
 }
 
-const CopyButton = styled('button', {
-    display: 'flex',
+const Container = styled(RadixLabel.Label, {
+    width: '100%',
+})
+
+const InputWrap = styled('div', {
     alignItems: 'center',
+    background: theme.colors.white,
+    border: `1.5px solid ${theme.colors.black}`,
+    borderRadius: 20,
+    display: 'inline-flex',
+    height: 48,
+    position: 'relative',
+    transition: 'border-color 80ms ease',
+    overflow: 'hidden',
+    width: '100%',
+})
+
+const TextInput = styled('input', {
+    border: 'none',
+    color: theme.colors.darkGrey,
+    flex: 1,
+    fontSize: 14,
+    height: '100%',
+    minWidth: 60,
+    outline: 'none',
+    padding: 12,
+    textOverflow: 'ellipsis',
+    userSelect: 'none',
+})
+
+const CopyButton = styled('button', {
+    alignItems: 'center',
+    display: 'flex',
     paddingRight: 12,
     gap: 4,
 

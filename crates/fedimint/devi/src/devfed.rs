@@ -14,7 +14,7 @@ use rand::Rng;
 use rand::distributions::Alphanumeric;
 use tracing::{debug, info, trace};
 
-use crate::Synapse;
+use crate::{NostrRelay, Synapse};
 
 #[derive(Clone)]
 pub struct DevFed {
@@ -27,6 +27,7 @@ pub struct DevFed {
     pub esplora: Esplora,
     pub recurringd: Recurringd,
     pub synapse: Synapse,
+    pub nostr_relay: NostrRelay,
 }
 
 impl DevFed {
@@ -37,10 +38,10 @@ impl DevFed {
 
         debug!(target: LOG_DEVIMINT, "Peging in client and gateways");
 
-        let gw_pegin_amount = 1_000_000;
-        let client_pegin_amount = 1_000_000;
+        let gw_pegin_amount = 10_000_000;
+        let client_pegin_amount = 10_000_000;
 
-        let ((), (), _, synapse) = tokio::try_join!(
+        let ((), (), _, synapse, nostr_relay) = tokio::try_join!(
             async {
                 let (address, operation_id) =
                     dev_fed.internal_client().await?.get_deposit_addr().await?;
@@ -87,6 +88,7 @@ impl DevFed {
                 dev_fed.bitcoind().await?.mine_blocks_no_wait(11).await
             },
             Synapse::start(&process_mgr),
+            NostrRelay::start(&process_mgr),
         )?;
 
         info!(target: LOG_DEVIMINT, "Pegins completed");
@@ -95,6 +97,7 @@ impl DevFed {
         unsafe { std::env::set_var(FM_INVITE_CODE_ENV, dev_fed.fed().await?.invite_code()?) };
         // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("DEVI_SYNAPSE_SERVER", &synapse.url) };
+        unsafe { std::env::set_var("DEVI_NOSTR_RELAY", &nostr_relay.url) };
 
         dev_fed.finalize(&process_mgr).await?;
         info!(target: LOG_DEVIMINT, "Devfed ready");
@@ -117,6 +120,7 @@ impl DevFed {
             esplora: devimint.esplora,
             recurringd: devimint.recurringd,
             synapse,
+            nostr_relay,
         })
     }
 

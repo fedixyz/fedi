@@ -44,7 +44,7 @@ const AppSettingsPage: React.FC = () => {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back="/settings">
+                <Layout.Header back>
                     <Layout.Title subheader>
                         {t('feature.settings.app-settings')}
                     </Layout.Title>

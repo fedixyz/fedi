@@ -4,7 +4,6 @@ import { ActivityIndicator } from 'react-native'
 
 import { useFederationMembership } from '@fedi/common/hooks/federation'
 
-import { fedimint } from '../../../bridge'
 import CustomOverlay from '../../ui/CustomOverlay'
 import FederationPreview from '../onboarding/FederationPreview'
 
@@ -30,7 +29,7 @@ export default function FederationGate({
         federationPreview,
         isMember,
         handleJoin,
-    } = useFederationMembership(t, fedimint, federationId, inviteCode)
+    } = useFederationMembership(t, federationId, inviteCode)
 
     const handleBack = () => {
         if (navigation.canGoBack()) navigation.goBack()
@@ -42,7 +41,8 @@ export default function FederationGate({
         <>
             {fallbackContent}
             <CustomOverlay
-                show={isJoining}
+                // This should always be shown when the user isn't a member
+                show={true}
                 onBackdropPress={handleBack}
                 contents={{
                     title: t('feature.federations.join-federation'),

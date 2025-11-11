@@ -54,6 +54,10 @@ interface WebViewMessageEventLike {
     nativeEvent: { data: string }
 }
 
+type InjectionMessageMiddleware = (
+    message: AnyInjectionRequestMessage,
+) => Promise<void>
+
 /**
  * Generates a callback intended to be passed to a react-native-webview
  * `<WebView />`'s `onMessage` prop. Takes in a `useRef` of the webview,
@@ -61,6 +65,7 @@ interface WebViewMessageEventLike {
  */
 export function makeWebViewMessageHandler(
     webviewRef: MutableRefObjectLike<WebViewLike>,
+    middlewares: InjectionMessageMiddleware[],
     handlers: InjectionMessageHandlers,
 ) {
     return async (event: WebViewMessageEventLike) => {
@@ -83,7 +88,12 @@ export function makeWebViewMessageHandler(
         }
 
         const { id, type, data } = message
+
         try {
+            for (const middleware of middlewares) {
+                await middleware(message)
+            }
+
             // Have to do a little casting since TS can't infer that the
             // handler matches the message.
             const handler = handlers[type] as InjectionMessageHandler<

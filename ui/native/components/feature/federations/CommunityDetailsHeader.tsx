@@ -38,7 +38,8 @@ const CommunityDetailsHeader: React.FC = () => {
                         svgName="Qr"
                         onPress={() =>
                             navigation.navigate('CommunityInvite', {
-                                inviteLink: community.inviteCode,
+                                inviteLink:
+                                    community.communityInvite.invite_code_str,
                             })
                         }
                     />

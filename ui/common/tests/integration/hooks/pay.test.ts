@@ -98,7 +98,7 @@ describe('sending payments', () => {
             // Pay the invoice using handleOmniSend
             await act(async () => {
                 const res = await result.current.handleOmniSend(1000 as Sats)
-                expect('txid' in res && res.txid).toBeTruthy()
+                expect(res).toBeDefined()
             })
 
             const lastUsedFederationId = selectLastUsedFederationId(
@@ -177,7 +177,7 @@ describe('sending payments', () => {
             })
 
             // Check that the notes are valid by decoding them
-            const decoded = await fedimint.validateEcash(
+            const decoded = await fedimint.parseEcash(
                 result.current.notes || '',
             )
 

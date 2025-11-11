@@ -10,7 +10,6 @@ import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook, RootStackParamList } from '../../../types/navigation'
 import Header from '../../ui/Header'
 import SvgImage from '../../ui/SvgImage'
-import BetaBanner from './BetaBanner'
 
 type StabilityHomeRouteProp = RouteProp<RootStackParamList, 'StabilityHome'>
 
@@ -52,7 +51,6 @@ const StabilityHomeHeader: React.FC = () => {
                 }
                 rightContainerStyle={style.rightContainer}
             />
-            <BetaBanner />
         </>
     )
 }

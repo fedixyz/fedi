@@ -1,9 +1,11 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { selectMatrixAuth, selectMatrixRoomMembers } from '@fedi/common/redux'
 import { MatrixEvent, ReplyMessageData } from '@fedi/common/types'
 import {
     isFileEvent,
+    isFederationInviteEvent,
     isFormEvent,
     isImageEvent,
     isPaymentEvent,
@@ -14,6 +16,7 @@ import {
 
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
+import { ChatFederationInviteEvent } from './ChatFederationInviteEvent'
 import { ChatFileEvent } from './ChatFileEvent'
 import { ChatFormEvent } from './ChatFormEvent'
 import { ChatImageEvent } from './ChatImageEvent'
@@ -29,6 +32,7 @@ interface Props {
 }
 
 export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
+    const { t } = useTranslation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const roomMembers = useAppSelector(s => {
         if (!event.roomId) return []
@@ -80,7 +84,7 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
 
         return (
             <ChatSwipeableEventContainer event={event} isMe={isMe}>
-                <TextContent isMe={isMe} isPayment={false} isForm={false}>
+                <TextContent isMe={isMe} showSpeechBubble>
                     {!!replyData && (
                         <ChatRepliedMessage
                             data={replyData}
@@ -95,15 +99,21 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
         )
     }
 
+    if (isFederationInviteEvent(event)) {
+        return (
+            <TextContent isMe={isMe}>
+                <ChatFederationInviteEvent event={event} />
+            </TextContent>
+        )
+    }
+
     const content = isPaymentEvent(event) ? (
         <ChatPaymentEvent event={event} />
     ) : isFormEvent(event) ? (
         <ChatFormEvent event={event} />
-    ) : null
-
-    // Unsupported events are not displayed
-    // e.g. multispend, failedToParseCustom, unknown, unableToDecrypt, etc.
-    if (!content) return null
+    ) : (
+        <>{t('feature.chat.message-could-not-be-displayed')}</>
+    )
 
     return (
         <TextContent
@@ -148,6 +158,9 @@ const TextContent = styled('div', {
             true: {},
         },
         isPayment: {
+            true: {},
+        },
+        showSpeechBubble: {
             true: {},
         },
         isMe: {
@@ -197,16 +210,14 @@ const TextContent = styled('div', {
         // Apply speech bubble style to text messages only
         {
             isMe: true,
-            isPayment: false,
-            isForm: false,
+            showSpeechBubble: true,
             css: {
                 borderBottomRightRadius: theme.spacing.xs,
             },
         },
         {
             isMe: false,
-            isPayment: false,
-            isForm: false,
+            showSpeechBubble: true,
             css: {
                 borderBottomLeftRadius: theme.spacing.xs,
             },

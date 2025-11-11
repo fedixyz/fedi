@@ -175,7 +175,12 @@ impl FeatureCatalog {
             }),
             override_localhost: Some(OverrideLocalhostFeatureConfig {}),
             nostr_client: Some(NostrClientFeatureCatalog {
-                relays: vec![Url::parse("wss://nostr-rs-relay-staging.dev.fedibtc.com").unwrap()],
+                relays: vec![
+                    env::var("DEVI_NOSTR_RELAY")
+                        .expect("must be set")
+                        .parse()
+                        .unwrap(),
+                ],
             }),
             device_registration: DeviceRegistrationFeatureConfig {
                 service_url: "https://staging-device-control.dev.fedibtc.com/v0".to_string(),

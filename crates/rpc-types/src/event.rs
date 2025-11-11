@@ -7,9 +7,10 @@ use stability_pool_client::{
 };
 use ts_rs::TS;
 
+use crate::communities::RpcCommunity;
 use crate::{
-    RpcAmount, RpcCommunity, RpcFederationId, RpcFederationMaybeLoading, RpcOperationId,
-    RpcTransaction, SocialRecoveryApproval,
+    RpcAmount, RpcFederationId, RpcFederationMaybeLoading, RpcOperationId, RpcTransaction,
+    SocialRecoveryApproval,
 };
 
 #[derive(Serialize, Deserialize, Debug, TS)]

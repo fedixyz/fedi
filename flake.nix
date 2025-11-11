@@ -368,6 +368,7 @@
                 pkgs.clightning
                 pkgs.lnd
                 (pkgs.matrix-synapse.override { extras = [ ]; })
+                pkgs.nostr-rs-relay
                 pkgs.sccache
                 pkgs.ripgrep
                 pkgs.lsof

@@ -28,7 +28,14 @@ const log = makeLog('Splash')
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>
 
-const Splash: React.FC<Props> = ({ navigation }: Props) => {
+type RouteItem = {
+    name: keyof RootStackParamList
+    params?: RootStackParamList[keyof RootStackParamList]
+}
+
+const Splash: React.FC<Props> = ({ navigation, route }: Props) => {
+    const { screen, ...rest } = route.params ?? {}
+
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { fontScale } = useWindowDimensions()
@@ -50,12 +57,23 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
             ).unwrap()
             log.debug('onboarding status after new seed', status)
 
+            let routeItem: RouteItem
+            if (screen) {
+                routeItem = {
+                    name: screen,
+                    params: rest,
+                }
+            } else {
+                routeItem = {
+                    name: 'PublicFederations',
+                    params: { from: 'Splash' },
+                }
+            }
+
             // remove Splash from the stack entirely, stop possible bridge panic from user re-navigating to splash
             navigation.reset({
                 index: 0,
-                routes: [
-                    { name: 'PublicFederations', params: { from: 'Splash' } },
-                ],
+                routes: [routeItem],
             })
         } catch (err) {
             log.error('handleContinue', err)

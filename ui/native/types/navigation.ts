@@ -73,6 +73,7 @@ export type RootStackParamList = {
     ChatWallet: { recipientId: string }
     ChooseBackupMethod: undefined
     ChooseRecoveryMethod: undefined
+    ClaimEcash: { token: string }
     MigratedDevice: undefined
     MigratedDeviceSuccess: undefined
     CreatePoll: { roomId: string }
@@ -188,7 +189,11 @@ export type RootStackParamList = {
     ShareLogs: { ticketNumber: string } | undefined
     OmniScanner: undefined
     FediModBrowser: { url: string }
-    Splash: undefined
+    Splash:
+        | ({ screen: keyof RootStackParamList } & Partial<
+              Record<string, string>
+          >)
+        | undefined
     StabilityConfirmDeposit: { amount: Sats; federationId: Federation['id'] }
     StabilityConfirmWithdraw: {
         amountSats: Sats
@@ -204,7 +209,6 @@ export type RootStackParamList = {
         formattedFiat: string
         federationId: Federation['id']
     }
-    StableBalanceIntro: { federationId: Federation['id'] }
     StartRecoveryAssist: undefined
     StartSocialBackup: { federationId: Federation['id'] }
     SocialBackupCloudUpload: undefined

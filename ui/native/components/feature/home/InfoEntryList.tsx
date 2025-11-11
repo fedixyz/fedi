@@ -2,17 +2,23 @@ import { Theme } from '@rneui/themed'
 import React, { memo, useCallback } from 'react'
 import { FlatList, ListRenderItem, View, StyleSheet } from 'react-native'
 
-import { FirstTimeOverlayItem } from '../onboarding/FirstTimeOverlay'
+import { SvgImageName } from '../../ui/SvgImage'
 import InfoEntryListItem from './InfoEntryListItem'
 
+export type InfoItem = {
+    icon: SvgImageName
+    text: string
+}
+
 export type InfoEntryListProps = {
-    items: FirstTimeOverlayItem[]
+    items: InfoItem[]
     theme: Theme
 }
+
 const ItemSeparator = () => <View style={styles.separator} />
 
 const InfoEntryList: React.FC<InfoEntryListProps> = memo(({ items, theme }) => {
-    const renderItem: ListRenderItem<FirstTimeOverlayItem> = useCallback(
+    const renderItem: ListRenderItem<InfoItem> = useCallback(
         ({ item }) => <InfoEntryListItem item={item} theme={theme} />,
         [theme],
     )

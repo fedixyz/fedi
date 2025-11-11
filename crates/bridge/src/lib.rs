@@ -80,7 +80,7 @@ impl Bridge {
             .context("failed to load state")?
         {
             Either::Left(state) => {
-                Self::try_load_bridge_full(
+                Self::load_bridge_full(
                     storage,
                     global_db,
                     event_sink,
@@ -89,7 +89,7 @@ impl Bridge {
                     feature_catalog,
                     device_identifier,
                 )
-                .await?
+                .await
             }
             Either::Right(state) => BridgeState::Onboarding(Arc::new(BridgeOnboarding::new(
                 state,
@@ -116,7 +116,7 @@ impl Bridge {
         *self.state.ensure_lock() = bridge_state;
     }
 
-    async fn try_load_bridge_full(
+    async fn load_bridge_full(
         storage: Storage,
         global_db: Database,
         event_sink: EventSink,
@@ -124,7 +124,7 @@ impl Bridge {
         app_state: AppState,
         feature_catalog: Arc<FeatureCatalog>,
         device_identifier: DeviceIdentifier,
-    ) -> anyhow::Result<BridgeState> {
+    ) -> BridgeState {
         let runtime = Runtime::new(
             storage,
             global_db,
@@ -133,15 +133,14 @@ impl Bridge {
             app_state,
             feature_catalog,
         )
-        .await
-        .context("Failed to create runtime for bridge")?;
+        .await;
         let runtime = Arc::new(runtime);
         match BridgeFull::new(runtime.clone(), device_identifier).await {
-            Ok(full) => Ok(BridgeState::Full(Arc::new(full))),
-            Err(reason) => Ok(BridgeState::Offboarding {
+            Ok(full) => BridgeState::Full(Arc::new(full)),
+            Err(reason) => BridgeState::Offboarding {
                 runtime,
                 reason: Arc::new(reason),
-            }),
+            },
         }
     }
 

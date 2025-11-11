@@ -1,15 +1,19 @@
 import {
+    CreateCommunityRequest,
     EcashRequest,
+    EditCommunityRequest,
     FediInternalVersion,
+    InstallMiniAppRequest,
     MSats,
     SupportedCurrency,
 } from '@fedi/common/types'
+import { RpcCommunity } from '@fedi/common/types/bindings'
 
 import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionFediProvider {
-    public version: FediInternalVersion = 0
+    public version: FediInternalVersion = 1
     private lastMessageId = 0
 
     async generateEcash(
@@ -43,6 +47,96 @@ class InjectionFediProvider {
         return this.sendMessage(
             InjectionMessageType.fedi_getLanguageCode,
             undefined,
+        )
+    }
+
+    async listCreatedCommunities(): Promise<{ communities: RpcCommunity[] }> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_listCreatedCommunities,
+            undefined,
+        )
+    }
+
+    async createCommunity(
+        community: CreateCommunityRequest,
+    ): Promise<
+        | { success: true; inviteCode: string }
+        | { success: false; errors: Record<string, string[] | undefined> }
+    > {
+        return this.sendMessage(
+            InjectionMessageType.fedi_createCommunity,
+            community,
+        )
+    }
+
+    async editCommunity(
+        editCommunityRequest: EditCommunityRequest,
+    ): Promise<
+        | { success: true }
+        | { success: false; errors: Record<string, string[] | undefined> }
+    > {
+        return this.sendMessage(
+            InjectionMessageType.fedi_editCommunity,
+            editCommunityRequest,
+        )
+    }
+
+    async joinCommunity(
+        inviteCode: string,
+    ): Promise<
+        | { success: true; community: RpcCommunity }
+        | { success: false; errors: Record<string, string[] | undefined> }
+    > {
+        return this.sendMessage(
+            InjectionMessageType.fedi_joinCommunity,
+            inviteCode,
+        )
+    }
+
+    async refreshCommunities(): Promise<void> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_refreshCommunities,
+            undefined,
+        )
+    }
+
+    async setSelectedCommunity(
+        communityId: string,
+    ): Promise<
+        | { success: true }
+        | { success: false; errors: Record<string, string[] | undefined> }
+    > {
+        return this.sendMessage(
+            InjectionMessageType.fedi_setSelectedCommunity,
+            communityId,
+        )
+    }
+
+    async selectPublicChats(): Promise<Array<string>> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_selectPublicChats,
+            undefined,
+        )
+    }
+
+    async navigateHome(): Promise<void> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_navigateHome,
+            undefined,
+        )
+    }
+
+    async getInstalledMiniApps(): Promise<{ url: string }[]> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_getInstalledMiniApps,
+            undefined,
+        )
+    }
+
+    async installMiniApp(request: InstallMiniAppRequest): Promise<void> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_installMiniApp,
+            request,
         )
     }
 

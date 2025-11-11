@@ -391,10 +391,19 @@ export type RpcBridgeStatus =
   | { type: "offboarding"; reason: BridgeOffboardingReason };
 
 export type RpcCommunity = {
-  inviteCode: string;
+  communityInvite: RpcCommunityInvite;
   name: string;
   meta: { [key in string]?: string };
 };
+
+export type RpcCommunityInvite =
+  | { type: "legacy"; invite_code_str: string; community_meta_url: string }
+  | {
+      type: "nostr";
+      invite_code_str: string;
+      author_pubkey: RpcNostrPubkey;
+      community_uuid_hex: string;
+    };
 
 export type RpcComposerDraft = {
   plainText: string;
@@ -683,11 +692,12 @@ export type RpcMethods = {
   generateAddress: [generateAddress, string];
   recheckPeginAddress: [recheckPeginAddress, null];
   previewPayAddress: [previewPayAddress, RpcFeeDetails];
-  payAddress: [payAddress, RpcPayAddressResponse];
+  payAddress: [payAddress, RpcOperationId];
   calculateMaxGenerateEcash: [calculateMaxGenerateEcash, RpcAmount];
   generateEcash: [generateEcash, RpcGenerateEcashResponse];
   receiveEcash: [receiveEcash, [RpcAmount, RpcOperationId]];
-  validateEcash: [validateEcash, RpcEcashInfo];
+  parseEcash: [parseEcash, RpcEcashInfo];
+  parseInviteCode: [parseInviteCode, RpcParseInviteCodeResult];
   cancelEcash: [cancelEcash, null];
   updateCachedFiatFXInfo: [updateCachedFiatFXInfo, null];
   listTransactions: [listTransactions, Array<RpcTransactionListEntry>];
@@ -723,6 +733,10 @@ export type RpcMethods = {
   nostrEncrypt04: [nostrEncrypt04, string];
   nostrDecrypt04: [nostrDecrypt04, string];
   nostrRateFederation: [nostrRateFederation, null];
+  nostrCreateCommunity: [nostrCreateCommunity, RpcCommunity];
+  nostrListCommunities: [nostrListCommunities, Array<RpcCommunity>];
+  nostrListOurCommunities: [nostrListOurCommunities, Array<RpcCommunity>];
+  nostrEditCommunity: [nostrEditCommunity, null];
   stabilityPoolAccountInfo: [
     stabilityPoolAccountInfo,
     RpcStabilityPoolAccountInfo,
@@ -897,12 +911,13 @@ export type RpcMsgLikeKind =
   | ({ msgtype: "m.text" } & RpcTextLikeContent)
   | ({ msgtype: "m.notice" } & RpcTextLikeContent)
   | ({ msgtype: "m.emote" } & RpcTextLikeContent)
+  | ({ msgtype: "xyz.fedi.federationInvite" } & RpcTextLikeContent)
+  | ({ msgtype: "xyz.fedi.communityInvite" } & RpcTextLikeContent)
   | ({ msgtype: "m.file" } & RpcFileMessageContent)
   | ({ msgtype: "m.image" } & RpcImageMessageContent)
   | ({ msgtype: "m.video" } & RpcVideoMessageContent)
   | ({ msgtype: "m.audio" } & RpcAudioMessageContent)
   | ({ msgtype: "m.poll" } & RpcPollResult)
-  | ({ msgtype: "xyz.fedi.federationInvite" } & RpcTextLikeContent)
   | ({ msgtype: "xyz.fedi.payment" } & RpcPaymentMessageContent)
   | ({ msgtype: "xyz.fedi.form" } & RpcFormMessageContent)
   | ({ msgtype: "xyz.fedi.multispend" } & MultispendEvent)
@@ -960,8 +975,8 @@ export type RpcOnchainDepositTransactionData = { txid: string };
 
 export type RpcOnchainWithdrawState =
   | { type: "created" }
-  | { type: "succeeded" }
-  | { type: "failed" };
+  | { type: "succeeded"; txid: string }
+  | { type: "failed"; error: string };
 
 export type RpcOperationFediFeeStatus =
   | { type: "pendingSend"; fedi_fee: RpcAmount }
@@ -971,6 +986,8 @@ export type RpcOperationFediFeeStatus =
   | { type: "failedReceive"; fedi_fee_ppm: number };
 
 export type RpcOperationId = string;
+
+export type RpcParseInviteCodeResult = { federationId: RpcFederationId };
 
 export type RpcPayAddressResponse = { txid: string };
 
@@ -1283,7 +1300,6 @@ export type RpcTransaction = {
   | {
       kind: "onchainWithdraw";
       onchain_address: string;
-      onchain_txid: string;
       onchain_fees: RpcAmount;
       onchain_fee_rate: number;
       state: RpcOnchainWithdrawState | null;
@@ -1319,7 +1335,6 @@ export type RpcTransactionKind =
   | {
       kind: "onchainWithdraw";
       onchain_address: string;
-      onchain_txid: string;
       onchain_fees: RpcAmount;
       onchain_fee_rate: number;
       state: RpcOnchainWithdrawState | null;
@@ -1362,7 +1377,6 @@ export type RpcTransactionListEntry = {
   | {
       kind: "onchainWithdraw";
       onchain_address: string;
-      onchain_txid: string;
       onchain_fees: RpcAmount;
       onchain_fee_rate: number;
       state: RpcOnchainWithdrawState | null;
@@ -1981,13 +1995,24 @@ export type matrixUserDirectorySearch = { searchTerm: string; limit: number };
 
 export type matrixUserProfile = { userId: RpcUserId };
 
+export type nostrCreateCommunity = { communityJsonStr: string };
+
 export type nostrDecrypt = { pubkey: string; ciphertext: string };
 
 export type nostrDecrypt04 = { pubkey: string; ciphertext: string };
 
+export type nostrEditCommunity = {
+  communityHexUuid: string;
+  newCommunityJsonStr: string;
+};
+
 export type nostrEncrypt = { pubkey: string; plaintext: string };
 
 export type nostrEncrypt04 = { pubkey: string; plaintext: string };
+
+export type nostrListCommunities = { ownerNpub: RpcNostrPubkey };
+
+export type nostrListOurCommunities = {};
 
 export type nostrRateFederation = {
   federationId: string;
@@ -2000,6 +2025,10 @@ export type onAppForeground = {};
 export type onboardRegisterAsNewDevice = {};
 
 export type onboardTransferExistingDeviceRegistration = { index: number };
+
+export type parseEcash = { ecash: string };
+
+export type parseInviteCode = { inviteCode: string };
 
 export type payAddress = {
   federationId: RpcFederationId;
@@ -2175,7 +2204,5 @@ export type uploadBackupFile = {
   federationId: RpcFederationId;
   videoFilePath: string;
 };
-
-export type validateEcash = { ecash: string };
 
 export type validateRecoveryFile = { path: string };
