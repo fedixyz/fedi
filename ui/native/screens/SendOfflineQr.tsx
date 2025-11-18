@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import Share from 'react-native-share'
 
-import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import { cancelEcash, selectPaymentFederation } from '@fedi/common/redux'
@@ -58,9 +57,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
     const style = styles(theme)
 
     const handleCopy = () => {
-        const strToCopy = `${WEB_APP_URL}/link#screen=ecash&id=${ecash}`
-
-        Clipboard.setString(strToCopy)
+        Clipboard.setString(ecash)
         toast.show({
             status: 'success',
             content: t('phrases.copied-ecash-token'),

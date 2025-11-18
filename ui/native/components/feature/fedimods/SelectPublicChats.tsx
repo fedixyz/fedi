@@ -1,4 +1,3 @@
-import { useNavigation } from '@react-navigation/native'
 import { Text, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +8,6 @@ import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { selectMatrixRooms } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import { reset } from '../../../state/navigation'
 import { AvatarSize } from '../../ui/Avatar'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column, Row } from '../../ui/Flex'
@@ -32,7 +30,6 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
     const chats = useAppSelector(selectMatrixRooms)
     const onAcceptRef = useUpdatingRef(onAccept)
     const publicChats = chats.filter(c => c.isPublic)
-    const navigation = useNavigation()
 
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -55,13 +52,14 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
         onOpenChange(false)
     }
 
-    const handleCreateGroup = () => {
-        navigation.dispatch(
-            reset('CreateGroup', {
-                defaultGroup: true,
-            }),
-        )
-    }
+    // TODO: restore groupchat creation flow with https://github.com/fedibtc/fedi/issues/9411
+    // const handleCreateGroup = () => {
+    //     navigation.dispatch(
+    //         reset('CreateGroup', {
+    //             defaultGroup: true,
+    //         }),
+    //     )
+    // }
 
     return (
         <CustomOverlay
@@ -138,10 +136,11 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
                 buttons:
                     publicChats.length > 0
                         ? [
-                              {
-                                  text: t('feature.chat.new-group'),
-                                  onPress: handleCreateGroup,
-                              },
+                              // TODO: restore groupchat creation flow with https://github.com/fedibtc/fedi/issues/9411
+                              //   {
+                              //       text: t('feature.chat.new-group'),
+                              //       onPress: handleCreateGroup,
+                              //   },
                               {
                                   primary: true,
                                   text: t('words.continue'),
@@ -153,11 +152,12 @@ export const SelectPublicChatsOverlay: React.FC<Props> = ({
                                   text: t('words.skip'),
                                   onPress: handleAccept,
                               },
-                              {
-                                  primary: true,
-                                  text: t('feature.chat.new-group'),
-                                  onPress: handleCreateGroup,
-                              },
+                              // TODO: restore groupchat creation flow with https://github.com/fedibtc/fedi/issues/9411
+                              //   {
+                              //       primary: true,
+                              //       text: t('feature.chat.new-group'),
+                              //       onPress: handleCreateGroup,
+                              //   },
                           ],
             }}
         />

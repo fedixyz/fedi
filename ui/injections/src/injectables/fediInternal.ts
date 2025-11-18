@@ -13,7 +13,7 @@ import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionFediProvider {
-    public version: FediInternalVersion = 1
+    public version: FediInternalVersion = 2
     private lastMessageId = 0
 
     async generateEcash(
