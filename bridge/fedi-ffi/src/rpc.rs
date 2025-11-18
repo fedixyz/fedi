@@ -805,17 +805,6 @@ async fn nostrCreateCommunity(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn nostrListCommunities(
-    bridge: &BridgeFull,
-    owner_npub: RpcNostrPubkey,
-) -> anyhow::Result<Vec<RpcCommunity>> {
-    bridge
-        .nostril
-        .list_communities(nostr::key::PublicKey::parse(&owner_npub.hex)?)
-        .await
-}
-
-#[macro_rules_derive(rpc_method!)]
 async fn nostrListOurCommunities(bridge: &BridgeFull) -> anyhow::Result<Vec<RpcCommunity>> {
     bridge.nostril.list_our_communities().await
 }
@@ -2317,7 +2306,6 @@ rpc_methods!(RpcMethods {
     nostrDecrypt04,
     nostrRateFederation,
     nostrCreateCommunity,
-    nostrListCommunities,
     nostrListOurCommunities,
     nostrEditCommunity,
     // Stability Pool

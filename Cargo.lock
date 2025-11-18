@@ -7287,7 +7287,9 @@ name = "nostril"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "bech32",
+ "fedimint-aead",
  "fedimint-derive-secret",
  "futures",
  "hex",
@@ -8934,6 +8936,7 @@ name = "rpc-types"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "bech32",
  "bitcoin",
  "fedi-social-client",
@@ -8950,6 +8953,7 @@ dependencies = [
  "runtime",
  "serde",
  "serde_json",
+ "serde_with",
  "stability-pool-client",
  "stability-pool-client-old",
  "thiserror 2.0.17",

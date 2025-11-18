@@ -7,7 +7,7 @@ import { FediMod } from './fedimint'
 
 export type EcashRequest = Omit<RequestInvoiceArgs, 'defaultMemo'>
 
-export type FediInternalVersion = 1
+export type FediInternalVersion = 2
 
 export type InstallMiniAppRequest = Omit<FediMod, 'color'>
 

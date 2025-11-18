@@ -68,7 +68,7 @@ either = "1.15.0"
 nostril = { workspace = true }
 imbl = { version = "5", features = ["serde"] }
 eyeball-im = { version = "0.7", features = ["serde"] }
-base64 = "0.22"
+base64 = { workspace = true }
 reqwest = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]

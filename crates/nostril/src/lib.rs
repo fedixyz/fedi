@@ -1,23 +1,32 @@
 use std::time::Duration;
 
 use anyhow::bail;
-use fedimint_derive_secret::DerivableSecret;
+use base64::Engine;
+use base64::engine::general_purpose;
+use fedimint_derive_secret::{ChildId, DerivableSecret};
 use nostr_sdk::secp256k1::{self, Message};
 use nostr_sdk::{
     Client, EventBuilder, Filter, Keys, Kind, NostrSigner, PublicKey, Tag, TagKind, ToBech32,
 };
 use rand::RngCore;
-use rpc_types::communities::{CommunityInviteV2, RpcCommunity};
+use rpc_types::communities::{CommunityInviteV2, RawChaCha20Poly1305Key, RpcCommunity};
 use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{NOSTR_CHILD_ID, NOSTR_COMMUNITY_CREATION_EVENT_KIND};
 use runtime::storage::state::CommunityJson;
-use tracing::warn;
+use tracing::{error, warn};
 
 pub struct Nostril {
     keys: Keys,
     // none when nostr feature is disabled
     client: Option<Client>,
+}
+
+// Per-community set of keys used for publishing the community creation event
+// and encrypting the event's content
+struct CommunityKeys {
+    publishing_key: Keys,
+    encryption_key: RawChaCha20Poly1305Key,
 }
 
 impl Nostril {
@@ -163,17 +172,13 @@ impl Nostril {
             uuid_bytes
         };
 
-        let community_keys = self.community_creation_keys(&uuid_bytes).await?;
+        let community_keys = self.community_creation_keys(&uuid_bytes);
         self.sign_and_publish_community(&community_keys, &hex::encode(uuid_bytes), community_json)
             .await
     }
 
-    /// Fetches community creation events for the given npub (as "owner") and
-    /// returns a list
-    pub async fn list_communities(
-        &self,
-        owner_npub: PublicKey,
-    ) -> anyhow::Result<Vec<RpcCommunity>> {
+    /// Fetches our own community creation events and returns a list
+    pub async fn list_our_communities(&self) -> anyhow::Result<Vec<RpcCommunity>> {
         let Some(client) = &self.client else {
             anyhow::bail!("nostr client feature flag is not enabled");
         };
@@ -182,33 +187,42 @@ impl Nostril {
             .fetch_events(
                 Filter::new()
                     .kind(Kind::from(NOSTR_COMMUNITY_CREATION_EVENT_KIND))
-                    .pubkey(owner_npub),
+                    .pubkey(self.keys.public_key),
                 Duration::from_secs(10),
             )
             .await?
             .to_vec()
             .into_iter()
             .filter_map(|event| {
-                let community_res = serde_json::from_str::<CommunityJson>(&event.content);
-                let maybe_uuid = event.tags.identifier();
-                match (community_res, maybe_uuid) {
-                    (Ok(community), Some(hex_uuid)) => Some(RpcCommunity {
-                        community_invite: From::from(&CommunityInviteV2 {
-                            author_pubkey: event.pubkey,
-                            community_uuid_hex: hex_uuid.to_owned(),
-                        }),
-                        name: community.name,
-                        meta: community.meta,
+                let Some(uuid) = event.tags.identifier() else {
+                    error!(?event, "Missing UUID in d tag");
+                    return None;
+                };
+
+                let uuid_bytes = hex::decode(uuid)
+                    .inspect_err(|e| error!(?event, %uuid, ?e, "Couldn't hex-decode UUID"))
+                    .ok()?;
+
+                let creation_keys = self.community_creation_keys(&uuid_bytes);
+
+                let community = Self::event_content_to_community_json(
+                    &event.content,
+                    &creation_keys.encryption_key,
+                )
+                .inspect_err(|e| error!(?event, %uuid, ?e, "Couldn't decrypt community json"))
+                .ok()?;
+
+                Some(RpcCommunity {
+                    community_invite: From::from(&CommunityInviteV2 {
+                        author_pubkey: event.pubkey,
+                        community_uuid_hex: uuid.to_owned(),
+                        decryption_key: creation_keys.encryption_key,
                     }),
-                    _ => None,
-                }
+                    name: community.name,
+                    meta: community.meta,
+                })
             })
             .collect())
-    }
-
-    /// Fetches our own community creation events and returns a list
-    pub async fn list_our_communities(&self) -> anyhow::Result<Vec<RpcCommunity>> {
-        self.list_communities(self.keys.public_key).await
     }
 
     /// Given the hex encoded UUID of one of the communities we created,
@@ -220,7 +234,7 @@ impl Nostril {
         new_community_json: CommunityJson,
     ) -> anyhow::Result<()> {
         let uuid_bytes = hex::decode(community_uuid_hex)?;
-        let community_keys = self.community_creation_keys(&uuid_bytes).await?;
+        let community_keys = self.community_creation_keys(&uuid_bytes);
         self.sign_and_publish_community(&community_keys, community_uuid_hex, new_community_json)
             .await?;
         Ok(())
@@ -253,33 +267,42 @@ impl Nostril {
             bail!("No community event found for the given invite code");
         };
 
-        Ok(serde_json::from_str::<CommunityJson>(&first_event.content)?)
+        Self::event_content_to_community_json(&first_event.content, &invite.decryption_key)
     }
 
     // Given a byte slice UUID representing a community, derives a new nostr keypair
     // using the root nostr keypair and the UUID.
-    async fn community_creation_keys(&self, uuid_bytes: &[u8]) -> anyhow::Result<Keys> {
+    fn community_creation_keys(&self, uuid_bytes: &[u8]) -> CommunityKeys {
+        const COMMUNITY_PUBLISHING_CHILD_ID: ChildId = ChildId(0);
+        const COMMUNITY_ENCRYPTION_CHILD_ID: ChildId = ChildId(1);
+
         let nostr_secret_bytes = self.keys.secret_key().as_secret_bytes();
-
         let community_secret = DerivableSecret::new_root(nostr_secret_bytes, uuid_bytes);
-        let community_keypair = community_secret.to_secp_key(secp256k1::SECP256K1);
-        let community_keys = Keys::new(nostr_sdk::SecretKey::from(community_keypair.secret_key()));
 
-        Ok(community_keys)
+        let publishing_secret = community_secret.child_key(COMMUNITY_PUBLISHING_CHILD_ID);
+        let publishing_keypair = publishing_secret.to_secp_key(secp256k1::SECP256K1);
+        let publishing_key = Keys::new(nostr_sdk::SecretKey::from(publishing_keypair.secret_key()));
+
+        let encryption_secret = community_secret.child_key(COMMUNITY_ENCRYPTION_CHILD_ID);
+        let encryption_key =
+            RawChaCha20Poly1305Key::new(encryption_secret.to_chacha20_poly1305_key_raw());
+
+        CommunityKeys {
+            publishing_key,
+            encryption_key,
+        }
     }
 
-    // Given a byte slice UUID representing a community, derives a new nostr keypair
-    // using the root nostr keypair and the UUID.
     // Given:
-    // - set of signing keys
+    // - set of community keys
     // - uuid of community (hex-encoded bytes)
     // - actual JSON blob
     //
-    // Constructs an event, signs it with the provided keys, and publishes it to the
-    // relays.
+    // Constructs an encrypted event, signs it with the provided publishing key, and
+    // publishes it to the relays.
     async fn sign_and_publish_community(
         &self,
-        keys: &Keys,
+        keys: &CommunityKeys,
         uuid_hex: &str,
         json: CommunityJson,
     ) -> anyhow::Result<RpcCommunity> {
@@ -295,20 +318,44 @@ impl Nostril {
         //   fetched.
         let nostr_event = EventBuilder::new(
             Kind::from_u16(NOSTR_COMMUNITY_CREATION_EVENT_KIND),
-            serde_json::to_string(&json)?,
+            Self::community_json_to_event_content(&json, &keys.encryption_key)?,
         )
         .tag(Tag::identifier(uuid_hex))
         .tag(Tag::public_key(self.keys.public_key))
-        .sign_with_keys(keys)?;
+        .sign_with_keys(&keys.publishing_key)?;
         client.send_event(&nostr_event).await?;
 
         Ok(RpcCommunity {
             community_invite: From::from(&CommunityInviteV2 {
-                author_pubkey: keys.public_key,
+                author_pubkey: keys.publishing_key.public_key,
                 community_uuid_hex: uuid_hex.to_string(),
+                decryption_key: keys.encryption_key.clone(),
             }),
             name: json.name,
             meta: json.meta,
         })
+    }
+
+    // Base64 decode => decrypt => deserialize to CommunityJson
+    fn event_content_to_community_json(
+        content: &str,
+        decryption_key: &RawChaCha20Poly1305Key,
+    ) -> anyhow::Result<CommunityJson> {
+        let mut decoded_content = general_purpose::STANDARD.decode(content)?;
+        let json_bytes =
+            fedimint_aead::decrypt(&mut decoded_content, &decryption_key.into_less_safe_key())?;
+        Ok(serde_json::from_slice::<CommunityJson>(json_bytes)?)
+    }
+
+    // Encrypt => Base64 encode
+    fn community_json_to_event_content(
+        json: &CommunityJson,
+        encryption_key: &RawChaCha20Poly1305Key,
+    ) -> anyhow::Result<String> {
+        let encrypted_bytes = fedimint_aead::encrypt(
+            serde_json::to_vec(json)?,
+            &encryption_key.into_less_safe_key(),
+        )?;
+        Ok(general_purpose::STANDARD.encode(encrypted_bytes))
     }
 }

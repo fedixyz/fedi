@@ -15,8 +15,10 @@ stability-pool-client-old = { workspace = true }
 stability-pool-client = { workspace = true }
 
 anyhow = { workspace = true }
+base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_with = { workspace = true, features = ["base64"] }
 bitcoin = { workspace = true }
 lightning-invoice = "0.33.0"
 tracing = { workspace = true }
@@ -31,11 +33,12 @@ matrix-sdk = { workspace = true, default-features = false, features = [
   "e2e-encryption",
 ] }
 nostr-sdk = { workspace = true }
+ring = { workspace = true }
 runtime = { workspace = true }
 bech32 = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }
+ring = { workspace = true, features = ["wasm32_unknown_unknown_js"] }
 
 [build-dependencies]
 fedimint-build = { workspace = true }

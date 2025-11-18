@@ -403,6 +403,7 @@ export type RpcCommunityInvite =
       invite_code_str: string;
       author_pubkey: RpcNostrPubkey;
       community_uuid_hex: string;
+      decryption_key: string;
     };
 
 export type RpcComposerDraft = {
@@ -734,7 +735,6 @@ export type RpcMethods = {
   nostrDecrypt04: [nostrDecrypt04, string];
   nostrRateFederation: [nostrRateFederation, null];
   nostrCreateCommunity: [nostrCreateCommunity, RpcCommunity];
-  nostrListCommunities: [nostrListCommunities, Array<RpcCommunity>];
   nostrListOurCommunities: [nostrListOurCommunities, Array<RpcCommunity>];
   nostrEditCommunity: [nostrEditCommunity, null];
   stabilityPoolAccountInfo: [
@@ -2009,8 +2009,6 @@ export type nostrEditCommunity = {
 export type nostrEncrypt = { pubkey: string; plaintext: string };
 
 export type nostrEncrypt04 = { pubkey: string; plaintext: string };
-
-export type nostrListCommunities = { ownerNpub: RpcNostrPubkey };
 
 export type nostrListOurCommunities = {};
 

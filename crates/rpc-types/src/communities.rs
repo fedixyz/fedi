@@ -4,8 +4,10 @@ use std::str::FromStr;
 
 use anyhow::bail;
 use bitcoin::bech32::{self, Bech32m};
+use ring::aead::{self, LessSafeKey};
 use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, COMMUNITY_V2_INVITE_CODE_HRP};
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use ts_rs::TS;
 
 use crate::nostril::RpcNostrPubkey;
@@ -81,6 +83,8 @@ impl Display for RpcCommunityInvite {
 pub struct RpcCommunityInviteV2 {
     pub author_pubkey: RpcNostrPubkey,
     pub community_uuid_hex: String, // d tag
+    #[ts(type = "string")]
+    pub decryption_key: RawChaCha20Poly1305Key,
 }
 
 impl From<&CommunityInviteV2> for RpcCommunityInviteV2 {
@@ -88,6 +92,7 @@ impl From<&CommunityInviteV2> for RpcCommunityInviteV2 {
         Self {
             author_pubkey: From::from(&value.author_pubkey),
             community_uuid_hex: value.community_uuid_hex.to_owned(),
+            decryption_key: value.decryption_key.clone(),
         }
     }
 }
@@ -175,6 +180,28 @@ impl Display for CommunityInviteV1 {
 pub struct CommunityInviteV2 {
     pub author_pubkey: nostr_sdk::PublicKey, // type implements deserialize
     pub community_uuid_hex: String,          // d tag
+    pub decryption_key: RawChaCha20Poly1305Key,
+}
+
+// Raw bytes of the chacha20_poly1305 symmetric cryptographic key needed to
+// encrypt/decrypt the community metadata.
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RawChaCha20Poly1305Key(#[serde_as(as = "serde_with::base64::Base64")] [u8; 32]);
+
+impl RawChaCha20Poly1305Key {
+    pub fn new(key_bytes: [u8; 32]) -> Self {
+        Self(key_bytes)
+    }
+
+    pub fn into_less_safe_key(&self) -> LessSafeKey {
+        // Follows the implementation of fedimint's
+        // DerivableSecret::to_chacha20_poly1305_key
+        LessSafeKey::new(
+            aead::UnboundKey::new(&aead::CHACHA20_POLY1305, &self.0)
+                .expect("only failure is key len != 32"),
+        )
+    }
 }
 
 impl FromStr for CommunityInviteV2 {
