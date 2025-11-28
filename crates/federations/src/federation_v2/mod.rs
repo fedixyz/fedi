@@ -23,7 +23,8 @@ use bitcoin::{Address, Network};
 use bug_report::reused_ecash_proofs::{self, SerializedReusedEcashProofs};
 use client::ClientExt;
 use db::{
-    FediRawClientConfigKey, InviteCodeKey, LastStabilityPoolV2DepositCycleKey, TransactionNotesKey,
+    FediRawClientConfigKey, InviteCodeKey, LastStabilityPoolV2DepositCycleKey,
+    TotalAccruedFediFeesPerTXTypeKey, TransactionNotesKey,
 };
 use device_registration::DeviceRegistrationService;
 use fedi_social_client::common::VerificationDocument;
@@ -924,6 +925,9 @@ impl FederationV2 {
         expiry_time: Option<u64>,
         frontend_meta: FrontendMetadata,
     ) -> Result<RpcInvoice> {
+        // some apps have issues paying invoices that are in msats
+        // so round up amount to nearest sat
+        let amount = Amount::from_sats(amount.0.msats.div_ceil(1000));
         let fedi_fee_ppm = self
             .fedi_fee_helper
             .get_fedi_fee_ppm(
@@ -937,7 +941,7 @@ impl FederationV2 {
             .client
             .ln()?
             .create_bolt11_invoice(
-                amount.0,
+                amount,
                 lightning_invoice::Bolt11InvoiceDescription::Direct(
                     lightning_invoice::Description::new(description)?,
                 ),
@@ -949,7 +953,7 @@ impl FederationV2 {
 
         self.write_pending_receive_fedi_fee_ppm(operation_id, fedi_fee_ppm)
             .await?;
-        let _ = self.record_tx_date_fiat_info(operation_id, amount.0).await;
+        let _ = self.record_tx_date_fiat_info(operation_id, amount).await;
         self.subscribe_invoice(operation_id, invoice.clone())
             .await?;
 
@@ -3946,9 +3950,10 @@ impl FederationV2 {
                                         .saturating_sub(fedi_fee);
                                     dbtx.insert_entry(&pending_key, &pending_fedi_fees).await;
 
-                                    // Increment outstanding/success counter
+                                    // Increment outstanding/success counter and total accrued
+                                    // counter
                                     let outstanding_key = OutstandingFediFeesPerTXTypeKey(
-                                        module,
+                                        module.clone(),
                                         RpcTransactionDirection::Send,
                                     );
                                     let outstanding_fedi_fees = fedi_fee
@@ -3956,7 +3961,18 @@ impl FederationV2 {
                                             .get_value(&outstanding_key)
                                             .await
                                             .unwrap_or(Amount::ZERO);
+                                    let total_accrued_key = TotalAccruedFediFeesPerTXTypeKey(
+                                        module,
+                                        RpcTransactionDirection::Send,
+                                    );
+                                    let total_accrued_fees = fedi_fee
+                                        + dbtx
+                                            .get_value(&total_accrued_key)
+                                            .await
+                                            .unwrap_or(Amount::ZERO);
                                     dbtx.insert_entry(&outstanding_key, &outstanding_fedi_fees)
+                                        .await;
+                                    dbtx.insert_entry(&total_accrued_key, &total_accrued_fees)
                                         .await;
                                     (true, new_status)
                                 }
@@ -4182,7 +4198,7 @@ impl FederationV2 {
                                         (amount.msats * fedi_fee_ppm).div_ceil(MILLION),
                                     );
                                     let outstanding_key = OutstandingFediFeesPerTXTypeKey(
-                                        module,
+                                        module.clone(),
                                         RpcTransactionDirection::Receive,
                                     );
                                     let outstanding_fedi_fees = fedi_fee
@@ -4190,9 +4206,20 @@ impl FederationV2 {
                                             .get_value(&outstanding_key)
                                             .await
                                             .unwrap_or(Amount::ZERO);
+                                    let total_accrued_key = TotalAccruedFediFeesPerTXTypeKey(
+                                        module,
+                                        RpcTransactionDirection::Receive,
+                                    );
+                                    let total_accrued_fees = fedi_fee
+                                        + dbtx
+                                            .get_value(&total_accrued_key)
+                                            .await
+                                            .unwrap_or(Amount::ZERO);
                                     let new_status = OperationFediFeeStatus::Success { fedi_fee };
                                     dbtx.insert_entry(&op_key, &new_status).await;
                                     dbtx.insert_entry(&outstanding_key, &outstanding_fedi_fees)
+                                        .await;
+                                    dbtx.insert_entry(&total_accrued_key, &total_accrued_fees)
                                         .await;
                                     (true, new_status)
                                 }

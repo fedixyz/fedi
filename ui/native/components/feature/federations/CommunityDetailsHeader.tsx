@@ -3,11 +3,18 @@ import { Text } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+    COMMUNITY_TOOL_URL_PROD,
+    COMMUNITY_TOOL_URL_STAGING,
+} from '@fedi/common/constants/fedimods'
+import { useCreatedCommunities } from '@fedi/common/hooks/federation'
 import { selectCommunity } from '@fedi/common/redux'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
+import { isDev, isNightly } from '@fedi/common/utils/environment'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook, RootStackParamList } from '../../../types/navigation'
+import { Row } from '../../ui/Flex'
 import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
 
@@ -23,6 +30,23 @@ const CommunityDetailsHeader: React.FC = () => {
     const { communityId } = route.params
     const community = useAppSelector(s => selectCommunity(s, communityId))
     const showInviteCode = shouldShowInviteCode(community?.meta || {})
+    const { canEditCommunity } = useCreatedCommunities(communityId)
+
+    const handleEditCommunity = () => {
+        navigation.navigate('FediModBrowser', {
+            url:
+                isNightly() || isDev()
+                    ? COMMUNITY_TOOL_URL_STAGING
+                    : COMMUNITY_TOOL_URL_PROD,
+        })
+    }
+
+    const handleShowQr = () => {
+        if (!community) return
+        navigation.navigate('CommunityInvite', {
+            inviteLink: community.communityInvite.invite_code_str,
+        })
+    }
 
     return (
         <Header
@@ -33,16 +57,21 @@ const CommunityDetailsHeader: React.FC = () => {
                 </Text>
             }
             headerRight={
-                showInviteCode && community ? (
-                    <PressableIcon
-                        svgName="Qr"
-                        onPress={() =>
-                            navigation.navigate('CommunityInvite', {
-                                inviteLink:
-                                    community.communityInvite.invite_code_str,
-                            })
-                        }
-                    />
+                community ? (
+                    <Row gap="sm">
+                        {canEditCommunity && (
+                            <PressableIcon
+                                svgName="Edit"
+                                onPress={handleEditCommunity}
+                            />
+                        )}
+                        {showInviteCode && (
+                            <PressableIcon
+                                svgName="Qr"
+                                onPress={handleShowQr}
+                            />
+                        )}
+                    </Row>
                 ) : undefined
             }
         />

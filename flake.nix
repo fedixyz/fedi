@@ -447,7 +447,7 @@
             ls -alh $out/bin
             $out/bin/xcodebuild -version
             # Check if we have the xcodebuild version that we want
-            if [ -z "$($out/bin/xcodebuild -version | grep '15.0.1')" ] && [ -z "$($out/bin/xcodebuild -version | grep '16.')" ]
+            if [ -z "$($out/bin/xcodebuild -version | grep '16.')" ] && [ -z "$($out/bin/xcodebuild -version | grep '26.0')" ]
             then
                 echo "xcodebuild version: either v15.0.1 or v16.0+ is required"
                 echo "run: \`just install-xcode\` to install Xcode.app from the CLI"
@@ -512,12 +512,26 @@
                 # https://github.com/NixOS/nixpkgs/blob/f426a494337f326b99f14dcc20ea1b2dc4b3904f/pkgs/development/mobile/xcodeenv/build-app.nix#L122
                 export LD=/usr/bin/clang
                 export LD_FOR_TARGET=/usr/bin/clang
-                export MACOSX_DEPLOYMENT_TARGET="18.0"
-                export IPHONEOS_DEPLOYMENT_TARGET="18.0"
 
                 # overwrite what stdenv from nixpkgs 24.11 seems to set
                 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer/
-                export SDKROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+
+                # Detect Xcode version and configure accordingly
+                XCODE_VERSION=$(xcodebuild -version 2>/dev/null | head -1 | awk '{print $2}')
+                XCODE_MAJOR=$(cut -d. -f1 <<< "$XCODE_VERSION")
+
+                if [ "$XCODE_MAJOR" -ge 26 ] 2>/dev/null; then
+                  # for Xcode 26.0+
+                  export MACOSX_DEPLOYMENT_TARGET="26.0"
+                  export IPHONEOS_DEPLOYMENT_TARGET="26.0"
+                  export BINDGEN_EXTRA_CLANG_ARGS="--target=arm64-apple-ios18.0-simulator -isysroot $(xcrun --sdk iphonesimulator --show-sdk-path 2>/dev/null)"
+                else
+                  # for Xcode <26.0
+                  export MACOSX_DEPLOYMENT_TARGET="18.0"
+                  export IPHONEOS_DEPLOYMENT_TARGET="18.0"
+                  # SDKROOT doesn't seem to be needed for the bridge to build on Xcode 26.0+
+                  export SDKROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+                fi
 
                 # TODO: should we just switch the approach we use in flakebox for Darwin?
                 unset CC_aarch64_apple_ios

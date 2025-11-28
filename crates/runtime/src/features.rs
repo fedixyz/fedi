@@ -87,6 +87,9 @@ pub struct FeatureCatalog {
 
     /// Guardianito chatbot API configuration.
     pub guardianito: GuardianitoFeatureConfig,
+
+    /// Configuration regarding the remittance of Fedi fee
+    pub fedi_fee: FediFeeConfig,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -131,6 +134,15 @@ pub struct GuardianitoFeatureConfig {
     pub api_base_url: Url,
 }
 
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct FediFeeConfig {
+    /// How long (max) are we willing to wait before requesting a 0-amount
+    /// invoice from Fedi's servers to keep up a reasonable syncing cadences
+    #[ts(type = "number")]
+    pub remittance_max_delay_secs: u32,
+}
+
 impl FeatureCatalog {
     pub fn new(runtime_env: RuntimeEnvironment) -> Self {
         match runtime_env {
@@ -164,6 +176,9 @@ impl FeatureCatalog {
                 api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
                     .expect("guardianito url must be valid"),
             },
+            fedi_fee: FediFeeConfig {
+                remittance_max_delay_secs: 300, // 5 minutes for testing
+            },
         }
     }
 
@@ -196,6 +211,9 @@ impl FeatureCatalog {
                 api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
                     .expect("guardianito url must be valid"),
             },
+            fedi_fee: FediFeeConfig {
+                remittance_max_delay_secs: 300, // 5 minutes for testing
+            },
         }
     }
 
@@ -219,6 +237,9 @@ impl FeatureCatalog {
             guardianito: GuardianitoFeatureConfig {
                 api_base_url: Url::parse("https://staging.guardianito.dev.fedibtc.com")
                     .expect("guardianito url must be valid"),
+            },
+            fedi_fee: FediFeeConfig {
+                remittance_max_delay_secs: 300, // 5 minutes for testing
             },
         }
     }
@@ -246,6 +267,9 @@ impl FeatureCatalog {
             guardianito: GuardianitoFeatureConfig {
                 api_base_url: Url::parse("https://prod.guardianito.dev.fedibtc.com")
                     .expect("guardianito url must be valid"),
+            },
+            fedi_fee: FediFeeConfig {
+                remittance_max_delay_secs: 3 * 24 * 60 * 60, // 3 days for prod
             },
         }
     }

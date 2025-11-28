@@ -6,6 +6,7 @@ use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{Amount, impl_db_lookup, impl_db_record};
 use rpc_types::{OperationFediFeeStatus, RpcTransactionDirection};
 use runtime::storage::state::FiatFXInfo;
+use stability_pool_client::common::FiatAmount;
 
 #[repr(u8)]
 pub enum BridgeDbPrefix {
@@ -66,8 +67,23 @@ pub enum BridgeDbPrefix {
     // reporting together with the Fedi fee invoice generator endpoint. Fedi fee invoice currently
     // only works with a remittance threshold amount, which can lead to long time periods in
     // between queries. To somewhat normalize the reporting frequency for Fedi gift data, we also
-    // decide to introduce a 7-day check to trigger Fedi fee invoice generation.
+    // decide to introduce a time-based check to trigger Fedi fee invoice generation.
     FediFeesRemittanceTimestampPerTXType = 0xc3,
+
+    // For the Fedi gift project (iteration #1), we would also like to know the aggregate SPV2
+    // balance of the reporting users. We accomplish this by storing the SPV2 balance as of the
+    // last fee invoice request. The first time we send up the actual balance. Every subsequent
+    // time, we send up the delta since last time.
+    LastFediFeesRemittanceSPv2Balance = 0xc4,
+
+    // Opposed to the Oustanding fedi fee which increases between remissions, and is cleared out
+    // to 0 upon remission, the total accrued fedi fee only ever goes up.
+    TotalAccruedFediFeesPerTXType = 0xc5,
+
+    // For the Fedi gift project (iteration #1), we ask for a 0-invoice amount when the
+    // outstanding fee is below the threshold. However, we would still like to tell the server
+    // about the additional accrued fee since last time so that TX volume can be approximated.
+    LastFediFeesRemittanceTotalAccruedFees = 0xc6,
 
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
@@ -209,12 +225,39 @@ impl_db_lookup!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
+pub struct TotalAccruedFediFeesPerTXTypeKey(pub ModuleKind, pub RpcTransactionDirection);
+
+impl_db_record!(
+    key = TotalAccruedFediFeesPerTXTypeKey,
+    value = Amount,
+    db_prefix = BridgeDbPrefix::TotalAccruedFediFeesPerTXType,
+);
+
+#[derive(Debug, Decodable, Encodable)]
 pub struct FediFeesRemittanceTimestampPerTXTypeKey(pub ModuleKind, pub RpcTransactionDirection);
 
 impl_db_record!(
     key = FediFeesRemittanceTimestampPerTXTypeKey,
     value = SystemTime,
     db_prefix = BridgeDbPrefix::FediFeesRemittanceTimestampPerTXType,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LastFediFeesRemittanceSPv2BalanceKey;
+
+impl_db_record!(
+    key = LastFediFeesRemittanceSPv2BalanceKey,
+    value = FiatAmount,
+    db_prefix = BridgeDbPrefix::LastFediFeesRemittanceSPv2Balance,
+);
+
+#[derive(Debug, Decodable, Encodable)]
+pub struct LastFediFeesRemittanceTotalAccruedFeesKey(pub ModuleKind, pub RpcTransactionDirection);
+
+impl_db_record!(
+    key = LastFediFeesRemittanceTotalAccruedFeesKey,
+    value = Amount,
+    db_prefix = BridgeDbPrefix::LastFediFeesRemittanceTotalAccruedFees,
 );
 
 #[derive(Debug, Decodable, Encodable)]

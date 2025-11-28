@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, View } from 'react-native'
 
 import { useLatestPublicCommunities } from '@fedi/common/hooks/federation'
 import { selectCommunityIds } from '@fedi/common/redux'
+import { isNightly } from '@fedi/common/utils/environment'
 import { Images } from '@fedi/native/assets/images'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
@@ -15,6 +16,10 @@ import { OmniInput } from '../components/feature/omni/OmniInput'
 import { FirstTimeOverlayItem } from '../components/feature/onboarding/FirstTimeOverlay'
 import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
+import {
+    COMMUNITY_TOOL_URL_STAGING,
+    COMMUNITY_TOOL_URL_PROD,
+} from '../constants'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -227,7 +232,9 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
                         title={t('phrases.create-my-community')}
                         onPress={() =>
                             navigation.navigate('FediModBrowser', {
-                                url: 'https://community-generator.fedi.xyz',
+                                url: isNightly()
+                                    ? COMMUNITY_TOOL_URL_STAGING
+                                    : COMMUNITY_TOOL_URL_PROD,
                             })
                         }
                     />

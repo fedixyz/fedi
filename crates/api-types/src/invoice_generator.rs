@@ -139,3 +139,32 @@ pub struct InvoiceRequestMemoV3 {
 pub struct GenerateInvoiceResponseV3 {
     pub invoice: String,
 }
+
+// v4 - removing privacy sensitive fields from v3, and adding
+// spv2_balance_delta_cents
+
+// Add in a new field spv2_balance_delta_cents which is either:
+// - the user's actual spv2 balance the first time
+// - the difference (+ve for increase, -ve for decrease) since the last
+//   remittance every subsequent time
+//
+// Also add in a new field accrued_fee_delta_msat, which is the added accrued
+// fee since the last time we requested an invoice.
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v4")]
+pub struct GenerateInvoiceRequestV4 {
+    pub amount_msat: u64,
+    pub module: String,
+    pub tx_direction: TransactionDirection,
+    pub accrued_fee_delta_msat: u64,
+    // Optional because federation may not have SPV2 module
+    pub spv2_balance_delta_cents: Option<i64>,
+    pub first_comm_invite_code: FirstCommunityInviteCodeState,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "v4")]
+pub struct GenerateInvoiceResponseV4 {
+    pub invoice: String,
+}

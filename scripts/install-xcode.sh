@@ -36,9 +36,9 @@ prompt_move_xcode() {
 trap exit_script SIGINT SIGTERM
 
 # download and unzip 'xcodes' utility
-XCODE_VERSION_TO_INSTALL=16.1.0
-IOS_RUNTIME_TO_INSTALL="iOS 18.1"
-XCODES_RELEASE_URL="https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
+XCODE_VERSION_TO_INSTALL=26.0.0
+IOS_RUNTIME_TO_INSTALL="iOS 26.0"
+XCODES_RELEASE_URL="https://github.com/XcodesOrg/xcodes/releases/download/1.6.2/xcodes.zip"
 INSTALLED_XCODE_PATH="/Applications/Xcode-$XCODE_VERSION_TO_INSTALL.app"
 EXPECTED_XCODE_PATH="/Applications/Xcode.app"
  

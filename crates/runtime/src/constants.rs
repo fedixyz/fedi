@@ -34,9 +34,6 @@ pub const DEVICE_REGISTRATION_FREQUENCY: Duration = Duration::from_secs(15 * 60)
 // front-end
 pub const DEVICE_REGISTRATION_OVERDUE: Duration = Duration::from_secs(12 * 60 * 60);
 
-// In addition to amount threshold, remit fedi fee every 7 days
-pub const FEDI_FEE_REMITTANCE_MAX_DELAY: Duration = Duration::from_secs(7 * 24 * 60 * 60);
-
 // App should refresh fee schedules every 24 hours
 pub const FEDI_FEE_SCHEDULE_REFRESH_DELAY: Duration = Duration::from_secs(24 * 60 * 60);
 
@@ -58,9 +55,9 @@ pub const FEDI_FEE_API_URL_MAINNET: &str =
 
 // URL for Fedi fee lightning invoice generator API
 pub const FEDI_INVOICE_API_URL_MUTINYNET: &str =
-    "https://staging.fee-collection.dev.fedibtc.com/v3/generate-invoice";
+    "https://staging.fee-collection.dev.fedibtc.com/v4/generate-invoice";
 pub const FEDI_INVOICE_API_URL_MAINNET: &str =
-    "https://prod.fee-collection.dev.fedibtc.com/v3/generate-invoice";
+    "https://prod.fee-collection.dev.fedibtc.com/v4/generate-invoice";
 
 pub const COMMUNITY_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community");
 pub const COMMUNITY_V2_INVITE_CODE_HRP: Hrp = Hrp::parse_unchecked("fedi:community2");

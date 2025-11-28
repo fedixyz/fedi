@@ -1,5 +1,5 @@
 import { TFunction } from 'i18next'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -39,7 +39,7 @@ import {
     Federation,
     LoadedFederation,
 } from '../types'
-import { RpcFederationPreview } from '../types/bindings'
+import { RpcCommunity, RpcFederationPreview } from '../types/bindings'
 import dateUtils from '../utils/DateUtils'
 import {
     detectInviteCodeType,
@@ -301,6 +301,34 @@ export function useLatestPublicCommunities() {
         findPublicCommunities,
         isFetchingPublicCommunities: isFetching,
     }
+}
+
+export function useCreatedCommunities(communityId?: string) {
+    const fedimint = useFedimint()
+    const [createdCommunities, setCreatedCommunities] = useState<
+        RpcCommunity[]
+    >([])
+
+    useEffect(() => {
+        fedimint
+            .listCreatedCommunities()
+            .then(result => {
+                setCreatedCommunities(result)
+            })
+            .catch(err => {
+                log.error('Failed to fetch created communities', err)
+                // Silently fail and keep empty array
+            })
+    }, [fedimint])
+
+    const canEditCommunity = useMemo(() => {
+        if (!communityId) return false
+        return createdCommunities.some(
+            c => c.communityInvite.invite_code_str === communityId,
+        )
+    }, [createdCommunities, communityId])
+
+    return { createdCommunities, canEditCommunity }
 }
 
 // Only v2+ federations use secrets derived from single seed

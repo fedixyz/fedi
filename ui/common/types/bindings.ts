@@ -162,6 +162,18 @@ export type FeatureCatalog = {
    * Guardianito chatbot API configuration.
    */
   guardianito: GuardianitoFeatureConfig;
+  /**
+   * Configuration regarding the remittance of Fedi fee
+   */
+  fedi_fee: FediFeeConfig;
+};
+
+export type FediFeeConfig = {
+  /**
+   * How long (max) are we willing to wait before requesting a 0-amount
+   * invoice from Fedi's servers to keep up a reasonable syncing cadences
+   */
+  remittance_max_delay_secs: number;
 };
 
 export type FiatFXInfo = {
