@@ -37,3 +37,9 @@ export const DEFAULT_FEDIMODS: FediMod[] = [
         url: 'https://geyser.fund/project/supporthrf',
     },
 ]
+
+export const CATALOG_URL_PROD = 'https://fedi-catalog.vercel.app'
+export const CATALOG_URL_STAGING = 'https://fedi-catalog-staging.vercel.app'
+export const COMMUNITY_TOOL_URL_PROD = 'https://community-generator.fedi.xyz'
+export const COMMUNITY_TOOL_URL_STAGING =
+    'https://community-tool-two.vercel.app'

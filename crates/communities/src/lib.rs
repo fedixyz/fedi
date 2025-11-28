@@ -316,15 +316,17 @@ impl Community {
                     .with_write_lock(|state| {
                         state.joined_communities.insert(
                             self.community_invite.to_string(),
-                            CommunityInfo { meta: new_meta },
+                            CommunityInfo {
+                                meta: new_meta.clone(),
+                            },
                         )
                     })
                     .await;
                 self.event_sink
                     .typed_event(&Event::community_metadata_updated(RpcCommunity {
                         community_invite: From::from(&self.community_invite),
-                        name: meta.name,
-                        meta: meta.meta,
+                        name: new_meta.name.clone(),
+                        meta: new_meta.meta.clone(),
                     }));
             }
             Ok(_) => (),

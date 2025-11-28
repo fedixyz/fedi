@@ -680,6 +680,18 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         setBrowserUrl(url)
     }, [url])
 
+    // when navigating away from this screen, we call onAppForeground
+    // so that edits made in the community tool to any joined communities
+    // reflect right away in the UI
+    // this is kind of a hack, but it also seems like somewhat sensible behavior
+    // anyway since in a way we are re-entering the native app context after
+    // being inside a browser context.
+    useEffect(() => {
+        return () => {
+            fedimint.onAppForeground()
+        }
+    }, [])
+
     return (
         <SafeAreaContainer edges="vertical">
             <WebView

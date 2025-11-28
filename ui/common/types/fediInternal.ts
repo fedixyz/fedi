@@ -2,7 +2,7 @@ import { RequestInvoiceArgs } from 'webln'
 
 import { InjectionMessageType } from '@fedi/injections/src'
 
-import { isDev } from '../utils/environment'
+import { isDev, isNightly } from '../utils/environment'
 import { FediMod } from './fedimint'
 
 export type EcashRequest = Omit<RequestInvoiceArgs, 'defaultMemo'>
@@ -65,10 +65,19 @@ const DEV_PERMISSIONS: MiniAppPermissionsById = {
     'http://10.0.2.2': [...miniAppPermissionTypes], // host for android emulator
 }
 
+const NIGHTLY_PERMISSIONS: MiniAppPermissionsById = {
+    'https://fedi-catalog-staging.vercel.app': ['manageInstalledMiniApps'],
+    'https://community-tool-two.vercel.app': [
+        'manageCommunities',
+        'navigation',
+    ],
+}
+
 // these are "first party" miniapps pre-authorized with certain default permissions
 export const FIRST_PARTY_PERMISSIONS: MiniAppPermissionsById = {
     'https://fedi-catalog.vercel.app': ['manageInstalledMiniApps'],
     'https://community-generator.fedi.xyz': ['manageCommunities', 'navigation'],
+    ...(isNightly() ? NIGHTLY_PERMISSIONS : {}),
     ...(isDev() ? DEV_PERMISSIONS : {}),
 }
 

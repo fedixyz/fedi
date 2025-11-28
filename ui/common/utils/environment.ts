@@ -18,3 +18,11 @@ export const isDev = () => {
         return false
     }
 }
+
+export const isNightly = () => {
+    try {
+        return !!process && process.env.FEDI_ENV === 'nightly'
+    } catch (_) {
+        return false
+    }
+}
