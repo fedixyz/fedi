@@ -67,7 +67,7 @@ jobs:
                   bash ./scripts/ci/verify-bridge-hash.sh "$APK_PATH" "${{ github.sha }}"
 
             - name: Create draft GitHub release with APK
-              uses: softprops/action-gh-release@v2.2.2
+              uses: softprops/action-gh-release@v2.5.0
               with:
                   tag_name: v${{ steps.prep-apk.outputs.APK_VERSION }}-nightly
                   name: 'Fedi Nightly v${{ steps.prep-apk.outputs.APK_VERSION }}'
