@@ -45,7 +45,14 @@ export function useLoadMedia(
                 const result = await readBridgeFile(mediaPath)
 
                 objectUrl = URL.createObjectURL(
-                    new Blob([result], { type: mimeType }),
+                    new Blob(
+                        [
+                            typeof result === 'string'
+                                ? result
+                                : Uint8Array.from(result),
+                        ],
+                        { type: mimeType },
+                    ),
                 )
 
                 mediaCache.set(id, objectUrl)
@@ -80,7 +87,7 @@ interface UseScaledDimensionsParams {
     id: string
     originalWidth: number
     originalHeight: number
-    containerRef: RefObject<HTMLElement>
+    containerRef: RefObject<HTMLElement | null>
 }
 
 interface Dimensions {

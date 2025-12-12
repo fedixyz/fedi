@@ -19,7 +19,7 @@ futures = { workspace = true }
 gloo-utils = "0.2"
 gloo-console = "0.3"
 gloo-file = "0.3"
-imbl = "5"
+imbl.workspace = true
 js-sys = "0.3.77"
 rexie = "0.4.2"
 serde = { workspace = true, features = ["derive"] }

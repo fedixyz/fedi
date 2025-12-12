@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet } from 'react-native'
+import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native'
 
 import {
     selectAlphabeticallySortedCommunities,
@@ -44,7 +44,12 @@ const Settings: React.FC<Props> = () => {
             testID="UserQrContainer"
             contentContainerStyle={style.container}>
             <Flex gap="lg">
-                {matrixAuth && <UserQr matrixUser={matrixAuth} />}
+                {/* in case matrix is not initialized yet */}
+                {matrixAuth ? (
+                    <UserQr matrixUser={matrixAuth} />
+                ) : (
+                    <ActivityIndicator />
+                )}
                 <Flex gap="lg">
                     <Text color={theme.colors.night} style={style.sectionTitle}>
                         {t('words.general')}

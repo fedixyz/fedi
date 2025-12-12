@@ -11,3 +11,8 @@ export type StabilityPoolState = Pick<
     | 'idleBalance'
     | 'pendingUnlockRequest'
 >
+
+export type Spv2ParsedPaymentAddress = {
+    address: string
+    accountId: string
+}

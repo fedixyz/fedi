@@ -1,6 +1,5 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import { useNavigation } from '@react-navigation/native'
-import { Button, Image, Text, Theme, useTheme } from '@rneui/themed'
+import { Image, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
@@ -10,7 +9,6 @@ import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
     selectIsMatrixChatEmpty,
     selectMatrixStatus,
-    selectNeedsMatrixRegistration,
     selectOnboardingMethod,
 } from '@fedi/common/redux'
 
@@ -22,11 +20,7 @@ import FirstTimeOverlay, {
 import Flex from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { MatrixSyncStatus } from '../types'
-import {
-    NavigationHook,
-    RootStackParamList,
-    TabsNavigatorParamList,
-} from '../types/navigation'
+import { RootStackParamList, TabsNavigatorParamList } from '../types/navigation'
 import { useDismissIosNotifications } from '../utils/hooks/notifications'
 
 export type Props = BottomTabScreenProps<
@@ -37,10 +31,8 @@ export type Props = BottomTabScreenProps<
 const ChatScreen: React.FC<Props> = () => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const navigation = useNavigation<NavigationHook>()
 
     const syncStatus = useAppSelector(selectMatrixStatus)
-    const needsChatRegistration = useAppSelector(selectNeedsMatrixRegistration)
     const onboardingMethod = useAppSelector(selectOnboardingMethod)
 
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
@@ -79,34 +71,7 @@ const ChatScreen: React.FC<Props> = () => {
 
     return (
         <Flex grow center>
-            {needsChatRegistration ? (
-                <Flex grow center fullWidth style={style.registration}>
-                    <Image
-                        resizeMode="contain"
-                        source={Images.IllustrationChat}
-                        style={style.emptyImage}
-                    />
-                    <Text
-                        h1
-                        style={style.registrationText}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit>
-                        {t('feature.chat.need-registration-title')}
-                    </Text>
-                    <Text style={style.registrationText} adjustsFontSizeToFit>
-                        {t('feature.chat.need-registration-description')}
-                    </Text>
-                    <Button
-                        fullWidth
-                        title={
-                            <Text style={{ color: theme.colors.secondary }}>
-                                {t('words.continue')}
-                            </Text>
-                        }
-                        onPress={() => navigation.push('EnterDisplayName')}
-                    />
-                </Flex>
-            ) : isChatEmpty ? (
+            {isChatEmpty ? (
                 <>
                     <Image
                         resizeMode="contain"

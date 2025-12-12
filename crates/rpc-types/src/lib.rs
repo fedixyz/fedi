@@ -32,6 +32,9 @@ pub mod event;
 pub mod matrix;
 pub mod multispend;
 pub mod nostril;
+pub mod sp_transfer;
+
+pub use communities::{CommunityInvite, CommunityInviteV2};
 
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -617,6 +620,24 @@ pub enum RpcSPV2WithdrawalState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SpV2TransferOutKind {
+    Multispend,
+    MatrixSpTransfer,
+    SpTransferUi,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SpV2TransferInKind {
+    Multispend,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 #[ts(export)]
 pub enum RpcSPV2TransferOutState {
@@ -625,6 +646,7 @@ pub enum RpcSPV2TransferOutState {
         amount: RpcAmount,
         #[ts(type = "number")]
         fiat_amount: u64,
+        kind: SpV2TransferOutKind,
     },
     DataNotInCache,
 }
@@ -639,6 +661,7 @@ pub enum RpcSPV2TransferInState {
         amount: RpcAmount,
         #[ts(type = "number")]
         fiat_amount: u64,
+        kind: SpV2TransferInKind,
     },
     DataNotInCache,
 }
@@ -945,6 +968,11 @@ pub enum SPv2TransferMetadata {
     MultispendWithdrawal {
         room: RpcRoomId,
         request_id: RpcEventId,
+    },
+    /// Matrix SP transfer person-to-person transfer
+    MatrixSpTransfer {
+        room: RpcRoomId,
+        pending_transfer_id: RpcEventId,
     },
 }
 

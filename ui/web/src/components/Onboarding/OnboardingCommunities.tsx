@@ -7,11 +7,17 @@ import CommunityCreateImage from '@fedi/common/assets/images/community-create-gr
 import BuildingIcon from '@fedi/common/assets/svgs/building.svg'
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
 import ToolIcon from '@fedi/common/assets/svgs/tool.svg'
+import {
+    COMMUNITY_TOOL_URL_PROD,
+    COMMUNITY_TOOL_URL_STAGING,
+} from '@fedi/common/constants/fedimods'
 import { ParserDataType } from '@fedi/common/types'
+import { isDev, isNightly } from '@fedi/common/utils/environment'
 
 import { onboardingJoinRoute } from '../../constants/routes'
 import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
+import { FediBrowser } from '../FediBrowser'
 import { Icon } from '../Icon'
 import * as Layout from '../Layout'
 import { OmniInput } from '../OmniInput'
@@ -66,6 +72,7 @@ export function OnboardingCommunities() {
     const { push, query, replace } = useRouter()
 
     const [activeTab, setActiveTab] = useState<TabValue>('join')
+    const [showBrowser, setShowBrowser] = useState(false)
 
     const switcherOptions: SwitcherOption[] = [
         // { label: t('words.discover'), value: 'discover' }, // This will be used at a later date
@@ -74,12 +81,11 @@ export function OnboardingCommunities() {
             value: 'join',
             subText: t('feature.communities.guidance-join'),
         },
-        // TODO: uncomment when community generator v2 is ready
-        // {
-        //     label: t('words.create'),
-        //     value: 'create',
-        //     subText: t('feature.communities.guidance-discover'),
-        // },
+        {
+            label: t('words.create'),
+            value: 'create',
+            subText: t('feature.communities.guidance-discover'),
+        },
     ]
 
     const selectedOption =
@@ -107,14 +113,10 @@ export function OnboardingCommunities() {
         push(onboardingJoinRoute(code))
     }
 
-    const handleCreateCommunity = () => {
-        window.open(
-            'https://support.fedi.xyz/hc/en-us/sections/18214787528082-Federation-Setup',
-            '_blank',
-        )
-    }
-
     let body: React.ReactElement
+    let actions: React.ReactElement | null = null
+
+    const showStagingUrl = isDev() || isNightly()
 
     if (activeTab === 'join') {
         body = (
@@ -146,53 +148,60 @@ export function OnboardingCommunities() {
                     </ImageWrapper>
                     <InfoEntryList items={createInfoItems} />
                 </CreateContentWrapper>
-                <CreateButtonContainer>
-                    <Button width="full" onClick={handleCreateCommunity}>
-                        {t('phrases.create-my-community')}
-                    </Button>
-                </CreateButtonContainer>
             </CreateContainer>
+        )
+        actions = (
+            <Layout.Actions>
+                <Button width="full" onClick={() => setShowBrowser(true)}>
+                    {t('phrases.create-my-community')}
+                </Button>
+            </Layout.Actions>
         )
     } else {
         body = <PublicFederations />
     }
 
     return (
-        <Layout.Root>
-            <Layout.Header centered back>
-                <Layout.Title subheader>
-                    {t('phrases.join-a-community')}
-                </Layout.Title>
-            </Layout.Header>
-            <Layout.Content>
-                <Content>
-                    <TitleWrapper>
-                        <Text variant="h2" css={{ marginBottom: 0 }}>
-                            {t('feature.communities.onboarding-title')}
-                        </Text>
-                        <Text
-                            variant="caption"
-                            css={{ color: theme.colors.darkGrey }}>
-                            {selectedOption.subText}
-                        </Text>
-                    </TitleWrapper>
-                    {/* TODO: remove this check when either Discover or Create tabs are ready */}
-                    {switcherOptions.length > 1 && (
+        <>
+            <Layout.Root>
+                <Layout.Header centered back>
+                    <Layout.Title subheader>
+                        {t('phrases.join-a-community')}
+                    </Layout.Title>
+                </Layout.Header>
+                <Layout.Content>
+                    <Content>
+                        <TitleWrapper>
+                            <Text variant="h2" css={{ marginBottom: 0 }}>
+                                {t('feature.communities.onboarding-title')}
+                            </Text>
+                            <Text
+                                variant="caption"
+                                css={{ color: theme.colors.darkGrey }}>
+                                {selectedOption.subText}
+                            </Text>
+                        </TitleWrapper>
                         <Switcher
                             options={switcherOptions}
                             onChange={handleOnChange}
                             selected={activeTab}
                         />
-                    )}
-                    <Body>{body}</Body>
-                </Content>
-            </Layout.Content>
-            <Layout.Actions>
-                <Button variant="tertiary" onClick={() => push('/home')}>
-                    {t('phrases.maybe-later')}
-                </Button>
-            </Layout.Actions>
-        </Layout.Root>
+                        <Body>{body}</Body>
+                    </Content>
+                </Layout.Content>
+                {actions}
+            </Layout.Root>
+            {showBrowser && (
+                <FediBrowser
+                    url={
+                        showStagingUrl
+                            ? COMMUNITY_TOOL_URL_STAGING
+                            : COMMUNITY_TOOL_URL_PROD
+                    }
+                    onClose={() => setShowBrowser(false)}
+                />
+            )}
+        </>
     )
 }
 
@@ -264,8 +273,4 @@ const IconWrapper = styled('div', {
     '& svg': {
         color: theme.colors.white,
     },
-})
-
-const CreateButtonContainer = styled('div', {
-    display: 'flex',
 })

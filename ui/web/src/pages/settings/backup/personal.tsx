@@ -1,125 +1,156 @@
+import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import WarningIcon from '@fedi/common/assets/svgs/warning.svg'
 import WordListIcon from '@fedi/common/assets/svgs/word-list.svg'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
 import { SeedWords } from '@fedi/common/types'
 
-import { Avatar } from '../../../components/Avatar'
 import { Button } from '../../../components/Button'
 import { ContentBlock } from '../../../components/ContentBlock'
+import { Column, Row } from '../../../components/Flex'
+import { Icon } from '../../../components/Icon'
 import * as Layout from '../../../components/Layout'
 import { RecoverySeedWords } from '../../../components/RecoverySeedWords'
 import { Text } from '../../../components/Text'
+import { federationsRoute } from '../../../constants/routes'
 import { fedimint } from '../../../lib/bridge'
-import { styled } from '../../../styles'
+import { styled, theme } from '../../../styles'
 
 function PersonalBackupPage() {
     const { t } = useTranslation()
     const { error } = useToast()
+    const router = useRouter()
+
+    const [, completePersonalBackup] = useNuxStep('hasPerformedPersonalBackup')
+
     const [words, setWords] = useState<SeedWords>([])
 
-    const router = useRouter()
-    const [hasPerformedPersonalBackup, completePersonalBackup] = useNuxStep(
-        'hasPerformedPersonalBackup',
-    )
-
-    const [isShowingWords, setIsShowingWords] = useState(
-        hasPerformedPersonalBackup,
-    )
+    const isFromJoin = router?.query?.from === 'join'
 
     useEffect(() => {
-        if (!isShowingWords) return
         fedimint
             .getMnemonic()
             .then(mnemonic => setWords(mnemonic))
             .catch(err => error(err, 'errors.unknown-error'))
-    }, [isShowingWords, error])
+    }, [error])
 
-    const handleFinish = useCallback(() => {
+    const handleFinish = () => {
         completePersonalBackup()
-        router.push('/home')
-    }, [completePersonalBackup, router])
+
+        if (isFromJoin) {
+            return router.push(federationsRoute)
+        }
+
+        router.back()
+    }
 
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back>
+                <Layout.Header
+                    back={!isFromJoin}
+                    rightComponent={
+                        isFromJoin ? (
+                            <Link href={federationsRoute}>
+                                {t('words.skip')}
+                            </Link>
+                        ) : undefined
+                    }>
                     <Layout.Title subheader>
                         {t('feature.backup.personal-backup')}
                     </Layout.Title>
                 </Layout.Header>
-                {isShowingWords ? (
-                    <>
-                        <Layout.Content>
-                            <Content>
-                                <Text variant="h2" weight="normal">
-                                    {t('feature.backup.recovery-words')}
-                                </Text>
 
-                                <Text>
-                                    {t(
-                                        'feature.backup.recovery-words-instructions',
-                                    )}
-                                </Text>
-                                <RecoverySeedWords words={words} readOnly />
-                            </Content>
-                        </Layout.Content>
-                        <Layout.Actions>
-                            <Button width="full" onClick={handleFinish}>
-                                {t('words.done')}
-                            </Button>
-                        </Layout.Actions>
-                    </>
-                ) : (
-                    <>
-                        <Layout.Content>
-                            <Content css={{ justifyContent: 'center' }}>
-                                <Avatar
-                                    size="lg"
-                                    id=""
-                                    name="list"
-                                    holo
-                                    icon={WordListIcon}
-                                    css={{ alignSelf: 'center' }}
-                                />
-                                <Text
-                                    variant="h2"
-                                    weight="normal"
-                                    css={{ textAlign: 'center' }}>
-                                    {t('feature.backup.personal-backup')}
-                                </Text>
+                <Layout.Content>
+                    <Content>
+                        <Column gap="md" align="center">
+                            <IconWrapper>
+                                <Icon icon={WordListIcon} size="md" />
+                            </IconWrapper>
+                            <Text
+                                variant="h2"
+                                weight="bold"
+                                css={{ textAlign: 'center' }}>
+                                {t('feature.backup.personal-backup-title')}
+                            </Text>
 
-                                <Text
-                                    css={{
-                                        textAlign: 'center',
-                                    }}>
-                                    {t(
-                                        'feature.backup.start-personal-backup-instructions',
-                                    )}
-                                </Text>
-                            </Content>
-                        </Layout.Content>
-                        <Layout.Actions>
-                            <Button
-                                width="full"
-                                onClick={() => setIsShowingWords(true)}>
-                                {t('words.continue')}
-                            </Button>
-                        </Layout.Actions>
-                    </>
-                )}
+                            <Text
+                                variant="small"
+                                css={{
+                                    textAlign: 'center',
+                                    color: theme.colors.darkGrey,
+                                }}>
+                                {t(
+                                    'feature.backup.personal-backup-description',
+                                )}
+                            </Text>
+                            <WarningBox>
+                                <Row align="center" gap="sm">
+                                    <Icon icon={WarningIcon} size="xs" />
+                                    <Text
+                                        variant="small"
+                                        css={{ color: theme.colors.black }}>
+                                        {t(
+                                            'feature.backup.personal-backup-warning-line-1',
+                                        )}
+                                    </Text>
+                                </Row>
+                                <Row>
+                                    <Text
+                                        variant="small"
+                                        css={{ color: theme.colors.black }}>
+                                        {t(
+                                            'feature.backup.personal-backup-warning-line-2',
+                                        )}
+                                    </Text>
+                                </Row>
+                            </WarningBox>
+                            <Text weight="bold">
+                                {t('feature.backup.personal-backup-words-tip')}
+                            </Text>
+                            <RecoverySeedWords words={words} readOnly />
+                        </Column>
+                    </Content>
+                </Layout.Content>
+                <Layout.Actions>
+                    <Button
+                        width="full"
+                        onClick={handleFinish}
+                        data-testid="confirm-button">
+                        {t(
+                            'feature.backup.personal-backup-button-primary-text',
+                        )}
+                    </Button>
+                </Layout.Actions>
             </Layout.Root>
         </ContentBlock>
     )
 }
 
-const Content = styled('div', {
+const Content = styled('div', {})
+
+const IconWrapper = styled('div', {
+    alignItems: 'center',
+    borderRadius: '50%',
+    display: 'flex',
+    fediGradient: 'sky-banner',
+    justifyContent: 'center',
+    padding: theme.spacing.md,
+})
+
+const WarningBox = styled('div', {
+    alignItems: 'center',
+    background: theme.colors.orange100,
+    borderRadius: 6,
     display: 'flex',
     flexDirection: 'column',
-    gap: 16,
+    padding: theme.spacing.md,
+    textAlign: 'center',
+    width: '100%',
 })
 
 export default PersonalBackupPage

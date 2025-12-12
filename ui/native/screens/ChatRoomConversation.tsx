@@ -108,7 +108,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         [chatType, dispatch, isSending, roomId, t, toast],
     )
 
-    const renderMessageInput = useCallback((): JSX.Element => {
+    const renderMessageInput = useCallback((): React.ReactElement => {
         const input = (
             <MessageInput
                 onMessageSubmitted={handleSend}

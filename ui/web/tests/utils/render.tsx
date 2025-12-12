@@ -28,7 +28,9 @@ export function renderWithProviders(
         ...renderOptions
     }: ExtendedRenderOptions = {},
 ) {
-    function Wrapper({ children }: PropsWithChildren<unknown>): JSX.Element {
+    function Wrapper({
+        children,
+    }: PropsWithChildren<unknown>): React.ReactElement {
         return (
             <I18nextProvider i18n={i18n}>
                 <Provider store={store}>
@@ -52,7 +54,9 @@ export function renderHookWithProviders<Result, Props>(
         ...renderOptions
     }: ExtendedRenderOptions = {},
 ) {
-    function Wrapper({ children }: PropsWithChildren<unknown>): JSX.Element {
+    function Wrapper({
+        children,
+    }: PropsWithChildren<unknown>): React.ReactElement {
         return (
             <I18nextProvider i18n={i18n}>
                 <Provider store={store}>
@@ -80,7 +84,9 @@ export function renderWithBridge(
         fedimint: FedimintBridge
     },
 ) {
-    function Wrapper({ children }: PropsWithChildren<unknown>): JSX.Element {
+    function Wrapper({
+        children,
+    }: PropsWithChildren<unknown>): React.ReactElement {
         return (
             <I18nextProvider i18n={i18n}>
                 <Provider store={store}>

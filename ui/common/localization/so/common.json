@@ -596,7 +596,7 @@
             "clear-cache-disk-done": "Cache-ga diskka waa la nadiifiyay",
             "clear-cache-ram": "RAM kaliya",
             "clear-cache-ram-done": "Cache ayaa laga nadiifiyay RAM kaliya",
-            "delete-confirmation": "Ma hubtaa inaad rabto inaad tirtirto {{fediMod}}?",
+            "delete-confirmation": "Ma hubtaa inaad rabto inaad tirtirto {{miniAppName}}?",
             "enter-amount-to-withdraw": "Gali cadad aad kala baxayso {{fediMod}}",
             "enter-site-link": "Geli Xiriirinta Goobta",
             "fedi-mods": "Fedi Abka-yar",

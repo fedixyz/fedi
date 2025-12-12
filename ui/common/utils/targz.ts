@@ -22,5 +22,5 @@ export async function makeTarGz(files: File[]): Promise<Buffer> {
     await new Promise(resolve => packer.on('end', resolve))
 
     const tarBuffer = Buffer.concat(collectedChunks)
-    return Buffer.from(pako.gzip(tarBuffer))
+    return Buffer.from(pako.gzip(new Uint8Array(tarBuffer)))
 }

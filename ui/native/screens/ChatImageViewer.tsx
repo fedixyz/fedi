@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, StyleSheet } from 'react-native'
 
 import { FileUri, HttpUri } from '@fedi/common/types/media'
 
-import Flex from '../components/ui/Flex'
+import { Row } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -19,7 +19,7 @@ export type Props = NativeStackScreenProps<
 
 const ChatImageViewer: React.FC<Props> = ({ route, navigation }: Props) => {
     const { theme } = useTheme()
-    const { uri } = route.params
+    const { uri, downloadable = true } = route.params
     const {
         uri: imageUri,
         isDownloading,
@@ -30,25 +30,26 @@ const ChatImageViewer: React.FC<Props> = ({ route, navigation }: Props) => {
 
     return (
         <SafeAreaContainer style={style.imageViewerContainer} edges="vertical">
-            <Flex
-                row
+            <Row
                 align="center"
                 justify="between"
                 style={style.imageViewerHeader}>
                 <Pressable hitSlop={10} onPress={() => navigation.goBack()}>
                     <SvgImage name="Close" color={theme.colors.secondary} />
                 </Pressable>
-                <Pressable hitSlop={10} onPress={handleDownload}>
-                    {isDownloading ? (
-                        <ActivityIndicator />
-                    ) : (
-                        <SvgImage
-                            name="Download"
-                            color={theme.colors.secondary}
-                        />
-                    )}
-                </Pressable>
-            </Flex>
+                {downloadable && (
+                    <Pressable hitSlop={10} onPress={handleDownload}>
+                        {isDownloading ? (
+                            <ActivityIndicator />
+                        ) : (
+                            <SvgImage
+                                name="Download"
+                                color={theme.colors.secondary}
+                            />
+                        )}
+                    </Pressable>
+                )}
+            </Row>
             <ImageZoom uri={imageUri ?? uri} style={style.imageZoomContainer} />
         </SafeAreaContainer>
     )

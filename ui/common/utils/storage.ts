@@ -25,13 +25,13 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 36,
+        version: 38,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
         language: state.environment.language,
         amountInputType: state.environment.amountInputType,
-        showFiatTxnAmounts: state.environment.showFiatTxnAmounts,
+        transactionDisplayType: state.environment.transactionDisplayType,
         deviceId: state.environment.deviceId,
         currency: state.currency.overrideCurrency,
         btcUsdRate: state.currency.btcUsdRate,
@@ -44,6 +44,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         protectedFeatures: state.security.protectedFeatures,
         customGlobalMods: state.mod.customGlobalMods,
         modVisibility: state.mod.modVisibility,
+        newMods: state.mod.newMods,
         chatDrafts: state.matrix.drafts,
         support: {
             supportPermissionGranted: state.support.supportPermissionGranted,
@@ -100,7 +101,7 @@ export function hasStorageStateChanged(
         ['environment', 'onchainDepositsEnabled'],
         ['environment', 'developerMode'],
         ['environment', 'stableBalanceEnabled'],
-        ['environment', 'showFiatTxnAmounts'],
+        ['environment', 'transactionDisplayType'],
         ['environment', 'deviceId'],
         ['environment', 'sessionCount'],
         ['currency', 'overrideCurrency'],
@@ -121,6 +122,7 @@ export function hasStorageStateChanged(
         ['security', 'protectedFeatures'],
         ['mod', 'customGlobalMods'],
         ['mod', 'modVisibility'],
+        ['mod', 'newMods'],
         ['support', 'supportPermissionGranted'],
         ['support', 'zendeskPushNotificationToken'],
         ['survey', 'lastShownSurveyTimestamp'],
@@ -737,6 +739,23 @@ async function migrateStoredState(
             version: 36,
             surveyCompletions: {},
             lastShownSurveyTimestamp: -1,
+        }
+    }
+
+    if (migrationState.version === 36) {
+        migrationState = {
+            ...migrationState,
+            version: 37,
+            transactionDisplayType:
+                migrationState.showFiatTxnAmounts === false ? 'sats' : 'fiat',
+        }
+    }
+
+    if (migrationState.version === 37) {
+        migrationState = {
+            ...migrationState,
+            version: 38,
+            newMods: [],
         }
     }
 

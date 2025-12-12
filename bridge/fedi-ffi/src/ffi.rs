@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::{bail, Context};
 use async_trait::async_trait;
 use bridge::Bridge;
+use fedimint_core::rustls::install_crypto_provider;
 use lazy_static::lazy_static;
 use rpc_types::error::ErrorCode;
 use rpc_types::{RpcAppFlavor, RpcInitOpts};
@@ -113,6 +114,7 @@ pub async fn fedimint_initialize_inner(
     )
     .context("Failed to initialize logging")?;
     info!("initialized logging");
+    install_crypto_provider().await;
     let storage = PathBasedStorage::new(data_dir)
         .await
         .context("Failed to initialize storage")?;

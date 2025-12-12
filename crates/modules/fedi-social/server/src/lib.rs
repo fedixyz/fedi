@@ -132,6 +132,7 @@ impl ServerModuleInit for FediSocialInit {
         &self,
         peers: &[PeerId],
         _params: &ConfigGenModuleParams,
+        _disable_base_fees: bool,
     ) -> BTreeMap<PeerId, ServerModuleConfig> {
         let sks = fedimint_threshold_crypto::SecretKeySet::random(
             peers.to_num_peers().degree(),
@@ -165,6 +166,7 @@ impl ServerModuleInit for FediSocialInit {
         &self,
         peers: &(dyn PeerHandleOps + Send + Sync),
         _params: &ConfigGenModuleParams,
+        _disable_base_fees: bool,
     ) -> anyhow::Result<ServerModuleConfig> {
         let (polynomial, sks) = peers.run_dkg_g1().await?;
 

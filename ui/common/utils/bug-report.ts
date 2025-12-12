@@ -28,7 +28,7 @@ export async function uploadBugReportLogs(id: string, gzip: Buffer) {
         headers: {
             'Content-Type': 'application/tar+gzip',
         },
-        body: gzip,
+        body: new Uint8Array(gzip),
     })
     if (!uploadRes.ok) {
         log.error(

@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, StyleSheet } from 'react-native'
+import { Linking, Pressable, StyleSheet } from 'react-native'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { useLeaveFederation } from '@fedi/common/hooks/leave'
@@ -20,6 +20,7 @@ import {
 } from '@fedi/common/utils/FederationUtils'
 
 import { fedimint } from '../bridge'
+import FederationCountdownOverlay from '../components/feature/federations/FederationCountdownOverlay'
 import FederationDetailStats from '../components/feature/federations/FederationDetailStats'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import FederationPopupCountdown from '../components/feature/federations/FederationPopupCountdown'
@@ -44,6 +45,7 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
     const { federationId } = route.params
 
     const [isLeavingFederation, setIsLeavingFederation] = useState(false)
+    const [showPopupInfo, setShowPopupInfo] = useState(false)
 
     const federation = useAppSelector(s =>
         selectLoadedFederation(s, federationId),
@@ -114,7 +116,9 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                             federationId={federationId}
                         />
                     )}
-                    <FederationPopupCountdown federation={federation} />
+                    <Pressable onPress={() => setShowPopupInfo(true)}>
+                        <FederationPopupCountdown federation={federation} />
+                    </Pressable>
                     <FederationStatus federationId={federationId} />
                     <FederationDetailStats federation={federation} />
                 </Column>
@@ -163,6 +167,11 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                     </Button>
                 )}
             </Column>
+            <FederationCountdownOverlay
+                federation={federation}
+                show={showPopupInfo}
+                onBackdropPress={() => setShowPopupInfo(false)}
+            />
         </SafeAreaContainer>
     )
 }

@@ -96,6 +96,7 @@ import {
     prepareMentionsDataPayload,
     hasMentions,
     isTextEvent,
+    isPowerLevelGreaterOrEqual,
 } from '../utils/matrix'
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
@@ -542,7 +543,10 @@ export const matrixSlice = createSlice({
                 if (member) {
                     state.roomMembers[roomId] = upsertListItem(
                         state.roomMembers[roomId],
-                        { ...member, powerLevel },
+                        {
+                            ...member,
+                            powerLevel: { type: 'int', value: powerLevel },
+                        },
                     )
                 }
             },
@@ -2118,30 +2122,9 @@ export const selectMatrixAuth = createSelector(
     },
 )
 
-export const selectHasSetMatrixDisplayName = createSelector(
-    (s: CommonState) => s.matrix.auth,
-    auth => {
-        // upon registration, displayName will be the 65-character userId by default
-        // so use this as a proxy for detecting if the user has set a display name yet
-        if (auth && auth.displayName && auth.displayName.length <= 21)
-            return true
-        return false
-    },
-)
-
 export const selectMatrixDisplayNameSuffix = createSelector(
     (s: CommonState) => s.matrix.auth,
     auth => (auth ? getUserSuffix(auth.userId) : ''),
-)
-
-export const selectNeedsMatrixRegistration = createSelector(
-    (s: CommonState) => s.matrix.auth,
-    selectHasSetMatrixDisplayName,
-    (auth, hasSetMatrixDisplayName) => {
-        if (!auth) return true
-        if (!hasSetMatrixDisplayName) return true
-        return false
-    },
 )
 
 export const selectMatrixUsers = (s: CommonState) => s.matrix.users
@@ -2345,7 +2328,7 @@ export const selectMatrixRoomSelfPowerLevel = createSelector(
     selectMatrixAuth,
     (members, auth) => {
         const member = members.find(m => m.id === auth?.userId)
-        return member?.powerLevel || 0
+        return member?.powerLevel
     },
 )
 
@@ -2354,12 +2337,12 @@ export const selectMatrixRoomIsReadOnly = createSelector(
     selectMatrixRoomSelfPowerLevel,
     (roomPowerLevels, selfPowerLevel) => {
         if (!roomPowerLevels) return false
-        return (
-            getRoomEventPowerLevel(roomPowerLevels, [
-                'm.room.message',
-                'unableToDecrypt',
-            ]) > selfPowerLevel
-        )
+        if (!selfPowerLevel) return true
+        const requiredLevel = getRoomEventPowerLevel(roomPowerLevels, [
+            'm.room.message',
+            'unableToDecrypt',
+        ])
+        return !isPowerLevelGreaterOrEqual(selfPowerLevel, requiredLevel)
     },
 )
 

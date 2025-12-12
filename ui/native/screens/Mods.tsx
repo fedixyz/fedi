@@ -18,7 +18,9 @@ import {
     removeCustomMod,
     selectAllVisibleMods,
     selectModsVisibility,
+    selectNewModIds,
     setModVisibility,
+    updateLastSeenModDate,
 } from '@fedi/common/redux/mod'
 import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
@@ -45,6 +47,7 @@ const Mods: React.FC = () => {
     const navigation = useNavigation<NavigationHook>()
     const dispatch = useAppDispatch()
     const mods = useAppSelector(selectAllVisibleMods)
+    const newModIds = useAppSelector(selectNewModIds)
     const { width, fontScale } = useWindowDimensions()
     const columns = width / fontScale < 300 ? 2 : 3
     const style = styles(theme, columns)
@@ -70,6 +73,12 @@ const Mods: React.FC = () => {
     const onSelectFediMod = async (shortcut: Shortcut) => {
         setActionsMod(undefined)
         const fediMod = shortcut as FediMod
+
+        dispatch(
+            updateLastSeenModDate({
+                modId: fediMod.id,
+            }),
+        )
 
         if (fediMod.title.toLowerCase().includes('ask fedi')) {
             launchZendesk()
@@ -99,12 +108,24 @@ const Mods: React.FC = () => {
 
     const renderFediModShortcuts = () => {
         const sorted = mods.slice().sort((a, b) => {
+            const aIsNew = newModIds.includes(a.id)
+            const bIsNew = newModIds.includes(b.id)
+
+            if (aIsNew && !bIsNew) {
+                return -1
+            } else if (bIsNew && !aIsNew) {
+                return 1
+            }
+
             if (a.title.toLowerCase() === 'ask fedi') return -1 // "Ask Fedi" comes first
             if (b.title.toLowerCase() === 'ask fedi') return 1 // Move others down
+
             return 0 // Maintain original order otherwise
         })
+
         return sorted.map((s, i) => {
             const mod = new FediMod(s)
+
             const isCustomMod = modsVisibility[mod.id]?.isCustom
 
             let numActionButtons = 1
@@ -225,7 +246,11 @@ const Mods: React.FC = () => {
             ) : (
                 <Flex center grow gap="md">
                     <Pressable
-                        onPress={() => navigation.navigate('AddFediMod')}>
+                        onPress={() =>
+                            navigation.navigate('AddFediMod', {
+                                inputMethod: 'enter',
+                            })
+                        }>
                         <SvgImage name="NewModIcon" size={48} />
                     </Pressable>
                     <Text>{t('feature.fedimods.add-mods-homescreen')}</Text>

@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import 'react-native-gesture-handler'
 import 'react-native-get-random-values'
+import 'react-native-quick-base64'
 import { install } from 'react-native-quick-crypto'
 import 'react-native-reanimated'
 import 'react-native-url-polyfill/auto'

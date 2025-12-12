@@ -386,7 +386,11 @@ jobs:
             echo "System age: $age_days days"
 
             if [ $age_days -gt $MAX_AGE_DAYS ]; then
-              echo "ERROR: NixOS system is $age_days days old (older than $MAX_AGE_DAYS days)"
+              echo "ERROR: NixOS system is $age_days days old (older than $MAX_AGE_DAYS days)."
+              echo "DO NOT PANIC!!! I repeat: Do not panic!"
+              echo "This is NOT a required CI check and only a reminder to keep github workers up to date."
+              echo "Please ping dpc to stop being lazy and update CI workers."
+              echo "THANK YOU FOR YOUR ATTENTION TO THIS MATTER!"
               exit 1
             else
               echo "SUCCESS: NixOS system is $age_days days old (within $MAX_AGE_DAYS day limit)"

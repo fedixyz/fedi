@@ -1,6 +1,8 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { StyleSheet } from 'react-native'
 
+import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
+
 import GradientView from '../../ui/GradientView'
 import SvgImage from '../../ui/SvgImage'
 
@@ -14,7 +16,7 @@ const PinnedMessage = ({ message }: Props) => {
         <GradientView variant="sky-banner" style={style.content}>
             <SvgImage name="Pin" />
             <Text caption style={style.message}>
-                {message}
+                {stripAndDeduplicateWhitespace(message)}
             </Text>
         </GradientView>
     )

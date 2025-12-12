@@ -160,3 +160,31 @@ export function resetToWallets() {
         }),
     }
 }
+
+export function resetAfterSendSuccess({
+    title,
+    formattedAmount,
+    description,
+    federationId,
+}: RootStackParamList['SendSuccessShield']) {
+    return {
+        ...CommonActions.reset({
+            index: 0,
+            routes: [
+                {
+                    name: 'TabsNavigator',
+                    params: { initialRouteName: 'Federations', federationId },
+                },
+                {
+                    name: 'SendSuccessShield',
+                    params: {
+                        title,
+                        formattedAmount,
+                        description,
+                        federationId,
+                    },
+                },
+            ],
+        }),
+    }
+}

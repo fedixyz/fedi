@@ -46,7 +46,8 @@ fn extract_text_from_item(item: &RpcTimelineItem) -> Option<String> {
         RpcTimelineItem::Event(event) => match &event.content {
             RpcMsgLikeKind::Text(txt_like) => Some(txt_like.body.to_string()),
             RpcMsgLikeKind::Unknown => None,
-            _ => unimplemented!(),
+            RpcMsgLikeKind::UnableToDecrypt => Some("<unable-to-decrypt>".to_string()),
+            other => unimplemented!("implement {other:?}"),
         },
         _ => None,
     }
@@ -142,6 +143,85 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
 
     assert_eq!(timeline1_messages, timeline2_messages);
     assert_eq!(timeline1_messages.len(), num_messages);
+    Ok(())
+}
+
+pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let mut td1 = TestDevice::new();
+    let td2 = TestDevice::new();
+    let m1 = td1.matrix().await?;
+    let m2 = td2.matrix().await?;
+    let user2 = m2.client.user_id().unwrap();
+    let room_id = m1.create_or_get_dm(user2).await?;
+    m2.wait_for_room_id(&room_id).await?;
+    m2.room_join(&room_id).await?;
+
+    m1.send_message(
+        &room_id,
+        SendMessageData::text("hello from user1".to_owned()),
+    )
+    .await?;
+    m2.send_message(
+        &room_id,
+        SendMessageData::text("hello from user2".to_owned()),
+    )
+    .await?;
+
+    sleep_in_test(
+        "matrix needs some time to upload room keys",
+        Duration::from_secs(10),
+    )
+    .await;
+    let mnemonic = getMnemonic(td1.bridge_full().await?.runtime.clone()).await?;
+    td1.shutdown().await?;
+
+    let td1_recovered = TestDevice::new();
+    let bridge = td1_recovered.bridge_maybe_onboarding().await?;
+    restoreMnemonic(bridge.try_get()?, mnemonic).await?;
+    onboardTransferExistingDeviceRegistration(bridge.try_get()?, 0).await?;
+
+    let m1_recovered = td1_recovered.matrix().await?;
+    m1_recovered.wait_for_room_id(&room_id).await?;
+
+    let mut items = pin!(m1_recovered.room_timeline_items(&room_id).await?);
+    let mut timeline = imbl::Vector::new();
+    timeout(
+        try_join(
+            async {
+                apply_diffs_continuously(&mut timeline, &mut items).await;
+                anyhow::Ok(())
+            },
+            // keep scrolling to top
+            async {
+                let mut pagination_stream = pin!(
+                    m1_recovered
+                        .subscribe_timeline_items_paginate_backwards_status(&room_id)
+                        .await?
+                );
+                while let Some(value) = pagination_stream.next().await {
+                    if let RpcBackPaginationStatus::Idle = value {
+                        m1_recovered
+                            .room_timeline_items_paginate_backwards(&room_id, 100)
+                            .await?;
+                    }
+                }
+
+                Ok(())
+            },
+        ),
+        Duration::from_secs(10),
+    )
+    .await
+    .ok();
+
+    let timeline_text = timeline_as_text(&timeline);
+    assert!(timeline_text
+        .iter()
+        .any(|t| t.as_deref() == Some("hello from user1")));
+    assert!(timeline_text
+        .iter()
+        .any(|t| t.as_deref() == Some("hello from user2")));
+
     Ok(())
 }
 

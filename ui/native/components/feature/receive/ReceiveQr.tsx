@@ -20,8 +20,9 @@ import OnchainDepositInfo from './OnchainDepositInfo'
 const log = makeLog('ReceiveQr')
 
 export type ReceiveQrProps = {
-    uri: BtcLnUri
+    uri: BtcLnUri | { fullString: string; body: string }
     type?: BitcoinOrLightning
+    title?: React.ReactNode
     federationId?: Federation['id']
     onSaveNotes?: (notes: string) => void
 }
@@ -31,6 +32,7 @@ const QR_CODE_SIZE = Dimensions.get('window').width * 0.7
 const ReceiveQr: React.FC<ReceiveQrProps> = ({
     uri,
     type,
+    title,
     federationId = '',
     onSaveNotes,
 }: ReceiveQrProps) => {
@@ -74,6 +76,7 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
     return (
         <Flex grow justify="between" gap="xl">
             <Flex grow center gap="lg" style={style.content}>
+                {title ? <>{title}</> : null}
                 <Card containerStyle={style.qrCard}>
                     {uri.fullString && (
                         <Flex center>

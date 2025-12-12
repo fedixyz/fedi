@@ -41,7 +41,7 @@ const initialState = {
     stableBalanceEnabled: false,
     language: null as string | null,
     amountInputType: undefined as 'sats' | 'fiat' | undefined,
-    showFiatTxnAmounts: true,
+    transactionDisplayType: 'fiat' as 'fiat' | 'sats',
     deviceId: undefined as string | undefined,
     nostrNpub: undefined as RpcNostrPubkey | undefined,
     nostrNsec: undefined as RpcNostrSecret | undefined,
@@ -53,6 +53,7 @@ const initialState = {
     onboardingMethod: null as OnboardingMethod | null,
     appFlavor: undefined as RpcAppFlavor['type'] | undefined,
     sessionCount: 0,
+    redirectTo: null as string | null,
 }
 
 export type EnvironmentState = typeof initialState
@@ -92,9 +93,6 @@ export const environmentSlice = createSlice({
         },
         setStableBalanceEnabled(state, action: PayloadAction<boolean>) {
             state.stableBalanceEnabled = action.payload
-        },
-        setShowFiatTxnAmounts(state, action: PayloadAction<boolean>) {
-            state.showFiatTxnAmounts = action.payload
         },
         setDeviceId(state, action: PayloadAction<string>) {
             state.deviceId = action.payload
@@ -138,6 +136,15 @@ export const environmentSlice = createSlice({
         clearSessionCount(state) {
             state.sessionCount = 0
         },
+        setRedirectTo(state, actions: PayloadAction<string>) {
+            state.redirectTo = actions.payload
+        },
+        setTransactionDisplayType(
+            state,
+            action: PayloadAction<'sats' | 'fiat'>,
+        ) {
+            state.transactionDisplayType = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(changeLanguage.fulfilled, (state, action) => {
@@ -160,8 +167,9 @@ export const environmentSlice = createSlice({
             if (action.payload.developerMode) {
                 state.developerMode = action.payload.developerMode
             }
-            if (action.payload.showFiatTxnAmounts !== undefined) {
-                state.showFiatTxnAmounts = action.payload.showFiatTxnAmounts
+            if (action.payload.transactionDisplayType) {
+                state.transactionDisplayType =
+                    action.payload.transactionDisplayType
             }
             if (action.payload.deviceId !== undefined) {
                 state.deviceId = action.payload.deviceId
@@ -186,7 +194,7 @@ export const {
     setAmountInputType,
     setOnchainDepositsEnabled,
     setStableBalanceEnabled,
-    setShowFiatTxnAmounts,
+    setTransactionDisplayType,
     setDeviceId,
     setNostrNpub,
     setNostrNsec,
@@ -197,6 +205,7 @@ export const {
     setOnboardingCompleted,
     setOnboardingMethod,
     setAppFlavor,
+    setRedirectTo,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -210,15 +219,11 @@ export const refreshOnboardingStatus = createAsyncThunk<
 
     // Extract and store the onboarding method if user is onboarded
     if (status.type === 'onboarded') {
-        // generate a random display name after matrix client is resolved
-        // but only if matrix_setup
-        await dispatch(startMatrixClient({ fedimint }))
+        // note: starting the matrix client does not block onboarding
+        dispatch(startMatrixClient({ fedimint }))
         // we need to await the feature flags before refreshing communities
         await dispatch(getBridgeInfo(fedimint))
 
-        // wait until after the matrix client is started to refresh federations & communities
-        // because the latest metadata may include new default chats that require
-        // matrix to fetch the room previews
         await Promise.all([
             dispatch(refreshFederations(fedimint)).unwrap(),
             dispatch(refreshCommunities(fedimint)).unwrap(),
@@ -235,7 +240,7 @@ export const refreshOnboardingStatus = createAsyncThunk<
         // check the survey condition only when onboarding is complete
         dispatch(checkSurveyCondition())
     } else if (status.type === 'onboarding') {
-        // Delay the survey form (if any) by one week for a newly-onboarded user
+        // Delay the survey form by one week for a newly-onboarded user
         dispatch(setSurveyTimestamp(Date.now()))
         switch (status.stage.type) {
             case 'deviceIndexSelection': // Transfer device flow
@@ -392,8 +397,8 @@ export const selectAmountInputType = (s: CommonState) =>
 export const selectStableBalanceEnabled = (s: CommonState) =>
     s.environment.stableBalanceEnabled
 
-export const selectShowFiatTxnAmounts = (s: CommonState) =>
-    s.environment.showFiatTxnAmounts
+export const selectTransactionDisplayType = (s: CommonState) =>
+    s.environment.transactionDisplayType
 
 export const selectDeviceId = (s: CommonState) => s.environment.deviceId
 
@@ -426,3 +431,5 @@ export const selectOnboardingMethod = (s: CommonState) =>
     s.environment.onboardingMethod
 
 export const selectAppFlavor = (s: CommonState) => s.environment.appFlavor
+
+export const selectRedirectTo = (s: CommonState) => s.environment.redirectTo

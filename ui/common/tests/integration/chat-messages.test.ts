@@ -104,6 +104,7 @@ describe('group chat interactions among 3 users', () => {
     const builder3 = createIntegrationTestBuilder()
     const charlie = builder3.getContext()
 
+    // TODO: remove skip once we know why this is flaky
     it.skip("alice creates a group, sends a message, invites bob and charlie, then sends another message. decryptable and undecryptable messages appear on bob and charlie's timelines", async () => {
         await builder1.withChatReady()
         await builder2.withChatReady()

@@ -75,7 +75,7 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
         <View style={style.sectionContainer}>
             <ListItem.Accordion
                 testID={federation.name
-                    .concat('AccordionButton')
+                    .concat('FedAccordionButton')
                     .replaceAll(' ', '')}
                 containerStyle={style.accordionContainer}
                 accessible={true}
@@ -155,6 +155,16 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
                         label={t('feature.backup.export-transactions-to-csv')}
                         onPress={() => exportTransactionsAsCsv(federation)}
                         disabled={!!isExporting}
+                    />
+                    <SettingsItem
+                        icon="Settings"
+                        label={t('feature.settings.federation-settings')}
+                        onPress={() =>
+                            navigation.navigate('FederationSettings', {
+                                federationId: federation.id,
+                                federationName: federation.name,
+                            })
+                        }
                     />
                     <SettingsItem
                         icon="LeaveFederation"

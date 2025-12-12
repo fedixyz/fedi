@@ -14,7 +14,7 @@ const JoinFederationHeader: React.FC = () => {
             backButton
             onBackButtonPress={() => {
                 if (navigation.canGoBack()) navigation.goBack()
-                else navigation.navigate('PublicFederations')
+                else navigation.navigate('TabsNavigator')
             }}
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>

@@ -5,6 +5,7 @@
 #import <react-native-zendesk-messaging/ZendeskNativeModule.h>
 #import <UserNotifications/UserNotifications.h>
 #import <React/RCTBundleURLProvider.h>
+#import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
 #import <React/RCTLinkingManager.h>
 #import "RNSplashScreen.h"
 #import "PushNotificationEmitter.h"
@@ -16,6 +17,7 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
   self.moduleName = @"FediReactNative";
+  self.dependencyProvider = [RCTAppDependencyProvider new];
   self.initialProps = @{};
 
   // Configure Firebase

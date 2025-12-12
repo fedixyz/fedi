@@ -23,6 +23,7 @@ import Flex from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
+import { resetAfterSendSuccess } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('StabilityConfirmDeposit')
@@ -49,8 +50,10 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
     })
     const { formattedFiat, formattedSats, formattedUsd } =
         makeFormattedAmountsFromSats(amount)
-    const { feeBreakdownTitle, makeStabilityPoolFeeContent } =
-        useFeeDisplayUtils(t, federationId)
+    const { feeBreakdownTitle, makeSPDepositFeeContent } = useFeeDisplayUtils(
+        t,
+        federationId,
+    )
     const stabilityPoolAverageFeeRate = useAppSelector(s =>
         selectStabilityPoolAverageFeeRate(s, federationId),
     )
@@ -66,10 +69,17 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                     federationId,
                 }),
             ).unwrap()
-            navigation.replace('StabilityDepositInitiated', {
-                amount,
-                federationId,
-            })
+
+            navigation.dispatch(
+                resetAfterSendSuccess({
+                    title: t('feature.stabilitypool.deposited'),
+                    description: t(
+                        'feature.stabilitypool.deposit-success-description',
+                    ),
+                    formattedAmount: formattedUsd,
+                    federationId,
+                }),
+            )
         } catch (error) {
             setProcessingDeposit(false)
             log.error('increaseStableBalance error', error)
@@ -79,8 +89,9 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
 
     const style = styles(theme)
 
+    // TODO: refactor this to use the shared SendPreviewDetails component
     const renderDetails = () => {
-        const feeContent = makeStabilityPoolFeeContent(amount)
+        const feeContent = makeSPDepositFeeContent(amount)
         const { formattedTotalFee, feeItemsBreakdown } = feeContent
 
         return (

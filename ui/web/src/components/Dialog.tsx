@@ -107,15 +107,16 @@ export const Dialog: React.FC<Props> = ({
             </>
         )
     }, [
-        title,
+        children,
         description,
         disableClose,
+        hideCloseButton,
         mobileDismissBack,
         isSm,
+        onOpenChange,
+        title,
         titleLeft,
         titleRight,
-        children,
-        onOpenChange,
     ])
 
     return (

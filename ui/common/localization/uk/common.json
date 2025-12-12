@@ -608,7 +608,7 @@
             "clear-cache-ram-done": "Кеш очищено лише з оперативної пам’яті",
             "debug-mode": "Режим налагодження міні-додатків Fedi",
             "debug-mode-info": "Вставляє інструмент розробника (Eruda) в браузер при відкритті Fedi Mod.",
-            "delete-confirmation": "Ви впевнені, що хочете видалити {{fediMod}}?",
+            "delete-confirmation": "Ви впевнені, що хочете видалити {{miniAppName}}?",
             "enter-amount-to-withdraw": "Введіть суму для виведення з {{fediMod}}",
             "enter-site-link": "Введіть посилання на сайт",
             "fedi-mods": "Міні-додатки Fedi",

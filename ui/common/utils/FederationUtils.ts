@@ -301,9 +301,13 @@ export const shouldShowInviteCode = (metadata: FederationMetadata) => {
 }
 
 export const shouldShowJoinFederation = (metadata: FederationMetadata) => {
+    // if new_members_disabled meta field is:
+    // not set      => return true (new members can join)
+    // set to false => return true (new members can join)
+    // set to true  => return false (new members cannot join)
     return (
         getMetaField(SupportedMetaFields.new_members_disabled, metadata) !==
-        'false'
+        'true'
     )
 }
 

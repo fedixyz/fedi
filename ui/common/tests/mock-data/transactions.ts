@@ -1,4 +1,8 @@
-import { MSats, MultispendTransactionListEntry } from '@fedi/common/types'
+import {
+    MSats,
+    MultispendTransactionListEntry,
+    TransactionListEntry,
+} from '@fedi/common/types'
 import {
     RpcTransaction,
     RpcLnReceiveState,
@@ -40,7 +44,9 @@ const MOCK_MULTISPEND_TRANSACTION: Partial<MultispendTransactionListEntry> = {
     },
 }
 
-export const createMockTransaction = (overrides: any = {}): RpcTransaction => {
+export const createMockTransaction = (
+    overrides: any = {},
+): TransactionListEntry => {
     return {
         ...MOCK_TRANSACTION,
         ...overrides,

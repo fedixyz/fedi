@@ -21,7 +21,11 @@ export const isDev = () => {
 
 export const isNightly = () => {
     try {
-        return !!process && process.env.FEDI_ENV === 'nightly'
+        return (
+            !!process &&
+            (process.env.FEDI_ENV === 'nightly' ||
+                process.env.NEXT_PUBLIC_FEDI_ENV === 'nightly')
+        )
     } catch (_) {
         return false
     }

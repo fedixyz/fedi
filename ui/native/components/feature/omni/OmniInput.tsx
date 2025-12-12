@@ -223,14 +223,20 @@ export function OmniInput<
                     onPress={handlePaste}
                     containerStyle={style.buttonInnerContainer}
                 />
-                {(customActions || []).map((action, i) =>
-                    React.isValidElement(action.label) ? (
-                        React.cloneElement(action.label as React.ReactElement, {
-                            key: `c${i}`,
-                            fullWidth: true,
-                            day: true,
-                            containerStyle: style.buttonInnerContainer,
-                        })
+                {(customActions || []).map((action, i) => {
+                    const clonedProps = {
+                        key: `c${i}`,
+                        fullWidth: true,
+                        day: true,
+                        containerStyle: style.buttonInnerContainer,
+                    }
+                    return React.isValidElement(action.label) ? (
+                        React.cloneElement(
+                            action.label as React.ReactElement<
+                                typeof clonedProps
+                            >,
+                            clonedProps,
+                        )
                     ) : (
                         <Button
                             key={`c${i}`}
@@ -243,8 +249,8 @@ export function OmniInput<
                             onPress={action.onPress}
                             containerStyle={style.buttonInnerContainerWMargin}
                         />
-                    ),
-                )}
+                    )
+                })}
             </View>
         )
 

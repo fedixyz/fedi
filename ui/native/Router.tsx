@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { StyleSheet, View, Linking } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
+import { selectOnboardingCompleted, setRedirectTo } from '@fedi/common/redux'
 import { isUniversalLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -17,6 +18,7 @@ import ToastManager from './components/ui/ToastManager'
 import { MainNavigator } from './screens/MainNavigator'
 import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
 import { usePinContext } from './state/contexts/PinContext'
+import { useAppDispatch, useAppSelector } from './state/hooks'
 import { useIsFeatureUnlocked } from './utils/hooks/security'
 import {
     getLinkingConfig,
@@ -30,11 +32,13 @@ import {
 const log = makeLog('NavigationRouter')
 
 const Router = () => {
+    const dispatch = useAppDispatch()
     const { theme } = useTheme()
     const navigation = useNavigationContainerRef()
     const isAppUnlocked = useIsFeatureUnlocked('app')
     const pin = usePinContext()
     const { parseUrl } = useOmniLinkContext()
+    const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
 
     useEffect(() => setNavigationRef(navigation), [navigation])
 
@@ -110,7 +114,7 @@ const Router = () => {
     }, [])
 
     const toast = useToast()
-    const routeRef = useRef<string>()
+    const routeRef = useRef<string | undefined>(undefined)
 
     // Logs changes in navigation state for debugging
     const handleStateChange = useCallback(() => {
@@ -147,14 +151,21 @@ const Router = () => {
         })
     }, [navigation])
 
-    // Handles deep linking
-    const linkingConfig = getLinkingConfig(parseUrl)
+    // If deep link url then Store it in state and redirect to it
+    // after clicking primary button on Splash screen
+    useEffect(() => {
+        Linking.getInitialURL().then(url => url && dispatch(setRedirectTo(url)))
+    }, [dispatch])
 
     return (
         <NavigationContainer
             ref={navigation}
             theme={theme}
-            linking={linkingConfig}
+            // Handles deep linking
+            // Setting to undefined ensures that Splash screen is shown if user has not onboarded yet
+            linking={
+                onboardingCompleted ? getLinkingConfig(parseUrl) : undefined
+            }
             onReady={() => {
                 routeRef.current = navigation.getCurrentRoute()?.name
                 log.info('Navigation is ready', {

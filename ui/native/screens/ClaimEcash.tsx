@@ -7,7 +7,6 @@ import Hyperlink from 'react-native-hyperlink'
 
 import { useParseEcash, useClaimEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectOnboardingCompleted } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
 
@@ -17,7 +16,6 @@ import Flex, { Column, Row } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
-import { useAppSelector } from '../state/hooks'
 import { navigateToHome, resetToWallets } from '../state/navigation'
 import { RootStackParamList } from '../types/navigation'
 
@@ -29,17 +27,8 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const toast = useToast()
-    const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
+
     const [tosUrl, setTosUrl] = useState<string | null>(null)
-
-    // If user has not onboarded yet, redirect to the Splash screen
-    useEffect(() => {
-        if (!token) return
-
-        if (!onboardingCompleted) {
-            return navigation.replace('Splash', { screen: 'ClaimEcash', token })
-        }
-    }, [navigation, onboardingCompleted, token])
 
     const {
         parseEcash,
@@ -74,8 +63,6 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
             toast.error(t, 'feature.ecash.claim-ecash-error')
         }
     }, [isClaimError, t, toast])
-
-    if (!onboardingCompleted) return null
 
     let content: React.ReactElement | null = null
     let actions: React.ReactElement | null = null
@@ -191,6 +178,7 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
                 )}
 
                 <Button
+                    testID="claim-ecash-button"
                     fullWidth
                     loading={claiming}
                     disabled={claiming}

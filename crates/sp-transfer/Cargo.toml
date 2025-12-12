@@ -1,0 +1,20 @@
+[package]
+name = "sp-transfer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+fedimint-core = { workspace = true }
+rpc-types = { path = "../rpc-types" }
+serde = { workspace = true }
+stability-pool-client = { workspace = true }
+ts-rs = { workspace = true }
+matrix-sdk = { workspace = true }
+runtime = { path = "../runtime" }
+tokio = { workspace = true, features = ["sync", "macros", "rt"] }
+futures = "0.3"
+tracing = { workspace = true }
+async-trait = { workspace = true }
+rand = { workspace = true }

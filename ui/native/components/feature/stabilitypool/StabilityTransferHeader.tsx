@@ -3,22 +3,24 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Header from '../../ui/Header'
+import { StabilityInfoIcon } from './StabilityInfoIcon'
 
-const DepositInitiatedHeader: React.FC = () => {
+const StabilityTransferHeader: React.FC = () => {
     const { t } = useTranslation()
 
     return (
         <>
             <Header
-                centerContainerStyle={{ minHeight: 40 }}
+                backButton
                 headerCenter={
-                    <Text bold>
-                        {t('feature.stabilitypool.deposit-intiated')}
+                    <Text bold numberOfLines={1} adjustsFontSizeToFit>
+                        {t('words.transfer')}
                     </Text>
                 }
+                headerRight={<StabilityInfoIcon />}
             />
         </>
     )
 }
 
-export default DepositInitiatedHeader
+export default StabilityTransferHeader

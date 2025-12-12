@@ -1,27 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 import RefreshIcon from '@fedi/common/assets/svgs/retry.svg'
-import { resetBrowserOverlayState, setSiteInfo } from '@fedi/common/redux'
+import { setSiteInfo } from '@fedi/common/redux'
+import { InjectionMessageType } from '@fedi/injections/src/types'
 
-import { useAppDispatch, useIFrameListener } from '../hooks'
-import { styled, theme } from '../styles'
-import { Dialog } from './Dialog'
-import { Icon } from './Icon'
-import { SendPaymentOverlay } from './Overlays'
-import { Text } from './Text'
+import { useAppDispatch, useIFrameListener } from '../../hooks'
+import { styled, theme } from '../../styles'
+import { Icon } from '../Icon'
+import { Text } from '../Text'
+import { FediBrowserDialog } from './FediBrowserDialog'
+import { SelectPublicChats as SelectPublicChatsOverlay } from './overlays/SelectPublicChats'
+import { SendPayment as SendPaymentOverlay } from './overlays/SendPayment'
 
 type Props = {
     url: string
     onClose(): void
 }
 
-export const FediModBrowser: React.FC<Props> = ({ url, onClose }) => {
+export const FediBrowser: React.FC<Props> = ({ url, onClose }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null)
-    const { sendSuccess, sendError } = useIFrameListener(iframeRef)
+    const { overlayId, resetOverlay, sendSuccess, sendError } =
+        useIFrameListener(iframeRef)
     const dispatch = useAppDispatch()
-    const { t } = useTranslation()
     const [domain, setDomain] = useState<string | null>(null)
 
     useEffect(() => {
@@ -50,18 +51,29 @@ export const FediModBrowser: React.FC<Props> = ({ url, onClose }) => {
     }
 
     return (
-        <Dialog open={!!url} onOpenChange={onClose} disableClose disablePadding>
+        <FediBrowserDialog open={!!url} onOpenChange={onClose}>
             <SendPaymentOverlay
+                open={overlayId === 'webln_sendPayment'}
                 onAccept={res => {
-                    sendSuccess('webln.sendPayment', res)
-                    dispatch(resetBrowserOverlayState())
+                    sendSuccess(InjectionMessageType.webln_sendPayment, res)
+                    resetOverlay()
                 }}
                 onReject={() => {
                     sendError(
-                        'webln.sendPayment',
-                        t('errors.failed-to-send-payment'),
+                        InjectionMessageType.webln_sendPayment,
+                        'SendPayment error',
                     )
-                    dispatch(resetBrowserOverlayState())
+                    resetOverlay()
+                }}
+            />
+            <SelectPublicChatsOverlay
+                open={overlayId === 'fedi_selectPublicChats'}
+                onConfirm={res => {
+                    sendSuccess(
+                        InjectionMessageType.fedi_selectPublicChats,
+                        res,
+                    )
+                    resetOverlay()
                 }}
             />
             <Wrapper>
@@ -70,6 +82,7 @@ export const FediModBrowser: React.FC<Props> = ({ url, onClose }) => {
                     key={url}
                     ref={iframeRef}
                     src={url}
+                    allow="clipboard-write; clipboard-read" // todo - research permission policies when used for other mini-apps
                 />
                 <Nav aria-label="browser navbar">
                     <NavLeft>
@@ -91,7 +104,7 @@ export const FediModBrowser: React.FC<Props> = ({ url, onClose }) => {
                     </NavRight>
                 </Nav>
             </Wrapper>
-        </Dialog>
+        </FediBrowserDialog>
     )
 }
 
@@ -135,6 +148,7 @@ const NavLeft = styled('div', {
 
 const RefreshWrapper = styled('div', {
     alignItems: 'center',
+    cursor: 'pointer',
     display: 'flex',
     height: '100%',
     justifyContent: 'center',

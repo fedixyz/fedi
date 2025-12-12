@@ -86,14 +86,14 @@ def enableProguardInReleaseBuilds = false
  * The preferred build flavor of JavaScriptCore (JSC)
  *
  * For example, to use the international variant, you can use:
- * `def jscFlavor = 'org.webkit:android-jsc-intl:+'`
+ * def jscFlavor = io.github.react-native-community:jsc-android-intl:2026004.+`
  *
  * The international variant includes ICU i18n library and necessary data
  * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
  * give correct results when using with locales other than en-US. Note that
  * this variant is about 6MiB larger per architecture than default.
  */
-def jscFlavor = 'org.webkit:android-jsc:+'
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 /**
  * Load the keystore + credentials for release build signing configuration
@@ -122,7 +122,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 240051929
-        versionName "25.11.3"
+        versionName "25.12.0"
     }
 
      compileOptions {
@@ -242,11 +242,11 @@ dependencies {
     implementation "org.fedi:fedi-android:0.1.2"
 
     // For animated GIF support
-    implementation 'com.facebook.fresco:animated-gif:3.2.0'
+    implementation 'com.facebook.fresco:animated-gif:3.6.0'
 
     // For WebP support, including animated WebP
-    implementation 'com.facebook.fresco:animated-webp:3.2.0'
-    implementation 'com.facebook.fresco:webpsupport:3.2.0'
+    implementation 'com.facebook.fresco:animated-webp:3.6.0'
+    implementation 'com.facebook.fresco:webpsupport:3.6.0'
 
     // coroutines for async rpc
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1")

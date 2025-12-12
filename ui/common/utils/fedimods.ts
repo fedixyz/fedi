@@ -2,6 +2,7 @@ import orderBy from 'lodash/orderBy'
 import { Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
+import { FediMod } from '../types'
 import {
     FetchError,
     MalformedDataError,
@@ -249,4 +250,19 @@ export const prepareCreateCommunityPayload = (
     Object.assign(patchedCommunity, { version: 1 })
 
     return JSON.stringify(patchedCommunity)
+}
+
+/**
+ * Evaluates whether a mod should still be counted as "new"
+ * by evaluating its dateAdded property against an expiration threshold.
+ *
+ * For backwards-compatibility, mods without a dateAdded property
+ * are not considered new
+ */
+export const NEW_MOD_EXPIRATION_THRESHOLD_MS = 1000 * 60 * 60 * 24 * 7 // 1 week
+export const isModNew = (mod: FediMod): boolean => {
+    const now = Date.now()
+    const dateAdded = mod.dateAdded || 0
+
+    return now - dateAdded < NEW_MOD_EXPIRATION_THRESHOLD_MS
 }

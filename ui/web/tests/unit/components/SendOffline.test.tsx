@@ -74,23 +74,18 @@ describe('SendOffline', () => {
                     },
                     environment: {
                         ...state.environment,
-                        showFiatTxnAmounts: true,
+                        transactionDisplayType: 'fiat',
                         amountInputType: 'fiat',
                     },
                 },
             },
         )
 
-        const fiatInput = screen.getByTestId('amount-input-fiat')
-        const satsInput = screen.getByTestId('amount-input-sats')
+        await user.click(screen.getByText('3'))
+        await user.click(screen.getByText('4'))
 
-        expect(satsInput).toBeInTheDocument()
-        expect(fiatInput).toBeInTheDocument()
-
-        await user.type(fiatInput, '34')
-
-        expect(fiatInput).toHaveValue('34')
-        expect(satsInput).toHaveValue('34,000')
+        expect(screen.getByText('34')).toBeInTheDocument()
+        expect(screen.getByText('34,000')).toBeInTheDocument()
     })
 
     it('should render the primary amount in fiat and the secondary amount in sats when amountInputType is fiat', async () => {
@@ -110,23 +105,23 @@ describe('SendOffline', () => {
                     },
                     environment: {
                         ...state.environment,
-                        showFiatTxnAmounts: true,
+                        transactionDisplayType: 'fiat',
                         amountInputType: 'sats',
                     },
                 },
             },
         )
 
-        const fiatInput = screen.getByTestId('amount-input-fiat')
-        const satsInput = screen.getByTestId('amount-input-sats')
+        const num3 = screen.getByText('3')
+        const num4 = screen.getByText('4')
 
-        expect(satsInput).toBeInTheDocument()
-        expect(fiatInput).toBeInTheDocument()
+        await user.click(num3)
+        await user.click(num4)
+        await user.click(num4)
+        await user.click(num4)
 
-        await user.type(satsInput, '3444')
-
-        expect(fiatInput).toHaveValue('3.44')
-        expect(satsInput).toHaveValue('3,444')
+        expect(screen.getByText('3.44')).toBeInTheDocument()
+        expect(screen.getByText('3,444')).toBeInTheDocument()
     })
 
     it('should prevent the user from sending more than the max ecash send balance', async () => {
@@ -150,7 +145,7 @@ describe('SendOffline', () => {
                     },
                     environment: {
                         ...state.environment,
-                        showFiatTxnAmounts: true,
+                        transactionDisplayType: 'fiat',
                         amountInputType: 'sats',
                     },
                     federation: {
@@ -201,7 +196,7 @@ describe('SendOffline', () => {
                     },
                     environment: {
                         ...state.environment,
-                        showFiatTxnAmounts: true,
+                        transactionDisplayType: 'fiat',
                         amountInputType: 'sats',
                     },
                     federation: {

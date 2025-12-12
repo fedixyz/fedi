@@ -13,6 +13,7 @@ export const Images: ImagesMap = {
     GradientBackground: require('./gradient-background.png'),
     HoloRing: require('./holo-ring.png'),
     HoloBackgroundStrong: require('./holo-background-strong-900.png'),
+    HoloShield: require('@fedi/common/assets/images/holo-shield.png'),
     IllustrationChat: require('@fedi/common/assets/images/illustration-chat.png'),
     IllustrationWorld: require('@fedi/common/assets/images/illustration-world.png'),
     IllustrationPin: require('@fedi/common/assets/images/illustration-pin.png'),

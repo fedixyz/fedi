@@ -168,8 +168,7 @@ impl TestDevice {
             .get_or_try_init(|| async {
                 let bridge = self.bridge_full().await?;
                 let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
-                let fedimint_federation =
-                    rpc::joinFederation(&bridge.federations, invite_code, false).await?;
+                let fedimint_federation = rpc::joinFederation(bridge, invite_code, false).await?;
                 let federation = bridge
                     .federations
                     .get_federation_maybe_recovering(&fedimint_federation.id.0)?;

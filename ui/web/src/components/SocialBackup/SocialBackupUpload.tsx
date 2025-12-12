@@ -47,9 +47,12 @@ export const SocialBackupUpload: React.FC<Props> = ({
                 // Pull the backup file as a blob and continue to the next screen
                 const path = await fedimint.locateRecoveryFile()
                 const file = await readBridgeFile(path)
-                const blob = new Blob([file], {
-                    type: 'application/octet-stream',
-                })
+                const blob = new Blob(
+                    [typeof file === 'string' ? file : Uint8Array.from(file)],
+                    {
+                        type: 'application/octet-stream',
+                    },
+                )
                 setBackupBlob(blob)
             } catch (err) {
                 log.error('failed to upload backup video', err)

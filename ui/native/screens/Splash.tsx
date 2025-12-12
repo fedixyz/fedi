@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { refreshOnboardingStatus } from '@fedi/common/redux'
+import { refreshOnboardingStatus, selectRedirectTo } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
@@ -20,22 +20,16 @@ import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
-import { useAppDispatch } from '../state/hooks'
+import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
+import { getRouteItemFromUrl } from '../utils/linking'
 
 const log = makeLog('Splash')
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>
 
-type RouteItem = {
-    name: keyof RootStackParamList
-    params?: RootStackParamList[keyof RootStackParamList]
-}
-
-const Splash: React.FC<Props> = ({ navigation, route }: Props) => {
-    const { screen, ...rest } = route.params ?? {}
-
+const Splash: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { fontScale } = useWindowDimensions()
@@ -43,6 +37,7 @@ const Splash: React.FC<Props> = ({ navigation, route }: Props) => {
     const toast = useToast()
     const dispatch = useAppDispatch()
     const [loading, setLoading] = useState<boolean>(false)
+    const redirectTo = useAppSelector(selectRedirectTo)
 
     const [hasNavigatedToHelpCentre, setHasNavigatedToHelpCentre] =
         useState<boolean>(false)
@@ -57,24 +52,34 @@ const Splash: React.FC<Props> = ({ navigation, route }: Props) => {
             ).unwrap()
             log.debug('onboarding status after new seed', status)
 
-            let routeItem: RouteItem
-            if (screen) {
-                routeItem = {
-                    name: screen,
-                    params: rest,
+            if (redirectTo) {
+                const result = getRouteItemFromUrl(redirectTo)
+                if (!result) {
+                    throw new Error('Invalid redirectTo URL')
                 }
-            } else {
-                routeItem = {
-                    name: 'PublicFederations',
-                    params: { from: 'Splash' },
-                }
-            }
 
-            // remove Splash from the stack entirely, stop possible bridge panic from user re-navigating to splash
-            navigation.reset({
-                index: 0,
-                routes: [routeItem],
-            })
+                const { name, params } = result
+
+                navigation.reset({
+                    index: 0,
+                    routes: [
+                        {
+                            name,
+                            params,
+                        },
+                    ],
+                })
+            } else {
+                navigation.reset({
+                    index: 0,
+                    routes: [
+                        {
+                            name: 'PublicFederations',
+                            params: { from: 'Splash' },
+                        },
+                    ],
+                })
+            }
         } catch (err) {
             log.error('handleContinue', err)
             toast.error(t, err, 'errors.unknown-error')

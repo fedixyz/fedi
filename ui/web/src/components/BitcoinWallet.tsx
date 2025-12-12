@@ -9,8 +9,11 @@ import BitcoinCircleIcon from '@fedi/common/assets/svgs/bitcoin-circle.svg'
 import TxnHistoryIcon from '@fedi/common/assets/svgs/txn-history.svg'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
+import { setPayFromFederationId } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
+import { requestRoute, sendRoute } from '../constants/routes'
+import { useAppDispatch } from '../hooks'
 import { styled, theme } from '../styles'
 import { Button } from './Button'
 import { Icon } from './Icon'
@@ -32,10 +35,21 @@ export const BitcoinWallet: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const { push } = useRouter()
+    const dispatch = useAppDispatch()
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
         federation.id,
     )
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
+
+    const handleOnReceiveClick = (federationId: string) => {
+        dispatch(setPayFromFederationId(federationId))
+        push(`${requestRoute}#id=${federationId}`)
+    }
+
+    const handleOnSendClick = (federationId: string) => {
+        dispatch(setPayFromFederationId(federationId))
+        push(sendRoute)
+    }
 
     return (
         <Container
@@ -79,7 +93,7 @@ export const BitcoinWallet: React.FC<Props> = ({
                         variant="secondary"
                         outline
                         width="full"
-                        onClick={() => push(`/request#id=${federation.id}`)}
+                        onClick={() => handleOnReceiveClick(federation.id)}
                         icon={ReceiveArrowIcon}
                         style={{
                             flex: 1,
@@ -90,7 +104,7 @@ export const BitcoinWallet: React.FC<Props> = ({
                         variant="secondary"
                         outline
                         width="full"
-                        onClick={() => push(`/send#id=${federation.id}`)}
+                        onClick={() => handleOnSendClick(federation.id)}
                         icon={RotatedSendIcon}
                         disabled={
                             federation.balance < MIN_BALANCE_TO_SEND ||

@@ -31,7 +31,9 @@ const QrCodeScanner = ({ processing, onQrCodeDetected }: QrCodeScanner) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const previousDataRef = useRef<string | null>(null)
-    const previousDataTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+    const previousDataTimeoutRef = useRef<
+        ReturnType<typeof setTimeout> | undefined
+    >(undefined)
     const [progress, setProgress] = useState(0)
     const [frames, setFrames] = useState<FrameState | null>(null)
     const isFocused = useIsFocused()

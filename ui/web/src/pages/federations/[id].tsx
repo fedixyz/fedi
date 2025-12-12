@@ -15,6 +15,7 @@ import { Button } from '../../components/Button'
 import { DefaultRoomPreview } from '../../components/Chat/DefaultRoomPreview'
 import { ContentBlock } from '../../components/ContentBlock'
 import { FederationAvatar } from '../../components/FederationAvatar'
+import FederationCountdownDialog from '../../components/FederationDetails/FederationCountdownDialog'
 import FederationDetailStats from '../../components/FederationDetails/FederationDetailStats'
 import FederationPopupCountdown from '../../components/FederationDetails/FederationPopupCountdown'
 import { FederationStatus } from '../../components/FederationDetails/FederationStatus'
@@ -29,6 +30,7 @@ function FederationDetails() {
     const { query, isReady, push } = useRouter()
     const { t } = useTranslation()
 
+    const [showPopupInfo, setShowPopupInfo] = useState(false)
     const [isLeavingFederation, setIsLeavingFederation] = useState(false)
 
     const id = (query.id as string | undefined) ?? ''
@@ -82,7 +84,11 @@ function FederationDetails() {
                                 />
                                 <Text variant="h2">{federation.name}</Text>
                             </FederationHeader>
-                            <FederationPopupCountdown federation={federation} />
+                            <div onClick={() => setShowPopupInfo(true)}>
+                                <FederationPopupCountdown
+                                    federation={federation}
+                                />
+                            </div>
                             <FederationStatus federationId={id} />
                             <FederationDetailStats federation={federation} />
                         </HeaderContent>
@@ -127,6 +133,11 @@ function FederationDetails() {
                     )}
                 </Layout.Content>
             </Layout.Root>
+            <FederationCountdownDialog
+                open={showPopupInfo}
+                onOpenChange={setShowPopupInfo}
+                federation={federation}
+            />
         </ContentBlock>
     )
 }

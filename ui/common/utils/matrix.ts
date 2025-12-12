@@ -40,6 +40,7 @@ import {
     ReplyMessageData,
     RpcMatrixEventKind,
     RpcMatrixEventKinds,
+    TransactionListEntry,
 } from '../types'
 import {
     GroupInvitation,
@@ -51,10 +52,12 @@ import {
     RpcMentions,
     JSONObject,
     RpcTimelineItemEvent,
+    type RpcUserPowerLevel,
 } from '../types/bindings'
 import { makeLog } from './log'
 import { constructUrl } from './neverthrow'
 import { isBolt11 } from './parser'
+import { coerceTxn } from './wallet'
 
 const log = makeLog('common/utils/matrix')
 
@@ -311,7 +314,7 @@ export const makeMatrixPaymentText = ({
     paymentRecipient: MatrixUser | null | undefined
     transaction: RpcTransaction | null | undefined
     makeFormattedAmountsFromMSats: (amt: MSats) => FormattedAmounts
-    makeFormattedAmountsFromTxn: (txn: RpcTransaction) => FormattedAmounts
+    makeFormattedAmountsFromTxn: (txn: TransactionListEntry) => FormattedAmounts
 }): string => {
     const {
         sender: eventSenderId,
@@ -324,7 +327,7 @@ export const makeMatrixPaymentText = ({
     } = event
 
     const { formattedPrimaryAmount, formattedSecondaryAmount } = transaction
-        ? makeFormattedAmountsFromTxn(transaction)
+        ? makeFormattedAmountsFromTxn(coerceTxn(transaction))
         : makeFormattedAmountsFromMSats(amount as MSats)
 
     const previewStringParams = {
@@ -1457,4 +1460,20 @@ export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
         return t(PreviewTextMap[preview.content.msgtype])
 
     return preview.content.body
+}
+
+export function isPowerLevelGreaterOrEqual(
+    powerLevel: RpcUserPowerLevel,
+    threshold: RpcUserPowerLevel | number,
+): boolean {
+    if (powerLevel.type === 'infinite') return true
+
+    const thresholdValue =
+        typeof threshold === 'number'
+            ? threshold
+            : threshold.type === 'infinite'
+              ? Number.MAX_SAFE_INTEGER
+              : threshold.value
+
+    return powerLevel.value >= thresholdValue
 }

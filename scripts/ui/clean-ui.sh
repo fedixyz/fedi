@@ -52,6 +52,13 @@ clean_and_rebuild() {
     echo -e "\x1B[32;1mFull clean & rebuild completed successfully\x1B[0m"
 }
 
+# Non-interactive mode: just run clean_all and exit
+if [ "${NON_INTERACTIVE:-0}" = "1" ]; then
+    echo "Running in non-interactive mode: cleaning all /ui build files..."
+    clean_all
+    exit 0
+fi
+
 while true; do
     echo -e "\nUI Cleaning Utils: Select an option:"
     echo "i - delete iOS build files only (ios/build, ios/Pods, and DerivedData)"

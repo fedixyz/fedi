@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::ControlFlow;
 use std::panic;
 use std::path::Path;
@@ -8,6 +8,7 @@ use std::thread::available_parallelism;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail};
+use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use bridge::RuntimeExt as _;
 use devi::DevFed;
 use devimint::cmd;
@@ -29,9 +30,10 @@ use rpc_types::{
     RpcLnReceiveState, RpcOOBReissueState, RpcOnchainDepositState, RpcReturningMemberStatus,
     RpcSPV2TransferInState, RpcTransactionDirection, RpcTransactionKind,
 };
-use runtime::constants::{FEDI_FILE_V0_PATH, MILLION};
+use runtime::constants::{COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_FILE_V0_PATH, MILLION};
 use runtime::db::BridgeDbPrefix;
 use runtime::envs::USE_UPSTREAM_FEDIMINTD_ENV;
+use runtime::storage::state::CommunityJson;
 use runtime::storage::BRIDGE_DB_PREFIX;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -40,6 +42,8 @@ use tracing::info;
 mod matrix;
 mod multispend_tests;
 mod nostr_tests;
+mod sp_transfer_tests;
+mod utils;
 
 // nosemgrep: ban-wildcard-imports
 use crate::rpc::*;
@@ -124,6 +128,7 @@ async fn bitcoin_cli_send_to_address(address: &str, amount: &str) -> anyhow::Res
     cmd!(
         BitcoinCli,
         "-rpcport={btc_port}",
+        "-rpcwallet=",
         "sendtoaddress",
         address,
         amount
@@ -131,9 +136,15 @@ async fn bitcoin_cli_send_to_address(address: &str, amount: &str) -> anyhow::Res
     .run()
     .await?;
 
-    cmd!(BitcoinCli, "-rpcport={btc_port}", "-generate", "11")
-        .run()
-        .await?;
+    cmd!(
+        BitcoinCli,
+        "-rpcport={btc_port}",
+        "-rpcwallet=",
+        "-generate",
+        "11"
+    )
+    .run()
+    .await?;
 
     Ok(())
 }
@@ -148,8 +159,7 @@ async fn join_test_fed_recovery(
     recover_from_scratch: bool,
 ) -> Result<Arc<FederationV2>, anyhow::Error> {
     let invite_code = std::env::var("FM_INVITE_CODE").unwrap();
-    let fedimint_federation =
-        joinFederation(&bridge.federations, invite_code, recover_from_scratch).await?;
+    let fedimint_federation = joinFederation(bridge, invite_code, recover_from_scratch).await?;
     let federation = bridge
         .federations
         .get_federation_maybe_recovering(&fedimint_federation.id.0)?;
@@ -187,11 +197,14 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_join_concurrent,
         matrix::test_matrix_login,
         matrix::test_matrix_dms,
+        matrix::test_matrix_recovery,
         matrix::test_matrix_create_room,
         matrix::test_send_and_download_attachment,
         multispend_tests::test_multispend_minimal,
         multispend_tests::test_multispend_group_acceptance,
         multispend_tests::test_multispend_group_rejection,
+        sp_transfer_tests::test_end_to_end,
+        sp_transfer_tests::test_receiver_joins_federation_later,
         // TODO: re-enable
         // test_lightning_send_and_receive,
         test_ecash,
@@ -218,6 +231,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_preview_and_join_community,
         test_list_and_leave_community,
         test_community_meta_bg_refresh,
+        test_community_v2_migration,
         nostr_tests::test_nostr_community_workflow,
         nostr_tests::test_nostr_community_preview_join_leave,
         test_existing_device_identifier_v2_migration,
@@ -295,14 +309,12 @@ async fn test_join_and_leave_and_join(_dev_fed: DevFed) -> anyhow::Result<()> {
     let td = TestDevice::new();
     let bridge = td.bridge_full().await?;
     let env_invite_code = std::env::var("FM_INVITE_CODE").unwrap();
-    joinFederation(&bridge.federations, env_invite_code.clone(), false).await?;
+    joinFederation(bridge, env_invite_code.clone(), false).await?;
 
     // Can't re-join a federation we're already a member of
-    assert!(
-        joinFederation(&bridge.federations, env_invite_code.clone(), false)
-            .await
-            .is_err()
-    );
+    assert!(joinFederation(bridge, env_invite_code.clone(), false)
+        .await
+        .is_err());
 
     // listTransactions works
     let federations = listFederations(&bridge.federations).await?;
@@ -317,7 +329,7 @@ async fn test_join_and_leave_and_join(_dev_fed: DevFed) -> anyhow::Result<()> {
     assert_eq!(listFederations(&bridge.federations).await?.len(), 0);
 
     // rejoin without any rocksdb locking problems
-    joinFederation(&bridge.federations, env_invite_code, false).await?;
+    joinFederation(bridge, env_invite_code, false).await?;
     assert_eq!(listFederations(&bridge.federations).await?.len(), 1);
 
     Ok(())
@@ -334,8 +346,8 @@ async fn test_join_concurrent(_dev_fed: DevFed) -> anyhow::Result<()> {
 
         // Can't re-join a federation we're already a member of
         let (res1, res2) = tokio::join!(
-            joinFederation(&bridge.federations, env_invite_code.clone(), false),
-            joinFederation(&bridge.federations, env_invite_code.clone(), false),
+            joinFederation(bridge, env_invite_code.clone(), false),
+            joinFederation(bridge, env_invite_code.clone(), false),
         );
         federation_id = match (res1, res2) {
             (Ok(f), Err(_)) | (Err(_), Ok(f)) => f.id.0,
@@ -554,13 +566,18 @@ async fn test_ecash_with_fedi_fees(
 async fn wait_for_ecash_reissue(federation: &FederationV2) -> Result<(), anyhow::Error> {
     devimint::util::poll("waiting for ecash reissue", || async {
         let txns = federation.list_transactions(usize::MAX, None).await;
-        let RpcTransactionKind::OobReceive { state: Some(state) } = txns
-            .first()
+        let Ok(RpcTransactionListEntry {
+            transaction:
+                RpcTransaction {
+                    kind: RpcTransactionKind::OobReceive { state: Some(state) },
+                    ..
+                },
+            ..
+        }) = txns
+            .into_iter()
+            .next()
             .context("transaction not found")
             .map_err(ControlFlow::Continue)?
-            .transaction
-            .kind
-            .clone()
         else {
             return Err(ControlFlow::Continue(anyhow!(
                 "oob state must be present on ecash reissue"
@@ -654,13 +671,17 @@ async fn test_on_chain_with_fedi_fees(
     bitcoin_cli_send_to_address(&address, "0.1").await?;
 
     assert!(matches!(
-        listTransactions(federation.clone(), None, None).await?[0]
-            .transaction
-            .kind,
-        RpcTransactionKind::OnchainDeposit {
-            state: Some(RpcOnchainDepositState::WaitingForTransaction),
+        listTransactions(federation.clone(), None, None).await?[0],
+        Ok(RpcTransactionListEntry {
+            transaction: RpcTransaction {
+                kind: RpcTransactionKind::OnchainDeposit {
+                    state: Some(RpcOnchainDepositState::WaitingForTransaction),
+                    ..
+                },
+                ..
+            },
             ..
-        }
+        })
     ));
     // check for event of type transaction that has onchain_state of
     // DepositState::Claimed
@@ -691,13 +712,17 @@ async fn test_on_chain_with_fedi_fees(
         .await;
     }
     assert!(matches!(
-        listTransactions(federation.clone(), None, None).await?[0]
-            .transaction
-            .kind,
-        RpcTransactionKind::OnchainDeposit {
-            state: Some(RpcOnchainDepositState::Claimed(_)),
+        listTransactions(federation.clone(), None, None).await?[0],
+        Ok(RpcTransactionListEntry {
+            transaction: RpcTransaction {
+                kind: RpcTransactionKind::OnchainDeposit {
+                    state: Some(RpcOnchainDepositState::Claimed(_)),
+                    ..
+                },
+                ..
+            },
             ..
-        }
+        })
     ),);
 
     let btc_amount = Amount::from_sats(10_000_000);
@@ -742,13 +767,17 @@ async fn test_on_chain_with_fedi_fees_with_restart(
     let federation = wait_for_federation_loading(bridge, &federation_id.to_string()).await?;
 
     assert!(matches!(
-        listTransactions(federation.clone(), None, None).await?[0]
-            .transaction
-            .kind,
-        RpcTransactionKind::OnchainDeposit {
-            state: Some(RpcOnchainDepositState::WaitingForTransaction),
+        listTransactions(federation.clone(), None, None).await?[0],
+        Ok(RpcTransactionListEntry {
+            transaction: RpcTransaction {
+                kind: RpcTransactionKind::OnchainDeposit {
+                    state: Some(RpcOnchainDepositState::WaitingForTransaction),
+                    ..
+                },
+                ..
+            },
             ..
-        }
+        })
     ));
     // check for event of type transaction that has onchain_state of
     // DepositState::Claimed
@@ -779,13 +808,17 @@ async fn test_on_chain_with_fedi_fees_with_restart(
         .await;
     }
     assert!(matches!(
-        listTransactions(federation.clone(), None, None).await?[0]
-            .transaction
-            .kind,
-        RpcTransactionKind::OnchainDeposit {
-            state: Some(RpcOnchainDepositState::Claimed(_)),
+        listTransactions(federation.clone(), None, None).await?[0],
+        Ok(RpcTransactionListEntry {
+            transaction: RpcTransaction {
+                kind: RpcTransactionKind::OnchainDeposit {
+                    state: Some(RpcOnchainDepositState::Claimed(_)),
+                    ..
+                },
+                ..
+            },
             ..
-        }
+        })
     ),);
 
     let btc_amount = Amount::from_sats(10_000_000);
@@ -1336,18 +1369,30 @@ async fn test_spv2_with_fedi_fees(
     let transactions = listTransactions(federation.clone(), None, None).await?;
     let last_tx = transactions.first().expect("must exist");
     assert!(matches!(
-        last_tx.transaction.kind,
-        RpcTransactionKind::SPV2Withdrawal {
-            state: rpc_types::RpcSPV2WithdrawalState::CompletedWithdrawal { .. }
-        }
+        last_tx,
+        Ok(RpcTransactionListEntry {
+            transaction: RpcTransaction {
+                kind: RpcTransactionKind::SPV2Withdrawal {
+                    state: rpc_types::RpcSPV2WithdrawalState::CompletedWithdrawal { .. }
+                },
+                ..
+            },
+            ..
+        })
     ));
 
     let second_last_tx = transactions.get(1).expect("must exist");
     assert!(matches!(
-        second_last_tx.transaction.kind,
-        RpcTransactionKind::SPV2Deposit {
-            state: rpc_types::RpcSPV2DepositState::PendingDeposit { .. }
-        }
+        second_last_tx,
+        Ok(RpcTransactionListEntry {
+            transaction: RpcTransaction {
+                kind: RpcTransactionKind::SPV2Deposit {
+                    state: rpc_types::RpcSPV2DepositState::PendingDeposit { .. }
+                },
+                ..
+            },
+            ..
+        })
     ));
 
     assert_eq!(
@@ -1395,10 +1440,16 @@ async fn test_spv2_with_fedi_fees(
         let transactions = listTransactions(federation.clone(), None, None).await?;
         let third_last_tx = transactions.get(2).expect("must exist");
         if matches!(
-            third_last_tx.transaction.kind,
-            RpcTransactionKind::SPV2Deposit {
-                state: rpc_types::RpcSPV2DepositState::CompletedDeposit { .. }
-            }
+            third_last_tx,
+            Ok(RpcTransactionListEntry {
+                transaction: RpcTransaction {
+                    kind: RpcTransactionKind::SPV2Deposit {
+                        state: rpc_types::RpcSPV2DepositState::CompletedDeposit { .. }
+                    },
+                    ..
+                },
+                ..
+            })
         ) {
             break;
         }
@@ -1463,8 +1514,7 @@ async fn test_federation_preview(_dev_fed: DevFed) -> anyhow::Result<()> {
     ));
 
     // join
-    let fedimint_federation =
-        joinFederation(&bridge.federations, invite_code.clone(), false).await?;
+    let fedimint_federation = joinFederation(bridge, invite_code.clone(), false).await?;
     let federation = bridge
         .federations
         .get_federation(&fedimint_federation.id.0)?;
@@ -2014,6 +2064,124 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
     Ok(())
 }
 
+async fn test_community_v2_migration(_dev_fed: DevFed) -> anyhow::Result<()> {
+    let td = TestDevice::new();
+    let bridge = td.bridge_full().await?;
+
+    // Initially our FirstCommunityInviteCodeState should be "NeverSet"
+    assert!(
+        bridge
+            .runtime
+            .app_state
+            .with_read_lock(|state| state.first_comm_invite_code.clone())
+            .await
+            == FirstCommunityInviteCodeState::NeverSet
+    );
+
+    let mut server = mockito::Server::new_async().await;
+    let url = server.url();
+
+    let invite_path = "/invite-0";
+    let community_invite = CommunityInvite::V1(CommunityInviteV1 {
+        community_meta_url: format!("{url}{invite_path}"),
+    });
+
+    server
+        .mock("GET", invite_path)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(COMMUNITY_JSON_0)
+        .create_async()
+        .await;
+
+    // Calling join() actually joins
+    joinCommunity(bridge, community_invite.to_string()).await?;
+    let communities = listCommunities(bridge).await?;
+    assert!(communities.len() == 1);
+    assert!(communities[0].community_invite.to_string() == community_invite.to_string());
+
+    // Now our FirstCommunityInviteCodeState should be "Set" with the v1 invite code
+    assert!(
+        bridge
+            .runtime
+            .app_state
+            .with_read_lock(|state| state.first_comm_invite_code.clone())
+            .await
+            == FirstCommunityInviteCodeState::Set(community_invite.to_string())
+    );
+
+    // Have another test device create a v2 nostr community and obtain its invite
+    // code
+    let v2_name = "Nostr Test Community".to_string();
+    let v2_description = "Initial description".to_string();
+    let v2_meta = BTreeMap::from([("description".to_string(), v2_description.clone())]);
+    let migrate_to_v2_invite_code = {
+        let td2 = TestDevice::new();
+        let bridge2 = td2.bridge_full().await?;
+
+        // Let's create a simple v2 community
+        let create_payload = CommunityJson {
+            name: v2_name.clone(),
+            version: 2,
+            meta: v2_meta.clone(),
+        };
+        nostrCreateCommunity(bridge2, serde_json::to_string(&create_payload)?)
+            .await?
+            .community_invite
+            .to_string()
+    };
+
+    // Update v1 community JSON with v2 migration invite code
+    let updated_community_json_0_str = {
+        let mut community_json_0 = serde_json::from_str::<CommunityJson>(COMMUNITY_JSON_0)?;
+        community_json_0.meta.insert(
+            COMMUNITY_V1_TO_V2_MIGRATION_KEY.to_owned(),
+            migrate_to_v2_invite_code.clone(),
+        );
+        serde_json::to_string(&community_json_0)?
+    };
+    server
+        .mock("GET", invite_path)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(updated_community_json_0_str)
+        .create_async()
+        .await;
+    bridge.on_app_foreground();
+
+    loop {
+        // Wait until migration event emitted
+        if td
+            .event_sink()
+            .num_events_of_type("communityMigratedToV2".into())
+            == 1
+        {
+            break;
+        }
+
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+    }
+
+    // Now there should be only one community which is the v2 community
+    let communities = listCommunities(bridge).await?;
+    assert!(communities.len() == 1);
+    assert!(communities[0].community_invite.to_string() == migrate_to_v2_invite_code);
+    assert!(communities[0].meta == v2_meta);
+
+    // Our FirstCommunityInviteCodeState should be "Set" with the v2 invite code
+    // since this was a migration
+    assert!(
+        bridge
+            .runtime
+            .app_state
+            .with_read_lock(|state| state.first_comm_invite_code.clone())
+            .await
+            == FirstCommunityInviteCodeState::Set(migrate_to_v2_invite_code)
+    );
+
+    Ok(())
+}
+
 async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     if should_skip_test_using_stock_fedimintd() {
         return Ok(());
@@ -2189,8 +2357,7 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
     // join federation while federation is running
     {
         let bridge = td.bridge_full().await?;
-        let rpc_federation =
-            joinFederation(&bridge.federations, invite_code.clone(), false).await?;
+        let rpc_federation = joinFederation(bridge, invite_code.clone(), false).await?;
         let federation = bridge
             .federations
             .get_federation_maybe_recovering(&rpc_federation.id.0)?;
@@ -2435,13 +2602,17 @@ async fn test_stability_pool_external_transfer_in(_dev_fed: DevFed) -> anyhow::R
         fedimint_core::task::sleep_in_test("spv2 deposit", Duration::from_millis(100)).await;
     }
 
-    let receiver_payment_address = spv2OurPaymentAddress(federation_receiver.clone()).await?;
+    let receiver_payment_address =
+        spv2OurPaymentAddress(federation_receiver.clone(), false).await?;
+    let parsed =
+        spv2ParsePaymentAddress(&bridge_sender.federations, receiver_payment_address).await?;
+    let account_id = parsed.account_id;
 
     // Sender transfers to receiver (external transfer from receiver's perspective)
     let transfer_amount = RpcFiatAmount(10_00);
     spv2Transfer(
-        &bridge_sender.federations,
-        receiver_payment_address,
+        federation_sender.clone(),
+        account_id,
         transfer_amount,
         FrontendMetadata::default(),
     )
@@ -2478,22 +2649,36 @@ async fn test_stability_pool_external_transfer_in(_dev_fed: DevFed) -> anyhow::R
         .iter()
         .find(|tx| {
             matches!(
-                tx.transaction.kind,
-                RpcTransactionKind::SPV2TransferIn { .. }
+                tx,
+                Ok(RpcTransactionListEntry {
+                    transaction: RpcTransaction {
+                        kind: RpcTransactionKind::SPV2TransferIn { .. },
+                        ..
+                    },
+                    ..
+                })
             )
         })
         .expect("Should find transfer-in transaction in receiver's history");
 
     // Verify the transaction details
-    match &transfer_in_tx.transaction.kind {
-        RpcTransactionKind::SPV2TransferIn {
-            state:
-                RpcSPV2TransferInState::CompletedTransfer {
-                    amount,
-                    fiat_amount,
+    match &transfer_in_tx {
+        Ok(RpcTransactionListEntry {
+            transaction:
+                RpcTransaction {
+                    kind:
+                        RpcTransactionKind::SPV2TransferIn {
+                            state:
+                                RpcSPV2TransferInState::CompletedTransfer {
+                                    amount,
+                                    fiat_amount,
+                                    ..
+                                },
+                        },
                     ..
                 },
-        } => {
+            ..
+        }) => {
             // The amount should match what was transferred
             assert!(amount.0.msats > 0, "Transfer amount should be positive");
             assert_eq!(

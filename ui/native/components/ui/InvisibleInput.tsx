@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, TextInput } from 'react-native'
 export type Props = {
     value: string
     onChangeText: (_: string) => void
-    inputRef: RefObject<TextInput>
+    inputRef: RefObject<TextInput | null>
     readOnly?: boolean
     label?: string
 }

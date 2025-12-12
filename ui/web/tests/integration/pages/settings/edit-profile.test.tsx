@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 
 import { createIntegrationTestBuilder } from '@fedi/common/tests/utils/remote-bridge-setup'
 
@@ -21,10 +21,17 @@ describe('/pages/settings/edit-profile', () => {
 
             renderWithBridge(<EditProfilePage />, { store, fedimint })
 
-            const input =
-                await screen.getByLabelText<HTMLInputElement>(/display name/i)
-            const words = input.value.split(' ')
-            expect(words.length).toBe(2)
+            await waitFor(
+                async () => {
+                    const input =
+                        await screen.getByLabelText<HTMLInputElement>(
+                            /display name/i,
+                        )
+                    const words = input.value.split(' ')
+                    expect(words.length).toBe(2)
+                },
+                { timeout: 5000 },
+            )
         })
     })
 })

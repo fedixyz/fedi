@@ -13,11 +13,16 @@ use rpc_types::{RpcFederationId, RpcPeerId, RpcRecoveryId};
 use runtime::bridge_runtime::Runtime;
 use runtime::storage::state::{DeviceIdentifier, ModuleFediFeeSchedule};
 use serde::Serialize;
+use sp_transfer::services::SptServices;
+use sp_transfer::services::transfer_complete_notifier::SptTransferCompleteNotifier;
 use tracing::error;
 use ts_rs::TS;
 
 use crate::bg_matrix::BgMatrix;
-use crate::providers::{FederationProviderWrapper, MultispendNotificationsProvider};
+use crate::providers::{
+    FederationProviderWrapper, MultispendNotificationsProvider, SptFederationProviderWrapper,
+    SptNotificationsProvider,
+};
 
 // FIXME: federation-specific filename
 pub const RECOVERY_FILENAME: &str = "backup.fedi";
@@ -31,6 +36,7 @@ pub struct BridgeFull {
     pub communities: Arc<Communities>,
     pub matrix: Arc<BgMatrix>,
     pub multispend_services: Arc<MultispendServices>,
+    pub sp_transfers_services: Arc<SptServices>,
     pub device_registration_service: Arc<DeviceRegistrationService>,
     pub nostril: Arc<Nostril>,
 }
@@ -95,16 +101,27 @@ impl BridgeFull {
 
         // Load communities and federations services
         let communities = Communities::init(runtime.clone(), nostril.clone()).await;
+        let spt_notifier = Arc::new(SptTransferCompleteNotifier::new(runtime.clone()));
+        let spt_notifications = Arc::new(SptNotificationsProvider(spt_notifier.clone()));
         let federations = Arc::new(Federations::new(
             runtime.clone(),
             multispend_notifications,
+            spt_notifications,
             device_registration_service.clone(),
         ));
         federations.load_joined_federations_in_background().await;
 
+        let spt_provider = Arc::new(SptFederationProviderWrapper(federations.clone()));
+        let sp_transfers_services = SptServices::new(runtime.clone(), spt_provider, spt_notifier);
+
         let nostr_pubkey = nostril.get_pub_key().await.unwrap().npub;
 
-        let matrix = BgMatrix::new(runtime.clone(), nostr_pubkey, multispend_services.clone());
+        let matrix = BgMatrix::new(
+            runtime.clone(),
+            nostr_pubkey,
+            multispend_services.clone(),
+            sp_transfers_services.clone(),
+        );
 
         let bridge = Self {
             runtime,
@@ -113,6 +130,7 @@ impl BridgeFull {
             matrix,
             device_registration_service,
             multispend_services,
+            sp_transfers_services,
             nostril,
         };
 
@@ -145,6 +163,40 @@ impl BridgeFull {
                     .await
             },
         );
+
+        let sp_transfers_services = self.sp_transfers_services.clone();
+        let matrix = self.matrix.clone();
+        self.runtime.task_group.spawn_cancellable(
+            "sp_transfers::TransferCompleteNotifier",
+            async move {
+                sp_transfers_services
+                    .transfer_complete_notifier
+                    .run_continuously(matrix.wait_spt().await)
+                    .await
+            },
+        );
+
+        let sp_transfers_services = self.sp_transfers_services.clone();
+        let matrix = self.matrix.clone();
+        self.runtime
+            .task_group
+            .spawn_cancellable("sp_transfers::AccountIdResponder", async move {
+                let sp_transfers_matrix = matrix.wait_spt().await.clone();
+                sp_transfers_services
+                    .account_id_responder
+                    .run_continuously(&sp_transfers_matrix)
+                    .await;
+            });
+
+        let sp_transfers_services = self.sp_transfers_services.clone();
+        self.runtime
+            .task_group
+            .spawn_cancellable("sp_transfers::TransferSubmitter", async move {
+                sp_transfers_services
+                    .transfer_submitter
+                    .run_continuously()
+                    .await;
+            });
     }
 
     /// Dump the database for a given federation.

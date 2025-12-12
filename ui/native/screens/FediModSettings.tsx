@@ -115,7 +115,7 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
                 />
             ),
             title: t('feature.fedimods.delete-confirmation', {
-                miniAppTitle: deletingMod?.title,
+                miniAppName: deletingMod?.title,
             }),
             buttons: [
                 {
@@ -190,7 +190,11 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
                 ) : type === 'fedi' ? ( // Show add mod UI only for 'fedi' type
                     <View style={style.empty}>
                         <Pressable
-                            onPress={() => navigation.navigate('AddFediMod')}>
+                            onPress={() =>
+                                navigation.navigate('AddFediMod', {
+                                    inputMethod: 'enter',
+                                })
+                            }>
                             <SvgImage name="NewModIcon" size={48} />
                         </Pressable>
                         <Text>{t('feature.fedimods.add-mods-homescreen')}</Text>
@@ -217,7 +221,12 @@ const FediModSettingsScreen: React.FC<Props> = ({ route }: Props) => {
             </ScrollView>
             {type === 'fedi' &&
                 mods.length > 0 && ( // Only show the button for 'fedi' type and when mods are present
-                    <Button onPress={() => navigation.navigate('AddFediMod')}>
+                    <Button
+                        onPress={() =>
+                            navigation.navigate('AddFediMod', {
+                                inputMethod: 'enter',
+                            })
+                        }>
                         {t('feature.fedimods.add-a-mini-app')}
                     </Button>
                 )}

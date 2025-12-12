@@ -7,6 +7,7 @@ import {
     selectMatrixRoomMember,
     selectMatrixUser,
 } from '@fedi/common/redux'
+import { isPowerLevelGreaterOrEqual } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { MatrixPowerLevel } from '../../../types'
@@ -55,7 +56,8 @@ export const ChatUserActionsOverlay: React.FC<Props> = ({
     if (!member) return <></>
 
     const isAdmin =
-        !!member?.powerLevel && member.powerLevel >= MatrixPowerLevel.Admin
+        !!member?.powerLevel &&
+        isPowerLevelGreaterOrEqual(member.powerLevel, MatrixPowerLevel.Admin)
     const style = styles(theme)
 
     return (

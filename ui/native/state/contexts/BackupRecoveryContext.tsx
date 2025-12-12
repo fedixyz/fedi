@@ -122,10 +122,7 @@ export function reducer(state: AppState, action: Action): AppState {
 }
 
 function BackupRecoveryProvider(props: { children: React.ReactNode }) {
-    const [state, dispatch] = useReducer<React.Reducer<AppState, Action>>(
-        reducer,
-        initialState,
-    )
+    const [state, dispatch] = useReducer(reducer, initialState)
 
     // useMemo makes sure the Provider only re-renders when
     // there is a state change

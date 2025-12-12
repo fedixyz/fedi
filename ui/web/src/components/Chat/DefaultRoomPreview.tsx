@@ -1,7 +1,10 @@
 import Link from 'next/link'
+import { useTranslation } from 'react-i18next'
 
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
 import ArrowRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
+import SpeakerPhoneIcon from '@fedi/common/assets/svgs/speakerphone.svg'
+import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
 import { MatrixRoom } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
@@ -11,27 +14,22 @@ import { Icon } from '../Icon'
 import { Text } from '../Text'
 
 export function DefaultRoomPreview({ room }: { room: MatrixRoom }) {
+    const { t } = useTranslation()
+    const { text, isPublicBroadcast } = useMatrixRoomPreview({
+        roomId: room.id,
+        t,
+    })
+
     return (
         <DefaultRoomContainer href={chatRoomRoute(room.id)}>
             <IconContainer>
-                <Icon icon={ChatIcon} />
+                <Icon icon={isPublicBroadcast ? SpeakerPhoneIcon : ChatIcon} />
             </IconContainer>
             <DefaultRoomText>
                 <Text variant="body" weight="bold">
                     {stringUtils.truncateString(room.name, 25)}
                 </Text>
-                {room.preview && (
-                    <Text variant="small">
-                        {stringUtils.truncateString(
-                            stringUtils.stripNewLines(
-                                'body' in room.preview.content
-                                    ? room.preview.content.body
-                                    : '',
-                            ),
-                            25,
-                        )}
-                    </Text>
-                )}
+                {text && <Text variant="small">{text}</Text>}
             </DefaultRoomText>
             <NewsItemArrow>
                 <Icon

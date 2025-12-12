@@ -25,6 +25,7 @@ export const ChatSettingsAvatar: React.FC<Props> = ({ room }) => {
         if (room && room.directUserId && room.avatarUrl) {
             navigation.navigate('ChatImageViewer', {
                 uri: mxcHttpUrlToDownloadUrl(room.avatarUrl),
+                downloadable: false,
             })
         }
     }

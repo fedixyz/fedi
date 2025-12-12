@@ -37,34 +37,31 @@ export const Modal: React.FC<Props> = ({
     return (
         <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
             <RadixDialog.Portal>
-                <Overlay onClick={() => onOpenChange?.(false)}>
-                    <Content>
-                        {showCloseButton && (
-                            <Close onClick={() => onOpenChange?.(false)}>
-                                <Icon icon={closeIcon} size={20} />
-                            </Close>
-                        )}
-
-                        <VisuallyHidden>
-                            <RadixDialog.Title>{title}</RadixDialog.Title>
-                            <RadixDialog.Description>
-                                {description}
-                            </RadixDialog.Description>
-                        </VisuallyHidden>
-
-                        <Children>{children}</Children>
-                        {showActions && (
-                            <Actions>
-                                <Button
-                                    variant="primary"
-                                    onClick={onClick ?? (() => {})}
-                                    width="full">
-                                    {buttonText ?? t('words.continue')}
-                                </Button>
-                            </Actions>
-                        )}
-                    </Content>
-                </Overlay>
+                <Overlay />
+                <Content>
+                    <VisuallyHidden>
+                        <RadixDialog.Title>{title}</RadixDialog.Title>
+                        <RadixDialog.Description>
+                            {description}
+                        </RadixDialog.Description>
+                    </VisuallyHidden>
+                    <Children>{children}</Children>
+                    {showCloseButton && (
+                        <Close>
+                            <Icon icon={closeIcon} size={20} />
+                        </Close>
+                    )}
+                    {showActions && (
+                        <Actions>
+                            <Button
+                                variant="primary"
+                                onClick={onClick ?? (() => {})}
+                                width="full">
+                                {buttonText ?? t('words.continue')}
+                            </Button>
+                        </Actions>
+                    )}
+                </Content>
             </RadixDialog.Portal>
         </RadixDialog.Root>
     )
@@ -78,12 +75,8 @@ const overlayShow = keyframes({
 const Overlay = styled(RadixDialog.Overlay, {
     animation: `${overlayShow} 150ms ease`,
     background: theme.colors.primary50,
-    display: 'grid',
     inset: 0,
-    overflow: 'auto',
     position: 'fixed',
-    placeItems: 'center',
-    textAlign: 'center',
 })
 
 const Close = styled(RadixDialog.Close, {
@@ -106,6 +99,10 @@ const contentShow = keyframes({
 })
 
 const Content = styled(RadixDialog.Content, {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
     animation: `${contentShow} 150ms ease`,
     background: theme.colors.white,
     boxSizing: 'border-box',
@@ -116,8 +113,8 @@ const Content = styled(RadixDialog.Content, {
     maxWidth: '400px',
     overflow: 'hidden',
     padding: 20,
-    position: 'relative',
     width: '90%',
+    textAlign: 'center',
 })
 
 const Children = styled('div', {})

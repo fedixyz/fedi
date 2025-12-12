@@ -1,17 +1,12 @@
-import { useRouter } from 'next/router'
 import { useTranslation } from 'react-i18next'
-
-import { ParserDataType } from '@fedi/common/types'
 
 import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import { OmniInput } from '../components/OmniInput'
-import { onboardingJoinRoute } from '../constants/routes'
 import { styled } from '../styles'
 
 function ScanPage() {
     const { t } = useTranslation()
-    const { push } = useRouter()
 
     return (
         <ContentBlock>
@@ -24,14 +19,9 @@ function ScanPage() {
                 <Layout.Content centered fadeIn>
                     <Content>
                         <OmniInput
-                            expectedInputTypes={[
-                                ParserDataType.FedimintInvite,
-                                ParserDataType.CommunityInvite,
-                            ]}
-                            onExpectedInput={({ data }) =>
-                                push(onboardingJoinRoute(data.invite))
-                            }
-                            onUnexpectedSuccess={() => null}
+                            expectedInputTypes={[]}
+                            onExpectedInput={() => {}}
+                            onUnexpectedSuccess={() => {}}
                             customActions={['paste']}
                         />
                     </Content>

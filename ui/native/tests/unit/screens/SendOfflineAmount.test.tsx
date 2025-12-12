@@ -12,7 +12,7 @@ import {
     setCurrencyLocale,
     setFederations,
     setPayFromFederationId,
-    setShowFiatTxnAmounts,
+    setTransactionDisplayType,
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
@@ -68,7 +68,7 @@ describe('SendOfflineAmount screen', () => {
     })
 
     it('should render the primary amount in fiat and the secondary amount in sats when amountInputType is fiat', async () => {
-        store.dispatch(setShowFiatTxnAmounts(true))
+        store.dispatch(setTransactionDisplayType('fiat'))
         store.dispatch(setAmountInputType('fiat'))
 
         renderWithProviders(
@@ -95,7 +95,7 @@ describe('SendOfflineAmount screen', () => {
     })
 
     it('should render the primary amount in sats and the secondary amount in fiat when amountInputType is sats', async () => {
-        store.dispatch(setShowFiatTxnAmounts(true))
+        store.dispatch(setTransactionDisplayType('fiat'))
         store.dispatch(setAmountInputType('sats'))
 
         renderWithProviders(
@@ -128,7 +128,7 @@ describe('SendOfflineAmount screen', () => {
     it('should prevent the user from sending more than the max ecash send balance', async () => {
         store.dispatch(setFederations([mockFederation1]))
         store.dispatch(setPayFromFederationId(mockFederation1.id))
-        store.dispatch(setShowFiatTxnAmounts(true))
+        store.dispatch(setTransactionDisplayType('fiat'))
         store.dispatch(setAmountInputType('sats'))
 
         mockCalculateMaxGenerateEcash.mockImplementation(
@@ -160,7 +160,7 @@ describe('SendOfflineAmount screen', () => {
     it('should fall back to the wallet balance if the calculateMaxGenerateEcash rpc fails', async () => {
         store.dispatch(setFederations([mockFederation1]))
         store.dispatch(setPayFromFederationId(mockFederation1.id))
-        store.dispatch(setShowFiatTxnAmounts(true))
+        store.dispatch(setTransactionDisplayType('fiat'))
         store.dispatch(setAmountInputType('sats'))
 
         mockCalculateMaxGenerateEcash.mockImplementation(async () => {

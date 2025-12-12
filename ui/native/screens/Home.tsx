@@ -13,6 +13,7 @@ import {
     selectShouldShowAutojoinedCommunityNotice,
     selectLastSelectedCommunity,
     selectOnboardingMethod,
+    selectMatrixAuth,
 } from '@fedi/common/redux'
 import { getFederationPinnedMessage } from '@fedi/common/utils/FederationUtils'
 
@@ -56,6 +57,7 @@ const Home: React.FC<Props> = () => {
     )
     const joinedCommunityCount = useAppSelector(selectCommunityIds).length
     const federationCount = useAppSelector(selectFederationIds).length
+    const matrixAuth = useAppSelector(selectMatrixAuth)
     const totalCount = joinedCommunityCount + federationCount
 
     const homeFirstTimeOverlayItems: FirstTimeOverlayItem[] = [
@@ -93,7 +95,13 @@ const Home: React.FC<Props> = () => {
 
     // Decide which overlay (if any) to show for this render.
     const showDisplayNameOverlay =
-        isNewSeedUser && !hasSeenDisplayName && !overlayShownThisFocus.current
+        // new users only
+        isNewSeedUser &&
+        // only if they haven't seen this already
+        !hasSeenDisplayName &&
+        !overlayShownThisFocus.current &&
+        // need initialized auth with a display name
+        matrixAuth !== undefined
 
     const showCommunityOverlay =
         isNewSeedUser &&

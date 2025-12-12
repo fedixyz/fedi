@@ -36,7 +36,7 @@ export const useAppDispatch: () => AppDispatch = useDispatch
 export const useAppSelector: TypedUseSelectorHook<AppState> = useSelector
 
 export const usePrevious = <T = unknown>(value: T): T | undefined => {
-    const ref = useRef<T>()
+    const ref = useRef<T | undefined>(undefined)
     useEffect(() => {
         ref.current = value
     })

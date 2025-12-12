@@ -5,6 +5,7 @@ import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
+    resetNuxSteps,
     resetSurveyCompletions,
     selectPaymentFederation,
     setSurveyTimestamp,
@@ -18,7 +19,6 @@ import {
 import { exportUiLogs } from '@fedi/common/utils/log'
 
 import { Button } from '../../components/Button'
-import { ContentBlock } from '../../components/ContentBlock'
 import { FederationWalletSelector } from '../../components/FederationWalletSelector'
 import { Input } from '../../components/Input'
 import * as Layout from '../../components/Layout'
@@ -71,11 +71,15 @@ function DeveloperPage() {
             const transactions = await fedimint.listTransactions(
                 paymentFederation.id,
             )
+            const refinedTransactions = transactions
+                .filter(entry => 'Ok' in entry)
+                .map(entry => entry.Ok)
+
             // To download a CSV, create a fake link and click it
             const hiddenElement = document.createElement('a')
             hiddenElement.href = makeBase64CSVUri(
                 makeTransactionHistoryCSV(
-                    transactions,
+                    refinedTransactions,
                     makeFormattedAmountsFromMSats,
                     t,
                 ),
@@ -164,16 +168,16 @@ function DeveloperPage() {
     }, [authenticatedGuardian])
 
     return (
-        <ContentBlock>
-            <Layout.Root>
-                <Layout.Header>
-                    <Layout.Title>Developer Settings</Layout.Title>
-                </Layout.Header>
-                <Layout.Content>
+        <Layout.Root>
+            <Layout.Header>
+                <Layout.Title>Developer Settings</Layout.Title>
+            </Layout.Header>
+            <Layout.Content>
+                <Content>
                     <FederationWalletSelector />
                     <Settings>
                         <Setting>
-                            <Text>Lightning gateway</Text>
+                            <Text weight="bold">Lightning gateway</Text>
                             <RadioGroup
                                 options={gatewayOptions}
                                 value={activeGatewayPubKey}
@@ -181,7 +185,7 @@ function DeveloperPage() {
                             />
                         </Setting>
                         <Setting>
-                            <Text>Simulate guardian mode</Text>
+                            <Text weight="bold">Simulate guardian mode</Text>
                             <RadioGroup
                                 options={guardianOptions}
                                 value={authenticatedGuardian?.url || ''}
@@ -206,7 +210,16 @@ function DeveloperPage() {
                             )}
                         </Setting>
                         <Setting>
-                            <Text>Survey Tool</Text>
+                            <Text weight="bold">NUX</Text>
+                            <Button
+                                onClick={() => {
+                                    dispatch(resetNuxSteps())
+                                }}>
+                                Reset new user experience
+                            </Button>
+                        </Setting>
+                        <Setting>
+                            <Text weight="bold">Survey Tool</Text>
                             <Button
                                 onClick={() => {
                                     dispatch(setSurveyTimestamp(-1))
@@ -221,19 +234,21 @@ function DeveloperPage() {
                             </Button>
                         </Setting>
                         <Setting>
-                            <Text>{t('feature.developer.logs')}</Text>
+                            <Text weight="bold">
+                                {t('feature.developer.logs')}
+                            </Text>
                             <Button onClick={handleDownloadLogs}>
                                 {t('feature.developer.download-logs')}
                             </Button>
                         </Setting>
                         <Setting>
-                            <Text>{t('words.wallet')}</Text>
+                            <Text weight="bold">{t('words.wallet')}</Text>
                             <Button onClick={handleDownloadTxHistory}>
                                 {t('feature.developer.export-transactions-csv')}
                             </Button>
                         </Setting>
                         <Setting>
-                            <Text>Evil Spam Testing</Text>
+                            <Text weight="bold">Evil Spam Testing</Text>
                             <Button
                                 onClick={async () => {
                                     if (!paymentFederation?.id) return
@@ -254,11 +269,18 @@ function DeveloperPage() {
                             </Button>
                         </Setting>
                     </Settings>
-                </Layout.Content>
-            </Layout.Root>
-        </ContentBlock>
+                </Content>
+            </Layout.Content>
+        </Layout.Root>
     )
 }
+
+const Content = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 20,
+    textAlign: 'left',
+})
 
 const Settings = styled('div', {
     display: 'flex',

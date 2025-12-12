@@ -17,7 +17,7 @@ import {
     selectMultispendBalance,
     selectOverrideCurrency,
     selectPaymentFederation,
-    selectShowFiatTxnAmounts,
+    selectTransactionDisplayType,
     selectStabilityPoolAvailableLiquidity,
     selectStableBalanceSats,
     selectShowFiatTotalBalance,
@@ -28,11 +28,7 @@ import {
     changeShowFiatTotalBalance,
     selectTotalStableBalanceSats,
 } from '@fedi/common/redux'
-import {
-    FiatFXInfo,
-    RpcRoomId,
-    RpcTransaction,
-} from '@fedi/common/types/bindings'
+import { FiatFXInfo, RpcRoomId } from '@fedi/common/types/bindings'
 
 import {
     Btc,
@@ -48,6 +44,7 @@ import {
     Sats,
     SelectableCurrency,
     SupportedCurrency,
+    TransactionListEntry,
     UsdCents,
 } from '../types'
 import amountUtils from '../utils/AmountUtils'
@@ -188,9 +185,15 @@ export const useAmountFormatter = (options?: {
     federationId?: Federation['id']
 }) => {
     const { currency, federationId } = options ?? {}
-    const { convertSatsToFormattedUsd, convertSatsToFormattedFiat } =
-        useBtcFiatPrice(currency, federationId)
-    const showFiatTxnAmounts = useCommonSelector(selectShowFiatTxnAmounts)
+    const {
+        convertSatsToFormattedUsd,
+        convertSatsToFormattedFiat,
+        convertCentsToFormattedFiat,
+    } = useBtcFiatPrice(currency, federationId)
+    const currencyLocale = useCommonSelector(selectCurrencyLocale)
+    const transactionDisplayType = useCommonSelector(
+        selectTransactionDisplayType,
+    )
 
     const makeFormattedAmountsFromSats = useCallback(
         (
@@ -221,19 +224,53 @@ export const useAmountFormatter = (options?: {
                 formattedSats,
                 formattedBtc,
                 formattedUsd,
-                formattedPrimaryAmount: showFiatTxnAmounts
-                    ? formattedFiat
-                    : formattedSats,
-                formattedSecondaryAmount: showFiatTxnAmounts
-                    ? formattedSats
-                    : formattedFiat,
+                formattedPrimaryAmount:
+                    transactionDisplayType === 'fiat'
+                        ? formattedFiat
+                        : formattedSats,
+                formattedSecondaryAmount:
+                    transactionDisplayType === 'fiat'
+                        ? formattedSats
+                        : formattedFiat,
             }
         },
         [
             convertSatsToFormattedFiat,
             convertSatsToFormattedUsd,
-            showFiatTxnAmounts,
+            transactionDisplayType,
         ],
+    )
+
+    const makeFormattedAmountsFromCents = useCallback(
+        (
+            amount: UsdCents,
+            symbolPosition: AmountSymbolPosition = 'end',
+        ): FormattedAmounts => {
+            const formattedFiat = convertCentsToFormattedFiat(
+                amount,
+                symbolPosition,
+            )
+            const formattedUsd = amountUtils.formatFiat(
+                amount,
+                SupportedCurrency.USD,
+                { symbolPosition, locale: currencyLocale },
+            )
+            return {
+                formattedFiat,
+                formattedSats: '',
+                formattedBtc: '',
+                formattedUsd,
+                formattedPrimaryAmount:
+                    transactionDisplayType === 'fiat'
+                        ? formattedFiat
+                        : formattedUsd,
+                formattedSecondaryAmount:
+                    transactionDisplayType === 'fiat'
+                        ? formattedUsd
+                        : formattedFiat,
+            }
+        },
+        [convertCentsToFormattedFiat, currencyLocale, transactionDisplayType],
     )
 
     const makeFormattedAmountsFromMSats = useCallback(
@@ -249,7 +286,7 @@ export const useAmountFormatter = (options?: {
 
     const makeFormattedAmountsFromTxn = useCallback(
         (
-            txn: RpcTransaction,
+            txn: TransactionListEntry,
             symbolPosition: AmountSymbolPosition = 'end',
         ): FormattedAmounts => {
             if (txn.txDateFiatInfo) {
@@ -279,12 +316,14 @@ export const useAmountFormatter = (options?: {
                     formattedFiat,
                     formattedSats,
                     formattedUsd,
-                    formattedPrimaryAmount: showFiatTxnAmounts
-                        ? formattedFiat
-                        : formattedSats,
-                    formattedSecondaryAmount: showFiatTxnAmounts
-                        ? formattedSats
-                        : formattedFiat,
+                    formattedPrimaryAmount:
+                        transactionDisplayType === 'fiat'
+                            ? formattedFiat
+                            : formattedSats,
+                    formattedSecondaryAmount:
+                        transactionDisplayType === 'fiat'
+                            ? formattedSats
+                            : formattedFiat,
                 }
             } else {
                 log.debug(
@@ -301,7 +340,7 @@ export const useAmountFormatter = (options?: {
             convertSatsToFormattedFiat,
             convertSatsToFormattedUsd,
             makeFormattedAmountsFromMSats,
-            showFiatTxnAmounts,
+            transactionDisplayType,
         ],
     )
 
@@ -309,6 +348,7 @@ export const useAmountFormatter = (options?: {
         makeFormattedAmountsFromMSats,
         makeFormattedAmountsFromSats,
         makeFormattedAmountsFromTxn,
+        makeFormattedAmountsFromCents,
     }
 }
 
@@ -748,7 +788,7 @@ export function useAmountInput(
             handleChangeFiat,
             handleChangeSats,
             currency,
-            currency,
+            currencyLocale,
         ],
     )
 
@@ -935,6 +975,15 @@ export function useMinMaxSendAmount(
             minimumAmount = amountUtils.msatToSat(cashuMeltSummary.totalAmount)
         } else if (invoiceAmount) {
             minimumAmount = amountUtils.msatToSat(invoiceAmount)
+
+            if (invoice.fee) {
+                const totalFees = (invoice.fee.federationFee +
+                    invoice.fee.networkFee +
+                    invoice.fee.fediFee) as MSats
+                maximumAmount = amountUtils.msatToSat(
+                    (balance - totalFees) as MSats,
+                ) as Sats
+            }
         } else {
             if (minSendable) {
                 minimumAmount = amountUtils.msatToSat(minSendable)
@@ -961,6 +1010,7 @@ export function useMinMaxSendAmount(
         minSendable,
         maxSendable,
         maxAmountOnchain,
+        invoice,
         btcAddress,
     ])
 }

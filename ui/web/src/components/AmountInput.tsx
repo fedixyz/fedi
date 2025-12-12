@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import arrowLeftIcon from '@fedi/common/assets/svgs/arrow-left.svg'
@@ -7,8 +7,7 @@ import { useAmountInput } from '@fedi/common/hooks/amount'
 import { Federation, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { useMediaQuery } from '../hooks'
-import { config, keyframes, styled, theme } from '../styles'
+import { keyframes, styled, theme } from '../styles'
 import { Icon } from './Icon'
 import { Text } from './Text'
 
@@ -20,7 +19,6 @@ interface Props {
     minimumAmount?: Sats | null
     maximumAmount?: Sats | null
     submitAttempts?: number
-    autoFocus?: boolean
     extraInput?: React.ReactNode
     onChangeAmount?: (amount: Sats) => void
 }
@@ -33,7 +31,6 @@ export const AmountInput: React.FC<Props> = ({
     minimumAmount,
     maximumAmount,
     submitAttempts = 0,
-    autoFocus,
     extraInput,
     onChangeAmount,
 }) => {
@@ -43,7 +40,6 @@ export const AmountInput: React.FC<Props> = ({
         setIsFiat,
         satsValue,
         fiatValue,
-        handleChangeFiat,
         handleChangeSats,
         currency,
         numpadButtons,
@@ -56,7 +52,7 @@ export const AmountInput: React.FC<Props> = ({
         maximumAmount,
         federationId,
     )
-    const isSmall = useMediaQuery(config.media.sm)
+
     const errorElRef = useRef<HTMLDivElement | null>(null)
     const amountInputContainerElRef = useRef<HTMLDivElement | null>(null)
 
@@ -89,6 +85,7 @@ export const AmountInput: React.FC<Props> = ({
         // 4. Fade in input container
         // 5. Re-enable field wrap transitions
         const handleClickValidationAmount = () => {
+            if (readOnly) return
             const containerEl = amountInputContainerElRef.current
             if (!containerEl) {
                 handleChangeSats(validation.amount.toString())
@@ -140,39 +137,17 @@ export const AmountInput: React.FC<Props> = ({
     const activeWrapProps = {
         active: true,
         readOnly,
-        autoFocus,
-        onClick: useCallback(
-            (ev: React.MouseEvent) => {
-                if (!isSmall) {
-                    ev.currentTarget.querySelector('input')?.focus()
-                }
-            },
-            [isSmall],
-        ),
     }
-    const activeInputProps = {
-        autoFocus,
-        readOnly,
-    }
+
     const inactiveWrapProps = {
         active: false,
         readOnly,
         role: readOnly ? undefined : 'button',
         tabIndex: readOnly ? undefined : 0,
-        onClick: useCallback(
-            (ev: React.MouseEvent) => {
-                if (readOnly) return
-                setIsFiat(!isFiat)
-                if (!isSmall) {
-                    ev.currentTarget.querySelector('input')?.focus()
-                }
-            },
-            [readOnly, setIsFiat, isSmall, isFiat],
-        ),
-    }
-    const inactiveInputProps = {
-        autoFocus: false,
-        readOnly: true,
+        onClick: () => {
+            if (readOnly) return
+            setIsFiat(!isFiat)
+        },
     }
 
     return (
@@ -188,40 +163,21 @@ export const AmountInput: React.FC<Props> = ({
                     <FieldWrap
                         {...(isFiat ? inactiveWrapProps : activeWrapProps)}>
                         <SnugInput>
-                            <input
-                                {...(isFiat
-                                    ? inactiveInputProps
-                                    : activeInputProps)}
-                                value={satsValue}
-                                onChange={ev =>
-                                    handleChangeSats(ev.currentTarget.value)
-                                }
-                                data-testid="amount-input-sats"
-                            />
-                            <div>{satsValue}</div>
+                            <div>
+                                {satsValue}{' '}
+                                <Currency>{t('words.sats')}</Currency>
+                            </div>
                         </SnugInput>
-                        <Suffix>{t('words.sats')}</Suffix>
-                        <Icon icon={switchIcon} />
+                        {!readOnly && isFiat && <Icon icon={switchIcon} />}
                     </FieldWrap>
                     <FieldWrap
                         {...(isFiat ? activeWrapProps : inactiveWrapProps)}>
                         <SnugInput>
-                            <input
-                                {...(isFiat
-                                    ? activeInputProps
-                                    : inactiveInputProps)}
-                                readOnly={!isFiat || readOnly}
-                                value={fiatValue}
-                                inputMode="decimal"
-                                onChange={ev =>
-                                    handleChangeFiat(ev.currentTarget.value)
-                                }
-                                data-testid="amount-input-fiat"
-                            />
-                            <div>{fiatValue}</div>
+                            <div>
+                                {fiatValue} <Currency>{currency}</Currency>
+                            </div>
                         </SnugInput>
-                        <Suffix>{currency}</Suffix>
-                        <Icon icon={switchIcon} />
+                        {!readOnly && !isFiat && <Icon icon={switchIcon} />}
                     </FieldWrap>
                     {error && (
                         <Error
@@ -326,14 +282,8 @@ const switchIconFade = keyframes({
     '100%': { opacity: 1 },
 })
 
-const Suffix = styled('span', {
-    paddingLeft: 6,
-    fontSize: 32,
-    lineHeight: '48px',
-    textTransform: 'uppercase',
-    fontWeight: theme.fontWeights.medium,
-    transformOrigin: '10% 70%',
-    transition: 'transform 200ms ease',
+const Currency = styled('span', {
+    fontSize: 24,
 })
 
 const FieldWrap = styled('div', {
@@ -365,17 +315,12 @@ const FieldWrap = styled('div', {
             true: {
                 transform: `
                     translateX(-50%)
-                    translateX(22px)
                     translateY(var(--error-height-offset))
                 `,
 
                 '> svg': {
                     opacity: 0,
                     animation: 'none',
-                },
-
-                [`& ${Suffix}`]: {
-                    transform: 'scale(0.7)',
                 },
             },
             false: {
@@ -409,43 +354,22 @@ const FieldWrap = styled('div', {
 const SnugInput = styled('div', {
     height: 48,
     position: 'relative',
+    textTransform: 'uppercase',
 
-    '& > div, & > input': {
+    '& > div': {
         fontSize: 32,
         lineHeight: '48px',
         fontWeight: theme.fontWeights.medium,
     },
-
-    '& > div': {
-        opacity: 0,
-        visibility: 'hidden',
-    },
-
-    '& > input': {
-        position: 'absolute',
-        inset: 0,
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        outline: 'none',
-    },
 })
 
 const NumpadContainer = styled('div', {
-    display: 'none',
     width: '100%',
     maxWidth: 400,
-
-    '@sm': {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gridTemplateRows: 'repeat(4, 1fr)',
-        gap: 8,
-    },
-
-    '@media (max-height: 640px)': {
-        display: 'none',
-    },
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateRows: 'repeat(4, 1fr)',
+    gap: 8,
 })
 
 const NumpadButton = styled('button', {

@@ -609,7 +609,7 @@
             "clear-cache-ram-done": "Na-clear ang cache mula sa RAM lamang",
             "debug-mode": "Fedi Mini App Debug Mode",
             "debug-mode-info": "Nag-i-inject ng dev tool (Eruda) sa browser kapag binubuksan ang Fedi Mini App",
-            "delete-confirmation": "Sigurado ka bang gusto mong i-delete si {{fediMod}}?",
+            "delete-confirmation": "Sigurado ka bang gusto mong i-delete si {{miniAppName}}?",
             "enter-amount-to-withdraw": "Maglagay ng halaga upang i-withdraw mula sa {{fediMod}}",
             "enter-site-link": "Ipasok ang Link ng Site",
             "fedi-mods": "Fedi Mini Apps",

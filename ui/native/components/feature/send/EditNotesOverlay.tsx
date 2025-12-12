@@ -62,9 +62,9 @@ const EditNotesOverlay = ({
                                 )}
                             </Text>
                         }
-                        inputStyle={style.inputStyle}
-                        inputContainerStyle={style.innerInputContainer}
                         containerStyle={style.inputContainer}
+                        inputContainerStyle={style.innerInputContainer}
+                        inputStyle={style.inputStyle}
                     />
                 ),
                 buttons: [
@@ -87,22 +87,24 @@ const styles = (theme: Theme) =>
             position: 'absolute',
             left: theme.spacing.sm,
         },
-        label: { paddingHorizontal: theme.spacing.sm },
-        inputStyle: {
-            textAlignVertical: 'top',
-            minHeight: 120,
-            fontSize: 14, // caption
-        },
         inputContainer: {
-            paddingTop: theme.spacing.lg,
+            height: 160,
+        },
+        label: {
+            padding: theme.spacing.sm,
+            height: 30,
         },
         innerInputContainer: {
-            marginTop: theme.spacing.sm,
             borderColor: theme.colors.lightGrey,
             padding: theme.spacing.sm,
             borderWidth: 1.5,
             borderRadius: 8,
-            maxHeight: 120,
+            height: 130,
+        },
+        inputStyle: {
+            textAlignVertical: 'top',
+            height: 130,
+            fontSize: 14, // caption
         },
         headerContainer: {
             alignSelf: 'stretch',

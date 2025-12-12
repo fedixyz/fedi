@@ -3,8 +3,14 @@ import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useFederationPreview } from '@fedi/common/hooks/federation'
+import { useNuxStep } from '@fedi/common/hooks/nux'
 import { makeLog } from '@fedi/common/utils/log'
 
+import {
+    federationsRoute,
+    homeRoute,
+    settingsBackupPersonalRoute,
+} from '../../constants/routes'
 import { styled } from '../../styles'
 import { HoloLoader } from '../HoloLoader'
 import * as Layout from '../Layout'
@@ -19,6 +25,10 @@ export const JoinFederation: React.FC = () => {
     const { push, query } = useRouter()
 
     const inviteCode = String(query.invite_code) || ''
+
+    const [hasPerformedPersonalBackup] = useNuxStep(
+        'hasPerformedPersonalBackup',
+    )
 
     const {
         isJoining,
@@ -55,11 +65,20 @@ export const JoinFederation: React.FC = () => {
             <FederationPreview
                 isJoining={isJoining}
                 onJoin={(recoverFromScratch: boolean) => {
-                    if (recoverFromScratch)
+                    if (recoverFromScratch) {
                         log.info(
                             `Recovering from scratch. (federation id: ${federationPreview.id})`,
                         )
-                    handleJoin(() => push('/home'), recoverFromScratch)
+                    }
+                    handleJoin(
+                        () =>
+                            push(
+                                hasPerformedPersonalBackup
+                                    ? federationsRoute
+                                    : `${settingsBackupPersonalRoute}?from=join`,
+                            ),
+                        recoverFromScratch,
+                    )
                 }}
                 onBack={() => {
                     setIsJoining(false)
@@ -75,7 +94,7 @@ export const JoinFederation: React.FC = () => {
             <CommunityPreview
                 isJoining={isJoining}
                 onJoin={() => {
-                    handleJoin(() => push('/home'))
+                    handleJoin(() => push(homeRoute))
                 }}
                 onBack={() => {
                     setIsJoining(false)

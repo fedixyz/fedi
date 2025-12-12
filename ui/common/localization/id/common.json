@@ -609,7 +609,7 @@
             "clear-cache-ram-done": "Cache dihapus hanya dari RAM",
             "debug-mode": "Mode Debug Mod Fedi",
             "debug-mode-info": "Menyuntikkan alat pengembang (Eruda) ke dalam browser saat membuka Fedi Mods.",
-            "delete-confirmation": "Apakah kamu yakin ingin menghapus {{fediMod}}?",
+            "delete-confirmation": "Apakah kamu yakin ingin menghapus {{miniAppName}}?",
             "enter-amount-to-withdraw": "Masukkan jumlah yang akan ditarik dari {{fediMod}}",
             "enter-site-link": "Masukkan Tautan Situs",
             "fedi-mods": "Fedi Mods",

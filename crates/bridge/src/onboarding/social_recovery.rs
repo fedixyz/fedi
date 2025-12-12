@@ -53,6 +53,8 @@ impl BridgeOnboarding {
                 .iter()
                 .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone())),
             &None, // FIXME: api secret
+            false,
+            false,
         )
         .await?
         .with_module(social_module_id);
@@ -149,6 +151,8 @@ impl BridgeOnboarding {
                 .iter()
                 .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone())),
             &None, // FIXME: api secret
+            false,
+            false,
         )
         .await?
         .with_module(social_module_id);

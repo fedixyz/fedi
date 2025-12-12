@@ -97,7 +97,7 @@ impl From<&CommunityInviteV2> for RpcCommunityInviteV2 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CommunityInvite {
     V1(CommunityInviteV1),
     V2(CommunityInviteV2),
@@ -176,7 +176,7 @@ impl Display for CommunityInviteV1 {
 /// v2 invite codes are bech32m encoded with the human-readable part
 /// being "fedi:communityV2". The decoded data is actually a json blob that
 /// follows this schema.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CommunityInviteV2 {
     pub author_pubkey: nostr_sdk::PublicKey, // type implements deserialize
     pub community_uuid_hex: String,          // d tag

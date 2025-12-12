@@ -7,6 +7,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectAreAllFederationsRecovering,
     selectLoadedFederations,
+    selectShouldShowStablePaymentAddress,
 } from '@fedi/common/redux'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import {
@@ -16,15 +17,18 @@ import {
 
 import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
+import { resetToWallets } from '../../../state/navigation'
 import {
     AnyParsedData,
     ParsedFedimintEcash,
+    ParsedStabilityAddress,
     ParserDataType,
 } from '../../../types'
 import { NavigationArgs, NavigationHook } from '../../../types/navigation'
 import CustomOverlay, { CustomOverlayContents } from '../../ui/CustomOverlay'
 import RecoveryInProgress from '../recovery/RecoveryInProgress'
 import OmniReceiveEcash from './OmniReceiveEcash'
+import OmniSendStability from './OmniSendStability'
 
 interface Props<T extends AnyParsedData> {
     parsedData: T
@@ -47,6 +51,15 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     const areAllFederationsRecovering = useAppSelector(
         selectAreAllFederationsRecovering,
     )
+    const shouldShowStablePaymentAddress = useAppSelector(state => {
+        if (parsedData.type !== ParserDataType.StabilityAddress) return false
+        return selectShouldShowStablePaymentAddress(
+            state,
+            parsedData.data.federation.type === 'joined'
+                ? parsedData.data.federation.federationId
+                : undefined,
+        )
+    })
 
     // OmniConfirmation can be rendered ourside of StackNavigator, so `replace`
     // is not always available, so fall back to navigate. Cast as NavigationHook
@@ -87,6 +100,32 @@ export const OmniConfirmation = <T extends AnyParsedData>({
         return () =>
             handleNavigate('ConfirmReceiveOffline', {
                 ecash: data.token,
+            })
+    }
+
+    const handleContinueStabilityAddress = ({
+        data,
+    }: ParsedStabilityAddress) => {
+        const federationData = data.federation
+        // If you haven't joined the federation
+        // AND if it does include an invite code, don't show any buttons
+        if (
+            federationData.type === 'notJoined' &&
+            federationData.federationInvite
+        )
+            return null
+
+        // Otherwise if you haven't joined and it DOESN'T include an invite code
+        // Show the "Go Back" button
+        if (federationData.type === 'notJoined') return undefined
+
+        return () =>
+            handleNavigate('StabilityTransfer', {
+                recipient: {
+                    accountId: data.accountId,
+                    address: data.address,
+                },
+                federationId: federationData.federationId,
             })
     }
 
@@ -216,6 +255,37 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                     // I would use if statements but eslint doesn't like them in switch statements
                     continueOnPress: handleContinueFedimintEcash(parsedData),
                 }
+            case ParserDataType.StabilityAddress:
+                // don't parse if feature flag is off
+                if (!shouldShowStablePaymentAddress)
+                    return {
+                        contents: {
+                            icon: 'ScanSad',
+                            title: t('feature.omni.unsupported-unknown'),
+                        },
+                    }
+
+                return {
+                    contents: {
+                        title: t('feature.omni.confirm-send-stability'),
+                        icon:
+                            parsedData.data.federation.type === 'joined'
+                                ? 'Usd'
+                                : undefined,
+                        body: (
+                            <OmniSendStability
+                                parsed={parsedData.data}
+                                onContinue={() =>
+                                    // if the user is joining the fedration after scanning a sp payment address
+                                    // they likely won't have any stable balance yet so send them to
+                                    // the wallets screen instead of StabilityTransfer
+                                    navigation.dispatch(resetToWallets())
+                                }
+                            />
+                        ),
+                    },
+                    continueOnPress: handleContinueStabilityAddress(parsedData),
+                }
             case ParserDataType.LnurlAuth:
                 return {
                     contents: {
@@ -270,6 +340,19 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                         icon: 'Globe',
                         url: parsedData.data.url,
                         title: t('feature.omni.confirm-website-url'),
+                    },
+                    continueOnPress: () => {
+                        Linking.openURL(parsedData.data.url)
+                        onSuccess(parsedData)
+                        onGoBack()
+                    },
+                }
+            case ParserDataType.DeepLink:
+                return {
+                    contents: {
+                        icon: 'Globe',
+                        url: parsedData.data.url,
+                        title: t('feature.omni.confirm-deeplink-url'),
                     },
                     continueOnPress: () => {
                         Linking.openURL(parsedData.data.url)

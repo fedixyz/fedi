@@ -133,6 +133,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                 localEcho: false,
                 sendState: { kind: 'sent', event_id: eventId },
                 inReply: null,
+                mentions: null,
             })
         })
 

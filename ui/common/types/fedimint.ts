@@ -335,6 +335,7 @@ export interface FediMod {
     imageUrl?: string | null
     description?: string
     color?: string
+    dateAdded?: number
 }
 
 export interface FederationApiVersion {

@@ -5,6 +5,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 while true; do
     echo -e "\nUI Testing Utils: Select an option:"
     echo "a - run tests for all UI workspaces"
+    echo "u - run unit tests only for all UI workspaces"
+    echo "i - run integration tests only for all UI workspaces"
     echo "c - run tests for common workspace only"
     echo "n - run tests for native workspace only"
     echo "w - run tests for web workspace only"
@@ -17,6 +19,14 @@ while true; do
         a)
             echo "Running unit and integration tests for all UI workspaces"
             $REPO_ROOT/scripts/ui/run-unit-tests.sh || true
+            $REPO_ROOT/scripts/ui/run-integration-tests.sh || true
+            ;;
+        u)
+            echo "Running unit tests for all UI workspaces"
+            $REPO_ROOT/scripts/ui/run-unit-tests.sh || true
+            ;;
+        i)
+            echo "Running integration tests for all UI workspaces"
             $REPO_ROOT/scripts/ui/run-integration-tests.sh || true
             ;;
         c)

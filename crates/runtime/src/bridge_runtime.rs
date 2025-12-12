@@ -64,4 +64,12 @@ impl Runtime {
             BridgeDbPrefix::MultispendPrefix as u8,
         ])
     }
+
+    /// DB for SP Transfers state.
+    pub fn sp_transfers_db(&self) -> Database {
+        self.global_db.with_prefix(vec![
+            BRIDGE_DB_PREFIX,
+            BridgeDbPrefix::SpTransfersPrefix as u8,
+        ])
+    }
 }

@@ -9,8 +9,8 @@ import {
     setAmountInputType,
     changeOverrideCurrency,
     setCurrencyLocale,
-    setShowFiatTxnAmounts,
     fetchCurrencyPrices,
+    setTransactionDisplayType,
 } from '@fedi/common/redux'
 import { Sats, SupportedCurrency } from '@fedi/common/types'
 
@@ -876,10 +876,10 @@ describe('useAmountFormatter hook', () => {
             expect(formatted.formattedSats).toBe('10.000.000')
         })
 
-        it('respects showFiatTxnAmounts setting with historical data', () => {
+        it('respects transactionDisplayType setting with historical data', () => {
             const { store, bridge } = context
 
-            act(() => store.dispatch(setShowFiatTxnAmounts(true))) // with fiat display preference
+            act(() => store.dispatch(setTransactionDisplayType('fiat'))) // with fiat display preference
 
             const { result: fiatPrimaryResult } = renderHookWithBridge(
                 () => useAmountFormatter(),
@@ -907,7 +907,7 @@ describe('useAmountFormatter hook', () => {
             )
 
             act(() => {
-                store.dispatch(setShowFiatTxnAmounts(false)) // don't show fiat display preference
+                store.dispatch(setTransactionDisplayType('sats')) // don't show fiat display preference
             })
 
             const { result: satsPrimaryResult } = renderHookWithBridge(

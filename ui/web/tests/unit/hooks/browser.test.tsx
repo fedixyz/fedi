@@ -2,13 +2,15 @@ import '@testing-library/jest-dom'
 import { waitFor } from '@testing-library/react'
 
 import { setupStore } from '@fedi/common/redux'
+import { InjectionMessageType } from '@fedi/injections/src/types'
 
 import { useIFrameListener } from '../../../src/hooks/browser'
 import { AppState } from '../../../src/state/store'
 import { renderHookWithProviders } from '../../utils/render'
 
-jest.mock('../../../src/lib/bridge', () => ({
-    fedimint: {
+jest.mock('@fedi/common/hooks/fedimint', () => ({
+    ...jest.requireActual('@fedi/common/hooks/fedimint'),
+    useFedimint: () => ({
         decodeInvoice: () => ({
             paymentHash: 'hash',
             amount: 100000,
@@ -16,13 +18,13 @@ jest.mock('../../../src/lib/bridge', () => ({
             description: 'desc',
             invoice: '12345',
         }),
-        signNostrEvent: () => 'mock-sig',
-    },
+        signNostrEvent: () => Promise.resolve('mock-sig'),
+    }),
 }))
 
 const mockDispatch = jest.fn()
-jest.mock('../../../src/hooks/store.ts', () => ({
-    ...jest.requireActual('../../../src/hooks/store'),
+jest.mock('@fedi/web/src/hooks/store.ts', () => ({
+    ...jest.requireActual('@fedi/web/src/hooks/store'),
     useAppDispatch: () => mockDispatch,
 }))
 
@@ -51,7 +53,7 @@ describe('/hooks/browser', () => {
         jest.clearAllMocks()
     })
 
-    describe('When a nostr.getPublicKey message event occurs', () => {
+    describe('When a nostr_getPublicKey message event occurs', () => {
         it('should send the nostr public key using postMessage', async () => {
             renderHookWithProviders(() => useIFrameListener(iframeRef), {
                 preloadedState: {
@@ -68,7 +70,7 @@ describe('/hooks/browser', () => {
             window.dispatchEvent(
                 new MessageEvent('message', {
                     data: {
-                        event: 'nostr.getPublicKey',
+                        event: InjectionMessageType.nostr_getPublicKey,
                     },
                 }),
             )
@@ -78,7 +80,7 @@ describe('/hooks/browser', () => {
                     iframeRef?.current?.contentWindow?.postMessage,
                 ).toHaveBeenCalledWith(
                     {
-                        event: 'nostr.getPublicKey',
+                        event: InjectionMessageType.nostr_getPublicKey,
                         payload:
                             '36250e727c4e7782b9311232e306ab7d0905de173719f5149952244bbd41c677',
                     },
@@ -88,7 +90,7 @@ describe('/hooks/browser', () => {
         })
     })
 
-    describe('When a nostr.signEvent message event occurs', () => {
+    describe('When a nostr_signEvent message event occurs', () => {
         it('should send signedEvent using postMessage', async () => {
             renderHookWithProviders(() => useIFrameListener(iframeRef), {
                 preloadedState: {
@@ -105,7 +107,7 @@ describe('/hooks/browser', () => {
             window.dispatchEvent(
                 new MessageEvent('message', {
                     data: {
-                        event: 'nostr.signEvent',
+                        event: InjectionMessageType.nostr_signEvent,
                         payload: {
                             created_at: 1752678493,
                             kind: 22242,
@@ -122,7 +124,7 @@ describe('/hooks/browser', () => {
                     iframeRef?.current?.contentWindow?.postMessage,
                 ).toHaveBeenCalledWith(
                     {
-                        event: 'nostr.signEvent',
+                        event: InjectionMessageType.nostr_signEvent,
                         payload: {
                             created_at: 1752678493,
                             kind: 22242,
@@ -139,14 +141,14 @@ describe('/hooks/browser', () => {
         })
     })
 
-    describe('When a webln.sendPayment message event occurs', () => {
+    describe('When a webln_sendPayment message event occurs', () => {
         it('should dispatch decoded invoice', async () => {
             renderHookWithProviders(() => useIFrameListener(iframeRef))
 
             window.dispatchEvent(
                 new MessageEvent('message', {
                     data: {
-                        event: 'webln.sendPayment',
+                        event: InjectionMessageType.webln_sendPayment,
                         payload:
                             'lnbc117030n1p5q8s8app5d77zwec0cxlt3tkvcd54ftuvfyw2vgx3xzqxqf2e89vun4xfd23scqzyssp533suuayhvueuncy3n4pu0lk2n69ypfz6hxcvtutn6u3mf0jwjc4q9q7sqqqqqqqqqqqqqqqqqqqsqqqqqysgqdqhfehkgctwvys9qcted4jkuaqmqz9gxqyz5vqrzjqwryaup9lh50kkranzgcdnn2fgvx390wgj5jd07rwr3vxeje0glcllcs7fczgc5c5cqqqqlgqqqqqeqqjqj3q7ny3cs8mp3vk5x4zjjwcd30df3slyqm6td5ent60hz9xaea9skncdwma34v4vulvj8rfyhpp0gumfqnfawd6telmuflzw3u9g0wsphrrc24',
                     },

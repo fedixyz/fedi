@@ -26,6 +26,6 @@
         <string>x86_64</string>
     </array>
     <key>MinimumOSVersion</key>
-	<string>15.0</string>
+	<string>15.1</string>
 </dict>
 </plist>

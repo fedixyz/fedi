@@ -61,6 +61,7 @@ const lnurlAddress = `${lnurlAddressName}@${lnurlDomain}`
 const lnurlPayUrl = `${lnurlOrigin}/pay?tag=payRequest&k1=${lnurlk1}`
 const LnurlWithdrawUrl = `${lnurlOrigin}/withdraw?tag=withdrawRequest&k1=${lnurlk1}`
 const lnurlAuthUrl = `${lnurlOrigin}/auth?tag=login&k1=${lnurlk1}`
+const deepLinkUrl = 'https://app.fedi.xyz/link?screen=chat'
 const encodeLnurl = (url: string) =>
     bech32.encode('lnurl', bech32.toWords(Buffer.from(url, 'utf8')), 1023)
 const lnurlPayParams = {
@@ -222,11 +223,13 @@ describe('parseUserInput', () => {
         input: lnurlAddress,
         type: ParserDataType.LnurlPay,
     })
-
     testCases.push({
         input: lnurlOrigin,
         type: ParserDataType.Website,
-        data: { url: 'https://fedi.xyz' },
+    })
+    testCases.push({
+        input: deepLinkUrl,
+        type: ParserDataType.DeepLink,
     })
     testCases.push({
         input: `${lnurlOrigin}/?lightning=${encodeLnurl(lnurlPayUrl)}`,
@@ -303,6 +306,7 @@ describe('parseUserInput', () => {
     })
 
     // --- Cashu Ecash ---
+
     testCases.push({
         input: cashuEcashToken,
         type: ParserDataType.CashuEcash,
@@ -385,7 +389,8 @@ describe('parseUserInput', () => {
             throw Error('Failed to parse')
         },
         matrixUserProfile: async ({ userId }: { userId: string }) => {
-            if (userId === '@user:example.com') return { displayname: 'user' }
+            if (userId === '@user:example.com')
+                return { data: { displayname: 'user' } }
         },
     } as unknown as FedimintBridge
 

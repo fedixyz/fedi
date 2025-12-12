@@ -189,8 +189,8 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     }
 
     // Handle deep links
-    if (isDeepLink(asPath)) {
-        return <Redirect path={getDeepLinkPath(asPath)} />
+    if (isDeepLink(window.location.href)) {
+        return <Redirect path={getDeepLinkPath(window.location.href)} />
     }
 
     // If onboarding is not completed, redirect to Welcome page

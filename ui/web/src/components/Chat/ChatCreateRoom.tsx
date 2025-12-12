@@ -25,6 +25,8 @@ export const ChatCreateRoom: React.FC = () => {
         setGroupName,
         broadcastOnly,
         setBroadcastOnly,
+        isPublic,
+        setIsPublic,
     } = useCreateMatrixRoom(t, (roomId: MatrixRoom['id']) => {
         push(`/chat/room/${roomId}`)
     })
@@ -57,13 +59,27 @@ export const ChatCreateRoom: React.FC = () => {
                 {errorMessage && (
                     <WarningText variant="caption">{errorMessage}</WarningText>
                 )}
-                <BroadcastSwitchContainer>
+                <SwitchContainer>
                     <Text>{t('feature.chat.broadcast-only')}</Text>
                     <Switch
                         checked={broadcastOnly}
                         onCheckedChange={setBroadcastOnly}
                     />
-                </BroadcastSwitchContainer>
+                </SwitchContainer>
+                <SwitchContainer>
+                    <Text>{t('words.public')}</Text>
+                    <Switch
+                        checked={isPublic}
+                        onCheckedChange={value => {
+                            setIsPublic(value)
+                        }}
+                    />
+                </SwitchContainer>
+                {isPublic && (
+                    <WarningText>
+                        {t('feature.chat.public-group-warning')}
+                    </WarningText>
+                )}
             </Inner>
             <Buttons>
                 <Button
@@ -105,7 +121,7 @@ const Buttons = styled('div', {
     padding: 24,
 })
 
-const BroadcastSwitchContainer = styled('div', {
+const SwitchContainer = styled('div', {
     width: '100%',
     display: 'flex',
     alignItems: 'center',

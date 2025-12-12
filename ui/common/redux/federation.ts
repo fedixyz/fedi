@@ -703,6 +703,10 @@ export const processCommunityMeta = createAsyncThunk<
                 mods: getCommunityFediMods(community.meta),
             }),
         )
+
+        // note: matrix may not be initialized yet so this may fail gracefully
+        // but the startMatrixClient thunk will call previewAllDefaultChats and make
+        // sure all loaded communities get their default chats previewed
         dispatch(
             previewCommunityDefaultChats({
                 fedimint,
@@ -721,6 +725,9 @@ export const processFederationMeta = createAsyncThunk<
     async ({ fedimint, federation }, { dispatch }) => {
         if (!federation.meta) return
 
+        // note: matrix may not be initialized yet so this may fail gracefully
+        // but the startMatrixClient thunk will call previewAllDefaultChats and make
+        // sure all loaded federations get their default chats previewed
         dispatch(
             previewFederationDefaultChats({
                 fedimint,

@@ -127,7 +127,7 @@ format-ui-code:
 
 # run UI tests
 clean-ui:
-  @./scripts/ui/clean-ui.sh
+  nix develop .#xcode --command ./scripts/ui/clean-ui.sh
 
 # export translations for all supported languages to CSV
 export-all-translations:

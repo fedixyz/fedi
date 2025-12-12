@@ -9,7 +9,7 @@ import { Row } from './Flex'
 import { PressableIcon } from './PressableIcon'
 
 type Props = {
-    onAddPress: () => void
+    onAddPress?: () => void
     onSearchPress?: () => void
     onShowCommunitiesPress?: () => void
 }
@@ -46,6 +46,7 @@ const MainHeaderButtons: React.FC<Props> = ({
             )}
             {onSearchPress && (
                 <PressableIcon
+                    testID="SearchButton"
                     containerStyle={style.icon}
                     onPress={onSearchPress}
                     hitSlop={5}
@@ -55,6 +56,7 @@ const MainHeaderButtons: React.FC<Props> = ({
             )}
             {onAddPress && (
                 <PressableIcon
+                    testID="PlusButton"
                     containerStyle={style.icon}
                     onPress={onAddPress}
                     hitSlop={5}
@@ -64,6 +66,7 @@ const MainHeaderButtons: React.FC<Props> = ({
             )}
             <HeaderAvatar testID="AvatarButton" onPress={openSettings} />
             <PressableIcon
+                testID="ScanButton"
                 containerStyle={style.icon}
                 onPress={openOmniScanner}
                 hitSlop={5}

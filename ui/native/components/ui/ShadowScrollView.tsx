@@ -5,8 +5,8 @@ import {
     ScrollView,
     ScrollViewProps,
     StyleSheet,
+    View,
 } from 'react-native'
-import LinearGradient from 'react-native-linear-gradient'
 
 import Flex from './Flex'
 
@@ -32,18 +32,16 @@ const ShadowScrollView = ({
     return (
         <Flex grow shrink style={style.federationInfoContainer}>
             {showTopShadow && (
-                <LinearGradient
+                <View
                     style={[style.scrollInsetShadow, style.scrollTopShadow]}
-                    colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0)']}
                 />
             )}
             <ScrollView onScroll={handleScroll} {...props}>
                 {children}
             </ScrollView>
             {showBottomShadow && (
-                <LinearGradient
+                <View
                     style={[style.scrollInsetShadow, style.scrollBottomShadow]}
-                    colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.05)']}
                 />
             )}
         </Flex>
@@ -63,9 +61,13 @@ const style = StyleSheet.create({
     },
     scrollTopShadow: {
         top: 0,
+        experimental_backgroundImage:
+            'linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0))',
     },
     scrollBottomShadow: {
         bottom: 0,
+        experimental_backgroundImage:
+            'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.05))',
     },
 })
 

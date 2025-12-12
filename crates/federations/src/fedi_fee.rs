@@ -16,7 +16,7 @@ use rpc_types::{LightningSendMetadata, RpcTransactionDirection};
 use runtime::api::TransactionDirection;
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{FEDI_FEE_SCHEDULE_REFRESH_DELAY, MILLION};
-use runtime::features::RuntimeEnvironment;
+use runtime::nightly_panic;
 use runtime::storage::state::{FediFeeSchedule, ModuleFediFeeSchedule};
 use stability_pool_client::common::FiatAmount;
 use tokio::sync::{Mutex, OwnedMutexGuard, watch};
@@ -156,13 +156,7 @@ impl FediFeeHelper {
             })
             .await??;
         if fees_ppm >= FEDI_FEE_MAX_PPM {
-            if matches!(
-                self.runtime.feature_catalog.runtime_env,
-                RuntimeEnvironment::Dev | RuntimeEnvironment::Staging | RuntimeEnvironment::Tests
-            ) {
-                panic!("fedi fee is too high: {fees_ppm}")
-            }
-            error!(%fees_ppm, "fedi fee is too high, capping");
+            nightly_panic!(self.runtime, "fedi fee is too high: {fees_ppm}");
             Ok(FEDI_FEE_MAX_PPM)
         } else {
             Ok(fees_ppm)

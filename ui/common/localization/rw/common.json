@@ -600,7 +600,7 @@
             "clear-cache-disk-done": "Ububiko bwa disiki bwakuweho",
             "clear-cache-ram": "RAM gusa",
             "clear-cache-ram-done": "Cache yakuwe muri RAM gusa",
-            "delete-confirmation": "Uzi neza ko ushaka gusiba {{fediMod}}?",
+            "delete-confirmation": "Uzi neza ko ushaka gusiba {{miniAppName}}?",
             "enter-amount-to-withdraw": "Injiza mo amafaranga ubashe gukura mo andi muri  {{fediMod}}",
             "enter-site-link": "Injira Urubuga",
             "fedi-mods": "Porogaramu nto za Fedi",

@@ -22,7 +22,6 @@ import {
     RpcStabilityPoolAccountInfo,
     RpcTimelineEventItemId,
     RpcTransaction,
-    RpcTransactionListEntry,
 } from '../types/bindings'
 import { BridgeError } from '../utils/errors'
 import { MatrixChatClient } from './MatrixChatClient'
@@ -156,6 +155,41 @@ export class FedimintBridge {
         })
     }
 
+    async spv2StartFastSync(federationId: string) {
+        return this.rpcTyped('spv2StartFastSync', { federationId })
+    }
+
+    async spv2OurPaymentAddress(federationId: string) {
+        return this.rpcTyped('spv2OurPaymentAddress', {
+            federationId,
+            includeInvite: true,
+        })
+    }
+
+    async spv2ParsePaymentAddress(spPaymentAddress: string) {
+        return this.rpcTyped('spv2ParsePaymentAddress', {
+            address: spPaymentAddress,
+        })
+    }
+
+    async spv2Transfer(
+        amount: UsdCents,
+        accountId: string,
+        federationId: string,
+        notes?: string,
+    ) {
+        return this.rpcTyped('spv2Transfer', {
+            amount,
+            accountId,
+            federationId,
+            frontendMeta: {
+                initialNotes: notes || null,
+                recipientMatrixId: null,
+                senderMatrixId: null,
+            },
+        })
+    }
+
     async spv2AccountInfo(federationId: string) {
         return this.rpcTyped('spv2AccountInfo', { federationId })
     }
@@ -227,14 +261,11 @@ export class FedimintBridge {
         startTime?: number,
         limit?: number,
     ) {
-        return this.rpcTyped<'listTransactions', RpcTransactionListEntry[]>(
-            'listTransactions',
-            {
-                federationId,
-                startTime: startTime || null,
-                limit: limit || null,
-            },
-        )
+        return this.rpcTyped('listTransactions', {
+            federationId,
+            startTime: startTime || null,
+            limit: limit || null,
+        })
     }
 
     async getTransaction(
@@ -289,6 +320,10 @@ export class FedimintBridge {
 
     async leaveFederation(federationId: string) {
         return this.rpcTyped('leaveFederation', { federationId })
+    }
+
+    async repairWallet(federationId: string) {
+        return this.rpcTyped('repairWallet', { federationId })
     }
 
     async fedimintVersion() {

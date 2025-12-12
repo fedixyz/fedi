@@ -6,13 +6,13 @@ import { mockMatrixEventImage } from '@fedi/common/tests/mock-data/matrix-event'
 import { useLoadMedia } from '../../../src/hooks/media'
 
 const matrixDownloadFileSpy = jest.fn()
-const readBrdigeFileSpy = jest.fn()
+const readBridgeFileSpy = jest.fn()
 
 jest.mock('../../../src/lib/bridge', () => ({
     fedimint: {
         matrixDownloadFile: () => matrixDownloadFileSpy(),
     },
-    readBridgeFile: () => readBrdigeFileSpy(),
+    readBridgeFile: () => readBridgeFileSpy(),
 }))
 
 describe('/hooks/media', () => {
@@ -20,18 +20,45 @@ describe('/hooks/media', () => {
         jest.clearAllMocks()
     })
 
-    describe('when the hook is called', () => {
-        it('should call functions and return a src', async () => {
-            const { result } = renderHook(() =>
-                useLoadMedia(mockMatrixEventImage),
-            )
+    describe('useLoadMedia', () => {
+        it('should handle string result from readBridgeFile', async () => {
+            readBridgeFileSpy.mockReturnValue('mock-media-string')
+
+            const mockEvent = {
+                ...mockMatrixEventImage,
+                id: 'test-event-id-string',
+            } as typeof mockMatrixEventImage
+
+            const { result } = renderHook(() => useLoadMedia(mockEvent))
 
             await waitFor(() => {
                 expect(matrixDownloadFileSpy).toHaveBeenCalled()
-                expect(readBrdigeFileSpy).toHaveBeenCalled()
+                expect(readBridgeFileSpy).toHaveBeenCalled()
 
                 expect(window.URL.createObjectURL).toHaveBeenCalledWith(
-                    new Blob(),
+                    expect.any(Blob),
+                )
+                expect(result.current.src).toBe('/test-url')
+            })
+        })
+
+        it('should handle Uint8Array result from readBridgeFile', async () => {
+            const mockUint8Array = new Uint8Array([1, 2, 3, 4])
+            readBridgeFileSpy.mockReturnValue(mockUint8Array)
+
+            const mockEvent = {
+                ...mockMatrixEventImage,
+                id: 'test-event-id-uint8array',
+            } as typeof mockMatrixEventImage
+
+            const { result } = renderHook(() => useLoadMedia(mockEvent))
+
+            await waitFor(() => {
+                expect(matrixDownloadFileSpy).toHaveBeenCalled()
+                expect(readBridgeFileSpy).toHaveBeenCalled()
+
+                expect(window.URL.createObjectURL).toHaveBeenCalledWith(
+                    expect.any(Blob),
                 )
                 expect(result.current.src).toBe('/test-url')
             })

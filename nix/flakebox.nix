@@ -137,9 +137,11 @@ in
               pkg-config
               parallel
               time
+              cmake
+              rust-bindgen
+              cargo-nextest
+              perl
               ;
-            inherit (pkgs) cargo-nextest;
-            inherit (pkgs) perl;
             inherit moreutils-ts;
           })
           ++ lib.optionals pkgs.stdenv.isLinux [

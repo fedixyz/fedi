@@ -609,7 +609,7 @@
             "clear-cache-ram-done": "Kasha imefutwa kutoka kwa RAM pekee",
             "debug-mode": "Hali ya kutatua mafaili ya Fedi Mini App",
             "debug-mode-info": "Ingiza zana ya msanidi (Eruda) kwenye kivinjari unapofungua Fedi Mini Apps",
-            "delete-confirmation": "Je, una uhakika unataka kufuta {{fediMod}}?",
+            "delete-confirmation": "Je, una uhakika unataka kufuta {{miniAppName}}?",
             "enter-amount-to-withdraw": "Weka kiasi cha pesa ili utoe kwenye {{fediMod}}",
             "enter-site-link": "Ingiza Kiungo cha Tovuti",
             "fedi-mods": "Fedi Mini Apps",

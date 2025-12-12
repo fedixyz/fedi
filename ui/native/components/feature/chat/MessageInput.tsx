@@ -165,7 +165,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             id: selfUserId,
             displayName,
             avatarUrl: undefined,
-            powerLevel: 0,
+            powerLevel: { type: 'int', value: 0 },
             roomId: id,
             membership: 'join' as RpcMatrixMembership,
             ignored: false,

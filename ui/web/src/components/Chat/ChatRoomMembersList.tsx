@@ -15,7 +15,10 @@ import {
     setMatrixRoomMemberPowerLevel,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
-import { getUserSuffix } from '@fedi/common/utils/matrix'
+import {
+    getUserSuffix,
+    isPowerLevelGreaterOrEqual,
+} from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
@@ -71,9 +74,15 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
                 </Text>
                 <MemberSuffixText variant="caption">{suffix}</MemberSuffixText>
                 <MemberRoleText variant="small">
-                    {member.powerLevel >= MatrixPowerLevel.Admin
+                    {isPowerLevelGreaterOrEqual(
+                        member.powerLevel,
+                        MatrixPowerLevel.Admin,
+                    )
                         ? t('words.admin')
-                        : member.powerLevel >= MatrixPowerLevel.Moderator
+                        : isPowerLevelGreaterOrEqual(
+                                member.powerLevel,
+                                MatrixPowerLevel.Moderator,
+                            )
                           ? t('words.moderator')
                           : t('words.member')}
                 </MemberRoleText>
@@ -85,13 +94,15 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
         member: MatrixRoomMember,
         powerLevel: MatrixPowerLevel,
     ) => {
-        if (!myUserId) return true
+        if (!myUserId || !myPowerLevel) return true
         // Cannot change your own role
         if (member.id === myUserId) return true
+
         // Cannot assign a role higher than your role
-        if (myPowerLevel < powerLevel) return true
+        if (!isPowerLevelGreaterOrEqual(myPowerLevel, powerLevel)) return true
         // Cannot lower the role of a member with the same or greater role
-        if (myPowerLevel <= member.powerLevel) return true
+        if (isPowerLevelGreaterOrEqual(member.powerLevel, myPowerLevel))
+            return true
         return false
     }
 
@@ -129,41 +140,51 @@ export const ChatRoomMembersList: React.FC<Props> = ({ roomId }) => {
                                 {t('feature.chat.go-to-direct-chat')}
                             </Text>
                         </DropdownSheetMenuItem>
-                        {myPowerLevel >= MatrixPowerLevel.Moderator && (
-                            <>
-                                <DropdownSheetMenuLabel>
-                                    {t('feature.chat.change-role')}
-                                </DropdownSheetMenuLabel>
-                                {roles.map(role => (
-                                    <DropdownSheetMenuItem
-                                        key={role.powerLevel}
-                                        onSelect={() =>
-                                            handleChangePowerLevel(
-                                                member.id,
-                                                role.powerLevel,
-                                            )
-                                        }
-                                        disabled={getRoleDisabled(
-                                            member,
-                                            role.powerLevel,
-                                        )}
-                                        active={
-                                            role.powerLevel ===
-                                            member.powerLevel
-                                        }>
-                                        <Icon
-                                            icon={
-                                                role.powerLevel ===
-                                                member.powerLevel
-                                                    ? CheckIcon
-                                                    : role.icon
+                        {myPowerLevel &&
+                            isPowerLevelGreaterOrEqual(
+                                myPowerLevel,
+                                MatrixPowerLevel.Moderator,
+                            ) && (
+                                <>
+                                    <DropdownSheetMenuLabel>
+                                        {t('feature.chat.change-role')}
+                                    </DropdownSheetMenuLabel>
+                                    {roles.map(role => (
+                                        <DropdownSheetMenuItem
+                                            key={role.powerLevel}
+                                            onSelect={() =>
+                                                handleChangePowerLevel(
+                                                    member.id,
+                                                    role.powerLevel,
+                                                )
                                             }
-                                        />
-                                        <Text weight="bold">{role.label}</Text>
-                                    </DropdownSheetMenuItem>
-                                ))}
-                            </>
-                        )}
+                                            disabled={getRoleDisabled(
+                                                member,
+                                                role.powerLevel,
+                                            )}
+                                            active={
+                                                member.powerLevel.type ===
+                                                    'int' &&
+                                                role.powerLevel ===
+                                                    member.powerLevel.value
+                                            }>
+                                            <Icon
+                                                icon={
+                                                    member.powerLevel.type ===
+                                                        'int' &&
+                                                    role.powerLevel ===
+                                                        member.powerLevel.value
+                                                        ? CheckIcon
+                                                        : role.icon
+                                                }
+                                            />
+                                            <Text weight="bold">
+                                                {role.label}
+                                            </Text>
+                                        </DropdownSheetMenuItem>
+                                    ))}
+                                </>
+                            )}
                     </>
                 )
                 return (

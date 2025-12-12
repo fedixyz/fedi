@@ -68,6 +68,7 @@ const mockGroupAnnounceEvent: MatrixMultispendEvent<'groupReannounce'> = {
     sender: '@user1:m1.8fa.in',
     sendState: { kind: 'sent', event_id: 'event123' },
     inReply: null,
+    mentions: null,
     content: {
         msgtype: 'xyz.fedi.multispend',
         kind: 'groupReannounce',
@@ -101,6 +102,7 @@ const mockChatEvent: MatrixEvent<'m.text'> = {
     sendState: { kind: 'sent', event_id: 'event123' },
     localEcho: false,
     inReply: null,
+    mentions: null,
 }
 
 const mockMatrixEvents: MatrixEvent[] = [mockGroupAnnounceEvent, mockChatEvent]
@@ -129,7 +131,7 @@ describe('User display name and suffix functions', () => {
             id: 'npub123456abcdef:m1.8fa.in',
             displayName: 'Alice',
             avatarUrl: undefined,
-            powerLevel: 0,
+            powerLevel: { type: 'int' as const, value: 0 },
             roomId: '!room1:m1.8fa.in',
             membership: 'join' as const,
             ignored: false,
@@ -138,7 +140,7 @@ describe('User display name and suffix functions', () => {
             id: 'npub789012fedcba:m1.8fa.in',
             displayName: 'Bob Smith',
             avatarUrl: 'mxc://example.com/avatar',
-            powerLevel: 0,
+            powerLevel: { type: 'int' as const, value: 0 },
             roomId: '!room1:m1.8fa.in',
             membership: 'join' as const,
             ignored: false,
@@ -147,7 +149,7 @@ describe('User display name and suffix functions', () => {
             id: 'npubabcdef123456:m1.8fa.in',
             displayName: 'Charlie',
             avatarUrl: undefined,
-            powerLevel: 50,
+            powerLevel: { type: 'int' as const, value: 50 },
             roomId: '!room1:m1.8fa.in',
             membership: 'join' as const,
             ignored: false,
@@ -307,6 +309,7 @@ const mockRepliedEvent: MatrixEvent<'m.text'> = {
     timestamp: Date.now(),
     localEcho: false,
     sendState: { kind: 'sent', event_id: 'event123' },
+    mentions: null,
     inReply: {
         kind: 'ready',
         ...mockChatEvent,

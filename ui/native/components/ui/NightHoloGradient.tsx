@@ -1,7 +1,6 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet, View, ViewStyle } from 'react-native'
-import LinearGradient from 'react-native-linear-gradient'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
@@ -34,19 +33,16 @@ const HoloGradient: React.FC<HoloGradientProps> = ({
     const style = styles(theme)
     return (
         <View style={[style.container, props.style]}>
-            <LinearGradient
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0)']}
-                style={style.outerGradient}>
-                <LinearGradient
-                    start={{ x: 0, y: 0.75 }}
-                    end={{ x: 1, y: 0.95 }}
-                    colors={nightGradient}
-                    style={[innerGradientStyle, props.gradientStyle]}>
+            <View style={style.outerGradient}>
+                <View
+                    style={[
+                        innerGradientStyle,
+                        props.gradientStyle,
+                        style.innerGradient,
+                    ]}>
                     {children}
-                </LinearGradient>
-            </LinearGradient>
+                </View>
+            </View>
         </View>
     )
 }
@@ -58,6 +54,11 @@ const styles = (theme: Theme) =>
         },
         outerGradient: {
             flex: 1,
+            experimental_backgroundImage:
+                'linear-gradient(to bottom, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0))',
+        },
+        innerGradient: {
+            experimental_backgroundImage: `linear-gradient(125deg, ${nightGradient.join(', ')})`,
         },
     })
 

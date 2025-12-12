@@ -19,6 +19,7 @@ import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 import {
     getMultispendRole,
+    isPowerLevelGreaterOrEqual,
     matrixIdToUsername,
 } from '@fedi/common/utils/matrix'
 import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
@@ -140,16 +141,23 @@ const ChatUserActions: React.FC<Props> = ({
         roomMember: MatrixRoomMember,
         powerLevel?: MatrixPowerLevel,
     ) => {
-        if (!myUserId) return true
+        if (!myUserId || !myPowerLevel) return true
         // Cannot change your own role
         if (roomMember.id === myUserId) return true
         // Cannot lower the role of a member with the same or greater role
-        if (myPowerLevel <= roomMember.powerLevel) return true
+        if (isPowerLevelGreaterOrEqual(roomMember.powerLevel, myPowerLevel))
+            return true
 
         // Cannot assign a role higher than your role
-        if (powerLevel && myPowerLevel < powerLevel) return true
+        if (powerLevel && !isPowerLevelGreaterOrEqual(myPowerLevel, powerLevel))
+            return true
         // Cannot set the role to the current role
-        if (powerLevel && roomMember.powerLevel === powerLevel) return true
+        if (
+            powerLevel &&
+            roomMember.powerLevel.type === 'int' &&
+            roomMember.powerLevel.value === powerLevel
+        )
+            return true
         return false
     }
 
@@ -283,7 +291,10 @@ const ChatUserActions: React.FC<Props> = ({
     ]
 
     const getColor = (action: RoleChangeAction) =>
-        member.powerLevel === action.powerLevel ? theme.colors.blue : undefined
+        member.powerLevel.type === 'int' &&
+        member.powerLevel.value === action.powerLevel
+            ? theme.colors.blue
+            : undefined
 
     const style = styles(theme)
 
@@ -316,42 +327,56 @@ const ChatUserActions: React.FC<Props> = ({
                 ))}
             </Flex>
             {/* Only show roles if the user is an admin */}
-            {myPowerLevel >= MatrixPowerLevel.Moderator && (
-                <Flex align="start">
-                    <Text caption style={style.sectionTitle}>
-                        {t('feature.chat.change-role')}
-                    </Text>
-                    {changeRoles.map(action => (
-                        <ChatAction
-                            key={action.id}
-                            leftIcon={
-                                <SvgImage
-                                    name={action.icon}
-                                    color={getColor(action)}
-                                />
-                            }
-                            rightIcon={
-                                member.powerLevel === action.powerLevel && (
+            {myPowerLevel &&
+                isPowerLevelGreaterOrEqual(
+                    myPowerLevel,
+                    MatrixPowerLevel.Moderator,
+                ) && (
+                    <Flex align="start">
+                        <Text caption style={style.sectionTitle}>
+                            {t('feature.chat.change-role')}
+                        </Text>
+                        {changeRoles.map(action => (
+                            <ChatAction
+                                key={action.id}
+                                leftIcon={
                                     <SvgImage
-                                        name={'Check'}
+                                        name={action.icon}
                                         color={getColor(action)}
                                     />
-                                )
-                            }
-                            label={action.label}
-                            onPress={() => action.onPress()}
-                            disabled={getRoleDisabled(
-                                member,
-                                action.powerLevel,
-                            )}
-                            active={action.powerLevel === member.powerLevel}
-                            isLoading={loadingAction === action.id}
-                        />
-                    ))}
-                </Flex>
-            )}
+                                }
+                                rightIcon={
+                                    member.powerLevel.type === 'int' &&
+                                    member.powerLevel.value ===
+                                        action.powerLevel && (
+                                        <SvgImage
+                                            name={'Check'}
+                                            color={getColor(action)}
+                                        />
+                                    )
+                                }
+                                label={action.label}
+                                onPress={() => action.onPress()}
+                                disabled={getRoleDisabled(
+                                    member,
+                                    action.powerLevel,
+                                )}
+                                active={
+                                    member.powerLevel.type === 'int' &&
+                                    action.powerLevel ===
+                                        member.powerLevel.value
+                                }
+                                isLoading={loadingAction === action.id}
+                            />
+                        ))}
+                    </Flex>
+                )}
             {/* Only show roles if the user is an admin and if the selected member is not a multispend voter in the current room */}
-            {myPowerLevel >= MatrixPowerLevel.Moderator &&
+            {myPowerLevel &&
+                isPowerLevelGreaterOrEqual(
+                    myPowerLevel,
+                    MatrixPowerLevel.Moderator,
+                ) &&
                 !isMultispendVoter && (
                     <Flex align="start">
                         <Text caption style={style.sectionTitle}>

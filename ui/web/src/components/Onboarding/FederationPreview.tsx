@@ -34,6 +34,7 @@ const FederationPreview: React.FC<Props> = ({
 
     const showJoinFederation = shouldShowJoinFederation(federation.meta)
     const [recoverFromScratch, setRecoverFromScratch] = useState(false)
+    const [joinAnyways, setJoinAnyways] = useState(false)
     const tosUrl = getFederationTosUrl(federation.meta)
     const welcomeMessage = getFederationWelcomeMessage(federation.meta)
     const popupInfo = usePopupFederationInfo(federation.meta)
@@ -53,6 +54,7 @@ const FederationPreview: React.FC<Props> = ({
                 <FederationEndedPreview
                     popupInfo={popupInfo}
                     federation={federation}
+                    setJoinAnyways={setJoinAnyways}
                 />
             </Content>
         )
@@ -62,11 +64,16 @@ const FederationPreview: React.FC<Props> = ({
                 <Button width="full" onClick={onBack}>
                     {t('phrases.go-back')}
                 </Button>
+                {joinAnyways && (
+                    <Button width="full" onClick={handleJoin}>
+                        {t('feature.federations.join-anyways')}
+                    </Button>
+                )}
             </>
         )
     } else {
         content = (
-            <Content>
+            <Content data-testid="federation-preview">
                 <AvatarWrapper>
                     <FederationAvatar
                         federation={{
@@ -77,11 +84,14 @@ const FederationPreview: React.FC<Props> = ({
                         size="lg"
                     />
                 </AvatarWrapper>
-                <Text variant="h2" weight="medium">
+                <Text
+                    variant="h2"
+                    weight="medium"
+                    data-testid="federation-preview-name">
                     {federation.name}
                 </Text>
                 {welcomeMessage && (
-                    <CustomWelcomeMessage>
+                    <CustomWelcomeMessage data-testid="federation-preview-welcome-message">
                         <Trans components={{ bold: <strong /> }}>
                             {welcomeMessage}
                         </Trans>
@@ -150,7 +160,16 @@ const FederationPreview: React.FC<Props> = ({
                     </Button>
                 )}
             </>
-        ) : null
+        ) : (
+            <Text
+                variant="small"
+                css={{
+                    color: theme.colors.grey,
+                    textAlign: 'center',
+                }}>
+                {t('feature.federations.new-members-disabled')}
+            </Text>
+        )
     }
 
     return (

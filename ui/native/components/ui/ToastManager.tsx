@@ -9,10 +9,8 @@ import {
     View,
     useWindowDimensions,
 } from 'react-native'
-import LinearGradient from 'react-native-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectToast } from '@fedi/common/redux'
 
@@ -34,8 +32,6 @@ export type ExtendedToast = {
     content: string
     action?: ToastAction
 }
-
-const nightGradient = [...fediTheme.nightHoloAmbientGradient]
 
 export default function ToastManager() {
     const { scope } = useToastScope()
@@ -111,19 +107,17 @@ export default function ToastManager() {
                     <View style={[style.wrapper, style.toastShadow3]}>
                         <View style={[style.wrapper, style.toastShadow4]}>
                             <View style={[style.wrapper, style.toastShadow5]}>
-                                <LinearGradient
-                                    style={style.wrapper}
-                                    colors={[
-                                        'rgba(255,255,255,0.15)',
-                                        'rgba(255,255,255,0)',
-                                    ]}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 0, y: 1 }}>
-                                    <LinearGradient
-                                        style={[style.wrapper, style.toast]}
-                                        colors={nightGradient}
-                                        start={{ x: 0, y: 0.75 }}
-                                        end={{ x: 1, y: 0.95 }}>
+                                <View
+                                    style={[
+                                        style.wrapper,
+                                        style.outerGradient,
+                                    ]}>
+                                    <View
+                                        style={[
+                                            style.wrapper,
+                                            style.toast,
+                                            style.innerGradient,
+                                        ]}>
                                         <View style={style.contentRow}>
                                             <Text
                                                 testID={
@@ -196,8 +190,8 @@ export default function ToastManager() {
                                                 </Flex>
                                             </Pressable>
                                         )}
-                                    </LinearGradient>
-                                </LinearGradient>
+                                    </View>
+                                </View>
                             </View>
                         </View>
                     </View>

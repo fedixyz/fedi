@@ -41,8 +41,8 @@ matrix-sdk = { workspace = true, default-features = false, features = [
   "rustls-tls",
   "e2e-encryption",
 ] }
-imbl = { version = "5", features = ["serde"] }
+imbl = { workspace = true, features = ["serde"] }
 serde_with = { workspace = true }
-eyeball-im = { version = "0.7", features = ["serde"] }
+eyeball-im = { version = "0.8", features = ["serde"] }
 eyeball = "0.8.7"
 either = "1.15.0"

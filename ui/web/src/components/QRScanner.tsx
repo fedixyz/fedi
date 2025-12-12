@@ -42,7 +42,7 @@ export const QRScanner: React.FC<Props> = ({ processing, onScan }) => {
     const framesRef = useUpdatingRef(frames)
     const onScanRef = useUpdatingRef(onScan)
     const urFramesRef = useUpdatingRef(urFrames)
-    const decoder = useRef<URDecoder>()
+    const decoder = useRef<URDecoder | undefined>(undefined)
 
     useEffect(() => {
         if (decoder.current) return

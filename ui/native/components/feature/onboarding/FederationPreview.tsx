@@ -39,6 +39,7 @@ const FederationPreview: React.FC<Props> = ({
     const showJoinFederation = shouldShowJoinFederation(federation.meta)
     const [selectedRecoverFromScratch, setSelectedRecoverFromScratch] =
         useState(false)
+    const [joinAnyways, setJoinAnyways] = useState(false)
     const tosUrl = getFederationTosUrl(federation.meta)
     const welcomeMessage = getFederationWelcomeMessage(federation.meta)
     const popupInfo = usePopupFederationInfo(federation.meta)
@@ -63,12 +64,17 @@ const FederationPreview: React.FC<Props> = ({
         )
     }
 
+    const handleJoin = () => {
+        onJoin(selectedRecoverFromScratch)
+    }
+
     if (popupInfo?.ended) {
         return (
             <View style={s.container}>
                 <EndedFederationPreview
                     popupInfo={popupInfo}
                     federation={federation}
+                    setJoinAnyways={setJoinAnyways}
                 />
                 <View style={s.buttonsContainer}>
                     <Button
@@ -77,13 +83,16 @@ const FederationPreview: React.FC<Props> = ({
                         onPress={navigation.goBack}
                         containerStyle={s.button}
                     />
+                    {joinAnyways && (
+                        <Button
+                            fullWidth
+                            title={t('feature.federations.join-anyways')}
+                            onPress={handleJoin}
+                        />
+                    )}
                 </View>
             </View>
         )
-    }
-
-    const handleJoin = () => {
-        onJoin(selectedRecoverFromScratch)
     }
 
     const joinButtons = tosUrl ? (
@@ -198,6 +207,14 @@ const FederationPreview: React.FC<Props> = ({
                                 })}
                             </Text>
                         </Hyperlink>
+                    </View>
+                )}
+
+                {showJoinFederation === false && (
+                    <View style={s.guidance}>
+                        <Text small color={theme.colors.darkGrey} center>
+                            {t('feature.federations.new-members-disabled')}
+                        </Text>
                     </View>
                 )}
             </Flex>
