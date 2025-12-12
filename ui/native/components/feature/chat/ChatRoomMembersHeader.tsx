@@ -9,6 +9,7 @@ import {
     selectMatrixRoomMembersByMe,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel } from '@fedi/common/types'
+import { isPowerLevelGreaterOrEqual } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook, RootStackParamList } from '../../../types/navigation'
@@ -29,7 +30,14 @@ const ChatConversationHeader: React.FC = () => {
     const { t } = useTranslation()
 
     const handleInviteMember = useCallback(() => {
-        if (me?.powerLevel === MatrixPowerLevel.Member) return
+        if (
+            me?.powerLevel &&
+            !isPowerLevelGreaterOrEqual(
+                me.powerLevel,
+                MatrixPowerLevel.Moderator,
+            )
+        )
+            return
 
         navigation.replace('ChatRoomInvite', { roomId })
     }, [navigation, roomId, me])

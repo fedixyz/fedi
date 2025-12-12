@@ -1,23 +1,35 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import switchIcon from '@fedi/common/assets/svgs/switch.svg'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import { MSats } from '@fedi/common/types'
+import {
+    selectTransactionDisplayType,
+    setTransactionDisplayType,
+} from '@fedi/common/redux'
+import { TransactionListEntry } from '@fedi/common/types'
 
-import { useAutosizeTextArea } from '../../hooks'
+import {
+    useAppDispatch,
+    useAppSelector,
+    useAutosizeTextArea,
+} from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Dialog } from '../Dialog'
+import { Icon } from '../Icon'
 import { Text } from '../Text'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
 
 export interface HistoryDetailDialogProps {
+    txn: TransactionListEntry
     icon: React.ReactNode
     title: React.ReactNode
-    amount: MSats | string
+    amount: string
     items: HistoryDetailItemProps[]
     notes?: string
     onSaveNotes?: (notes: string) => void
     onClose: () => void
+    federationId?: string
 }
 
 export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
@@ -28,11 +40,20 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
     notes: propsNotes,
     onSaveNotes,
     onClose,
+    txn,
 }) => {
-    const { t } = useTranslation()
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
     const [notes, setNotes] = useState(propsNotes || '')
     const [inputEl, setInputEl] = useState<HTMLTextAreaElement | null>(null)
+    const { t } = useTranslation()
+    const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { formattedSecondaryAmount } = makeFormattedAmountsFromMSats(
+        txn.amount,
+        'end',
+    )
+
+    const dispatch = useAppDispatch()
+    const transactionDisplayType = useAppSelector(selectTransactionDisplayType)
+
     useAutosizeTextArea(inputEl, notes)
 
     // If notes prop changes, update notes state
@@ -59,24 +80,31 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
         onClose()
     }
 
-    let amountText: string | undefined
-    if (typeof amount === 'string') {
-        amountText = amount
-    } else if (amount !== 0) {
-        const { formattedPrimaryAmount } = makeFormattedAmountsFromMSats(amount)
-        amountText = formattedPrimaryAmount
-    }
-
     return (
         <Dialog size="sm" open onOpenChange={handleClose}>
             <Container>
                 <IconWrap>{icon}</IconWrap>
                 <Text>{title}</Text>
-                {amountText && (
+                {amount && (
                     <Text variant="h2" weight="medium">
-                        {amountText}
+                        {amount}
                     </Text>
                 )}
+                <CurrencySwitch
+                    onClick={() =>
+                        dispatch(
+                            setTransactionDisplayType(
+                                transactionDisplayType === 'fiat'
+                                    ? 'sats'
+                                    : 'fiat',
+                            ),
+                        )
+                    }>
+                    <Text css={{ color: theme.colors.grey }}>
+                        {formattedSecondaryAmount}
+                    </Text>
+                    <Icon icon={switchIcon} size="xs" />
+                </CurrencySwitch>
                 <Details>
                     {items.map((item, idx) => (
                         <HistoryDetailItem key={idx} {...item} />
@@ -140,4 +168,12 @@ const NotesInput = styled('textarea', {
     '&:focus, &:active': {
         outline: 'none',
     },
+})
+
+const CurrencySwitch = styled('button', {
+    cursor: 'pointer',
+    color: theme.colors.grey,
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
 })

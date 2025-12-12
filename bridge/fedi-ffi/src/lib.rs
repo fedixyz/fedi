@@ -3,8 +3,6 @@ pub mod ffi;
 pub mod guardinito_client;
 #[cfg(not(target_family = "wasm"))]
 pub mod logging;
-#[cfg(any())]
-pub mod matrix_tests;
 pub mod rpc;
 
 #[cfg(test)]

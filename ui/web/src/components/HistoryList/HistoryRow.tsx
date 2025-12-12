@@ -1,7 +1,11 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import { selectCurrency } from '@fedi/common/redux'
+import {
+    selectCurrency,
+    selectTransactionDisplayType,
+} from '@fedi/common/redux'
 import { MSats } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 
@@ -29,7 +33,14 @@ export const HistoryRow: React.FC<HistoryRowProps> = ({
     onSelect,
 }) => {
     const currency = useAppSelector(selectCurrency)
+    const transactionDisplayType = useAppSelector(selectTransactionDisplayType)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter()
+    const { t } = useTranslation()
+
+    const preferredCurrency =
+        transactionDisplayType === 'sats'
+            ? t('words.sats').toUpperCase()
+            : currency
 
     let amountNode: React.ReactNode
     const sign = direction
@@ -51,7 +62,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = ({
                     {formattedPrimaryAmount}
                 </Text>
                 <Text variant="tiny" weight="medium">
-                    {currency}
+                    {preferredCurrency}
                 </Text>
             </Amount>
         )

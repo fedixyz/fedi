@@ -64,7 +64,7 @@ type InjectionMessageMiddleware = (
  * and a map of message handlers keyed by `InjectionMessageType`.
  */
 export function makeWebViewMessageHandler(
-    webviewRef: MutableRefObjectLike<WebViewLike>,
+    webviewRef: MutableRefObjectLike<WebViewLike | null>,
     middlewares: InjectionMessageMiddleware[],
     handlers: InjectionMessageHandlers,
 ) {

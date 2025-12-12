@@ -804,7 +804,6 @@ This section is the **single source of truth** for Zendesk **Redux state**, **ac
 
 -   `setSupportPermission`, `setZendeskInitialized`
 -   `setZendeskPushNotificationToken`, `setZendeskUnreadMessageCount`
--   `resetSurveyTimestamp`, `setCanShowSurvey`, `setSurveyUrl`
 
 ##### Selectors
 

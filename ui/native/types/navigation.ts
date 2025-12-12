@@ -19,6 +19,7 @@ import {
     UsdCents,
     Federation,
     Community,
+    Spv2ParsedPaymentAddress,
 } from '@fedi/common/types'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
@@ -53,11 +54,11 @@ export type TabsNavigatorParamList = {
 }
 export type RootStackParamList = {
     AppSettings: undefined
-    AddFediMod: undefined
+    AddFediMod: { inputMethod: 'enter' | 'scan' }
     BitcoinRequest: { invoice: string; federationId?: Federation['id'] }
     BugReportSuccess: undefined
     CameraPermission: { nextScreen: keyof RootStackParamList } | undefined
-    ChatImageViewer: { uri: string }
+    ChatImageViewer: { uri: string; downloadable?: boolean }
     ChatsListSearch: { initialQuery?: string }
     ChatConversationSearch: { roomId: string; initialQuery?: string }
     ChatRoomConversation: {
@@ -68,7 +69,7 @@ export type RootStackParamList = {
     ChatSettings: { title?: string }
     ChatRoomMembers: { roomId: string; displayMultispendRoles?: boolean }
     ChatRoomInvite: { roomId: string }
-    ChatUserConversation: { userId: string; displayName: string }
+    ChatUserConversation: { userId: string; displayName?: string }
     ChatVideoViewer: { uri: string }
     ChatWallet: { recipientId: string }
     ChooseBackupMethod: undefined
@@ -126,6 +127,10 @@ export type RootStackParamList = {
     Eula: undefined
     CommunityDetails: { communityId: Community['id'] }
     FederationDetails: { federationId: Federation['id'] }
+    FederationSettings: {
+        federationId: Federation['id']
+        federationName: string
+    }
     FederationModSettings: { type?: string; federationId: Federation['id'] }
     FederationInvite: { inviteLink: string }
     FederationGreeting: undefined
@@ -185,26 +190,38 @@ export type RootStackParamList = {
     SendOfflineQr: { ecash: string; amount: MSats }
     SendOnChainAmount: { parsedData: ParsedBip21 | ParsedBitcoinAddress }
     SendSuccess: { amount: MSats; unit: string }
+    SendSuccessShield: {
+        title: string
+        formattedAmount: string
+        description: string
+        federationId?: Federation['id']
+    }
     Settings: undefined
     ShareLogs: { ticketNumber: string } | undefined
     OmniScanner: undefined
     FediModBrowser: { url: string }
-    Splash:
-        | ({ screen: keyof RootStackParamList } & Partial<
-              Record<string, string>
-          >)
-        | undefined
+    ReceiveStabilityQr: { federationId: Federation['id'] }
+    Splash: undefined
     StabilityConfirmDeposit: { amount: Sats; federationId: Federation['id'] }
+    StabilityConfirmTransfer: {
+        amount: UsdCents
+        federationId: Federation['id']
+        recipient: Spv2ParsedPaymentAddress
+        notes?: string
+    }
     StabilityConfirmWithdraw: {
         amountSats: Sats
         amountCents: UsdCents
         federationId: Federation['id']
     }
     StabilityDeposit: { federationId: Federation['id'] }
-    StabilityDepositInitiated: { amount: Sats; federationId: Federation['id'] }
     StabilityHistory: { federationId: Federation['id'] }
     StabilityHome: { federationId: Federation['id'] }
     StabilityWithdraw: { federationId: Federation['id'] }
+    StabilityTransfer: {
+        recipient?: Spv2ParsedPaymentAddress
+        federationId: Federation['id']
+    }
     StabilityWithdrawInitiated: {
         formattedFiat: string
         federationId: Federation['id']

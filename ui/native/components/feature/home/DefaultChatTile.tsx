@@ -1,6 +1,8 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { t } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+
+import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
 
 import { DEFAULT_GROUP_NAME } from '../../../constants'
 import { MatrixRoom } from '../../../types'
@@ -21,6 +23,12 @@ const DefaultChatTile = ({
     onLongPress = () => null,
 }: DefaultChatTileProps) => {
     const { theme } = useTheme()
+    const { t } = useTranslation()
+    const { text, isPublicBroadcast } = useMatrixRoomPreview({
+        roomId: room?.id ?? '',
+        t,
+    })
+
     const style = styles(theme)
 
     if (!room)
@@ -30,10 +38,6 @@ const DefaultChatTile = ({
             </BubbleView>
         )
 
-    const subtitle = room.broadcastOnly
-        ? t('words.announcements')
-        : t('feature.chat.group-chat')
-
     return (
         <View style={style.card}>
             <Pressable
@@ -42,20 +46,24 @@ const DefaultChatTile = ({
                 delayLongPress={300}
                 onPress={() => onSelect(room)}>
                 <Flex center shrink={false} style={style.chatIcon}>
-                    <SvgImage name="Chat" />
+                    <SvgImage
+                        name={isPublicBroadcast ? 'SpeakerPhone' : 'Chat'}
+                    />
                 </Flex>
                 <Flex grow basis={false}>
                     <Text style={style.title} numberOfLines={1} bold>
                         {room.name || DEFAULT_GROUP_NAME}
                     </Text>
-                    <Text
-                        small
-                        style={style.subtitle}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        medium>
-                        {subtitle}
-                    </Text>
+                    {text && (
+                        <Text
+                            small
+                            style={style.subtitle}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            medium>
+                            {text}
+                        </Text>
+                    )}
                 </Flex>
                 <SvgImage name="ChevronRight" color={theme.colors.grey} />
             </Pressable>

@@ -90,6 +90,30 @@ pub struct FeatureCatalog {
 
     /// Configuration regarding the remittance of Fedi fee
     pub fedi_fee: FediFeeConfig,
+
+    /// SP Transfers Matrix feature flag.
+    /// When enabled, allows stability pool transfers via Matrix messaging.
+    pub sp_transfers_matrix: Option<SpTransfersMatrixFeatureConfig>,
+
+    /// SP Transfer UI feature flag.
+    pub sp_transfer_ui: Option<SpTransferUiFeatureConfig>,
+}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct SpTransfersMatrixFeatureConfig {}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub enum SpTransferUiMode {
+    QrCode,
+    Chat,
+}
+
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct SpTransferUiFeatureConfig {
+    pub mode: SpTransferUiMode,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -179,6 +203,10 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
+            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {}),
+            sp_transfer_ui: Some(SpTransferUiFeatureConfig {
+                mode: SpTransferUiMode::Chat,
+            }),
         }
     }
 
@@ -214,6 +242,10 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
+            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {}),
+            sp_transfer_ui: Some(SpTransferUiFeatureConfig {
+                mode: SpTransferUiMode::Chat,
+            }),
         }
     }
 
@@ -241,6 +273,10 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
+            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {}),
+            sp_transfer_ui: Some(SpTransferUiFeatureConfig {
+                mode: SpTransferUiMode::Chat,
+            }),
         }
     }
 
@@ -271,6 +307,23 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 3 * 24 * 60 * 60, // 3 days for prod
             },
+            sp_transfers_matrix: None,
+            sp_transfer_ui: None,
         }
     }
+}
+
+/// error! on prod and panic! on nightly
+#[macro_export]
+macro_rules! nightly_panic {
+    ($runtime:expr, $($tt:tt)*) => {
+        if matches!(
+            $runtime.feature_catalog.runtime_env,
+            ::runtime::features::RuntimeEnvironment::Staging | ::runtime::features::RuntimeEnvironment::Dev | ::runtime::features::RuntimeEnvironment::Tests
+        ) {
+            panic!($($tt)*);
+        } else {
+            tracing::error!($($tt)*);
+        }
+    };
 }

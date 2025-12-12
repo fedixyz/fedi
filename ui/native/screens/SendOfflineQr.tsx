@@ -8,13 +8,18 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import Share from 'react-native-share'
 
+import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
-import { cancelEcash, selectPaymentFederation } from '@fedi/common/redux'
+import {
+    cancelEcash,
+    selectIsInternetUnreachable,
+    selectPaymentFederation,
+} from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../bridge'
-import Flex from '../components/ui/Flex'
+import { Column, Row } from '../components/ui/Flex'
 import HoloAlert from '../components/ui/HoloAlert'
 import QRCode from '../components/ui/QRCode'
 import { SafeScrollArea } from '../components/ui/SafeArea'
@@ -38,6 +43,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
         federationId: paymentFederation?.id,
     })
     const dispatch = useAppDispatch()
+    const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     const frames = useMemo(() => {
         return dataToFrames(Buffer.from(ecash, 'base64'))
@@ -65,8 +71,10 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
     }
 
     const handleShare = () => {
-        Share.open({ message: ecash }).catch(e => {
-            log.error('Failed to share ecash token', e)
+        const message = `${WEB_APP_URL}/link#screen=ecash&id=${ecash}`
+
+        Share.open({ message }).catch(e => {
+            log.error('Failed to share ecash deeplink', e)
         })
     }
 
@@ -103,16 +111,15 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
 
     return (
         <SafeScrollArea safeAreaContainerStyle={style.container} edges="notop">
-            <Flex align="center" gap="xs">
+            <Column align="center" gap="xs">
                 <Text h1>{formattedPrimaryAmount}</Text>
                 <Text style={style.secondaryAmount}>
                     {formattedSecondaryAmount}
                 </Text>
-            </Flex>
+            </Column>
             <QRCode value={frames[index]} size={width * 0.7} disableSave />
-            <Flex align="center" gap="lg">
-                <Flex
-                    row
+            <Column align="center" gap="lg">
+                <Row
                     justify="between"
                     gap="md"
                     fullWidth
@@ -135,26 +142,28 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                         icon={<SvgImage name="Share" size={20} />}
                         onPress={handleShare}
                     />
-                </Flex>
+                </Row>
                 <HoloAlert text={t('feature.send.ecash-recipient-notice')} />
-            </Flex>
-            <Flex
+            </Column>
+            <Column
                 align="center"
                 gap="md"
                 fullWidth
                 style={style.optionsContainer}>
-                <Pressable onPress={handleCancelSend}>
-                    <Flex row center gap="sm" style={style.cancelSendContainer}>
-                        <SvgImage
-                            name="Close"
-                            size={20}
-                            color={theme.colors.red}
-                        />
-                        <Text style={style.cancelSendText} caption medium>
-                            {t('feature.send.cancel-send')}
-                        </Text>
-                    </Flex>
-                </Pressable>
+                {isOffline ? null : (
+                    <Pressable onPress={handleCancelSend}>
+                        <Row center gap="sm" style={style.cancelSendContainer}>
+                            <SvgImage
+                                name="Close"
+                                size={20}
+                                color={theme.colors.red}
+                            />
+                            <Text style={style.cancelSendText} caption medium>
+                                {t('feature.send.cancel-send')}
+                            </Text>
+                        </Row>
+                    </Pressable>
+                )}
                 <Button
                     fullWidth
                     title={t('feature.send.i-have-sent-payment')}
@@ -169,7 +178,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
                     delayLongPress={500}
                 />
                 <Text small>{t('phrases.hold-to-confirm')}</Text>
-            </Flex>
+            </Column>
         </SafeScrollArea>
     )
 }

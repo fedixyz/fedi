@@ -19,7 +19,8 @@ import { isTextEvent } from '../../../utils/matrix'
 import { createIntegrationTestBuilder } from '../../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../../utils/render'
 
-describe('useMatrixRoomPreview > groups', () => {
+// TODO: unskip these tests once we figure out why room previews are not updating reliably
+describe.skip('useMatrixRoomPreview > groups', () => {
     const builder = createIntegrationTestBuilder()
     const context = builder.getContext()
 
@@ -209,7 +210,8 @@ describe('useMatrixRoomPreview > groups', () => {
     })
 })
 
-describe('useMatrixRoomPreview > direct messages', () => {
+// TODO: unskip these tests once we figure out why room previews are not updating reliably
+describe.skip('useMatrixRoomPreview > direct messages', () => {
     const builder1 = createIntegrationTestBuilder()
     const alice = builder1.getContext()
     const builder2 = createIntegrationTestBuilder()

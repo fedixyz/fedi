@@ -4,7 +4,6 @@ import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Linking, Platform, StatusBar, StyleSheet, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
-import LinearGradient from 'react-native-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
@@ -138,12 +137,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                 </Flex>
             </Flex>
             <View style={style.walletPreviewContainer}>
-                <LinearGradient
-                    style={style.walletPreview}
-                    colors={[
-                        'rgba(255, 255, 255, 0.2)',
-                        'rgba(255, 255, 255, 0)',
-                    ]}>
+                <View style={style.walletPreview}>
                     <HoloCircle
                         size={40}
                         content={<SvgImage name="MultispendGroup" size={24} />}
@@ -176,7 +170,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                             </Text>
                         </View>
                     </Flex>
-                </LinearGradient>
+                </View>
             </View>
             <CustomOverlay
                 show={isConfirmingAbort}
@@ -211,6 +205,8 @@ const styles = (theme: Theme) =>
             backgroundColor: theme.colors.night,
             borderRadius: 20,
             padding: 20,
+            experimental_backgroundImage:
+                'linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0))',
         },
         balance: {
             alignItems: 'baseline',

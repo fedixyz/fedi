@@ -17,12 +17,11 @@ use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
 use matrix_sdk::notification_settings::NotificationSettings;
 use matrix_sdk::room::Room;
 use matrix_sdk::room::edit::EditedContent;
-use matrix_sdk::room::reply::{EnforceThread, Reply};
 pub use matrix_sdk::ruma::api::client::account::register::v3 as register;
 use matrix_sdk::ruma::api::client::authenticated_media::get_media_preview;
 use matrix_sdk::ruma::api::client::directory::get_public_rooms_filtered::v3 as get_public_rooms_filtered;
 use matrix_sdk::ruma::api::client::message::get_message_events;
-use matrix_sdk::ruma::api::client::profile::get_profile;
+use matrix_sdk::ruma::api::client::profile::{AvatarUrl, DisplayName, get_profile};
 use matrix_sdk::ruma::api::client::push::Pusher;
 use matrix_sdk::ruma::api::client::receipt::create_receipt::v3::ReceiptType;
 use matrix_sdk::ruma::api::client::room::Visibility;
@@ -41,7 +40,7 @@ use matrix_sdk::ruma::events::room::encryption::RoomEncryptionEventContent;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContentWithoutRelation;
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use matrix_sdk::ruma::events::{
-    AnyMessageLikeEventContent, AnySyncTimelineEvent, InitialStateEvent,
+    AnyMessageLikeEventContent, AnySyncTimelineEvent, EmptyStateKey, InitialStateEvent,
 };
 use matrix_sdk::ruma::{EventId, OwnedMxcUri, OwnedRoomId, RoomId, UInt, UserId, assign};
 use matrix_sdk::{Client, RoomMemberships, SessionChange};
@@ -57,7 +56,7 @@ use runtime::bridge_runtime::Runtime;
 use runtime::storage::AppState;
 use tokio::sync::{Mutex, broadcast, watch};
 use tracing::{error, info, warn};
-pub use types::{RpcMentions, SendMessageData};
+pub use types::SendMessageData;
 
 mod types;
 
@@ -177,7 +176,7 @@ impl Matrix {
                 let mut state_subscriber = this.sync_service.state();
                 while let Some(state) = state_subscriber.next().await {
                     match state {
-                        sync_service::State::Terminated | sync_service::State::Error => {
+                        sync_service::State::Terminated | sync_service::State::Error(_) => {
                             this.sync_service.start().await;
                         }
                         sync_service::State::Offline
@@ -186,6 +185,15 @@ impl Matrix {
                     }
                     fedimint_core::task::sleep(Duration::from_millis(500)).await;
                 }
+            });
+
+        let this = self.clone();
+        // manual spawn is needed because stop is async
+        self.runtime
+            .task_group
+            .spawn("matrix::stop_sync_on_shutdown", move |handle| async move {
+                handle.make_shutdown_rx().await;
+                this.sync_service.stop().await;
             });
     }
 
@@ -363,10 +371,20 @@ impl Matrix {
             });
         }
         let profile = self.client.account().fetch_user_profile().await?;
-        let (avatar_url, display_name) = (
-            profile.avatar_url.map(|uri| uri.to_string()),
-            profile.displayname,
-        );
+        let avatar_url = match profile.get_static::<AvatarUrl>() {
+            Ok(value) => value.map(|uri| uri.to_string()),
+            Err(err) => {
+                warn!(?err, "failed to parse avatar url from profile");
+                None
+            }
+        };
+        let display_name = match profile.get_static::<DisplayName>() {
+            Ok(value) => value,
+            Err(err) => {
+                warn!(?err, "failed to parse display name from profile");
+                None
+            }
+        };
         app_state
             .with_write_lock(|r| r.matrix_display_name.clone_from(&display_name))
             .await?;
@@ -407,7 +425,7 @@ impl Matrix {
         sub.reset();
         sub.map(|x| match x {
             sync_service::State::Offline
-            | sync_service::State::Error
+            | sync_service::State::Error(_)
             | sync_service::State::Idle
             | sync_service::State::Terminated => RpcSyncIndicator::Show,
             sync_service::State::Running => RpcSyncIndicator::Hide,
@@ -529,13 +547,7 @@ impl Matrix {
     ) -> anyhow::Result<()> {
         let timeline = self.timeline(room_id).await?;
         timeline
-            .send_reply(
-                data.try_into()?,
-                Reply {
-                    event_id: reply_to_event_id.to_owned(),
-                    enforce_thread: EnforceThread::MaybeThreaded,
-                },
-            )
+            .send_reply(data.try_into()?, reply_to_event_id.to_owned())
             .await?;
         Ok(())
     }
@@ -563,8 +575,11 @@ impl Matrix {
     ) -> Result<matrix_sdk::ruma::OwnedRoomId> {
         if request.visibility != Visibility::Public {
             request.initial_state = vec![
-                InitialStateEvent::new(RoomEncryptionEventContent::with_recommended_defaults())
-                    .to_raw_any(),
+                InitialStateEvent::new(
+                    EmptyStateKey,
+                    RoomEncryptionEventContent::with_recommended_defaults(),
+                )
+                .to_raw_any(),
             ];
         }
         let room = self.client.create_room(request).await?;
@@ -626,7 +641,9 @@ impl Matrix {
         &self,
         room_id: &RoomId,
     ) -> Result<RoomPowerLevelsEventContent> {
-        Ok(self.room(room_id).await?.power_levels().await?.into())
+        let room = self.room(room_id).await?;
+        let power_levels = room.power_levels().await?;
+        Ok(power_levels.try_into()?)
     }
 
     pub async fn room_change_power_levels(

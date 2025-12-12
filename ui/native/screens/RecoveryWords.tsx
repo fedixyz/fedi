@@ -164,6 +164,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
                 </ScrollView>
                 <Column gap="md" fullWidth style={style.buttons}>
                     <Button
+                        testID="ContinueButton"
                         title={t(
                             'feature.backup.personal-backup-button-primary-text',
                         )}

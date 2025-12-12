@@ -16,6 +16,7 @@ import {
 import { Community, LoadedFederation } from '@fedi/common/types'
 import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
+import { CircularLoader } from '../../components/CircularLoader'
 import { CommunityInviteDialog } from '../../components/CommunityInviteDialog'
 import { CommunityMenu } from '../../components/CommunityMenu'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -101,7 +102,6 @@ function AdminPage() {
                     label: t('phrases.edit-profile'),
                     icon: UserIcon,
                     href: '/settings/edit-profile',
-                    hidden: !matrixAuth,
                 },
                 {
                     label: t('words.language'),
@@ -152,7 +152,7 @@ function AdminPage() {
                 </Layout.Header>
                 <Layout.Content>
                     <div>
-                        {matrixAuth && (
+                        {matrixAuth ? (
                             <Content>
                                 <QRContainer>
                                     <QRCode
@@ -170,6 +170,10 @@ function AdminPage() {
                                     </Layout.Title>
                                 </QRContainer>
                             </Content>
+                        ) : (
+                            <Centered>
+                                <CircularLoader />
+                            </Centered>
                         )}
                         {isMobile && <MobileAppDownloadBanner />}
                         <SettingsMenu menu={menu} />
@@ -266,6 +270,12 @@ const Content = styled('div', {
     flexDirection: 'column',
     paddingTop: 16,
     gap: 16,
+})
+
+const Centered = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
 })
 
 const QRContainer = styled('div', {

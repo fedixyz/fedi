@@ -90,3 +90,7 @@ pub const FEDI_GIFT_EXCLUDED_COMMUNITIES: &[&str] = &[
 ];
 
 pub const NOSTR_COMMUNITY_CREATION_EVENT_KIND: u16 = 30300;
+
+// The key name for a v1 community meta field that indicates that we should
+// migrate to the given v2 community.
+pub const COMMUNITY_V1_TO_V2_MIGRATION_KEY: &str = "migrate_to_v2";

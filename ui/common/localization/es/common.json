@@ -609,7 +609,7 @@
             "clear-cache-ram-done": "Caché borrado solo de la memoria RAM",
             "debug-mode": "Modo de depuración de las Mini Apps de Fedi",
             "debug-mode-info": "Inyecta una herramienta de desarrollo (Eruda) en el navegador al abrir Mini Apps de Fedi",
-            "delete-confirmation": "¿Estás seguro de borrar {{fediMod}}?",
+            "delete-confirmation": "¿Estás seguro de borrar {{miniAppName}}?",
             "enter-amount-to-withdraw": "Introduce el monto que deseas retirar de {{fediMod}}",
             "enter-site-link": "Introducir enlace del sitio",
             "fedi-mods": "Mini Apps de Fedi",

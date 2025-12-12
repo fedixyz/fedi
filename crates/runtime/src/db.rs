@@ -16,6 +16,8 @@ pub enum BridgeDbPrefix {
     AppState = 0x03,
     // Prefix for file storage in WASM environment
     WasmFileStorage = 0x04,
+    // Prefix for SP Transfers db namespace
+    SpTransfersPrefix = 0x05,
 }
 
 #[derive(Debug, Decodable, Encodable)]

@@ -31,6 +31,7 @@ const MOCK_EVENT = {
     sender: '@npub1rvlu99xmn62wn5neseg3dayjp857tzu6yeefnwr4ctrqkn5h08wqttl4ja:m1.8fa.in',
     sendState: { kind: 'sent', event_id: 'event123' },
     inReply: null,
+    mentions: null,
 } satisfies Omit<MatrixEvent<'m.text'>, 'content'>
 
 // Mock event factories

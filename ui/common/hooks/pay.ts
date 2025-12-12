@@ -407,7 +407,7 @@ export function useParseEcash(fedimint: FedimintBridge) {
     const [loading, setLoading] = useState(false) // used for page loader
     const [parsedEcash, setParsedEcash] = useState<RpcEcashInfo | null>(null)
     const [federationPreview, setFederationPreview] =
-        useState<RpcFederationPreview | null>(null) // TODO: remove this
+        useState<RpcFederationPreview | null>(null)
     const [isError, setIsError] = useState(false)
 
     // Return federation if they have already joined issuing federation

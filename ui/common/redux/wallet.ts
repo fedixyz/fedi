@@ -18,6 +18,7 @@ import {
     selectReusedEcashFederations,
     selectStabilityPoolFeeSchedule,
     selectLoadedFederations,
+    selectFeatureFlags,
 } from '.'
 import {
     Federation,
@@ -32,6 +33,8 @@ import {
     JSONObject,
     RpcAmount,
     RpcEcashInfo,
+    RpcEventId,
+    RpcSpv2ParsedPaymentAddress,
     SPv2WithdrawalEvent,
     StabilityPoolDepositEvent,
     StabilityPoolWithdrawalEvent,
@@ -616,6 +619,32 @@ export const decreaseStableBalanceV2 = createAsyncThunk<
     },
 )
 
+export const parseSpPaymentAddress = createAsyncThunk<
+    RpcSpv2ParsedPaymentAddress,
+    { fedimint: FedimintBridge; spPaymentAddress: string },
+    { state: CommonState }
+>('wallet/parseSpPaymentAddress', async ({ fedimint, spPaymentAddress }) => {
+    const parsed = await fedimint.spv2ParsePaymentAddress(spPaymentAddress)
+    return parsed
+})
+
+export const transferStableBalance = createAsyncThunk<
+    Promise<RpcEventId>,
+    {
+        fedimint: FedimintBridge
+        amount: UsdCents
+        accountId: string
+        federationId: Federation['id']
+        notes?: string
+    },
+    { state: CommonState }
+>(
+    'wallet/transferStableBalance',
+    async ({ fedimint, amount, accountId, federationId, notes }) => {
+        return fedimint.spv2Transfer(amount, accountId, federationId, notes)
+    },
+)
+
 /*** Selectors ***/
 
 const selectFederationWalletState = (
@@ -992,6 +1021,19 @@ export const selectLnurlReceiveCode = (
     return selectFederationWalletState(s, federationId).lnurlReceiveCode
 }
 
+export const selectShouldShowStablePaymentAddress = createSelector(
+    (s: CommonState, _federationId?: Federation['id']) => selectFeatureFlags(s),
+    (s: CommonState, federationId?: Federation['id']) =>
+        federationId ? selectStabilityPoolVersion(s, federationId) : undefined,
+    (_s: CommonState, federationId?: Federation['id']) => federationId,
+    (featureFlags, stabilityPoolVersion, federationId) => {
+        if (!featureFlags || !federationId) return false
+        const hasSpTransferUiConfig = featureFlags.sp_transfer_ui !== null
+        const hasRequiredVersion = stabilityPoolVersion === 2
+        return hasSpTransferUiConfig && hasRequiredVersion
+    },
+)
+
 export const selectTotalStableBalanceSats = createSelector(
     (s: CommonState) => s,
     (s: CommonState) => selectLoadedFederations(s),
@@ -1007,6 +1049,8 @@ export const selectTotalStableBalanceSats = createSelector(
             )
             return acc + stableBalanceSats + stableBalancePendingSats
         }, 0) as Sats
-        return totalStableBalanceSats
+        return Number.isNaN(totalStableBalanceSats)
+            ? (0 as Sats)
+            : totalStableBalanceSats
     },
 )

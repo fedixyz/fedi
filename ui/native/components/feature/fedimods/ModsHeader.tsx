@@ -24,7 +24,7 @@ const ModsHeader: React.FC = () => {
 
     const handleAddMiniApp = () => {
         setOptionsOverlayOpen(false)
-        navigation.navigate('AddFediMod')
+        navigation.navigate('AddFediMod', { inputMethod: 'enter' })
     }
 
     const handleGoToMiniAppCatalog = () => {

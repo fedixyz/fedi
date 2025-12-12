@@ -4,7 +4,6 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
-import { LinearGradientProps } from 'react-native-linear-gradient'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { MSats } from '@fedi/common/types'
@@ -26,16 +25,13 @@ const BitcoinWalletPlaceholder: React.FC = () => {
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
         makeFormattedAmountsFromMSats(zeroMsats)
 
-    const gradientProps: LinearGradientProps = {
-        colors: ['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.0)'],
-        start: { x: 0, y: 0 },
-        end: { x: 0, y: 1 },
-    }
-
     return (
         <Pressable onPress={() => navigation.navigate('PublicFederations')}>
             <BubbleCard
-                linearGradientProps={gradientProps}
+                gradientColors={[
+                    'rgba(255, 255, 255, 0.2)',
+                    'rgba(255, 255, 255, 0.0)',
+                ]}
                 containerStyle={[stylesPlaceholder.card, { height: 99 }]}>
                 <Flex style={stylesPlaceholder.headerContainer}>
                     <Flex style={stylesPlaceholder.leftGroup}>

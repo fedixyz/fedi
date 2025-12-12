@@ -26,6 +26,7 @@ import {
     RpcLockedSeek,
     SPv2WithdrawalEvent,
     FiatFXInfo,
+    RpcTransaction,
 } from '../types/bindings'
 import { StabilityPoolState } from '../types/wallet'
 import amountUtils from './AmountUtils'
@@ -47,6 +48,17 @@ export interface DetailItem {
     truncated?: boolean
     copyable?: boolean
     copiedMessage?: string
+}
+
+// Helper to distinguish multispend spv2 transfers from non-multispend transfers
+export const isMultispendTxn = (
+    txn: TransactionListEntry,
+): txn is MultispendTransactionListEntry => {
+    return (
+        (txn.kind === 'sPV2TransferOut' || txn.kind === 'sPV2TransferIn') &&
+        'kind' in txn.state &&
+        txn.state.kind === 'multispend'
+    )
 }
 
 export const getTxnDirection = (txn: TransactionListEntry): string => {
@@ -105,7 +117,9 @@ export const makeTxnTypeText = (
             return t('feature.stabilitypool.stable-balance')
         case 'sPV2TransferIn':
         case 'sPV2TransferOut':
-            return t('words.multispend')
+            return isMultispendTxn(txn)
+                ? t('words.multispend')
+                : t('feature.stabilitypool.stable-balance')
         case 'oobSend':
         case 'oobReceive':
             return t('words.ecash')
@@ -139,7 +153,7 @@ export const makeTxnDetailTitleText = (
 
     const direction = getTxnDirection(txn)
     if (direction === TransactionDirection.send) {
-        if (txn.kind === 'sPV2TransferOut') {
+        if (txn.kind === 'sPV2TransferOut' && isMultispendTxn(txn)) {
             return t('feature.stabilitypool.you-deposited')
         } else {
             return t('feature.send.you-sent')
@@ -175,8 +189,8 @@ export const makeTxnDetailTitleText = (
             default:
                 return t('phrases.receive-pending')
         }
-    } else if (txn.kind === 'sPV2TransferIn') {
-        return t('feature.stabilitypool.you-withdrew')
+    } else if (txn.kind === 'sPV2TransferIn' && isMultispendTxn(txn)) {
+        return t('feature.receive.you-received')
     } else {
         return t('feature.receive.you-received')
     }
@@ -184,7 +198,7 @@ export const makeTxnDetailTitleText = (
 
 export const makeTxnAmountText = (
     txn: TransactionListEntry,
-    showFiatTxnAmounts: boolean,
+    txnDisplay: 'sats' | 'fiat',
     // we use the opposite signs on the stabilitypool txn list
     flipSign: boolean,
     includeCurrency: boolean,
@@ -217,7 +231,7 @@ export const makeTxnAmountText = (
     let currency = preferredCurrency
 
     // If fiat amounts should be shown and historical info is present, use it:
-    if (showFiatTxnAmounts && txn.txDateFiatInfo) {
+    if (txnDisplay === 'fiat' && txn.txDateFiatInfo) {
         const sats = amountUtils.msatToSat(txn.amount)
         // Use the historical exchange rate from txDateFiatInfo:
         formattedAmount = convertSatsToFormattedFiat(
@@ -234,7 +248,7 @@ export const makeTxnAmountText = (
         )
         formattedAmount = formattedPrimaryAmount
 
-        if (showFiatTxnAmounts) {
+        if (txnDisplay === 'fiat') {
             if (
                 txn.kind === 'spWithdraw' &&
                 txn.state &&
@@ -513,7 +527,7 @@ export const makeTxnStatusText = (
                     default:
                         return t('words.deposit')
                 }
-            } else if (txn.kind === 'sPV2TransferOut') {
+            } else if (txn.kind === 'sPV2TransferOut' && isMultispendTxn(txn)) {
                 return t('words.deposit')
             } else {
                 return t('words.sent')
@@ -591,7 +605,7 @@ export const makeTxnStatusText = (
                     default:
                         return ''
                 }
-            } else if (txn.kind === 'sPV2TransferIn') {
+            } else if (txn.kind === 'sPV2TransferIn' && isMultispendTxn(txn)) {
                 return t('words.withdrawal')
             } else {
                 return t('words.received')
@@ -854,14 +868,12 @@ export const makeTxnDetailItems = (
     t: TFunction,
     txn: TransactionListEntry,
     currency: SelectableCurrency | undefined = SupportedCurrency.USD,
-    showFiatTxnAmounts: boolean,
+    txnDisplay: 'sats' | 'fiat',
     makeFormattedAmountsFromMSats: (amt: MSats) => FormattedAmounts,
     convertCentsToFormattedFiat: (amt: UsdCents) => string,
 ) => {
     const items: DetailItem[] = []
-    const { formattedFiat, formattedSats } = makeFormattedAmountsFromMSats(
-        txn.amount,
-    )
+    const { formattedFiat } = makeFormattedAmountsFromMSats(txn.amount)
 
     const txnTypeText = makeTxnTypeText(txn, t)
 
@@ -892,7 +904,7 @@ export const makeTxnDetailItems = (
         })
         // TODO: remove these once we refactor to use txn.txDateFiatInfo instead
         // Show additional item for historical deposit/withdrawal value if SATS-first setting is on
-        if (showFiatTxnAmounts === false && txn.state) {
+        if (txnDisplay === 'sats' && txn.state) {
             if ('estimated_withdrawal_cents' in txn.state) {
                 const estimatedWithdrawalCents = Number(
                     txn.state.estimated_withdrawal_cents,
@@ -997,14 +1009,6 @@ export const makeTxnDetailItems = (
         })
     }
 
-    // Hide BTC Equivalent item when amount is zero or SATS-first setting is on
-    if (txn.amount !== 0 && showFiatTxnAmounts) {
-        items.push({
-            label: t('phrases.bitcoin-equivalent'),
-            value: formattedSats,
-        })
-    }
-
     return items
 }
 
@@ -1012,15 +1016,22 @@ export const makeStabilityTxnDetailTitleText = (
     t: TFunction,
     txn: TransactionListEntry,
 ) => {
-    return txn.kind === 'spDeposit' ||
-        txn.kind === 'sPV2Deposit' ||
-        txn.kind === 'sPV2TransferOut'
-        ? t('feature.stabilitypool.you-deposited')
-        : txn.kind === 'sPV2Withdrawal' ||
-            txn.kind === 'spWithdraw' ||
-            txn.kind === 'sPV2TransferIn'
-          ? t('feature.stabilitypool.you-withdrew')
-          : ''
+    if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
+        return t('feature.stabilitypool.you-deposited')
+    } else if (txn.kind === 'sPV2TransferOut') {
+        return isMultispendTxn(txn)
+            ? t('feature.stabilitypool.you-deposited')
+            : t('feature.send.you-sent')
+    }
+
+    if (txn.kind === 'sPV2Withdrawal' || txn.kind === 'spWithdraw') {
+        return t('feature.stabilitypool.you-withdrew')
+    } else if (txn.kind === 'sPV2TransferIn') {
+        return isMultispendTxn(txn)
+            ? t('feature.stabilitypool.you-withdrew')
+            : t('feature.receive.you-received')
+    }
+    return t('words.unknown')
 }
 
 export const makeStabilityTxnDetailItems = (
@@ -1033,19 +1044,42 @@ export const makeStabilityTxnDetailItems = (
 
     // Hide BTC Equivalent item when amount is zero or SATS-first setting is on
     if (txn.amount !== 0) {
-        items.push({
-            label:
-                txn.kind === 'spDeposit' ||
-                txn.kind === 'sPV2Deposit' ||
-                txn.kind === 'sPV2TransferIn'
-                    ? t('feature.stabilitypool.deposit-amount')
-                    : txn.kind === 'spWithdraw' ||
-                        txn.kind === 'sPV2Withdrawal' ||
-                        txn.kind === 'sPV2TransferOut'
-                      ? t('feature.stabilitypool.withdrawal-amount')
-                      : '',
-            value: formattedSats,
-        })
+        if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
+            items.push({
+                label: t('feature.stabilitypool.deposit-amount'),
+                value: formattedSats,
+            })
+            // treat only multispend transfers as deposits.
+        } else if (txn.kind === 'sPV2TransferIn') {
+            if (isMultispendTxn(txn)) {
+                items.push({
+                    label: t('feature.stabilitypool.deposit-amount'),
+                    value: formattedSats,
+                })
+            } else {
+                items.push({
+                    label: t('feature.stabilitypool.transfer-amount'),
+                    value: formattedSats,
+                })
+            }
+        } else if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
+            items.push({
+                label: t('feature.stabilitypool.withdrawal-amount'),
+                value: formattedSats,
+            })
+        } else if (txn.kind === 'sPV2TransferOut') {
+            if (isMultispendTxn(txn)) {
+                items.push({
+                    label: t('feature.stabilitypool.withdrawal-amount'),
+                    value: formattedSats,
+                })
+            } else {
+                items.push({
+                    label: t('feature.stabilitypool.transfer-amount'),
+                    value: formattedSats,
+                })
+            }
+        }
     }
 
     items.push({
@@ -1586,5 +1620,13 @@ export const coerceLegacyAccountInfo = (
         idleBalance: accountInfo.idleBalance,
         // Cents
         pendingUnlockRequest: pendingUnlockRequestCents,
+    }
+}
+
+// temporary type helper until RpcTransaction and RpcTransactionListEntry are reconciled bridge-side
+export const coerceTxn = (txn: RpcTransaction): TransactionListEntry => {
+    return {
+        ...txn,
+        createdAt: txn.outcomeTime || 0,
     }
 }

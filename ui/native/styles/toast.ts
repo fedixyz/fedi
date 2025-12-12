@@ -1,6 +1,10 @@
 import { Theme } from '@rneui/themed'
 import { StyleSheet } from 'react-native'
 
+import { theme as fediTheme } from '@fedi/common/constants/theme'
+
+const nightGradient = [...fediTheme.nightHoloAmbientGradient]
+
 export const toastStyles = (theme: Theme) =>
     StyleSheet.create({
         toastOuter: {
@@ -53,6 +57,13 @@ export const toastStyles = (theme: Theme) =>
         wrapper: {
             flexGrow: 1,
             borderRadius: 16,
+        },
+        outerGradient: {
+            experimental_backgroundImage:
+                'linear-gradient(to bottom, rgba(255,255,255,0.15), rgba(255,255,255,0))',
+        },
+        innerGradient: {
+            experimental_backgroundImage: `linear-gradient(125deg, ${nightGradient.join(', ')})`,
         },
         toast: {
             padding: 14,

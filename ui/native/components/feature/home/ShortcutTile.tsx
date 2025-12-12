@@ -1,4 +1,4 @@
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Badge, Text, Theme, useTheme } from '@rneui/themed'
 import { decode } from 'html-entities'
 import { useEffect, useState } from 'react'
 import {
@@ -10,13 +10,15 @@ import {
 } from 'react-native'
 import { SvgUri } from 'react-native-svg'
 
+import { selectIsNewMod } from '@fedi/common/redux/mod'
 import { tryFetchUrlMetadata } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
 import { constructUrl } from '@fedi/common/utils/neverthrow'
+import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 
 import { FediModImages } from '../../../assets/images'
+import { useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut, ShortcutType } from '../../../types'
-import { stripAndDeduplicateWhitespace } from '../../../utils/strings'
 import { BubbleView } from '../../ui/BubbleView'
 import Flex from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
@@ -44,6 +46,8 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
     const [imageSrc, setImageSrc] = useState<ImageSourcePropType>(
         FediModImages.default,
     )
+
+    const isNew = useAppSelector(s => selectIsNewMod(s, shortcut))
 
     const shortcutTitle = decode(stripAndDeduplicateWhitespace(shortcut.title))
 
@@ -158,6 +162,14 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
                     {shortcutTitle}
                 </Text>
             </Flex>
+            {isNew && (
+                <Badge
+                    value="New"
+                    containerStyle={style.badgeContainer}
+                    badgeStyle={style.badge}
+                    textStyle={style.badgeText}
+                />
+            )}
         </Pressable>
     )
 }
@@ -165,6 +177,23 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
 const styles = (theme: Theme, fontScale: number) => {
     const iconSize = theme.sizes.lg * getIconSizeMultiplier(fontScale)
     return StyleSheet.create({
+        badge: {
+            backgroundColor: theme.colors.green100,
+        },
+        badgeContainer: {
+            color: theme.colors.black,
+            position: 'absolute',
+            top: 0,
+            transform: [
+                {
+                    translateX: theme.spacing.xl,
+                },
+            ],
+        },
+        badgeText: {
+            color: theme.colors.black,
+            fontWeight: 500,
+        },
         container: {
             alignItems: 'center',
             width: '100%',

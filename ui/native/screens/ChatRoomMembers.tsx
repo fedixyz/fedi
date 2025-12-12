@@ -13,6 +13,7 @@ import {
 import { MatrixPowerLevel, MatrixRoomMember } from '@fedi/common/types'
 import {
     getMultispendRole,
+    isPowerLevelGreaterOrEqual,
     sortMultispendRoomMembers,
 } from '@fedi/common/utils/matrix'
 
@@ -69,12 +70,17 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
         const displayName = isMe ? t('words.you') : item.displayName
         const member = { ...item, displayName }
 
-        const memberPowerLevelText =
-            member.powerLevel >= MatrixPowerLevel.Admin
-                ? t('words.admin')
-                : member.powerLevel >= MatrixPowerLevel.Moderator
-                  ? t('words.moderator')
-                  : t('words.member')
+        const memberPowerLevelText = isPowerLevelGreaterOrEqual(
+            member.powerLevel,
+            MatrixPowerLevel.Admin,
+        )
+            ? t('words.admin')
+            : isPowerLevelGreaterOrEqual(
+                    member.powerLevel,
+                    MatrixPowerLevel.Moderator,
+                )
+              ? t('words.moderator')
+              : t('words.member')
 
         const multispendPowerLevel = multispendStatus
             ? getMultispendRole(multispendStatus, member.id)
@@ -93,7 +99,10 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                 // we still want the user's avatar to show the
                 // initials of their "real" display name
                 overrideAvatarName={isMe ? item.displayName : undefined}
-                showAdmin={member.powerLevel >= MatrixPowerLevel.Admin}
+                showAdmin={isPowerLevelGreaterOrEqual(
+                    member.powerLevel,
+                    MatrixPowerLevel.Admin,
+                )}
                 rightIcon={
                     <>
                         <Text small color={theme.colors.grey}>

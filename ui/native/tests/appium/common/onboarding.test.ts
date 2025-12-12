@@ -5,16 +5,19 @@ export class OnboardingTest extends AppiumTestBase {
     async execute(): Promise<void> {
         console.log('Starting Onboarding Test')
         await new Promise(resolve => setTimeout(resolve, 10000)) // waiting for 10 seconds for the username to generate
-        await this.clickElementByKey('Get a Wallet')
+        await this.clickElementByKey('Get a wallet')
         await this.clickElementByKey('FediTestnetJoinButton')
         await this.clickElementByKey('JoinFederationButton')
-        await new Promise(resolve => setTimeout(resolve, 5000))
-        await this.clickElementByKey('Explore Now')
-        await this.clickElementByKey('Chat')
-        await this.clickElementByKey('Explore Now')
-        await this.clickElementByKey('Mods')
-        await this.clickElementByKey('Explore Now')
-        await this.clickElementByKey('Scan')
+        //TODO: validate the seed here
+        await this.clickElementByKey('ContinueButton')
+        await this.clickElementByKey('Continue')
+        await this.clickElementByKey('ChatTabButton')
+        await this.clickElementByKey('FirstTimeOverlayButton')
+        await this.clickElementByKey('ModsTabButton')
+        await this.clickElementByKey('FirstTimeOverlayButton')
+        await this.clickElementByKey('FederationsTabButton')
+        await this.clickElementByKey('ScanButton')
+        await this.clickElementByKey('FirstTimeOverlayButton')
         if ((await this.elementIsDisplayed('Continue')) === true) {
             await this.clickElementByKey('Continue')
             try {
@@ -23,8 +26,9 @@ export class OnboardingTest extends AppiumTestBase {
                 await this.acceptAlert('Allow')
             }
         }
-        await this.clickElementByKey('Home')
-        await this.clickElementByKey('Continue')
+        await this.clickElementByKey('HeaderBackButton')
+        await this.clickElementByKey('HomeTabButton')
+        await this.clickElementByKey('FirstTimeOverlayButton')
         await this.clickElementByKey('AvatarButton')
         await this.waitForElementDisplayed('UserQrContainer')
         // TODO: copy the fedi user address and validate it
@@ -45,16 +49,13 @@ export class OnboardingTest extends AppiumTestBase {
             )
             await this.clickElementByKey('Save')
         }
-        await this.waitForElementDisplayed('SuccessToast')
-        await this.clickElementByKey('HeaderBackButton')
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        await this.scrollToElement('Fedi Mods')
-        await this.clickElementByKey('Fedi Mods')
+        await this.scrollToElement('Fedi Mini Apps')
+        await this.clickElementByKey('Fedi Mini Apps')
         await this.clickElementByKey('AskFediVisibilityToggleButton')
         await this.clickElementByKey('HeaderBackButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
         await this.clickElementByKey('HeaderCloseButton')
-        await this.clickElementByKey('Mods')
+        await this.clickElementByKey('ModsTabButton')
         if ((await this.elementIsDisplayed('Ask Fedi', 2000)) === true) {
             throw new Error(
                 `Ask Fedi Mod wasn't hidden. Hiding global mods is possibly broken`,
@@ -82,34 +83,31 @@ export class OnboardingTest extends AppiumTestBase {
         await this.clickElementByKey('HeaderBackButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
         await this.clickElementByKey('HeaderCloseButton')
-        await this.clickElementByKey('Home')
         if ((await this.isTextPresent('ARS', false, 2000)) === false) {
             throw new Error(`Display currency change could be broken`)
         }
         await this.clickElementByKey('AvatarButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
-        await this.scrollToElement('Personal backup')
-        await this.clickElementByKey('Personal backup')
-        await this.clickElementByKey('Continue')
+        await this.scrollToElement('Personal Backup')
+        await this.clickElementByKey('Personal Backup')
+        await this.clickElementByKey('ContinueButton')
         // TODO: validate backup here
-        await this.clickElementByKey('Done')
         // TODO: test pin access
         // TODO: test nostr details
-        await this.clickElementByKey('AvatarButton')
-        await this.scrollToElement('FediTestnetAccordionButton')
-        await this.clickElementByKey('FediTestnetAccordionButton')
-        await this.scrollToElement('Federation Mods')
-        await this.clickElementByKey('Federation Mods')
-        await this.clickElementByKey('FaucetVisibilityToggleButton')
+        await this.scrollToElement('FediGlobal(Nightly)CommAccordionButton')
+        await this.clickElementByKey('FediGlobal(Nightly)CommAccordionButton')
+        await this.scrollToElement('Community Mini Apps')
+        await this.clickElementByKey('Community Mini Apps')
+        await this.clickElementByKey('BitrefillVisibilityToggleButton')
         await this.clickElementByKey('HeaderBackButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
         await this.clickElementByKey('HeaderCloseButton')
-        await this.clickElementByKey('Home')
+        await this.clickElementByKey('HomeTabButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
         await this.scroll('down', 100, 50)
-        if ((await this.isTextPresent('Faucet', false, 2000)) === true) {
+        if ((await this.isTextPresent('Bitrefill', false, 2000)) === true) {
             throw new Error(
-                `Faucet Mod wasn't hidden. Hiding federation mods is possibly broken`,
+                `Bitrefill wasn't hidden. Hiding federation mods is possibly broken`,
             )
         }
         // TODO: go through the rest of federation settings

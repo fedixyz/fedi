@@ -29,6 +29,7 @@ const QRCode: React.FC<Props> = ({
 }) => {
     const [isPressed, setIsPressed] = useState(false)
     const [isDownloading, setIsDownloading] = useState(false)
+    const [isLayoutReady, setIsLayoutReady] = useState(false)
 
     const animatedPadding = useRef(new Animated.Value(0)).current
     const viewShotRef = useRef<ViewShot>(null)
@@ -117,8 +118,9 @@ const QRCode: React.FC<Props> = ({
                     style={[
                         style.container,
                         { width: size, height: size, padding: animatedPadding },
-                    ]}>
-                    <SvgXml xml={xml} />
+                    ]}
+                    onLayout={() => setIsLayoutReady(true)}>
+                    {isLayoutReady && <SvgXml xml={xml} />}
                 </Animated.View>
             </ViewShot>
         </Pressable>

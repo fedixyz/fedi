@@ -24,7 +24,10 @@ import {
     MentionSelect,
     MatrixRoomMember,
 } from '@fedi/common/types'
-import { RpcMatrixMembership } from '@fedi/common/types/bindings'
+import {
+    RpcMatrixMembership,
+    RpcUserPowerLevel,
+} from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 import {
     makeMatrixEventGroups,
@@ -58,11 +61,11 @@ interface Props {
     name: string
     events: MatrixEvent[]
     isPublic?: boolean
-    headerActions?: React.ReactNode
+    /* whether this is the first message in the chat */
+    isNewChat?: boolean
+    headerActions?: React.ReactElement
     onWalletClick?(): void
     onPaginate?: () => Promise<void>
-
-    inputActions?: React.ReactNode
     onSendMessage(
         message: string,
         files: File[],
@@ -76,9 +79,9 @@ export const ChatConversation: React.FC<Props> = ({
     name,
     events,
     headerActions,
-    inputActions,
     onSendMessage,
     isPublic,
+    isNewChat,
     onWalletClick,
     onPaginate,
 }) => {
@@ -129,7 +132,7 @@ export const ChatConversation: React.FC<Props> = ({
             id: selfUserId,
             displayName,
             avatarUrl: auth?.avatarUrl,
-            powerLevel: 0,
+            powerLevel: { type: 'int', value: 0 } as RpcUserPowerLevel,
             roomId: id,
             membership: 'join' as RpcMatrixMembership,
             ignored: false,
@@ -365,15 +368,11 @@ export const ChatConversation: React.FC<Props> = ({
 
     return (
         <ChatWrapper ref={chatWrapperRef} style={{ height: height ?? '100%' }}>
-            <HeaderWrapper back="/chat">
+            <HeaderWrapper back="/chat" rightComponent={headerActions}>
                 <HeaderContent>
                     {avatar}
                     <HeaderText weight="medium">{name}</HeaderText>
                 </HeaderContent>
-
-                {headerActions && (
-                    <HeaderActions>{headerActions}</HeaderActions>
-                )}
             </HeaderWrapper>
             <ContentWrapper>
                 <MessagesWrapper
@@ -479,7 +478,7 @@ export const ChatConversation: React.FC<Props> = ({
                 {!isReadOnly && (
                     <ActionsRow>
                         <InputActions>
-                            {type === ChatType.direct && (
+                            {type === ChatType.direct && !isNewChat && (
                                 <Icon
                                     aria-label="wallet-icon"
                                     icon={WalletIcon}
@@ -487,7 +486,7 @@ export const ChatConversation: React.FC<Props> = ({
                                     onClick={onWalletClick}
                                 />
                             )}
-                            {!isPublic && (
+                            {!isPublic && !isNewChat && (
                                 <Icon
                                     aria-label="plus-icon"
                                     icon={PlusIcon}
@@ -495,7 +494,6 @@ export const ChatConversation: React.FC<Props> = ({
                                     onClick={handleOnMediaClick}
                                 />
                             )}
-                            {inputActions && inputActions}
                         </InputActions>
                         <SendButton
                             aria-label="send-button"
@@ -542,15 +540,6 @@ const HeaderText = styled(Text, {
     textOverflow: 'ellipsis',
     overflow: 'hidden',
     whiteSpace: 'nowrap',
-})
-
-const HeaderActions = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    paddingRight: 8,
-    position: 'absolute',
-    right: 0,
 })
 
 const ContentWrapper = styled(Layout.Content, {})

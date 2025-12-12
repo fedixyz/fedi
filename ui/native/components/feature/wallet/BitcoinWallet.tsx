@@ -3,7 +3,6 @@ import { useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
-import { LinearGradientProps } from 'react-native-linear-gradient'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -45,12 +44,6 @@ const BitcoinWallet: React.FC<Props> = ({
 
     if (!federation) return null
 
-    const gradientProps: LinearGradientProps = {
-        colors: [...fediTheme.dayLinearGradient],
-        start: { x: 0, y: 0 },
-        end: { x: 0, y: 1 },
-    }
-
     const handleReceive = () => {
         if (receivesDisabled) {
             toast.show({
@@ -85,7 +78,7 @@ const BitcoinWallet: React.FC<Props> = ({
     return (
         <Pressable onPress={handlePress}>
             <BubbleCard
-                linearGradientProps={gradientProps}
+                gradientColors={[...fediTheme.dayLinearGradient]}
                 containerStyle={style.card}>
                 <WalletHeader
                     federation={federation}

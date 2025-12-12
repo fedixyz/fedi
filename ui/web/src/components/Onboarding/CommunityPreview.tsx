@@ -73,7 +73,16 @@ const CommunityPreview: React.FC<Props> = ({
                 </Button>
             )}
         </>
-    ) : null
+    ) : (
+        <Text
+            variant="small"
+            css={{
+                color: theme.colors.grey,
+                textAlign: 'center',
+            }}>
+            {t('feature.communities.new-members-disabled')}
+        </Text>
+    )
 
     return (
         <Layout.Root>

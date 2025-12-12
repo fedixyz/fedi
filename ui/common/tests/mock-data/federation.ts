@@ -48,7 +48,9 @@ export const mockCommunity: Community = {
         community_meta_url: 'https://test.com',
     },
     name: 'name',
-    meta: {},
+    meta: {
+        pinned_message: 'pinned message',
+    },
 }
 
 const MOCK_FEDERATION_PREVIEW: RpcFederationPreview = {

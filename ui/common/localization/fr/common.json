@@ -608,7 +608,7 @@
             "clear-cache-ram-done": "Cache vidé uniquement à partir de la RAM",
             "debug-mode": "Mode de débogage Fedi Mod",
             "debug-mode-info": "Injecte un outil de développement (Eruda) dans le navigateur lors de l'ouverture de Fedi Mods",
-            "delete-confirmation": "Êtes-vous sûr de vouloir supprimer {{fediMod}} ?",
+            "delete-confirmation": "Êtes-vous sûr de vouloir supprimer {{miniAppName}} ?",
             "enter-amount-to-withdraw": "Entrez un montant à retirer de {{fediMod}}",
             "enter-site-link": "Saisir le lien du site",
             "fedi-mods": "Mini-applications Fedi",

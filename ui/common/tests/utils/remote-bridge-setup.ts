@@ -60,6 +60,8 @@ export class IntegrationTestBuilder {
         await this.waitFor(() => {
             const state = store.getState()
             expect(selectOnboardingCompleted(state)).toBe(true)
+            const matrixAuth = selectMatrixAuth(state)
+            expect(matrixAuth?.userId).toBeTruthy()
         })
 
         return this
@@ -80,6 +82,10 @@ export class IntegrationTestBuilder {
                 const matrixAuth = selectMatrixAuth(store.getState())
                 expect(matrixAuth?.userId).toBeTruthy()
                 expect(matrixAuth?.userId.startsWith('@npub1')).toBe(true)
+                expect(matrixAuth?.displayName).toBeTruthy()
+                expect(matrixAuth?.userId).not.toContain(
+                    matrixAuth?.displayName,
+                )
             },
             { timeout: 10000 },
         )

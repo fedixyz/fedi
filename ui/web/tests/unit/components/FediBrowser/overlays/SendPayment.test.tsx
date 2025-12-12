@@ -5,18 +5,29 @@ import { setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { MSats } from '@fedi/common/types'
 
-import { SendPayment } from '../../../../src/components/Overlays/SendPayment'
-import { AppState } from '../../../../src/state/store'
-import { renderWithProviders } from '../../../utils/render'
+import { SendPayment } from '../../../../../src/components/FediBrowser/overlays/SendPayment'
+import { AppState } from '../../../../../src/state/store'
+import { renderWithProviders } from '../../../../utils/render'
 
 const onAcceptSpy = jest.fn()
 const onRejectSpy = jest.fn()
 
-jest.mock('../../../../src/lib/bridge', () => ({
-    ...jest.requireActual('../../../../src/lib/bridge'),
-    fedimint: {
-        payInvoice: () => ({ preimage: 'preimage' }),
-    },
+const mockDispatch = jest.fn(() => {
+    const payload = { preimage: 'preimage' }
+
+    const promise = Promise.resolve({
+        type: 'payInvoice/fulfilled',
+        payload,
+    }) as any
+
+    promise.unwrap = () => Promise.resolve(payload)
+
+    return promise
+})
+
+jest.mock('@fedi/web/src/hooks/store.ts', () => ({
+    ...jest.requireActual('@fedi/web/src/hooks/store'),
+    useAppDispatch: () => mockDispatch,
 }))
 
 const getPreloadedState = (state: AppState) => ({
@@ -68,7 +79,7 @@ describe('/components/Overlays/SendPayment', () => {
     describe('when the component is rendered', () => {
         it('should display the title, sats amount and buttons', () => {
             renderWithProviders(
-                <SendPayment onAccept={() => {}} onReject={() => {}} />,
+                <SendPayment open onAccept={() => {}} onReject={() => {}} />,
                 {
                     preloadedState: getPreloadedState(state),
                 },
@@ -89,7 +100,7 @@ describe('/components/Overlays/SendPayment', () => {
     describe('when the user clicks the accept button', () => {
         it('should call the onAccept function', async () => {
             renderWithProviders(
-                <SendPayment onAccept={onAcceptSpy} onReject={() => {}} />,
+                <SendPayment open onAccept={onAcceptSpy} onReject={() => {}} />,
                 {
                     preloadedState: getPreloadedState(state),
                 },
@@ -109,7 +120,7 @@ describe('/components/Overlays/SendPayment', () => {
     describe('when the user clicks the reject button', () => {
         it('should call the onReject function', () => {
             renderWithProviders(
-                <SendPayment onAccept={() => {}} onReject={onRejectSpy} />,
+                <SendPayment open onAccept={() => {}} onReject={onRejectSpy} />,
                 {
                     preloadedState: getPreloadedState(state),
                 },

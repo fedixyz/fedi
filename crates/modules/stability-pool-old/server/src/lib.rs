@@ -88,6 +88,7 @@ impl ServerModuleInit for StabilityPoolInit {
         &self,
         peers: &[PeerId],
         params: &ConfigGenModuleParams,
+        _disable_base_fees: bool,
     ) -> BTreeMap<PeerId, ServerModuleConfig> {
         let params = params
             .to_typed::<StabilityPoolGenParams>()
@@ -125,6 +126,7 @@ impl ServerModuleInit for StabilityPoolInit {
         &self,
         peers: &(dyn PeerHandleOps + Send + Sync),
         params: &ConfigGenModuleParams,
+        _disable_base_fees: bool,
     ) -> anyhow::Result<ServerModuleConfig> {
         let params = params
             .to_typed::<StabilityPoolGenParams>()

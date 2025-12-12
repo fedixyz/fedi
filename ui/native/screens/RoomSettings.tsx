@@ -22,6 +22,7 @@ import {
 } from '@fedi/common/redux'
 import { MatrixPowerLevel } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { isPowerLevelGreaterOrEqual } from '@fedi/common/utils/matrix'
 
 import { fedimint } from '../bridge'
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
@@ -53,7 +54,9 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     const myPowerLevel = useAppSelector(s =>
         selectMatrixRoomSelfPowerLevel(s, roomId || ''),
     )
-    const isAdmin = myPowerLevel >= MatrixPowerLevel.Admin
+    const isAdmin =
+        myPowerLevel &&
+        isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Admin)
     const { shouldBlockLeaveRoom } = useMultispendDisplayUtils(t, roomId)
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),

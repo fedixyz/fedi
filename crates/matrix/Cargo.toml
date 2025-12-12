@@ -27,7 +27,7 @@ matrix-sdk = { workspace = true, default-features = false, features = [
 ] }
 serde = { workspace = true }
 ts-rs = { workspace = true }
-imbl = { version = "5", features = ["serde"] }
+imbl = { workspace = true, features = ["serde"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }

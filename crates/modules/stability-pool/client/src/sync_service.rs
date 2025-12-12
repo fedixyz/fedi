@@ -7,7 +7,7 @@ use fedimint_core::util::{backoff_util, retry};
 use futures::Stream;
 use stability_pool_common::AccountId;
 use stability_pool_common::config::StabilityPoolClientConfig;
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 use tokio_stream::wrappers::WatchStream;
 
 use crate::api::StabilityPoolApiExt;
@@ -21,6 +21,7 @@ pub struct StabilityPoolSyncService {
     db: Database,
     account_id: AccountId,
     update_merge: UpdateMerge,
+    fast_sync_notify: Notify,
 }
 
 impl StabilityPoolSyncService {
@@ -37,7 +38,13 @@ impl StabilityPoolSyncService {
             db,
             account_id,
             update_merge: Default::default(),
+            fast_sync_notify: Notify::new(),
         }
+    }
+
+    /// Starts fast syncing for next 5 minutes
+    pub fn start_fast_syncing(&self) {
+        self.fast_sync_notify.notify_one();
     }
 
     /// Update sync data in background.
@@ -45,24 +52,43 @@ impl StabilityPoolSyncService {
     /// Caller should run this method in a task.
     pub async fn update_continuously(&self, client_config: &StabilityPoolClientConfig) -> ! {
         let mut first = true;
+        let mut fast_sleep_count = 0u64; // how many times we will do a fast sync
         loop {
-            let last_sync_time = self
-                .sync_response
-                .borrow()
-                .as_ref()
-                .map(|x| x.value.current_cycle.start_time);
-            if let Some(last_sync_time) = last_sync_time {
-                let sleep_time = client_config
-                    .next_cycle_start_time(last_sync_time)
-                    .duration_since(fedimint_core::time::now())
-                    .map(|x| x + Duration::from_secs(5)) // give server some time
-                    .unwrap_or(if first {
-                        Duration::ZERO
-                    } else {
-                        // don't keep spamming
-                        Duration::from_secs(2)
-                    });
-                fedimint_core::task::sleep(sleep_time).await;
+            let sleep = async {
+                let last_sync_time = self
+                    .sync_response
+                    .borrow()
+                    .as_ref()
+                    .map(|x| x.value.current_cycle.start_time);
+                if let Some(last_sync_time) = last_sync_time {
+                    let mut sleep_time = client_config
+                        .next_cycle_start_time(last_sync_time)
+                        .duration_since(fedimint_core::time::now())
+                        .map(|x| x + Duration::from_secs(5)) // give server some time
+                        .unwrap_or(if first {
+                            Duration::ZERO
+                        } else {
+                            // don't keep spamming
+                            Duration::from_secs(2)
+                        });
+                    if fast_sleep_count > 0 {
+                        fast_sleep_count -= 1;
+                        // if this is a fast sleep, only sleep for at most 15 seconds
+                        sleep_time = sleep_time.min(Duration::from_secs(15));
+                    }
+                    fedimint_core::task::sleep(sleep_time).await;
+                }
+            };
+            tokio::select! {
+                biased;
+                () = self.fast_sync_notify.notified() =>  {
+                    // do fast syncing for 5 minutes (5 * 60 / 15)
+                    fast_sleep_count = 20;
+                    // and sync now
+                }
+                () = sleep => {
+                    // sleep over, do a sync
+                }
             }
             retry("sp sync", backoff_util::background_backoff(), || {
                 self.update_once()

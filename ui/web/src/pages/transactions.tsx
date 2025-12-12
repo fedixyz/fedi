@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTransactionHistory } from '@fedi/common/hooks/transactions'
 
-import { BackHeader } from '../components/BackHeader'
 import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import TransactionsList from '../components/TransactionList'
+import { federationsRoute } from '../constants/routes'
 import { fedimint } from '../lib/bridge'
 import { getHashParams } from '../utils/linking'
 
@@ -34,7 +34,11 @@ const TransactionsPage: React.FC = () => {
     return (
         <ContentBlock>
             <Layout.Root>
-                <BackHeader title={t('words.transactions')} subheader />
+                <Layout.Header back={federationsRoute}>
+                    <Layout.Title subheader>
+                        {t('words.transactions')}
+                    </Layout.Title>
+                </Layout.Header>
 
                 <Layout.Content centered={isLoading} fullWidth>
                     <TransactionsList

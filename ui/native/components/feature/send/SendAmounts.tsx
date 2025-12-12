@@ -6,9 +6,9 @@ import { hexToRgba } from '@fedi/common/utils/color'
 export type Props = {
     showBalance?: boolean
     subHeader?: React.ReactNode
-    balanceDisplay: string
+    balanceDisplay?: string
     formattedPrimaryAmount: string
-    formattedSecondaryAmount: string
+    formattedSecondaryAmount?: string
 }
 
 const SendAmounts: React.FC<Props> = ({

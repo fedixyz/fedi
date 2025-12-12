@@ -27,7 +27,6 @@ import {
     selectFediModCacheMode,
     selectFediModDebugMode,
     selectOnchainDepositsEnabled,
-    selectShowFiatTxnAmounts,
     selectStabilityPoolCycleStartPrice,
     selectStableBalanceEnabled,
     setFediModShowClearCacheButton,
@@ -35,7 +34,6 @@ import {
     setFediModCacheMode,
     setFediModDebugMode,
     setOnchainDepositsEnabled,
-    setShowFiatTxnAmounts,
     setStableBalanceEnabled,
     selectPaymentFederation,
     clearSessionCount,
@@ -112,7 +110,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         paymentFederation?.id || '',
     )
     const stableBalanceEnabled = useAppSelector(selectStableBalanceEnabled)
-    const showFiatTxnAmounts = useAppSelector(selectShowFiatTxnAmounts)
     const spBtcUsdPrice = useAppSelector(s =>
         selectStabilityPoolCycleStartPrice(s, paymentFederation?.id || ''),
     )
@@ -543,22 +540,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         value={onchainDepositsEnabled}
                         onValueChange={value => {
                             reduxDispatch(setOnchainDepositsEnabled(value))
-                        }}
-                    />
-                </View>
-                <View style={style.switchWrapper}>
-                    <View style={style.switchLabelContainer}>
-                        <Text caption style={style.switchLabel}>
-                            {t('feature.wallet.show-fiat-txn-amounts')}
-                        </Text>
-                        <Text small style={style.switchLabel}>
-                            {t('feature.wallet.show-fiat-txn-amounts-info')}
-                        </Text>
-                    </View>
-                    <Switch
-                        value={showFiatTxnAmounts}
-                        onValueChange={value => {
-                            reduxDispatch(setShowFiatTxnAmounts(value))
                         }}
                     />
                 </View>

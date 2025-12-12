@@ -14,7 +14,6 @@ use async_stream::stream;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::util::backoff_util::background_backoff;
 use futures::{Stream, StreamExt, TryStreamExt, stream};
-use matrix_sdk::crypto::types::events::UtdCause;
 use matrix_sdk::deserialized_responses::{TimelineEvent, TimelineEventKind};
 use matrix_sdk::event_cache::EventCacheError;
 use matrix_sdk::locks::RwLock;
@@ -23,6 +22,7 @@ use matrix_sdk::ruma::events::{
 };
 use matrix_sdk::ruma::{OwnedEventId, OwnedRoomId, RoomId};
 use matrix_sdk::{Client, Room};
+use matrix_sdk_base::crypto::types::events::UtdCause;
 use rpc_types::RpcEventId;
 use runtime::bridge_runtime::Runtime;
 use tokio::sync::Notify;
@@ -477,8 +477,9 @@ pub async fn all_message_since_retry_decryption(
                     info!(%tries, ?cause, "utd: retrying decryption");
                 }
 
+                // cast_ref_unchecked: notification client in sdk does same
                 event = room
-                    .decrypt_event(raw_event.cast_ref(), push_ctx.as_ref())
+                    .decrypt_event(raw_event.cast_ref_unchecked(), push_ctx.as_ref())
                     .await?;
             }
             if tries != 1 {

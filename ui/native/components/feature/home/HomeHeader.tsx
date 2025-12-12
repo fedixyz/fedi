@@ -9,7 +9,6 @@ import { selectLastSelectedCommunity } from '@fedi/common/redux'
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import { isNightly } from '../../../utils/device-info'
-import Flex from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
@@ -33,46 +32,39 @@ const HomeHeader: React.FC = () => {
     }
 
     return (
-        <View style={style.container}>
-            <GradientView variant="sky" style={style.gradientHeader}>
-                <Flex gap="md" style={style.contentContainer}>
-                    <Flex gap="xs">
-                        <Header
-                            transparent
-                            containerStyle={style.headerContainer}
-                            headerLeft={
-                                <Text
-                                    h2
-                                    medium
-                                    numberOfLines={1}
-                                    adjustsFontSizeToFit>
-                                    {t('words.communities')}
-                                </Text>
-                            }
-                            headerRight={
-                                <MainHeaderButtons
-                                    onAddPress={openJoinCommunity}
-                                    onShowCommunitiesPress={() =>
-                                        setShowCommunities(true)
-                                    }
-                                />
+        <>
+            <GradientView variant="sky" style={style.container}>
+                <Header
+                    transparent
+                    containerStyle={style.headerContainer}
+                    headerLeft={
+                        <Text h2 medium numberOfLines={1} adjustsFontSizeToFit>
+                            {t('words.communities')}
+                        </Text>
+                    }
+                    headerRight={
+                        <MainHeaderButtons
+                            onAddPress={openJoinCommunity}
+                            onShowCommunitiesPress={() =>
+                                setShowCommunities(true)
                             }
                         />
-                        <TotalBalance />
-                    </Flex>
-                    {/* TODO: restore this on federations screen */}
-                    {/* <NetworkBanner /> */}
-                    {showNightlyBanner && (
-                        <View style={style.nightly}>
-                            <Text
-                                small
-                                style={style.nightlyText}
-                                adjustsFontSizeToFit>
-                                {t('feature.developer.nightly')}
-                            </Text>
-                        </View>
-                    )}
-                </Flex>
+                    }
+                />
+                <TotalBalance />
+
+                {/* TODO: restore this on federations screen */}
+                {/* <NetworkBanner /> */}
+                {showNightlyBanner && (
+                    <View style={style.nightly}>
+                        <Text
+                            small
+                            style={style.nightlyText}
+                            adjustsFontSizeToFit>
+                            {t('feature.developer.nightly')}
+                        </Text>
+                    </View>
+                )}
             </GradientView>
             {selectedCommunity && (
                 <View style={style.selectedCommunityContainer}>
@@ -84,17 +76,18 @@ const HomeHeader: React.FC = () => {
                 open={showCommunities}
                 onOpenChange={setShowCommunities}
             />
-        </View>
+        </>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            borderBottomColor: theme.colors.extraLightGrey,
-            borderBottomWidth: 1,
+            paddingHorizontal: theme.spacing.lg,
+            display: 'flex',
+            gap: theme.spacing.xs,
+            paddingBottom: theme.spacing.md,
         },
-        gradientHeader: {},
         contentContainer: {
             paddingHorizontal: theme.spacing.lg,
             paddingBottom: theme.spacing.lg,
@@ -104,6 +97,8 @@ const styles = (theme: Theme) =>
             paddingHorizontal: 0,
         },
         selectedCommunityContainer: {
+            borderBottomColor: theme.colors.extraLightGrey,
+            borderBottomWidth: 1,
             padding: theme.spacing.lg,
         },
         nightly: {

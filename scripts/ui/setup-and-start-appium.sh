@@ -84,7 +84,7 @@ if [[ -n "$android_driver_output" ]]; then
     fi
   fi
 else
-  if appium driver install uiautomator2; then
+  if appium driver install uiautomator2@5; then
     echo "✓ Installed UiAutomator2 driver"
   else
     echo "❌ Failed to install UiAutomator2 driver"

@@ -66,6 +66,7 @@ export class FediMod extends Shortcut {
     type = ShortcutType.fediMod
     url: string
     imageUrl?: string
+    dateAdded?: number
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor(data: any) {
@@ -73,6 +74,7 @@ export class FediMod extends Shortcut {
         this.id = data.id || '' // Assign id explicitly from data
         this.url = data.url || '' // Ensure URL is preserved
         this.imageUrl = data.imageUrl || '' // Preserve optional imageUrl
+        this.dateAdded = data.dateAdded
         this.icon = {
             image: FediModImages[this.id] || FediModImages.default, // Use id for image mapping
         }

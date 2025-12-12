@@ -164,6 +164,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                 <Tab.Screen
                     name="Home"
                     options={() => ({
+                        tabBarTestID: 'HomeTabButton',
                         title: t('words.home'),
                         header: () => <HomeHeader />,
                     })}>
@@ -173,6 +174,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     name="Chat"
                     component={ChatScreen}
                     options={() => ({
+                        tabBarTestID: 'ChatTabButton',
                         title: t('words.chat'),
                         header: () => <ChatHeader />,
                         tabBarBadge: hasUnreadMessages ? '' : undefined,
@@ -182,6 +184,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     name="Mods"
                     component={Mods}
                     options={() => ({
+                        tabBarTestID: 'ModsTabButton',
                         title: t('words.mods'),
                         headerShown: false, // this allows us to draw over the header with tooltips
                         tabBarBadge: zendeskMsgCount > 0 ? '' : undefined,
@@ -191,6 +194,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     name="Federations"
                     component={Federations}
                     options={() => ({
+                        tabBarTestID: 'FederationsTabButton',
                         title: t('words.federations'),
                         header: () => <FederationsHeader />,
                     })}

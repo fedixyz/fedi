@@ -1,5 +1,5 @@
 import { FedimintBridgeEventMap } from '@fedi/common/types'
-import { RpcInitOpts } from '@fedi/common/types/bindings'
+import { RpcInitOpts, RpcAppFlavor } from '@fedi/common/types/bindings'
 import { isDev } from '@fedi/common/utils/environment'
 import { BridgeError } from '@fedi/common/utils/errors'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
@@ -94,7 +94,10 @@ export class RemoteBridge {
         return resultJson.ecash
     }
 
-    public async initializeBridge(deviceIdentifier: string) {
+    public async initializeBridge(
+        deviceIdentifier: string,
+        _ignoreAppFlavor?: RpcAppFlavor['type'],
+    ) {
         this.deviceId = deviceIdentifier
 
         const options: RpcInitOpts = {

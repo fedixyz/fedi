@@ -5,7 +5,7 @@ import DefaultFediModIcon from '@fedi/common/assets/images/fedimods/default.png'
 import { selectAllVisibleMods } from '@fedi/common/redux/mod'
 import { FediMod } from '@fedi/common/types'
 
-import { FediModBrowser } from '../components/FediModBrowser'
+import { FediBrowser } from '../components/FediBrowser'
 import { FEDIMOD_IMAGES } from '../constants/fedimodimages'
 import { useAppSelector, useDeviceQuery } from '../hooks'
 import { styled } from '../styles'
@@ -15,7 +15,7 @@ type Props = {
     mods?: FediMod[]
 }
 
-// These are the mods that will work inside the web FediModBrowser
+// These are the mods that will work inside the web FediBrowser
 const whitelist: string[] = []
 
 // These are the mods that don't work on web
@@ -29,7 +29,7 @@ export const FediModTiles: React.FC<Props> = ({ mods }) => {
     const fediMods = mods || defaultMods
 
     const handleOnClick = (mod: FediMod) => {
-        // only show app in FediModBrowser if it is whitelisted and on mobile
+        // only show app in FediBrowser if it is whitelisted and on mobile
         if (whitelist.includes(mod.id) && isMobile) {
             setModUrl(mod.url)
             return
@@ -41,7 +41,7 @@ export const FediModTiles: React.FC<Props> = ({ mods }) => {
     return (
         <>
             {!!modUrl && (
-                <FediModBrowser url={modUrl} onClose={() => setModUrl(null)} />
+                <FediBrowser url={modUrl} onClose={() => setModUrl(null)} />
             )}
             <Container>
                 {fediMods

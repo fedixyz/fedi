@@ -333,9 +333,12 @@ describe('common/hooks/receive', () => {
             const transactions = await fedimint.listTransactions(
                 federationId ?? '',
             )
+            const refinedTransactions = transactions
+                .filter(entry => 'Ok' in entry)
+                .map(entry => entry.Ok)
 
             // Lightning transaction used to pay the lnurl receive code
-            const lnPayTxn = transactions.find(
+            const lnPayTxn = refinedTransactions.find(
                 tx => tx.kind === 'lnPay' && tx.txnNotes === 'lnurl pay txn',
             )
 

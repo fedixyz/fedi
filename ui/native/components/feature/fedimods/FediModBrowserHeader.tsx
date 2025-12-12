@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
+import React, { RefObject, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Animated, StyleSheet } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
@@ -17,7 +17,7 @@ import Flex from '../../ui/Flex'
 import { PressableIcon } from '../../ui/PressableIcon'
 
 type FediModBrowserHeaderProps = {
-    webViewRef: MutableRefObject<WebView>
+    webViewRef: RefObject<WebView | null>
     isBrowserLoading: boolean
     browserLoadProgress: number
     currentUrl: string
@@ -66,12 +66,12 @@ const FediModBrowserHeader: React.FC<FediModBrowserHeaderProps> = ({
                 <PressableIcon
                     svgName="ChevronLeft"
                     hitSlop={10}
-                    onPress={() => webViewRef.current.goBack()}
+                    onPress={() => webViewRef.current?.goBack()}
                 />
                 <PressableIcon
                     svgName="ChevronRight"
                     hitSlop={10}
-                    onPress={() => webViewRef.current.goForward()}
+                    onPress={() => webViewRef.current?.goForward()}
                 />
             </Flex>
             <Pressable

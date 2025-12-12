@@ -221,7 +221,9 @@ export function useMatrixUserSearch() {
     const [searchedUsers, setSearchedUsers] = useState<MatrixUser[]>([])
     const [isSearching, setIsSearching] = useState(false)
     const [searchError, setSearchError] = useState<unknown>()
-    const timeoutRef = useRef<ReturnType<typeof setTimeout>>()
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+        undefined,
+    )
 
     // Grab your recent room members from state (limit 10 for example).
     const contactsList = useCommonSelector(s => selectMatrixContactsList(s))
@@ -1325,5 +1327,6 @@ export function useMatrixRoomPreview({
         text,
         isUnread,
         isNotice,
+        isPublicBroadcast,
     }
 }

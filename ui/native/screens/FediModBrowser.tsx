@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { MutableRefObject, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -143,11 +143,13 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const walletFederations = useAppSelector(selectLoadedFederations)
     const communities = useAppSelector(selectCommunities)
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
-    const webview = useRef<WebView>() as MutableRefObject<WebView>
+    const webview = useRef<WebView | null>(null)
     const overlayResolveRef = useRef<
         FediModResolver<FediModResponse> | undefined
-    >() as MutableRefObject<FediModResolver<FediModResponse> | undefined>
-    const overlayRejectRef = useRef<(reason: Error) => void>()
+    >(undefined)
+    const overlayRejectRef = useRef<((reason: Error) => void) | undefined>(
+        undefined,
+    )
 
     const [isParsingLink, setIsParsingLink] = useState(false)
     const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false)
@@ -616,7 +618,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
             req.url,
             fedimint,
             t,
-            paymentFederation?.id,
+            paymentFederation?.id || '',
             isInternetUnreachable,
         )
             .then(parsed => {

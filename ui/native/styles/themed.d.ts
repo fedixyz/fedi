@@ -89,6 +89,7 @@ declare module '@rneui/themed' {
     // be passed to a <Text> component
     export interface TextProps {
         bold?: boolean
+        bolder?: boolean
         medium?: boolean
         caption?: boolean
         small?: boolean

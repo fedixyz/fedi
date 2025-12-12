@@ -243,6 +243,16 @@ pub struct CommunityMetadataUpdatedEvent {
     pub new_community: RpcCommunity,
 }
 
+/// Notify front-end that a particular v1 community has been migrated to the
+/// specified v2 community
+#[derive(Serialize, Debug, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CommunityMigratedToV2Event {
+    pub v1_invite_code: String,
+    pub v2_community: RpcCommunity,
+}
+
 /// Notify front-end that given federation has failed the e-cash blind nonce
 /// reuse check and must be rejoined using a recovery-from-scratch.
 #[derive(Serialize, Debug, TS)]
@@ -272,6 +282,7 @@ pub enum Event {
     StabilityPoolUnfilledDepositSwept(StabilityPoolUnfilledDepositSweptEvent),
     CommunityMetadataUpdated(CommunityMetadataUpdatedEvent),
     NonceReuseCheckFailed(NonceReuseCheckFailedEvent),
+    CommunityMigratedToV2(CommunityMigratedToV2Event),
 }
 
 impl Event {
@@ -443,6 +454,13 @@ impl Event {
         Self::CommunityMetadataUpdated(CommunityMetadataUpdatedEvent { new_community })
     }
 
+    pub fn community_migrated_to_v2(v1_invite_code: String, v2_community: RpcCommunity) -> Self {
+        Self::CommunityMigratedToV2(CommunityMigratedToV2Event {
+            v1_invite_code,
+            v2_community,
+        })
+    }
+
     pub fn nonce_reuse_check_failed(federation_id: RpcFederationId) -> Self {
         Self::NonceReuseCheckFailed(NonceReuseCheckFailedEvent { federation_id })
     }
@@ -510,6 +528,10 @@ pub trait TypedEventExt: IEventSink {
             Event::CommunityMetadataUpdated(event) => {
                 let body = serde_json::to_string(&event).expect("failed to json serialize");
                 IEventSink::event(self, "communityMetadataUpdated".into(), body);
+            }
+            Event::CommunityMigratedToV2(event) => {
+                let body = serde_json::to_string(&event).expect("failed to json serialize");
+                IEventSink::event(self, "communityMigratedToV2".into(), body);
             }
             Event::NonceReuseCheckFailed(event) => {
                 let body = serde_json::to_string(&event).expect("failed to json serialize");

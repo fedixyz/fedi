@@ -28,6 +28,7 @@ federations = { workspace = true }
 communities = { workspace = true }
 matrix = { workspace = true }
 multispend = { path = "../multispend" }
+sp-transfer = { path = "../sp-transfer" }
 runtime = { workspace = true }
 nostril = { workspace = true }
 rpc-types = { workspace = true }

@@ -37,6 +37,7 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     open,
     onOpenChange,
 }) => {
+    const { t } = useTranslation()
     const router = useRouter()
     const params = getHashParams(router.asPath)
     const lnurlw = useRouteState('/request')
@@ -75,8 +76,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
             federationId,
             onMempoolTransaction: onTransactionReceived,
         })
-
-    const { t } = useTranslation()
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
 

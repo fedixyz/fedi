@@ -1,7 +1,7 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { useNavigation } from '@react-navigation/native'
 import { useTheme, type Theme } from '@rneui/themed'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 
 import {
@@ -39,8 +39,13 @@ const Federations: React.FC<Props> = () => {
     const style = styles(theme)
 
     // make sure we have at least 1 federation, if not push to JoinFederation screen
+    useEffect(() => {
+        if (loadedFederations.length === 0) {
+            navigation.dispatch(resetToJoinFederation)
+        }
+    }, [loadedFederations.length, navigation])
+
     if (loadedFederations.length === 0) {
-        navigation.dispatch(resetToJoinFederation)
         return null
     }
 

@@ -21,6 +21,7 @@ import CommunityInviteHeader from '../components/feature/federations/CommunityIn
 import FederationDetailsHeader from '../components/feature/federations/FederationDetailsHeader'
 import FederationInviteHeader from '../components/feature/federations/FederationInviteHeader'
 import JoinFederationHeader from '../components/feature/federations/JoinFederationHeader'
+import AddFediModHeader from '../components/feature/fedimods/AddFediModHeader'
 import NostrSettingsHeader from '../components/feature/fedimods/NostrSettingsHeader'
 import EulaHeader from '../components/feature/onboarding/EulaHeader'
 import NewMemberAvatarImageHeader from '../components/feature/onboarding/NewMemberAvatarImageHeader'
@@ -35,7 +36,6 @@ import SetPinHeader from '../components/feature/pin/SetPinHeader'
 import SetPinLockScreen from '../components/feature/pin/SetPinLockScreen'
 import UnlockAppLockScreenHeader from '../components/feature/pin/UnlockAppLockScreenHeader'
 import BitcoinRequestHeader from '../components/feature/receive/BitcoinRequestHeader'
-import ClaimEcashHeader from '../components/feature/receive/ClaimEcashHeader'
 import ReceiveBitcoinOfflineHeader from '../components/feature/receive/ReceiveBitcoinOfflineHeader'
 import ReceiveCashuHeader from '../components/feature/receive/ReceiveCashuHeader'
 import RequestMoneyHeader from '../components/feature/receive/RequestMoneyHeader'
@@ -54,10 +54,10 @@ import SendHeader from '../components/feature/send/SendHeader'
 import SettingsHeader from '../components/feature/settings/SettingsHeader'
 import ConfirmDepositHeader from '../components/feature/stabilitypool/ConfirmDepositHeader'
 import ConfirmWithdrawHeader from '../components/feature/stabilitypool/ConfirmWithdrawHeader'
-import DepositInitiatedHeader from '../components/feature/stabilitypool/DepositInitiatedHeader'
 import StabilityDepositHeader from '../components/feature/stabilitypool/StabilityDepositHeader'
 import StabilityHistoryHeader from '../components/feature/stabilitypool/StabilityHistoryHeader'
 import StabilityHomeHeader from '../components/feature/stabilitypool/StabilityHomeHeader'
+import StabilityTransferHeader from '../components/feature/stabilitypool/StabilityTransferHeader'
 import StabilityWithdrawHeader from '../components/feature/stabilitypool/StabilityWithdrawHeader'
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
 import HelpCentreHeader from '../components/feature/support/HelpCentreHeader'
@@ -118,6 +118,7 @@ import FederationCurrency from './FederationCurrency'
 import FederationDetails from './FederationDetails'
 import FederationGreeting from './FederationGreeting'
 import FederationInvite from './FederationInvite'
+import FederationSettings from './FederationSettings'
 import FediModBrowser from './FediModBrowser'
 import FediModSettings from './FediModSettings'
 import GlobalCurrency from './GlobalCurrency'
@@ -148,6 +149,7 @@ import PublicFederations from './PublicFederations'
 import Receive from './Receive'
 import ReceiveLightning from './ReceiveLightning'
 import ReceiveLnurl from './ReceiveLnurl'
+import ReceiveStabilityQr from './ReceiveStabilityQr'
 import ReceiveSuccess from './ReceiveSuccess'
 import RecordBackupVideo from './RecordBackupVideo'
 import RecoverFromNonceReuse from './RecoverFromNonceReuse'
@@ -170,6 +172,7 @@ import SendOfflineAmount from './SendOfflineAmount'
 import SendOfflineQr from './SendOfflineQr'
 import SendOnChainAmount from './SendOnChainAmount'
 import SendSuccess from './SendSuccess'
+import SendSuccessShield from './SendSuccessShield'
 import SetPin from './SetPin'
 import Settings from './Settings'
 import ShareLogs from './ShareLogs'
@@ -181,11 +184,12 @@ import SocialRecoveryQrModal from './SocialRecoveryQrModal'
 import SocialRecoverySuccess from './SocialRecoverySuccess'
 import Splash from './Splash'
 import StabilityConfirmDeposit from './StabilityConfirmDeposit'
+import StabilityConfirmTransfer from './StabilityConfirmTransfer'
 import StabilityConfirmWithdraw from './StabilityConfirmWithdraw'
 import StabilityDeposit from './StabilityDeposit'
-import StabilityDepositInitiated from './StabilityDepositInitiated'
 import StabilityHistory from './StabilityHistory'
 import StabilityHome from './StabilityHome'
+import StabilityTransfer from './StabilityTransfer'
 import StabilityWithdraw from './StabilityWithdraw'
 import StabilityWithdrawInitiated from './StabilityWithdrawInitiated'
 import StartRecoveryAssist from './StartRecoveryAssist'
@@ -375,7 +379,14 @@ export const MainNavigator = () => {
                     <Stack.Screen
                         name="ClaimEcash"
                         component={ClaimEcash}
-                        options={() => ({ header: () => <ClaimEcashHeader /> })}
+                        options={() => ({
+                            header: () => (
+                                <CenteredHeader
+                                    backButton
+                                    title={t('feature.ecash.claim-ecash')}
+                                />
+                            ),
+                        })}
                     />
                 </Stack.Group>
                 {isAppUnlocked ? (
@@ -739,6 +750,11 @@ export const MainNavigator = () => {
                                 options={{ headerShown: false }}
                             />
                             <Stack.Screen
+                                name="SendSuccessShield"
+                                component={SendSuccessShield}
+                                options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
                                 name="EcashSendCancelled"
                                 component={EcashSendCancelled}
                                 options={{ headerShown: false }}
@@ -1048,14 +1064,7 @@ export const MainNavigator = () => {
                                 name="AddFediMod"
                                 component={AddFediMod}
                                 options={() => ({
-                                    header: () => (
-                                        <CenteredHeader
-                                            backButton
-                                            title={t(
-                                                'feature.fedimods.add-a-mini-app',
-                                            )}
-                                        />
-                                    ),
+                                    header: () => <AddFediModHeader />,
                                 })}
                             />
                             <Stack.Screen
@@ -1169,6 +1178,20 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
+                                name="FederationSettings"
+                                component={FederationSettings}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.settings.federation-settings',
+                                            )}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
                                 name="FederationDetails"
                                 component={FederationDetails}
                                 options={() => ({
@@ -1226,6 +1249,41 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
+                                name="StabilityTransfer"
+                                component={StabilityTransfer}
+                                options={() => ({
+                                    header: () => <StabilityTransferHeader />,
+                                })}
+                            />
+                            <Stack.Screen
+                                name="StabilityConfirmTransfer"
+                                component={StabilityConfirmTransfer}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.stabilitypool.confirm-transfer',
+                                            )}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="ReceiveStabilityQr"
+                                component={ReceiveStabilityQr}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            title={t(
+                                                'feature.stabilitypool.receive-stable-balance',
+                                            )}
+                                            backButton
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
                                 name="StabilityConfirmDeposit"
                                 component={StabilityConfirmDeposit}
                                 options={() => ({
@@ -1237,13 +1295,6 @@ export const MainNavigator = () => {
                                 component={StabilityConfirmWithdraw}
                                 options={() => ({
                                     header: () => <ConfirmWithdrawHeader />,
-                                })}
-                            />
-                            <Stack.Screen
-                                name="StabilityDepositInitiated"
-                                component={StabilityDepositInitiated}
-                                options={() => ({
-                                    header: () => <DepositInitiatedHeader />,
                                 })}
                             />
                             <Stack.Screen

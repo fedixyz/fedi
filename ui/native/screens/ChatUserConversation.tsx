@@ -82,7 +82,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
         [dispatch, userId],
     )
 
-    const renderMessageInput = useCallback((): JSX.Element => {
+    const renderMessageInput = useCallback((): React.ReactElement => {
         const messageInput = (
             <MessageInput
                 isSending={isSending}

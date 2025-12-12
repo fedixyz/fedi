@@ -9,8 +9,15 @@ import {
     selectMatrixAuth,
     selectMatrixRoomMembers,
 } from '@fedi/common/redux'
-import { MatrixRoomMember, MatrixEvent } from '@fedi/common/types'
-import { isMultispendEvent } from '@fedi/common/utils/matrix'
+import {
+    MatrixRoomMember,
+    MatrixEvent,
+    MatrixPowerLevel,
+} from '@fedi/common/types'
+import {
+    isMultispendEvent,
+    isPowerLevelGreaterOrEqual,
+} from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
@@ -67,7 +74,12 @@ const ChatEventTimeFrame = memo(
             sentBy === matrixAuth?.userId && !isMultispendEvent(events[0])
         const hasLeft = roomMember?.membership === 'leave'
         const isBanned = roomMember?.membership === 'ban'
-        const isAdmin = roomMember?.powerLevel === 100
+        const isAdmin =
+            roomMember?.powerLevel &&
+            isPowerLevelGreaterOrEqual(
+                roomMember.powerLevel,
+                MatrixPowerLevel.Admin,
+            )
         const displayName = isBanned
             ? t('feature.chat.removed-member')
             : hasLeft

@@ -1,9 +1,6 @@
 import { Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { Platform, StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
-import LinearGradient, {
-    type LinearGradientProps,
-} from 'react-native-linear-gradient'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
@@ -16,11 +13,13 @@ type BubbleViewProps = {
     children: React.ReactNode
 }
 
-type BubbleGradientProps = BubbleViewProps &
-    LinearGradientProps & { day?: boolean }
+type BubbleGradientProps = BubbleViewProps & {
+    colors: string[]
+    day?: boolean
+}
 
 type BubbleCardProps = BubbleViewProps & {
-    linearGradientProps: LinearGradientProps
+    gradientColors?: string[]
 }
 
 /**
@@ -58,19 +57,26 @@ export const BubbleView = ({
 
 /**
  * This component hacks an inset shadow onto the
- * top and bottom of a Linear Gradient. It is used
+ * top and bottom of a View with gradient background. It is used
  * to create the effect of a bubble view with a shadow.
  */
 export const BubbleGradient = ({
     children,
-    ...linearGradientProps
+    colors,
+    ...props
 }: BubbleGradientProps) => {
     const [width, setWidth] = useState(0)
     const { theme } = useTheme()
     const style = styles(theme, width)
     return (
-        <LinearGradient
-            {...linearGradientProps}
+        <View
+            {...props}
+            style={[
+                props.containerStyle,
+                {
+                    experimental_backgroundImage: `linear-gradient(to bottom, ${colors.join(', ')})`,
+                },
+            ]}
             onLayout={({ nativeEvent }) => {
                 setWidth(nativeEvent.layout.width)
             }}>
@@ -81,36 +87,36 @@ export const BubbleGradient = ({
                 </>
             )}
             {children}
-        </LinearGradient>
+        </View>
     )
 }
 
 /**
  * This component hacks an inset shadow onto the
- * top and bottom of a Linear Gradient. It is used
+ * top and bottom of a View with gradient background. It is used
  * to create the effect of a bubble view with a shadow.
  */
 export const BubbleCard = ({
     containerStyle,
     children,
-    linearGradientProps,
+    gradientColors,
 }: BubbleCardProps) => {
     const { theme } = useTheme()
     const style = styles(theme, 0)
-    const gradientProps: LinearGradientProps = linearGradientProps
-        ? linearGradientProps
-        : {
-              colors: [...fediTheme.dayLinearGradient],
-              start: { x: 0, y: 0 },
-              end: { x: 0, y: 1 },
-          }
+    const colors = gradientColors || [...fediTheme.dayLinearGradient]
     return (
         <BubbleView containerStyle={[style.wrapper, containerStyle]}>
-            <LinearGradient {...gradientProps} style={style.gradient}>
+            <View
+                style={[
+                    style.gradient,
+                    {
+                        experimental_backgroundImage: `linear-gradient(to bottom, ${colors.join(', ')})`,
+                    },
+                ]}>
                 <Flex gap="md" fullWidth style={[style.wrapper, style.card]}>
                     {children}
                 </Flex>
-            </LinearGradient>
+            </View>
         </BubbleView>
     )
 }

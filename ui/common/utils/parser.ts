@@ -12,6 +12,7 @@ import {
     ParsedBolt12,
     ParsedCashuEcash,
     ParsedCommunityInvite,
+    ParsedDeepLink,
     ParsedFederationInvite,
     ParsedFediChatRoom,
     ParsedFediChatUser,
@@ -21,7 +22,7 @@ import {
     ParsedLnurlAuth,
     ParsedLnurlPay,
     ParsedLnurlWithdraw,
-    ParsedOfflineError,
+    ParsedStabilityAddress,
     ParsedUnknownData,
     ParsedWebsite,
     ParserDataType,
@@ -64,7 +65,147 @@ export const LEGACY_CODE_TYPES = [
     ParserDataType.LegacyFediChatMember,
 ]
 
-async function parseFediUniversalLink(
+export type ParserFn = (
+    raw: string,
+    fedimint: FedimintBridge,
+    t: TFunction,
+    federationId: string,
+) => Promise<AnyParsedData | undefined> | AnyParsedData | undefined
+
+export type Parser = {
+    name: string
+    handler: ParserFn
+}
+
+/**
+ * Offline parsers that don't require network access
+ */
+const offlineParsers: Parser[] = [
+    {
+        name: 'parseBitcoinAddress',
+        handler: raw => parseBitcoinAddress(raw),
+    },
+    {
+        name: 'parseBip21',
+        handler: (raw, fedimint, _t, federationId) =>
+            parseBip21(raw, fedimint, federationId),
+    },
+    {
+        name: 'parseFedimintEcash',
+        handler: (raw, fedimint) => parseFedimintEcash(raw, fedimint),
+    },
+    {
+        name: 'parseCashuEcash',
+        handler: raw => parseCashuEcash(raw),
+    },
+    {
+        name: 'parseStabilityAddress',
+        handler: (raw, fedimint) => parseStabilityAddress(raw, fedimint),
+    },
+    {
+        name: 'parseFediUniversalLink',
+        handler: (raw, fedimint) => parseFediUniversalLink(raw, fedimint),
+    },
+    {
+        name: 'parseBolt12',
+        handler: raw => parseBolt12(raw),
+    },
+    {
+        name: 'parseFedimintInvite',
+        handler: raw => parseFedimintInvite(raw),
+    },
+    {
+        name: 'parseCommunityInvite',
+        handler: raw => parseCommunityInvite(raw),
+    },
+]
+
+/**
+ * Online parsers that require network access
+ */
+const onlineParsers: Parser[] = [
+    {
+        name: 'parseBolt11',
+        handler: (raw, fedimint, t) => parseBolt11(raw, fedimint, t, null),
+    },
+
+    {
+        name: 'parseLnurl',
+        handler: (raw, fedimint, t, federationId) =>
+            parseLnurl(raw, fedimint, t, federationId),
+    },
+    {
+        name: 'parseFediUri',
+        handler: (raw, fedimint) => parseFediUri(raw, fedimint),
+    },
+]
+
+/**
+ * Parses any data that would the user would input via QR code, copy / paste etc.
+ * Returns a structured object that identifies the type of data, and formatted
+ * keys for the data where available.
+ */
+export async function parseUserInput<T extends TFunction>(
+    raw: string,
+    fedimint: FedimintBridge,
+    t: T,
+    federationId: string,
+    isInternetUnreachable: boolean,
+): Promise<AnyParsedData> {
+    raw = raw.trim()
+
+    async function tryParsers(
+        parsers: Parser[],
+    ): Promise<AnyParsedData | undefined> {
+        for (const parser of parsers) {
+            try {
+                log.debug(`Running parser: ${parser.name}`)
+                const result = await parser.handler(
+                    raw,
+                    fedimint,
+                    t,
+                    federationId,
+                )
+                if (result) {
+                    log.info(`${parser.name} parser succeeded`)
+                    return result
+                }
+            } catch (err) {
+                log.error(`${parser.name} parser error`, err)
+            }
+        }
+
+        return undefined
+    }
+
+    const offlineResult = await tryParsers(offlineParsers)
+    if (offlineResult) return offlineResult
+
+    if (!isInternetUnreachable) {
+        const onlineResult = await tryParsers(onlineParsers)
+        if (onlineResult) return onlineResult
+
+        return {
+            type: ParserDataType.Unknown,
+            data: {},
+        }
+    }
+
+    return {
+        type: ParserDataType.OfflineError,
+        data: {
+            title: t('feature.omni.error-network-offline-title'),
+            message: t('feature.omni.error-network-offline-message'),
+        },
+    }
+}
+
+/**
+ * Attempts to parse a url
+ * If it includes /screen? or /screen# then it's considered a deep link
+ * Otherwise it will be picked up by parseFediUri
+ */
+export async function parseFediUniversalLink(
     raw: string,
     fedimint: FedimintBridge,
 ): Promise<
@@ -72,153 +213,27 @@ async function parseFediUniversalLink(
     | ParsedLegacyFediChatMember
     | ParsedFediChatUser
     | ParsedFediChatRoom
+    | ParsedDeepLink
     | undefined
 > {
-    if (!isUniversalLink(raw)) return
+    if (isUniversalLink(raw)) {
+        // Hack to let parseFediUri logic handle user deep links
+        // as we have a dedicated OmniConfirmation to show to users
+        if (raw.includes('?screen=user')) {
+            const deep = universalToFedi(raw) // → fedi://user/... or ''
+            if (!deep) return
 
-    const deep = universalToFedi(raw) // → fedi://user/... or ''
-    if (!deep) return
-
-    // Re-use the existing Fedi-URI parser
-    return parseFediUri(deep, fedimint)
-}
-
-/**
- * Parses any data that would the user would input via QR code, copy / paste etc.
- * Returns a structured object that identifies the type of data, and formatted
- * keys for the data where available.
- */ export function parseUserInput<T extends TFunction>(
-    raw: string,
-    fedimint: FedimintBridge,
-    t: T,
-    federationId: string | undefined = undefined,
-    isInternetUnreachable: boolean,
-): Promise<AnyParsedData> {
-    raw = raw.trim()
-
-    return new Promise(resolve => {
-        let resolved = false
-
-        // Offline parsers (do not require network)
-        const offlineParsers: (() => Promise<AnyParsedData | undefined>)[] = [
-            async () => {
-                log.debug('Running offline parser: parseBitcoinAddress')
-                return Promise.resolve(parseBitcoinAddress(raw))
-            },
-            async () => {
-                log.debug('Running offline parser: parseBip21')
-                return parseBip21(raw, fedimint, federationId)
-            },
-            async () => {
-                log.debug('Running offline parser: parseFedimintEcash')
-                return parseFedimintEcash(raw, fedimint)
-            },
-            async () => {
-                log.debug('Running offline parser: parseCashuEcash')
-                return parseCashuEcash(raw)
-            },
-        ]
-
-        // Online parsers (require internet access)
-        const onlineParsers: (() => Promise<AnyParsedData | undefined>)[] = [
-            async () => {
-                log.debug('Running online parser: parseBolt11')
-                return parseBolt11(raw, fedimint, t, null)
-            },
-            async () => {
-                log.debug('Running online parser: parseBolt12')
-                return Promise.resolve(parseBolt12(raw))
-            },
-            async () => {
-                log.debug('Running online parser: parseFediUniversalLink')
-                return parseFediUniversalLink(raw, fedimint)
-            },
-            async () => {
-                log.debug('Running online parser: parseLnurl')
-                return parseLnurl(raw, fedimint, t, federationId)
-            },
-            async () => {
-                log.debug('Running online parser: parseFediUri')
-                return parseFediUri(raw, fedimint)
-            },
-            async () => {
-                log.debug('Running online parser: parseFedimintInvite')
-                return Promise.resolve(parseFedimintInvite(raw))
-            },
-            async () => {
-                log.debug('Running online parser: parseCommunityInvite')
-                return Promise.resolve(parseCommunityInvite(raw))
-            },
-        ]
-
-        /**
-         * Runs parsers in parallel and resolves as soon as one succeeds.
-         */
-        const runParsers = async (
-            parsers: (() => Promise<AnyParsedData | undefined>)[],
-            type: 'offline' | 'online',
-        ) => {
-            log.info(`Running ${type} parsers...`)
-
-            const parserPromises = parsers.map(parser =>
-                parser()
-                    .then(result => {
-                        if (result) {
-                            log.info(
-                                `${type.toUpperCase()} parser succeeded! Type:`,
-                                result.type,
-                            )
-                        } else {
-                            log.info(
-                                `${type.toUpperCase()} parser returned undefined.`,
-                            )
-                        }
-                        if (result && !resolved) {
-                            resolved = true
-                            resolve(result)
-                        }
-                    })
-                    .catch(err => {
-                        log.error(`${type.toUpperCase()} parser error:`, err)
-                    }),
-            )
-
-            // Wait for all parsers to finish
-            return Promise.all(parserPromises).then(() => {
-                if (!resolved) {
-                    log.warn(`All ${type} parsers failed.`)
-                }
-            })
+            // Re-use the existing Fedi-URI parser
+            return parseFediUri(deep, fedimint)
         }
 
-        // Step 1: Run **offline parsers** immediately
-        runParsers(offlineParsers, 'offline').then(() => {
-            // Step 2: If online, run **online parsers**
-            if (!isInternetUnreachable) {
-                runParsers(onlineParsers, 'online').then(() => {
-                    // Step 3: If still unresolved, return UNKNOWN
-                    if (!resolved) {
-                        log.warn('All parsers failed. Returning Unknown type.')
-                        resolve({
-                            type: ParserDataType.Unknown,
-                            data: {},
-                        })
-                    }
-                })
-            } else if (!resolved) {
-                // Step 4: If offline, return "OfflineError"
-                resolve({
-                    type: ParserDataType.OfflineError,
-                    data: {
-                        title: t('feature.omni.error-network-offline-title'),
-                        message: t(
-                            'feature.omni.error-network-offline-message',
-                        ),
-                    },
-                } as ParsedOfflineError)
-            }
-        })
-    })
+        return {
+            type: ParserDataType.DeepLink,
+            data: { url: raw },
+        }
+    }
+
+    return
 }
 
 /**
@@ -582,15 +597,20 @@ async function parseFediUri(
     // Chat user
     try {
         const id = decodeFediMatrixUserUri(raw)
+
         // Fetch profile info for displayName
-        const { displayname } = await fedimint.matrixUserProfile({ userId: id })
+        const { data } = await fedimint.matrixUserProfile({ userId: id })
 
-        // TODO: narrow return type of matrixUserProfile RPC and remove this check
-        if (typeof displayname !== 'string') throw new Error()
+        if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
+            const { displayname: displayName } = data
 
-        return {
-            type: ParserDataType.FediChatUser,
-            data: { id, displayName: displayname },
+            // TODO: narrow return type of matrixUserProfile RPC and remove this check
+            if (typeof displayName !== 'string') throw new Error()
+
+            return {
+                type: ParserDataType.FediChatUser,
+                data: { id, displayName },
+            }
         }
     } catch {
         // no-op
@@ -649,6 +669,22 @@ async function parseFedimintEcash(
         return {
             type: ParserDataType.FedimintEcash,
             data: { token: raw, parsed: ecash },
+        }
+    } catch {
+        // no-op
+    }
+}
+
+async function parseStabilityAddress(
+    raw: string,
+    fedimint: FedimintBridge,
+): Promise<ParsedStabilityAddress | undefined> {
+    try {
+        const data = await fedimint.spv2ParsePaymentAddress(raw)
+        return {
+            type: ParserDataType.StabilityAddress,
+            // Include the raw payment request for the confirmation screen.
+            data: { ...data, address: raw },
         }
     } catch {
         // no-op

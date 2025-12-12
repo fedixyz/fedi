@@ -30,6 +30,7 @@ export function Switcher<T extends string>({
                 return (
                     <TouchableOpacity
                         key={option.value}
+                        testID={`${option.value}Tab`}
                         style={[
                             style.item,
                             isSelected

@@ -50,6 +50,9 @@ const FederationTile: React.FC<Props> = ({
     return (
         <Flex gap="md">
             <Pressable
+                testID={federation.name
+                    .concat('DetailsButton')
+                    .replaceAll(' ', '')}
                 style={style.tileContainer}
                 onPress={goToFederationDetails}>
                 <View style={style.logoContainer}>

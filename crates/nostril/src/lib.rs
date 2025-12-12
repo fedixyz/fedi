@@ -6,7 +6,8 @@ use base64::engine::general_purpose;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use nostr_sdk::secp256k1::{self, Message};
 use nostr_sdk::{
-    Client, EventBuilder, Filter, Keys, Kind, NostrSigner, PublicKey, Tag, TagKind, ToBech32,
+    Client, ClientOptions, EventBuilder, Filter, Keys, Kind, NostrSigner, PublicKey, Tag, TagKind,
+    ToBech32,
 };
 use rand::RngCore;
 use rpc_types::communities::{CommunityInviteV2, RawChaCha20Poly1305Key, RpcCommunity};
@@ -33,7 +34,14 @@ impl Nostril {
     pub async fn new(runtime: &Runtime) -> Self {
         let keys = Self::derive_keys(runtime).await;
         let client = if let Some(nostr_catalog) = &runtime.feature_catalog.nostr_client {
-            let client = Client::new(keys.clone());
+            let client = Client::builder()
+                .signer(keys.clone())
+                .opts(ClientOptions::new().sleep_when_idle(
+                    nostr_sdk::client::SleepWhenIdle::Enabled {
+                        timeout: Duration::from_secs(30),
+                    },
+                ))
+                .build();
             for relay in &nostr_catalog.relays {
                 if let Err(err) = client.add_relay(relay).await {
                     warn!(%relay, ?err, "failed to add relay");

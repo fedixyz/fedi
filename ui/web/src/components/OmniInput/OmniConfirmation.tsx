@@ -140,13 +140,31 @@ export const OmniConfirmation: React.FC<Props> = ({
                     icon: FederationIcon,
                     text: t('feature.omni.confirm-federation-invite'),
                     continueOnClick: () =>
-                        pushWithState('/onboarding/join', parsedData),
+                        router.push(
+                            `/onboarding/join?invite_code=${parsedData.data.invite}`,
+                        ),
+                }
+            case ParserDataType.CommunityInvite:
+                return {
+                    icon: FederationIcon,
+                    text: t('feature.omni.confirm-community-invite'),
+                    continueOnClick: () =>
+                        router.push(
+                            `/onboarding/join?invite_code=${parsedData.data.invite}`,
+                        ),
                 }
             case ParserDataType.CashuEcash:
                 return {
                     icon: BoltIcon,
                     text: t('feature.omni.confirm-cashu-token'),
                     continueOnClick: () => pushWithState('/send', parsedData),
+                }
+            case ParserDataType.DeepLink:
+                return {
+                    icon: GlobeIcon,
+                    text: t('feature.omni.confirm-deeplink-url'),
+                    url: parsedData.data.url,
+                    continueOnClick: () => router.push(parsedData.data.url),
                 }
             case ParserDataType.FedimintEcash:
                 return {

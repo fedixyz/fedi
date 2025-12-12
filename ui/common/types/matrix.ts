@@ -9,6 +9,7 @@ import type {
     RpcTimelineItemEvent,
     RpcMsgLikeKind,
     RpcMatrixPaymentStatus,
+    RpcUserPowerLevel,
 } from './bindings'
 import { MultispendTransactionListEntry } from './fedimint'
 
@@ -72,7 +73,7 @@ export interface MatrixUser {
 
 export interface MatrixRoomMember extends MatrixUser {
     roomId: MatrixRoom['id']
-    powerLevel: number
+    powerLevel: RpcUserPowerLevel
     membership: RpcMatrixMembership
     ignored: boolean
 }

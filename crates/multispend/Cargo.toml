@@ -11,6 +11,7 @@ bitcoin = { workspace = true }
 fedimint-core = { workspace = true }
 futures = { workspace = true }
 matrix-sdk = { workspace = true }
+matrix-sdk-base = { workspace = true }
 rand = { workspace = true }
 rpc-types = { path = "../rpc-types" }
 runtime = { path = "../runtime" }

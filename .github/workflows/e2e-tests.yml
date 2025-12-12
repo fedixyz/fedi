@@ -9,6 +9,12 @@ on:
 
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
+        inputs:
+            clean_ui_files:
+                description: 'Run ./scripts/ui/clean-ui.sh before building'
+                required: false
+                default: false
+                type: boolean
     schedule: # runs every day at 2 UTC
         - cron: '0 2 * * *'
 
@@ -31,15 +37,18 @@ jobs:
                   authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
               continue-on-error: true
             
-            # TODO: consolidate into 1 script to save time on nix develop calls
+            - name: Clean UI build files
+              if: ${{ inputs.clean_ui_files }}
+              run: nix develop .#xcode -c env NON_INTERACTIVE=1 ./scripts/ui/clean-ui.sh
 
+            # TODO: consolidate into 1 script to save time on nix develop calls
             - name: Build iOS bridge artifacts
               # note: can't use --ignore-environment as it uses globally installed xcode
               run: nix develop -L .#xcode --command env HOME="$HOME" BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/build-bridge-ios.sh
 
             - name: Build Android bridge artifacts
               run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=ci ./scripts/bridge/build-bridge-android.sh
-
+            
             - name: Build UI dependencies
               run: nix develop -c ./scripts/ui/build-deps.sh
 

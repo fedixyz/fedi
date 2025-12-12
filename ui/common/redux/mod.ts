@@ -1,5 +1,6 @@
 import { PayloadAction, createSelector, createSlice } from '@reduxjs/toolkit'
 import omit from 'lodash/omit'
+import without from 'lodash/without'
 
 import { CommonState, federationSlice, selectGlobalCommunityMetadata } from '.'
 import {
@@ -9,7 +10,7 @@ import {
     MiniAppPermissionType,
 } from '../types'
 import { getCommunityFediMods } from '../utils/FederationUtils'
-import { deduplicate } from '../utils/fedimods'
+import { deduplicate, isModNew } from '../utils/fedimods'
 import { upsertRecordEntityId } from '../utils/redux'
 import { loadFromStorage } from './storage'
 
@@ -34,6 +35,7 @@ const initialState = {
     miniAppPermissions: {
         ...FIRST_PARTY_PERMISSIONS,
     } as MiniAppPermissionsById,
+    newMods: [] as FediMod['id'][],
 }
 
 export type ModState = typeof initialState
@@ -50,7 +52,11 @@ export const modSlice = createSlice({
         ) {
             const { fediMod } = action.payload
 
-            state.customGlobalMods[fediMod.id] = fediMod
+            state.customGlobalMods[fediMod.id] = {
+                ...fediMod,
+                dateAdded: Date.now(),
+            }
+
             const visibility: ModVisibility = {
                 ...(state.modVisibility[fediMod.id] ?? {}),
                 isHidden: false,
@@ -61,6 +67,7 @@ export const modSlice = createSlice({
                 visibility,
                 fediMod.id,
             )
+            state.newMods = [...state.newMods, fediMod.id]
         },
         removeCustomMod(
             state,
@@ -72,6 +79,11 @@ export const modSlice = createSlice({
             if (state.customGlobalMods[modId]) {
                 state.customGlobalMods = omit(state.customGlobalMods, modId)
             }
+
+            if (state.newMods.includes(modId)) {
+                state.newMods = [...without(state.newMods, modId)]
+            }
+
             if (state.modVisibility[modId].isCommunity) {
                 state.modVisibility = {
                     // sets isCustom to false on the visibility
@@ -83,6 +95,15 @@ export const modSlice = createSlice({
                     },
                 }
             }
+        },
+        updateLastSeenModDate(
+            state,
+            action: PayloadAction<{
+                modId: FediMod['id']
+            }>,
+        ) {
+            const { modId } = action.payload
+            state.newMods = [...without(state.newMods, modId)]
         },
         setModVisibility(
             state,
@@ -128,6 +149,7 @@ export const modSlice = createSlice({
 
             state.customGlobalMods = action.payload.customGlobalMods || {}
             state.modVisibility = action.payload.modVisibility || {}
+            state.newMods = action.payload.newMods || []
         })
         builder.addCase(
             // When a federation's mods are updated, we need to
@@ -154,8 +176,12 @@ export const modSlice = createSlice({
     },
 })
 
-export const { addCustomMod, removeCustomMod, setModVisibility } =
-    modSlice.actions
+export const {
+    addCustomMod,
+    removeCustomMod,
+    setModVisibility,
+    updateLastSeenModDate,
+} = modSlice.actions
 
 export const selectCustomMods = (s: CommonState) =>
     Object.values(s.mod.customGlobalMods)
@@ -294,5 +320,25 @@ export const selectMiniAppByUrl = createSelector(
         })
 
         return matchingMiniApp
+    },
+)
+
+export const selectNewModIds = createSelector(
+    (s: CommonState) => s.mod.newMods,
+    selectAllVisibleMods,
+    (newModIds, visibleMods) => {
+        return visibleMods
+            .filter(mod => {
+                return newModIds.includes(mod.id) && isModNew(mod)
+            })
+            .map(mod => mod.id)
+    },
+)
+
+export const selectIsNewMod = createSelector(
+    selectNewModIds,
+    (_: CommonState, targetMod: FediMod) => targetMod,
+    (newModIds, targetMod) => {
+        return newModIds.includes(targetMod.id)
     },
 )

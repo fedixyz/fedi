@@ -2,8 +2,13 @@ import fetchMock from 'jest-fetch-mock'
 import { rest } from 'msw'
 import { setupServer } from 'msw/node'
 
-import { tryFetchUrlMetadata } from '../../../utils/fedimods'
+import {
+    isModNew,
+    NEW_MOD_EXPIRATION_THRESHOLD_MS,
+    tryFetchUrlMetadata,
+} from '../../../utils/fedimods'
 import { constructUrl } from '../../../utils/neverthrow'
+import { newTestFediMod } from '../../utils/fedimods'
 
 fetchMock.enableMocks()
 
@@ -390,5 +395,48 @@ describe('fedimods', () => {
         expect(metadata.isOk()).toBe(false)
         expect(metadata.isErr()).toBe(true)
         expect(metadata._unsafeUnwrapErr()._tag).toBe('FetchError')
+    })
+
+    describe('isMiniAppNew', () => {
+        it('should return true if mod is within threshold', () => {
+            // arrange
+            const withinThreshold = NEW_MOD_EXPIRATION_THRESHOLD_MS - 1000
+            const mod = newTestFediMod({
+                dateAdded: Date.now() - withinThreshold,
+            })
+
+            // act
+            const isNew = isModNew(mod)
+
+            // assert
+            expect(isNew).toBe(true)
+        })
+
+        it('should return false if mod was added beyond the threshold', () => {
+            // arrange
+            const overThreshold = NEW_MOD_EXPIRATION_THRESHOLD_MS
+            const mod = newTestFediMod({
+                dateAdded: Date.now() - overThreshold,
+            })
+
+            // act
+            const isNew = isModNew(mod)
+
+            // assert
+            expect(isNew).toBe(false)
+        })
+
+        it('should return false if mod doesnt have a dateAdded property', () => {
+            // arrange
+            const mod = newTestFediMod({
+                dateAdded: undefined,
+            })
+
+            // act
+            const isNew = isModNew(mod)
+
+            // assert
+            expect(isNew).toBe(false)
+        })
     })
 })

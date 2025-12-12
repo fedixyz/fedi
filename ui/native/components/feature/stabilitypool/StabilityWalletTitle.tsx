@@ -4,47 +4,65 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import { selectCurrency } from '@fedi/common/redux'
-import { LoadedFederation } from '@fedi/common/types'
+import { selectCurrency, selectStabilityPoolVersion } from '@fedi/common/redux'
+import { Federation } from '@fedi/common/types'
+import { isDev } from '@fedi/common/utils/environment'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
-    federation: LoadedFederation
+    federationId?: Federation['id']
+    bold?: boolean
+    bolder?: boolean
+    showCurrency?: boolean
+    small?: boolean
 }
-const WalletHeader: React.FC<Props> = ({ federation }) => {
+
+const StabilityWalletTitle: React.FC<Props> = ({
+    federationId,
+    bold = false,
+    bolder = false,
+    small = false,
+    showCurrency = true,
+}) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const selectedCurrency = useAppSelector(s =>
-        selectCurrency(s, federation.id),
-    )
 
     const style = styles(theme)
 
-    if (!federation) return null
+    const version = useAppSelector(s =>
+        federationId ? selectStabilityPoolVersion(s, federationId) : undefined,
+    )
+    const selectedCurrency = useAppSelector(s =>
+        selectCurrency(s, federationId),
+    )
 
     return (
-        <Flex row grow align="center" justify="start" gap="sm">
+        <Row align="center" justify="start" gap="sm">
             <SvgImage
                 name="UsdCircleFilled"
                 size={SvgImageSize.sm}
                 color={theme.colors.mint}
             />
-            <Flex row align="center" shrink style={style.labelRow}>
+            <Row align="center" shrink style={style.labelRow}>
                 <Text
-                    medium
+                    medium={!bold && !small}
+                    caption={small}
+                    bold={bold}
+                    bolder={bolder}
                     style={style.title}
                     adjustsFontSizeToFit
                     minimumFontScale={0.5}
                     numberOfLines={1}>
-                    {`${toUpper(selectedCurrency)} ${t(
+                    {`${showCurrency ? `${toUpper(selectedCurrency)} ` : ''}${t(
                         'feature.stabilitypool.stable-balance',
-                    )}`}
+                        // Helpful for dev testing to easily distinguish spv1 from spv2 federations
+                    )}${isDev() && version ? (version === 1 ? ' (SPV1)' : ' (SPV2)') : ''}`}
                 </Text>
-            </Flex>
-        </Flex>
+            </Row>
+        </Row>
     )
 }
 
@@ -67,4 +85,4 @@ const styles = (theme: Theme) =>
         },
     })
 
-export default WalletHeader
+export default StabilityWalletTitle

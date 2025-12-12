@@ -42,7 +42,7 @@ do
 done
 
 APP_BASE_NAME=${0##*/}
-APP_HOME=$( cd "${APP_HOME:-./}" > /dev/null && pwd -P ) || exit
+APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
 
 # Add default JVM options here. You can use JAVA_OPTS and GRADLE_OPTS.
 DEFAULT_JVM_OPTS='"-Xmx1g" "-Xms64m"'

@@ -38,14 +38,31 @@ Object.defineProperty(HTMLMediaElement.prototype, 'load', {
     value: jest.fn(),
 })
 
-jest.mock('next/router', () => ({
-    useRouter() {
-        return {
-            pathname: '',
-            push: jest.fn(),
-            back: jest.fn(),
-        }
+Object.defineProperty(navigator, 'permissions', {
+    writable: true,
+    value: {
+        query: jest.fn().mockResolvedValue({ state: 'granted' }),
     },
+})
+
+export const mockUseRouter = {
+    pathname: '',
+    asPath: '',
+    push: jest.fn(),
+    back: jest.fn(),
+    replace: jest.fn(),
+    isReady: true,
+}
+jest.mock('next/router', () => ({
+    useRouter: () => mockUseRouter,
+}))
+
+jest.mock('@fedi/web/src/components/QRScanner', () => ({
+    QRScanner: ({ processing }) => (
+        <div data-testid="qr-scanner-mock">
+            {processing && <div>Processing...</div>}
+        </div>
+    ),
 }))
 
 jest.mock('@fedi/common/utils/log', () => ({

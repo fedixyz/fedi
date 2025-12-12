@@ -4,7 +4,7 @@ use matrix_sdk::ruma::events::room::message::{
     MessageType, RoomMessageEventContentWithoutRelation,
 };
 use rpc_types::error::ErrorCode;
-use rpc_types::matrix::RpcUserId;
+use rpc_types::matrix::RpcMentions;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -16,14 +16,6 @@ pub struct SendMessageData {
     #[ts(type = "JSONObject")]
     data: serde_json::Map<String, serde_json::Value>,
     mentions: Option<RpcMentions>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub struct RpcMentions {
-    users: Vec<RpcUserId>,
-    room: bool,
 }
 
 impl SendMessageData {

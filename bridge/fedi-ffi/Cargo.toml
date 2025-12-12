@@ -28,6 +28,7 @@ fedimint-derive-secret = { workspace = true }
 fedimint-logging = { workspace = true }
 fedimint-bip39 = { workspace = true }
 multispend = { path = "../../crates/multispend" }
+sp-transfer = { path = "../../crates/sp-transfer" }
 
 anyhow = { workspace = true }
 bip39 = { version = "2.0.0", features = ["rand"] }
@@ -66,8 +67,8 @@ communities = { workspace = true }
 rpc-types = { workspace = true }
 either = "1.15.0"
 nostril = { workspace = true }
-imbl = { version = "5", features = ["serde"] }
-eyeball-im = { version = "0.7", features = ["serde"] }
+imbl = { workspace = true, features = ["serde"] }
+eyeball-im = { version = "0.8", features = ["serde"] }
 base64 = { workspace = true }
 reqwest = { workspace = true }
 

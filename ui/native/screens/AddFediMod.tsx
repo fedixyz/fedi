@@ -1,7 +1,8 @@
 import { useHeaderHeight } from '@react-navigation/elements'
 import { useNavigation } from '@react-navigation/native'
+import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Image, Input, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     KeyboardAvoidingView,
@@ -19,6 +20,7 @@ import { addCustomMod } from '@fedi/common/redux/mod'
 import { tryFetchUrlMetadata } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
 import { constructUrl } from '@fedi/common/utils/neverthrow'
+import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 
 import { FediModImages } from '../assets/images'
 import {
@@ -28,12 +30,16 @@ import {
 import Flex from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { ParserDataType } from '../types'
+import { RootStackParamList } from '../types/navigation'
 import { useImeFooterLift } from '../utils/hooks/keyboard'
-import { stripAndDeduplicateWhitespace } from '../utils/strings'
 
 const log = makeLog('AddFediMod')
 
-const AddFediMod: React.FC = () => {
+export type Props = NativeStackScreenProps<RootStackParamList, 'AddFediMod'>
+
+const AddFediMod: React.FC<Props> = ({ route }: Props) => {
+    const { inputMethod = 'enter' } = route.params || {}
+
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useDispatch()
@@ -44,7 +50,6 @@ const AddFediMod: React.FC = () => {
     const [imageUrl, setImageUrl] = useState('')
     const [isFetching, setIsFetching] = useState(false)
     const [isValidUrl, setIsValidUrl] = useState(false)
-    const [action, setAction] = useState<'scan' | 'enter'>('enter')
 
     const style = styles(theme)
     const scrollRef = useRef<ScrollView>(null)
@@ -79,15 +84,24 @@ const AddFediMod: React.FC = () => {
         }
     }
 
+    const setInputMethod = useCallback(
+        (targetInputMethod: 'enter' | 'scan') => {
+            navigation.navigate('AddFediMod', {
+                inputMethod: targetInputMethod,
+            })
+        },
+        [navigation],
+    )
+
     const customActions: OmniInputAction[] = useMemo(() => {
         return [
             {
                 label: t('feature.omni.action-enter-url'),
                 icon: 'Globe',
-                onPress: () => setAction('enter'),
+                onPress: () => setInputMethod('enter'),
             },
         ]
-    }, [t])
+    }, [t, setInputMethod])
 
     useDebouncedEffect(
         () => {
@@ -125,19 +139,21 @@ const AddFediMod: React.FC = () => {
         title.length >= 3 &&
         title.length <= 24
 
-    if (action === 'scan') {
+    if (inputMethod === 'scan') {
         return (
-            <OmniInput
-                expectedInputTypes={[ParserDataType.Website]}
-                onExpectedInput={parsedData => {
-                    if (parsedData.type === ParserDataType.Website) {
-                        setUrl(parsedData.data.url)
-                        setAction('enter')
-                    }
-                }}
-                onUnexpectedSuccess={() => null}
-                customActions={customActions}
-            />
+            <>
+                <OmniInput
+                    expectedInputTypes={[ParserDataType.Website]}
+                    onExpectedInput={parsedData => {
+                        if (parsedData.type === ParserDataType.Website) {
+                            setUrl(parsedData.data.url)
+                            setInputMethod('enter')
+                        }
+                    }}
+                    onUnexpectedSuccess={() => null}
+                    customActions={customActions}
+                />
+            </>
         )
     }
 
@@ -285,6 +301,13 @@ const styles = (theme: Theme) =>
             flex: 1,
             width: '100%',
             gap: theme.spacing.xs,
+        },
+        headerIcon: {
+            alignItems: 'center',
+            display: 'flex',
+            height: theme.sizes.md,
+            justifyContent: 'center',
+            width: theme.sizes.md,
         },
         innerInputContainer: {
             marginTop: theme.spacing.xs,

@@ -4,6 +4,7 @@ import { Button, Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+    ActivityIndicator,
     GestureResponderEvent,
     KeyboardAvoidingView,
     Platform,
@@ -121,11 +122,13 @@ const EditProfileSettings: React.FC = () => {
         profileImageMimeType,
         navigation,
     ])
-
     const hasChanged =
         username.trim() !== matrixAuth?.displayName || profileImageUri !== null
 
     const saveButtonDisabled = !hasChanged || isLoading || errorMessage !== null
+
+    // in case matrix is not initialized yet
+    if (!matrixAuth) return <ActivityIndicator />
 
     const content = (
         <>

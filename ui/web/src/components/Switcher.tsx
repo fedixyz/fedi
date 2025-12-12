@@ -20,6 +20,7 @@ export const Switcher: React.FC<Props> = ({ options, onChange, selected }) => {
             {options.map((option: Option) => (
                 <Item
                     key={option.value}
+                    data-testid={`${option.value}Tab`}
                     onClick={() => onChange(option.value)}
                     selected={selected === option.value}>
                     <Text variant="caption">{option.label}</Text>

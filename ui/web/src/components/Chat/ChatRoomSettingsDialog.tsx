@@ -16,6 +16,7 @@ import {
     setMatrixRoomName,
 } from '@fedi/common/redux'
 import { MatrixPowerLevel, MatrixRoom } from '@fedi/common/types'
+import { isPowerLevelGreaterOrEqual } from '@fedi/common/utils/matrix'
 
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
@@ -52,7 +53,9 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
         useState(false)
     const { error } = useToast()
 
-    const isAdmin = myPowerLevel >= MatrixPowerLevel.Admin
+    const isAdmin =
+        myPowerLevel &&
+        isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Admin)
     const isDefaultGroup = useAppSelector(s =>
         selectIsDefaultGroup(s, room?.id || ''),
     )

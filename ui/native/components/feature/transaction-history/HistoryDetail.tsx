@@ -1,4 +1,4 @@
-import { Text, Theme, useTheme, Button, Input } from '@rneui/themed'
+import { Text, Theme, useTheme, Button } from '@rneui/themed'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -10,14 +10,20 @@ import {
     View,
 } from 'react-native'
 
+import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTransactionHistory } from '@fedi/common/hooks/transactions'
-import { hexToRgba } from '@fedi/common/utils/color'
+import {
+    selectTransactionDisplayType,
+    setTransactionDisplayType,
+} from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { fedimint } from '../../../bridge'
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { Federation, TransactionListEntry } from '../../../types'
-import Flex from '../../ui/Flex'
+import Flex, { Column, Row } from '../../ui/Flex'
+import NotesInput from '../../ui/NotesInput'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
 
@@ -45,7 +51,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     amount,
     items,
     fees,
-    txn: { id, ...txn },
+    txn,
     onPressFees = () => null,
     notes: propsNotes,
     onSaveNotes,
@@ -56,10 +62,15 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     const { theme } = useTheme()
     const { t } = useTranslation()
     const [notes, setNotes] = useState<string>(propsNotes || '')
-    const [isFocused, setIsFocused] = useState(false)
     const [checkLoading, setCheckLoading] = useState(false)
     const toast = useToast()
+    const transactionDisplayType = useAppSelector(selectTransactionDisplayType)
+    const dispatch = useAppDispatch()
     const { fetchTransactions } = useTransactionHistory(fedimint, federationId)
+
+    const { makeFormattedAmountsFromTxn } = useAmountFormatter({ federationId })
+
+    const { formattedSecondaryAmount } = makeFormattedAmountsFromTxn(txn, 'end')
 
     // If notes prop changes, update notes state
     useEffect(() => {
@@ -67,13 +78,6 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
             setNotes(propsNotes)
         }
     }, [propsNotes])
-
-    const handleNotesInputChanged = useCallback(
-        (input: string) => {
-            setNotes(input)
-        },
-        [setNotes],
-    )
 
     const handleSaveNotes = useCallback(() => {
         if (onSaveNotes && notes !== propsNotes) {
@@ -93,13 +97,13 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
         try {
             await fedimint.recheckPeginAddress({
                 federationId: federationId,
-                operationId: id,
+                operationId: txn.id,
             })
             const transactions = await fetchTransactions()
             const foundTransaction = transactions.find(
                 tx =>
                     tx.kind === 'onchainDeposit' &&
-                    tx.id === id &&
+                    tx.id === txn.id &&
                     tx.state?.type === 'claimed',
             )
 
@@ -119,7 +123,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
         } finally {
             setCheckLoading(false)
         }
-    }, [federationId, id, fetchTransactions, t, toast])
+    }, [federationId, txn.id, fetchTransactions, t, toast])
 
     const style = styles(theme)
 
@@ -135,11 +139,35 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
             </TouchableOpacity>
             {icon}
             <Text style={style.detailTitle}>{title}</Text>
-            {amount && (
-                <Text h2 medium>
-                    {amount}
-                </Text>
-            )}
+            <Column gap="sm" align="center">
+                {amount && (
+                    <Text h2 medium>
+                        {amount}
+                    </Text>
+                )}
+                <Pressable
+                    hitSlop={10}
+                    onPress={() =>
+                        dispatch(
+                            setTransactionDisplayType(
+                                transactionDisplayType === 'sats'
+                                    ? 'fiat'
+                                    : 'sats',
+                            ),
+                        )
+                    }>
+                    <Row gap="xs" align="center">
+                        <Text color={theme.colors.grey} medium>
+                            {formattedSecondaryAmount}
+                        </Text>
+                        <SvgImage
+                            name="Switch"
+                            size={20}
+                            color={theme.colors.grey}
+                        />
+                    </Row>
+                </Pressable>
+            </Column>
             <Flex gap="xs" fullWidth style={style.detailItemsContainer}>
                 {items.map((item, idx) => (
                     <HistoryDetailItem
@@ -167,41 +195,13 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
 
                 {shouldShowNotesField && (
                     <HistoryDetailItem
-                        label={
-                            onSaveNotes
-                                ? `${t('phrases.add-note')} +`
-                                : t('words.notes')
-                        }
+                        label={null}
                         value={
-                            <Input
-                                ref={(ref: unknown) => {
-                                    inputRef.current = ref as TextInput
-                                }}
-                                onChangeText={handleNotesInputChanged}
-                                onFocus={() => setIsFocused(true)}
-                                onBlur={() => {
-                                    setIsFocused(false)
-                                    handleSaveNotes()
-                                }}
-                                value={notes}
-                                placeholder={t('words.optional')}
-                                returnKeyType="done"
-                                containerStyle={style.inputOuterContainer}
-                                inputContainerStyle={[
-                                    style.inputInnerContainer,
-                                    isFocused
-                                        ? style.focusedInputInnerContainer
-                                        : {},
-                                ]}
-                                onSubmitEditing={handleSaveNotes}
-                                inputStyle={style.input}
-                                placeholderTextColor={hexToRgba(
-                                    theme.colors.night,
-                                    0.2,
-                                )}
-                                disabled={!onSaveNotes}
-                                blurOnSubmit
-                                multiline
+                            <NotesInput
+                                notes={notes}
+                                setNotes={setNotes}
+                                onSave={handleSaveNotes}
+                                label={t('words.notes')}
                             />
                         }
                         onPress={() => {

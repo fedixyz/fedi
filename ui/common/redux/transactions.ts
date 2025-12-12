@@ -8,11 +8,15 @@ import orderBy from 'lodash/orderBy'
 
 import { CommonState } from '.'
 import { Federation, Transaction, TransactionListEntry } from '../types'
+import { RpcTransactionListEntry } from '../types/bindings'
 import { FedimintBridge } from '../utils/fedimint'
+import { makeLog } from '../utils/log'
 
 type FederationPayloadAction<T = object> = PayloadAction<
     { federationId: string } & T
 >
+
+const log = makeLog('common/redux/transactions')
 
 /*** Initial State ***/
 
@@ -178,7 +182,19 @@ export const fetchTransactions = createAsyncThunk<
             limit,
         )
 
-        return transactions.filter(
+        const txns = transactions
+            .filter((entry): entry is { Ok: RpcTransactionListEntry } => {
+                if ('Ok' in entry) return true
+
+                log.error(
+                    'Got erroneous transaction from listTransactions',
+                    entry,
+                )
+                return false
+            })
+            .map(entry => entry.Ok)
+
+        return txns.filter(
             txn =>
                 !(
                     (

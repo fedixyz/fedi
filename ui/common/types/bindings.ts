@@ -40,6 +40,15 @@ export type BridgeOffboardingReason =
  */
 export type CommunityMetadataUpdatedEvent = { newCommunity: RpcCommunity };
 
+/**
+ * Notify front-end that a particular v1 community has been migrated to the
+ * specified v2 community
+ */
+export type CommunityMigratedToV2Event = {
+  v1InviteCode: string;
+  v2Community: RpcCommunity;
+};
+
 export type CreateRoomRequest = JSONObject;
 
 /**
@@ -106,7 +115,8 @@ export type Event =
       stabilityPoolUnfilledDepositSwept: StabilityPoolUnfilledDepositSweptEvent;
     }
   | { communityMetadataUpdated: CommunityMetadataUpdatedEvent }
-  | { nonceReuseCheckFailed: NonceReuseCheckFailedEvent };
+  | { nonceReuseCheckFailed: NonceReuseCheckFailedEvent }
+  | { communityMigratedToV2: CommunityMigratedToV2Event };
 
 /**
  * We represent the catalog of all the features for a given runtime as a
@@ -166,6 +176,15 @@ export type FeatureCatalog = {
    * Configuration regarding the remittance of Fedi fee
    */
   fedi_fee: FediFeeConfig;
+  /**
+   * SP Transfers Matrix feature flag.
+   * When enabled, allows stability pool transfers via Matrix messaging.
+   */
+  sp_transfers_matrix: SpTransfersMatrixFeatureConfig | null;
+  /**
+   * SP Transfer UI feature flag.
+   */
+  sp_transfer_ui: SpTransferUiFeatureConfig | null;
 };
 
 export type FediFeeConfig = {
@@ -361,6 +380,8 @@ export type RecoveryProgressEvent = {
    */
   total: number;
 };
+
+export type RpcAccountId = string;
 
 export type RpcAmount = MSats;
 
@@ -712,8 +733,12 @@ export type RpcMethods = {
   parseEcash: [parseEcash, RpcEcashInfo];
   parseInviteCode: [parseInviteCode, RpcParseInviteCodeResult];
   cancelEcash: [cancelEcash, null];
+  repairWallet: [repairWallet, null];
   updateCachedFiatFXInfo: [updateCachedFiatFXInfo, null];
-  listTransactions: [listTransactions, Array<RpcTransactionListEntry>];
+  listTransactions: [
+    listTransactions,
+    Array<{ Ok: RpcTransactionListEntry } | { Err: string }>,
+  ];
   getTransaction: [getTransaction, RpcTransaction];
   updateTransactionNotes: [updateTransactionNotes, null];
   backupNow: [backupNow, null];
@@ -773,6 +798,7 @@ export type RpcMethods = {
     RpcSpv2ParsedPaymentAddress,
   ];
   spv2Transfer: [spv2Transfer, RpcOperationId];
+  spv2StartFastSync: [spv2StartFastSync, null];
   getSensitiveLog: [getSensitiveLog, boolean];
   setSensitiveLog: [setSensitiveLog, null];
   internalMarkBridgeExport: [internalMarkBridgeExport, null];
@@ -866,6 +892,8 @@ export type RpcMethods = {
   matrixSaveComposerDraft: [matrixSaveComposerDraft, null];
   matrixLoadComposerDraft: [matrixLoadComposerDraft, RpcComposerDraft | null];
   matrixClearComposerDraft: [matrixClearComposerDraft, null];
+  matrixSpTransferSend: [matrixSpTransferSend, RpcEventId];
+  matrixSpTransferObserveState: [matrixSpTransferObserveState, null];
   matrixSubscribeMultispendGroup: [matrixSubscribeMultispendGroup, null];
   matrixSubscribeMultispendAccountInfo: [
     matrixSubscribeMultispendAccountInfo,
@@ -1078,7 +1106,7 @@ export type RpcRoomMember = {
   displayName: string | null;
   avatarUrl: string | null;
   ignored: boolean;
-  powerLevel: number;
+  powerLevel: RpcUserPowerLevel;
   membership: RpcMatrixMembership;
 };
 
@@ -1118,6 +1146,7 @@ export type RpcSPV2TransferInState =
       from_account_id: string;
       amount: RpcAmount;
       fiat_amount: number;
+      kind: SpV2TransferInKind;
     }
   | { type: "dataNotInCache" };
 
@@ -1127,6 +1156,7 @@ export type RpcSPV2TransferOutState =
       to_account_id: string;
       amount: RpcAmount;
       fiat_amount: number;
+      kind: SpV2TransferOutKind;
     }
   | { type: "dataNotInCache" };
 
@@ -1179,12 +1209,46 @@ export type RpcSignature = string;
 
 export type RpcSignedLnurlMessage = { signature: string; pubkey: RpcPublicKey };
 
-export type RpcSpv2ParsedPaymentAddress = {
-  /**
-   * do we know about the federation
-   */
-  federation_id: RpcFederationId | null;
+export type RpcSpTransferEvent =
+  | {
+      kind: "pendingTransferStart";
+      amount: RpcFiatAmount;
+      federationId: RpcFederationId;
+      federationInvite: string | null;
+    }
+  | {
+      kind: "transferSentHint";
+      pendingTransferId: RpcEventId;
+      transactionId: RpcTransactionId;
+    }
+  | { kind: "transferFailed"; pendingTransferId: RpcEventId }
+  | {
+      kind: "announceAccount";
+      accountId: RpcAccountId;
+      federationId: RpcFederationId;
+    };
+
+export type RpcSpTransferState = {
+  federationId: RpcFederationId;
+  amount: RpcFiatAmount;
+  status: RpcSpTransferStatus;
+  inviteCode: string | null;
 };
+
+export type RpcSpTransferStatus =
+  | { status: "pending" }
+  | { status: "sentHint" }
+  | { status: "complete" }
+  | { status: "failed" };
+
+export type RpcSpv2ParsedPaymentAddress = {
+  accountId: RpcAccountId;
+  federation: RpcSpv2PaymentAddressFederation;
+};
+
+export type RpcSpv2PaymentAddressFederation =
+  | { type: "joined"; federationId: RpcFederationId }
+  | { type: "notJoined"; federationInvite: string | null };
 
 export type RpcStabilityPoolAccountInfo = {
   idleBalance: RpcAmount;
@@ -1287,6 +1351,7 @@ export type RpcTimelineItemEvent = {
   sender: string;
   sendState: RpcTimelineEventSendState | null;
   inReply: RpcTimelineDetails<RpcTimelineItemEvent> | null;
+  mentions: RpcMentions | null;
 };
 
 export type RpcTransaction = {
@@ -1412,6 +1477,10 @@ export type RpcTransferRequestId = string;
 
 export type RpcUserId = string;
 
+export type RpcUserPowerLevel =
+  | { type: "infinite" }
+  | { type: "int"; value: number };
+
 export type RpcVecDiffStreamId<T> = RpcStreamId<Array<VectorDiff<T>>>;
 
 export type RpcVideoInfo = {
@@ -1491,6 +1560,16 @@ export type SocialRecoveryEvent = {
 };
 
 export type SocialRecoveryQr = { recoveryId: RpcRecoveryId };
+
+export type SpTransferUiFeatureConfig = { mode: SpTransferUiMode };
+
+export type SpTransferUiMode = "QrCode" | "Chat";
+
+export type SpTransfersMatrixFeatureConfig = Record<string, never>;
+
+export type SpV2TransferInKind = "multispend" | "unknown";
+
+export type SpV2TransferOutKind = "multispend" | "matrixSpTransfer" | "unknown";
 
 export type StabilityPoolDepositEvent = {
   federationId: RpcFederationId;
@@ -1962,6 +2041,18 @@ export type matrixSetDisplayName = { displayName: string };
 
 export type matrixSetPusher = { pusher: RpcPusher };
 
+export type matrixSpTransferObserveState = {
+  streamId: RpcStreamId<RpcSpTransferState>;
+  pendingPaymentId: RpcEventId;
+};
+
+export type matrixSpTransferSend = {
+  roomId: RpcRoomId;
+  amount: RpcFiatAmount;
+  federationId: RpcFederationId;
+  federationInvite: string | null;
+};
+
 export type matrixStartPoll = {
   roomId: RpcRoomId;
   question: string;
@@ -2072,6 +2163,8 @@ export type recheckPeginAddress = {
 
 export type recoveryQr = {};
 
+export type repairWallet = { federationId: RpcFederationId };
+
 export type restoreMnemonic = { mnemonic: Array<string> };
 
 export type setLightningModuleFediFeeSchedule = {
@@ -2135,9 +2228,14 @@ export type spv2DepositToSeek = {
 
 export type spv2NextCycleStartTime = { federationId: RpcFederationId };
 
-export type spv2OurPaymentAddress = { federationId: RpcFederationId };
+export type spv2OurPaymentAddress = {
+  federationId: RpcFederationId;
+  includeInvite: boolean;
+};
 
 export type spv2ParsePaymentAddress = { address: string };
+
+export type spv2StartFastSync = { federationId: RpcFederationId };
 
 export type spv2SubscribeAccountInfo = {
   federationId: RpcFederationId;
@@ -2145,7 +2243,8 @@ export type spv2SubscribeAccountInfo = {
 };
 
 export type spv2Transfer = {
-  paymentAddress: string;
+  federationId: RpcFederationId;
+  accountId: RpcAccountId;
   amount: RpcFiatAmount;
   frontendMeta: FrontendMetadata;
 };

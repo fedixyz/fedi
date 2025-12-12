@@ -43,6 +43,7 @@ const FirstTimeOverlay: React.FC<FirstTimeOverlayProps> = ({
                         <Text style={styles.title}>{title}</Text>
                         <InfoEntryList items={overlayItems} theme={theme} />
                         <Button
+                            testID="FirstTimeOverlayButton"
                             title={buttonLabel || t('phrases.explore-now')}
                             onPress={onDismiss}
                             containerStyle={styles.exploreButton}

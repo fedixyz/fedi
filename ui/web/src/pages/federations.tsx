@@ -13,7 +13,6 @@ import FeaturedFederation from '../components/FeaturedFederation'
 import FederationTile from '../components/FederationTile'
 import * as Layout from '../components/Layout'
 import { RequestPaymentDialog } from '../components/RequestPaymentDialog'
-import { RequireBackupModal } from '../components/RequireBackupModal'
 import { SendPaymentDialog } from '../components/SendPaymentDialog'
 import { useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
@@ -67,17 +66,19 @@ function FederationsPage() {
                 </Layout.Content>
             </Layout.Root>
 
-            {/* Modal - Ask user to backup if their balance is above 1000 sats */}
-            <RequireBackupModal />
+            {router.pathname === '/request' && (
+                <RequestPaymentDialog
+                    open={true}
+                    onOpenChange={() => router.push('/federations')}
+                />
+            )}
 
-            <RequestPaymentDialog
-                open={router.pathname === '/request'}
-                onOpenChange={() => router.push('/federations')}
-            />
-            <SendPaymentDialog
-                open={router.pathname === '/send'}
-                onOpenChange={() => router.push('/federations')}
-            />
+            {router.pathname === '/send' && (
+                <SendPaymentDialog
+                    open={true}
+                    onOpenChange={() => router.push('/federations')}
+                />
+            )}
         </ContentBlock>
     )
 }

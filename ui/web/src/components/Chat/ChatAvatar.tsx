@@ -48,12 +48,15 @@ export const ChatAvatar: React.FC<Props> = props => {
         const { user, ...rest } = props
         id = user.id
         name = user.displayName || matrixIdToUsername(user.id)
-        icon =
-            user.displayName === GUARDIANITO_BOT_DISPLAY_NAME
-                ? FediQrLogo
-                : user.membership === 'join'
-                  ? undefined
-                  : UserIcon
+        if (user.membership) {
+            icon =
+                user.displayName === GUARDIANITO_BOT_DISPLAY_NAME
+                    ? FediQrLogo
+                    : user.membership === 'join'
+                      ? undefined
+                      : UserIcon
+        }
+        src = user.avatarUrl
         avatarProps = rest
     }
 

@@ -14,7 +14,7 @@ const members: MatrixRoomMember[] = [
         id: '@alice:example.com',
         displayName: 'Alice',
         avatarUrl: undefined,
-        powerLevel: 0,
+        powerLevel: { type: 'int', value: 0 },
         roomId: '!room:example.com',
         membership: 'join',
         ignored: false,
@@ -23,7 +23,7 @@ const members: MatrixRoomMember[] = [
         id: '@bob:example.com',
         displayName: 'Bob Smith',
         avatarUrl: undefined,
-        powerLevel: 0,
+        powerLevel: { type: 'int', value: 0 },
         roomId: '!room:example.com',
         membership: 'join',
         ignored: false,
@@ -234,7 +234,7 @@ describe.skip('skip mentions', () => {
                     id: '@bob2:example.com',
                     displayName: 'Bob',
                     avatarUrl: undefined,
-                    powerLevel: 0,
+                    powerLevel: { type: 'int', value: 0 },
                     roomId: '!room:example.com',
                     membership: 'join',
                     ignored: false,
@@ -348,6 +348,7 @@ describe.skip('skip mentions', () => {
             sendState: { kind: 'sent', event_id: 'e1' },
             localEcho: false,
             inReply: null,
+            mentions: null,
         } satisfies Partial<MatrixEvent>
 
         it('extracts userId from matrix.to anchor', () => {

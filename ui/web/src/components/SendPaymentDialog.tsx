@@ -1,29 +1,28 @@
-import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import OfflineIcon from '@fedi/common/assets/svgs/offline.svg'
-import { useBalanceDisplay } from '@fedi/common/hooks/amount'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import {
     selectShouldRateFederation,
-    selectLoadedFederation,
+    selectPaymentFederation,
+    setSuggestedPaymentFederation,
 } from '@fedi/common/redux'
-import { Federation, ParserDataType, Sats } from '@fedi/common/types'
+import { ParserDataType, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 
 import { useRouteState } from '../context/RouteStateContext'
-import { useAppSelector, useMediaQuery } from '../hooks'
+import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
-import { config, styled } from '../styles'
-import { getHashParams } from '../utils/linking'
+import { styled } from '../styles'
 import { AmountInput } from './AmountInput'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { DialogStatus, DialogStatusProps } from './DialogStatus'
+import { FederationWalletSelector } from './FederationWalletSelector'
 import { OmniInput, type OmniCustomAction } from './OmniInput'
 import RateFederationDialog from './Onboarding/RateFederationDialog'
 import { SendOffline } from './SendOffline'
@@ -43,12 +42,11 @@ interface Props {
 
 export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const { t } = useTranslation()
-    const router = useRouter()
-    const params = getHashParams(router.asPath)
-    const federationId = params.id as Federation['id']
-    const federation = useAppSelector(s =>
-        selectLoadedFederation(s, federationId),
-    )
+    const dispatch = useAppDispatch()
+
+    const federation = useAppSelector(selectPaymentFederation)
+    const federationId = federation?.id || ''
+
     const balance = federation?.balance
     const sendRouteState = useRouteState('/send')
     const {
@@ -76,10 +74,15 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const containerRef = useRef<HTMLDivElement | null>(null)
 
     const isOfflineWalletSupported = useIsOfflineWalletSupported(federationId)
-    const isSmall = useMediaQuery(config.media.sm)
-    const balanceDisplay = useBalanceDisplay(t, federationId)
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+
+    useEffect(() => {
+        // makes sure we auto-select a wallet to pay from if the user doesn't have one selected
+        if (!federationId) {
+            dispatch(setSuggestedPaymentFederation())
+        }
+    }, [])
 
     useEffect(() => {
         syncCurrencyRatesAndCache(federationId)
@@ -116,8 +119,9 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         [setInputAmount],
     )
 
-    const handleSend = useCallback(async () => {
+    const handleSend = async () => {
         setSubmitAttempts(attempts => attempts + 1)
+        if (inputAmount > maximumAmount || inputAmount < minimumAmount) return
         setIsSending(true)
         try {
             await handleOmniSend(inputAmount)
@@ -131,17 +135,19 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             setSendError(formatErrorMessage(t, err, 'errors.unknown-error'))
         }
         setIsSending(false)
-    }, [handleOmniSend, inputAmount, onOpenChange, t, shouldRateFederation])
+    }
 
     if (typeof balance !== 'number') return null
 
     let content: React.ReactNode
     let dialogStatusProps: DialogStatusProps | undefined
+
     if (isReadyToPay) {
         const satsFmt = inputAmount ? amountUtils.formatSats(inputAmount) : ''
         content = (
             <>
                 <InvoiceContainer>
+                    <FederationWalletSelector />
                     <AmountInput
                         amount={inputAmount}
                         onChangeAmount={handleChangeAmount}
@@ -150,7 +156,6 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                         minimumAmount={minimumAmount}
                         maximumAmount={maximumAmount}
                         submitAttempts={submitAttempts}
-                        autoFocus={!isSmall}
                         extraInput={
                             description ? (
                                 <InvoiceDescription>
@@ -162,12 +167,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                         }
                     />
                 </InvoiceContainer>
-                <Button onClick={handleSend}>
-                    {t('feature.send.send-amount-unit', {
-                        amount: satsFmt,
-                        unit: t('words.sats'),
-                    })}
-                </Button>
+                <Button onClick={handleSend}>{t('words.send')}</Button>
             </>
         )
 
@@ -235,10 +235,9 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             <Dialog
                 title={t(
                     isSendingOffline
-                        ? 'feature.send.send-bitcoin-offline'
+                        ? 'feature.send.send-ecash'
                         : 'feature.send.send-bitcoin',
                 )}
-                description={balanceDisplay}
                 open={open}
                 disableClose={isCloseDisabled}
                 mobileDismiss="back"

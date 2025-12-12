@@ -6,7 +6,7 @@ import { ScrollView, StyleSheet, View } from 'react-native'
 
 import { useLatestPublicCommunities } from '@fedi/common/hooks/federation'
 import { selectCommunityIds } from '@fedi/common/redux'
-import { isNightly } from '@fedi/common/utils/environment'
+import { isDev, isNightly } from '@fedi/common/utils/environment'
 import { Images } from '@fedi/native/assets/images'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
@@ -81,7 +81,7 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
         switcherOptions[0]
 
     const createInfoItems: FirstTimeOverlayItem[] = [
-        { icon: 'Building', text: t('feature.communities.create-info-1') },
+        { icon: 'Community', text: t('feature.communities.create-info-1') },
         {
             icon: 'Chat',
             text: t('feature.communities.create-info-2'),
@@ -213,7 +213,7 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
                                 <Image
                                     source={Images.CommunityCreate}
                                     style={style.fullWidthImage}
-                                    resizeMode="cover"
+                                    resizeMode="contain"
                                 />
                             </View>
                             <InfoEntryList
@@ -232,9 +232,10 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
                         title={t('phrases.create-my-community')}
                         onPress={() =>
                             navigation.navigate('FediModBrowser', {
-                                url: isNightly()
-                                    ? COMMUNITY_TOOL_URL_STAGING
-                                    : COMMUNITY_TOOL_URL_PROD,
+                                url:
+                                    isNightly() || isDev()
+                                        ? COMMUNITY_TOOL_URL_STAGING
+                                        : COMMUNITY_TOOL_URL_PROD,
                             })
                         }
                     />

@@ -35,6 +35,23 @@ jest.mock('js-lnurl', () => ({
     getParams: jest.fn(() => Promise.resolve({})),
 }))
 
+jest.mock('react-native-mmkv', () => {
+    const mockMMKV = {
+        set: jest.fn(),
+        getString: jest.fn(),
+        getNumber: jest.fn(),
+        getBoolean: jest.fn(),
+        contains: jest.fn(),
+        delete: jest.fn(),
+        getAllKeys: jest.fn(() => []),
+        clearAll: jest.fn(),
+        trim: jest.fn(),
+    }
+    return {
+        MMKV: jest.fn(() => mockMMKV),
+    }
+})
+
 // Mock native SVGs to return mock functions for every key
 jest.mock('@fedi/native/assets/images/svgs', () => {
     const actual = jest.requireActual('@fedi/native/assets/images/svgs')
@@ -222,6 +239,7 @@ jest.mock('@rneui/themed', () => ({
     Button: jest.requireActual('@rneui/themed').Button,
     Input: jest.requireActual('@rneui/themed').Input,
     Text: jest.requireActual('@rneui/themed').Text,
+    Image: jest.requireActual('@rneui/themed').Image,
     Overlay: jest.requireActual('@rneui/themed').Overlay,
     Switch: jest.requireActual('@rneui/themed').Switch,
     useTheme: () => ({
@@ -242,11 +260,13 @@ export const mockNavigation = {
     push: jest.fn(),
     setOptions: jest.fn(),
     goBack: jest.fn(),
+    replace: jest.fn(),
 }
 export const mockRoute = {}
 jest.mock('@react-navigation/native', () => ({
     useNavigation: jest.fn(() => mockNavigation),
     useRoute: jest.fn(() => mockRoute),
+    useIsFocused: jest.fn(() => true),
 }))
 
 // mock i18n provider that uses a real i18n instance for testing
@@ -254,14 +274,6 @@ export const I18nProvider = ({ children }: any) => {
     const React = jest.requireActual('react')
     return React.createElement(I18nextProvider, { i18n }, children)
 }
-
-jest.mock('react-native-linear-gradient', () => ({
-    __esModule: true,
-    default: ({ children }: any) => {
-        const React = jest.requireActual('react')
-        return React.createElement(React.Fragment, null, children)
-    },
-}))
 
 jest.mock('react-native-quick-base64', () => ({
     QuickBase64: {
@@ -357,4 +369,16 @@ jest.mock('@react-navigation/elements', () => ({
 jest.mock('@react-native-clipboard/clipboard', () => ({
     getString: jest.fn(),
     setString: jest.fn(),
+}))
+
+jest.mock('react-native-vision-camera', () => ({
+    Camera: jest.requireActual('react-native').View,
+    useCodeScanner: jest.fn(() => ({
+        scan: jest.fn(),
+    })),
+    useCameraDevice: jest.fn(() => ({
+        id: 'back',
+        name: 'Back Camera',
+        position: 'back',
+    })),
 }))

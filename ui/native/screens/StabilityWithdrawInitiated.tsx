@@ -9,6 +9,7 @@ import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvat
 import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import { resetToWallets } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -19,7 +20,7 @@ export type Props = NativeStackScreenProps<
 const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { formattedFiat, federationId } = route.params
+    const { formattedFiat } = route.params
 
     const style = styles(theme)
 
@@ -62,9 +63,7 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
             <Button
                 fullWidth
                 containerStyle={style.button}
-                onPress={() =>
-                    navigation.navigate('StabilityHome', { federationId })
-                }
+                onPress={() => navigation.dispatch(resetToWallets())}
                 title={
                     <Text medium caption style={style.buttonText}>
                         {t('words.okay')}

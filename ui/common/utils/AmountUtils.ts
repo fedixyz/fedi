@@ -292,6 +292,9 @@ class AmountUtils {
         const fiat = Number(
             (btc * btcFiatRate).toFixed(AmountUtils.FIAT_MAX_DECIMAL_PLACES),
         )
+        // should never happen in prod, but NaN throws off selectors in tests
+        // this eliminates annoying warnings when prices aren't mocked
+        if (Number.isNaN(fiat)) return 0
         return fiat
     }
 

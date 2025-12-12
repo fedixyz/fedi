@@ -18,6 +18,7 @@ export FEDI_STABILITY_POOL_MODULE_TEST_PARAMS=1
 export FEDI_SOCIAL_RECOVERY_MODULE_ENABLE=1
 export RUST_BACKTRACE=0
 export FM_ENABLE_MODULE_LNV2=1
+export FM_DISABLE_BASE_FEES=1
 
 # fedi packages
 source scripts/test-common.sh ""

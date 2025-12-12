@@ -114,6 +114,14 @@ const EditProfile = () => {
 
     const saveButtonDisabled = !hasChanged || isLoading || errorMessage !== null
 
+    // in case matrix is not initialized yet
+    if (!matrixAuth)
+        return (
+            <Centered>
+                <CircularLoader />
+            </Centered>
+        )
+
     return (
         <ContentBlock>
             <Layout.Root>
@@ -206,6 +214,10 @@ const ChatAvatarContainer = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     position: 'relative',
+})
+
+const Centered = styled('div', {
+    margin: 'auto',
 })
 
 const AvatarEdit = styled('label', {

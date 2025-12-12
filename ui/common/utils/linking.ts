@@ -76,6 +76,12 @@ export function universalToFedi(raw: string): string {
                 return err(new Error('Missing required screen parameter'))
             }
 
+            if (idParam) {
+                // Strip out any http(s):// from the id param value
+                // This will be restored in createNavigationAction() where needed
+                idParam = idParam.replace(/^https?:\/\//, '')
+            }
+
             return ok({ screen, idParam: idParam || '' })
         })
         .match(

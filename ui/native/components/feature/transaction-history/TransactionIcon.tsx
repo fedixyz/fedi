@@ -1,7 +1,7 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 
-import { makeTxnStatusBadge } from '@fedi/common/utils/wallet'
+import { isMultispendTxn, makeTxnStatusBadge } from '@fedi/common/utils/wallet'
 
 import { TransactionListEntry, TransactionStatusBadge } from '../../../types'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
@@ -21,11 +21,17 @@ export const getTxnIcon = (
 
     if (txn.kind === 'onchainDeposit' || txn.kind === 'onchainWithdraw')
         icon = 'OnChainCircle'
-    else if (
+    else if (isMultispendTxn(txn)) {
+        icon = 'MultispendGroupCircle'
+        color = theme.colors.moneyGreen
+    } else if (
         txn.kind === 'spDeposit' ||
         txn.kind === 'spWithdraw' ||
         txn.kind === 'sPV2Deposit' ||
-        txn.kind === 'sPV2Withdrawal'
+        txn.kind === 'sPV2Withdrawal' ||
+        // only non-multispend txns... multispend is handled above
+        txn.kind === 'sPV2TransferIn' ||
+        txn.kind === 'sPV2TransferOut'
     ) {
         icon = 'DollarCircle'
         color = theme.colors.moneyGreen
@@ -37,14 +43,7 @@ export const getTxnIcon = (
         txn.kind === 'lnRecurringdReceive'
     )
         icon = 'LightningCircle'
-    else if (
-        txn.kind === 'sPV2TransferIn' ||
-        txn.kind === 'sPV2TransferOut' ||
-        txn.kind === 'multispend'
-    ) {
-        icon = 'MultispendGroupCircle'
-        color = theme.colors.moneyGreen
-    } else {
+    else {
         icon = 'BitcoinCircle'
         color = theme.colors.orange
     }

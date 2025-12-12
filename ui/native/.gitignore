@@ -26,6 +26,7 @@ local.properties
 *.iml
 *.hprof
 .cxx/
+.kotlin/
 
 # dont accidentally commit keystore files
 *.keystore

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { SendPaymentResponse } from 'webln'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     listGateways,
     payInvoice,
@@ -15,25 +16,26 @@ import { MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { useAppDispatch, useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
-import { styled, theme } from '../../styles'
-import { Button } from '../Button'
-import { Dialog } from '../Dialog'
-import { FederationWalletSelector } from '../FederationWalletSelector'
-import { HoloLoader } from '../HoloLoader'
-import { Text } from '../Text'
+import { useAppDispatch, useAppSelector } from '../../../hooks'
+import { styled, theme } from '../../../styles'
+import { Button } from '../../Button'
+import { Dialog } from '../../Dialog'
+import { FederationWalletSelector } from '../../FederationWalletSelector'
+import { HoloLoader } from '../../HoloLoader'
+import { Text } from '../../Text'
 
 const log = makeLog('SendPaymentOverlay')
 
 interface Props {
+    open: boolean
     onAccept(res: SendPaymentResponse): void
     onReject(): void
 }
 
-export const SendPayment: React.FC<Props> = ({ onAccept, onReject }) => {
+export const SendPayment: React.FC<Props> = ({ open, onAccept, onReject }) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const rate = useAppSelector(selectBtcExchangeRate)
     const currency = useAppSelector(selectCurrency)
@@ -98,12 +100,12 @@ export const SendPayment: React.FC<Props> = ({ onAccept, onReject }) => {
 
     return (
         <Dialog
-            open={!!invoice}
+            open={open}
             onOpenChange={() => {}}
             mobileDismiss="overlay"
             disableClose
             disablePadding>
-            <Container aria-label="payment request dialog">
+            <Container aria-label="send payment dialog">
                 <Header>
                     <Text variant="body" weight="bold">
                         {t('feature.fedimods.payment-request', {

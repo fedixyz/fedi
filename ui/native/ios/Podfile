@@ -14,7 +14,7 @@ end
 node_require('react-native/scripts/react_native_pods.rb')
 node_require('react-native-permissions/scripts/setup.rb')
 
-platform :ios, 14
+platform :ios, 15.1
 prepare_react_native_project!
 
 # Uncomment wanted permissions

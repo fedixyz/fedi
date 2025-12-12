@@ -2,26 +2,25 @@ import {
     chatRoute,
     chatRoomRoute,
     chatUserRoute,
+    ecashRoute,
+    federationsRoute,
     homeRoute,
     onboardingJoinRoute,
     scanRoute,
-    sendRoute,
-    transactionsRoute,
-    ecashRoute,
 } from '../constants/routes'
 
-const DEEP_LINK_PATH = '/link'
-
-export const isDeepLink = (pathname: string): boolean => {
-    return pathname.startsWith(DEEP_LINK_PATH)
+// if url contains /link?screen or /link#screen then it's a deep link
+export const isDeepLink = (url: string): boolean => {
+    return /\/link[?#]screen/.test(url)
 }
 
-export const getDeepLinkPath = (link: string): string => {
+export const getDeepLinkPath = (url: string): string => {
     try {
-        // remove "/link(#|?)" from the link
-        const cleanLink = link.slice(DEEP_LINK_PATH.length + 1)
+        // returns screen=...
+        const queryString = url.match(/screen.*$/)?.[0] ?? null
+        if (!queryString) return '/'
 
-        const params = new URLSearchParams(cleanLink)
+        const params = new URLSearchParams(queryString)
 
         const page = params.get('screen')
 
@@ -45,12 +44,10 @@ export const getDeepLinkPath = (link: string): string => {
                 return homeRoute
             case 'chat':
                 return chatRoute
+            case 'federations':
+                return federationsRoute
             case 'scan':
                 return scanRoute
-            case 'transactions':
-                return transactionsRoute
-            case 'send':
-                return sendRoute
             case 'ecash': {
                 const tokenId = params.get('id')
                 if (!tokenId) return '/'

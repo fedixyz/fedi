@@ -12,10 +12,12 @@ use rpc_types::error::RpcError;
 use rpc_types::matrix::MatrixInitializeStatus;
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::MATRIX_CHILD_ID;
+use sp_transfer::services::SptServices;
+use sp_transfer::sp_transfers_matrix::SpTransfersMatrix;
 use tokio::sync::{OnceCell, watch};
 
 pub struct BgMatrix {
-    initialized: OnceCell<(Arc<Matrix>, Arc<MultispendMatrix>)>,
+    initialized: OnceCell<(Arc<Matrix>, Arc<MultispendMatrix>, Arc<SpTransfersMatrix>)>,
     status: watch::Sender<MatrixInitializeStatus>,
 }
 
@@ -25,6 +27,7 @@ impl BgMatrix {
         runtime: Arc<Runtime>,
         user_name: String,
         multispend_services: Arc<MultispendServices>,
+        sp_transfers_services: Arc<SptServices>,
     ) -> Arc<Self> {
         let bg_matrix = Arc::new(Self {
             initialized: OnceCell::new(),
@@ -39,8 +42,13 @@ impl BgMatrix {
                 let bg_matrix = bg_matrix.clone();
                 async move {
                     bg_matrix
-                        .initialize(runtime, &user_name, multispend_services)
-                        .await;
+                        .initialize(
+                            runtime,
+                            &user_name,
+                            multispend_services,
+                            sp_transfers_services,
+                        )
+                        .await
                 }
             });
 
@@ -56,6 +64,7 @@ impl BgMatrix {
         runtime: Arc<Runtime>,
         user_name: &str,
         multispend_services: Arc<MultispendServices>,
+        sp_transfers_services: Arc<SptServices>,
     ) {
         let global_root_secret = runtime.app_state.root_secret().await;
         let matrix_secret = global_root_secret.child_key(ChildId(MATRIX_CHILD_ID));
@@ -76,11 +85,19 @@ impl BgMatrix {
                     runtime,
                     multispend_services,
                 ));
+                let sp_transfers_matrix = Arc::new(SpTransfersMatrix::new(
+                    matrix.client.clone(),
+                    matrix.runtime.clone(),
+                    sp_transfers_services,
+                ));
                 // important: start listening to messages before syncing
                 multispend_matrix.register_message_handler();
+                sp_transfers_matrix.register_message_handler();
                 matrix.start_syncing();
                 assert!(
-                    self.initialized.set((matrix, multispend_matrix)).is_ok(),
+                    self.initialized
+                        .set((matrix, multispend_matrix, sp_transfers_matrix))
+                        .is_ok(),
                     "matrix initialize is only called once"
                 );
                 self.status.send_replace(MatrixInitializeStatus::Success);
@@ -93,7 +110,7 @@ impl BgMatrix {
         }
     }
 
-    async fn wait_inner(&self) -> &(Arc<Matrix>, Arc<MultispendMatrix>) {
+    async fn wait_inner(&self) -> &(Arc<Matrix>, Arc<MultispendMatrix>, Arc<SpTransfersMatrix>) {
         // important: just hangs on failed starts
         if let Some(value) = self.initialized.get() {
             return value;
@@ -116,5 +133,9 @@ impl BgMatrix {
 
     pub async fn wait_multispend(&self) -> &Arc<MultispendMatrix> {
         &self.wait_inner().await.1
+    }
+
+    pub async fn wait_spt(&self) -> &Arc<SpTransfersMatrix> {
+        &self.wait_inner().await.2
     }
 }

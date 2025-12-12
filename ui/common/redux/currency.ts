@@ -391,5 +391,7 @@ export const selectBtcExchangeRate = (
 
     return currency === SupportedCurrency.USD
         ? btcUsdRate
-        : btcUsdRate / fiatUsdRate
+        : fiatUsdRate !== 0 // avoid dividing by zero which spams annoying warnings in selectors
+          ? btcUsdRate / fiatUsdRate
+          : 0
 }

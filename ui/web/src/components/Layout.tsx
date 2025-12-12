@@ -7,12 +7,13 @@ import { Community } from '@fedi/common/types'
 
 import { keyframes, styled, theme } from '../styles'
 import { CommunityInviteDialog } from './CommunityInviteDialog'
-import { Row } from './Flex'
+import { Column, Row } from './Flex'
 import { Icon } from './Icon'
 import { IconButton } from './IconButton'
 import MainHeaderButtons from './MainHeaderButtons'
 import SelectedCommunity from './SelectedCommunity'
 import { ShadowScroller } from './ShadowScroller'
+import { TotalBalance } from './TotalBalance'
 
 type PageHeaderProps = {
     title: string
@@ -32,12 +33,15 @@ export function PageHeader({
     return (
         <>
             <PageHeaderContainer>
-                <PageHeaderGradient justify="between" align="center">
-                    <Title>{title}</Title>
-                    <MainHeaderButtons
-                        onShowCommunitiesPress={onShowCommunitiesPress}
-                        onAddPress={onAddPress}
-                    />
+                <PageHeaderGradient justify="between" align="start" gap="xs">
+                    <Row justify="between" css={{ width: '100%' }}>
+                        <Title>{title}</Title>
+                        <MainHeaderButtons
+                            onShowCommunitiesPress={onShowCommunitiesPress}
+                            onAddPress={onAddPress}
+                        />
+                    </Row>
+                    <TotalBalance />
                 </PageHeaderGradient>
                 {selectedCommunity && (
                     <SelectedCommunityWrapper>
@@ -59,16 +63,15 @@ export function PageHeader({
     )
 }
 
-const PageHeaderContainer = styled('div', {
-    borderBottom: `1px solid ${theme.colors.extraLightGrey}`,
-})
+const PageHeaderContainer = styled('div', {})
 
-const PageHeaderGradient = styled(Row, {
+const PageHeaderGradient = styled(Column, {
     fediGradient: 'sky',
     padding: '10px 20px',
 })
 
 const SelectedCommunityWrapper = styled('div', {
+    borderBottom: `1px solid ${theme.colors.extraLightGrey}`,
     padding: '10px 20px',
 })
 
@@ -91,31 +94,33 @@ export function Header({
 
     return (
         <HeaderContainer {...props}>
-            {back && (
-                <ButtonWrapper>
-                    <IconButton
-                        icon={ChevronLeft}
-                        size="md"
-                        onClick={
-                            // provide string to specify next route on back
-                            // or provide boolean to call router history back
-                            typeof back === 'string'
-                                ? () => router.push(back)
-                                : () => router.back()
-                        }
-                    />
-                </ButtonWrapper>
-            )}
+            <Row fullWidth align="center">
+                {back && (
+                    <BackButtonWrapper>
+                        <IconButton
+                            icon={ChevronLeft}
+                            size="md"
+                            onClick={
+                                // provide string to specify next route on back
+                                // or provide boolean to call router history back
+                                typeof back === 'string'
+                                    ? () => router.push(back)
+                                    : () => router.back()
+                            }
+                        />
+                    </BackButtonWrapper>
+                )}
 
-            <HeaderContent centered={centered}>{children}</HeaderContent>
+                <HeaderContent centered={centered}>{children}</HeaderContent>
 
-            <RightComponentWrapper>
-                {showCloseButton ? (
-                    <Icon icon={CloseIcon} onClick={() => router.back()} />
-                ) : rightComponent ? (
-                    rightComponent
-                ) : null}
-            </RightComponentWrapper>
+                <RightComponentWrapper>
+                    {showCloseButton ? (
+                        <Icon icon={CloseIcon} onClick={() => router.back()} />
+                    ) : rightComponent ? (
+                        rightComponent
+                    ) : null}
+                </RightComponentWrapper>
+            </Row>
         </HeaderContainer>
     )
 }
@@ -135,28 +140,24 @@ export const HeaderContainer = styled('div', {
     width: '100%',
 })
 
-export const ButtonWrapper = styled('div', {
+export const BackButtonWrapper = styled('div', {
     alignItems: 'center',
     cursor: 'pointer',
     display: 'flex',
-    height: '100%',
-    left: 0,
+    left: theme.spacing.sm,
     justifyContent: 'center',
     position: 'absolute',
-    top: 0,
-    width: 50,
+    width: 30,
 })
 
 export const RightComponentWrapper = styled('div', {
     alignItems: 'center',
     cursor: 'pointer',
     display: 'flex',
-    height: '100%',
     justifyContent: 'center',
     position: 'absolute',
-    right: 5,
-    top: 0,
-    width: 50,
+    right: theme.spacing.sm,
+    width: 30,
 })
 
 const HeaderContent = styled('div', {

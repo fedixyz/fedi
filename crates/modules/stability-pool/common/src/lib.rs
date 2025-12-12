@@ -500,6 +500,9 @@ impl TransferRequest {
             "From and to account types must match"
         );
 
+        // Ensure from != to
+        ensure!(from.id() != to, "From and to cannot be the same");
+
         // Transfer amount must be non-zero
         ensure!(transfer_amount.0 != 0, "Transfer amount must not be 0");
 

@@ -66,6 +66,7 @@ export const ChatUserConversation: React.FC<Props> = ({ userId }) => {
             name={name}
             events={[]}
             onSendMessage={handleSend}
+            isNewChat
         />
     )
 }
