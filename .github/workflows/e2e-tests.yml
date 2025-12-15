@@ -88,7 +88,7 @@ jobs:
               run: nix develop .#xcode -c ./scripts/ci/run-ios-tests.sh "$IOS_18_UDID" "./ui/native/ios/build/Build/Products/Debug-iphonesimulator/FediReactNative.app" "iOS 18"
 
             - name: Upload logs & screenshots
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               if: ${{ always() }}
               with:
                 name: logs
