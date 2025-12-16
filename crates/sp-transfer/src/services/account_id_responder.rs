@@ -5,9 +5,8 @@ use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::util::retry;
 use futures::StreamExt as _;
-use rpc_types::RpcEventId;
 use rpc_types::matrix::room_is_joined;
-use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferEvent};
+use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferEvent, SpMatrixTransferId};
 use runtime::bridge_runtime::Runtime;
 use tokio::sync::Notify;
 use tracing::instrument;
@@ -61,19 +60,9 @@ impl SptAccountIdResponder {
             .await
             .collect::<Vec<_>>()
             .await;
-        for (
-            PendingReceiverAccountIdEventKey {
-                pending_transfer_id,
-            },
-            _,
-        ) in items
-        {
+        for (PendingReceiverAccountIdEventKey(transfer_id), _) in items {
             if self
-                .process_pending_item(
-                    &mut dbtx.to_ref_nc(),
-                    &pending_transfer_id,
-                    sp_transfers_matrix,
-                )
+                .process_pending_item(&mut dbtx.to_ref_nc(), &transfer_id, sp_transfers_matrix)
                 .await
                 .is_err()
             {
@@ -87,26 +76,22 @@ impl SptAccountIdResponder {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(pending_transfer_id = %pending_transfer_id.0), err)]
+    #[instrument(skip_all, fields(pending_transfer_id = %transfer_id.event_id.0), err)]
     async fn process_pending_item(
         &self,
         dbtx: &mut DatabaseTransaction<'_>,
-        pending_transfer_id: &RpcEventId,
+        transfer_id: &SpMatrixTransferId,
         sp_transfers_matrix: &SpTransfersMatrix,
     ) -> anyhow::Result<()> {
         let transfer = dbtx
-            .get_value(&TransferEventKey {
-                pending_transfer_id: pending_transfer_id.clone(),
-            })
+            .get_value(&TransferEventKey(transfer_id.clone()))
             .await
             .context("pending without transfer details, db corrupt")?;
 
         // already done
-        if resolve_status_db(dbtx, pending_transfer_id).await != SpTransferStatus::Pending {
-            dbtx.remove_entry(&PendingReceiverAccountIdEventKey {
-                pending_transfer_id: pending_transfer_id.clone(),
-            })
-            .await;
+        if resolve_status_db(dbtx, transfer_id).await != SpTransferStatus::Pending {
+            dbtx.remove_entry(&PendingReceiverAccountIdEventKey(transfer_id.clone()))
+                .await;
             return Ok(());
         }
 
@@ -117,7 +102,7 @@ impl SptAccountIdResponder {
         else {
             return Ok(());
         };
-        let room_id = transfer.room_id.clone().into_typed()?;
+        let room_id = transfer_id.room_id.clone().into_typed()?;
         if !room_is_joined(&sp_transfers_matrix.client, &room_id) {
             // matrixRoomJoin rpc will trigger us again
             return Ok(());
@@ -131,10 +116,8 @@ impl SptAccountIdResponder {
                 },
             )
             .await?;
-        dbtx.remove_entry(&PendingReceiverAccountIdEventKey {
-            pending_transfer_id: pending_transfer_id.clone(),
-        })
-        .await;
+        dbtx.remove_entry(&PendingReceiverAccountIdEventKey(transfer_id.clone()))
+            .await;
         Ok(())
     }
 }

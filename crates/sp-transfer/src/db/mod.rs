@@ -1,8 +1,9 @@
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::impl_db_record;
-use rpc_types::matrix::{RpcRoomId, RpcUserId};
-use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount, RpcTransactionId};
+use rpc_types::matrix::RpcUserId;
+use rpc_types::sp_transfer::SpMatrixTransferId;
+use rpc_types::{RpcFederationId, RpcFiatAmount, RpcTransactionId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpTransferStatus {
@@ -39,16 +40,13 @@ enum SpTransfersDbPrefix {
 pub struct TransferEventValue {
     pub amount: RpcFiatAmount,
     pub federation_id: RpcFederationId,
-    pub room_id: RpcRoomId,
     pub sent_by: RpcUserId,
     pub federation_invite: Option<String>,
     pub nonce: u64,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct TransferEventKey {
-    pub pending_transfer_id: RpcEventId,
-}
+pub struct TransferEventKey(pub SpMatrixTransferId);
 
 impl_db_record!(
     key = TransferEventKey,
@@ -57,9 +55,7 @@ impl_db_record!(
 );
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct TransferSentHintKey {
-    pub pending_transfer_id: RpcEventId,
-}
+pub struct TransferSentHintKey(pub SpMatrixTransferId);
 
 impl_db_record!(
     key = TransferSentHintKey,
@@ -68,9 +64,7 @@ impl_db_record!(
 );
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct TransferFailedKey {
-    pub pending_transfer_id: RpcEventId,
-}
+pub struct TransferFailedKey(pub SpMatrixTransferId);
 
 impl_db_record!(
     key = TransferFailedKey,
@@ -80,20 +74,16 @@ impl_db_record!(
 
 pub(crate) async fn resolve_status_db(
     dbtx: &mut DatabaseTransaction<'_>,
-    pending_transfer_id: &RpcEventId,
+    transfer_id: &SpMatrixTransferId,
 ) -> SpTransferStatus {
     if dbtx
-        .get_value(&TransferFailedKey {
-            pending_transfer_id: pending_transfer_id.clone(),
-        })
+        .get_value(&TransferFailedKey(transfer_id.clone()))
         .await
         .is_some()
     {
         SpTransferStatus::Failed
     } else if let Some(transaction_id) = dbtx
-        .get_value(&TransferSentHintKey {
-            pending_transfer_id: pending_transfer_id.clone(),
-        })
+        .get_value(&TransferSentHintKey(transfer_id.clone()))
         .await
     {
         SpTransferStatus::SentHint { transaction_id }

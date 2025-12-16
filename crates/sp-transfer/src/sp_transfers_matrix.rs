@@ -13,7 +13,9 @@ use matrix_sdk::ruma::events::{
 };
 use matrix_sdk::ruma::{OwnedEventId, RoomId};
 use rpc_types::matrix::{RpcRoomId, RpcUserId};
-use rpc_types::sp_transfer::{RpcSpTransferEvent, RpcSpTransferState, RpcSpTransferStatus};
+use rpc_types::sp_transfer::{
+    RpcSpTransferEvent, RpcSpTransferState, RpcSpTransferStatus, SpMatrixTransferId,
+};
 use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount};
 use runtime::bridge_runtime::Runtime;
 use stability_pool_client::common::FiatAmount;
@@ -155,7 +157,7 @@ impl SpTransfersMatrix {
     /// Subscribe to transfer state changes for a pending transfer.
     pub fn subscribe_transfer_state(
         self: &Arc<Self>,
-        pending_transfer_id: RpcEventId,
+        transfer_id: SpMatrixTransferId,
     ) -> impl Stream<Item = RpcSpTransferState> + use<> {
         let this = self.clone();
         stream! {
@@ -168,9 +170,7 @@ impl SpTransfersMatrix {
                 let notify = this.event_notify.notified();
                 let mut dbtx = spt_db.begin_transaction_nc().await;
                 if let Some(transfer) = dbtx
-                    .get_value(&TransferEventKey {
-                        pending_transfer_id: pending_transfer_id.clone(),
-                    })
+                    .get_value(&TransferEventKey(transfer_id.clone()))
                     .await {
                         break transfer;
                     }
@@ -192,7 +192,7 @@ impl SpTransfersMatrix {
             let sent_hint_txid = loop {
                 let notify = this.event_notify.notified();
                 let mut dbtx = spt_db.begin_transaction_nc().await;
-                let status = crate::db::resolve_status_db(&mut dbtx, &pending_transfer_id).await;
+                let status = crate::db::resolve_status_db(&mut dbtx, &transfer_id).await;
                 match status {
                     SpTransferStatus::Pending => {
                         // only yield pending once
@@ -256,14 +256,15 @@ impl SpTransfersMatrix {
                 federation_invite,
                 nonce,
             } => {
+                let transfer_id = SpMatrixTransferId {
+                    room_id: RpcRoomId(room_id.to_string()),
+                    event_id: event_id.clone(),
+                };
                 dbtx.insert_entry(
-                    &TransferEventKey {
-                        pending_transfer_id: event_id.clone(),
-                    },
+                    &TransferEventKey(transfer_id.clone()),
                     &TransferEventValue {
                         amount,
                         federation_id,
-                        room_id: RpcRoomId(room_id.to_string()),
                         sent_by: sender_user,
                         federation_invite,
                         nonce,
@@ -272,41 +273,29 @@ impl SpTransfersMatrix {
                 .await;
                 if is_sender {
                     dbtx.insert_entry(
-                        &SenderAwaitingAccountAnnounceEventKey {
-                            pending_transfer_id: event_id.clone(),
-                        },
+                        &SenderAwaitingAccountAnnounceEventKey(transfer_id.clone()),
                         &(),
                     )
                     .await;
                 } else {
-                    dbtx.insert_entry(
-                        &PendingReceiverAccountIdEventKey {
-                            pending_transfer_id: event_id.clone(),
-                        },
-                        &(),
-                    )
-                    .await;
+                    dbtx.insert_entry(&PendingReceiverAccountIdEventKey(transfer_id.clone()), &())
+                        .await;
                 }
             }
             RpcSpTransferEvent::TransferSentHint {
                 pending_transfer_id,
                 transaction_id,
             } => {
-                dbtx.insert_entry(
-                    &TransferSentHintKey {
-                        pending_transfer_id: pending_transfer_id.clone(),
-                    },
-                    &transaction_id,
-                )
-                .await;
+                let transfer_id = SpMatrixTransferId {
+                    room_id: RpcRoomId(room_id.to_string()),
+                    event_id: pending_transfer_id.clone(),
+                };
+                dbtx.insert_entry(&TransferSentHintKey(transfer_id.clone()), &transaction_id)
+                    .await;
 
                 // sender already syncs it in FederationV2::subscribe_spv2_transfer
                 if !is_sender
-                    && let Some(transfer) = dbtx
-                        .get_value(&TransferEventKey {
-                            pending_transfer_id,
-                        })
-                        .await
+                    && let Some(transfer) = dbtx.get_value(&TransferEventKey(transfer_id)).await
                 {
                     self.services
                         .provider
@@ -316,13 +305,12 @@ impl SpTransfersMatrix {
             RpcSpTransferEvent::TransferFailed {
                 pending_transfer_id,
             } => {
-                dbtx.insert_entry(
-                    &TransferFailedKey {
-                        pending_transfer_id,
-                    },
-                    &(),
-                )
-                .await;
+                let transfer_id = SpMatrixTransferId {
+                    room_id: RpcRoomId(room_id.to_string()),
+                    event_id: pending_transfer_id,
+                };
+                dbtx.insert_entry(&TransferFailedKey(transfer_id), &())
+                    .await;
             }
             RpcSpTransferEvent::AnnounceAccount {
                 account_id,

@@ -19,6 +19,7 @@ use runtime::storage::state::{FediFeeSchedule, FiatFXInfo};
 use runtime::utils::to_unix_time;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+pub use sp_transfer::SpMatrixTransferId;
 use stability_pool_client::common::{SyncResponse, TransferRequestId};
 use stability_pool_client::db::CachedSyncResponseValue;
 use stability_pool_client_old::ClientAccountInfo;
@@ -970,10 +971,7 @@ pub enum SPv2TransferMetadata {
         request_id: RpcEventId,
     },
     /// Matrix SP transfer person-to-person transfer
-    MatrixSpTransfer {
-        room: RpcRoomId,
-        pending_transfer_id: RpcEventId,
-    },
+    MatrixSpTransfer { transfer_id: SpMatrixTransferId },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -1,13 +1,11 @@
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{impl_db_lookup, impl_db_record};
-use rpc_types::RpcEventId;
+use rpc_types::sp_transfer::SpMatrixTransferId;
 
 use super::SpTransfersDbPrefix;
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct PendingReceiverAccountIdEventKey {
-    pub pending_transfer_id: RpcEventId,
-}
+pub struct PendingReceiverAccountIdEventKey(pub SpMatrixTransferId);
 
 impl_db_record!(
     key = PendingReceiverAccountIdEventKey,

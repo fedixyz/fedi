@@ -1,7 +1,8 @@
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{impl_db_lookup, impl_db_record};
 use rpc_types::matrix::RpcRoomId;
-use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount, RpcTransactionId};
+use rpc_types::sp_transfer::SpMatrixTransferId;
+use rpc_types::{RpcFederationId, RpcFiatAmount, RpcTransactionId};
 use stability_pool_client::common::AccountId;
 
 use super::SpTransfersDbPrefix;
@@ -21,22 +22,22 @@ impl_db_record!(
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub enum SptPendingCompletionNotification {
     Success {
-        room_id: RpcRoomId,
-        pending_transfer_id: RpcEventId,
+        transfer_id: SpMatrixTransferId,
         federation_id: RpcFederationId,
         fiat_amount: RpcFiatAmount,
         txid: RpcTransactionId,
     },
     Failed {
-        room_id: RpcRoomId,
-        pending_transfer_id: RpcEventId,
+        transfer_id: SpMatrixTransferId,
     },
 }
 
 impl SptPendingCompletionNotification {
     pub fn room_id(&self) -> &RpcRoomId {
         match self {
-            Self::Success { room_id, .. } | Self::Failed { room_id, .. } => room_id,
+            Self::Success { transfer_id, .. } | Self::Failed { transfer_id, .. } => {
+                &transfer_id.room_id
+            }
         }
     }
 }
@@ -56,9 +57,7 @@ impl_db_lookup!(
 );
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct SenderAwaitingAccountAnnounceEventKey {
-    pub pending_transfer_id: RpcEventId,
-}
+pub struct SenderAwaitingAccountAnnounceEventKey(pub SpMatrixTransferId);
 
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct SenderAwaitingAccountAnnounceEventKeyPrefix;

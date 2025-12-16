@@ -5,9 +5,7 @@ use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::util::retry;
 use futures::StreamExt as _;
-use rpc_types::RpcEventId;
-use rpc_types::matrix::RpcRoomId;
-use rpc_types::sp_transfer::RpcSpTransferEvent;
+use rpc_types::sp_transfer::{RpcSpTransferEvent, SpMatrixTransferId};
 use runtime::bridge_runtime::Runtime;
 use tokio::sync::Notify;
 use tracing::instrument;
@@ -34,8 +32,7 @@ impl SptTransferCompleteNotifier {
 
     pub async fn add_completion_notification(
         &self,
-        room_id: RpcRoomId,
-        pending_transfer_id: RpcEventId,
+        transfer_id: SpMatrixTransferId,
         federation_id: String,
         fiat_amount_cents: u64,
         txid: fedimint_core::TransactionId,
@@ -44,8 +41,7 @@ impl SptTransferCompleteNotifier {
         let mut dbtx = spt_db.begin_transaction().await;
         dbtx.insert_entry(
             &SptPendingCompletionNotification::Success {
-                room_id,
-                pending_transfer_id,
+                transfer_id,
                 federation_id: rpc_types::RpcFederationId(federation_id),
                 fiat_amount: rpc_types::RpcFiatAmount(fiat_amount_cents),
                 txid: rpc_types::RpcTransactionId(txid),
@@ -57,18 +53,11 @@ impl SptTransferCompleteNotifier {
         self.trigger();
     }
 
-    pub async fn add_failed_notification(
-        &self,
-        room_id: RpcRoomId,
-        pending_transfer_id: RpcEventId,
-    ) {
+    pub async fn add_failed_notification(&self, transfer_id: SpMatrixTransferId) {
         let spt_db = self.runtime.sp_transfers_db();
         let mut dbtx = spt_db.begin_transaction().await;
         dbtx.insert_entry(
-            &SptPendingCompletionNotification::Failed {
-                room_id,
-                pending_transfer_id,
-            },
+            &SptPendingCompletionNotification::Failed { transfer_id },
             &(),
         )
         .await;
@@ -124,24 +113,18 @@ impl SptTransferCompleteNotifier {
     ) -> anyhow::Result<()> {
         let (room_id, event) = match &item {
             SptPendingCompletionNotification::Success {
-                room_id,
-                pending_transfer_id,
-                txid,
-                ..
+                transfer_id, txid, ..
             } => (
-                room_id.clone(),
+                transfer_id.room_id.clone(),
                 RpcSpTransferEvent::TransferSentHint {
-                    pending_transfer_id: pending_transfer_id.clone(),
+                    pending_transfer_id: transfer_id.event_id.clone(),
                     transaction_id: *txid,
                 },
             ),
-            SptPendingCompletionNotification::Failed {
-                room_id,
-                pending_transfer_id,
-            } => (
-                room_id.clone(),
+            SptPendingCompletionNotification::Failed { transfer_id } => (
+                transfer_id.room_id.clone(),
                 RpcSpTransferEvent::TransferFailed {
-                    pending_transfer_id: pending_transfer_id.clone(),
+                    pending_transfer_id: transfer_id.event_id.clone(),
                 },
             ),
         };

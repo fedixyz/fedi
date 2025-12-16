@@ -9,7 +9,7 @@ use fedimint_core::{TransactionId, apply, async_trait_maybe_send};
 use multispend::FederationProvider;
 use multispend::services::MultispendServices;
 use rpc_types::matrix::RpcRoomId;
-use rpc_types::{RpcEventId, SPv2TransferMetadata};
+use rpc_types::{RpcEventId, SPv2TransferMetadata, SpMatrixTransferId};
 use sp_transfer::services::SptFederationProvider;
 use sp_transfer::services::transfer_complete_notifier::SptTransferCompleteNotifier;
 use stability_pool_client::common::{AccountId, FiatAmount, SignedTransferRequest, SyncResponse};
@@ -22,21 +22,18 @@ pub struct SptNotificationsProvider(pub Arc<SptTransferCompleteNotifier>);
 impl SptNotifications for SptNotificationsProvider {
     async fn add_spt_completion_notification(
         &self,
-        room: RpcRoomId,
-        pending_transfer_id: RpcEventId,
+        transfer_id: SpMatrixTransferId,
         federation_id: String,
         amount: FiatAmount,
         txid: TransactionId,
     ) {
         self.0
-            .add_completion_notification(room, pending_transfer_id, federation_id, amount.0, txid)
+            .add_completion_notification(transfer_id, federation_id, amount.0, txid)
             .await;
     }
 
-    async fn add_spt_failed_notification(&self, room: RpcRoomId, pending_transfer_id: RpcEventId) {
-        self.0
-            .add_failed_notification(room, pending_transfer_id)
-            .await;
+    async fn add_spt_failed_notification(&self, transfer_id: SpMatrixTransferId) {
+        self.0.add_failed_notification(transfer_id).await;
     }
 }
 

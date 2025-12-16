@@ -2,11 +2,18 @@ use fedimint_core::encoding::{Decodable, Encodable};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{RpcEventId, RpcFederationId, RpcFiatAmount, RpcTransactionId};
+use crate::{RpcEventId, RpcFederationId, RpcFiatAmount, RpcRoomId, RpcTransactionId};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq)]
 #[ts(export)]
 pub struct RpcAccountId(pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq)]
+#[ts(export)]
+pub struct SpMatrixTransferId {
+    pub room_id: RpcRoomId,
+    pub event_id: RpcEventId,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(

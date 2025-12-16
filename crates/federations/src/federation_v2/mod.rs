@@ -98,7 +98,7 @@ use rpc_types::{
     RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState,
     RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection,
     RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata,
-    SPv2WithdrawMetadata, SpV2TransferInKind, SpV2TransferOutKind,
+    SPv2WithdrawMetadata, SpMatrixTransferId, SpV2TransferInKind, SpV2TransferOutKind,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
@@ -176,13 +176,12 @@ pub trait MultispendNotifications: MaybeSend + MaybeSync {
 pub trait SptNotifications: MaybeSend + MaybeSync {
     async fn add_spt_completion_notification(
         &self,
-        room: RpcRoomId,
-        pending_transfer_id: RpcEventId,
+        transfer_id: SpMatrixTransferId,
         federation_id: String,
         amount: FiatAmount,
         txid: TransactionId,
     );
-    async fn add_spt_failed_notification(&self, room: RpcRoomId, pending_transfer_id: RpcEventId);
+    async fn add_spt_failed_notification(&self, transfer_id: SpMatrixTransferId);
 }
 
 mod backup_service;
@@ -3652,14 +3651,10 @@ impl FederationV2 {
                                     )
                                     .await;
                             }
-                            Ok(SPv2TransferMetadata::MatrixSpTransfer {
-                                room,
-                                pending_transfer_id,
-                            }) => {
+                            Ok(SPv2TransferMetadata::MatrixSpTransfer { transfer_id }) => {
                                 self.spt_notifications
                                     .add_spt_completion_notification(
-                                        room,
-                                        pending_transfer_id,
+                                        transfer_id,
                                         self.federation_id().to_string(),
                                         signed_request.details().amount(),
                                         txid,
@@ -3680,12 +3675,9 @@ impl FederationV2 {
                                     )
                                     .await;
                             }
-                            Ok(SPv2TransferMetadata::MatrixSpTransfer {
-                                room,
-                                pending_transfer_id,
-                            }) => {
+                            Ok(SPv2TransferMetadata::MatrixSpTransfer { transfer_id }) => {
                                 self.spt_notifications
-                                    .add_spt_failed_notification(room, pending_transfer_id)
+                                    .add_spt_failed_notification(transfer_id)
                                     .await;
                             }
                             Ok(

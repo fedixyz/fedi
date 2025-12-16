@@ -50,7 +50,7 @@ use rpc_types::matrix::{
     RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
 };
 use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
-use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferState};
+use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferState, SpMatrixTransferId};
 use rpc_types::{
     FrontendMetadata, GuardianStatus, NetworkError, RpcAmount, RpcAppFlavor, RpcEcashInfo,
     RpcEventId, RpcFederation, RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview,
@@ -2231,10 +2231,11 @@ async fn matrixSpTransferSend(
 async fn matrixSpTransferObserveState(
     bg_matrix: &BgMatrix,
     stream_id: RpcStreamId<RpcSpTransferState>,
-    pending_payment_id: RpcEventId,
+    room_id: RpcRoomId,
+    event_id: RpcEventId,
 ) -> anyhow::Result<()> {
     let spt_matrix = bg_matrix.wait_spt().await;
-    let stream = spt_matrix.subscribe_transfer_state(pending_payment_id);
+    let stream = spt_matrix.subscribe_transfer_state(SpMatrixTransferId { room_id, event_id });
     spt_matrix
         .runtime
         .stream_pool

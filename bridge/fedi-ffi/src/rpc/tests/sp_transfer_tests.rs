@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use fedimint_core::Amount;
 use futures::StreamExt as _;
 use rpc_types::matrix::RpcRoomId;
-use rpc_types::sp_transfer::RpcSpTransferStatus;
+use rpc_types::sp_transfer::{RpcSpTransferStatus, SpMatrixTransferId};
 use rpc_types::{FrontendMetadata, RpcAmount, RpcFiatAmount};
 
 use super::*;
@@ -108,7 +108,12 @@ pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
     // Wait for SP Transfers completion using subscribe_transfer_state on receiver
     // side
     let sp_transfers_matrix = bridge_receiver.matrix.wait_spt().await.clone();
-    let mut state_stream = pin!(sp_transfers_matrix.subscribe_transfer_state(pending_transfer_id));
+    let mut state_stream = pin!(
+        sp_transfers_matrix.subscribe_transfer_state(SpMatrixTransferId {
+            room_id: room_id.clone().into(),
+            event_id: pending_transfer_id,
+        })
+    );
 
     let final_state = loop {
         let state = state_stream.next().await.context("stream ended early")?;
@@ -233,7 +238,12 @@ pub async fn test_receiver_joins_federation_later(_dev_fed: DevFed) -> anyhow::R
     // Wait for SP Transfers completion using subscribe_transfer_state on receiver
     // side
     let sp_transfers_matrix = bridge_receiver.matrix.wait_spt().await.clone();
-    let mut state_stream = pin!(sp_transfers_matrix.subscribe_transfer_state(pending_transfer_id));
+    let mut state_stream = pin!(
+        sp_transfers_matrix.subscribe_transfer_state(SpMatrixTransferId {
+            room_id: room_id.clone().into(),
+            event_id: pending_transfer_id,
+        })
+    );
 
     let final_state = loop {
         let state = state_stream.next().await.context("stream ended early")?;
