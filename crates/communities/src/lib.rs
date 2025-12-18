@@ -16,6 +16,7 @@ use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, EventSink, TypedEventExt};
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_GIFT_EXCLUDED_COMMUNITIES};
+use runtime::features::FeatureCatalog;
 use runtime::storage::AppState;
 use runtime::storage::state::{CommunityInfo, CommunityJson};
 use tokio::sync::{Mutex, RwLock};
@@ -31,6 +32,7 @@ pub struct Communities {
     pub app_state: AppState,
     pub event_sink: EventSink,
     pub task_group: TaskGroup,
+    pub feature_catalog: Arc<FeatureCatalog>,
     http_client: reqwest::Client,
     bg_refresh_lock: UpdateMerge,
 }
@@ -60,6 +62,7 @@ impl Communities {
             app_state: runtime.app_state.clone(),
             event_sink: runtime.event_sink.clone(),
             task_group: runtime.task_group.clone(),
+            feature_catalog: runtime.feature_catalog.clone(),
             http_client: reqwest::Client::new(),
             bg_refresh_lock: Default::default(),
         });
@@ -74,6 +77,7 @@ impl Communities {
             &community_invite,
             self.http_client.clone(),
             self.nostril.clone(),
+            self.feature_catalog.community_v2_migration.is_some(),
         )
         .await?;
         Ok(RpcCommunity {
@@ -89,6 +93,7 @@ impl Communities {
             &community_invite,
             self.http_client.clone(),
             self.nostril.clone(),
+            self.feature_catalog.community_v2_migration.is_some(),
         )
         .await?;
         let meta = community.meta.read().await.clone();
@@ -202,11 +207,16 @@ impl Communities {
                 let old_invite = c.community_invite.clone();
 
                 let Ok((new_invite, new_meta)) =
-                    Community::preview(&old_invite, this.http_client.clone(), this.nostril.clone())
-                        .await
-                        .inspect_err(|e| {
-                            info!(%e, "Failed to refresh communtiy meta for {}", &old_invite);
-                        })
+                    Community::preview(
+                        &old_invite,
+                        this.http_client.clone(),
+                        this.nostril.clone(),
+                        this.feature_catalog.community_v2_migration.is_some()
+                    )
+                    .await
+                    .inspect_err(|e| {
+                        info!(%e, "Failed to refresh communtiy meta for {}", &old_invite);
+                    })
                 else {
                     return;
                 };
@@ -309,6 +319,7 @@ impl Community {
         community_invite: &CommunityInvite,
         http_client: reqwest::Client,
         nostril: Arc<Nostril>,
+        v2_migration_enabled: bool,
     ) -> anyhow::Result<(CommunityInvite, CommunityJson)> {
         // Start with a local clone for loop mutation
         let mut invite = community_invite.clone();
@@ -333,8 +344,9 @@ impl Community {
                     .await??;
 
                     // If v2 migration key is present, attempt to redirect
-                    if let Some(v2_invite_code) =
-                        v1_community_json.meta.get(COMMUNITY_V1_TO_V2_MIGRATION_KEY)
+                    if v2_migration_enabled
+                        && let Some(v2_invite_code) =
+                            v1_community_json.meta.get(COMMUNITY_V1_TO_V2_MIGRATION_KEY)
                     {
                         // Parse v2 invite code and continue the loop
                         invite = CommunityInvite::V2(
@@ -368,9 +380,10 @@ impl Community {
         community_invite: &CommunityInvite,
         http_client: reqwest::Client,
         nostril: Arc<Nostril>,
+        v2_migration_enabled: bool,
     ) -> anyhow::Result<Self> {
         let (up_to_date_invite, community_json) =
-            Self::preview(community_invite, http_client, nostril).await?;
+            Self::preview(community_invite, http_client, nostril, v2_migration_enabled).await?;
         let meta = RwLock::new(community_json).into();
         Ok(Community {
             community_invite: up_to_date_invite,

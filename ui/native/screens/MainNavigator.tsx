@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { selectSocialRecoveryState } from '@fedi/common/redux'
 
 import ChooseBackupMethodHeader from '../components/feature/backup/ChooseBackupMethodHeader'
-import RecoveryWordsHeader from '../components/feature/backup/RecoveryWordsHeader'
 import SocialBackupHeader from '../components/feature/backup/SocialBackupHeader'
 import ChatConversationHeader from '../components/feature/chat/ChatConversationHeader'
 import ChatConversationSearchHeader from '../components/feature/chat/ChatConversationSearchHeader'
@@ -1025,7 +1024,14 @@ export const MainNavigator = () => {
                                 name="RecoveryWords"
                                 component={RecoveryWords}
                                 options={() => ({
-                                    header: () => <RecoveryWordsHeader />,
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.backup.personal-backup',
+                                            )}
+                                        />
+                                    ),
                                 })}
                             />
                             {/* Personal Recovery */}

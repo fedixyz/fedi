@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "25.12.0",
+    "version": "25.12.1",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -63,6 +63,7 @@
         "react-native-mmkv": "^3.3.3",
         "react-native-modal": "^14.0.0-rc.1",
         "react-native-permissions": "^5.4.2",
+        "react-native-play-install-referrer": "^1.1.9",
         "react-native-progress": "^5.0.1",
         "react-native-pure-jwt": "^3.0.2",
         "react-native-quick-base64": "^2.2.2",

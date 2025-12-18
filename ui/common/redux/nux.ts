@@ -21,6 +21,7 @@ const initialState = {
         modsModal: false,
         scanModal: false,
         pwaHasDismissedInstallPrompt: false, // pwa only
+        hasRequestedReferrer: false,
     },
 }
 

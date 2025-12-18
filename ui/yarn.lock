@@ -14021,6 +14021,11 @@ react-native-permissions@^5.4.2:
   resolved "https://registry.yarnpkg.com/react-native-permissions/-/react-native-permissions-5.4.2.tgz#206c0e440cff2ce047514995457bd73a9924fd8b"
   integrity sha512-XNMoG1fxrB9q73MLn/ZfTaP7pS8qPu0KWypbeFKVTvoR+JJ3O7uedMOTH/mts9bTG+GKhShOoZ+k0CR63q9jwA==
 
+react-native-play-install-referrer@^1.1.9:
+  version "1.1.9"
+  resolved "https://registry.yarnpkg.com/react-native-play-install-referrer/-/react-native-play-install-referrer-1.1.9.tgz#369952c317714c090da48096d16ad68fc2c2b7a5"
+  integrity sha512-COKQA/eS2I9NigxZDVZuLFzGNLBXF4+o3o9EIgULx+aagjVQexlPBh4g9fdnhiSvZk1rzq/asVwIJKRPc9Cy7A==
+
 react-native-progress@^5.0.1:
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/react-native-progress/-/react-native-progress-5.0.1.tgz#4e15258b5661c49bad74554352326ca540bb7c58"
