@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +15,6 @@ import { Icon } from '../../../components/Icon'
 import * as Layout from '../../../components/Layout'
 import { RecoverySeedWords } from '../../../components/RecoverySeedWords'
 import { Text } from '../../../components/Text'
-import { federationsRoute } from '../../../constants/routes'
 import { fedimint } from '../../../lib/bridge'
 import { styled, theme } from '../../../styles'
 
@@ -29,8 +27,6 @@ function PersonalBackupPage() {
 
     const [words, setWords] = useState<SeedWords>([])
 
-    const isFromJoin = router?.query?.from === 'join'
-
     useEffect(() => {
         fedimint
             .getMnemonic()
@@ -40,26 +36,13 @@ function PersonalBackupPage() {
 
     const handleFinish = () => {
         completePersonalBackup()
-
-        if (isFromJoin) {
-            return router.push(federationsRoute)
-        }
-
         router.back()
     }
 
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header
-                    back={!isFromJoin}
-                    rightComponent={
-                        isFromJoin ? (
-                            <Link href={federationsRoute}>
-                                {t('words.skip')}
-                            </Link>
-                        ) : undefined
-                    }>
+                <Layout.Header back>
                     <Layout.Title subheader>
                         {t('feature.backup.personal-backup')}
                     </Layout.Title>

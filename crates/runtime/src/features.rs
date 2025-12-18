@@ -97,6 +97,12 @@ pub struct FeatureCatalog {
 
     /// SP Transfer UI feature flag.
     pub sp_transfer_ui: Option<SpTransferUiFeatureConfig>,
+
+    /// V1 (web-hosted) communities can be silently migrated to V2
+    /// (nostr-hosted) communities if the right meta value is added to the V1
+    /// JSON. This feature config controls whether this silent migration
+    /// operation is permitted.
+    pub community_v2_migration: Option<CommunityV2MigrationFeatureConfig>,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -167,6 +173,10 @@ pub struct FediFeeConfig {
     pub remittance_max_delay_secs: u32,
 }
 
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct CommunityV2MigrationFeatureConfig {}
+
 impl FeatureCatalog {
     pub fn new(runtime_env: RuntimeEnvironment) -> Self {
         match runtime_env {
@@ -207,6 +217,7 @@ impl FeatureCatalog {
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
             }),
+            community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
         }
     }
 
@@ -246,6 +257,7 @@ impl FeatureCatalog {
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
             }),
+            community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
         }
     }
 
@@ -277,6 +289,7 @@ impl FeatureCatalog {
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
             }),
+            community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
         }
     }
 
@@ -309,6 +322,7 @@ impl FeatureCatalog {
             },
             sp_transfers_matrix: None,
             sp_transfer_ui: None,
+            community_v2_migration: None,
         }
     }
 }

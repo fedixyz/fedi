@@ -3,14 +3,9 @@ import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useFederationPreview } from '@fedi/common/hooks/federation'
-import { useNuxStep } from '@fedi/common/hooks/nux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import {
-    federationsRoute,
-    homeRoute,
-    settingsBackupPersonalRoute,
-} from '../../constants/routes'
+import { federationsRoute, homeRoute } from '../../constants/routes'
 import { styled } from '../../styles'
 import { HoloLoader } from '../HoloLoader'
 import * as Layout from '../Layout'
@@ -25,10 +20,6 @@ export const JoinFederation: React.FC = () => {
     const { push, query } = useRouter()
 
     const inviteCode = String(query.invite_code) || ''
-
-    const [hasPerformedPersonalBackup] = useNuxStep(
-        'hasPerformedPersonalBackup',
-    )
 
     const {
         isJoining,
@@ -70,15 +61,7 @@ export const JoinFederation: React.FC = () => {
                             `Recovering from scratch. (federation id: ${federationPreview.id})`,
                         )
                     }
-                    handleJoin(
-                        () =>
-                            push(
-                                hasPerformedPersonalBackup
-                                    ? federationsRoute
-                                    : `${settingsBackupPersonalRoute}?from=join`,
-                            ),
-                        recoverFromScratch,
-                    )
+                    handleJoin(() => push(federationsRoute), recoverFromScratch)
                 }}
                 onBack={() => {
                     setIsJoining(false)

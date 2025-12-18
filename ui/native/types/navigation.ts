@@ -165,7 +165,6 @@ export type RootStackParamList = {
     RecoveryWords:
         | {
               nextScreenParams?: NavigationArgs
-              isFromJoin?: boolean
           }
         | undefined
     RecoveryAssistSuccess: undefined

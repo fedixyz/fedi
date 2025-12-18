@@ -43,7 +43,7 @@ const SeedWord = ({ number, word }: SeedWordProps) => {
 }
 
 const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
-    const { nextScreenParams, isFromJoin } = route.params || {}
+    const { nextScreenParams } = route.params || {}
     const { t } = useTranslation()
     const { theme } = useTheme()
 
@@ -96,7 +96,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
             return navigation.navigate('SetPin')
         }
 
-        navigation.dispatch(reset(isFromJoin ? 'TabsNavigator' : 'Settings'))
+        navigation.dispatch(reset('Settings'))
     }
 
     const style = styles(theme)

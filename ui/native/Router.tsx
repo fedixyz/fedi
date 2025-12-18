@@ -19,6 +19,7 @@ import { MainNavigator } from './screens/MainNavigator'
 import { useOmniLinkContext } from './state/contexts/OmniLinkContext'
 import { usePinContext } from './state/contexts/PinContext'
 import { useAppDispatch, useAppSelector } from './state/hooks'
+import { useHandleDeferredLink } from './utils/hooks/linking'
 import { useIsFeatureUnlocked } from './utils/hooks/security'
 import {
     getLinkingConfig,
@@ -39,6 +40,7 @@ const Router = () => {
     const pin = usePinContext()
     const { parseUrl } = useOmniLinkContext()
     const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
+    useHandleDeferredLink()
 
     useEffect(() => setNavigationRef(navigation), [navigation])
 
