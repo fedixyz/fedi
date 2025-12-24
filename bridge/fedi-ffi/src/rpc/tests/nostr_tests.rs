@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 
+use dvd_client::DvdClient;
 use rpc_types::communities::CommunityInviteV2;
 use runtime::storage::state::CommunityJson;
 
 use super::*;
 
-pub async fn test_nostr_community_workflow(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td = TestDevice::new();
+pub async fn test_nostr_community_workflow(dvd: DvdClient) -> anyhow::Result<()> {
+    let td = TestDevice::new(dvd.clone());
     let bridge = td.bridge_full().await?;
 
     // No communities initially
@@ -104,7 +105,7 @@ pub async fn test_nostr_community_workflow(_dev_fed: DevFed) -> anyhow::Result<(
     Ok(())
 }
 
-pub async fn test_nostr_community_preview_join_leave(_dev_fed: DevFed) -> anyhow::Result<()> {
+pub async fn test_nostr_community_preview_join_leave(dvd: DvdClient) -> anyhow::Result<()> {
     // Creator creates community
     let community_name = "Nostr Test Community".to_string();
     let community_description = "Initial description".to_string();
@@ -112,7 +113,7 @@ pub async fn test_nostr_community_preview_join_leave(_dev_fed: DevFed) -> anyhow
         BTreeMap::from([("description".to_string(), community_description.clone())]);
 
     let invite_code = {
-        let creator = TestDevice::new();
+        let creator = TestDevice::new(dvd.clone());
         let bridge = creator.bridge_full().await?;
 
         let create_payload = CommunityJson {
@@ -130,7 +131,7 @@ pub async fn test_nostr_community_preview_join_leave(_dev_fed: DevFed) -> anyhow
     };
 
     // Joiner previews, then joins, then leaves
-    let joiner = TestDevice::new();
+    let joiner = TestDevice::new(dvd.clone());
     let bridge = joiner.bridge_full().await?;
 
     let preview = communityPreview(bridge, invite_code.to_string()).await?;

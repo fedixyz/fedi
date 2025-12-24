@@ -2673,6 +2673,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
+name = "dvd-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "dvd-server"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "clap",
+ "devi",
+ "devimint",
+ "dvd-client",
+ "fedimint-core",
+ "fedimint-logging",
+ "listenfd",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http 0.5.2",
+ "tracing",
+]
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3092,6 +3122,7 @@ dependencies = [
  "communities",
  "devi",
  "devimint",
+ "dvd-client",
  "either",
  "env",
  "eyeball-im",

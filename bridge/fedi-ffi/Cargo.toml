@@ -102,6 +102,7 @@ mockito = "1.4.0"
 clap = { workspace = true }
 federations = { workspace = true, features = ["test-support"] }
 devi = { workspace = true }
+dvd-client = { workspace = true }
 
 # FIXME: just put these above? or dev-dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

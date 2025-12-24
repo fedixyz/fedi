@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Context;
 use bitcoin::secp256k1;
+use dvd_client::DvdClient;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::retry;
 use multispend::{
@@ -17,9 +18,9 @@ use super::*;
 const MOCK_FEDERATION_INVITE_CODE: &str = "fed11qgqrgvnhwden5te0v9k8q6rp9ekh2arfdeukuet595cr2ttpd3jhq6rzve6zuer9wchxvetyd938gcewvdhk6tcqqysptkuvknc7erjgf4em3zfh90kffqf9srujn6q53d6r056e4apze5cw27h75";
 const MOCK_FEDERATION_ID: &str = "15db8cb4f1ec8e484d73b889372bec94812580f929e8148b7437d359af422cd3";
 
-pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+pub async fn test_multispend_minimal(dvd: DvdClient) -> anyhow::Result<()> {
+    let td1 = TestDevice::new(dvd.clone());
+    let td2 = TestDevice::new(dvd.clone());
     let matrix = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
     let multispend_matrix = td1.multispend().await?;
@@ -72,9 +73,9 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+pub async fn test_multispend_group_acceptance(dvd: DvdClient) -> anyhow::Result<()> {
+    let td1 = TestDevice::new(dvd.clone());
+    let td2 = TestDevice::new(dvd.clone());
     let matrix1 = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
     let multispend_matrix1 = td1.multispend().await?;
@@ -206,9 +207,9 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
     Ok(())
 }
 
-pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+pub async fn test_multispend_group_rejection(dvd: DvdClient) -> anyhow::Result<()> {
+    let td1 = TestDevice::new(dvd.clone());
+    let td2 = TestDevice::new(dvd.clone());
     let matrix1 = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
     let multispend_matrix1 = td1.multispend().await?;

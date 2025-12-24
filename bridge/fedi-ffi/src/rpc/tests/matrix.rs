@@ -2,6 +2,7 @@ use std::pin::pin;
 
 use ::matrix::{RpcMsgLikeKind, SendMessageData};
 use bitcoin::hashes::sha256;
+use dvd_client::DvdClient;
 use eyeball_im::VectorDiff;
 use fedimint_core::BitcoinHash;
 use futures::future::try_join;
@@ -16,8 +17,8 @@ use tracing::warn;
 
 use super::*;
 
-pub async fn test_matrix_login(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td = TestDevice::new();
+pub async fn test_matrix_login(dvd: DvdClient) -> anyhow::Result<()> {
+    let td = TestDevice::new(dvd.clone());
     let bridge = td.bridge_full().await?;
 
     // Wait for matrix to initialize
@@ -57,9 +58,9 @@ fn timeline_as_text(items: &Vector<RpcTimelineItem>) -> Vec<Option<String>> {
     items.iter().map(extract_text_from_item).collect()
 }
 
-pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+pub async fn test_matrix_dms(dvd: DvdClient) -> anyhow::Result<()> {
+    let td1 = TestDevice::new(dvd.clone());
+    let td2 = TestDevice::new(dvd.clone());
     let m1 = td1.matrix().await?;
     let m2 = td2.matrix().await?;
     let user2 = m2.client.user_id().unwrap();
@@ -146,9 +147,9 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let mut td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+pub async fn test_matrix_recovery(dvd: DvdClient) -> anyhow::Result<()> {
+    let mut td1 = TestDevice::new(dvd.clone());
+    let td2 = TestDevice::new(dvd.clone());
     let m1 = td1.matrix().await?;
     let m2 = td2.matrix().await?;
     let user2 = m2.client.user_id().unwrap();
@@ -175,7 +176,7 @@ pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
     let mnemonic = getMnemonic(td1.bridge_full().await?.runtime.clone()).await?;
     td1.shutdown().await?;
 
-    let td1_recovered = TestDevice::new();
+    let td1_recovered = TestDevice::new(dvd.clone());
     let bridge = td1_recovered.bridge_maybe_onboarding().await?;
     restoreMnemonic(bridge.try_get()?, mnemonic).await?;
     onboardTransferExistingDeviceRegistration(bridge.try_get()?, 0).await?;
@@ -225,8 +226,8 @@ pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn test_matrix_create_room(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td = TestDevice::new();
+pub async fn test_matrix_create_room(dvd: DvdClient) -> anyhow::Result<()> {
+    let td = TestDevice::new(dvd.clone());
     let matrix = td.matrix().await?;
     let mut request = ::matrix::create_room::Request::default();
     let room_name = "my name is one".to_string();
@@ -240,7 +241,7 @@ pub async fn test_matrix_create_room(_dev_fed: DevFed) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Result<()> {
+pub async fn test_send_and_download_attachment(dvd: DvdClient) -> anyhow::Result<()> {
     let file_size = std::env::var("MATRIX_TEST_FILE_SIZE_MB")
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
@@ -250,8 +251,8 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
 
     info!("Testing matrix file upload with file size: {}B", file_size);
 
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+    let td1 = TestDevice::new(dvd.clone());
+    let td2 = TestDevice::new(dvd.clone());
     let matrix = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
 

@@ -9,8 +9,6 @@ use api_types::invoice_generator::FirstCommunityInviteCodeState;
 use bitcoin::Network;
 use bridge::onboarding::{BridgeOnboarding, RpcOnboardingStage};
 use bridge::{Bridge, BridgeFull};
-use devimint::cmd;
-use devimint::util::LnCli;
 use federations::federation_v2::FederationV2;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::secret::RootSecretStrategy as _;
@@ -32,7 +30,6 @@ use tokio::sync::{Mutex, OnceCell};
 use crate::rpc::{self, TryGet};
 
 /// A device for running the bridge, restarting the bridge, read from storage.
-#[derive(Default)]
 pub struct TestDevice {
     // once{cell,lock} is for laziness of computing (the default) values
     // when user overrides the values, we just overwrite the entire OnceCell.
@@ -44,6 +41,7 @@ pub struct TestDevice {
     bridge_uncommited: OnceCell<Arc<Bridge>>,
     bridge_full: OnceCell<Arc<BridgeFull>>,
     default_client: OnceCell<Arc<FederationV2>>,
+    dvd: dvd_client::DvdClient,
 }
 
 struct TempDataDir(Arc<TempDir>);
@@ -54,8 +52,22 @@ impl AsRef<Path> for TempDataDir {
 }
 
 impl TestDevice {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(dvd: dvd_client::DvdClient) -> Self {
+        Self {
+            storage: OnceCell::new(),
+            device_identifier: OnceLock::new(),
+            fedi_api: OnceLock::new(),
+            feature_catalog: OnceLock::new(),
+            event_sink: OnceLock::new(),
+            bridge_uncommited: OnceCell::new(),
+            bridge_full: OnceCell::new(),
+            default_client: OnceCell::new(),
+            dvd,
+        }
+    }
+
+    pub fn dvd(&self) -> &dvd_client::DvdClient {
+        &self.dvd
     }
 
     pub async fn with_data_dir(
@@ -171,7 +183,7 @@ impl TestDevice {
                 let federation = bridge
                     .federations
                     .get_federation_maybe_recovering(&fedimint_federation.id.0)?;
-                use_lnd_gateway(&federation).await?;
+                use_lnd_gateway(self.dvd(), &federation).await?;
                 Ok(federation)
             })
             .await
@@ -342,15 +354,33 @@ impl FakeEventSink {
     }
 }
 
-/// Get LND pubkey using lncli, then have `federation` switch to using
+/// Get LND pubkey using dvd client, then have `federation` switch to using
 /// whatever gateway is using that node pubkey
-pub async fn use_lnd_gateway(federation: &FederationV2) -> anyhow::Result<()> {
-    let lnd_node_pubkey: PublicKey = cmd!(LnCli, "getinfo").out_json().await?["identity_pubkey"]
-        .as_str()
-        .map(|s| s.to_owned())
-        .unwrap()
-        .parse()
-        .unwrap();
+pub async fn use_lnd_gateway(
+    dvd: &dvd_client::DvdClient,
+    federation: &FederationV2,
+) -> anyhow::Result<()> {
+    let lnd_node_pubkey: PublicKey = dvd.lnd_pubkey().await?.parse()?;
+    let mut gateways = federation.list_gateways().await?;
+    if gateways.is_empty() {
+        federation.select_gateway().await?;
+        gateways = federation.list_gateways().await?;
+    }
+    for gateway in gateways {
+        if gateway.node_pub_key.0 == lnd_node_pubkey {
+            federation.switch_gateway(&gateway.gateway_id.0).await?;
+            return Ok(());
+        }
+    }
+    bail!("No gateway is using LND's node pubkey")
+}
+
+/// Version for standalone tests that have their own DevFed
+pub async fn use_lnd_gateway_devfed(
+    dev_fed: &devi::DevFed,
+    federation: &FederationV2,
+) -> anyhow::Result<()> {
+    let lnd_node_pubkey: PublicKey = dev_fed.lnd.pub_key().await?.parse()?;
     let mut gateways = federation.list_gateways().await?;
     if gateways.is_empty() {
         federation.select_gateway().await?;

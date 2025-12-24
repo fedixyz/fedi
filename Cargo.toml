@@ -15,6 +15,8 @@ members = [
   "crates/device-registration",
   "crates/env",
   "crates/fedimint/devi",
+  "crates/fedimint/dvd-client",
+  "crates/fedimint/dvd-server",
   "crates/fedimint/fedimint-cli",
   "crates/fedimint/fedimintd",
   "crates/modules/fedi-social/client",
@@ -80,6 +82,8 @@ debug-tools = { path = "crates/debug-tools" }
 device-registration = { path = "crates/device-registration" }
 env = { path = "crates/env" }
 devi = { path = "crates/fedimint/devi" }
+dvd-client = { path = "crates/fedimint/dvd-client" }
+dvd-server = { path = "crates/fedimint/dvd-server" }
 fedi-ffi = { path = "bridge/fedi-ffi" }
 fedi-social-client = { path = "crates/modules/fedi-social/client" }
 fedi-social-common = { path = "crates/modules/fedi-social/common" }

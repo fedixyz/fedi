@@ -1,6 +1,7 @@
 use std::pin::pin;
 
 use anyhow::Context as _;
+use dvd_client::DvdClient;
 use fedimint_core::Amount;
 use futures::StreamExt as _;
 use rpc_types::matrix::RpcRoomId;
@@ -9,14 +10,14 @@ use rpc_types::{FrontendMetadata, RpcAmount, RpcFiatAmount};
 
 use super::*;
 
-pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
+pub async fn test_end_to_end(dvd: DvdClient) -> anyhow::Result<()> {
     if should_skip_test_using_stock_fedimintd() {
         return Ok(());
     }
 
     // Two devices: sender and receiver
-    let td_sender = TestDevice::new();
-    let td_receiver = TestDevice::new();
+    let td_sender = TestDevice::new(dvd.clone());
+    let td_receiver = TestDevice::new(dvd.clone());
     let bridge_sender = td_sender.bridge_full().await?;
     let bridge_receiver = td_receiver.bridge_full().await?;
     let matrix_sender = td_sender.matrix().await?;
@@ -35,7 +36,7 @@ pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
 
     // Fund the sender: receive ecash and deposit to SPv2 seek account
     let initial_balance = Amount::from_sats(500_000);
-    let ecash = cli_generate_ecash(initial_balance).await?;
+    let ecash = dvd.generate_ecash(initial_balance.msats).await?;
     receiveEcash(
         federation_sender.clone(),
         ecash,
@@ -127,14 +128,14 @@ pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
 /// Test where receiver joins the federation AFTER receiving the transfer
 /// request. This tests the AccountIdResponder triggering when the federation is
 /// joined later.
-pub async fn test_receiver_joins_federation_later(_dev_fed: DevFed) -> anyhow::Result<()> {
+pub async fn test_receiver_joins_federation_later(dvd: DvdClient) -> anyhow::Result<()> {
     if should_skip_test_using_stock_fedimintd() {
         return Ok(());
     }
 
     // Two devices: sender and receiver
-    let td_sender = TestDevice::new();
-    let td_receiver = TestDevice::new();
+    let td_sender = TestDevice::new(dvd.clone());
+    let td_receiver = TestDevice::new(dvd.clone());
     let bridge_sender = td_sender.bridge_full().await?;
     let bridge_receiver = td_receiver.bridge_full().await?;
     let matrix_sender = td_sender.matrix().await?;
@@ -152,7 +153,7 @@ pub async fn test_receiver_joins_federation_later(_dev_fed: DevFed) -> anyhow::R
 
     // Fund the sender: receive ecash and deposit to SPv2 seek account
     let initial_balance = Amount::from_sats(500_000);
-    let ecash = cli_generate_ecash(initial_balance).await?;
+    let ecash = dvd.generate_ecash(initial_balance.msats).await?;
     receiveEcash(
         federation_sender.clone(),
         ecash,
