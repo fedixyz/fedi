@@ -6,7 +6,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
 
-import { fedimint } from '../bridge'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { BitcoinOrLightning, BtcLnUri } from '../types'
@@ -20,7 +19,6 @@ const ReceiveLnurl: React.FC<Props> = ({ route }) => {
     const { theme } = useTheme()
 
     const { lnurlReceiveCode, isLoading } = useLnurlReceiveCode(
-        fedimint,
         federationId || '',
     )
 

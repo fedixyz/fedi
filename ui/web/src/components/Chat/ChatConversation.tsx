@@ -4,9 +4,10 @@ import { useTranslation } from 'react-i18next'
 import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
 import SendArrowUpCircleIcon from '@fedi/common/assets/svgs/send-arrow-up-circle.svg'
 import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
+import { GUARDIANITO_BOT_DISPLAY_NAME } from '@fedi/common/constants/matrix'
+import { useMessageInputState } from '@fedi/common/hooks/chat'
 import { useMentionInput } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
-import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
     selectMatrixRoom,
     selectMatrixRoomIsReadOnly,
@@ -15,8 +16,6 @@ import {
     clearChatReplyingToMessage,
     selectMatrixRoomMembers,
     selectMatrixAuth,
-    selectChatDrafts,
-    setChatDraft,
 } from '@fedi/common/redux'
 import {
     ChatType,
@@ -31,7 +30,6 @@ import {
 import { makeLog } from '@fedi/common/utils/log'
 import {
     makeMatrixEventGroups,
-    stripReplyFromBody,
     matrixIdToUsername,
 } from '@fedi/common/utils/matrix'
 
@@ -40,6 +38,7 @@ import {
     useAppSelector,
     useAutosizeTextArea,
     useDeviceQuery,
+    useMessageAttachments,
 } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Avatar } from '../Avatar'
@@ -51,6 +50,8 @@ import { ChatAttachmentThumbnail } from './ChatAttachmentThumbnail'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatEventCollection } from './ChatEventCollection'
 import ChatMentionSuggestions from './ChatMentionSuggestions'
+import GuardianitoHelp from './GuardianitoHelp'
+import MessageInputReplyBar from './MessageInputReplyBar'
 
 const log = makeLog('ChatConversation')
 const HIGHLIGHT_DURATION = 3000
@@ -94,14 +95,15 @@ export const ChatConversation: React.FC<Props> = ({
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
     const roomMembers = useAppSelector(s => selectMatrixRoomMembers(s, id))
     const auth = useAppSelector(s => selectMatrixAuth(s))
-    const drafts = useAppSelector(s => selectChatDrafts(s))
     const selfUserId = auth?.userId || undefined
+    const isGuardianitoRoom = room?.name === GUARDIANITO_BOT_DISPLAY_NAME
 
-    const [value, setValue] = useState(drafts?.[id] ?? '')
+    const { messageText, setMessageText, resetMessageText } =
+        useMessageInputState(id)
+    const attachments = useMessageAttachments()
     const [isSending, setIsSending] = useState(false)
     const [hasPaginated, setHasPaginated] = useState(false)
     const [isPaginating, setIsPaginating] = useState(false)
-    const [files, setFiles] = useState<File[]>([])
     const [cursor, setCursor] = useState(0)
     const [height, setHeight] = useState<number>()
 
@@ -113,11 +115,10 @@ export const ChatConversation: React.FC<Props> = ({
     >(null)
 
     const inputRef = useRef<HTMLTextAreaElement>(null)
-    const fileRef = useRef<HTMLInputElement>(null)
     const messagesRef = useRef<HTMLDivElement>(null)
     const chatWrapperRef = useRef<HTMLDivElement>(null)
 
-    useAutosizeTextArea(inputRef.current, value)
+    useAutosizeTextArea(inputRef.current, messageText)
     const { isIOS } = useDeviceQuery()
 
     const mentionEnabled = type === ChatType.group && (!!room || !!isPublic)
@@ -147,12 +148,8 @@ export const ChatConversation: React.FC<Props> = ({
         id,
     ])
 
-    const {
-        mentionSuggestions,
-        shouldShowSuggestions,
-        detectMentionTrigger,
-        insertMention: insertMentionFromHook,
-    } = useMentionInput(membersForMentions, cursor)
+    const { mentionSuggestions, shouldShowSuggestions, insertMention } =
+        useMentionInput(membersForMentions, messageText, cursor)
 
     const showMentionSuggestions =
         mentionEnabled && !isReadOnly && shouldShowSuggestions
@@ -189,15 +186,6 @@ export const ChatConversation: React.FC<Props> = ({
             .catch(() => null)
             .finally(() => setIsPaginating(false))
     }, [onPaginate])
-
-    useDebouncedEffect(
-        () => {
-            // TODO: make sure to not set draft when editing a message (when editing is implemented in `web`
-            dispatch(setChatDraft({ roomId: id, text: value }))
-        },
-        [value, dispatch, id],
-        500,
-    )
 
     const scrollToMessage = useCallback((eventId: string) => {
         try {
@@ -244,13 +232,17 @@ export const ChatConversation: React.FC<Props> = ({
                 ev.preventDefault()
             }
 
-            if (!value.trim() && !files.length) return
+            if (!messageText.trim() && !attachments.hasAttachments) return
 
             try {
                 setIsSending(true)
-                await onSendMessage(value, files, repliedEvent?.id ?? null)
-                setValue('')
-                setFiles([])
+                await onSendMessage(
+                    messageText,
+                    attachments.files,
+                    repliedEvent?.id ?? null,
+                )
+                resetMessageText()
+                attachments.clearAll()
                 if (repliedEvent) {
                     dispatch(clearChatReplyingToMessage())
                 }
@@ -260,26 +252,17 @@ export const ChatConversation: React.FC<Props> = ({
                 setIsSending(false)
             }
         },
-        [onSendMessage, value, files, repliedEvent, dispatch, toast, t],
+        [
+            onSendMessage,
+            messageText,
+            attachments,
+            repliedEvent,
+            dispatch,
+            toast,
+            t,
+            resetMessageText,
+        ],
     )
-
-    const handleOnMediaClick = () => {
-        if (!fileRef.current) return
-        fileRef.current?.click()
-    }
-
-    const handleOnUploadMedia = async (
-        event: React.ChangeEvent<HTMLInputElement>,
-    ) => {
-        if (!event.target.files || !event.target.files.length) return
-        const filesArr = Array.from(event.target.files)
-        setFiles(prev => [...prev, ...filesArr])
-    }
-
-    const handleOnRemoveThumbnail = (idx: number) => {
-        const newFiles = [...files.slice(0, idx), ...files.slice(idx + 1)]
-        setFiles(newFiles)
-    }
 
     const handleInputKeyDown = useCallback(
         (ev: React.KeyboardEvent) => {
@@ -291,28 +274,9 @@ export const ChatConversation: React.FC<Props> = ({
         [handleSend],
     )
 
-    const handleInputChange = (ev: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const v = ev.currentTarget.value
-        setValue(v)
-        const c = ev.currentTarget.selectionStart ?? v.length
-        setCursor(c)
-        if (mentionEnabled) detectMentionTrigger(v, c)
-    }
-
-    const handleInputSelect: React.ReactEventHandler<
-        HTMLTextAreaElement
-    > = ev => {
-        const c = ev.currentTarget.selectionStart ?? value.length
-        setCursor(c)
-        if (mentionEnabled) detectMentionTrigger(value, c)
-    }
-
-    const insertMention = (item: MentionSelect) => {
-        const { newText, newCursorPosition } = insertMentionFromHook(
-            item,
-            value,
-        )
-        setValue(newText)
+    const handleSelectMention = (item: MentionSelect) => {
+        const { newText, newCursorPosition } = insertMention(item, messageText)
+        setMessageText(newText)
         setCursor(newCursorPosition)
         requestAnimationFrame(() => {
             if (inputRef.current) {
@@ -322,40 +286,6 @@ export const ChatConversation: React.FC<Props> = ({
             }
         })
     }
-
-    const replySender = useMemo(() => {
-        if (!repliedEvent?.sender) return undefined
-
-        const roomMember = roomMembers?.find(
-            member => member.id === repliedEvent.sender,
-        )
-        if (roomMember) return roomMember
-
-        return {
-            id: repliedEvent.sender,
-            displayName:
-                repliedEvent.sender?.split(':')[0]?.replace('@', '') ||
-                'Unknown',
-        }
-    }, [repliedEvent, roomMembers])
-
-    const replyPreview = useMemo(() => {
-        if (!repliedEvent) return null
-
-        const body =
-            ('body' in repliedEvent.content && repliedEvent.content.body) ||
-            'Message'
-        const formattedBody =
-            'formatted_body' in repliedEvent.content
-                ? repliedEvent.content.formatted_body
-                : undefined
-        const cleanBody = stripReplyFromBody(
-            body,
-            formattedBody as string | null,
-        )
-
-        return cleanBody.slice(0, 50) || 'Message'
-    }, [repliedEvent])
 
     let avatar: React.ReactNode
     if (room) {
@@ -406,30 +336,21 @@ export const ChatConversation: React.FC<Props> = ({
                 </MessagesWrapper>
             </ContentWrapper>
             {repliedEvent && (
-                <ReplyBar>
-                    <ReplyIndicator />
-                    <ReplyContent>
-                        <ReplySender>
-                            Replying to {replySender?.displayName || 'Unknown'}
-                        </ReplySender>
-                        <ReplyBody>{replyPreview}</ReplyBody>
-                    </ReplyContent>
-                    <ReplyCloseButton
-                        type="button"
-                        onClick={() => dispatch(clearChatReplyingToMessage())}>
-                        ×
-                    </ReplyCloseButton>
-                </ReplyBar>
+                <MessageInputReplyBar
+                    repliedEvent={repliedEvent}
+                    roomMembers={roomMembers || []}
+                />
             )}
+            {isGuardianitoRoom && <GuardianitoHelp />}
 
             <ActionsWrapper>
-                {files.length > 0 && (
+                {attachments.hasAttachments && (
                     <ThumbnailsRow>
-                        {files.map((file, idx: number) => (
+                        {attachments.files.map((file, idx: number) => (
                             <ChatAttachmentThumbnail
                                 key={`${file.name}-${idx}`}
                                 file={file}
-                                onRemove={() => handleOnRemoveThumbnail(idx)}
+                                onRemove={() => attachments.removeFile(idx)}
                             />
                         ))}
                     </ThumbnailsRow>
@@ -438,11 +359,11 @@ export const ChatConversation: React.FC<Props> = ({
                 <InputRow>
                     <Input
                         ref={inputRef}
-                        value={value}
-                        onSelect={handleInputSelect}
-                        onChange={handleInputChange}
-                        onKeyUp={handleInputSelect}
-                        onClick={handleInputSelect}
+                        value={messageText}
+                        onSelect={ev =>
+                            setCursor(ev.currentTarget.selectionStart)
+                        }
+                        onChange={ev => setMessageText(ev.currentTarget.value)}
                         placeholder={t(
                             isReadOnly
                                 ? 'feature.chat.broadcast-only-notice'
@@ -456,10 +377,10 @@ export const ChatConversation: React.FC<Props> = ({
                         <input
                             data-testid="file-upload"
                             type="file"
-                            ref={fileRef}
+                            ref={attachments.fileInputRef}
                             hidden
                             accept="image/*, video/*, .csv, .doc, .docx, .pdf, .ppt, .pptx, .xls, .xlsx, .txt, .zip"
-                            onChange={handleOnUploadMedia}
+                            onChange={attachments.handleFileInputChange}
                             multiple
                         />
                     )}
@@ -470,7 +391,7 @@ export const ChatConversation: React.FC<Props> = ({
                         <ChatMentionSuggestions
                             visible={showMentionSuggestions}
                             suggestions={mentionSuggestions}
-                            onSelect={insertMention}
+                            onSelect={handleSelectMention}
                         />
                     </MentionOverlay>
                 )}
@@ -491,14 +412,15 @@ export const ChatConversation: React.FC<Props> = ({
                                     aria-label="plus-icon"
                                     icon={PlusIcon}
                                     size={26}
-                                    onClick={handleOnMediaClick}
+                                    onClick={attachments.triggerFilePicker}
                                 />
                             )}
                         </InputActions>
                         <SendButton
                             aria-label="send-button"
                             disabled={
-                                (value.trim().length === 0 && !files.length) ||
+                                (messageText.trim().length === 0 &&
+                                    !attachments.hasAttachments) ||
                                 isSending
                             }
                             onClick={handleSend}
@@ -639,60 +561,6 @@ const PaginationPlaceholder = styled('div', {
     height: 60,
     flexShrink: 0,
     color: theme.colors.grey,
-})
-
-const ReplyBar = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    padding: '12px 16px',
-    backgroundColor: theme.colors.offWhite100,
-    borderTop: `1px solid ${theme.colors.lightGrey}`,
-})
-
-const ReplyIndicator = styled('div', {
-    width: 4,
-    height: 35,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 2,
-    flexShrink: 0,
-})
-
-const ReplyContent = styled('div', {
-    flex: 1,
-    minWidth: 0,
-})
-
-const ReplySender = styled('div', {
-    fontSize: 14,
-    fontWeight: 700,
-    color: theme.colors.darkGrey,
-    marginBottom: 2,
-})
-
-const ReplyBody = styled('div', {
-    fontSize: 13,
-    color: theme.colors.grey,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-})
-
-const ReplyCloseButton = styled('button', {
-    width: 24,
-    height: 24,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 18,
-    color: theme.colors.grey,
-    backgroundColor: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    borderRadius: 4,
-    '&:hover': {
-        backgroundColor: theme.colors.primary10,
-    },
 })
 
 const MentionOverlay = styled('div', {

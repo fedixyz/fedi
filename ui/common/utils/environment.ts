@@ -30,3 +30,5 @@ export const isNightly = () => {
         return false
     }
 }
+
+export const isDevOrNightly: boolean = isDev() || isNightly()

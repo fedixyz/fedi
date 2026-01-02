@@ -9,7 +9,6 @@ import { useDepositForm } from '@fedi/common/hooks/amount'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { hexToRgba } from '@fedi/common/utils/color'
 
-import { fedimint } from '../bridge'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { Sats } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -34,7 +33,7 @@ const StabilityDeposit: React.FC<Props> = ({ route }: Props) => {
     } = useDepositForm(federationId)
     const [submitAttempts, setSubmitAttempts] = useState(0)
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)

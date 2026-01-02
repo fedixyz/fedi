@@ -343,7 +343,7 @@ const styles = (theme: Theme, fontScale: number, iconSize: number) => {
             width: iconSize,
             height: iconSize,
             overflow: 'hidden',
-            borderRadius: theme.borders.fediModTileRadius,
+            borderRadius: theme.borders.tileRadius,
             marginBottom: theme.spacing.lg,
         },
         centeredEmpty: {

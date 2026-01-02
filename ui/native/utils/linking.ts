@@ -3,6 +3,7 @@ import { CommonActions, NavigationContainerRef } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { Linking } from 'react-native'
 
+import { openMiniAppSession } from '@fedi/common/redux'
 import {
     NavigationParams,
     type NavigationAction,
@@ -19,6 +20,7 @@ import {
 } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { store } from '../state/store'
 import { FediMod, Shortcut } from '../types'
 import {
     NavigationLinkingConfig,
@@ -383,6 +385,20 @@ const handleInternalDeepLinkDirect = (u: string): boolean => {
         return false
     }
 
+    // For browser deep links, set up Redux state before navigation
+    // Extract URL from nested params: action.params.params.url
+    const nestedParams = action.params?.params as { url?: string } | undefined
+
+    if (action.params?.screen === 'FediModBrowser' && nestedParams?.url) {
+        const browserUrl = nestedParams.url
+        store.dispatch(
+            openMiniAppSession({
+                miniAppId: browserUrl,
+                url: browserUrl,
+            }),
+        )
+    }
+
     // Execute navigation
     const dispatchStart = Date.now()
     const success = executeNavigationAction(action)
@@ -434,6 +450,8 @@ export const handleInternalDeepLink = (u: string): boolean => {
 
 /**
  * Fedi Mod navigation
+ * Note: openMiniAppSession must be dispatched BEFORE calling this function
+ * to set up the Redux state for the browser
  */
 export const handleFediModNavigation = async (
     shortcut: Shortcut,
@@ -452,12 +470,14 @@ export const handleFediModNavigation = async (
             await Linking.openURL(url)
         } catch (error) {
             log.error('Failed to open external URL:', url, error)
-            navigation.navigate('FediModBrowser', { url })
+            store.dispatch(openMiniAppSession({ miniAppId: url, url }))
+            navigation.navigate('FediModBrowser')
         }
     } else if (isFediDeeplinkType(url)) {
         await openURL(url)
     } else {
-        navigation.navigate('FediModBrowser', { url })
+        store.dispatch(openMiniAppSession({ miniAppId: url, url }))
+        navigation.navigate('FediModBrowser')
     }
 }
 

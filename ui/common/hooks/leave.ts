@@ -15,23 +15,22 @@ import {
 } from '@fedi/common/redux/wallet'
 import { Community, Federation, LoadedFederation } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { FedimintBridge } from '@fedi/common/utils/fedimint'
 
 import { makeLog } from '../utils/log'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
 const log = makeLog('common/hooks/leave')
 
 export const useLeaveFederation = ({
     t,
-    fedimint,
     federationId,
 }: {
     t: TFunction
-    fedimint: FedimintBridge
     federationId: Federation['id']
 }) => {
     const toast = useToast()
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const stableBalance = useCommonSelector(s =>
         selectStableBalance(s, federationId),
@@ -125,16 +124,10 @@ export const useLeaveFederation = ({
     return { validateCanLeaveFederation, handleLeaveFederation }
 }
 
-export const useLeaveCommunity = ({
-    fedimint,
-    communityId,
-}: {
-    t: TFunction
-    fedimint: FedimintBridge
-    communityId: Community['id']
-}) => {
+export const useLeaveCommunity = (communityId: Community['id']) => {
     const [isLeaving, setIsLeaving] = useState(false)
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const canLeaveCommunity = useCommonSelector(state =>
         selectCanLeaveCommunity(state, communityId),
     )

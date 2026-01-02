@@ -30,6 +30,7 @@ use fedimint_core::module::{
 };
 use fedimint_core::{InPoint, NumPeersExt, OutPoint, PeerId, push_db_pair_items};
 use fedimint_server::core::config::PeerHandleOps;
+use fedimint_server::core::net::check_auth;
 use fedimint_server::core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
 use fedimint_threshold_crypto::serde_impl::SerdeSecret;
 use fedimint_threshold_crypto::{PublicKeySet, SecretKey, SecretKeyShare};
@@ -37,7 +38,6 @@ use futures::stream::StreamExt;
 use rand::rngs::OsRng;
 use secp256k1::SECP256K1;
 use strum::IntoEnumIterator;
-use subtle::ConstantTimeEq;
 use tracing::{debug, info};
 
 use crate::common::{
@@ -293,18 +293,20 @@ impl ServerModule for FediSocial {
                 "get_verification",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: RecoveryId| -> Option<VerificationDocument> {
-                        module
-                            .handle_get_verification(&mut context.dbtx().to_ref_nc(), request).await
+                    // check_auth(context)?; // TODO: check auth
+                    module
+                        .handle_get_verification(&mut context.dbtx().to_ref_nc(), request).await
                 }
             },
             // guardian's call to approve the recovery and produce decryption share
             api_endpoint! {
                 "approve_recovery",
                 ApiVersion::new(0, 0),
-                async |module: &FediSocial, context, req: (RecoveryId, String)| -> () {
-                        module
-                            .handle_approve_recovery(&mut context.dbtx().to_ref_nc(), req.0, req.1).await?;
-                        Ok(())
+                async |module: &FediSocial, context, req: RecoveryId| -> () {
+                    check_auth(context)?;
+                    module
+                        .handle_approve_recovery(&mut context.dbtx().to_ref_nc(), req).await?;
+                    Ok(())
                 }
             },
             api_endpoint! {
@@ -443,11 +445,8 @@ impl FediSocial {
         &self,
         dbtx: &mut DatabaseTransaction<'_>,
         request: RecoveryId,
-        req_admin_pass: String,
     ) -> Result<VerificationDocument, ApiError> {
         debug!(id = %request.0, "Received social recovery approval");
-
-        verify_req_admin_pass(&req_admin_pass)?;
 
         let Some(recovery) = dbtx.get_value(&RecoveryId(request.0)).await else {
             return Err(ApiError::bad_request(
@@ -491,27 +490,4 @@ impl FediSocial {
 
         Ok(dbtx.get_value(&DecryptionShareId(request.0)).await)
     }
-}
-
-fn verify_req_admin_pass(req_admin_pass: &str) -> Result<(), ApiError> {
-    let env_admin_password = if let Ok(pass) = std::env::var("FM_ADMIN_PASSWORD") {
-        pass
-    } else {
-        return Err(ApiError::bad_request(
-            "admin interface configuration error".into(),
-        ));
-    };
-    if env_admin_password.is_empty() {
-        return Err(ApiError::bad_request("admin interface not enabled".into()));
-    }
-
-    if req_admin_pass
-        .as_bytes()
-        .ct_ne(env_admin_password.as_bytes())
-        .into()
-    {
-        return Err(ApiError::bad_request("unauthorized".into()));
-    }
-
-    Ok(())
 }

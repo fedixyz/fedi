@@ -9,9 +9,9 @@ import {
 import { ParsedLnurlWithdraw, Sats, TransactionListEntry } from '../types'
 import amountUtils from '../utils/AmountUtils'
 import { TaggedError } from '../utils/errors'
-import { FedimintBridge } from '../utils/fedimint'
 import { lnurlWithdraw } from '../utils/lnurl'
 import { makeLog } from '../utils/log'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useTransactionHistory } from './transactions'
 
@@ -25,16 +25,16 @@ type LnReceiveTxn = Extract<TransactionListEntry, { kind: 'lnReceive' }>
  * Exposes the necessary state variables/options to handle error/loading states.
  */
 export const useMakeLightningRequest = ({
-    fedimint,
     federationId,
     onInvoicePaid,
 }: {
-    fedimint: FedimintBridge
     federationId: string | undefined
     onInvoicePaid?: (transaction: LnReceiveTxn) => void
 }) => {
     const [invoice, setInvoice] = useState<string | null>(null)
     const [isInvoiceLoading, setIsInvoiceLoading] = useState<boolean>(false)
+
+    const fedimint = useFedimint()
 
     const reset = useCallback(() => {
         setInvoice(null)
@@ -106,18 +106,16 @@ type OnchainDepositTxn = Extract<
  */
 export const useMakeOnchainAddress = ({
     federationId,
-    fedimint,
     onMempoolTransaction,
 }: {
-    fedimint: FedimintBridge
     federationId: string | undefined
     onMempoolTransaction?: (txn: OnchainDepositTxn) => void
 }) => {
     const [address, setAddress] = useState<string | null>(null)
     const [isAddressLoading, setIsAddressLoading] = useState<boolean>(false)
+    const fedimint = useFedimint()
 
     const { transactions, fetchTransactions } = useTransactionHistory(
-        fedimint,
         federationId || '',
     )
 
@@ -210,18 +208,17 @@ export const useMakeOnchainAddress = ({
  * Exposes the necessary state variables and options for handling error and loading states.
  */
 export function useLnurlWithdraw({
-    fedimint,
     federationId,
     lnurlw,
     onWithdrawPaid,
 }: {
-    fedimint: FedimintBridge
     federationId: string | undefined
     lnurlw: ParsedLnurlWithdraw | undefined
     onWithdrawPaid?: (txn: LnReceiveTxn) => void
 }) {
     const [isWithdrawing, setIsWithdrawing] = useState(false)
 
+    const fedimint = useFedimint()
     const reset = () => {
         setIsWithdrawing(false)
     }
@@ -302,10 +299,7 @@ export function useLnurlWithdraw({
     }
 }
 
-export function useLnurlReceiveCode(
-    fedimint: FedimintBridge,
-    federationId: string,
-) {
+export function useLnurlReceiveCode(federationId: string) {
     const supportsLnurl = useCommonSelector(s =>
         selectSupportsRecurringdLnurl(s, federationId),
     )
@@ -313,6 +307,7 @@ export function useLnurlReceiveCode(
         selectLnurlReceiveCode(s, federationId),
     )
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const [isFetching, setIsFetching] = useState(false)
 
     useEffect(() => {

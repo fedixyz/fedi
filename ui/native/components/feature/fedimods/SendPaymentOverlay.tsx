@@ -70,7 +70,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
         feeDetails,
         handleOmniInput,
         isLoading: isOmniPaymentLoading,
-    } = useOmniPaymentState(fedimint, paymentFederation?.id, t)
+    } = useOmniPaymentState(paymentFederation?.id, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails

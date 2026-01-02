@@ -10,7 +10,6 @@ import { theme } from '@fedi/common/constants/theme'
 import { useFederationRating } from '@fedi/common/hooks/federation'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
-import { fedimint } from '../../lib/bridge'
 import { Button } from '../Button'
 import { Dialog } from '../Dialog'
 import { FederationAvatar } from '../FederationAvatar'
@@ -31,7 +30,7 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
         federationToRate,
         handleSubmitRating,
         handleDismissRating,
-    } = useFederationRating(fedimint)
+    } = useFederationRating()
 
     const bgImageHeight = scaleAttachment(
         RateFederationBg.width,

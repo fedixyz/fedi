@@ -7,6 +7,7 @@ import {
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 import { InjectionMessageType } from '@fedi/injections/src/types'
 import * as browserHooks from '@fedi/web/src/hooks/browser'
 
@@ -63,7 +64,11 @@ describe('/components/FediBrowser', () => {
     })
 
     describe('when the user clicks the close button', () => {
-        it('should call the onClose function', () => {
+        it('should call onAppForeground and then onClose', () => {
+            const mockFedimint = createMockFedimintBridge()
+            const onAppForegroundSpy = jest.fn()
+            mockFedimint.onAppForeground = onAppForegroundSpy
+
             jest.spyOn(browserHooks, 'useIFrameListener').mockReturnValue({
                 sendSuccess: jest.fn(),
                 sendError: jest.fn(),
@@ -77,12 +82,14 @@ describe('/components/FediBrowser', () => {
                 <FediBrowser url="https://test.com" onClose={onCloseSpy} />,
                 {
                     store,
+                    fedimint: mockFedimint,
                 },
             )
 
             const closeButton = screen.getByLabelText('close button')
             closeButton.click()
 
+            expect(onAppForegroundSpy).toHaveBeenCalled()
             expect(onCloseSpy).toHaveBeenCalled()
         })
     })

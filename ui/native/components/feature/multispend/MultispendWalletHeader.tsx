@@ -11,7 +11,6 @@ import {
     useMultispendVoting,
 } from '@fedi/common/hooks/multispend'
 
-import { fedimint } from '../../../bridge'
 import { reset } from '../../../state/navigation'
 import CustomOverlay from '../../ui/CustomOverlay'
 import Flex from '../../ui/Flex'
@@ -41,7 +40,6 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
         rejectConfirmationContents,
     } = useMultispendVoting({
         t,
-        fedimint,
         roomId,
         onMultispendAborted: () => {
             navigation.dispatch(reset('ChatRoomConversation', { roomId }))

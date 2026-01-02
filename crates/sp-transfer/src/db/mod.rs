@@ -1,12 +1,15 @@
-use std::sync::Arc;
-
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::impl_db_record;
 use rpc_types::matrix::{RpcRoomId, RpcUserId};
-use rpc_types::sp_transfer::{RpcSpTransferState, RpcSpTransferStatus};
 use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount, RpcTransactionId};
-use runtime::bridge_runtime::Runtime;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SpTransferStatus {
+    Pending,
+    SentHint { transaction_id: RpcTransactionId },
+    Failed,
+}
 
 pub mod receiver;
 pub mod sender;
@@ -75,32 +78,10 @@ impl_db_record!(
     db_prefix = SpTransfersDbPrefix::TransferFailed,
 );
 
-pub async fn resolve_transfer_state(
-    runtime: Arc<Runtime>,
-    pending_transfer_id: &RpcEventId,
-) -> Option<RpcSpTransferState> {
-    let spt_db = runtime.sp_transfers_db();
-    let mut dbtx = spt_db.begin_transaction_nc().await;
-
-    let transfer = dbtx
-        .get_value(&TransferEventKey {
-            pending_transfer_id: pending_transfer_id.clone(),
-        })
-        .await?;
-
-    Some(RpcSpTransferState {
-        status: resolve_status_db(&mut dbtx, pending_transfer_id, &transfer).await,
-        federation_id: transfer.federation_id,
-        amount: transfer.amount,
-        invite_code: transfer.federation_invite,
-    })
-}
-
 pub(crate) async fn resolve_status_db(
     dbtx: &mut DatabaseTransaction<'_>,
     pending_transfer_id: &RpcEventId,
-    _transfer: &TransferEventValue,
-) -> RpcSpTransferStatus {
+) -> SpTransferStatus {
     if dbtx
         .get_value(&TransferFailedKey {
             pending_transfer_id: pending_transfer_id.clone(),
@@ -108,18 +89,15 @@ pub(crate) async fn resolve_status_db(
         .await
         .is_some()
     {
-        RpcSpTransferStatus::Failed
-    } else if dbtx
+        SpTransferStatus::Failed
+    } else if let Some(transaction_id) = dbtx
         .get_value(&TransferSentHintKey {
             pending_transfer_id: pending_transfer_id.clone(),
         })
         .await
-        .is_some()
     {
-        // TODO: Calculate Complete status correctly by checking if the transfer
-        // has actually been received/confirmed, not just sent
-        RpcSpTransferStatus::SentHint
+        SpTransferStatus::SentHint { transaction_id }
     } else {
-        RpcSpTransferStatus::Pending
+        SpTransferStatus::Pending
     }
 }

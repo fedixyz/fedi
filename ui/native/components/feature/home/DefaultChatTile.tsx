@@ -1,6 +1,6 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
 
@@ -8,6 +8,7 @@ import { DEFAULT_GROUP_NAME } from '../../../constants'
 import { MatrixRoom } from '../../../types'
 import { BubbleView } from '../../ui/BubbleView'
 import Flex from '../../ui/Flex'
+import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 
 type DefaultChatTileProps = {
@@ -41,7 +42,7 @@ const DefaultChatTile = ({
     return (
         <View style={style.card}>
             <Pressable
-                style={style.content}
+                containerStyle={style.content}
                 onLongPress={() => onLongPress(room)}
                 delayLongPress={300}
                 onPress={() => onSelect(room)}>
@@ -79,8 +80,6 @@ const styles = (theme: Theme) =>
             position: 'relative',
         },
         card: {
-            paddingVertical: theme.spacing.lg,
-            paddingHorizontal: theme.spacing.lg,
             borderColor: theme.colors.extraLightGrey,
             borderWidth: 1,
             justifyContent: 'center',
@@ -89,6 +88,8 @@ const styles = (theme: Theme) =>
         content: {
             display: 'flex',
             gap: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.lg,
+            paddingVertical: theme.spacing.lg,
             flexDirection: 'row',
             alignItems: 'center',
             alignSelf: 'center',

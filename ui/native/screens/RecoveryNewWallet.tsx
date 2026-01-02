@@ -6,7 +6,6 @@ import { StyleSheet } from 'react-native'
 
 import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -21,7 +20,7 @@ export type Props = NativeStackScreenProps<
 const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const { handleNewWallet } = useDeviceRegistration(t, fedimint)
+    const { handleNewWallet } = useDeviceRegistration(t)
 
     const style = styles(theme)
 

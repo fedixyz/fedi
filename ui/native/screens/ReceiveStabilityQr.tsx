@@ -3,7 +3,6 @@ import React from 'react'
 
 import { useSpv2OurPaymentAddress } from '@fedi/common/hooks/stabilitypool'
 
-import { fedimint } from '../bridge'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import StabilityWalletTitle from '../components/feature/stabilitypool/StabilityWalletTitle'
 import { Column } from '../components/ui/Flex'
@@ -18,7 +17,7 @@ export type Props = NativeStackScreenProps<
 const ReceiveStabilityQr: React.FC<Props> = ({ route }) => {
     const { federationId = '' } = route.params
 
-    const ourPaymentAddress = useSpv2OurPaymentAddress(fedimint, federationId)
+    const ourPaymentAddress = useSpv2OurPaymentAddress(federationId)
 
     return (
         <SafeScrollArea edges="notop">

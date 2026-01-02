@@ -54,6 +54,7 @@ const initialState = {
     appFlavor: undefined as RpcAppFlavor['type'] | undefined,
     sessionCount: 0,
     redirectTo: null as string | null,
+    eventListenersReady: false,
 }
 
 export type EnvironmentState = typeof initialState
@@ -145,6 +146,9 @@ export const environmentSlice = createSlice({
         ) {
             state.transactionDisplayType = action.payload
         },
+        setEventListenersReady(state, action: PayloadAction<boolean>) {
+            state.eventListenersReady = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(changeLanguage.fulfilled, (state, action) => {
@@ -206,6 +210,7 @@ export const {
     setOnboardingMethod,
     setAppFlavor,
     setRedirectTo,
+    setEventListenersReady,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -433,3 +438,6 @@ export const selectOnboardingMethod = (s: CommonState) =>
 export const selectAppFlavor = (s: CommonState) => s.environment.appFlavor
 
 export const selectRedirectTo = (s: CommonState) => s.environment.redirectTo
+
+export const selectEventListenersReady = (s: CommonState) =>
+    s.environment.eventListenersReady

@@ -13,9 +13,10 @@ import {
     StabilityPoolDepositEvent,
     StabilityPoolWithdrawalEvent,
 } from '../types/bindings'
-import { FedimintBridge, UnsubscribeFn } from '../utils/fedimint'
+import { UnsubscribeFn } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { useIsStabilityPoolSupported } from './federation'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
 const log = makeLog('common/hooks/stabilitypool')
@@ -29,11 +30,9 @@ const log = makeLog('common/hooks/stabilitypool')
  * - if a successful withdrawal event is received
  * - if a rejected withdrawal event is received
  */
-export async function useMonitorStabilityPool(
-    fedimint: FedimintBridge,
-    federationId: Federation['id'],
-) {
+export async function useMonitorStabilityPool(federationId: Federation['id']) {
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const isStabilityPoolSupported = useIsStabilityPoolSupported(
         federationId || '',
     )
@@ -188,10 +187,8 @@ export async function useMonitorStabilityPool(
     ])
 }
 
-export const useSpv2OurPaymentAddress = (
-    fedimint: FedimintBridge,
-    federationId: Federation['id'],
-) => {
+export const useSpv2OurPaymentAddress = (federationId: Federation['id']) => {
+    const fedimint = useFedimint()
     const shouldShowStablePaymentAddress = useCommonSelector(s =>
         selectShouldShowStablePaymentAddress(s, federationId),
     )

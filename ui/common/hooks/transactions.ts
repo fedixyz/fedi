@@ -56,7 +56,6 @@ import {
     makeTransactionHistoryCSV,
     makeMultispendTransactionHistoryCSV,
 } from '../utils/csv'
-import { FedimintBridge } from '../utils/fedimint'
 import {
     coerceMultispendTxn,
     isWithdrawalRequestRejected,
@@ -65,11 +64,9 @@ import { useAmountFormatter, useBtcFiatPrice } from './amount'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
-export function useTransactionHistory(
-    fedimint: FedimintBridge,
-    federationId: Federation['id'],
-) {
+export function useTransactionHistory(federationId: Federation['id']) {
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const transactions = useCommonSelector(s =>
         selectTransactions(s, federationId),
     )
@@ -407,11 +404,10 @@ export type ExportResult =
       }
 
 export function useExportTransactions(
-    fedimint: FedimintBridge,
     t: TFunction,
     federationId: Federation['id'],
 ) {
-    const { fetchTransactions } = useTransactionHistory(fedimint, federationId)
+    const { fetchTransactions } = useTransactionHistory(federationId)
     const { makeFormattedAmountsFromMSats } = useAmountFormatter({
         federationId,
     })

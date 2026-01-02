@@ -1,3 +1,4 @@
+import { ParseKeys } from 'i18next'
 import { RequestInvoiceArgs } from 'webln'
 
 import { InjectionMessageType } from '@fedi/injections/src'
@@ -48,37 +49,90 @@ export type FediModCacheMode =
     | 'LOAD_NO_CACHE'
 
 export const miniAppPermissionTypes = [
-    'manageInstalledMiniApps',
     'manageCommunities',
+    'manageInstalledMiniApps',
     'navigation',
 ] as const
 export type MiniAppPermissionType = (typeof miniAppPermissionTypes)[number]
-export type MiniAppPermissionsById = Partial<
-    Record<string, MiniAppPermissionType[]>
->
 
-const NIGHTLY_PERMISSIONS: MiniAppPermissionsById = {
-    'https://fedi-catalog-staging.vercel.app': ['manageInstalledMiniApps'],
-    'https://community-tool-two.vercel.app': [
-        'manageCommunities',
-        'navigation',
-    ],
+// using a map allows us to distinguish between true (always allow), false (always deny), and undefined (ask every time)
+export type RememberedPermissionsMap = Partial<
+    Record<MiniAppPermissionType, boolean | undefined>
+>
+export type MiniAppPermissionsByUrlOrigin = {
+    [urlOrigin: string]: RememberedPermissionsMap
+}
+
+export const MiniAppPermissionInfoLookup: Record<
+    MiniAppPermissionType,
+    {
+        displayNameTranslationKey: ParseKeys
+        descriptionTranslationKey: ParseKeys
+        iconName: string
+    }
+> = {
+    manageCommunities: {
+        descriptionTranslationKey:
+            'feature.permissions.manage-communities-description',
+        displayNameTranslationKey:
+            'feature.permissions.manage-communities-display-name',
+        iconName: 'Community',
+    },
+    manageInstalledMiniApps: {
+        descriptionTranslationKey:
+            'feature.permissions.manage-installed-mini-apps-description',
+        displayNameTranslationKey:
+            'feature.permissions.manage-installed-mini-apps-display-name',
+        iconName: 'Download',
+    },
+    navigation: {
+        descriptionTranslationKey: 'feature.permissions.navigation-description',
+        displayNameTranslationKey:
+            'feature.permissions.navigation-display-name',
+        iconName: 'Globe',
+    },
+}
+
+const NIGHTLY_PERMISSIONS: MiniAppPermissionsByUrlOrigin = {
+    'https://fedi-catalog-staging.vercel.app': {
+        manageInstalledMiniApps: true,
+    },
+    'http://localhost:3023': {
+        manageInstalledMiniApps: true,
+    },
+    'https://community-tool-two.vercel.app': {
+        manageCommunities: true,
+        navigation: true,
+    },
 }
 // in dev locally running mini-apps have all permissions by default
 // change as needed
-const DEV_PERMISSIONS: MiniAppPermissionsById = {
-    'http://localhost': [...miniAppPermissionTypes],
-    'http://localhost:3022': [...miniAppPermissionTypes],
-    'http://127.0.0.1': [...miniAppPermissionTypes],
-    'http://10.0.2.2:3022': [...miniAppPermissionTypes], // host for android emulator
+const ALL_MINI_APP_PERMISSIONS_ENABLED: RememberedPermissionsMap =
+    miniAppPermissionTypes.reduce((acc, permissionType) => {
+        return {
+            ...acc,
+            [permissionType]: true,
+        }
+    }, {})
+
+const DEV_PERMISSIONS: MiniAppPermissionsByUrlOrigin = {
+    'http://localhost': { ...ALL_MINI_APP_PERMISSIONS_ENABLED },
+    'http://localhost:3022': { ...ALL_MINI_APP_PERMISSIONS_ENABLED },
+    'http://127.0.0.1': { ...ALL_MINI_APP_PERMISSIONS_ENABLED },
+    'http://10.0.2.2:3022': { ...ALL_MINI_APP_PERMISSIONS_ENABLED }, // host for android emulator
     // so devs can use staging version of 1st party miniapps if they want
     ...NIGHTLY_PERMISSIONS,
 }
 
 // these are "first party" miniapps pre-authorized with certain default permissions
-export const FIRST_PARTY_PERMISSIONS: MiniAppPermissionsById = {
-    'https://fedi-catalog.vercel.app': ['manageInstalledMiniApps'],
-    'https://community-generator.fedi.xyz': ['manageCommunities', 'navigation'],
+export const FIRST_PARTY_PERMISSIONS: MiniAppPermissionsByUrlOrigin = {
+    'https://fedi-catalog.vercel.app': {
+        manageInstalledMiniApps: true,
+    },
+    'https://community-generator.fedi.xyz': {
+        manageCommunities: true,
+        navigation: true,
+    },
     ...(isNightly() ? NIGHTLY_PERMISSIONS : {}),
     ...(isDev() ? DEV_PERMISSIONS : {}),
 }

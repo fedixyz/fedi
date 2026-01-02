@@ -10,7 +10,7 @@ import {
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppSelector } from '../hooks'
-import { fedimint, readBridgeFile, getBridgeLogs } from '../lib/bridge'
+import { readBridgeFile, getBridgeLogs } from '../lib/bridge'
 import { asyncLocalStorage } from '../utils/localstorage'
 
 const log = makeLog('web/src/hooks/export')
@@ -35,7 +35,6 @@ export const useShareLogs = () => {
     })
 
     const { compressLogs } = useCompressLogs({
-        fedimint,
         storage: asyncLocalStorage,
         handleCollectDbContents,
         handleCollectExtraFiles,

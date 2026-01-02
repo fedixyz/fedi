@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router'
 import { useCallback, useEffect, useState } from 'react'
 
+import { hasPermission } from '@fedi/common/hooks/browser'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     joinCommunity,
@@ -14,8 +15,6 @@ import {
 import {
     CreateCommunityRequest,
     EditCommunityRequest,
-    FIRST_PARTY_PERMISSIONS,
-    MiniAppPermissionType,
 } from '@fedi/common/types/'
 import { prepareCreateCommunityPayload } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
@@ -53,23 +52,6 @@ type ErrorResponse = {
 }
 
 const log = makeLog('useIFrameListener')
-
-const getOriginPermissions = (origin: string): MiniAppPermissionType[] => {
-    return FIRST_PARTY_PERMISSIONS[origin] ?? []
-}
-
-// ensures all required permissions are present in the actual permissions
-const hasPermission = (
-    origin: string,
-    requiredPermissions: MiniAppPermissionType[],
-) => {
-    const actual = new Set(getOriginPermissions(origin))
-    log.info('Checking permissions: ', requiredPermissions.join(', '))
-
-    return requiredPermissions.every(requiredPermission =>
-        actual.has(requiredPermission),
-    )
-}
 
 export function useIFrameListener(
     ref: React.RefObject<HTMLIFrameElement | null>,

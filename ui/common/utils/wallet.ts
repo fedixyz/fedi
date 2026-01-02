@@ -572,7 +572,7 @@ export const makeTxnStatusText = (
                     case 'confirmed':
                         return t('words.pending')
                     case 'claimed':
-                        return t('phrases.received-bitcoin')
+                        return t('words.received')
                     case 'failed':
                         return t('words.failed')
                     default:

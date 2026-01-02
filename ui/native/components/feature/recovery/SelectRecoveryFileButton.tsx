@@ -1,4 +1,5 @@
-import DocumentPicker, {
+import {
+    pick,
     DocumentPickerResponse,
     types,
 } from '@react-native-documents/picker'
@@ -27,7 +28,7 @@ const SelectRecoveryFileButton: React.FC = () => {
 
     const openFileExplorer = async () => {
         try {
-            const responses = await DocumentPicker.pick({
+            const responses = await pick({
                 type: types.allFiles,
             })
             const response = responses[0]

@@ -1,29 +1,30 @@
 use std::env;
-use std::fmt::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::bail;
+use assert_matches::assert_matches;
 use devimint::external::Bitcoind;
 use devimint::federation::Federation;
-use devimint::util::{Command, ProcessManager};
-use devimint::{DevFed, cmd, dev_fed, vars};
+use devimint::util::Command;
+use devimint::{DevFed, cmd, dev_fed};
 use fedimint_core::Amount;
 use fedimint_core::module::serde_json;
 use fedimint_core::secp256k1::schnorr;
-use fedimint_core::task::TaskGroup;
-use fedimint_core::util::write_overwrite_async;
 use stability_pool_common::{
     Account, AccountId, AccountType, ActiveDeposits, FeeRate, FiatAmount, FiatOrAll, Provide, Seek,
     SignedTransferRequest, SyncResponse, TransferRequest,
 };
-use tokio::fs;
-use tracing::{debug, info};
+use tracing::info;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_starter_test() -> anyhow::Result<()> {
-    let (process_mgr, _) = setup().await?;
+    let fed_size = std::env::var("FM_FED_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4);
+    let (process_mgr, _) = devi::DevFed::process_setup(fed_size).await?;
 
     let (seeker_peg_in_sats, provider_peg_in_sats) = (10_000u64, 15_000u64);
     let (seeker_peg_in_msats, provider_peg_in_msats) =
@@ -118,14 +119,13 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         bail!("Invalid active deposits variant for seeker");
     };
 
-    assert!(matches!(
-        staged.as_slice(),
-        [Seek {
+    assert_matches!(
+        staged.as_slice(), [Seek {
             sequence: 0,
             amount,
             ..
         }] if *amount == first_deposit_amount
-    ));
+    );
 
     // Deposit-to-seek again
     let second_deposit_amount = Amount::from_msats(250_000);
@@ -147,16 +147,15 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         bail!("Invalid active deposits variant for seeker");
     };
 
-    assert!(matches!(
-        staged.as_slice(),
-        [Seek {
+    assert_matches!(
+        staged.as_slice(), [Seek {
             sequence: 0,
             amount: amount1, ..
         }, Seek  {
             sequence: 1,
             amount: amount2, ..
         }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount
-    ));
+    );
 
     // Try to withdraw more than unlocked balance, expect error
     // Currently with Mock oracle, price of 1 BTC is 1,000,000 cents
@@ -195,7 +194,7 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         bail!("Invalid active deposits variant for seeker");
     };
 
-    assert!(matches!(
+    assert_matches!(
         staged.as_slice(),
         [Seek {
             sequence: 0,
@@ -204,7 +203,7 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
             sequence: 1,
             amount: amount2, ..
         }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount.checked_sub(first_withdraw_amount).expect("Can't fail")
-    ));
+    );
 
     // Withdraw more than 2nd staged seek, verify 2nd staged seek removed
     // Verify ecash balance
@@ -245,13 +244,12 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         bail!("Invalid active deposits variant for seeker");
     };
 
-    assert!(matches!(
-        staged.as_slice(),
-        [Seek {
+    assert_matches!(
+        staged.as_slice(), [Seek {
             sequence: 0,
             amount: amount1, ..
         }] if *amount1 == remaining_first_deposit
-    ));
+    );
 
     // Withdraw any remaining unlocked balance
     seeker.withdraw(AccountType::Seeker, FiatOrAll::All).await?;
@@ -297,14 +295,14 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         bail!("Invalid active deposits variant for provider");
     };
 
-    assert!(matches!(
+    assert_matches!(
         staged.as_slice(),
         [Provide {
             sequence: 2, // provider/seeker sequence is shared now
             amount,
             meta: FeeRate(10), ..
         }] if *amount == first_deposit_amount
-    ));
+    );
 
     // Deposit-to-provide again
     let second_deposit_amount = Amount::from_msats(250_000);
@@ -328,7 +326,7 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         bail!("Invalid active deposits variant for provider");
     };
 
-    assert!(matches!(
+    assert_matches!(
         staged.as_slice(),
         [Provide {
             sequence: 2,
@@ -338,7 +336,7 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
             sequence: 3,
             amount: amount2,
             meta: FeeRate(20), ..
-        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount));
+        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount);
 
     // Try to withdraw more than unlocked balance, expect error
     // Currently with Mock oracle, price of 1 BTC is 1,000,000 cents
@@ -377,7 +375,7 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         bail!("Invalid active deposits variant for provider");
     };
 
-    assert!(matches!(
+    assert_matches!(
         staged.as_slice(),
         [Provide {
             sequence: 2,
@@ -387,7 +385,7 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
             sequence: 3,
             amount: amount2,
             meta: FeeRate(20), ..
-        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount.checked_sub(first_withdraw_amount).expect("Can't fail")));
+        }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount.checked_sub(first_withdraw_amount).expect("Can't fail"));
 
     // Withdraw more than 2nd staged provide, verify 2nd staged provide removed
     // Verify ecash balance
@@ -428,13 +426,12 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         bail!("Invalid active deposits variant for provider");
     };
 
-    assert!(matches!(
-        staged.as_slice(),
-        [Provide {
+    assert_matches!(
+        staged.as_slice(), [Provide {
             sequence: 2,
             amount: amount1, ..
         }] if *amount1 == remaining_first_deposit
-    ));
+    );
 
     // Withdraw any remaining unlocked balance
     provider
@@ -469,28 +466,27 @@ async fn seeker_and_provider_tests(
     let ActiveDeposits::Seeker { locked, .. } = seeker_info.active_deposits else {
         bail!("Invalid active deposits variant for seeker");
     };
-    assert!(matches!(
-        locked.as_slice(),
-        [Seek {
+    assert_matches!(
+        locked.as_slice(), [Seek {
             amount,
             ..
         }] if amount.msats == locked_seek_1
-    ));
+    );
     let ActiveDeposits::Provider { staged, locked } = provider_info.active_deposits else {
         bail!("Invalid active deposits variant for provider");
     };
-    assert!(matches!(
+    assert_matches!(
         staged.as_slice(),
         [Provide {
             amount, meta, ..
         }] if amount.msats == staged_provide_1 && *meta == FeeRate(provide1_min_fee_rate)
-    ));
-    assert!(matches!(
+    );
+    assert_matches!(
         locked.as_slice(),
         [Provide {
             amount, meta, ..
         }] if amount.msats == locked_provide_1 && *meta == FeeRate(provide1_min_fee_rate)
-    ));
+    );
     assert_eq!(provider_info.sync_response.idle_balance.msats, fees_paid);
 
     // 1 more seek and 1 more provide, but insufficient provider liquidity
@@ -517,28 +513,26 @@ async fn seeker_and_provider_tests(
     let ActiveDeposits::Seeker { staged, locked } = seeker_info.active_deposits else {
         bail!("Invalid active deposits variant for seeker");
     };
-    assert!(matches!(
-        staged.as_slice(),
-        [Seek {
+    assert_matches!(
+        staged.as_slice(), [Seek {
             amount,
             ..
         }] if amount.msats == staged_seek_2
-    ));
-    assert!(matches!(
-        locked.as_slice(),
-        [Seek {
+    );
+    assert_matches!(
+        locked.as_slice(), [Seek {
             amount: amount1,
             ..
         }, Seek {
             amount: amount2,
             ..
         }] if amount1.msats == locked_seek_1 && amount2.msats == locked_seek_2
-    ));
+    );
     let ActiveDeposits::Provider { staged, locked } = provider_info.active_deposits else {
         bail!("Invalid active deposits variant for provider");
     };
     assert!(staged.is_empty());
-    assert!(matches!(
+    assert_matches!(
         locked.as_slice(),
         [Provide {
             amount: amount1, meta: meta1, ..
@@ -546,7 +540,7 @@ async fn seeker_and_provider_tests(
             amount: amount2, meta: meta2, ..
         }] if amount1.msats == locked_provide_1 && *meta1 == FeeRate(provide1_min_fee_rate)
             && amount2.msats == locked_provide_2 && *meta2 == FeeRate(provide2_min_fee_rate)
-    ));
+    );
     assert_eq!(provider_info.sync_response.idle_balance.msats, fees_paid);
 
     // Make seeker withdraw 4 cents, which would equal 400k msats
@@ -569,20 +563,19 @@ async fn seeker_and_provider_tests(
         bail!("Invalid active deposits variant for seeker");
     };
     assert!(staged.is_empty());
-    assert!(matches!(
-        locked.as_slice(),
-        [Seek {
+    assert_matches!(
+        locked.as_slice(), [Seek {
             amount: amount1,
             ..
         }, Seek {
             amount: amount2,
             ..
         }] if amount1.msats == locked_seek_1 && amount2.msats == locked_seek_2
-    ));
+    );
     let ActiveDeposits::Provider { staged, locked } = provider_info.active_deposits else {
         bail!("Invalid active deposits variant for provider");
     };
-    assert!(matches!(
+    assert_matches!(
         staged.as_slice(),
         [Provide {
             amount: amount1, meta: meta1, ..
@@ -590,13 +583,13 @@ async fn seeker_and_provider_tests(
             amount: amount2, meta: meta2, ..
         }] if amount1.msats == staged_provide_1 && *meta1 == FeeRate(provide1_min_fee_rate)
             && amount2.msats == staged_provide_2 && *meta2 == FeeRate(provide2_min_fee_rate)
-    ));
-    assert!(matches!(
+    );
+    assert_matches!(
         locked.as_slice(),
         [Provide {
             amount: amount1, meta: meta1, ..
         }] if amount1.msats == locked_provide_1 && *meta1 == FeeRate(provide1_min_fee_rate)
-    ));
+    );
     assert_eq!(provider_info.sync_response.idle_balance.msats, fees_paid);
 
     // Let provider take out accrued fees from idle balance
@@ -638,19 +631,17 @@ async fn transfer_tests(
     let ActiveDeposits::Seeker { staged, locked } = seeker1_info.active_deposits else {
         bail!("Invalid active deposits variant for seeker");
     };
-    assert!(matches!(
-        staged.as_slice(),
-        [Seek {
+    assert_matches!(
+        staged.as_slice(), [Seek {
             amount: amount1,
             ..
         }, Seek {
             amount: amount2,
             ..
         }] if amount1.msats == 200_000 && amount2.msats == 400_000
-    ));
-    assert!(matches!(
-        locked.as_slice(),
-        [Seek {
+    );
+    assert_matches!(
+        locked.as_slice(), [Seek {
             amount: amount1,
             ..
         }, Seek {
@@ -660,7 +651,7 @@ async fn transfer_tests(
             amount: amount3,
             ..
         }] if amount1.msats == 100_000 && amount2.msats == 200_000 && amount3.msats == 100_000
-    ));
+    );
 
     // Transfer 800_000 (8 cents) from seeker1 to seeker2
     let signed_request = seeker1
@@ -680,36 +671,33 @@ async fn transfer_tests(
         bail!("Invalid active deposits variant for seeker");
     };
     assert!(staged.is_empty());
-    assert!(matches!(
-        locked.as_slice(),
-        [Seek {
+    assert_matches!(
+        locked.as_slice(), [Seek {
             amount: amount1,
             ..
         }, Seek {
             amount: amount2,
             ..
         }] if amount1.msats == 100_000 && amount2.msats == 100_000
-    ));
+    );
 
     // Seeker2 should get both of seeker1's staged seeks as a new single staged
     // seek, as well as a new locked seek from seeker1
     let ActiveDeposits::Seeker { staged, locked } = seeker2_acc_info.active_deposits else {
         bail!("Invalid active deposits variant for seeker");
     };
-    assert!(matches!(
-        staged.as_slice(),
-        [Seek {
+    assert_matches!(
+        staged.as_slice(), [Seek {
             amount: amount1,
             ..
         }] if amount1.msats == 600_000
-    ));
-    assert!(matches!(
-        locked.as_slice(),
-        [Seek {
+    );
+    assert_matches!(
+        locked.as_slice(), [Seek {
             amount: amount1,
             ..
         }] if amount1.msats == 200_000
-    ));
+    );
 
     Ok(())
 }
@@ -996,42 +984,4 @@ impl ForkedClient {
 pub struct AccountInfo {
     sync_response: SyncResponse,
     active_deposits: ActiveDeposits,
-}
-
-async fn setup() -> anyhow::Result<(ProcessManager, TaskGroup)> {
-    let offline_nodes = 0;
-    let globals = vars::Global::new(
-        Path::new(&env::var("FM_TEST_DIR")?),
-        1,
-        env::var("FM_FED_SIZE")?.parse::<usize>()?,
-        offline_nodes,
-        None,
-    )
-    .await?;
-    let log_file = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true)
-        .open(globals.FM_LOGS_DIR.join("devimint.log"))
-        .await?
-        .into_std()
-        .await;
-
-    fedimint_logging::TracingSetup::default()
-        .with_file(Some(log_file))
-        .init()?;
-
-    let mut env_string = String::new();
-    for (var, value) in globals.vars() {
-        debug!(var, value, "Env variable set");
-        writeln!(env_string, r#"export {var}="{value}""#)?; // hope that value doesn't contain a "
-        // TODO: Audit that the environment access only happens in single-threaded code.
-        unsafe { std::env::set_var(var, value) };
-    }
-    write_overwrite_async(globals.FM_TEST_DIR.join("env"), env_string).await?;
-    info!("Test setup in {:?}", globals.FM_DATA_DIR);
-    let process_mgr = ProcessManager::new(globals);
-    let task_group = TaskGroup::new();
-    task_group.install_kill_handler();
-    Ok((process_mgr, task_group))
 }

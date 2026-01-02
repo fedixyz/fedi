@@ -16,7 +16,6 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
@@ -53,7 +52,6 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const toast = useToast()
 
     const { generateEcash, isGeneratingEcash } = useSendEcash(
-        fedimint,
         paymentFederation?.id || '',
     )
 

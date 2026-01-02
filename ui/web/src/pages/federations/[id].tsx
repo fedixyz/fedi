@@ -23,7 +23,6 @@ import * as Layout from '../../components/Layout'
 import { ShadowScroller } from '../../components/ShadowScroller'
 import { Text } from '../../components/Text'
 import { useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 
 function FederationDetails() {
@@ -43,7 +42,6 @@ function FederationDetails() {
         useLeaveFederation({
             t,
             federationId: federation?.id || '',
-            fedimint,
         })
 
     const handleLeave = () => {

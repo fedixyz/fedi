@@ -19,7 +19,6 @@ import {
     getFederationWelcomeMessage,
 } from '@fedi/common/utils/FederationUtils'
 
-import { fedimint } from '../bridge'
 import FederationCountdownOverlay from '../components/feature/federations/FederationCountdownOverlay'
 import FederationDetailStats from '../components/feature/federations/FederationDetailStats'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
@@ -69,7 +68,6 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
         useLeaveFederation({
             t,
             federationId,
-            fedimint,
         })
 
     const handleLeave = () => {

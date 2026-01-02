@@ -10,7 +10,6 @@ import {
 } from '@fedi/common/hooks/multispend'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../../../bridge'
 import {
     MultispendFilterOption,
     MultispendWithdrawalEvent,
@@ -42,7 +41,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
         selectedFilterOption,
         setFilter,
         canVoteOnWithdrawals,
-    } = useMultispendWithdrawalRequests({ t, fedimint, roomId })
+    } = useMultispendWithdrawalRequests({ t, roomId })
     const { fetchTransactions } = useMultispendTransactions(t, roomId)
 
     useEffect(() => {

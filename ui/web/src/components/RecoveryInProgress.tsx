@@ -1,6 +1,5 @@
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 
-import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 import { HoloLoader } from './HoloLoader'
 import { Text } from './Text'
@@ -14,7 +13,7 @@ export const RecoveryInProgress: React.FC<Props> = ({
     label,
     federationId,
 }) => {
-    const { progress } = useRecoveryProgress(fedimint, federationId)
+    const { progress } = useRecoveryProgress(federationId)
 
     return (
         <Container aria-label="recovery-in-progress">

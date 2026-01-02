@@ -22,7 +22,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with the invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(fedimint, inviteCode),
+                () => useFederationInviteCode(inviteCode),
                 store,
                 fedimint,
             )
@@ -56,7 +56,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with the invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(fedimint, inviteCode),
+                () => useFederationInviteCode(inviteCode),
                 store,
                 fedimint,
             )
@@ -87,7 +87,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with an invalid invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(fedimint, invalidInviteCode),
+                () => useFederationInviteCode(invalidInviteCode),
                 store,
                 fedimint,
             )
@@ -118,7 +118,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with the invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(fedimint, inviteCode),
+                () => useFederationInviteCode(inviteCode),
                 store,
                 fedimint,
             )

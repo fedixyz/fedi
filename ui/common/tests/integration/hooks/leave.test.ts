@@ -30,7 +30,6 @@ describe('common/hooks/leave', () => {
                 () =>
                     useLeaveFederation({
                         t,
-                        fedimint,
                         federationId,
                     }),
                 store,
@@ -60,7 +59,6 @@ describe('common/hooks/leave', () => {
                 () =>
                     useLeaveFederation({
                         t,
-                        fedimint,
                         federationId,
                     }),
                 store,

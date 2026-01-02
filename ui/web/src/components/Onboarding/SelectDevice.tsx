@@ -10,7 +10,6 @@ import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
-import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 import { HoloLoader } from '../HoloLoader'
 import { Icon } from '../Icon'
@@ -58,7 +57,7 @@ export const SelectDevice: React.FC = () => {
     const router = useRouter()
 
     const { isProcessing, registeredDevices, handleTransfer } =
-        useDeviceRegistration(t, fedimint)
+        useDeviceRegistration(t)
 
     const onDeviceSelect = (device: RpcRegisteredDevice) => {
         handleTransfer(device, () => {

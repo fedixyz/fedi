@@ -124,7 +124,7 @@ impl DevFed {
         })
     }
 
-    async fn process_setup(fed_size: usize) -> anyhow::Result<(ProcessManager, TaskGroup)> {
+    pub async fn process_setup(fed_size: usize) -> anyhow::Result<(ProcessManager, TaskGroup)> {
         let test_dir = std::env::temp_dir().join(format!(
             "devimint-{}-{}",
             std::process::id(),

@@ -29,6 +29,7 @@ import {
     WithdrawRequestWithApprovals,
     GroupInvitationWithKeys,
     RpcStreamUpdate,
+    CommunityMigratedToV2Event,
 } from './bindings'
 import { MSats, Usd, UsdCents } from './units'
 
@@ -367,6 +368,7 @@ export type FedimintBridgeEventMap = {
     deviceRegistration: DeviceRegistrationEvent
     communityMetadataUpdated: CommunityMetadataUpdatedEvent
     nonceReuseCheckFailed: NonceReuseCheckFailedEvent
+    communityMigratedToV2: CommunityMigratedToV2Event
 }
 
 export type StabilityPoolTxn = {

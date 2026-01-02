@@ -7,7 +7,6 @@ import { selectMatrixUser } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 
 import { useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
@@ -46,7 +45,7 @@ export const ChatPaymentDialog: React.FC<Props> = ({
         handleRequestPayment,
         notes,
         setNotes,
-    } = useChatPaymentUtils(t, fedimint, roomId, recipientId)
+    } = useChatPaymentUtils(t, roomId, recipientId)
     const recipient = useAppSelector(s => selectMatrixUser(s, recipientId))
 
     useEffect(() => {

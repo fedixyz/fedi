@@ -14,7 +14,6 @@ import {
 } from '@fedi/common/utils/FederationUtils'
 
 import { useAppSelector } from '../hooks'
-import { fedimint } from '../lib/bridge'
 import { AccordionMenu, MenuItemInfo, MenuItemName } from './AccordionMenu'
 import { FederationAvatar } from './FederationAvatar'
 import { MenuGroup } from './SettingsMenu'
@@ -37,11 +36,7 @@ export const CommunityMenu = ({
     )
     const hasMods = communityMods.length > 0
 
-    const { canLeaveCommunity } = useLeaveCommunity({
-        t,
-        fedimint,
-        communityId: community.id,
-    })
+    const { canLeaveCommunity } = useLeaveCommunity(community.id)
 
     const tosUrl = getFederationTosUrl(community.meta) || ''
     const shouldShowInvite = shouldShowInviteCode(community.meta)

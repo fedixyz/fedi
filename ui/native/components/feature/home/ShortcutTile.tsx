@@ -29,6 +29,8 @@ import SvgImage, {
 } from '../../ui/SvgImage'
 
 type ShortcutTileProps = {
+    disabled?: boolean
+    iconOnly?: boolean
     shortcut: FediMod
     onHold?: (fediMod: FediMod) => void
     onSelect: (fediMod: FediMod) => void
@@ -40,16 +42,19 @@ function isMod(shortcut: Shortcut | FediMod): shortcut is FediMod {
     return shortcut.type === ShortcutType.fediMod
 }
 
-const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
+type ShortcutTileIconProps = {
+    shortcut: FediMod
+}
+
+export const ShortcutTileIcon = ({ shortcut }: ShortcutTileIconProps) => {
     const { theme } = useTheme()
     const { fontScale } = useWindowDimensions()
+    const multiplier = Math.min(fontScale, 2)
+
+    const style = styles(theme, multiplier)
     const [imageSrc, setImageSrc] = useState<ImageSourcePropType>(
         FediModImages.default,
     )
-
-    const isNew = useAppSelector(s => selectIsNewMod(s, shortcut))
-
-    const shortcutTitle = decode(stripAndDeduplicateWhitespace(shortcut.title))
 
     useEffect(() => {
         if (isMod(shortcut)) {
@@ -73,102 +78,131 @@ const ShortcutTile = ({ shortcut, onHold, onSelect }: ShortcutTileProps) => {
             }
         }
     }, [shortcut])
-    const multiplier = Math.min(fontScale, 2)
 
-    const style = styles(theme, multiplier)
+    if (isMod(shortcut) && imageSrc) {
+        const isSvg =
+            // imageSrc can be an array of ImageUriSource
+            // see https://reactnative.dev/docs/image#source
+            !Array.isArray(imageSrc) &&
+            // ImageRequireSource can be a number, so rule that out too
+            typeof imageSrc !== 'number' &&
+            imageSrc.uri?.endsWith('svg')
 
-    const renderIcon = () => {
-        if (isMod(shortcut) && imageSrc) {
-            const isSvg =
-                // imageSrc can be an array of ImageUriSource
-                // see https://reactnative.dev/docs/image#source
-                !Array.isArray(imageSrc) &&
-                // ImageRequireSource can be a number, so rule that out too
-                typeof imageSrc !== 'number' &&
-                imageSrc.uri?.endsWith('svg')
-
-            if (isSvg) {
-                return (
-                    <SvgUri
-                        uri={imageSrc.uri ?? null}
-                        onError={() => {
-                            setImageSrc(FediModImages.default)
-                        }}
-                        width={48}
-                        height={48}
-                        style={style.iconImage}
-                        fallback={
-                            <Image
-                                style={style.iconImage}
-                                source={FediModImages.default}
-                                resizeMode="contain"
-                            />
-                        }
-                        // Ensure the SVG is always contained and centered
-                        // Does the equivalent of resizeMode="contain" for SVGs
-                        preserveAspectRatio="xMidYMid meet"
-                    />
-                )
-            }
-
+        if (isSvg) {
             return (
-                <Image
-                    style={style.iconImage}
-                    source={imageSrc}
-                    resizeMode="contain"
-                    // use fallback if url fails to load
+                <SvgUri
+                    uri={imageSrc.uri ?? null}
                     onError={() => {
                         setImageSrc(FediModImages.default)
                     }}
-                />
-            )
-        } else if (shortcut.icon.image) {
-            return (
-                <Image
+                    width={48}
+                    height={48}
                     style={style.iconImage}
-                    source={shortcut.icon.image}
-                    resizeMode="contain"
+                    fallback={
+                        <Image
+                            style={style.iconImage}
+                            source={FediModImages.default}
+                            resizeMode="contain"
+                        />
+                    }
+                    // Ensure the SVG is always contained and centered
+                    // Does the equivalent of resizeMode="contain" for SVGs
+                    preserveAspectRatio="xMidYMid meet"
                 />
             )
-        } else if (shortcut.icon.svg) {
-            return (
-                <SvgImage
-                    containerStyle={style.iconSvg}
-                    name={shortcut.icon.svg as SvgImageName}
-                    size={SvgImageSize.md}
-                    color={theme.colors.secondary}
-                    maxFontSizeMultiplier={1.2}
-                />
-            )
+        }
+
+        return (
+            <Image
+                style={style.iconImage}
+                source={imageSrc}
+                resizeMode="contain"
+                // use fallback if url fails to load
+                onError={() => {
+                    setImageSrc(FediModImages.default)
+                }}
+            />
+        )
+    } else if (shortcut.icon.image) {
+        return (
+            <Image
+                style={style.iconImage}
+                source={shortcut.icon.image}
+                resizeMode="contain"
+            />
+        )
+    } else if (shortcut.icon.svg) {
+        return (
+            <SvgImage
+                containerStyle={style.iconSvg}
+                name={shortcut.icon.svg as SvgImageName}
+                size={SvgImageSize.md}
+                color={theme.colors.secondary}
+                maxFontSizeMultiplier={1.2}
+            />
+        )
+    }
+}
+
+const ShortcutTile = ({
+    disabled = false,
+    iconOnly = false,
+    shortcut,
+    onHold,
+    onSelect,
+}: ShortcutTileProps) => {
+    const { theme } = useTheme()
+    const { fontScale } = useWindowDimensions()
+
+    const isNew = useAppSelector(s => selectIsNewMod(s, shortcut))
+    const shortcutTitle = decode(stripAndDeduplicateWhitespace(shortcut.title))
+    const multiplier = Math.min(fontScale, 2)
+    const style = styles(theme, multiplier)
+
+    const handlePress = () => {
+        if (!disabled) {
+            onSelect(shortcut)
         }
     }
 
     return (
         <Pressable
+            disabled={disabled}
             containerStyle={style.container}
-            onPress={() => onSelect(shortcut)}
+            onPress={handlePress}
+            delayLongPress={250}
             onLongPress={() => onHold?.(shortcut)}>
             <View style={style.iconContainer}>
                 <BubbleView containerStyle={style.bubbleContainer}>
-                    {renderIcon()}
+                    <ShortcutTileIcon shortcut={shortcut} />
                 </BubbleView>
             </View>
-            <Flex row align="center" justify="start" style={style.title}>
-                <Text
-                    caption
-                    medium
-                    style={style.titleText}
-                    adjustsFontSizeToFit>
-                    {shortcutTitle}
-                </Text>
-            </Flex>
-            {isNew && (
-                <Badge
-                    value="New"
-                    containerStyle={style.badgeContainer}
-                    badgeStyle={style.badge}
-                    textStyle={style.badgeText}
-                />
+
+            {!iconOnly && (
+                <>
+                    <Flex
+                        row
+                        align="center"
+                        justify="start"
+                        style={style.title}>
+                        <Text
+                            caption
+                            medium
+                            style={style.titleText}
+                            numberOfLines={2}
+                            adjustsFontSizeToFit>
+                            {shortcutTitle}
+                        </Text>
+                    </Flex>
+                    {isNew && (
+                        <Badge
+                            value="New"
+                            containerStyle={style.badgeContainer}
+                            badgeStyle={style.badge}
+                            textStyle={style.badgeText}
+                        />
+                    )}
+                </>
             )}
         </Pressable>
     )
@@ -219,20 +253,20 @@ const styles = (theme: Theme, fontScale: number) => {
             width: iconSize,
             height: iconSize,
             overflow: 'hidden',
-            borderRadius: theme.borders.fediModTileRadius,
+            borderRadius: theme.borders.tileRadius,
             backgroundColor: theme.colors.white,
         },
         iconImage: {
             width: iconSize,
             height: iconSize,
             overflow: 'hidden',
-            borderRadius: theme.borders.fediModTileRadius,
+            borderRadius: theme.borders.tileRadius,
             marginBottom: theme.spacing.xs,
         },
         iconSvg: {
             width: iconSize,
             height: iconSize,
-            borderRadius: theme.borders.fediModTileRadius,
+            borderRadius: theme.borders.tileRadius,
             backgroundColor: theme.colors.primary,
             marginBottom: theme.spacing.xs,
             alignItems: 'center',

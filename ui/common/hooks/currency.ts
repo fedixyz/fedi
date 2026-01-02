@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
 
 import { refreshHistoricalCurrencyRates } from '../redux'
-import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch } from './redux'
 
 const log = makeLog('common/hooks/currency')
@@ -11,8 +11,9 @@ const log = makeLog('common/hooks/currency')
  * Hook to refresh historical currency rates and update the cached fiat FX info.
  * Ensures consistent error handling and can be used across mobile & PWA.
  */
-export function useSyncCurrencyRatesAndCache(fedimint: FedimintBridge) {
+export function useSyncCurrencyRatesAndCache() {
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
 
     const syncCurrencyRatesAndCache = useCallback(
         async (federationId?: string) => {

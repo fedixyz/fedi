@@ -23,7 +23,6 @@ import { Icon } from '../../components/Icon'
 import * as Layout from '../../components/Layout'
 import { Text } from '../../components/Text'
 import { useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { styled, theme } from '../../styles'
 
 function CommunityDetails() {
@@ -38,11 +37,7 @@ function CommunityDetails() {
     const toast = useToast()
 
     const { t } = useTranslation()
-    const { canLeaveCommunity, handleLeave, isLeaving } = useLeaveCommunity({
-        t,
-        communityId: id,
-        fedimint,
-    })
+    const { canLeaveCommunity, handleLeave, isLeaving } = useLeaveCommunity(id)
 
     const handleClose = () => {
         setWantsToLeaveCommunity(false)

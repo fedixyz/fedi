@@ -14,6 +14,7 @@ import {
     selectOnboardingCompleted,
     selectMatrixAuth,
     setAppFlavor,
+    selectEventListenersReady,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
 import {
@@ -47,6 +48,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const { asPath, pathname, query } = useRouter()
 
     const hasLoadedStorage = useAppSelector(selectStorageIsReady)
+    const eventListenersReady = useAppSelector(selectEventListenersReady)
     const socialRecoveryId = useAppSelector(selectSocialRecoveryQr)
     const shouldLockDevice = useAppSelector(s => s.recovery.shouldLockDevice)
     const deviceIndexRequired = useAppSelector(
@@ -62,7 +64,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-        if (!hasLoadedStorage) return
+        if (!hasLoadedStorage || !eventListenersReady) return
 
         const initialize = async () => {
             const start = Date.now()
@@ -97,7 +99,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         }
 
         initialize()
-    }, [dispatchRef, hasLoadedStorage, tRef])
+    }, [dispatchRef, hasLoadedStorage, eventListenersReady, tRef])
 
     // Show an error message if the bridge panics while running.
     useEffect(() => {

@@ -13,7 +13,6 @@ import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { hexToRgba } from '@fedi/common/utils/color'
 
-import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import NotesInput from '../components/ui/NotesInput'
@@ -47,7 +46,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
         sendTo,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, paymentFederation?.id, t)
+    } = useOmniPaymentState(paymentFederation?.id, t)
     const { makeFormattedAmountsFromSats } = useAmountFormatter({
         federationId: paymentFederation?.id,
     })

@@ -67,7 +67,7 @@ const styles = (theme: Theme) =>
             width: theme.sizes.lg,
             height: theme.sizes.lg,
             overflow: 'hidden',
-            borderRadius: theme.borders.fediModTileRadius,
+            borderRadius: theme.borders.tileRadius,
             backgroundColor: theme.colors.white,
             alignItems: 'center',
             justifyContent: 'center',

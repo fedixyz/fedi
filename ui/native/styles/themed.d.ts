@@ -67,7 +67,7 @@ declare module '@rneui/themed' {
         borders: {
             defaultRadius: number
             qrCodeRadius: number
-            fediModTileRadius: number
+            tileRadius: number
             progressBarRadius: number
             settingsRadius: number
         }

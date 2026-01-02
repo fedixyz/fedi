@@ -6,7 +6,6 @@ import { StyleSheet } from 'react-native'
 
 import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
 
-import { fedimint } from '../../../bridge'
 import { NavigationHook, RootStackParamList } from '../../../types/navigation'
 import Flex from '../../ui/Flex'
 import Header from '../../ui/Header'
@@ -29,7 +28,7 @@ const RequestMoneyHeader: React.FC = () => {
 
     // Show close button only if back button would not take us to TabsNavigator
     const shouldShowClose = routes[routes.length - 2]?.name !== 'TabsNavigator'
-    const { supportsLnurl } = useLnurlReceiveCode(fedimint, federationId || '')
+    const { supportsLnurl } = useLnurlReceiveCode(federationId || '')
 
     return (
         <Header

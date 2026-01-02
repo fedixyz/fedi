@@ -9,7 +9,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { selectMatrixAuth, setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent, MatrixFederationInviteEvent } from '@fedi/common/types'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 import FederationCompactTile from '../federations/FederationCompactTile'
@@ -33,7 +32,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
     const inviteCode = event.content.body
 
     const { previewResult, isChecking, handleJoin, isError, isJoining } =
-        useFederationInviteCode(fedimint, inviteCode)
+        useFederationInviteCode(inviteCode)
 
     const toast = useToast()
 

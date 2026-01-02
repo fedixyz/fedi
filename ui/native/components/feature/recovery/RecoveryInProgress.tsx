@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import { Federation } from '@fedi/common/types'
 
-import { fedimint } from '../../../bridge'
 import Flex from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 
@@ -21,7 +20,7 @@ const RecoveryInProgress: React.FC<Props> = ({
     size = 100,
 }: Props) => {
     const { theme } = useTheme()
-    const { progress } = useRecoveryProgress(fedimint, federationId)
+    const { progress } = useRecoveryProgress(federationId)
 
     const style = styles(theme)
     return (

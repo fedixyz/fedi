@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { useMultispendVoting } from '@fedi/common/hooks/multispend'
 
-import { fedimint } from '../../../../bridge'
 import CustomOverlay from '../../../ui/CustomOverlay'
 import Flex from '../../../ui/Flex'
 import { SafeAreaContainer } from '../../../ui/SafeArea'
@@ -24,7 +23,6 @@ const MultispendActiveInvitation: React.FC<{
         canVote,
     } = useMultispendVoting({
         t,
-        fedimint,
         roomId,
         onJoinFederation: (invite: string) => {
             navigation.navigate('JoinFederation', {

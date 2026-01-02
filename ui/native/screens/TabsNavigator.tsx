@@ -95,13 +95,49 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     tabBarButton: props => {
                         switch (screenRoute.name) {
                             case 'Home':
-                                return <Pressable {...props} />
+                                return (
+                                    <Pressable
+                                        {...props}
+                                        style={({ pressed }) => [
+                                            props.style,
+                                            pressed &&
+                                                style.tabBarButtonPressed,
+                                        ]}
+                                    />
+                                )
                             case 'Chat':
-                                return <Pressable {...props} />
+                                return (
+                                    <Pressable
+                                        {...props}
+                                        style={({ pressed }) => [
+                                            props.style,
+                                            pressed &&
+                                                style.tabBarButtonPressed,
+                                        ]}
+                                    />
+                                )
                             case 'Mods':
-                                return <Pressable {...props} />
+                                return (
+                                    <Pressable
+                                        {...props}
+                                        style={({ pressed }) => [
+                                            props.style,
+                                            pressed &&
+                                                style.tabBarButtonPressed,
+                                        ]}
+                                    />
+                                )
                             case 'Federations':
-                                return <Pressable {...props} />
+                                return (
+                                    <Pressable
+                                        {...props}
+                                        style={({ pressed }) => [
+                                            props.style,
+                                            pressed &&
+                                                style.tabBarButtonPressed,
+                                        ]}
+                                    />
+                                )
                             default:
                                 return null
                         }
@@ -248,6 +284,10 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
         },
         row: {
             flexDirection: 'row',
+        },
+        tabBarButtonPressed: {
+            backgroundColor: theme.colors.primary05,
+            borderRadius: theme.borders.defaultRadius,
         },
     })
 }

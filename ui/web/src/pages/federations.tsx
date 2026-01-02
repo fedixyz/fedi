@@ -15,14 +15,13 @@ import * as Layout from '../components/Layout'
 import { RequestPaymentDialog } from '../components/RequestPaymentDialog'
 import { SendPaymentDialog } from '../components/SendPaymentDialog'
 import { useAppSelector } from '../hooks'
-import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 
 function FederationsPage() {
     const { t } = useTranslation()
     const router = useRouter()
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
     const [expandedWalletId, setExpandedWalletId] = useState<string | null>(
         null,
     )

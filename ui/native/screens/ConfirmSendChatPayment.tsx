@@ -18,7 +18,6 @@ import {
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { fedimint } from '../bridge'
 import ChatAvatar from '../components/feature/chat/ChatAvatar'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
@@ -60,7 +59,6 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
     const existingRoom = useAppSelector(s => selectMatrixRoom(s, roomId))
     const { isProcessing, handleSendPayment } = useChatPaymentPush(
         t,
-        fedimint,
         roomId,
         existingRoom?.directUserId || '',
     )

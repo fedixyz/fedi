@@ -45,6 +45,7 @@ import {
     selectCurrency,
 } from '../redux'
 import {
+    MatrixEvent,
     MatrixFormEvent,
     MatrixPaymentEvent,
     MatrixRoom,
@@ -65,6 +66,7 @@ import { formatErrorMessage } from '../utils/format'
 import { makeLog } from '../utils/log'
 import {
     decodeFediMatrixUserUri,
+    getEventBodyPreview,
     getReplyData,
     isValidMatrixUserId,
     makeMatrixPaymentText,
@@ -1153,13 +1155,14 @@ export function useCreateMatrixRoom(
  */
 export function useMentionInput(
     roomMembers: MatrixRoomMember[],
+    messageText: string,
     cursorPosition: number,
     excludeUserId?: string,
 ): {
     mentionSuggestions: MatrixRoomMember[]
     activeMentionQuery: string | null
     shouldShowSuggestions: boolean
-    detectMentionTrigger: (text: string, position: number) => void
+    detectMentionTrigger: (text: string) => void
     insertMention: (
         member: MentionSelect,
         currentText: string,
@@ -1174,17 +1177,20 @@ export function useMentionInput(
     )
     const [mentionStartIndex, setMentionStartIndex] = useState<number>(-1)
 
+    const clearMentions = useCallback(() => {
+        setActiveMentionQuery(null)
+        setMentionStartIndex(-1)
+        setMentionSuggestions([])
+    }, [])
+
     const detectMentionTrigger = useCallback(
-        (text: string, position: number) => {
+        (text: string) => {
             // find @ symbol before cursor
-            const before = text.slice(0, position)
+            const before = text.slice(0, cursorPosition)
             const match = before.match(/@([a-z0-9._-]*)$/i)
 
             if (!match) {
-                setActiveMentionQuery(null)
-                setMentionStartIndex(-1)
-                setMentionSuggestions([])
-                return
+                return clearMentions()
             }
 
             const q = (match[1] || '').toLowerCase()
@@ -1204,7 +1210,7 @@ export function useMentionInput(
                 .slice(0, 7)
             setMentionSuggestions(filtered)
         },
-        [roomMembers, excludeUserId],
+        [cursorPosition, roomMembers, clearMentions, excludeUserId],
     )
 
     const insertMention = useCallback(
@@ -1230,31 +1236,32 @@ export function useMentionInput(
             const newCursorPosition =
                 beforeMention.length + displayName.length + 2 // +2 for "@ "
 
-            setActiveMentionQuery(null)
-            setMentionStartIndex(-1)
-            setMentionSuggestions([])
+            clearMentions()
 
             return { newText, newCursorPosition }
         },
-        [mentionStartIndex, cursorPosition],
+        [mentionStartIndex, cursorPosition, clearMentions],
     )
 
-    const clearMentions = useCallback(() => {
-        setActiveMentionQuery(null)
-        setMentionStartIndex(-1)
-        setMentionSuggestions([])
-    }, [])
+    const prevMessageTextRef = useRef<string>(messageText)
+    useEffect(() => {
+        if (messageText !== prevMessageTextRef.current) {
+            detectMentionTrigger(messageText)
+        }
+    }, [messageText, detectMentionTrigger])
 
-    // show if a mention is active and there are suggestions
-    // or if the query could yield @room in the component
     const shouldShowSuggestions = useMemo(() => {
+        // dont show if message text is empty
+        if (!messageText) return false
         return (
+            // show if a mention is active and there are suggestions
             activeMentionQuery !== null &&
             (mentionSuggestions.length > 0 ||
+                // if we dont have results, show if the query could match @room
                 (!!activeMentionQuery &&
                     ROOM_MENTION.startsWith(activeMentionQuery.toLowerCase())))
         )
-    }, [activeMentionQuery, mentionSuggestions])
+    }, [activeMentionQuery, mentionSuggestions.length, messageText])
 
     return {
         mentionSuggestions,
@@ -1329,4 +1336,25 @@ export function useMatrixRoomPreview({
         isNotice,
         isPublicBroadcast,
     }
+}
+
+/**
+ * Hook for extracting reply information from a MatrixEvent.
+ * Returns the sender's display name and a preview of the message body.
+ */
+export function useReplies(
+    repliedEvent: MatrixEvent,
+    roomMembers: MatrixRoomMember[],
+) {
+    const senderName = useMemo(() => {
+        const member = roomMembers.find(m => m.id === repliedEvent.sender)
+        return member?.displayName || matrixIdToUsername(repliedEvent.sender)
+    }, [roomMembers, repliedEvent.sender])
+
+    const bodySnippet = useMemo(
+        () => getEventBodyPreview(repliedEvent),
+        [repliedEvent],
+    )
+
+    return { senderName, bodySnippet }
 }

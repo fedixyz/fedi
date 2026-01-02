@@ -656,9 +656,10 @@ async fn socialRecoveryDownloadVerificationDoc(
     federation_id: RpcFederationId,
     recovery_id: RpcRecoveryId,
     peer_id: RpcPeerId,
+    guardian_password: String,
 ) -> anyhow::Result<Option<PathBuf>> {
     bridge
-        .download_verification_doc(federation_id, recovery_id, peer_id)
+        .download_verification_doc(federation_id, recovery_id, peer_id, guardian_password)
         .await
 }
 
@@ -668,10 +669,10 @@ async fn approveSocialRecoveryRequest(
     federation_id: RpcFederationId,
     recovery_id: RpcRecoveryId,
     peer_id: RpcPeerId,
-    password: String,
+    guardian_password: String,
 ) -> anyhow::Result<()> {
     bridge
-        .approve_social_recovery_request(federation_id, recovery_id, peer_id, password)
+        .approve_social_recovery_request(federation_id, recovery_id, peer_id, guardian_password)
         .await
 }
 

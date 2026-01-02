@@ -10,7 +10,6 @@ import { selectEcashRequest, selectPaymentFederation } from '@fedi/common/redux'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
 import AmountInputDisplay from '../../ui/AmountInputDisplay'
@@ -50,7 +49,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
         generateEcash,
         isGeneratingEcash,
         reset: resetGenerateEcash,
-    } = useSendEcash(fedimint, paymentFederation?.id || '')
+    } = useSendEcash(paymentFederation?.id || '')
 
     // Reset form when it appears
     const isShowing = Boolean(ecashRequest)

@@ -78,7 +78,7 @@ export const themeDefaults = {
         defaultRadius: 16,
         qrCodeRadius: 20,
         settingsRadius: 21,
-        fediModTileRadius: 12,
+        tileRadius: 12,
         progressBarRadius: 4,
     },
     styles: {

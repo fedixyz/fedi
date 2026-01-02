@@ -1,0 +1,22 @@
+name: Public Repo - Sync Or Resolve Conflicts
+on:
+    workflow_dispatch:
+
+jobs:
+    sync-repos:
+        runs-on: [self-hosted, linux]
+        steps:
+            - name: Checkout script in repo
+              uses: actions/checkout@v4
+            - name: Install required node modules
+              run: nix develop -c npm install @actions/exec @octokit/rest
+            - name: Sync or resolve conflicts between public and private repositories
+              id: sync-repos
+              env:
+                  DOWNLOAD_TOKEN: ${{ secrets.DOWNLOAD_APK_ACCESS_TOKEN }}
+                  PUBLISH_TOKEN: ${{ secrets.PUBLISH_APK_ACCESS_TOKEN }}
+                  SOURCE_COMMIT_SHA: ${{ github.sha }}
+                  PUBLIC_FEDI_ORG: ${{ vars.PUBLIC_FEDI_ORG }}
+                  PUBLIC_FEDI_REPO: ${{ vars.PUBLIC_FEDI_REPO }}
+                  PUBLIC_FEDI_BRANCH: ${{ vars.PUBLIC_FEDI_BRANCH }}
+              run: nix develop -c node ./scripts/ci/sync-repos-resolve-conflicts.js

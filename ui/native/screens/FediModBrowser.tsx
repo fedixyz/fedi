@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -47,12 +47,12 @@ import {
     setLastSelectedCommunityId,
     selectCommunities,
     refreshCommunities,
+    selectRequestedPermission,
+    selectCurrentUrl,
+    setCurrentUrl,
+    commitUrlToHistory,
 } from '@fedi/common/redux'
-import {
-    addCustomMod,
-    selectConfigurableMods,
-    selectMiniAppByUrl,
-} from '@fedi/common/redux/mod'
+import { addCustomMod, selectConfigurableMods } from '@fedi/common/redux/mod'
 import {
     AnyParsedData,
     InstallMiniAppRequest,
@@ -82,13 +82,14 @@ import { NostrSignOverlay } from '../components/feature/fedimods/NostrSignOverla
 import { SelectPublicChatsOverlay } from '../components/feature/fedimods/SelectPublicChats'
 import { SendPaymentOverlay } from '../components/feature/fedimods/SendPaymentOverlay'
 import { RecoveryInProgressOverlay } from '../components/feature/recovery/RecoveryInProgressOverlay'
+import RequestPermissionOverlay from '../components/ui/RequestPermissionOverlay'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import {
     useOmniLinkContext,
     useOmniLinkInterceptor,
 } from '../state/contexts/OmniLinkContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { reset } from '../state/navigation'
+import { reset, resetToMiniapps } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('FediModBrowser')
@@ -119,10 +120,10 @@ type FediModResponse =
     | SignedNostrEvent
     | string
     | Array<string>
+    | boolean
 type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 
-const FediModBrowser: React.FC<Props> = ({ route }) => {
-    const { url } = route.params
+const FediModBrowser: React.FC<Props> = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const nostrPublic = useAppSelector(selectNostrNpub)
@@ -134,7 +135,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const currency = useAppSelector(selectCurrency)
     const language = useAppSelector(selectLanguage)
     const installedMiniApps = useAppSelector(selectConfigurableMods)
-    const currentMiniApp = useAppSelector(s => selectMiniAppByUrl(s, url))
+    const requestedPermission = useAppSelector(selectRequestedPermission)
     const toast = useToast()
     const areAllFederationsRecovering = useAppSelector(
         selectAreAllFederationsRecovering,
@@ -143,6 +144,8 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     const walletFederations = useAppSelector(selectLoadedFederations)
     const communities = useAppSelector(selectCommunities)
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
+    const currentUrl = useAppSelector(selectCurrentUrl)
+
     const webview = useRef<WebView | null>(null)
     const overlayResolveRef = useRef<
         FediModResolver<FediModResponse> | undefined
@@ -153,7 +156,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
 
     const [isParsingLink, setIsParsingLink] = useState(false)
     const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false)
-    const [browserUrl, setBrowserUrl] = useState<string>(url)
     const [isBrowserLoading, setIsBrowserLoading] = useState(true)
     const [browserLoadProgress, setBrowserLoadProgress] = useState(0)
     const [isSelectingPublicChats, setIsSelectingPublicChats] = useState(false)
@@ -190,17 +192,29 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
     // Intercept any URIs the user tries to navigate to that we can handle inline
     useOmniLinkInterceptor(handleParsedLink)
 
-    const { validatePermissions } = useInjectionsPermissions({
-        currentMiniAppUrl: url,
-        onValidationFailed: missingPermissions => {
-            toast.show({
-                content: t('feature.fedimods.missing-mini-app-permissions', {
-                    miniAppName: currentMiniApp?.title,
-                    missingPermissions: missingPermissions.join(', '),
-                }),
-            })
-        },
-    })
+    const { validatePermissions, handlePermissionResponse } =
+        useInjectionsPermissions({
+            // use the overlay refs to prompt the user for permission
+            // resolves on allow, rejects on deny
+            onPermissionNeeded: async (): Promise<void> => {
+                return new Promise<void>((resolve, reject) => {
+                    overlayResolveRef.current =
+                        resolve as unknown as FediModResolver<FediModResponse>
+                    overlayRejectRef.current = reject
+                })
+            },
+            onPermissionDenied: (permission, miniAppName) => {
+                toast.show({
+                    content: t(
+                        'feature.fedimods.missing-mini-app-permissions',
+                        {
+                            miniAppName,
+                            missingPermissions: permission,
+                        },
+                    ),
+                })
+            },
+        })
 
     // Handle all messages coming from a WebLN-enabled site
     const onMessage = makeWebViewMessageHandler(
@@ -656,12 +670,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         },
     }
 
-    let uri = browserUrl
-    // TODO: Remove me after alpha, just to get webln working on faucet.
-    if (uri.includes('https://faucet.mutinynet.dev.fedibtc.com')) {
-        uri = `${uri}${uri.includes('?') ? '&' : '?'}webln=1`
-    }
-
     // Handle back button press on Android
     useEffect(() => {
         const backAction = () => {
@@ -678,10 +686,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         return () => backHandler.remove()
     }, [navigation, t])
 
-    useEffect(() => {
-        setBrowserUrl(url)
-    }, [url])
-
     // when navigating away from this screen, we call onAppForeground
     // so that edits made in the community tool to any joined communities
     // reflect right away in the UI
@@ -694,6 +698,20 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         }
     }, [])
 
+    // If currentUrl is null, navigate back to Mods screen
+    // This shouldn't happen in normal use, but handles edge cases
+    useLayoutEffect(() => {
+        if (!currentUrl) {
+            log.warn('currentUrl is null, navigating to Mods screen')
+            navigation.dispatch(resetToMiniapps())
+        }
+    }, [currentUrl, navigation])
+
+    if (!currentUrl) {
+        log.warn('currentUrl is null, returning null')
+        return null
+    }
+
     return (
         <SafeAreaContainer edges="vertical">
             <WebView
@@ -701,7 +719,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 webviewDebuggingEnabled={fediModDebugMode} // required for IOS debugging
                 cacheEnabled={fediModCacheEnabled || true}
                 cacheMode={fediModCacheMode || 'LOAD_DEFAULT'}
-                source={{ uri }}
+                source={{ uri: currentUrl }}
                 injectedJavaScriptBeforeContentLoaded={generateInjectionJs({
                     webln: true,
                     eruda: fediModDebugMode,
@@ -717,9 +735,9 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                     setBrowserLoadProgress(e.nativeEvent.progress)
                 }}
                 onLoadEnd={() => {
-                    const resolvedUrl = /https?:\/\//.test(uri)
-                        ? uri
-                        : `https://${uri}`
+                    const resolvedUrl = /https?:\/\//.test(currentUrl)
+                        ? currentUrl
+                        : `https://${currentUrl}`
 
                     try {
                         const validUrl = new URL(resolvedUrl)
@@ -733,9 +751,22 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                     } finally {
                         setIsBrowserLoading(false)
                     }
+
+                    log.info('done loading', resolvedUrl)
+                    dispatch(commitUrlToHistory())
                 }}
                 onNavigationStateChange={e => {
-                    setBrowserUrl(e.url)
+                    // Skip if URL hasn't changed
+                    if (e.url === currentUrl) {
+                        return
+                    }
+                    dispatch(setCurrentUrl({ url: e.url }))
+                }}
+                onOpenWindow={e => {
+                    log.info(
+                        `${currentUrl} opening new window with URL ${e.nativeEvent.targetUrl}`,
+                    )
+                    Linking.openURL(e.nativeEvent.targetUrl)
                 }}
                 onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
                 style={{ width: '100%', height: '100%', flex: 1 }}
@@ -746,7 +777,6 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 webViewRef={webview}
                 isBrowserLoading={isBrowserLoading}
                 browserLoadProgress={browserLoadProgress}
-                currentUrl={uri}
             />
             {isParsingLink && (
                 <View style={style.loadingOverlay}>
@@ -770,12 +800,19 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 open={confirmLeaveOpen}
                 onOpenChange={setConfirmLeaveOpen}
             />
-            <AddressBarOverlay setBrowserUrl={setBrowserUrl} />
+            <AddressBarOverlay />
             <SelectPublicChatsOverlay
                 onReject={overlayProps.onReject}
                 onAccept={overlayProps.onAccept}
                 open={isSelectingPublicChats}
                 onOpenChange={setIsSelectingPublicChats}
+            />
+
+            <RequestPermissionOverlay
+                requestedPermission={requestedPermission}
+                handlePermissionResponse={handlePermissionResponse}
+                onAccept={overlayProps.onAccept}
+                onReject={overlayProps.onReject}
             />
         </SafeAreaContainer>
     )

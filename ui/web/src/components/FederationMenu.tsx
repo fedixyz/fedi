@@ -15,7 +15,6 @@ import {
     shouldShowSocialRecovery,
 } from '@fedi/common/utils/FederationUtils'
 
-import { fedimint } from '../lib/bridge'
 import { AccordionMenu, MenuItemInfo, MenuItemName } from './AccordionMenu'
 import { FederationAvatar } from './FederationAvatar'
 import { MenuGroup } from './SettingsMenu'
@@ -36,11 +35,7 @@ export const FederationMenu = ({
     const [exportingFederationId, setExportingFederationId] =
         useState<string>('')
 
-    const exportTransactions = useExportTransactions(
-        fedimint,
-        t,
-        exportingFederationId,
-    )
+    const exportTransactions = useExportTransactions(t, exportingFederationId)
 
     const exportTransactionsAsCsv = async (fed: LoadedFederation) => {
         setExportingFederationId(fed.id)

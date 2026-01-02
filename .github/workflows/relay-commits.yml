@@ -1,0 +1,57 @@
+name: Public Repo - Relay Commits
+
+on:
+  schedule:
+    # Run hourly at minute 0
+    - cron: '0 * * * *'
+
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch to relay commits to'
+        required: false
+        default: 'master'
+        type: string
+      source_branch:
+        description: 'Source branch to relay commits from (recovery override)'
+        required: false
+        type: string
+      start_commit:
+        description: 'Starting commit SHA (recovery override)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run (do not push changes)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  relay:
+    name: Relay Commits
+    runs-on: [self-hosted, linux]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "Test CI"
+          git config --global user.email "ci@test.xyz"
+
+      - name: Run relay script
+        env:
+          DOWNLOAD_TOKEN: ${{ secrets.DOWNLOAD_APK_ACCESS_TOKEN }}
+          PUBLISH_TOKEN: ${{ secrets.PUBLISH_APK_ACCESS_TOKEN }}
+          PUBLIC_FEDI_ORG: ${{ vars.PUBLIC_FEDI_ORG }}
+          PUBLIC_FEDI_REPO: ${{ vars.PUBLIC_FEDI_REPO }}
+        # ALLOWED_AUTHORS: ${{ secrets.ALLOWED_AUTHORS }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          OVERRIDE_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          OVERRIDE_START_COMMIT: ${{ inputs.start_commit }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: nix develop -c ./scripts/ci/relay-commits.sh

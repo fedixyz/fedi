@@ -3,8 +3,9 @@ import { Theme, useTheme, Text } from '@rneui/themed'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 
+import { openMiniAppSession } from '@fedi/common/redux'
 import { selectCoreMods } from '@fedi/common/redux/mod'
 
 import { FediModImages } from '../../../assets/images'
@@ -18,6 +19,7 @@ const columns = 3
 const ShortcutsListPlaceholder: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const dispatch = useDispatch()
     const navigation = useNavigation()
 
     const coreMods = useSelector(selectCoreMods) as FediMod[] | undefined
@@ -51,7 +53,8 @@ const ShortcutsListPlaceholder: React.FC = () => {
     }
 
     const handleSelect = (mod: FediMod) => {
-        navigation.navigate('FediModBrowser', { url: mod.url })
+        dispatch(openMiniAppSession({ miniAppId: mod.id, url: mod.url }))
+        navigation.navigate('FediModBrowser')
     }
 
     const handleHold: ((mod: FediMod) => void) | undefined = undefined

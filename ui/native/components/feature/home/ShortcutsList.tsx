@@ -10,6 +10,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
+import { openMiniAppSession } from '@fedi/common/redux'
 import {
     selectVisibleCommunityMods,
     setModVisibility,
@@ -47,6 +48,12 @@ const ShortcutsList: React.FC<Props> = ({ communityId }) => {
         if (isFediDeeplinkType(fediMod.url)) {
             openURL(fediMod.url)
         } else {
+            dispatch(
+                openMiniAppSession({
+                    miniAppId: fediMod.id,
+                    url: fediMod.url,
+                }),
+            )
             await handleFediModNavigation(fediMod, navigation)
         }
     }

@@ -6,7 +6,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useTransactionHistory } from '@fedi/common/hooks/transactions'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import TransactionsList from '../components/feature/transaction-history/TransactionsList'
 import Flex from '../components/ui/Flex'
 import type { RootStackParamList } from '../types/navigation'
@@ -20,10 +19,8 @@ const Transactions: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const toast = useToast()
     const [isLoading, setIsLoading] = useState(false)
-    const { transactions, fetchTransactions } = useTransactionHistory(
-        fedimint,
-        federationId,
-    )
+    const { transactions, fetchTransactions } =
+        useTransactionHistory(federationId)
 
     useEffect(() => {
         setIsLoading(true)

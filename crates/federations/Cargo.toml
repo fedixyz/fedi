@@ -37,6 +37,7 @@ lightning-invoice = "0.33.0"
 futures = "0.3"
 tracing = { workspace = true }
 thiserror = "2.0.8"
+assert_matches = { workspace = true }
 hex = { workspace = true }
 mime = "0.3.17"
 ts-rs = { workspace = true }

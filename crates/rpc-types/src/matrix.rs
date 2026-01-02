@@ -32,6 +32,7 @@ use crate::communities::CommunityInvite;
 use crate::error::{ErrorCode, RpcError};
 use crate::matrix::ruma_events::AnyMessageLikeEvent;
 use crate::multispend::MultispendEvent;
+use crate::sp_transfer::RpcSpTransferEvent;
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
@@ -1169,6 +1170,7 @@ pub enum RpcMsgLikeKind {
     Form(RpcFormMessageContent),
     #[serde(rename = "xyz.fedi.multispend")]
     Multispend(MultispendEvent),
+    SpTransfer(SpTransferVirtualEvent),
     FailedToParseCustom {
         msg_type: String,
         error: String,
@@ -1176,6 +1178,13 @@ pub enum RpcMsgLikeKind {
     Unknown,
     Redacted,
     UnableToDecrypt,
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SpTransferVirtualEvent {
+    should_render: bool,
 }
 
 impl From<&RumaMessageType> for RpcMsgLikeKind {
@@ -1236,6 +1245,18 @@ impl From<&RumaMessageType> for RpcMsgLikeKind {
                 "xyz.fedi.multispend" => parse_custom_msg(msg, RpcMsgLikeKind::Multispend),
                 "xyz.fedi.form" => parse_custom_msg(msg, RpcMsgLikeKind::Form),
                 "xyz.fedi.payment" => parse_custom_msg(msg, RpcMsgLikeKind::Payment),
+                "xyz.fedi.sp-transfer" => {
+                    parse_custom_msg(msg, |sp_transfer: RpcSpTransferEvent| match sp_transfer {
+                        RpcSpTransferEvent::PendingTransferStart { .. } => {
+                            RpcMsgLikeKind::SpTransfer(SpTransferVirtualEvent {
+                                should_render: true,
+                            })
+                        }
+                        _ => RpcMsgLikeKind::SpTransfer(SpTransferVirtualEvent {
+                            should_render: false,
+                        }),
+                    })
+                }
                 _ => RpcMsgLikeKind::Unknown,
             },
         }

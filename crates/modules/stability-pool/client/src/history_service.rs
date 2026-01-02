@@ -13,7 +13,7 @@ use futures::{Stream, StreamExt};
 use stability_pool_common::{
     AccountHistoryItem, AccountHistoryItemKind, AccountId, FiatAmount, SyncResponse, UnlockRequest,
 };
-use tokio::sync::watch;
+use tokio::sync::{Notify, watch};
 use tokio_stream::wrappers::WatchStream;
 use tracing::error;
 
@@ -26,12 +26,15 @@ use crate::db::{
 use crate::{StabilityPoolClientModule, StabilityPoolMeta, StabilityPoolSyncService};
 
 /// Service that syncs account history from server in the background
-#[derive(Debug)]
 pub struct StabilityPoolHistoryService {
     is_fetching: watch::Sender<bool>,
     client_ctx: ClientContext<StabilityPoolClientModule>,
     module_api: DynModuleApi,
     account_id: AccountId,
+    /// Notified after each history sync completes.
+    /// Used by `wait_for_completed_transfer_in` to wake up and check for new
+    /// entries.
+    update_notify: Notify,
 }
 
 impl StabilityPoolHistoryService {
@@ -45,6 +48,7 @@ impl StabilityPoolHistoryService {
             client_ctx,
             module_api,
             account_id,
+            update_notify: Notify::new(),
         }
     }
 
@@ -129,6 +133,7 @@ impl StabilityPoolHistoryService {
         }
         .await;
         self.is_fetching.send_replace(false);
+        self.update_notify.notify_waiters();
         result
     }
 
@@ -200,6 +205,27 @@ impl StabilityPoolHistoryService {
         }
 
         operation_entries
+    }
+
+    pub async fn wait_for_completed_transfer_in(
+        &self,
+        txid: TransactionId,
+    ) -> UserOperationHistoryItem {
+        loop {
+            let notify = self.update_notify.notified();
+            let mut dbtx = self.client_ctx.module_db().begin_transaction_nc().await;
+            if let Some(item) = dbtx
+                .get_value(&UserOperationHistoryItemKey {
+                    account_id: self.account_id,
+                    txid,
+                })
+                .await
+            {
+                return item;
+            }
+            drop(dbtx);
+            notify.await;
+        }
     }
 }
 

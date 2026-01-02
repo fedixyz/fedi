@@ -26,6 +26,7 @@ import { environmentSlice } from './environment'
 import {
     federationSlice,
     joinFederation,
+    migrateCommunityV1ToV2,
     processCommunityMeta,
     processFederationMeta,
     refreshFederations,
@@ -201,6 +202,33 @@ export function initializeCommonStore({
         },
     )
 
+    // Handle V1 to V2 community migration
+    const unsubscribeCommunityMigration = fedimint.addListener(
+        'communityMigratedToV2',
+        event => {
+            const v2Community: Community = coerceCommunity(event.v2Community)
+
+            log.info(
+                `communityMigratedToV2 event received: migrating from v1 "${event.v1InviteCode}" to v2 "${v2Community.id}" (${v2Community.name})`,
+            )
+
+            // we don't have a guarantee that listCommunities will be called before the event is fired so
+            // we need to handle both scenarios:
+            // 1. listCommunities returned first - v1 exists in state, will be replaced with v2
+            // 2. event fired first - state may be empty, but v2 will be added correctly
+            // this also updates lastSelectedCommunityId if it was pointing to v1
+            dispatch(
+                migrateCommunityV1ToV2({
+                    v1InviteCode: event.v1InviteCode,
+                    v2Community,
+                }),
+            )
+
+            // process meta here since we can't rely on refreshCommunities processing the new community meta
+            dispatch(processCommunityMeta({ fedimint, community: v2Community }))
+        },
+    )
+
     // Automatically rejoin federations that fail the nonce reuse check and recover from scratch
     const unsubscribeNonceReuseCheckFailed = fedimint.addListener(
         'nonceReuseCheckFailed',
@@ -308,6 +336,7 @@ export function initializeCommonStore({
         unsubscribeFederation()
         unsubscribeNonceReuseCheckFailed()
         unsubscribeCommunities()
+        unsubscribeCommunityMigration()
         unsubscribeBalance()
         unsubscribeTransaction()
         unsubscribeRecovery()

@@ -42,6 +42,9 @@ jest.mock('@fedi/native/bridge', () => ({
 jest.mock('@react-native-documents/picker', () => ({
     pick: jest.fn(),
     keepLocalCopy: jest.fn(),
+    types: jest.requireActual('@react-native-documents/picker/src/fileTypes')
+        .types,
+    DocumentPickerResponse: {},
 }))
 
 jest.mock('@react-native-camera-roll/camera-roll', () => ({

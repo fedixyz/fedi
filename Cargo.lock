@@ -2983,6 +2983,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "api-types",
+ "assert_matches",
  "async-recursion",
  "async-stream",
  "async-trait",
@@ -3079,6 +3080,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "api-types",
+ "assert_matches",
  "async-trait",
  "base64 0.22.1",
  "bech32",
@@ -3119,6 +3121,7 @@ dependencies = [
  "nostr",
  "nostril",
  "rand 0.8.5",
+ "redb-storage",
  "reqwest",
  "ring",
  "rolling-file",
@@ -3215,7 +3218,7 @@ dependencies = [
  "console_error_panic_hook",
  "fedi-ffi",
  "fedimint-core",
- "fedimint-cursed-redb 0.1.0",
+ "fedimint-cursed-redb",
  "futures",
  "gloo-console",
  "gloo-file",
@@ -3358,7 +3361,7 @@ dependencies = [
  "fedimint-build",
  "fedimint-client",
  "fedimint-core",
- "fedimint-cursed-redb 0.9.1-alpha",
+ "fedimint-cursed-redb",
  "fedimint-eventlog",
  "fedimint-ln-client",
  "fedimint-lnv2-client",
@@ -3499,24 +3502,6 @@ dependencies = [
  "tracing",
  "url",
  "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "fedimint-cursed-redb"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "fedimint-core",
- "fedimint-logging",
- "futures",
- "gloo-utils",
- "imbl 6.1.0",
- "redb",
- "tempfile",
- "tokio",
- "tracing",
- "web-sys",
 ]
 
 [[package]]
@@ -7099,6 +7084,7 @@ name = "multispend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-stream",
  "async-trait",
  "bitcoin",
@@ -8900,6 +8886,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "redb-storage"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "fedimint-core",
+ "fedimint-cursed-redb",
+ "runtime",
+ "tokio",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8989,6 +8987,7 @@ dependencies = [
  "fedimint-logging",
  "futures",
  "listenfd",
+ "redb-storage",
  "rpc-types",
  "runtime",
  "serde",
@@ -10341,6 +10340,8 @@ name = "stability-pool-tests"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
+ "devi",
  "devimint",
  "fedimint-core",
  "fedimint-logging",
@@ -10354,6 +10355,8 @@ name = "stability-pool-tests-old"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
+ "devi",
  "devimint",
  "fedimint-core",
  "fedimint-logging",

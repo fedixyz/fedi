@@ -55,7 +55,6 @@ import {
     shouldShowOfflineWallet,
     shouldShowSocialRecovery,
 } from '../utils/FederationUtils'
-import { FedimintBridge } from '../utils/fedimint'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
@@ -141,10 +140,8 @@ export function useIsOfflineWalletSupported(federationId: Federation['id']) {
 // safe onchain deposits, it will be disabled
 // Onchain deposits can also be enabled via Developer Settings which will
 // override all of the above
-export function useIsOnchainDepositSupported(
-    fedimint: FedimintBridge,
-    federationId: Federation['id'],
-) {
+export function useIsOnchainDepositSupported(federationId: Federation['id']) {
+    const fedimint = useFedimint()
     const federation = useCommonSelector(s =>
         selectLoadedFederation(s, federationId),
     )
@@ -537,10 +534,11 @@ export function useFederationMembership(
     return { isMember, ...rest }
 }
 
-export function useFederationRating(fedimint: FedimintBridge) {
+export function useFederationRating() {
     // federation ratings are shown after making a payment so we assume the correct
     // federation is selected as paymentFederation which is the one we should be rating
     const federationToRate = useCommonSelector(selectPaymentFederation)
+    const fedimint = useFedimint()
     const [rating, setRating] = useState<number | null>(null)
     const dispatch = useCommonDispatch()
 
@@ -582,10 +580,8 @@ export function useFederationRating(fedimint: FedimintBridge) {
     }
 }
 
-export function useFederationInviteCode(
-    fedimint: FedimintBridge,
-    inviteCode: string,
-) {
+export function useFederationInviteCode(inviteCode: string) {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const [isJoining, setIsJoining] = useState(false)
     const [isChecking, setIsChecking] = useState(false)
@@ -632,10 +628,8 @@ export function useFederationInviteCode(
     }
 }
 
-export function useCommunityInviteCode(
-    fedimint: FedimintBridge,
-    inviteCode: string,
-) {
+export function useCommunityInviteCode(inviteCode: string) {
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const communityIds = useCommonSelector(selectCommunityIds)
 
@@ -712,6 +706,7 @@ export function useFederationStatus<I>({
         statusWord = t('words.online')
         statusMessage = t('feature.federations.connection-status-online')
     } else if (status === 'unstable') {
+        statusIconColor = theme.colors.lightOrange
         statusWord = t('words.unstable')
         statusMessage = t('feature.federations.connection-status-unstable')
     }

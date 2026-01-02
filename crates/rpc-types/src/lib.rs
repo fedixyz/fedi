@@ -398,7 +398,7 @@ pub struct SocialRecoveryApproval {
 
 #[derive(Debug, Eq, Ord, PartialOrd, PartialEq, Serialize, Clone, Copy, TS)]
 #[ts(export)]
-pub struct RpcPeerId(#[ts(type = "number")] pub fedimint_core::PeerId);
+pub struct RpcPeerId(#[ts(type = "string")] pub fedimint_core::PeerId);
 
 impl<'de> Deserialize<'de> for RpcPeerId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

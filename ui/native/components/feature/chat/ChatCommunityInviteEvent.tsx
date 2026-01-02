@@ -9,9 +9,8 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { selectMatrixAuth, setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent, MatrixCommunityInviteEvent } from '@fedi/common/types'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import FederationCompactTile from '../federations/FederationCompactTile'
 import ChatEventWrapper from './ChatEventWrapper'
 import ChatTextEvent from './ChatTextEvent'
@@ -40,7 +39,7 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
         isFetching,
         preview: communityPreview,
         handleJoin,
-    } = useCommunityInviteCode(fedimint, inviteCode)
+    } = useCommunityInviteCode(inviteCode)
 
     const eventAsText = {
         ...event,
@@ -87,7 +86,7 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
         <>
             <ChatEventWrapper event={event} handleLongPress={handleLongPress}>
                 {communityPreview ? (
-                    <Flex gap="lg">
+                    <Column gap="lg">
                         <Text small numberOfLines={2} color={textColor}>
                             <Text bold small color={textColor}>
                                 {t('feature.communities.community-invite')}:
@@ -99,7 +98,7 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
                             isLoading={isFetching}
                             textColor={textColor}
                         />
-                        <Flex gap="xs">
+                        <Column gap="xs">
                             {joined && (
                                 <Text small color={textColor}>
                                     {t('phrases.you-are-a-member', {
@@ -107,8 +106,8 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
                                     })}
                                 </Text>
                             )}
-                            <Flex
-                                row
+                            <Row
+                                wrap
                                 justify="start"
                                 gap="md"
                                 fullWidth
@@ -130,9 +129,9 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
                                         }
                                     />
                                 ))}
-                            </Flex>
-                        </Flex>
-                    </Flex>
+                            </Row>
+                        </Column>
+                    </Column>
                 ) : null}
             </ChatEventWrapper>
             <JoinCommunityOverlay

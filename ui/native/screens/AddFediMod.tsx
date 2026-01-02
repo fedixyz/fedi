@@ -2,24 +2,23 @@ import { useHeaderHeight } from '@react-navigation/elements'
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Image, Input, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     StyleSheet,
+    TextInput,
     View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SvgUri } from 'react-native-svg'
 import { useDispatch } from 'react-redux'
 
-import { useDebouncedEffect } from '@fedi/common/hooks/util'
+import useValidateMiniAppUrl from '@fedi/common/hooks/miniapps'
 import { addCustomMod } from '@fedi/common/redux/mod'
-import { tryFetchUrlMetadata } from '@fedi/common/utils/fedimods'
 import { makeLog } from '@fedi/common/utils/log'
-import { constructUrl } from '@fedi/common/utils/neverthrow'
 import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 
 import { FediModImages } from '../assets/images'
@@ -28,6 +27,7 @@ import {
     OmniInputAction,
 } from '../components/feature/omni/OmniInput'
 import Flex from '../components/ui/Flex'
+import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { ParserDataType } from '../types'
 import { RootStackParamList } from '../types/navigation'
@@ -45,14 +45,20 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
     const dispatch = useDispatch()
     const navigation = useNavigation()
 
-    const [url, setUrl] = useState('')
-    const [title, setTitle] = useState('')
-    const [imageUrl, setImageUrl] = useState('')
-    const [isFetching, setIsFetching] = useState(false)
-    const [isValidUrl, setIsValidUrl] = useState(false)
+    const {
+        url,
+        setUrl,
+        title,
+        setTitle,
+        imageUrl,
+        setImageUrl,
+        isFetching,
+        canSave,
+    } = useValidateMiniAppUrl()
 
     const style = styles(theme)
     const scrollRef = useRef<ScrollView>(null)
+    const titleInputRef = useRef<TextInput>(null)
 
     const insets = useSafeAreaInsets()
     const headerHeight = useHeaderHeight()
@@ -84,6 +90,11 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
         }
     }
 
+    const handleClearTitle = () => {
+        setTitle('')
+        titleInputRef.current?.focus()
+    }
+
     const setInputMethod = useCallback(
         (targetInputMethod: 'enter' | 'scan') => {
             navigation.navigate('AddFediMod', {
@@ -102,42 +113,6 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
             },
         ]
     }, [t, setInputMethod])
-
-    useDebouncedEffect(
-        () => {
-            if (url) {
-                constructUrl(/^https?:\/\//i.test(url) ? url : `https://${url}`)
-                    // If URL construction fails, setIsValidUrl to false
-                    .orTee(() => setIsValidUrl(false))
-                    // Otherwise, set valid url and start fetching
-                    .andTee(() => {
-                        setIsValidUrl(true)
-                        setIsFetching(true)
-                    })
-                    .asyncAndThen(tryFetchUrlMetadata)
-                    .match(
-                        metadata => {
-                            setImageUrl(metadata.icon)
-                            setIsFetching(false)
-                        },
-                        e => {
-                            log.error('Failed to fetch fedi mod metadata', e)
-                            setIsFetching(false)
-                        },
-                    )
-            }
-        },
-        [url],
-        500,
-    )
-
-    const canSave =
-        isValidUrl &&
-        !isFetching &&
-        title &&
-        url &&
-        title.length >= 3 &&
-        title.length <= 24
 
     if (inputMethod === 'scan') {
         return (
@@ -218,6 +193,18 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
                             containerStyle={style.inputContainer}
                             disabled={isFetching}
                             returnKeyType="done"
+                            ref={(ref: TextInput | null) => {
+                                titleInputRef.current = ref
+                            }}
+                            rightIcon={
+                                title.length > 0 && (
+                                    <PressableIcon
+                                        onPress={handleClearTitle}
+                                        svgName="Close"
+                                        svgProps={{ size: 20 }}
+                                    />
+                                )
+                            }
                         />
                         <Input
                             value={imageUrl}

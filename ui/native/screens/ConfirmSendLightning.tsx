@@ -14,7 +14,6 @@ import {
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { fedimint } from '../bridge'
 import InternetUnreachableBanner from '../components/feature/environment/InternetUnreachableBanner'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
@@ -57,7 +56,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
         setInputAmount,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, paymentFederation?.id, t)
+    } = useOmniPaymentState(paymentFederation?.id, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails

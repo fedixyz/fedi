@@ -359,6 +359,7 @@
                 # tools for managing native app deployments
                 pkgs.fastlane
                 pkgs.ruby
+                pkgs.rsync
                 pkgs.perl
                 pkgs.pkg-config
                 pkgs.cmake

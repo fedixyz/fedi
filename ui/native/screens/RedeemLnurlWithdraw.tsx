@@ -9,7 +9,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import Flex from '../components/ui/Flex'
@@ -41,7 +40,6 @@ const RedeemLnurlWithdraw: React.FC<Props> = ({ navigation, route }: Props) => {
         federationId: paymentFederation?.id,
     })
     const { isWithdrawing, handleWithdraw } = useLnurlWithdraw({
-        fedimint,
         federationId: paymentFederation?.id,
         lnurlw,
         onWithdrawPaid: tx =>

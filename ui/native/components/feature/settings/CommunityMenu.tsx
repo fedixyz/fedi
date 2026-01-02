@@ -13,7 +13,6 @@ import {
     shouldShowInviteCode,
 } from '@fedi/common/utils/FederationUtils'
 
-import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -31,11 +30,7 @@ const CommunityMenu = ({ community }: CommunityMenuProps) => {
     const style = styles(theme)
     const navigation = useNavigation()
 
-    const { canLeaveCommunity, handleLeave } = useLeaveCommunity({
-        t,
-        fedimint,
-        communityId: community.id,
-    })
+    const { canLeaveCommunity, handleLeave } = useLeaveCommunity(community.id)
 
     const showLeaveConfirmation = () => {
         Alert.alert(

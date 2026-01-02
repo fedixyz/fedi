@@ -98,12 +98,17 @@ export const federationSlice = createSlice({
         setCommunities(state, action: PayloadAction<Community[]>) {
             let hasAnyUpdates = false
 
-            const updatedCommunities = state.communities.map(
-                existingCommunity => {
+            const updatedCommunities = state.communities.reduce<Community[]>(
+                (acc, existingCommunity) => {
                     const communityToUpsert = action.payload.find(
                         f => f.id === existingCommunity.id,
                     )
-                    if (!communityToUpsert) return existingCommunity
+                    // Skip communities not in payload (they've been removed)
+                    if (!communityToUpsert) {
+                        hasAnyUpdates = true
+                        return acc
+                    }
+
                     const updatedCommunity: Community = {
                         ...existingCommunity,
                         ...communityToUpsert,
@@ -125,8 +130,10 @@ export const federationSlice = createSlice({
                     )
                     if (hasUpdates) hasAnyUpdates = true
 
-                    return hasUpdates ? updatedCommunity : existingCommunity
+                    acc.push(hasUpdates ? updatedCommunity : existingCommunity)
+                    return acc
                 },
+                [],
             )
 
             // Add new communities that don't exist in the current state
@@ -374,6 +381,49 @@ export const federationSlice = createSlice({
         setGuardianitoBot(state, action: PayloadAction<GuardianitoBot>) {
             state.guardianitoBot = action.payload
         },
+        migrateCommunityV1ToV2(
+            state,
+            action: PayloadAction<{
+                v1InviteCode: string
+                v2Community: Community
+            }>,
+        ) {
+            const { v1InviteCode, v2Community } = action.payload
+
+            const v1Existed = state.communities.some(c => c.id === v1InviteCode)
+            const v2Existed = state.communities.some(
+                c => c.id === v2Community.id,
+            )
+            log.info(`migrateCommunityV1ToV2`, {
+                v1InviteCode,
+                v1Existed,
+                v2Community,
+                v2Existed,
+            })
+
+            // Remove v1 community from the list
+            const filteredCommunities = state.communities.filter(
+                c => c.id !== v1InviteCode,
+            )
+
+            // Add or update v2 community using existing upsert logic
+            state.communities = upsertListItem<Community>(
+                filteredCommunities,
+                v2Community,
+                ['meta'],
+            )
+
+            // Only update lastSelectedCommunityId if it was pointing to the migrated v1 community
+            // This prevents unexpected behavior if the user switched to a different community
+            // before the migration event fired
+            if (state.lastSelectedCommunityId === v1InviteCode) {
+                log.info(
+                    `migrateCommunityV1ToV2: updating lastSelectedCommunityId from v1 to v2`,
+                    { v1InviteCode, v2Community },
+                )
+                state.lastSelectedCommunityId = v2Community.id
+            }
+        },
     },
     extraReducers: builder => {
         builder.addCase(leaveFederation.fulfilled, (state, action) => {
@@ -497,6 +547,7 @@ export const {
     addAutojoinNoticeToDisplay,
     removeAutojoinNoticeToDisplay,
     setGuardianitoBot,
+    migrateCommunityV1ToV2,
 } = federationSlice.actions
 
 /*** Async thunk actions */

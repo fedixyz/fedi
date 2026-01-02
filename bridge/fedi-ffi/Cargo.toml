@@ -34,7 +34,7 @@ anyhow = { workspace = true }
 bip39 = { version = "2.0.0", features = ["rand"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-rand = { workspace = true }
+rand = { workspace = true, features = ["small_rng"] }
 bech32 = { workspace = true }
 bitcoin = { workspace = true }
 lazy_static = "1.4.0"
@@ -95,6 +95,8 @@ uniffi = { version = "0.25.3", features = ["build"] }
 fedimint-build = { workspace = true }
 
 [dev-dependencies]
+redb-storage = { workspace = true }
+assert_matches = { workspace = true }
 tempfile = "3.17.1"
 mockito = "1.4.0"
 clap = { workspace = true }

@@ -25,7 +25,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 38,
+        version: 40,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -43,6 +43,8 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         matrixAuth: state.matrix.auth,
         protectedFeatures: state.security.protectedFeatures,
         customGlobalMods: state.mod.customGlobalMods,
+        miniAppPermissions: state.mod.miniAppPermissions,
+        miniAppOrder: state.mod.miniAppOrder,
         modVisibility: state.mod.modVisibility,
         newMods: state.mod.newMods,
         chatDrafts: state.matrix.drafts,
@@ -121,8 +123,10 @@ export function hasStorageStateChanged(
         ['nux', 'steps'],
         ['security', 'protectedFeatures'],
         ['mod', 'customGlobalMods'],
+        ['mod', 'miniAppOrder'],
         ['mod', 'modVisibility'],
         ['mod', 'newMods'],
+        ['mod', 'miniAppPermissions'],
         ['support', 'supportPermissionGranted'],
         ['support', 'zendeskPushNotificationToken'],
         ['survey', 'lastShownSurveyTimestamp'],
@@ -756,6 +760,22 @@ async function migrateStoredState(
             ...migrationState,
             version: 38,
             newMods: [],
+        }
+    }
+
+    if (migrationState.version === 38) {
+        migrationState = {
+            ...migrationState,
+            version: 39,
+            miniAppPermissions: {},
+        }
+    }
+
+    if (migrationState.version === 39) {
+        migrationState = {
+            ...migrationState,
+            version: 40,
+            miniAppOrder: [],
         }
     }
 

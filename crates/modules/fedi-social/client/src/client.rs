@@ -9,8 +9,8 @@ use fedimint_core::PeerId;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::module::ApiRequestErased;
 use fedimint_core::module::registry::ModuleDecoderRegistry;
+use fedimint_core::module::{ApiAuth, ApiRequestErased};
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 use secp256k1::Secp256k1;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -417,10 +417,15 @@ impl SocialVerification {
     pub async fn download_verification_doc(
         &self,
         id: RecoveryId,
+        guardian_password: String,
     ) -> anyhow::Result<Option<VerificationDocument>> {
         let encrypted_share = self
             .api
-            .request_raw(self.peer_id, "get_verification", &ApiRequestErased::new(id))
+            .request_single_peer(
+                "get_verification".to_owned(),
+                ApiRequestErased::new(id).with_auth(ApiAuth(guardian_password)),
+                self.peer_id,
+            )
             .await?;
 
         let doc: Option<VerificationDocument> = serde_json::from_value(encrypted_share)?;
@@ -431,13 +436,13 @@ impl SocialVerification {
     pub async fn approve_recovery(
         &self,
         id: RecoveryId,
-        admin_password: &str,
+        guardian_password: String,
     ) -> anyhow::Result<()> {
         let _: Option<()> = self
             .api
             .request_single_peer(
                 "approve_recovery".to_owned(),
-                ApiRequestErased::new((id, admin_password)),
+                ApiRequestErased::new(id).with_auth(ApiAuth(guardian_password)),
                 self.peer_id,
             )
             .await?;

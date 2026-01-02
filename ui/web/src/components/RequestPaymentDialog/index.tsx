@@ -16,7 +16,6 @@ import { TransactionListEntry } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { useRouteState } from '../../context/RouteStateContext'
-import { fedimint } from '../../lib/bridge'
 import { config, theme } from '../../styles'
 import { getHashParams } from '../../utils/linking'
 import { Dialog } from '.././Dialog'
@@ -54,12 +53,9 @@ export const RequestPaymentDialog: React.FC<Props> = ({
 
     const containerRef = useRef<HTMLDivElement | null>(null)
 
-    const isOnchainSupported = useIsOnchainDepositSupported(
-        fedimint,
-        federationId,
-    )
+    const isOnchainSupported = useIsOnchainDepositSupported(federationId)
 
-    const { supportsLnurl } = useLnurlReceiveCode(fedimint, federationId || '')
+    const { supportsLnurl } = useLnurlReceiveCode(federationId || '')
 
     const handleSubmit = () => {
         setIsCompleted(true)
@@ -72,12 +68,11 @@ export const RequestPaymentDialog: React.FC<Props> = ({
 
     const { address, makeOnchainAddress, onSaveNotes, reset } =
         useMakeOnchainAddress({
-            fedimint,
             federationId,
             onMempoolTransaction: onTransactionReceived,
         })
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     // Reset on close, focus input on desktop open
     useEffect(() => {

@@ -7,20 +7,24 @@ import { INVALID_NAME_PLACEHOLDER } from '../constants/matrix'
 import {
     CommonDispatch,
     configureMatrixPushNotifications,
+    selectChatDrafts,
     selectMatrixAuth,
+    selectMessageToEdit,
     selectPaymentFederation,
     sendMatrixPaymentPush,
     sendMatrixPaymentRequest,
+    setChatDraft,
     setLastUsedFederationId,
     setMatrixDisplayName,
+    setMessageToEdit,
 } from '../redux'
 import { getDisplayNameValidator, parseData } from '../utils/chat'
-import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import { useMinMaxRequestAmount, useMinMaxSendAmount } from './amount'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
+import { useDebouncedEffect } from './util'
 
 const log = makeLog('common/hooks/chat')
 
@@ -124,12 +128,12 @@ export function usePublishNotificationToken(
 
 export const useChatPaymentPush = (
     t: TFunction,
-    fedimint: FedimintBridge,
     roomId: string,
     recipientId: string,
 ) => {
     const toast = useToast()
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const payFromFederation = useCommonSelector(selectPaymentFederation)
     const federationId = payFromFederation?.id || ''
     const [isProcessing, setIsProcessing] = useState<boolean>(false)
@@ -167,15 +171,18 @@ export const useChatPaymentPush = (
 
 export const useChatPaymentUtils = (
     t: TFunction,
-    fedimint: FedimintBridge,
     roomId: string | undefined,
     recipientId: string,
 ) => {
+    const fedimint = useFedimint()
     const toast = useToast()
     const dispatch = useCommonDispatch()
     const paymentFederation = useCommonSelector(selectPaymentFederation)
     const federationId = paymentFederation?.id
-    const sendMinMax = useMinMaxSendAmount({ fedimint, federationId })
+    const sendMinMax = useMinMaxSendAmount({
+        ecashRequest: {},
+        federationId,
+    })
     const requestMinMax = useMinMaxRequestAmount({
         ecashRequest: {},
         federationId,
@@ -356,5 +363,63 @@ export const useDisplayNameForm = (t: TFunction) => {
         errorMessage,
         handleChangeUsername,
         handleSubmitDisplayName,
+    }
+}
+
+/**
+ * Hook for managing message input text state with draft persistence and edit mode support.
+ * - Text state with draft initialization from redux
+ * - Debounced draft persistence
+ * - Edit mode detection and text initialization
+ * - Re-sync from draft when roomId changes
+ */
+export function useMessageInputState(roomId: string) {
+    const dispatch = useCommonDispatch()
+    const drafts = useCommonSelector(selectChatDrafts)
+    const editingMessage = useCommonSelector(selectMessageToEdit)
+    const [messageText, setMessageText] = useState<string>(drafts[roomId] ?? '')
+
+    // Re-initialize from draft when room changes (but not when editing)
+    useEffect(() => {
+        if (!editingMessage) {
+            setMessageText(drafts[roomId] ?? '')
+        }
+    }, [roomId, drafts, editingMessage])
+
+    // Handle edit mode:
+    // set message text if editing a message in this room
+    // clear edit state if coming from different room
+    useEffect(() => {
+        if (editingMessage) {
+            if (editingMessage.roomId === roomId) {
+                setMessageText(editingMessage.content.body)
+            } else {
+                dispatch(setMessageToEdit(null))
+            }
+        }
+    }, [editingMessage, roomId, dispatch])
+
+    // persist drafts to state
+    useDebouncedEffect(
+        () => {
+            // don't save drafts when editing a message
+            if (!editingMessage) {
+                dispatch(setChatDraft({ roomId, text: messageText }))
+            }
+        },
+        [messageText, dispatch, editingMessage, roomId],
+        500,
+    )
+
+    const resetMessageText = useCallback(() => {
+        setMessageText('')
+    }, [])
+
+    return {
+        messageText,
+        setMessageText,
+        editingMessage,
+        isEditingMessage: !!editingMessage,
+        resetMessageText,
     }
 }

@@ -312,8 +312,6 @@ describe('handleFediModNavigation', () => {
         await handleFediModNavigation(shortcut, navigation)
 
         expect(mockOpenURL).not.toHaveBeenCalled()
-        expect(navigation.navigate).toHaveBeenCalledWith('FediModBrowser', {
-            url: 'https://fedi.xyz/whatever',
-        })
+        expect(navigation.navigate).toHaveBeenCalledWith('FediModBrowser')
     })
 })

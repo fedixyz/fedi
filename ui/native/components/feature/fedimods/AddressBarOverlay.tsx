@@ -1,12 +1,6 @@
 import { Input, Overlay, Text, useTheme } from '@rneui/themed'
 import { Theme } from '@rneui/themed/dist/config'
-import {
-    Dispatch,
-    SetStateAction,
-    useCallback,
-    useEffect,
-    useState,
-} from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Platform,
@@ -18,8 +12,9 @@ import {
 } from 'react-native'
 
 import {
+    goToPage,
     selectAddressOverlayOpen,
-    selectSiteInfo,
+    selectCurrentUrl,
     setAddressOverlayOpen,
 } from '@fedi/common/redux'
 
@@ -29,19 +24,15 @@ import Flex from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import SvgImage from '../../ui/SvgImage'
 
-export default function AddressBarOverlay({
-    setBrowserUrl,
-}: {
-    setBrowserUrl: Dispatch<SetStateAction<string>>
-}) {
+export default function AddressBarOverlay() {
     const addressOverlayOpen = useAppSelector(selectAddressOverlayOpen)
     const { t } = useTranslation()
     const { theme } = useTheme()
     const dispatch = useAppDispatch()
-    const siteInfo = useAppSelector(selectSiteInfo)
+    const currentUrl = useAppSelector(selectCurrentUrl)
 
     const { isVisible: kbVisible, height: kbHeight } = useKeyboard()
-    const [url, setUrl] = useState<string>(siteInfo?.url ?? '')
+    const [url, setUrl] = useState<string>(currentUrl ?? '')
 
     const style = styles(theme)
 
@@ -55,6 +46,7 @@ export default function AddressBarOverlay({
 
             if (!text) return
 
+            let targetUrl: string = ''
             try {
                 if (!/^(https?:\/\/)?[\w-]+(\.[\w-]+)+$/i.test(text))
                     throw new Error('Invalid URL')
@@ -63,21 +55,22 @@ export default function AddressBarOverlay({
                     /https?:\/\//.test(text) ? text : `https://${text}`,
                 )
 
-                setBrowserUrl(resolvedUrl.toString())
+                targetUrl = resolvedUrl.toString()
             } catch {
-                setBrowserUrl('https://google.com/search?q=' + text)
+                targetUrl = 'https://google.com/search?q=' + text
             } finally {
+                dispatch(goToPage({ targetUrl }))
                 close()
             }
         },
-        [close, setBrowserUrl],
+        [close, dispatch],
     )
 
     useEffect(() => {
-        if (siteInfo) {
-            setUrl(siteInfo.url)
+        if (currentUrl) {
+            setUrl(currentUrl)
         }
-    }, [siteInfo, addressOverlayOpen])
+    }, [currentUrl, addressOverlayOpen])
 
     return (
         <Overlay

@@ -1032,6 +1032,25 @@ export function stripReplyFromBody(
     return decodeHtmlEntities(body)
 }
 
+/**
+ * Extracts a clean body preview from a MatrixEvent, stripping reply formatting
+ * and truncating to a maximum length. Useful for reply bars, notifications, etc.
+ */
+export function getEventBodyPreview(
+    event: MatrixEvent,
+    maxLength: number = 50,
+): string {
+    const body = 'body' in event.content ? event.content.body : 'Message'
+
+    const formattedBody =
+        'formatted' in event.content
+            ? event.content.formatted?.formattedBody
+            : undefined
+
+    const cleanBody = stripReplyFromBody(body, formattedBody)
+    return cleanBody.slice(0, maxLength) || 'Message'
+}
+
 /** Normalize a plain string or a full SendMessageData into SendMessageData */
 export const toSendMessageData = (
     x: string | SendMessageData,
@@ -1436,6 +1455,7 @@ const PreviewTextMap = {
     unknown: 'feature.chat.new-message',
     unableToDecrypt: 'feature.chat.new-message',
     'xyz.fedi.multispend': 'feature.chat.multispend-preview',
+    spTransfer: 'feature.chat.sp-transfer-preview',
     redacted: 'feature.chat.message-deleted',
 } as const satisfies Partial<Record<MatrixEventKind, ResourceKey>>
 

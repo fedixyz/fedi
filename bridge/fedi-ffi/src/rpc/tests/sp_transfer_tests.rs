@@ -1,14 +1,12 @@
 use std::pin::pin;
 
-use fedimint_core::util::retry;
+use anyhow::Context as _;
 use fedimint_core::Amount;
 use futures::StreamExt as _;
 use rpc_types::matrix::RpcRoomId;
 use rpc_types::sp_transfer::RpcSpTransferStatus;
 use rpc_types::{FrontendMetadata, RpcAmount, RpcFiatAmount};
-use sp_transfer::db::resolve_transfer_state;
 
-use super::utils::test_backoff;
 use super::*;
 
 pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
@@ -107,25 +105,21 @@ pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
             }
         });
 
-    // Wait for SP Transfers completion using resolver on receiver side
-    retry(
-        "wait for SP transfer completion",
-        test_backoff(100),
-        || async {
-            let state =
-                resolve_transfer_state(bridge_receiver.runtime.clone(), &pending_transfer_id)
-                    .await
-                    .context("transfer state not yet available")?;
-            // FIXME: get to complete status
-            if state.status == RpcSpTransferStatus::SentHint {
-                assert_eq!(state.amount, RpcFiatAmount(10_00));
-                Ok(state)
-            } else {
-                anyhow::bail!("transfer not complete yet: {:?}", state.status)
-            }
-        },
-    )
-    .await?;
+    // Wait for SP Transfers completion using subscribe_transfer_state on receiver
+    // side
+    let sp_transfers_matrix = bridge_receiver.matrix.wait_spt().await.clone();
+    let mut state_stream = pin!(sp_transfers_matrix.subscribe_transfer_state(pending_transfer_id));
+
+    let final_state = loop {
+        let state = state_stream.next().await.context("stream ended early")?;
+        match state.status {
+            RpcSpTransferStatus::Pending => continue,
+            RpcSpTransferStatus::Complete | RpcSpTransferStatus::Failed => break state,
+        }
+    };
+
+    assert_eq!(final_state.status, RpcSpTransferStatus::Complete);
+    assert_eq!(final_state.amount, RpcFiatAmount(10_00));
 
     Ok(())
 }
@@ -236,24 +230,21 @@ pub async fn test_receiver_joins_federation_later(_dev_fed: DevFed) -> anyhow::R
     // NOW receiver joins the federation - this should trigger AccountIdResponder
     let _federation_receiver = td_receiver.join_default_fed().await?;
 
-    // Wait for SP Transfers completion using resolver on receiver side
-    retry(
-        "wait for SP transfer completion",
-        test_backoff(100),
-        || async {
-            let state =
-                resolve_transfer_state(bridge_receiver.runtime.clone(), &pending_transfer_id)
-                    .await
-                    .context("transfer state not yet available")?;
-            if state.status == RpcSpTransferStatus::SentHint {
-                assert_eq!(state.amount, RpcFiatAmount(10_00));
-                Ok(state)
-            } else {
-                anyhow::bail!("transfer not complete yet: {:?}", state.status)
-            }
-        },
-    )
-    .await?;
+    // Wait for SP Transfers completion using subscribe_transfer_state on receiver
+    // side
+    let sp_transfers_matrix = bridge_receiver.matrix.wait_spt().await.clone();
+    let mut state_stream = pin!(sp_transfers_matrix.subscribe_transfer_state(pending_transfer_id));
+
+    let final_state = loop {
+        let state = state_stream.next().await.context("stream ended early")?;
+        match state.status {
+            RpcSpTransferStatus::Pending => continue,
+            RpcSpTransferStatus::Complete | RpcSpTransferStatus::Failed => break state,
+        }
+    };
+
+    assert_eq!(final_state.status, RpcSpTransferStatus::Complete);
+    assert_eq!(final_state.amount, RpcFiatAmount(10_00));
 
     Ok(())
 }

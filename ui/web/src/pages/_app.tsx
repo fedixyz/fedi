@@ -2,6 +2,7 @@ import type { AppProps } from 'next/app'
 import { useEffect } from 'react'
 import { Provider as ReduxProvider } from 'react-redux'
 
+import { setEventListenersReady } from '@fedi/common/redux'
 import {
     configureLogging,
     makeLog,
@@ -29,6 +30,7 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
     // Initialize redux store behavior
     useEffect(() => {
         const unsubscribe = initializeWebStore()
+        store.dispatch(setEventListenersReady(true))
         return unsubscribe
     }, [])
 

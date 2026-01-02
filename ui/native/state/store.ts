@@ -8,12 +8,17 @@ import {
     setCurrencyLocale,
     refreshHistoricalCurrencyRates,
     setIsInternetUnreachable,
+    setEventListenersReady,
     CommonState,
     setupStore,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
+import {
+    fedimint,
+    subscribeToBridgeEvents,
+    unsubscribeFromBridgeEvents,
+} from '../bridge'
 import i18n from '../localization/i18n'
 import { getNumberFormatLocale } from '../utils/device-info'
 import { checkIsInternetUnreachable } from '../utils/environment'
@@ -34,6 +39,16 @@ export function initializeNativeStore() {
         fedimint,
         storage,
         i18n,
+    })
+
+    // Subscribe to native bridge events and dispatch ready state when complete
+    let nativeEventListeners: Awaited<
+        ReturnType<typeof subscribeToBridgeEvents>
+    >
+    subscribeToBridgeEvents().then(listeners => {
+        nativeEventListeners = listeners
+        log.info('initialized bridge event listeners')
+        store.dispatch(setEventListenersReady(true))
     })
 
     // Get the number format locale from the system and store it for later use.
@@ -73,6 +88,7 @@ export function initializeNativeStore() {
 
     return () => {
         unsubscribe()
+        unsubscribeFromBridgeEvents(nativeEventListeners)
         changeSubscription.remove()
         networkSubscription()
     }

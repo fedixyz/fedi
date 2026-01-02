@@ -19,7 +19,6 @@ import {
 } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import WalletButtons from '../../feature/wallet/WalletButtons'
@@ -45,7 +44,7 @@ const StabilityWallet: React.FC<Props> = ({
     const dispatch = useAppDispatch()
     const toast = useToast()
 
-    useMonitorStabilityPool(fedimint, federation.id)
+    useMonitorStabilityPool(federation.id)
 
     const shouldShowStablePaymentAddress = useAppSelector(s =>
         selectShouldShowStablePaymentAddress(s, federation.id),

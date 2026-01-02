@@ -115,6 +115,7 @@ export const RpcMatrixEventKinds = [
     'xyz.fedi.federationInvite',
     'xyz.fedi.communityInvite',
     'm.poll',
+    'spTransfer',
     // 'm.room.encrypted',
     // 'xyz.fedi.deleted',
     'redacted',
@@ -310,6 +311,7 @@ export const UnsendableMessageKinds = [
     'failedToParseCustom',
     'xyz.fedi.preview-media',
     'xyz.fedi.multispend',
+    'spTransfer',
 ] as const satisfies MatrixEventKind[]
 
 type UnsendableMessageKind = (typeof UnsendableMessageKinds)[number]

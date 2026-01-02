@@ -7,7 +7,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { Sats, TransactionListEntry } from '@fedi/common/types'
 
 import { NoteInput, QRContainer } from '.'
-import { fedimint } from '../../lib/bridge'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { CopyInput } from '../CopyInput'
@@ -38,7 +37,6 @@ export default function LightningRequest({
     const { t } = useTranslation()
     const { invoice, isInvoiceLoading, makeLightningRequest } =
         useMakeLightningRequest({
-            fedimint,
             federationId,
             onInvoicePaid,
         })

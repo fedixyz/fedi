@@ -13,32 +13,31 @@ import {
 } from '@fedi/common/utils/log'
 
 import { Federation, StorageApi } from '../types'
-import { FedimintBridge } from '../utils/fedimint'
 import { makeTarGz, File } from '../utils/targz'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
 const log = makeLog('common/hooks/compress-logs')
 
 export const useCompressLogs = ({
-    fedimint,
     storage,
     handleCollectDbContents,
     handleCollectExtraFiles,
     federationId = '',
 }: {
-    fedimint: FedimintBridge
     storage: StorageApi
     handleCollectDbContents: (path: string) => Promise<string>
     handleCollectExtraFiles: () => Record<string, () => Promise<string>>
     federationId?: Federation['id']
 }) => {
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const federation = useCommonSelector(s =>
         selectLoadedFederation(s, federationId || ''),
     )
     const npub = useCommonSelector(selectNostrNpub)
 
-    const { fetchTransactions } = useTransactionHistory(fedimint, federationId)
+    const { fetchTransactions } = useTransactionHistory(federationId)
 
     const compressLogs = useCallback(
         ({ sendDb }: { sendDb: boolean }) => {

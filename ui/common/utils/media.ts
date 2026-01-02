@@ -80,3 +80,7 @@ export const isFileUri = (uri: string): uri is FileUri =>
     uri.startsWith('file://')
 export const isHttpUri = (uri: string): uri is HttpUri =>
     uri.startsWith('http://') || uri.startsWith('https://')
+
+// strips out non-shell-safe characters and commas (which cause issues with file paths on android specifically)
+export const sanitizeFileName = (name: string) =>
+    name.replace(/[<>:"/\\|?*,]/g, '')

@@ -2,7 +2,9 @@ import { useNavigation } from '@react-navigation/native'
 import { Text, Button, useTheme } from '@rneui/themed'
 
 import { useSurveyForm } from '@fedi/common/hooks/survey'
+import { openMiniAppSession } from '@fedi/common/redux'
 
+import { useAppDispatch } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
 import Flex from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
@@ -10,17 +12,20 @@ import SvgImage from '../../ui/SvgImage'
 
 const SurveyOverlay = () => {
     const navigation = useNavigation()
+    const dispatch = useAppDispatch()
 
     const { theme } = useTheme()
     const { show, handleDismiss, handleAccept, activeSurvey } = useSurveyForm()
 
     const handleNavigate = (url: URL) => {
+        const urlString = url.toString()
         // wait for the modal's close animation + unmount to finish
         // immediately navigating while the modal is actively unmounting causes the screen to be unresponsive
         setTimeout(() => {
-            navigation.navigate('FediModBrowser', {
-                url: url.toString(),
-            })
+            dispatch(
+                openMiniAppSession({ miniAppId: urlString, url: urlString }),
+            )
+            navigation.navigate('FediModBrowser')
         }, 500)
     }
 

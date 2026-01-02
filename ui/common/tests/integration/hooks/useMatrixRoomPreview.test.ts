@@ -319,7 +319,7 @@ describe.skip('useMatrixRoomPreview > direct messages', () => {
         )
 
         const { result: payAlice } = renderHookWithBridge(
-            () => useChatPaymentUtils(i18next.t, fedimintAlice, roomId, bobId),
+            () => useChatPaymentUtils(i18next.t, roomId, bobId),
             storeAlice,
             fedimintAlice,
         )

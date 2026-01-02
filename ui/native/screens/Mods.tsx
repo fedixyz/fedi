@@ -1,39 +1,36 @@
 import { useNavigation } from '@react-navigation/native'
-import { Divider, Tooltip, useTheme, type Theme } from '@rneui/themed'
-import React, { useMemo, useState } from 'react'
+import { useTheme, type Theme } from '@rneui/themed'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Image,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
-    View,
     useWindowDimensions,
 } from 'react-native'
 
 import { useNuxStep } from '@fedi/common/hooks/nux'
-import { selectOnboardingMethod } from '@fedi/common/redux'
+import { openMiniAppSession, selectOnboardingMethod } from '@fedi/common/redux'
 import {
     removeCustomMod,
     selectAllVisibleMods,
-    selectModsVisibility,
-    selectNewModIds,
+    selectMiniAppOrder,
+    setMiniAppOrder,
     setModVisibility,
     updateLastSeenModDate,
 } from '@fedi/common/redux/mod'
 import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
-import ShortcutTile from '../components/feature/home/ShortcutTile'
+import SortableMiniAppsGrid from '../components/feature/fedimods/SortableMiniAppsGrid'
 import FirstTimeOverlay, {
     FirstTimeOverlayItem,
 } from '../components/feature/onboarding/FirstTimeOverlay'
-import ZendeskBadge from '../components/feature/support/ZendeskBadge'
 import CustomOverlay, {
     CustomOverlayContents,
 } from '../components/ui/CustomOverlay'
-import Flex from '../components/ui/Flex'
+import Flex, { Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
@@ -47,13 +44,11 @@ const Mods: React.FC = () => {
     const navigation = useNavigation<NavigationHook>()
     const dispatch = useAppDispatch()
     const mods = useAppSelector(selectAllVisibleMods)
-    const newModIds = useAppSelector(selectNewModIds)
+    const miniAppOrder = useAppSelector(selectMiniAppOrder)
     const { width, fontScale } = useWindowDimensions()
     const columns = width / fontScale < 300 ? 2 : 3
     const style = styles(theme, columns)
-    const modsVisibility = useAppSelector(selectModsVisibility)
 
-    const [actionsMod, setActionsMod] = useState<FediMod>()
     const { launchZendesk } = useLaunchZendesk()
 
     const [hasSeenMods, completeSeenMods] = useNuxStep('modsModal')
@@ -71,7 +66,6 @@ const Mods: React.FC = () => {
     ]
 
     const onSelectFediMod = async (shortcut: Shortcut) => {
-        setActionsMod(undefined)
         const fediMod = shortcut as FediMod
 
         dispatch(
@@ -88,110 +82,54 @@ const Mods: React.FC = () => {
         if (isFediDeeplinkType(fediMod.url)) {
             openURL(fediMod.url)
         } else {
+            dispatch(
+                openMiniAppSession({
+                    miniAppId: fediMod.id,
+                    url: fediMod.url,
+                }),
+            )
             await handleFediModNavigation(fediMod, navigation)
         }
     }
 
-    const handleModHold = (shortcut: Shortcut) => {
-        setActionsMod(shortcut as FediMod)
-    }
-
-    const toggleHideMod = (modId: FediMod['id']) => {
-        dispatch(setModVisibility({ modId, isHidden: true }))
-        setActionsMod(undefined)
+    const hideMod = (mod: FediMod) => {
+        dispatch(setModVisibility({ modId: mod.id, isHidden: true }))
     }
 
     const handleRemovePress = (fediMod: FediMod) => {
-        setActionsMod(undefined)
         setModToBeRemoved(fediMod)
     }
 
-    const renderFediModShortcuts = () => {
-        const sorted = mods.slice().sort((a, b) => {
-            const aIsNew = newModIds.includes(a.id)
-            const bIsNew = newModIds.includes(b.id)
+    const sortedMiniApps = [...mods]
+        .sort((a, b) => {
+            const aIndex = miniAppOrder.indexOf(a.id)
+            const bIndex = miniAppOrder.indexOf(b.id)
 
-            if (aIsNew && !bIsNew) {
+            // use place in order if present
+            if (aIndex >= 0 && bIndex >= 0) {
+                return aIndex - bIndex
+            } else if (aIndex >= 0) {
                 return -1
-            } else if (bIsNew && !aIsNew) {
+            } else if (bIndex >= 0) {
                 return 1
             }
 
-            if (a.title.toLowerCase() === 'ask fedi') return -1 // "Ask Fedi" comes first
-            if (b.title.toLowerCase() === 'ask fedi') return 1 // Move others down
-
-            return 0 // Maintain original order otherwise
+            return 0
+        })
+        .map(miniApp => {
+            return new FediMod(miniApp)
         })
 
-        return sorted.map((s, i) => {
-            const mod = new FediMod(s)
-
-            const isCustomMod = modsVisibility[mod.id]?.isCustom
-
-            let numActionButtons = 1
-            if (isCustomMod) {
-                numActionButtons++
-            }
-
-            return (
-                <View key={i} style={style.shortcut}>
-                    <Tooltip
-                        withOverlay
-                        withPointer
-                        closeOnlyOnBackdropPress
-                        overlayColor={theme.colors.overlay}
-                        height={numActionButtons * 40}
-                        width={96}
-                        visible={actionsMod?.id === mod.id}
-                        onClose={() => setActionsMod(undefined)}
-                        containerStyle={style.tooltipPopover}
-                        popover={
-                            <>
-                                <Pressable
-                                    style={style.tooltipAction}
-                                    onPress={() => toggleHideMod(mod.id)}>
-                                    <Text style={style.tooltipText}>
-                                        {t('words.hide')}
-                                    </Text>
-                                </Pressable>
-
-                                {isCustomMod && (
-                                    <>
-                                        <Divider orientation="vertical" />
-                                        <Pressable
-                                            style={style.tooltipAction}
-                                            onPress={() =>
-                                                handleRemovePress(mod)
-                                            }>
-                                            <Text style={style.tooltipText}>
-                                                {t('words.remove')}
-                                            </Text>
-                                        </Pressable>
-                                    </>
-                                )}
-                            </>
-                        }>
-                        <ShortcutTile
-                            shortcut={mod}
-                            onSelect={onSelectFediMod}
-                            onHold={handleModHold}
-                        />
-                        <ZendeskBadge title={mod.title} />
-                    </Tooltip>
-                </View>
+    useEffect(() => {
+        if (miniAppOrder.length === 0) {
+            const orderedMiniApps = sortedMiniApps.map(miniApp => miniApp.id)
+            dispatch(
+                setMiniAppOrder({
+                    miniAppOrder: orderedMiniApps,
+                }),
             )
-        })
-    }
-    // There is flexbox complexity in centering rows with 3 tiles
-    // while also left-justifying rows with 1 or 2 tiles so we just
-    // make sure to fill the remaining space with invisible elements
-    const renderBuffers = () => {
-        const count = mods.length
-        const bufferCount = columns - (count % columns)
-        return Array.from({ length: bufferCount }).map((_, i) => (
-            <View key={i} style={[style.shortcut, style.buffer]} />
-        ))
-    }
+        }
+    }, [sortedMiniApps, miniAppOrder, dispatch])
 
     const confirmModRemoval: CustomOverlayContents = useMemo(() => {
         const confirmModDeletion = async () => {
@@ -235,14 +173,26 @@ const Mods: React.FC = () => {
         }
     }, [t, modToBeRemoved, dispatch, style, theme])
 
+    const handleRearrangeMiniApps = (newOrder: FediMod['id'][]) => {
+        dispatch(
+            setMiniAppOrder({
+                miniAppOrder: [...newOrder],
+            }),
+        )
+    }
+
     return (
-        <Flex grow fullWidth basis={false}>
+        <Column grow>
             <ModsHeader />
-            {mods.length > 0 ? (
-                <ScrollView contentContainerStyle={style.listContainer}>
-                    {renderFediModShortcuts()}
-                    {renderBuffers()}
-                </ScrollView>
+            {sortedMiniApps.length > 0 ? (
+                <SortableMiniAppsGrid
+                    key={sortedMiniApps.length}
+                    miniApps={sortedMiniApps}
+                    onHide={hideMod}
+                    onRearrange={handleRearrangeMiniApps}
+                    onRemove={handleRemovePress}
+                    onSelect={onSelectFediMod}
+                />
             ) : (
                 <Flex center grow gap="md">
                     <Pressable
@@ -268,7 +218,7 @@ const Mods: React.FC = () => {
                 loading={isRemovingMod}
                 onBackdropPress={() => setModToBeRemoved(undefined)}
             />
-        </Flex>
+        </Column>
     )
 }
 
@@ -277,10 +227,9 @@ const styles = (theme: Theme, columns: number) =>
         shortcut: { width: `${100 / columns}%` },
         buffer: { height: theme.sizes.lg },
         listContainer: {
+            flexGrow: 1,
             flexDirection: 'row',
             marginTop: theme.spacing.sm,
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
             paddingHorizontal: theme.spacing.sm,
         },
         modRemovalOverlay: {
@@ -301,6 +250,16 @@ const styles = (theme: Theme, columns: number) =>
         modRemovalOverlayIcon: {
             position: 'relative',
             top: -4, // looks better when centering a triangle in a circle
+        },
+        rearrangeHeader: {
+            padding: theme.spacing.lg,
+        },
+        rearrangeHeaderText: {
+            color: theme.colors.darkGrey,
+        },
+        rearrangeFooterButton: {
+            padding: theme.spacing.sm,
+            zIndex: 1000,
         },
         tooltipAction: {
             flexDirection: 'row',

@@ -15,7 +15,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { selectIsInternetUnreachable } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { fedimint } from '../bridge'
 import InternetUnreachableBanner from '../components/feature/environment/InternetUnreachableBanner'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import RequestTypeSwitcher from '../components/feature/receive/RequestTypeSwitcher'
@@ -54,15 +53,12 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
         BitcoinOrLightning.lightning,
     )
 
-    const isOnchainSupported = useIsOnchainDepositSupported(
-        fedimint,
-        federationId,
-    )
+    const isOnchainSupported = useIsOnchainDepositSupported(federationId)
     const isOffline = useAppSelector(selectIsInternetUnreachable)
     const toast = useToast()
 
     const recheckConnection = useRecheckInternet()
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const handleTransactionPaid = (tx: TransactionListEntry) => {
         navigation.dispatch(
@@ -73,13 +69,11 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
     }
 
     const { isInvoiceLoading, makeLightningRequest } = useMakeLightningRequest({
-        fedimint,
         federationId,
         onInvoicePaid: handleTransactionPaid,
     })
     const { address, isAddressLoading, makeOnchainAddress, onSaveNotes } =
         useMakeOnchainAddress({
-            fedimint,
             federationId,
             onMempoolTransaction: handleTransactionPaid,
         })

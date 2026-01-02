@@ -1,9 +1,14 @@
 import { CameraRoll } from '@react-native-camera-roll/camera-roll'
+import {
+    DocumentPickerResponse,
+    types as documentTypes,
+} from '@react-native-documents/picker'
 import crypto from 'crypto'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Platform } from 'react-native'
 import { exists, TemporaryDirectoryPath } from 'react-native-fs'
+import { Asset, ImageLibraryOptions } from 'react-native-image-picker'
 import { PermissionStatus, RESULTS } from 'react-native-permissions'
 import Share from 'react-native-share'
 import RNFetchBlob from 'rn-fetch-blob'
@@ -27,9 +32,164 @@ import {
 import { useDownloadPermission } from '.'
 import { fedimint } from '../../bridge'
 import { useAppDispatch, useAppSelector } from '../../state/hooks'
-import { makeRandomTempFilePath } from '../media'
+import {
+    deriveCopyableFileUri,
+    makeRandomTempFilePath,
+    tryPickAssets,
+    tryPickDocuments,
+} from '../media'
 
 const log = makeLog('native/utils/hooks/media')
+
+const DEFAULT_IMAGE_OPTIONS: ImageLibraryOptions = {
+    mediaType: 'mixed',
+    maxWidth: 1024,
+    maxHeight: 1024,
+    quality: 0.7,
+    videoQuality: 'low',
+    formatAsMp4: true,
+    selectionLimit: 10,
+}
+
+/**
+ * On Android, the react-native-image-picker library is breaking the gif animation
+ * somehow when it produces the file URI, so we copy the gif from the original path.
+ * https://github.com/react-native-image-picker/react-native-image-picker/issues/2064#issuecomment-2460501473
+ * TODO: Check if this is fixed upstream (perhaps in the turbo module) and remove this workaround
+ */
+function applyAndroidGifWorkaround(assets: Asset[]): Asset[] {
+    if (Platform.OS === 'ios') return assets
+
+    return assets.map(asset => {
+        if (
+            asset.originalPath &&
+            // Sometimes animated pics are webp files so we include webp in this workaround
+            // even though some webp files are not animated and wouldn't be broken
+            // but using the original path works either way, perhaps a small perf hit
+            // if rn image-picker is optimizing when producing the file URI
+            (asset.type?.includes('gif') || asset.type?.includes('webp'))
+        ) {
+            return {
+                ...asset,
+                uri: prefixFileUri(asset.originalPath),
+            }
+        }
+        return asset
+    })
+}
+
+/**
+ * Hook for picking media (images/videos) from the device library.
+ * Handles loading state and applies Android GIF/WebP workaround.
+ */
+export function useMediaPicker(options?: Partial<ImageLibraryOptions>) {
+    const { t } = useTranslation()
+    const toast = useToast()
+    const [isLoading, setIsLoading] = useState(false)
+
+    const mergedOptions = useMemo(
+        () => ({ ...DEFAULT_IMAGE_OPTIONS, ...options }),
+        [options],
+    )
+
+    const pickMedia = useCallback(async (): Promise<Asset[]> => {
+        setIsLoading(true)
+        try {
+            const result = await tryPickAssets(mergedOptions, t)
+            return result.match(
+                assets => applyAndroidGifWorkaround(assets),
+                e => {
+                    log.error('launchImageLibrary Error: ', e)
+                    // Only show a toast if the error is the user's fault
+                    if (e._tag === 'UserError') toast.error(t, e)
+                    return []
+                },
+            )
+        } finally {
+            setIsLoading(false)
+        }
+    }, [mergedOptions, t, toast])
+
+    return { pickMedia, isLoading }
+}
+
+// Default document types for the document picker
+const DEFAULT_DOCUMENT_TYPES = [
+    documentTypes.csv,
+    documentTypes.doc,
+    documentTypes.docx,
+    documentTypes.pdf,
+    documentTypes.plainText,
+    documentTypes.ppt,
+    documentTypes.pptx,
+    documentTypes.xls,
+    documentTypes.xlsx,
+    documentTypes.zip,
+]
+
+/**
+ * Hook for picking documents from the device.
+ * Handles loading state and async URI resolution for Android content URIs.
+ */
+export function useDocumentPicker(allowedTypes?: string[]) {
+    const { t } = useTranslation()
+    const toast = useToast()
+    const [isLoading, setIsLoading] = useState(false)
+    const [pending, setPending] = useState<DocumentPickerResponse[]>([])
+
+    const types = useMemo(
+        () => allowedTypes ?? DEFAULT_DOCUMENT_TYPES,
+        [allowedTypes],
+    )
+
+    const pickDocuments = useCallback(async (): Promise<
+        DocumentPickerResponse[]
+    > => {
+        setIsLoading(true)
+        setPending([])
+        const resolvedDocuments: DocumentPickerResponse[] = []
+
+        try {
+            const result = await tryPickDocuments(
+                {
+                    type: types,
+                    allowMultiSelection: true,
+                    allowVirtualFiles: true,
+                },
+                t,
+            )
+
+            await result.match(
+                async files => {
+                    setPending(files)
+
+                    await Promise.all(
+                        files.map(file =>
+                            deriveCopyableFileUri(file).map(uri => {
+                                setPending(p =>
+                                    p.filter(d => d.uri !== file.uri),
+                                )
+                                resolvedDocuments.push({ ...file, uri })
+                            }),
+                        ),
+                    )
+                },
+                e => {
+                    log.error('DocumentPicker Error: ', e)
+                    // Only show a toast if the error is the user's fault
+                    if (e._tag === 'UserError') toast.error(t, e)
+                },
+            )
+        } finally {
+            setPending([])
+            setIsLoading(false)
+        }
+
+        return resolvedDocuments
+    }, [types, t, toast])
+
+    return { pickDocuments, isLoading, pending }
+}
 
 /**
  * Handles copying, fetching, and downloading file/media resources from specific matrix events, http(s):// URLs, mxc:// URIs, and file:// URIs

@@ -1,8 +1,9 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { Pressable, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { Row } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
+import { Pressable } from '../../ui/Pressable'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 export default function HeaderOverlayOption({
@@ -19,7 +20,7 @@ export default function HeaderOverlayOption({
 
     return (
         <Pressable onPress={onPress}>
-            <Row align="center" justify="between">
+            <Row align="center" justify="between" style={style.innerContainer}>
                 <Row align="center" gap="md">
                     <GradientView variant="black" style={style.optionIcon}>
                         <SvgImage
@@ -42,19 +43,13 @@ export default function HeaderOverlayOption({
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            paddingHorizontal: theme.spacing.lg,
-            display: 'flex',
-            gap: theme.spacing.xs,
-            paddingBottom: theme.spacing.md,
-        },
-        headerContainer: {
-            paddingHorizontal: 0,
+        innerContainer: {
+            width: '100%',
         },
         optionIcon: {
             width: 40,
             height: 40,
-            borderRadius: 12,
+            borderRadius: theme.borders.tileRadius,
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',

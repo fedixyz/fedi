@@ -1,16 +1,11 @@
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { ChatType } from '@fedi/common/types'
 
 import { ChatConversation } from '../../../../src/components/Chat/ChatConversation'
-
-jest.mock('react-i18next', () => ({
-    useTranslation: () => ({
-        t: (i18nKey: string) => i18nKey,
-    }),
-}))
+import { renderWithProviders } from '../../../utils/render'
 
 jest.mock('../../../../src/hooks/dom')
 jest.mock('../../../../src/hooks/store')
@@ -44,7 +39,7 @@ describe('/components/Chat/ChatConversation', () => {
     describe('direct chats', () => {
         describe('when the component is rendered', () => {
             it('should show the textbox, both icons and send button', async () => {
-                render(<ChatConversation {...userChatProps} />)
+                renderWithProviders(<ChatConversation {...userChatProps} />)
 
                 await waitFor(() => {
                     expect(screen.getByRole('textbox')).toBeInTheDocument()
@@ -66,7 +61,9 @@ describe('/components/Chat/ChatConversation', () => {
     describe('public group chats', () => {
         describe('when the component is rendered', () => {
             it('should show the textbox and send button only', async () => {
-                render(<ChatConversation {...groupChatProps} isPublic />)
+                renderWithProviders(
+                    <ChatConversation {...groupChatProps} isPublic />,
+                )
 
                 await waitFor(() => {
                     expect(screen.getByRole('textbox')).toBeInTheDocument()
@@ -88,7 +85,7 @@ describe('/components/Chat/ChatConversation', () => {
     describe('private group chats', () => {
         describe('when the component is rendered', () => {
             it('should show the textbox, plus icon and send button', async () => {
-                render(<ChatConversation {...groupChatProps} />)
+                renderWithProviders(<ChatConversation {...groupChatProps} />)
 
                 await waitFor(() => {
                     expect(screen.getByRole('textbox')).toBeInTheDocument()
@@ -108,7 +105,7 @@ describe('/components/Chat/ChatConversation', () => {
 
     describe('when the send button is clicked without typing into the input', () => {
         it('should not call the onSendMessage function', async () => {
-            render(<ChatConversation {...userChatProps} />)
+            renderWithProviders(<ChatConversation {...userChatProps} />)
 
             const button = screen.getByLabelText('send-button')
             userEvent.click(button)
@@ -121,7 +118,7 @@ describe('/components/Chat/ChatConversation', () => {
 
     describe('when a message is typed into the input and the send button is clicked', () => {
         it('should call the onSendMessage function', async () => {
-            render(<ChatConversation {...userChatProps} />)
+            renderWithProviders(<ChatConversation {...userChatProps} />)
 
             const input = screen.getByRole('textbox')
             await userEvent.type(input, 'test')
@@ -136,7 +133,7 @@ describe('/components/Chat/ChatConversation', () => {
 
     describe('when an image is uploaded and the send button is clicked', () => {
         it('should call the onSendMessage function', async () => {
-            render(<ChatConversation {...userChatProps} />)
+            renderWithProviders(<ChatConversation {...userChatProps} />)
 
             const fileUpload = screen.getByTestId(
                 'file-upload',

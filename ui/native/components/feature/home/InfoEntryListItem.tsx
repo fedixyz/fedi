@@ -42,13 +42,13 @@ const createIconStyles = (theme: Theme) => {
     return StyleSheet.create({
         wrapper: {
             marginRight: 8,
-            borderRadius: theme.borders.fediModTileRadius,
+            borderRadius: theme.borders.tileRadius,
             elevation: 4,
         },
         bubble: {
             width: size,
             height: size,
-            borderRadius: theme.borders.fediModTileRadius,
+            borderRadius: theme.borders.tileRadius,
             backgroundColor: theme.colors.night,
             alignItems: 'center',
             justifyContent: 'center',

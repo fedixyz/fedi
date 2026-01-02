@@ -19,15 +19,16 @@ import {
 } from '../redux'
 import { Federation, SeedWords } from '../types'
 import { RpcRegisteredDevice } from '../types/bindings'
-import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
 
 const log = makeLog('common/hooks/recovery')
 
-export function useSocialRecovery(fedimint: FedimintBridge) {
+export function useSocialRecovery() {
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const hasCheckedForSocialRecovery = useCommonSelector(
         selectHasCheckedForSocialRecovery,
     )
@@ -83,9 +84,10 @@ export function useSocialRecovery(fedimint: FedimintBridge) {
     }
 }
 
-export function usePersonalRecovery(t: TFunction, fedimint: FedimintBridge) {
+export function usePersonalRecovery(t: TFunction) {
     const [recoveryInProgress, setRecoveryInProgress] = useState<boolean>(false)
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const toast = useToast()
 
     const attemptRecovery = useCallback(
@@ -116,9 +118,10 @@ export function usePersonalRecovery(t: TFunction, fedimint: FedimintBridge) {
     }
 }
 
-export function useDeviceRegistration(t: TFunction, fedimint: FedimintBridge) {
+export function useDeviceRegistration(t: TFunction) {
     const toast = useToast()
     const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
     const registeredDevices = useCommonSelector(selectRegisteredDevices)
     const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
@@ -187,10 +190,8 @@ export function useDeviceRegistration(t: TFunction, fedimint: FedimintBridge) {
     }
 }
 
-export function useRecoveryProgress(
-    fedimint: FedimintBridge,
-    federationId: Federation['id'],
-) {
+export function useRecoveryProgress(federationId: Federation['id']) {
+    const fedimint = useFedimint()
     const [progress, setProgress] = useState<number | undefined>(undefined)
     useEffect(() => {
         if (!federationId) return

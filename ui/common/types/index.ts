@@ -1,4 +1,5 @@
 export * from '@fedi/common/types/analytics'
+export * from '@fedi/common/types/browser'
 export * as bindings from '@fedi/common/types/bindings'
 export type { SocialRecoveryEvent } from '@fedi/common/types/bindings'
 export * from '@fedi/common/types/chat'

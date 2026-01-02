@@ -66,7 +66,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
     const toast = useToast()
     const transactionDisplayType = useAppSelector(selectTransactionDisplayType)
     const dispatch = useAppDispatch()
-    const { fetchTransactions } = useTransactionHistory(fedimint, federationId)
+    const { fetchTransactions } = useTransactionHistory(federationId)
 
     const { makeFormattedAmountsFromTxn } = useAmountFormatter({ federationId })
 

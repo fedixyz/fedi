@@ -20,6 +20,7 @@ use lightning_invoice::Bolt11Invoice;
 use matrix::Matrix;
 use multispend::multispend_matrix::MultispendMatrix;
 use nostr::secp256k1::PublicKey;
+use redb_storage::PathBasedRedbStorage;
 use runtime::api::{IFediApi, RegisterDeviceError, RegisteredDevice, TransactionDirection};
 use runtime::event::IEventSink;
 use runtime::features::{FeatureCatalog, RuntimeEnvironment};
@@ -28,7 +29,6 @@ use runtime::storage::{OnboardingCompletionMethod, Storage};
 use tempfile::TempDir;
 use tokio::sync::{Mutex, OnceCell};
 
-use crate::ffi::PathBasedStorage;
 use crate::rpc::{self, TryGet};
 
 /// A device for running the bridge, restarting the bridge, read from storage.
@@ -63,7 +63,7 @@ impl TestDevice {
         data_dir: impl Into<Arc<TempDir>>,
     ) -> anyhow::Result<&mut Self> {
         self.storage = OnceCell::from(Arc::new(
-            PathBasedStorage::new(TempDataDir(data_dir.into())).await?,
+            PathBasedRedbStorage::new(TempDataDir(data_dir.into())).await?,
         ) as Storage);
         Ok(self)
     }
@@ -89,10 +89,9 @@ impl TestDevice {
     pub async fn storage(&self) -> anyhow::Result<&Storage> {
         self.storage
             .get_or_try_init(|| async {
-                Ok(
-                    Arc::new(PathBasedStorage::new(TempDataDir(Arc::new(TempDir::new()?))).await?)
-                        as _,
-                )
+                Ok(Arc::new(
+                    PathBasedRedbStorage::new(TempDataDir(Arc::new(TempDir::new()?))).await?,
+                ) as _)
             })
             .await
     }

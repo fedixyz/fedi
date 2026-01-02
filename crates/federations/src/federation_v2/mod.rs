@@ -222,6 +222,14 @@ pub fn invite_code_from_client_confing(config: &ClientConfig) -> InviteCode {
     )
 }
 
+impl std::fmt::Debug for FederationV2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Federation")
+            .field("id", &self.client.federation_id())
+            .finish()
+    }
+}
+
 /// Federation is a wrapper of "client ng" to assist with handling RPC commands
 pub struct FederationV2 {
     pub runtime: Arc<Runtime>,
@@ -2420,12 +2428,13 @@ impl FederationV2 {
         &self,
         recovery_id: &RecoveryId,
         peer_id: PeerId,
+        guardian_password: String,
     ) -> Result<Option<Vec<u8>>> {
         tracing::info!("downloading verification doc {}", recovery_id);
         // FIXME: maybe shouldn't download from only one peer?
         let verification_client = self.social_verification(peer_id).await?;
         let verification_doc = verification_client
-            .download_verification_doc(*recovery_id)
+            .download_verification_doc(*recovery_id, guardian_password)
             .await?;
         if let Some(verification_doc) = verification_doc {
             tracing::info!("downloaded verification doc");
@@ -2441,12 +2450,12 @@ impl FederationV2 {
         &self,
         recovery_id: &RecoveryId,
         peer_id: PeerId,
-        password: &str,
+        guardian_password: String,
     ) -> Result<()> {
-        tracing::info!("approve social recovery {} {}", peer_id, password);
+        tracing::info!("approve social recovery {}", peer_id);
         let verification_client = self.social_verification(peer_id).await?;
         verification_client
-            .approve_recovery(*recovery_id, password)
+            .approve_recovery(*recovery_id, guardian_password)
             .await?;
         Ok(())
     }
@@ -2587,7 +2596,7 @@ impl FederationV2 {
     async fn get_transaction_really_inner(
         &self,
         operation_id: OperationId,
-        mut entry: OperationLogEntry,
+        entry: OperationLogEntry,
     ) -> anyhow::Result<Option<RpcTransaction>> {
         let notes = self
             .dbtx()
@@ -2646,14 +2655,9 @@ impl FederationV2 {
                         });
                         frontend_metadata = extra_meta.frontend_metadata;
                         let state = if is_internal_payment {
-                            if entry
-                                .outcome::<serde_json::Value>() // Not calling try_outcome since type here is serde_json::Value
-                                .is_some_and(internal_pay_is_bad_state)
-                            {
-                                // HACK: our code accidentally subscribed using wrong function in
-                                // past.
-                                entry.set_outcome(None);
-                            }
+                            entry
+                                .try_outcome::<InternalPayState>()
+                                .inspect_err(|e| info!(%e, "Found bad internal pay TX"))?;
                             self.get_client_operation_outcome(
                                 operation_id,
                                 entry,
@@ -2686,6 +2690,9 @@ impl FederationV2 {
                                 }
                             })
                         } else {
+                            entry
+                                .try_outcome::<LnPayState>()
+                                .inspect_err(|e| info!(%e, "Found bad LN Pay TX"))?;
                             self.get_client_operation_outcome(
                                 operation_id,
                                 entry,

@@ -13,7 +13,6 @@ import { useFederationRating } from '@fedi/common/hooks/federation'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { Images } from '../../../assets/images'
-import { fedimint } from '../../../bridge'
 import CustomOverlay from '../../ui/CustomOverlay'
 import Flex from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
@@ -34,7 +33,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
         federationToRate,
         handleSubmitRating,
         handleDismissRating,
-    } = useFederationRating(fedimint)
+    } = useFederationRating()
 
     const style = styles(theme)
 

@@ -19,7 +19,6 @@ import { Icon } from '../components/Icon'
 import * as Layout from '../components/Layout'
 import { Text } from '../components/Text'
 import { homeRoute, federationsRoute } from '../constants/routes'
-import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 import { getHashParams } from '../utils/linking'
 
@@ -36,14 +35,14 @@ function EcashPage() {
         parsed: parsedEcash,
         ecashToken,
         federation,
-    } = useParseEcash(fedimint)
+    } = useParseEcash()
 
     const {
         claimEcash,
         loading: claiming,
         claimed: ecashClaimed,
         isError: isClaimError,
-    } = useClaimEcash(fedimint)
+    } = useClaimEcash()
 
     let content: React.ReactElement | null
     let actions: React.ReactElement | null

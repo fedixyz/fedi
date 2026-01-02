@@ -14,7 +14,6 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { NoteInput } from '.'
 import { useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { FederationWalletSelector } from '../FederationWalletSelector'
@@ -47,7 +46,6 @@ export default function LnurlWithdraw({
     const { t } = useTranslation()
     const { isWithdrawing, handleWithdraw } = useLnurlWithdraw({
         federationId,
-        fedimint,
         lnurlw,
         onWithdrawPaid,
     })

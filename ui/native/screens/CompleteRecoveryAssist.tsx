@@ -59,7 +59,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
                             fedimint,
                             recoveryId,
                             peerId: authenticatedGuardian.peerId,
-                            password: authenticatedGuardian.password,
+                            guardianPassword: authenticatedGuardian.password,
                             federationId,
                         }),
                     )

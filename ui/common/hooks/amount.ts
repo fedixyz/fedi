@@ -51,8 +51,8 @@ import amountUtils from '../utils/AmountUtils'
 import stringUtils from '../utils/StringUtils'
 import { MeltSummary } from '../utils/cashu'
 import { BridgeError } from '../utils/errors'
-import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
+import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useUpdatingRef } from './util'
 
@@ -70,6 +70,7 @@ interface SendAmountArgs {
     invoice?: Invoice | null
     lnurlPayment?: ParsedLnurlPay['data'] | null
     cashuMeltSummary?: MeltSummary | null
+    ecashRequest?: EcashRequest | null
     t?: TFunction
 }
 
@@ -903,44 +904,58 @@ export function useMinMaxRequestAmount({
 }
 
 /**
- * Get the minimum and maximum amount you can send. Optionally take in an
- * LNURL pay request as part of the calculation.
+ * Calculate the maximum amount that can be sent as ecash accounting for fees.
  */
-export function useMinMaxSendAmount(
-    {
-        invoice,
-        lnurlPayment,
-        cashuMeltSummary,
-        btcAddress,
-        fedimint,
-        federationId,
-    }: SendAmountArgs & {
-        fedimint?: FedimintBridge
-        federationId?: Federation['id']
-    } = {},
-    // TODO: Remove this option in favor of always using payFromFederation once
-    // https://github.com/fedibtc/fedi/issues/4070 is finished
+export function useMaxEcashAmount(
+    // note: we don't need the amount to know the max amount, this is more of a boolean
+    // param to make the RPC call or just return null
+    ecashRequest: EcashRequest | null | undefined,
+    federationId?: Federation['id'] | undefined,
 ) {
-    const [maxAmountOnchain, setMaxAmountOnchain] = useState<Sats | null>(null)
-    const paymentFederation = useCommonSelector(selectPaymentFederation)
-    const federationIdToUse = federationId || paymentFederation?.id || ''
-    const balance = useCommonSelector(s =>
-        selectFederationBalance(s, federationIdToUse),
-    )
-
-    const invoiceAmount = invoice?.amount
-    const { minSendable, maxSendable } = lnurlPayment || {}
+    const fedimint = useFedimint()
+    const [maxAmountEcash, setMaxAmountEcash] = useState<Sats | null>(null)
 
     useEffect(() => {
-        if (!btcAddress || !paymentFederation || !fedimint) return
+        if (!ecashRequest || !federationId) {
+            setMaxAmountEcash(null)
+            return
+        }
+
+        fedimint
+            .calculateMaxGenerateEcash(federationId)
+            .then(max => setMaxAmountEcash(amountUtils.msatToSat(max)))
+            .catch(() => setMaxAmountEcash(null))
+    }, [ecashRequest, federationId, fedimint])
+
+    return maxAmountEcash
+}
+
+/**
+ * Calculate the maximum amount that can be sent onchain accounting for network fees.
+ * Returns null if no btcAddress is provided or if calculation is not applicable.
+ */
+export function useMaxOnchainAmount(
+    btcAddress: ParsedBitcoinAddress['data'] | null | undefined,
+    federationId?: Federation['id'] | undefined,
+) {
+    const fedimint = useFedimint()
+    const [maxAmountOnchain, setMaxAmountOnchain] = useState<Sats | null>(null)
+    const balance = useCommonSelector(s =>
+        selectFederationBalance(s, federationId || ''),
+    )
+
+    useEffect(() => {
+        if (!btcAddress || !federationId || !fedimint) return
 
         // Attempts to preview the payment address with the full user balance
         // Should always result in an insufficient balance error
+        // TODO: refactor to use a new bridge RPC calculateMaxOnchainAmount
+        // instead of having to force the error
         fedimint
             .previewPayAddress(
                 btcAddress.address,
-                amountUtils.msatToSat(paymentFederation.balance),
-                paymentFederation.id,
+                amountUtils.msatToSat(balance),
+                federationId,
             )
             .catch(e => {
                 if (
@@ -955,7 +970,39 @@ export function useMinMaxSendAmount(
                     )
                 }
             })
-    }, [paymentFederation, btcAddress, fedimint])
+    }, [balance, btcAddress, fedimint, federationId])
+
+    return maxAmountOnchain
+}
+
+/**
+ * Get the minimum and maximum amount you can send. Provide optional parameters
+ * based on what type of payment is being made since fees may affect min/max amounts
+ * (onchain network fees, cashu melting, generating ecash, etc)
+ */
+export function useMinMaxSendAmount({
+    invoice,
+    lnurlPayment,
+    cashuMeltSummary,
+    btcAddress,
+    ecashRequest,
+    federationId,
+}: SendAmountArgs & {
+    // TODO: Remove this option in favor of always using payFromFederation once
+    // https://github.com/fedibtc/fedi/issues/4070 is finished
+    federationId?: Federation['id']
+} = {}) {
+    const paymentFederation = useCommonSelector(selectPaymentFederation)
+    const federationIdToUse = federationId || paymentFederation?.id || ''
+    const balance = useCommonSelector(s =>
+        selectFederationBalance(s, federationIdToUse),
+    )
+
+    const invoiceAmount = invoice?.amount
+    const { minSendable, maxSendable } = lnurlPayment || {}
+
+    const maxAmountOnchain = useMaxOnchainAmount(btcAddress, federationIdToUse)
+    const maxAmountEcash = useMaxEcashAmount(ecashRequest, federationIdToUse)
 
     return useMemo(() => {
         if (balance < 1000)
@@ -1001,6 +1048,10 @@ export function useMinMaxSendAmount(
                     maxAmountOnchain,
                 ) as Sats
             }
+
+            if (ecashRequest && maxAmountEcash !== null) {
+                maximumAmount = Math.min(maximumAmount, maxAmountEcash) as Sats
+            }
         }
         return { minimumAmount, maximumAmount }
     }, [
@@ -1010,8 +1061,10 @@ export function useMinMaxSendAmount(
         minSendable,
         maxSendable,
         maxAmountOnchain,
+        maxAmountEcash,
         invoice,
         btcAddress,
+        ecashRequest,
     ])
 }
 
@@ -1177,10 +1230,8 @@ export function useSendForm({
     lnurlPayment,
     cashuMeltSummary,
     t,
-    fedimint,
     federationId,
 }: SendAmountArgs & {
-    fedimint?: FedimintBridge
     federationId?: Federation['id']
 }) {
     const [inputAmount, setInputAmount] = useState<Sats>(0 as Sats)
@@ -1191,7 +1242,6 @@ export function useSendForm({
         btcAddress,
         cashuMeltSummary,
         t,
-        fedimint,
         federationId,
     })
     const minimumAmountRef = useUpdatingRef(minimumAmount)

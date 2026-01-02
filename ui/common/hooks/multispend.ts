@@ -26,7 +26,6 @@ import {
     MatrixMultispendEvent,
 } from '../types'
 import { RpcMultispendGroupStatus, RpcRoomId } from '../types/bindings'
-import { FedimintBridge } from '../utils/fedimint'
 import {
     getMultispendInvite,
     isMultispendWithdrawalEvent,
@@ -42,18 +41,17 @@ import { useToast } from './toast'
 
 export function useMultispendVoting({
     t,
-    fedimint,
     roomId,
     onMultispendAborted = undefined,
     onJoinFederation = undefined,
 }: {
     t: TFunction
-    fedimint: FedimintBridge
     roomId: RpcRoomId
     onMultispendAborted?: () => void
     onJoinFederation?: (invite: string) => void
 }) {
     const toast = useToast()
+    const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
     const [isConfirmingAbort, setIsConfirmingAbort] = useState(false)
     const [needsToJoin, setNeedsToJoin] = useState(false)
@@ -325,14 +323,13 @@ export function useMultispendWithdrawUtils(roomId: RpcRoomId) {
 
 export function useMultispendWithdrawalRequests({
     t,
-    fedimint,
     roomId,
 }: {
     t: TFunction
-    fedimint: FedimintBridge
     roomId: RpcRoomId
 }) {
     const toast = useToast()
+    const fedimint = useFedimint()
     const selectedFiatCurrency = useCommonSelector(selectCurrency)
     const { convertCentsToFormattedFiat } =
         useBtcFiatPrice(selectedFiatCurrency)

@@ -7,7 +7,6 @@ import { useMultispendWithdrawalRequests } from '@fedi/common/hooks/multispend'
 import { selectMatrixRoomMembers } from '@fedi/common/redux'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
-import { fedimint } from '../../../../bridge'
 import { useAppSelector } from '../../../../state/hooks'
 import { MatrixRoomMember, MultispendWithdrawalEvent } from '../../../../types'
 import { AvatarSize } from '../../../ui/Avatar'
@@ -28,7 +27,6 @@ const WithdrawalOverlayContents: React.FC<{
         canVoteOnWithdrawals,
     } = useMultispendWithdrawalRequests({
         t,
-        fedimint,
         roomId,
     })
 

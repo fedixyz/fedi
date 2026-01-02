@@ -28,7 +28,6 @@ import {
 } from '@fedi/common/utils/bug-report'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../bridge'
 import { useAppSelector } from '../../state/hooks'
 import { getAllDeviceInfo } from '../device-info'
 import { exportBridgeLogs } from '../log'
@@ -44,11 +43,7 @@ export const useNativeExport = (federationId?: Federation['id']) => {
     const toast = useToast()
     const { t } = useTranslation()
     const [isExporting, setIsExporting] = useState(false)
-    const exportTransactions = useExportTransactions(
-        fedimint,
-        t,
-        federationId || '',
-    )
+    const exportTransactions = useExportTransactions(t, federationId || '')
     const exportMultispendTransactions = useExportMultispendTransactions(t)
 
     const exportData = useCallback(
@@ -135,7 +130,6 @@ export const useCompressNativeLogs = (federationId?: Federation['id']) => {
     })
 
     return useCompressLogs({
-        fedimint,
         storage,
         handleCollectDbContents,
         handleCollectExtraFiles,

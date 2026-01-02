@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
+use assert_matches::assert_matches;
 use device_registration::DeviceRegistrationService;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCore, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Encodable;
@@ -74,6 +75,7 @@ pub enum FederationState {
     Failed(Arc<anyhow::Error>),
 }
 
+#[derive(Debug)]
 enum FederationStateInternal {
     NewForJoin,
     NewForLoad,
@@ -148,7 +150,7 @@ impl FederationStateMachine {
         device_registration_service: Arc<DeviceRegistrationService>,
     ) {
         let mut wstate = self.state.write().await;
-        assert!(matches!(&*wstate, FederationStateInternal::NewForLoad));
+        assert_matches!(&*wstate, FederationStateInternal::NewForLoad);
         let guard = locker
             .try_lock_federation(federation_id.clone())
             .expect("lock must not be held in this federation state");

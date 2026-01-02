@@ -12,9 +12,10 @@ pub mod transfer_submitter;
 
 use fedimint_core::core::OperationId;
 use fedimint_core::task::{MaybeSend, MaybeSync};
-use fedimint_core::{apply, async_trait_maybe_send};
+use fedimint_core::{TransactionId, apply, async_trait_maybe_send};
 use rpc_types::SPv2TransferMetadata;
 use stability_pool_client::common::{AccountId, FiatAmount};
+use stability_pool_client::db::UserOperationHistoryItem;
 
 #[apply(async_trait_maybe_send!)]
 pub trait SptFederationProvider: MaybeSend + MaybeSync {
@@ -28,6 +29,14 @@ pub trait SptFederationProvider: MaybeSend + MaybeSync {
     ) -> anyhow::Result<OperationId>;
 
     async fn our_seeker_account_id(&self, federation_id: &str) -> Option<AccountId>;
+
+    fn spv2_force_sync(&self, federation_id: &str);
+
+    async fn spv2_wait_for_completed_transfer_in(
+        &self,
+        federation_id: &str,
+        txid: TransactionId,
+    ) -> anyhow::Result<UserOperationHistoryItem>;
 }
 
 pub struct SptServices {

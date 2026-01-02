@@ -13,7 +13,6 @@ import { RecoverySeedWords } from '../../components/RecoverySeedWords'
 import Success from '../../components/Success'
 import { Text } from '../../components/Text'
 import { useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 import * as Layout from '../Layout'
 
@@ -23,10 +22,7 @@ export const PersonalRecovery: React.FC = () => {
     const router = useRouter()
     const isNetworkUnreachable = useAppSelector(selectIsInternetUnreachable)
 
-    const { recoveryInProgress, attemptRecovery } = usePersonalRecovery(
-        t,
-        fedimint,
-    )
+    const { recoveryInProgress, attemptRecovery } = usePersonalRecovery(t)
 
     const [words, setWords] = useState<SeedWords>([])
     const [success, setSuccess] = useState<boolean>(false)

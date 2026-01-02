@@ -13,7 +13,6 @@ import {
     shouldShowSocialRecovery,
 } from '@fedi/common/utils/FederationUtils'
 
-import { fedimint } from '../../../bridge'
 import { useNativeExport } from '../../../utils/hooks/export'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -37,7 +36,6 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
     const { validateCanLeaveFederation, handleLeaveFederation } =
         useLeaveFederation({
             t,
-            fedimint,
             federationId: federation.id,
         })
 

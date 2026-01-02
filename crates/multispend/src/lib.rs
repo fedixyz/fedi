@@ -701,6 +701,7 @@ pub async fn list_multispend_events(
 mod tests {
     use std::collections::BTreeSet;
 
+    use assert_matches::assert_matches;
     use bitcoin::secp256k1;
     use fedimint_core::db::Database;
     use fedimint_core::db::mem_impl::MemDatabase;
@@ -784,7 +785,7 @@ mod tests {
             invitation: invitation.clone(),
             proposer_pubkey: pk1,
         };
-        assert!(matches!(
+        assert_matches!(
             process_event_db_raw(
                 &mut tx.to_ref_nc(),
                 &room_id,
@@ -796,7 +797,7 @@ mod tests {
             )
             .await,
             Err(ProcessEventError::InvalidMessage)
-        ));
+        );
 
         // Verify the data through get_event_data_db.
         if let Some(MsEventData::GroupInvitation(invite)) =

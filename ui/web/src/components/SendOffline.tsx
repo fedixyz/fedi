@@ -1,5 +1,5 @@
 import { dataToFrames } from 'qrloop'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
@@ -9,10 +9,8 @@ import { useMinMaxSendAmount } from '@fedi/common/hooks/amount'
 import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { Federation, Sats } from '@fedi/common/types'
-import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { useWarnBeforeUnload } from '../hooks'
-import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 import { AmountInput } from './AmountInput'
 import { Button } from './Button'
@@ -36,7 +34,7 @@ export const SendOffline: React.FC<Props> = ({
     const { t } = useTranslation()
     const toast = useToast()
     const { minimumAmount, maximumAmount } = useMinMaxSendAmount({
-        fedimint,
+        ecashRequest: {},
         federationId,
     })
     const [amount, setAmount] = useState(0 as Sats)
@@ -44,13 +42,7 @@ export const SendOffline: React.FC<Props> = ({
     const [qrFrames, setQrFrames] = useState<string[] | null>(null)
     const [hasConfirmedPayment, setHasConfirmedPayment] = useState(false)
     const [submitAttempts, setSubmitAttempts] = useState(0)
-    const [maxSendEcashAmount, setMaxSendEcashAmount] =
-        useState<Sats>(maximumAmount)
-
-    const { generateEcash, isGeneratingEcash } = useSendEcash(
-        fedimint,
-        federationId,
-    )
+    const { generateEcash, isGeneratingEcash } = useSendEcash(federationId)
 
     useWarnBeforeUnload(
         Boolean((!hasConfirmedPayment && offlinePayment) || isGeneratingEcash),
@@ -124,15 +116,6 @@ export const SendOffline: React.FC<Props> = ({
         }
     }
 
-    useEffect(() => {
-        if (!federationId) return
-
-        fedimint
-            .calculateMaxGenerateEcash(federationId)
-            .then(max => setMaxSendEcashAmount(amountUtils.msatToSat(max)))
-            .catch(() => setMaxSendEcashAmount(maximumAmount))
-    }, [amount, maximumAmount, federationId])
-
     if (offlinePayment && qrFrames) {
         return (
             <>
@@ -175,9 +158,7 @@ export const SendOffline: React.FC<Props> = ({
                         readOnly={isGeneratingEcash}
                         verb={t('words.send')}
                         minimumAmount={minimumAmount}
-                        maximumAmount={
-                            Math.min(maxSendEcashAmount, maximumAmount) as Sats
-                        }
+                        maximumAmount={maximumAmount}
                         submitAttempts={submitAttempts}
                     />
                 </AmountContainer>

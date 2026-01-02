@@ -161,6 +161,20 @@ export function resetToWallets() {
     }
 }
 
+export function resetToMiniapps() {
+    return {
+        ...CommonActions.reset({
+            index: 0,
+            routes: [
+                {
+                    name: 'TabsNavigator',
+                    params: { initialRouteName: 'Mods' },
+                },
+            ],
+        }),
+    }
+}
+
 export function resetAfterSendSuccess({
     title,
     formattedAmount,

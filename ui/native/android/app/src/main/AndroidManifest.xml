@@ -55,6 +55,7 @@
              <!-- this intent filter handles fedi:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="fedi" />
@@ -62,6 +63,7 @@
             <!-- this intent filter handles app.fedi.xyz deeplinks -->
             <intent-filter android:autoVerify="${autoVerify}">
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
@@ -71,6 +73,7 @@
             <!-- this intent filter handles fedi-ashen.vercel.app deeplinks -->
             <intent-filter android:autoVerify="${autoVerify}">
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
@@ -80,6 +83,7 @@
              <!-- this intent filter handles lightning:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="lightning" />
@@ -87,6 +91,7 @@
              <!-- this intent filter handles bitcoin:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="bitcoin" />
@@ -94,6 +99,7 @@
              <!-- this intent filter handles lnurlw:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="lnurlw" />
@@ -101,6 +107,7 @@
              <!-- this intent filter handles lnurlp:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="lnurlp" />
@@ -108,6 +115,7 @@
              <!-- this intent filter handles keyauth:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="keyauth" />

@@ -1,13 +1,14 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
-import { StyleSheet, Pressable } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { Community } from '@fedi/common/types'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 
 import { NavigationHook } from '../../../types/navigation'
 import { Row } from '../../ui/Flex'
+import { Pressable } from '../../ui/Pressable'
 import { PressableIcon } from '../../ui/PressableIcon'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from './FederationLogo'

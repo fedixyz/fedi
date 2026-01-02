@@ -31,7 +31,6 @@ import { SettingsMenu, SettingsMenuProps } from '../../components/SettingsMenu'
 import { Text } from '../../components/Text'
 import { VersionContainer } from '../../components/VersionContainer'
 import { useAppSelector, useDeviceQuery } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 
 function AdminPage() {
@@ -51,15 +50,12 @@ function AdminPage() {
     const { validateCanLeaveFederation, handleLeaveFederation } =
         useLeaveFederation({
             t,
-            fedimint,
             federationId: leavingFederation?.id || '',
         })
 
-    const { canLeaveCommunity, handleLeave } = useLeaveCommunity({
-        t,
-        fedimint,
-        communityId: leavingCommunity?.id || '',
-    })
+    const { canLeaveCommunity, handleLeave } = useLeaveCommunity(
+        leavingCommunity?.id || '',
+    )
 
     const handleLeaveFederationPressed = (federation: LoadedFederation) => {
         if (validateCanLeaveFederation(federation)) {

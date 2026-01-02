@@ -131,6 +131,7 @@ import LockScreen from './LockScreen'
 import LockedDevice from './LockedDevice'
 import MigratedDevice from './MigratedDevice'
 import MigratedDeviceSuccess from './MigratedDeviceSuccess'
+import MiniAppPermissionSettings from './MiniAppPermissionSettings'
 import MultispendConfirmDeposit from './MultispendConfirmDeposit'
 import MultispendConfirmWithdraw from './MultispendConfirmWithdraw'
 import MultispendDeposit from './MultispendDeposit'
@@ -1061,6 +1062,20 @@ export const MainNavigator = () => {
                                             backButton
                                             title={t(
                                                 'feature.fedimods.fedi-mods',
+                                            )}
+                                        />
+                                    ),
+                                })}
+                            />
+                            <Stack.Screen
+                                name="MiniAppPermissionSettings"
+                                component={MiniAppPermissionSettings}
+                                options={() => ({
+                                    header: () => (
+                                        <CenteredHeader
+                                            backButton
+                                            title={t(
+                                                'feature.settings.mini-app-permission-settings',
                                             )}
                                         />
                                     ),

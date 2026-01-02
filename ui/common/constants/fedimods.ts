@@ -1,4 +1,5 @@
 import type { FediMod } from '../types/fedimint'
+import { isDev, isNightly } from '../utils/environment'
 
 export const DEFAULT_FEDIMODS: FediMod[] = [
     {
@@ -40,6 +41,13 @@ export const DEFAULT_FEDIMODS: FediMod[] = [
 
 export const CATALOG_URL_PROD = 'https://fedi-catalog.vercel.app'
 export const CATALOG_URL_STAGING = 'https://fedi-catalog-staging.vercel.app'
+export const CATALOG_URL =
+    isNightly() || isDev() ? CATALOG_URL_STAGING : CATALOG_URL_PROD
+
 export const COMMUNITY_TOOL_URL_PROD = 'https://community-generator.fedi.xyz'
 export const COMMUNITY_TOOL_URL_STAGING =
     'https://community-tool-two.vercel.app'
+export const COMMUNITY_TOOL_URL =
+    isNightly() || isDev()
+        ? COMMUNITY_TOOL_URL_STAGING
+        : COMMUNITY_TOOL_URL_PROD

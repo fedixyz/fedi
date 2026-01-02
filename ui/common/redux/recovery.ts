@@ -191,17 +191,23 @@ export const approveSocialRecoveryRequest = createAsyncThunk<
         fedimint: FedimintBridge
         recoveryId: string
         peerId: number
-        password: string
+        guardianPassword: string
         federationId: string
     },
     { state: CommonState }
 >(
     'recovery/approveSocialRecoveryRequest',
-    async ({ fedimint, recoveryId, peerId, password, federationId }) => {
+    async ({
+        fedimint,
+        recoveryId,
+        peerId,
+        guardianPassword,
+        federationId,
+    }) => {
         await fedimint.approveSocialRecoveryRequest(
             recoveryId,
             peerId,
-            password,
+            guardianPassword,
             federationId,
         )
     },
@@ -221,15 +227,23 @@ export const socialRecoveryDownloadVerificationDoc = createAsyncThunk<
         recoveryId: string
         peerId: number
         federationId: string
+        guardianPassword: string
     },
     { state: CommonState }
 >(
     'recovery/socialRecoveryDownloadVerificationDoc',
-    async ({ fedimint, recoveryId, federationId, peerId }) => {
+    async ({
+        fedimint,
+        recoveryId,
+        federationId,
+        peerId,
+        guardianPassword,
+    }) => {
         await fedimint.socialRecoveryDownloadVerificationDoc(
             recoveryId,
             federationId,
             peerId,
+            guardianPassword,
         )
     },
 )

@@ -1,13 +1,14 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
-import { BubbleView } from '../../ui/BubbleView'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import { Pressable } from '../../ui/Pressable'
+import { PressableIcon } from '../../ui/PressableIcon'
+import { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
     onPress: () => void
@@ -22,42 +23,48 @@ const HeaderAvatar: React.FC<Props> = ({ onPress }) => {
     if (!matrixAuth || matrixAuth.avatarUrl == null) {
         return (
             <View style={style.gradientContainer}>
-                <Pressable testID="AvatarButton" hitSlop={10} onPress={onPress}>
-                    <SvgImage
-                        name="ProfileThicker"
-                        size={SvgImageSize.sm}
-                        containerStyle={style.iconContainer}
-                        maxFontSizeMultiplier={
-                            theme.multipliers.headerMaxFontMultiplier
-                        }
-                    />
-                </Pressable>
+                <PressableIcon
+                    testID="AvatarButton"
+                    hitSlop={10}
+                    onPress={onPress}
+                    svgName="ProfileThicker"
+                    svgProps={{ size: SvgImageSize.sm }}
+                    containerStyle={style.iconContainer}
+                    maxFontSizeMultiplier={
+                        theme.multipliers.headerMaxFontMultiplier
+                    }
+                />
             </View>
         )
     }
 
     return (
-        <Pressable testID="AvatarButton" hitSlop={10} onPress={onPress}>
-            <BubbleView containerStyle={style.bubbleContainer}>
-                <View style={style.avatarContainer}>
-                    <Avatar
-                        id={matrixAuth.userId}
-                        url={matrixAuth.avatarUrl}
-                        size={AvatarSize.xs}
-                        name={matrixAuth.displayName}
-                        containerStyle={style.avatarContainer}
-                        maxFontSizeMultiplier={
-                            theme.multipliers.headerMaxFontMultiplier
-                        }
-                    />
-                </View>
-            </BubbleView>
+        <Pressable
+            testID="AvatarButton"
+            hitSlop={10}
+            onPress={onPress}
+            containerStyle={style.pressableContainer}>
+            <Avatar
+                id={matrixAuth.userId}
+                url={matrixAuth.avatarUrl}
+                size={AvatarSize.xs}
+                name={matrixAuth.displayName}
+                containerStyle={style.avatarContainer}
+                maxFontSizeMultiplier={
+                    theme.multipliers.headerMaxFontMultiplier
+                }
+            />
         </Pressable>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        pressableContainer: {
+            paddingVertical: theme.spacing.xs,
+            paddingHorizontal: theme.spacing.xs,
+            width: undefined, // unsets width set in Pressable
+        },
         bubbleContainer: {
             borderRadius: 40,
             marginRight: theme.spacing.xs,

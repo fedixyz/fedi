@@ -10,7 +10,6 @@ import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { selectPaymentFederation } from '@fedi/common/redux'
 import type { Sats, Transaction } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { fedimint } from '@fedi/native/bridge'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
@@ -52,7 +51,7 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
         sendTo,
         handleOmniInput,
         handleOmniSend,
-    } = useOmniPaymentState(fedimint, paymentFederationId, t)
+    } = useOmniPaymentState(paymentFederationId, t)
 
     const { formattedTotalFee, feeItemsBreakdown } = useMemo(() => {
         return feeDetails

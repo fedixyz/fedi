@@ -222,10 +222,8 @@ export class MatrixChatClient {
         log.debug('getInitialAuth', session)
         // if the display name is set to the npub in the user ID,
         // we haven't set a display name yet, so generate a random one
-        if (
-            session.displayName &&
-            session.userId.includes(session.displayName)
-        ) {
+        const npub = session.userId.slice(1).split(/[:]/).at(0)
+        if (session.displayName && session.displayName === npub) {
             const name = generateRandomDisplayName()
             log.debug('setting random display name:', name)
             await this.setDisplayName(name)

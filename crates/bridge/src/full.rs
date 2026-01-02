@@ -242,10 +242,11 @@ impl BridgeFull {
         federation_id: RpcFederationId,
         recovery_id: RpcRecoveryId,
         peer_id: RpcPeerId,
+        guardian_password: String,
     ) -> Result<Option<PathBuf>> {
         let federation = self.federations.get_federation(&federation_id.0)?;
         let verification_doc = federation
-            .download_verification_doc(&recovery_id.0, peer_id.0)
+            .download_verification_doc(&recovery_id.0, peer_id.0, guardian_password)
             .await?;
         if let Some(verification_doc) = verification_doc {
             self.runtime
@@ -268,11 +269,11 @@ impl BridgeFull {
         federation_id: RpcFederationId,
         recovery_id: RpcRecoveryId,
         peer_id: RpcPeerId,
-        password: String,
+        guardian_password: String,
     ) -> Result<()> {
         let federation = self.federations.get_federation(&federation_id.0)?;
         federation
-            .approve_social_recovery_request(&recovery_id.0, peer_id.0, &password)
+            .approve_social_recovery_request(&recovery_id.0, peer_id.0, guardian_password)
             .await
     }
 

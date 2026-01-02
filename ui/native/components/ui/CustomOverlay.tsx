@@ -1,8 +1,7 @@
+import { useIsFocused } from '@react-navigation/native'
 import { Button, Overlay, Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
-    Animated,
-    Easing,
     Insets,
     LayoutChangeEvent,
     Platform,
@@ -10,6 +9,13 @@ import {
     StyleSheet,
     useWindowDimensions,
 } from 'react-native'
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withTiming,
+    Easing,
+    runOnJS,
+} from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getOverlayBottomPadding } from '../../utils/layout'
@@ -53,9 +59,11 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
 }) => {
     const { theme } = useTheme()
     const insets = useSafeAreaInsets()
+    const [waitingForExitAnimation, setWaitingForExitAnimation] =
+        useState(false)
     const [overlayHeight, setOverlayHeight] = useState(0)
-    const animatedOpacity = useRef(new Animated.Value(0)).current
-    const animatedTranslateY = useRef(new Animated.Value(0)).current
+    const animatedOpacity = useSharedValue<number>(0)
+    const animatedTranslateY = useSharedValue<number>(0)
     const { height: viewportHeight } = useWindowDimensions()
 
     const {
@@ -70,33 +78,58 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
     } = contents
     const style = styles(theme, insets)
 
-    // Animate overlay in and out
     useEffect(() => {
+        // wait for first render since we need the height to inform the translateY value for animation
         if (!overlayHeight) return
-        Animated.timing(animatedTranslateY, {
-            toValue: show ? 0 : overlayHeight,
-            duration: 200,
-            delay: show ? 150 : 300,
-            useNativeDriver: true,
-            easing: Easing.out(Easing.quad),
-        }).start()
-    }, [show, animatedTranslateY, overlayHeight])
+
+        if (show) {
+            // fade in and slide up
+            animatedOpacity.value = withTiming(1, {
+                duration: 150,
+                easing: Easing.out(Easing.quad),
+            })
+            animatedTranslateY.value = withTiming(0, {
+                duration: 300,
+                easing: Easing.out(Easing.quad),
+            })
+        } else {
+            // fade out and slide down
+            animatedOpacity.value = withTiming(0, {
+                duration: 150,
+                easing: Easing.in(Easing.quad),
+            })
+            animatedTranslateY.value = withTiming(
+                overlayHeight,
+                {
+                    duration: 150,
+                    easing: Easing.in(Easing.quad),
+                },
+                // completion callback:
+                () => {
+                    // we must update state on the JS thread since animations happen on UI thread
+                    runOnJS(setWaitingForExitAnimation)(false)
+                },
+            )
+        }
+        // no need to include sharedValues as dependencies
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [show, overlayHeight])
 
     // Set height whenever overlay layout changes.
     const handleOverlayLayout = (event: LayoutChangeEvent) => {
         const { height } = event.nativeEvent.layout
         if (!overlayHeight) {
-            // On initial height report, immediately set height without animation,
-            // and begin to fade in to avoid visual jump.
-            animatedTranslateY.setValue(height)
-            Animated.timing(animatedOpacity, {
-                toValue: 1,
-                duration: 100,
-                useNativeDriver: true,
-            }).start()
+            // On initial height report, immediately set height without animation
+            // to prevent a visual jump glitch the 1st time the overlay is shown
+            animatedTranslateY.value = height
         }
         setOverlayHeight(height)
     }
+
+    const animatedContentStyle = useAnimatedStyle(() => ({
+        opacity: animatedOpacity.value,
+        transform: [{ translateY: animatedTranslateY.value }],
+    }))
 
     const renderButtons = () => {
         return buttons.map((button: CustomOverlayButton, i: number) => {
@@ -106,7 +139,6 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                     containerStyle={style.buttonContainer}
                     title={button.text}
                     titleProps={{
-                        numberOfLines: 1,
                         adjustsFontSizeToFit: true,
                         maxFontSizeMultiplier: 1.4,
                     }}
@@ -143,18 +175,27 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
         })
     }
 
+    // this makes sure we keep showing the overlay until exit animation is complete
+    const handleBackdropPress = () => {
+        setWaitingForExitAnimation(true)
+        onBackdropPress?.()
+    }
+    // we must make sure the screen the overlay is rendering on has focus before
+    // showing the overlay otherwise the user will get stuck on an undismissable overlay
+    const isFocused = useIsFocused()
+    const shouldShowOverlay = isFocused && (show || waitingForExitAnimation)
+
     return (
         <Overlay
-            isVisible={show}
-            onBackdropPress={onBackdropPress}
+            isVisible={shouldShowOverlay}
+            onBackdropPress={handleBackdropPress}
             overlayStyle={style.overlayContainer}>
             <Animated.View
                 onLayout={handleOverlayLayout}
                 style={[
                     style.overlayContents,
+                    animatedContentStyle,
                     {
-                        opacity: animatedOpacity,
-                        transform: [{ translateY: animatedTranslateY }],
                         // Ensure there is double the size of theme.spacing.xl to click on the backdrop to dismiss the overlay
                         maxHeight:
                             viewportHeight -

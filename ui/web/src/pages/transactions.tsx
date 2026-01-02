@@ -9,7 +9,6 @@ import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import TransactionsList from '../components/TransactionList'
 import { federationsRoute } from '../constants/routes'
-import { fedimint } from '../lib/bridge'
 import { getHashParams } from '../utils/linking'
 
 const TransactionsPage: React.FC = () => {
@@ -18,10 +17,7 @@ const TransactionsPage: React.FC = () => {
     const router = useRouter()
     const params = getHashParams(router.asPath)
     const [isLoading, setIsLoading] = useState(true)
-    const { transactions, fetchTransactions } = useTransactionHistory(
-        fedimint,
-        params.id,
-    )
+    const { transactions, fetchTransactions } = useTransactionHistory(params.id)
 
     useEffect(() => {
         fetchTransactions({ more: false })

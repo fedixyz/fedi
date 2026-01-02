@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use federations::Federations;
 use federations::federation_v2::client::ClientExt;
 use federations::federation_v2::{MultispendNotifications, SptNotifications};
@@ -12,6 +13,7 @@ use rpc_types::{RpcEventId, SPv2TransferMetadata};
 use sp_transfer::services::SptFederationProvider;
 use sp_transfer::services::transfer_complete_notifier::SptTransferCompleteNotifier;
 use stability_pool_client::common::{AccountId, FiatAmount, SignedTransferRequest, SyncResponse};
+use stability_pool_client::db::UserOperationHistoryItem;
 
 /// Wrapper to implement SP Transfers notifications for Federations
 pub struct SptNotificationsProvider(pub Arc<SptTransferCompleteNotifier>);
@@ -131,5 +133,24 @@ impl SptFederationProvider for SptFederationProviderWrapper {
             spv2.our_account(stability_pool_client::common::AccountType::Seeker)
                 .id()
         })
+    }
+
+    fn spv2_force_sync(&self, federation_id: &str) {
+        if let Ok(federation) = self.0.get_federation(federation_id) {
+            federation.spv2_force_sync();
+        }
+    }
+
+    async fn spv2_wait_for_completed_transfer_in(
+        &self,
+        federation_id: &str,
+        txid: TransactionId,
+    ) -> anyhow::Result<UserOperationHistoryItem> {
+        let federation = self.0.get_federation(federation_id)?;
+        let history_service = federation
+            .spv2_history_service
+            .get()
+            .context("spv2 history service not initialized")?;
+        Ok(history_service.wait_for_completed_transfer_in(txid).await)
     }
 }

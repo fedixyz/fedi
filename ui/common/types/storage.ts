@@ -4,6 +4,7 @@
 import { ProtectedFeatures } from '../redux'
 import { ModVisibility } from '../redux/mod'
 import { Chat, ChatGroup, ChatMember, ChatMessage } from './chat'
+import { RememberedPermissionsMap } from './fediInternal'
 import {
     Federation,
     FediMod,
@@ -349,6 +350,16 @@ export interface StoredStateV38 extends Omit<StoredStateV37, 'version'> {
     newMods: FediMod['id'][]
 }
 
+export interface StoredStateV39 extends Omit<StoredStateV38, 'version'> {
+    version: 39
+    miniAppPermissions: { [miniAppUrlOrigin: string]: RememberedPermissionsMap }
+}
+
+export interface StoredStateV40 extends Omit<StoredStateV39, 'version'> {
+    version: 40
+    miniAppOrder: FediMod['id'][]
+}
+
 /**
  * Consolidated type for older storage versions (0-24).
  * These are grouped together to reduce union type computation that slows down TSC performance.
@@ -403,9 +414,11 @@ export type AnyStoredState =
     | StoredStateV36
     | StoredStateV37
     | StoredStateV38
+    | StoredStateV39
+    | StoredStateV40
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV38
+export type LatestStoredState = StoredStateV40
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

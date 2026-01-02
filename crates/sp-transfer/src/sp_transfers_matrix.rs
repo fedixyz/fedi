@@ -13,16 +13,18 @@ use matrix_sdk::ruma::events::{
 };
 use matrix_sdk::ruma::{OwnedEventId, RoomId};
 use rpc_types::matrix::{RpcRoomId, RpcUserId};
-use rpc_types::sp_transfer::{RpcSpTransferEvent, RpcSpTransferState};
+use rpc_types::sp_transfer::{RpcSpTransferEvent, RpcSpTransferState, RpcSpTransferStatus};
 use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount};
 use runtime::bridge_runtime::Runtime;
+use stability_pool_client::common::FiatAmount;
 use tokio::sync::Notify;
+use tracing::warn;
 
 use crate::SP_TRANSFER_MSGTYPE;
 use crate::db::{
     KnownReceiverAccountIdKey, PendingReceiverAccountIdEventKey,
-    SenderAwaitingAccountAnnounceEventKey, TransferEventKey, TransferEventValue, TransferFailedKey,
-    TransferSentHintKey,
+    SenderAwaitingAccountAnnounceEventKey, SpTransferStatus, TransferEventKey, TransferEventValue,
+    TransferFailedKey, TransferSentHintKey,
 };
 use crate::services::SptServices;
 
@@ -157,15 +159,83 @@ impl SpTransfersMatrix {
     ) -> impl Stream<Item = RpcSpTransferState> + use<> {
         let this = self.clone();
         stream! {
-            let mut last_value: Option<RpcSpTransferState> = None;
-            loop {
+            let our_user_id = this.client.user_id().map(|u| RpcUserId::from(u.to_owned()));
+
+            let spt_db = this.runtime.sp_transfers_db();
+
+            // first wait for transfer to exist, it might not exist due to the order we scan events in, or some race condition
+            let transfer = loop {
                 let notify = this.event_notify.notified();
-                if let Some(state) = crate::db::resolve_transfer_state(this.runtime.clone(), &pending_transfer_id).await
-                    && last_value.as_ref() != Some(&state) {
-                        last_value = Some(state.clone());
-                        yield state;
+                let mut dbtx = spt_db.begin_transaction_nc().await;
+                if let Some(transfer) = dbtx
+                    .get_value(&TransferEventKey {
+                        pending_transfer_id: pending_transfer_id.clone(),
+                    })
+                    .await {
+                        break transfer;
                     }
                 notify.await;
+            };
+
+            let federation_id = transfer.federation_id.clone();
+            let amount = transfer.amount;
+            let invite_code = transfer.federation_invite.clone();
+            let make_rpc_transfer_state = |status| {
+                RpcSpTransferState {
+                    status,
+                    federation_id: federation_id.clone(),
+                    amount,
+                    invite_code: invite_code.clone(),
+                }
+            };
+            let mut yielded_pending = false;
+            let sent_hint_txid = loop {
+                let notify = this.event_notify.notified();
+                let mut dbtx = spt_db.begin_transaction_nc().await;
+                let status = crate::db::resolve_status_db(&mut dbtx, &pending_transfer_id).await;
+                match status {
+                    SpTransferStatus::Pending => {
+                        // only yield pending once
+                        if !yielded_pending {
+                            yielded_pending = true;
+                            yield make_rpc_transfer_state(RpcSpTransferStatus::Pending);
+                        }
+                    }
+                    SpTransferStatus::Failed => {
+                        yield make_rpc_transfer_state(RpcSpTransferStatus::Failed);
+                        // terminal state end
+                        return;
+                    }
+                    SpTransferStatus::SentHint { transaction_id } => {
+                        break transaction_id;
+                    }
+                }
+
+                notify.await;
+            };
+
+            let is_sender = our_user_id.as_ref() == Some(&transfer.sent_by);
+            if is_sender {
+                // we are the sender, we trust us
+                yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
+            } else {
+                match this.services.provider.spv2_wait_for_completed_transfer_in(&federation_id.0, sent_hint_txid.0).await {
+                    Ok(history_item) => {
+                        if history_item.fiat_amount == FiatAmount(transfer.amount.0) {
+                            yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
+                        } else {
+                            // no sending the correct amount is considered cheating and you move to failed state
+                            yield make_rpc_transfer_state(RpcSpTransferStatus::Failed);
+                        }
+                    }
+                    Err(err) => {
+                        // only happens if you leave the federation for example
+                        warn!(%err, "wait for transfer in failed");
+                        // this is an edge case, we handle this by wait for next observable (closing the chat and reopening the chat)
+                        return;
+                    }
+                }
+
             }
         }
     }
@@ -224,11 +294,24 @@ impl SpTransfersMatrix {
             } => {
                 dbtx.insert_entry(
                     &TransferSentHintKey {
-                        pending_transfer_id,
+                        pending_transfer_id: pending_transfer_id.clone(),
                     },
                     &transaction_id,
                 )
                 .await;
+
+                // sender already syncs it in FederationV2::subscribe_spv2_transfer
+                if !is_sender
+                    && let Some(transfer) = dbtx
+                        .get_value(&TransferEventKey {
+                            pending_transfer_id,
+                        })
+                        .await
+                {
+                    self.services
+                        .provider
+                        .spv2_force_sync(&transfer.federation_id.0);
+                }
             }
             RpcSpTransferEvent::TransferFailed {
                 pending_transfer_id,

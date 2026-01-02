@@ -15,7 +15,6 @@ import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
@@ -30,7 +29,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { isProcessing, registeredDevices, handleTransfer } =
-        useDeviceRegistration(t, fedimint)
+        useDeviceRegistration(t)
 
     const style = styles(theme)
 

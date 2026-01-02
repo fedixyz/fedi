@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
 
 import offlineIcon from '@fedi/common/assets/svgs/alert-warning-triangle.svg'
+import onlineIcon from '@fedi/common/assets/svgs/dot.svg'
 import unstableIcon from '@fedi/common/assets/svgs/info.svg'
-import onlineIcon from '@fedi/common/assets/svgs/online-dot.svg'
 import { theme } from '@fedi/common/constants/theme'
 import { useFederationStatus } from '@fedi/common/hooks/federation'
 

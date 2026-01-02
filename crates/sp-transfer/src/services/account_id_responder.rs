@@ -7,14 +7,14 @@ use fedimint_core::util::retry;
 use futures::StreamExt as _;
 use rpc_types::RpcEventId;
 use rpc_types::matrix::room_is_joined;
-use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferEvent, RpcSpTransferStatus};
+use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferEvent};
 use runtime::bridge_runtime::Runtime;
 use tokio::sync::Notify;
 use tracing::instrument;
 
 use crate::db::{
-    PendingReceiverAccountIdEventKey, PendingReceiverAccountIdEventKeyPrefix, TransferEventKey,
-    resolve_status_db,
+    PendingReceiverAccountIdEventKey, PendingReceiverAccountIdEventKeyPrefix, SpTransferStatus,
+    TransferEventKey, resolve_status_db,
 };
 use crate::services::SptFederationProvider;
 use crate::sp_transfers_matrix::SpTransfersMatrix;
@@ -102,9 +102,7 @@ impl SptAccountIdResponder {
             .context("pending without transfer details, db corrupt")?;
 
         // already done
-        if resolve_status_db(dbtx, pending_transfer_id, &transfer).await
-            != RpcSpTransferStatus::Pending
-        {
+        if resolve_status_db(dbtx, pending_transfer_id).await != SpTransferStatus::Pending {
             dbtx.remove_entry(&PendingReceiverAccountIdEventKey {
                 pending_transfer_id: pending_transfer_id.clone(),
             })

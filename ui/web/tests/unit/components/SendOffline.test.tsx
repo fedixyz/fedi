@@ -1,9 +1,13 @@
 import '@testing-library/jest-dom'
-import { cleanup, screen } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import {
+    createMockFedimintBridge,
+    MockFedimintBridge,
+} from '@fedi/common/tests/utils/fedimint'
 import { MSats, SupportedCurrency } from '@fedi/common/types'
 import { BridgeError } from '@fedi/common/utils/errors'
 
@@ -12,26 +16,22 @@ import i18n from '../../../src/localization/i18n'
 import { AppState } from '../../../src/state/store'
 import { renderWithProviders } from '../../utils/render'
 
-const mockCalculateMaxGenerateEcash = jest.fn(async () => 0 as MSats)
-
-jest.mock('@fedi/web/src/lib/bridge', () => ({
-    ...jest.requireActual('@fedi/web/src/lib/bridge'),
-    fedimint: {
-        calculateMaxGenerateEcash: () => mockCalculateMaxGenerateEcash(),
-    },
-}))
-
 describe('SendOffline', () => {
     let state: AppState
+    let mockFedimint: MockFedimintBridge
     let store
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
 
     const mockOnEcashGenerated = jest.fn()
     const mockOnPaymentSent = jest.fn()
+    const mockCalculateMaxGenerateEcash = Promise.resolve(1_999_000 as MSats)
 
     beforeEach(() => {
         store = setupStore()
         state = store.getState()
+        mockFedimint = createMockFedimintBridge({
+            calculateMaxGenerateEcash: mockCalculateMaxGenerateEcash,
+        })
 
         jest.clearAllTimers()
         jest.useFakeTimers()
@@ -49,12 +49,17 @@ describe('SendOffline', () => {
                 onPaymentSent={mockOnPaymentSent}
                 federationId="test-federation-id"
             />,
+            {
+                fedimint: mockFedimint,
+            },
         )
 
         const next = i18n.t('words.send')
         const nextButton = screen.getByText(next)
 
-        expect(nextButton).toBeInTheDocument()
+        await waitFor(() => {
+            expect(nextButton).toBeInTheDocument()
+        })
     })
 
     it('should render the primary amount in fiat and the secondary amount in sats when amountInputType is fiat', async () => {
@@ -65,6 +70,7 @@ describe('SendOffline', () => {
                 federationId="test-federation-id"
             />,
             {
+                fedimint: mockFedimint,
                 preloadedState: {
                     currency: {
                         ...state.currency,
@@ -80,15 +86,16 @@ describe('SendOffline', () => {
                 },
             },
         )
-
         await user.click(screen.getByText('3'))
         await user.click(screen.getByText('4'))
 
-        expect(screen.getByText('34')).toBeInTheDocument()
-        expect(screen.getByText('34,000')).toBeInTheDocument()
+        await waitFor(() => {
+            expect(screen.getByText('34')).toBeInTheDocument()
+            expect(screen.getByText('34,000')).toBeInTheDocument()
+        })
     })
 
-    it('should render the primary amount in fiat and the secondary amount in sats when amountInputType is fiat', async () => {
+    it('should render the primary amount in sats and the secondary amount in fiat when amountInputType is sats', async () => {
         renderWithProviders(
             <SendOffline
                 onEcashGenerated={mockOnEcashGenerated}
@@ -96,6 +103,7 @@ describe('SendOffline', () => {
                 federationId="test-federation-id"
             />,
             {
+                fedimint: mockFedimint,
                 preloadedState: {
                     currency: {
                         ...state.currency,
@@ -125,9 +133,9 @@ describe('SendOffline', () => {
     })
 
     it('should prevent the user from sending more than the max ecash send balance', async () => {
-        mockCalculateMaxGenerateEcash.mockImplementation(
-            async () => 1999000 as MSats,
-        )
+        // const fedimint = createMockFedimintBridge({
+        //     calculateMaxGenerateEcash: 1_999_000 as MSats,
+        // })
 
         renderWithProviders(
             <SendOffline
@@ -136,6 +144,7 @@ describe('SendOffline', () => {
                 federationId="1"
             />,
             {
+                fedimint: mockFedimint,
                 preloadedState: {
                     currency: {
                         ...state.currency,
@@ -172,12 +181,14 @@ describe('SendOffline', () => {
     })
 
     it('should fall back to the wallet balance if the calculateMaxGenerateEcash rpc fails', async () => {
-        mockCalculateMaxGenerateEcash.mockImplementation(async () => {
-            throw new BridgeError({
-                error: 'error',
-                detail: 'error',
-                errorCode: 'badRequest',
-            })
+        mockFedimint = createMockFedimintBridge({
+            calculateMaxGenerateEcash: Promise.reject(
+                new BridgeError({
+                    error: 'error',
+                    detail: 'error',
+                    errorCode: 'badRequest',
+                }),
+            ),
         })
 
         renderWithProviders(
@@ -187,6 +198,7 @@ describe('SendOffline', () => {
                 federationId="1"
             />,
             {
+                fedimint: mockFedimint,
                 preloadedState: {
                     currency: {
                         ...state.currency,

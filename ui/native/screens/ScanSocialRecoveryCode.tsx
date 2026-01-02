@@ -57,6 +57,7 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({
                             recoveryId: qr.recoveryId,
                             peerId: authenticatedGuardian.peerId,
                             federationId,
+                            guardianPassword: authenticatedGuardian.password,
                         }),
                     ).unwrap()
                     if (videoPath == null) {

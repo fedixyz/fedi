@@ -12,7 +12,7 @@ import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { setPayFromFederationId } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
-import { requestRoute, sendRoute } from '../constants/routes'
+import { requestRoute, sendRoute, transactionsRoute } from '../constants/routes'
 import { useAppDispatch } from '../hooks'
 import { styled, theme } from '../styles'
 import { Button } from './Button'
@@ -65,7 +65,7 @@ export const BitcoinWallet: React.FC<Props> = ({
                         <Icon size="md" icon={BitcoinCircleIcon} />
                     </IconWrapper>
                     {expanded ? (
-                        <Name href="/transactions">
+                        <Name href={`${transactionsRoute}#id=${federation.id}`}>
                             <Text weight="medium">{t('words.bitcoin')}</Text>
                         </Name>
                     ) : (
@@ -121,7 +121,7 @@ export const BitcoinWallet: React.FC<Props> = ({
                         size="lg"
                         disabled={popupInfo?.ended}
                         onClick={() =>
-                            push(`/transactions#id=${federation.id}`)
+                            push(`${transactionsRoute}#id=${federation.id}`)
                         }
                     />
                 </Buttons>

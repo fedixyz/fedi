@@ -10,7 +10,6 @@ import { selectIsInternetUnreachable } from '@fedi/common/redux'
 import type { SeedWords } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
-import { fedimint } from '../bridge'
 import SeedWordInput from '../components/feature/recovery/SeedWordInput'
 import Flex from '../components/ui/Flex'
 import { BIP39_WORD_LIST } from '../constants'
@@ -34,10 +33,7 @@ const PersonalRecovery: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const pin = usePinContext()
     const toast = useToast()
-    const { recoveryInProgress, attemptRecovery } = usePersonalRecovery(
-        t,
-        fedimint,
-    )
+    const { recoveryInProgress, attemptRecovery } = usePersonalRecovery(t)
     const isOffline = useAppSelector(selectIsInternetUnreachable)
     const [seedWords, setSeedWords] = useState<SeedWords>(
         new Array(12).fill(''),

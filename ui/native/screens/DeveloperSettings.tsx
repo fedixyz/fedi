@@ -18,6 +18,7 @@ import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
+    clearAllMiniAppSessions,
     clearAutojoinedCommunitiesAndNotices,
     listGateways,
     refreshStabilityPool,
@@ -42,6 +43,7 @@ import {
 } from '@fedi/common/redux'
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
+import { clearAllMiniAppPermissions } from '@fedi/common/redux/mod'
 import {
     FediModCacheMode,
     Guardian,
@@ -561,6 +563,32 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             </SettingsSection>
 
             <SettingsSection title="Danger zone">
+                {/*
+                    This clears out first party permissions too so we can test 
+                    the permissions flow using catalog and community-tool.
+                */}
+                <Button
+                    title="Clear all miniapp permissions"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(clearAllMiniAppPermissions())
+                        toast.show({
+                            content: 'Cleared all miniapp permissions',
+                            status: 'success',
+                        })
+                    }}
+                />
+                <Button
+                    title="Clear all miniapp history"
+                    containerStyle={style.buttonContainer}
+                    onPress={() => {
+                        reduxDispatch(clearAllMiniAppSessions())
+                        toast.show({
+                            content: 'Cleared all miniapp history',
+                            status: 'success',
+                        })
+                    }}
+                />
                 <Button
                     title="Reset survey tool timestamp"
                     containerStyle={style.buttonContainer}

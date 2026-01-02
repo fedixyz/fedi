@@ -98,7 +98,7 @@ const ChatHeader: React.FC = () => {
                 onBackdropPress={() => setOptionsOverlayOpen(false)}
                 contents={{
                     body: (
-                        <Column gap="lg">
+                        <Column>
                             <HeaderOverlayOption
                                 onPress={handleFindByUsername}
                                 text={t('feature.chat.find-by-username')}

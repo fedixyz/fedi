@@ -6,10 +6,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { Provider as ReduxProvider } from 'react-redux'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { makeLog } from '@fedi/common/utils/log'
 
 import Router from './Router'
-import { subscribeToBridgeEvents, unsubscribeFromBridgeEvents } from './bridge'
 import FediBridgeInitializer from './components/FediBridgeInitializer'
 import { InternetIsUnreachableBadge } from './components/feature/environment/InternetIsUnreachableBadge'
 import { ErrorScreen } from './screens/ErrorScreen'
@@ -22,29 +20,11 @@ import { ToastScopeProvider } from './state/contexts/ToastScopeContext'
 import { initializeNativeStore, store } from './state/store'
 import theme from './styles/theme'
 
-const log = makeLog('FediBridgeInitializer')
-
 const App = () => {
-    // Initialize redux store
+    // Initialize redux store and native event listeners
     useEffect(() => {
         const unsubscribe = initializeNativeStore()
         return unsubscribe
-    }, [])
-
-    // Initialize Native Event Listeners
-    useEffect(() => {
-        let listeners: Awaited<ReturnType<typeof subscribeToBridgeEvents>>
-
-        const subscribe = async () => {
-            listeners = await subscribeToBridgeEvents()
-            log.info('initialized bridge listeners')
-        }
-
-        subscribe()
-
-        return () => {
-            unsubscribeFromBridgeEvents(listeners)
-        }
     }, [])
 
     return (

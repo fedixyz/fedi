@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 
-import { fedimint } from '../bridge'
 import { OmniInput } from '../components/feature/omni/OmniInput'
 import Flex from '../components/ui/Flex'
 import { ParserDataType } from '../types'
@@ -17,7 +16,7 @@ const Receive: React.FC<Props> = ({ route }) => {
     const { t } = useTranslation()
     const { federationId = '' } = route.params
     const navigation = useNavigation<NavigationHook>()
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     useFocusEffect(
         useCallback(() => {

@@ -14,10 +14,6 @@ import {
     createMockTransaction,
     createMockMultispendTransaction,
 } from '../../mock-data/transactions'
-import {
-    MockFedimintBridge,
-    createMockFedimintBridge,
-} from '../../utils/fedimint'
 import { renderHookWithState } from '../../utils/render'
 import { createMockT } from '../../utils/setup'
 
@@ -35,13 +31,11 @@ jest.mock('@fedi/common/hooks/amount', () => ({
 }))
 
 describe('common/hooks/transactions', () => {
-    let mockFedimint: MockFedimintBridge
     const t = createMockT()
     const store = setupStore()
 
     beforeEach(() => {
         jest.clearAllMocks()
-        mockFedimint = createMockFedimintBridge()
 
         store.dispatch(setFederations([mockFederation1]))
     })
@@ -162,7 +156,7 @@ describe('common/hooks/transactions', () => {
                 })
 
                 const { result } = renderHookWithState(
-                    () => useTransactionHistory(mockFedimint, '1'),
+                    () => useTransactionHistory('1'),
                     store,
                 )
 

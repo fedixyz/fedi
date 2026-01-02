@@ -8,7 +8,6 @@ import { Keyboard, StyleSheet } from 'react-native'
 import { useWithdrawForm } from '@fedi/common/hooks/amount'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 
-import { fedimint } from '../bridge'
 import StabilityBalanceTile from '../components/feature/stabilitypool/StabilityBalanceTile'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { Row } from '../components/ui/Flex'
@@ -34,7 +33,7 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
     } = useWithdrawForm(federationId)
     const [submitAttempts, setSubmitAttempts] = useState(0)
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)

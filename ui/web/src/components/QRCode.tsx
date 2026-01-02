@@ -11,7 +11,10 @@ interface Props {
     logoOverrideUrl?: string
 }
 
-export const QRCode: React.FC<Props> = ({ data, logoOverrideUrl }) => {
+export const QRCode = React.memo(function QRCode({
+    data,
+    logoOverrideUrl,
+}: Props) {
     const [qrSvgs, setQrSvgs] = useState<string[] | null>(null)
     const [activeFrame, setActiveFrame] = useState(0)
     const isXs = useMediaQuery(config.media.xs)
@@ -56,7 +59,7 @@ export const QRCode: React.FC<Props> = ({ data, logoOverrideUrl }) => {
             )}
         </Container>
     )
-}
+})
 
 const Container = styled('div', {
     width: '100%',

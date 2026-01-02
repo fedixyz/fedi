@@ -16,7 +16,6 @@ import { formatErrorMessage } from '@fedi/common/utils/format'
 
 import { useRouteState } from '../context/RouteStateContext'
 import { useAppDispatch, useAppSelector } from '../hooks'
-import { fedimint } from '../lib/bridge'
 import { styled } from '../styles'
 import { AmountInput } from './AmountInput'
 import { Button } from './Button'
@@ -60,7 +59,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         handleOmniInput,
         handleOmniSend,
         resetOmniPaymentState,
-    } = useOmniPaymentState(fedimint, federationId, t)
+    } = useOmniPaymentState(federationId, t)
     const shouldRateFederation = useAppSelector(selectShouldRateFederation)
 
     const [showRateFederation, setShowRateFederation] = useState(false)
@@ -75,7 +74,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
     const isOfflineWalletSupported = useIsOfflineWalletSupported(federationId)
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     useEffect(() => {
         // makes sure we auto-select a wallet to pay from if the user doesn't have one selected

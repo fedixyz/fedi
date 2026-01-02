@@ -8,19 +8,17 @@ use crate::{RpcEventId, RpcFederationId, RpcFiatAmount, RpcTransactionId};
 #[ts(export)]
 pub struct RpcAccountId(pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(
     rename_all = "camelCase",
     rename_all_fields = "camelCase",
     tag = "kind"
 )]
-#[ts(export)]
 pub enum RpcSpTransferEvent {
     PendingTransferStart {
         amount: RpcFiatAmount,
         federation_id: RpcFederationId,
         federation_invite: Option<String>,
-        #[ts(skip)]
         nonce: u64,
     },
     TransferSentHint {
@@ -41,9 +39,6 @@ pub enum RpcSpTransferEvent {
 #[ts(export)]
 pub enum RpcSpTransferStatus {
     Pending,
-    SentHint,
-    /// TODO: this state is not reachable right now, we need to check with
-    /// federation to reach this
     Complete,
     Failed,
 }

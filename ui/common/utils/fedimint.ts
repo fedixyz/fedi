@@ -684,13 +684,13 @@ export class FedimintBridge {
     async approveSocialRecoveryRequest(
         recoveryId: string,
         peerId: number,
-        password: string,
+        guardianPassword: string,
         federationId: string,
     ) {
         return this.rpcTyped('approveSocialRecoveryRequest', {
             recoveryId,
-            peerId,
-            password,
+            peerId: String(peerId),
+            guardianPassword,
             federationId,
         })
     }
@@ -699,11 +699,13 @@ export class FedimintBridge {
         recoveryId: string,
         federationId: string,
         peerId: number,
+        guardianPassword: string,
     ) {
         return this.rpcTyped('socialRecoveryDownloadVerificationDoc', {
             federationId,
             recoveryId,
-            peerId,
+            peerId: String(peerId),
+            guardianPassword,
         })
     }
 

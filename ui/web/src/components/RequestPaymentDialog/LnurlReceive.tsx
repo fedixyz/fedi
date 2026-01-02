@@ -5,7 +5,6 @@ import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
 import { TransactionListEntry } from '@fedi/common/types'
 
 import { QRContainer } from '.'
-import { fedimint } from '../../lib/bridge'
 import { theme } from '../../styles'
 import { CopyInput } from '../CopyInput'
 import { HoloLoader } from '../HoloLoader'
@@ -20,7 +19,6 @@ export default function LnurlReceive({
     onWithdrawPaid: (txn: TransactionListEntry) => void
 }) {
     const { lnurlReceiveCode, isLoading } = useLnurlReceiveCode(
-        fedimint,
         federationId || '',
     )
 

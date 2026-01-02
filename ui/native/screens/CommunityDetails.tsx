@@ -12,7 +12,6 @@ import {
     getFederationWelcomeMessage,
 } from '@fedi/common/utils/FederationUtils'
 
-import { fedimint } from '../bridge'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import DefaultChatTile from '../components/feature/home/DefaultChatTile'
 import CustomOverlay from '../components/ui/CustomOverlay'
@@ -35,11 +34,8 @@ const CommunityDetails: React.FC<Props> = ({ route, navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { communityId } = route.params
-    const { canLeaveCommunity, handleLeave, isLeaving } = useLeaveCommunity({
-        t,
-        communityId,
-        fedimint,
-    })
+    const { canLeaveCommunity, handleLeave, isLeaving } =
+        useLeaveCommunity(communityId)
 
     const community = useAppSelector(s => selectCommunity(s, communityId))
     const chats = useAppSelector(s => selectDefaultChats(s, communityId))

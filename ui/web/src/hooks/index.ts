@@ -1,3 +1,4 @@
+export * from './attachments'
 export * from './browser'
 export * from './dom'
 export * from './store'

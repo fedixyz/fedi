@@ -29,7 +29,6 @@ import {
     useInstallPromptContext,
     useShowInstallPromptBanner,
 } from '../hooks'
-import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 
 function HomePage() {
@@ -39,7 +38,7 @@ function HomePage() {
     const { isIOS } = useDeviceQuery()
     const { showInstallBanner, handleOnDismiss } = useShowInstallPromptBanner()
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const handleOnInstall = async () => {
         await deferredPrompt?.prompt()

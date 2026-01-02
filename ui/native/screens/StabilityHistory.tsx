@@ -20,10 +20,8 @@ const StabilityHistory: React.FC<Props> = ({ route }: Props) => {
 
     const [isLoading, setIsLoading] = useState(true)
     const dispatch = useAppDispatch()
-    const { stabilityPoolTxns, fetchTransactions } = useTransactionHistory(
-        fedimint,
-        federationId,
-    )
+    const { stabilityPoolTxns, fetchTransactions } =
+        useTransactionHistory(federationId)
 
     const refreshStabilityPoolHistory = useCallback(async () => {
         await fetchTransactions()

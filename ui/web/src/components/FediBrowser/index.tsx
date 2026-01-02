@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 
 import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 import RefreshIcon from '@fedi/common/assets/svgs/retry.svg'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { setSiteInfo } from '@fedi/common/redux'
 import { InjectionMessageType } from '@fedi/injections/src/types'
 
@@ -19,6 +20,7 @@ type Props = {
 }
 
 export const FediBrowser: React.FC<Props> = ({ url, onClose }) => {
+    const fedimint = useFedimint()
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const { overlayId, resetOverlay, sendSuccess, sendError } =
         useIFrameListener(iframeRef)
@@ -50,8 +52,13 @@ export const FediBrowser: React.FC<Props> = ({ url, onClose }) => {
         }
     }
 
+    const handleClose = () => {
+        fedimint.onAppForeground()
+        onClose()
+    }
+
     return (
-        <FediBrowserDialog open={!!url} onOpenChange={onClose}>
+        <FediBrowserDialog open={!!url} onOpenChange={handleClose}>
             <SendPaymentOverlay
                 open={overlayId === 'webln_sendPayment'}
                 onAccept={res => {
@@ -98,7 +105,7 @@ export const FediBrowser: React.FC<Props> = ({ url, onClose }) => {
                     <NavRight>
                         <CloseWrapper
                             aria-label="close button"
-                            onClick={onClose}>
+                            onClick={handleClose}>
                             <Icon icon={CloseIcon} />
                         </CloseWrapper>
                     </NavRight>

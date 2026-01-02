@@ -3,8 +3,12 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import chevronRight from '@fedi/common/assets/svgs/chevron-right.svg'
+import dot from '@fedi/common/assets/svgs/dot.svg'
 import exclamationCircle from '@fedi/common/assets/svgs/exclamation-circle.svg'
-import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
+import {
+    useFederationStatus,
+    usePopupFederationInfo,
+} from '@fedi/common/hooks/federation'
 import { selectIsFederationRecovering } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
@@ -34,14 +38,32 @@ const FederationTile: React.FC<Props> = ({
     )
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
 
+    const { status, statusIcon, statusIconColor } = useFederationStatus({
+        federationId: federation.id,
+        t,
+        statusIconMap: {
+            online: dot,
+            unstable: dot,
+            offline: dot,
+        },
+    })
+
     return (
         <Container>
             <TileHeader as={Link} href={federationRoute(federation.id)}>
                 <LogoContainer>
                     <FederationAvatar federation={federation} size="md" />
-                    {popupInfo?.ended && (
+                    {(popupInfo?.ended || status !== 'online') && (
                         <EndedIndicator>
-                            <Icon icon={exclamationCircle} size="xs" />
+                            <Icon
+                                icon={
+                                    popupInfo?.ended
+                                        ? exclamationCircle
+                                        : statusIcon
+                                }
+                                size="xs"
+                                color={statusIconColor}
+                            />
                         </EndedIndicator>
                     )}
                 </LogoContainer>

@@ -32,7 +32,7 @@ export const SocialRecovery: React.FC = () => {
         fetchSocialRecovery,
         completeSocialRecovery,
         cancelSocialRecovery,
-    } = useSocialRecovery(fedimint)
+    } = useSocialRecovery()
     const [isCheckingFile, setIsCheckingFile] = useState(false)
     const [wantsCancel, setWantsCancel] = useState(false)
     const toast = useToast()

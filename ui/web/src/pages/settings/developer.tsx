@@ -5,6 +5,7 @@ import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
+    clearAllMiniAppSessions,
     resetNuxSteps,
     resetSurveyCompletions,
     selectPaymentFederation,
@@ -231,6 +232,15 @@ function DeveloperPage() {
                                     dispatch(resetSurveyCompletions())
                                 }}>
                                 Reset survey completions
+                            </Button>
+                        </Setting>
+                        <Setting>
+                            <Text weight="bold">Miniapp History</Text>
+                            <Button
+                                onClick={() => {
+                                    dispatch(clearAllMiniAppSessions())
+                                }}>
+                                Clear all miniapp history
                             </Button>
                         </Setting>
                         <Setting>

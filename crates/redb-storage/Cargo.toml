@@ -1,0 +1,12 @@
+[package]
+name = "redb-storage"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+fedimint-core = { workspace = true }
+fedimint-cursed-redb = { workspace = true }
+runtime = { workspace = true }
+tokio = { workspace = true }

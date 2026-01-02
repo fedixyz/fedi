@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use futures::StreamExt as _;
-use rpc_types::sp_transfer::RpcSpTransferStatus;
 use rpc_types::{RpcEventId, SPv2TransferMetadata};
 use runtime::bridge_runtime::Runtime;
 use stability_pool_client::common::FiatAmount;
@@ -12,7 +11,8 @@ use tracing::instrument;
 
 use crate::db::{
     KnownReceiverAccountIdKey, SenderAwaitingAccountAnnounceEventKey,
-    SenderAwaitingAccountAnnounceEventKeyPrefix, TransferEventKey, resolve_status_db,
+    SenderAwaitingAccountAnnounceEventKeyPrefix, SpTransferStatus, TransferEventKey,
+    resolve_status_db,
 };
 use crate::services::SptFederationProvider;
 
@@ -84,9 +84,7 @@ impl SptTransferSubmitter {
         // only possible on
         // - a recovering device (we are reprocessing already complete transfer)
         // - duplicate calls to event handler - which is possible
-        if resolve_status_db(dbtx, &pending_transfer_id, &transfer).await
-            != RpcSpTransferStatus::Pending
-        {
+        if resolve_status_db(dbtx, &pending_transfer_id).await != SpTransferStatus::Pending {
             dbtx.remove_entry(&SenderAwaitingAccountAnnounceEventKey {
                 pending_transfer_id: pending_transfer_id.clone(),
             })

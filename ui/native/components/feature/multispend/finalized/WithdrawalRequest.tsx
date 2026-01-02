@@ -12,7 +12,6 @@ import {
     isWithdrawalRequestRejected,
 } from '@fedi/common/utils/matrix'
 
-import { fedimint } from '../../../../bridge'
 import { useAppSelector } from '../../../../state/hooks'
 import { MultispendWithdrawalEvent } from '../../../../types'
 import { AvatarSize } from '../../../ui/Avatar'
@@ -28,7 +27,7 @@ const WithdrawalRequest: React.FC<{
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { haveIVotedForWithdrawal, getWithdrawalRequest } =
-        useMultispendWithdrawalRequests({ t, fedimint, roomId })
+        useMultispendWithdrawalRequests({ t, roomId })
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )

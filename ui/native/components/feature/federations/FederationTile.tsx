@@ -2,9 +2,10 @@ import { useNavigation } from '@react-navigation/native'
 import { Text, useTheme, type Theme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, Pressable, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import {
+    useFederationStatus,
     usePopupFederationInfo,
     useShouldShowStabilityPool,
 } from '@fedi/common/hooks/federation'
@@ -14,7 +15,8 @@ import { LoadedFederation } from '@fedi/common/types'
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import Flex from '../../ui/Flex'
-import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
+import { Pressable } from '../../ui/Pressable'
+import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
 import RecoveryInProgress from '../recovery/RecoveryInProgress'
 import StabilityWallet from '../stabilitypool/StabilityWallet'
 import BitcoinWallet from '../wallet/BitcoinWallet'
@@ -41,6 +43,17 @@ const FederationTile: React.FC<Props> = ({
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
     const showStabilityWallet = useShouldShowStabilityPool(federation.id)
 
+    const { status, statusIcon, statusIconColor } =
+        useFederationStatus<SvgImageName>({
+            federationId: federation.id,
+            t,
+            statusIconMap: {
+                online: 'Dot',
+                unstable: 'Dot',
+                offline: 'Dot',
+            },
+        })
+
     const goToFederationDetails = () => {
         navigation.navigate('FederationDetails', {
             federationId: federation.id,
@@ -53,16 +66,20 @@ const FederationTile: React.FC<Props> = ({
                 testID={federation.name
                     .concat('DetailsButton')
                     .replaceAll(' ', '')}
-                style={style.tileContainer}
+                containerStyle={style.tileContainer}
                 onPress={goToFederationDetails}>
                 <View style={style.logoContainer}>
                     <FederationLogo federation={federation} size={48} />
-                    {popupInfo?.ended && (
+                    {(popupInfo?.ended || status !== 'online') && (
                         <View style={style.endedIndicator}>
                             <SvgImage
-                                name="ExclamationCircle"
+                                name={
+                                    popupInfo?.ended
+                                        ? 'ExclamationCircle'
+                                        : statusIcon
+                                }
                                 size={16}
-                                color={theme.colors.red}
+                                color={statusIconColor}
                             />
                         </View>
                     )}

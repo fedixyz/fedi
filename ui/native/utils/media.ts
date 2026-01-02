@@ -26,6 +26,7 @@ import {
     formatFileSize,
     pathJoin,
     prefixFileUri,
+    sanitizeFileName,
 } from '@fedi/common/utils/media'
 import { ensureNonNullish } from '@fedi/common/utils/neverthrow'
 
@@ -62,7 +63,7 @@ export function deriveCopyableFileUri({
                 files: [
                     {
                         uri: document.uri,
-                        fileName: name,
+                        fileName: sanitizeFileName(name),
                     },
                 ],
                 destination: 'cachesDirectory',

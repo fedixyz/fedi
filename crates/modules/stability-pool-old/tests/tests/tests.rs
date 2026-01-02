@@ -1,22 +1,23 @@
 use std::env;
-use std::fmt::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
+use assert_matches::assert_matches;
 use devimint::external::Bitcoind;
 use devimint::federation::Federation;
-use devimint::util::{Command, ProcessManager};
-use devimint::{DevFed, cmd, dev_fed, vars};
-use fedimint_core::task::TaskGroup;
-use fedimint_core::util::write_overwrite_async;
-use tokio::fs;
-use tracing::{debug, info};
+use devimint::util::Command;
+use devimint::{DevFed, cmd, dev_fed};
+use tracing::info;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_starter_test() -> anyhow::Result<()> {
-    let (process_mgr, _) = setup().await?;
+    let fed_size = std::env::var("FM_FED_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4);
+    let (process_mgr, _) = devi::DevFed::process_setup(fed_size).await?;
 
     let (seeker_peg_in_sats, provider_peg_in_sats) = (10_000u64, 15_000u64);
     let (seeker_peg_in_msats, provider_peg_in_msats) =
@@ -354,13 +355,12 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         new_sp_account_info.total_unlocked_balance(),
         initial_unlocked_sp_balance + first_deposit_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
+    assert_matches!(
+        new_sp_account_info.staged_seeks.as_slice(), [StagedSeek {
             sequence: 0,
             amount
         }] if *amount == first_deposit_amount
-    ));
+    );
 
     // Deposit-to-seek again
     let second_deposit_amount = 250_000;
@@ -378,16 +378,15 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         new_sp_account_info.total_unlocked_balance(),
         initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
+    assert_matches!(
+        new_sp_account_info.staged_seeks.as_slice(), [StagedSeek {
             sequence: 0,
             amount: amount1
         }, StagedSeek  {
             sequence: 1,
             amount: amount2
         }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount
-    ));
+    );
 
     // Try to provide, expect error
     assert!(seeker.deposit_to_provide(500_000, 100).await.is_err());
@@ -411,16 +410,15 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
         initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
             - first_withdraw_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
+    assert_matches!(
+        new_sp_account_info.staged_seeks.as_slice(), [StagedSeek {
             sequence: 0,
             amount: amount1
         }, StagedSeek  {
             sequence: 1,
             amount: amount2
         }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount - first_withdraw_amount
-    ));
+    );
 
     // Withdraw more than 2nd staged seek, verify 2nd staged seek removed
     // Verify ecash balance
@@ -443,13 +441,12 @@ async fn seeker_tests_isolated(seeker: Arc<ForkedClient>) -> anyhow::Result<()> 
             - first_withdraw_amount
             - second_withdraw_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_seeks.as_slice(),
-        [StagedSeek {
+    assert_matches!(
+        new_sp_account_info.staged_seeks.as_slice(), [StagedSeek {
             sequence: 0,
             amount: amount1
         }] if *amount1 == remaining_first_deposit
-    ));
+    );
 
     // Withdraw any remaining unlocked balance
     seeker
@@ -487,14 +484,13 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         new_sp_account_info.total_unlocked_balance(),
         initial_unlocked_sp_balance + first_deposit_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
+    assert_matches!(
+        new_sp_account_info.staged_provides.as_slice(), [StagedProvide {
             sequence: 0,
             amount,
             min_fee_rate: 10
         }] if *amount == first_deposit_amount
-    ));
+    );
 
     // Deposit-to-provide again
     let second_deposit_amount = 250_000;
@@ -514,9 +510,8 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         new_sp_account_info.total_unlocked_balance(),
         initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
+    assert_matches!(
+        new_sp_account_info.staged_provides.as_slice(), [StagedProvide {
             sequence: 0,
             amount: amount1,
             min_fee_rate: 10,
@@ -525,7 +520,7 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
             amount: amount2,
             min_fee_rate: 20,
         }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount
-    ));
+    );
 
     // Try to seek, expect error
     assert!(provider.deposit_to_seek(500_000).await.is_err());
@@ -549,9 +544,8 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
         initial_unlocked_sp_balance + first_deposit_amount + second_deposit_amount
             - first_withdraw_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
+    assert_matches!(
+        new_sp_account_info.staged_provides.as_slice(), [StagedProvide {
             sequence: 0,
             amount: amount1,
             min_fee_rate: 10,
@@ -560,7 +554,7 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
             amount: amount2,
             min_fee_rate: 20,
         }] if *amount1 == first_deposit_amount && *amount2 == second_deposit_amount - first_withdraw_amount
-    ));
+    );
 
     // Withdraw more than 2nd staged provide, verify 2nd staged provide removed
     // Verify ecash balance
@@ -583,14 +577,13 @@ async fn provider_tests_isolated(provider: Arc<ForkedClient>) -> anyhow::Result<
             - first_withdraw_amount
             - second_withdraw_amount
     );
-    assert!(matches!(
-        new_sp_account_info.staged_provides.as_slice(),
-        [StagedProvide {
+    assert_matches!(
+        new_sp_account_info.staged_provides.as_slice(), [StagedProvide {
             sequence: 0,
             amount: amount1,
             min_fee_rate: 10,
         }] if *amount1 == remaining_first_deposit
-    ));
+    );
 
     // Withdraw any remaining unlocked balance
     provider
@@ -874,42 +867,4 @@ struct LockedProvide {
     staged_sequence: u64,
     staged_min_fee_rate: u64,
     amount: u64,
-}
-
-async fn setup() -> anyhow::Result<(ProcessManager, TaskGroup)> {
-    let offline_nodes = 0;
-    let globals = vars::Global::new(
-        Path::new(&env::var("FM_TEST_DIR")?),
-        1,
-        env::var("FM_FED_SIZE")?.parse::<usize>()?,
-        offline_nodes,
-        None,
-    )
-    .await?;
-    let log_file = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true)
-        .open(globals.FM_LOGS_DIR.join("devimint.log"))
-        .await?
-        .into_std()
-        .await;
-
-    fedimint_logging::TracingSetup::default()
-        .with_file(Some(log_file))
-        .init()?;
-
-    let mut env_string = String::new();
-    for (var, value) in globals.vars() {
-        debug!(var, value, "Env variable set");
-        writeln!(env_string, r#"export {var}="{value}""#)?; // hope that value doesn't contain a "
-        // TODO: Audit that the environment access only happens in single-threaded code.
-        unsafe { std::env::set_var(var, value) };
-    }
-    write_overwrite_async(globals.FM_TEST_DIR.join("env"), env_string).await?;
-    info!("Test setup in {:?}", globals.FM_DATA_DIR);
-    let process_mgr = ProcessManager::new(globals);
-    let task_group = TaskGroup::new();
-    task_group.install_kill_handler();
-    Ok((process_mgr, task_group))
 }

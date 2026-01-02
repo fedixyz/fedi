@@ -7,7 +7,6 @@ import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { setPayFromFederationId } from '@fedi/common/redux/federation'
 
-import { fedimint } from '../bridge'
 import {
     OmniInput,
     OmniInputAction,
@@ -26,7 +25,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
     const showOfflineWallet = useIsOfflineWalletSupported(federationId)
 
     const { navigate } = navigation
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache(fedimint)
+    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const customActions: OmniInputAction[] = useMemo(() => {
         if (!showOfflineWallet) return []

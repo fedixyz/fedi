@@ -68,6 +68,8 @@ pub struct Matrix {
     pub runtime: Arc<Runtime>,
     notification_settings: NotificationSettings,
     pub timelines: Mutex<HashMap<OwnedRoomId, Weak<Timeline>>>,
+    /// Mutex to prevent concurrent DM room creation for the same user
+    create_dm_lock: Mutex<()>,
 }
 
 impl Matrix {
@@ -159,6 +161,7 @@ impl Matrix {
             sync_service,
             runtime: runtime.clone(),
             timelines: Default::default(),
+            create_dm_lock: Default::default(),
         });
 
         let encryption_passphrase = Self::encryption_passphrase(matrix_secret);
@@ -591,6 +594,11 @@ impl Matrix {
         &self,
         user_id: &UserId,
     ) -> Result<matrix_sdk::ruma::OwnedRoomId> {
+        if let Some(room) = self.client.get_dm_room(user_id) {
+            return Ok(room.room_id().to_owned());
+        }
+
+        let _guard = self.create_dm_lock.lock().await;
         // is there a sliding sync version of this?
         if let Some(room) = self.client.get_dm_room(user_id) {
             return Ok(room.room_id().to_owned());

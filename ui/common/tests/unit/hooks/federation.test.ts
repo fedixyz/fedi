@@ -175,7 +175,9 @@ describe('common/hooks/federation', () => {
                 t('feature.federations.connection-status-unstable'),
             )
             expect(result.current.statusIcon).toBe('Info')
-            expect(result.current.statusIconColor).toBe(theme.colors.red)
+            expect(result.current.statusIconColor).toBe(
+                theme.colors.lightOrange,
+            )
             expect(result.current.statusWord).toBe(t('words.unstable'))
         })
 

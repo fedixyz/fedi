@@ -16,6 +16,10 @@ import {
     setupStore,
 } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
+import {
+    createMockFedimintBridge,
+    MockFedimintBridge,
+} from '@fedi/common/tests/utils/fedimint'
 import { BridgeError } from '@fedi/common/utils/errors'
 
 import i18n from '../../../localization/i18n'
@@ -24,18 +28,11 @@ import { MSats, SupportedCurrency } from '../../../types'
 import { mockNavigation, mockRoute } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
 
-const mockCalculateMaxGenerateEcash = jest.fn(async () => 0 as MSats)
-
-jest.mock('@fedi/native/bridge', () => ({
-    ...jest.requireActual('@fedi/native/bridge'),
-    fedimint: {
-        calculateMaxGenerateEcash: () => mockCalculateMaxGenerateEcash(),
-    },
-}))
-
 describe('SendOfflineAmount screen', () => {
     let store: ReturnType<typeof setupStore>
+    let mockFedimint: MockFedimintBridge
     const user = userEvent.setup()
+    const mockCalculateMaxGenerateEcash = Promise.resolve(1_999_000 as MSats)
 
     beforeEach(() => {
         store = setupStore()
@@ -43,6 +40,10 @@ describe('SendOfflineAmount screen', () => {
         store.dispatch(fetchCurrencyPrices()).unwrap()
         store.dispatch(setCurrencyLocale('en-US'))
         store.dispatch(changeOverrideCurrency(SupportedCurrency.USD))
+
+        mockFedimint = createMockFedimintBridge({
+            calculateMaxGenerateEcash: mockCalculateMaxGenerateEcash,
+        })
 
         jest.clearAllTimers()
         jest.useFakeTimers()
@@ -59,6 +60,9 @@ describe('SendOfflineAmount screen', () => {
                 navigation={mockNavigation as any}
                 route={mockRoute as any}
             />,
+            {
+                fedimint: mockFedimint,
+            },
         )
 
         const next = i18n.t('words.next')
@@ -76,7 +80,10 @@ describe('SendOfflineAmount screen', () => {
                 navigation={mockNavigation as any}
                 route={mockRoute as any}
             />,
-            { store },
+            {
+                store,
+                fedimint: mockFedimint,
+            },
         )
 
         const button3 = await screen.getByText('3')
@@ -105,6 +112,7 @@ describe('SendOfflineAmount screen', () => {
             />,
             {
                 store,
+                fedimint: mockFedimint,
             },
         )
 
@@ -131,9 +139,9 @@ describe('SendOfflineAmount screen', () => {
         store.dispatch(setTransactionDisplayType('fiat'))
         store.dispatch(setAmountInputType('sats'))
 
-        mockCalculateMaxGenerateEcash.mockImplementation(
-            async () => 1999000 as MSats,
-        )
+        mockFedimint = createMockFedimintBridge({
+            calculateMaxGenerateEcash: Promise.resolve(1999000 as MSats),
+        })
 
         renderWithProviders(
             <SendOfflineAmount
@@ -142,6 +150,7 @@ describe('SendOfflineAmount screen', () => {
             />,
             {
                 store,
+                fedimint: mockFedimint,
             },
         )
 
@@ -163,12 +172,14 @@ describe('SendOfflineAmount screen', () => {
         store.dispatch(setTransactionDisplayType('fiat'))
         store.dispatch(setAmountInputType('sats'))
 
-        mockCalculateMaxGenerateEcash.mockImplementation(async () => {
-            throw new BridgeError({
-                error: 'error',
-                detail: 'error',
-                errorCode: 'badRequest',
-            })
+        mockFedimint = createMockFedimintBridge({
+            calculateMaxGenerateEcash: Promise.reject(
+                new BridgeError({
+                    error: 'error',
+                    detail: 'error',
+                    errorCode: 'badRequest',
+                }),
+            ),
         })
 
         renderWithProviders(
@@ -178,6 +189,7 @@ describe('SendOfflineAmount screen', () => {
             />,
             {
                 store,
+                fedimint: mockFedimint,
             },
         )
 

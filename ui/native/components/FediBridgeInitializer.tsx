@@ -9,6 +9,7 @@ import { FedimintProvider } from '@fedi/common/components/FedimintProvider'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     refreshOnboardingStatus,
+    selectEventListenersReady,
     selectMatrixAuth,
     setAppFlavor,
     setShouldLockDevice,
@@ -46,13 +47,14 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const [bridgeIsReady, setBridgeIsReady] = useState<boolean>(false)
     const [bridgeError, setBridgeError] = useState<unknown>()
     const hasLoadedStorage = useAppSelector(selectStorageIsReady)
+    const eventListenersReady = useAppSelector(selectEventListenersReady)
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const dispatchRef = useUpdatingRef(dispatch)
     const isForeground = useAppIsInForeground()
 
     // Initialize redux store and bridge
     useEffect(() => {
-        if (!hasLoadedStorage) return
+        if (!hasLoadedStorage || !eventListenersReady) return
 
         const initialize = async () => {
             const start = Date.now()
@@ -84,7 +86,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         }
 
         initialize()
-    }, [hasLoadedStorage, dispatchRef])
+    }, [hasLoadedStorage, eventListenersReady, dispatchRef])
 
     useEffect(() => {
         // Initialize push notification sender

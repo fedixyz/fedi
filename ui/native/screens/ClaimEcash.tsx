@@ -10,7 +10,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
 
-import { fedimint } from '../bridge'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import Flex, { Column, Row } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
@@ -36,14 +35,14 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
         parsed: parsedEcash,
         ecashToken,
         federation,
-    } = useParseEcash(fedimint)
+    } = useParseEcash()
 
     const {
         claimEcash,
         loading: claiming,
         claimed: ecashClaimed,
         isError: isClaimError,
-    } = useClaimEcash(fedimint)
+    } = useClaimEcash()
 
     // Validate ecash token on load
     useEffect(() => {

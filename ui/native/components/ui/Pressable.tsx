@@ -51,6 +51,6 @@ const styles = (theme: Theme) =>
             borderRadius: theme.borders.defaultRadius,
         },
         pressed: {
-            backgroundColor: theme.colors.ghost,
+            backgroundColor: theme.colors.primary05,
         },
     })

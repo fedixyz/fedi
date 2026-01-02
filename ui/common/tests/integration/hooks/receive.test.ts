@@ -35,7 +35,6 @@ describe('common/hooks/receive', () => {
             const { result } = renderHookWithBridge(
                 () =>
                     useMakeLightningRequest({
-                        fedimint,
                         federationId,
                     }),
                 store,
@@ -66,7 +65,6 @@ describe('common/hooks/receive', () => {
             const { result } = renderHookWithBridge(
                 () =>
                     useMakeLightningRequest({
-                        fedimint,
                         federationId,
                     }),
                 store,
@@ -98,7 +96,6 @@ describe('common/hooks/receive', () => {
             const { result } = renderHookWithBridge(
                 () =>
                     useMakeLightningRequest({
-                        fedimint,
                         federationId,
                         onInvoicePaid,
                     }),
@@ -141,7 +138,6 @@ describe('common/hooks/receive', () => {
             const { result } = renderHookWithBridge(
                 () =>
                     useMakeOnchainAddress({
-                        fedimint,
                         federationId,
                     }),
                 store,
@@ -167,7 +163,7 @@ describe('common/hooks/receive', () => {
 
             const federationId = selectLastUsedFederationId(store.getState())
             const { result } = renderHookWithBridge(
-                () => useMakeOnchainAddress({ fedimint, federationId }),
+                () => useMakeOnchainAddress({ federationId }),
                 store,
                 fedimint,
             )
@@ -208,7 +204,6 @@ describe('common/hooks/receive', () => {
             const { result } = renderHookWithBridge(
                 () =>
                     useMakeOnchainAddress({
-                        fedimint,
                         federationId: 'invalid federation id',
                     }),
                 store,
@@ -237,7 +232,6 @@ describe('common/hooks/receive', () => {
             const { result } = renderHookWithBridge(
                 () =>
                     useMakeOnchainAddress({
-                        fedimint,
                         federationId,
                     }),
                 store,
@@ -273,7 +267,7 @@ describe('common/hooks/receive', () => {
 
             const federationId = selectLastUsedFederationId(store.getState())
             const { result } = renderHookWithBridge(
-                () => useLnurlReceiveCode(fedimint, federationId || ''),
+                () => useLnurlReceiveCode(federationId || ''),
                 store,
                 fedimint,
             )
@@ -295,7 +289,7 @@ describe('common/hooks/receive', () => {
 
             const federationId = selectLastUsedFederationId(store.getState())
             const { result } = renderHookWithBridge(
-                () => useLnurlReceiveCode(fedimint, federationId || ''),
+                () => useLnurlReceiveCode(federationId || ''),
                 store,
                 fedimint,
             )

@@ -4,6 +4,10 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
+import { CATALOG_URL } from '@fedi/common/constants/fedimods'
+import { openMiniAppSession } from '@fedi/common/redux'
+
+import { useAppDispatch } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column } from '../../ui/Flex'
@@ -16,6 +20,7 @@ import HeaderOverlayOption from '../chat/HeaderOverlayOption'
 const ModsHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
+    const dispatch = useAppDispatch()
     const navigation = useNavigation<NavigationHook>()
 
     const [optionsOverlayOpen, setOptionsOverlayOpen] = useState(false)
@@ -29,9 +34,10 @@ const ModsHeader: React.FC = () => {
 
     const handleGoToMiniAppCatalog = () => {
         setOptionsOverlayOpen(false)
-        navigation.navigate('FediModBrowser', {
-            url: 'https://fedi-catalog.vercel.app',
-        })
+        dispatch(
+            openMiniAppSession({ miniAppId: CATALOG_URL, url: CATALOG_URL }),
+        )
+        navigation.navigate('FediModBrowser')
     }
 
     return (
@@ -58,7 +64,7 @@ const ModsHeader: React.FC = () => {
                 onBackdropPress={() => setOptionsOverlayOpen(false)}
                 contents={{
                     body: (
-                        <Column gap="lg">
+                        <Column>
                             <HeaderOverlayOption
                                 onPress={handleGoToMiniAppCatalog}
                                 text={t('feature.fedimods.add-from-catalog')}
