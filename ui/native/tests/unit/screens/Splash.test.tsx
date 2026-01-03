@@ -23,7 +23,7 @@ describe('Splash screen', () => {
             />,
         )
 
-        const getWalletText = i18n.t('feature.onboarding.get-a-wallet')
+        const getWalletText = i18n.t('phrases.get-started')
         const getWalletButton = screen.getByText(getWalletText)
         expect(getWalletButton).toBeOnTheScreen()
         const recoverAccountText = i18n.t('phrases.recover-my-account')

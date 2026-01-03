@@ -161,7 +161,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                     </Text>
                     <Button
                         fullWidth
-                        title={t('feature.onboarding.get-a-wallet')}
+                        title={t('phrases.get-started')}
                         onPress={handleContinue}
                         loading={loading}
                     />

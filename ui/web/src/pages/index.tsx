@@ -81,7 +81,7 @@ function WelcomePage() {
                         width="full"
                         onClick={handleOnContinue}
                         loading={loading}>
-                        {t('feature.onboarding.get-a-wallet')}
+                        {t('phrases.get-started')}
                     </Button>
                     {!query?.invite_code && (
                         <Button

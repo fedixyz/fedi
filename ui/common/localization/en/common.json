@@ -206,6 +206,7 @@
         "fedimint-version": "Fedimint {{version}}",
         "fee-details": "Fee details",
         "filter-by": "Filter by: {{label}}",
+        "get-started": "Get started",
         "go-back": "Go back",
         "go-to-chat": "Go to Chat",
         "hide-details": "Hide details",
