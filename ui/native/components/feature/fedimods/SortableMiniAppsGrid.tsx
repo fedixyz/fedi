@@ -22,6 +22,7 @@ import Animated, {
     withSpring,
 } from 'react-native-reanimated'
 
+import { shouldShowRearrangeMiniapps } from '@fedi/common/redux'
 import { selectModsVisibility } from '@fedi/common/redux/mod'
 
 import { useAppSelector } from '../../../state/hooks'
@@ -140,6 +141,7 @@ const SortableMiniAppsGrid = (props: SortableMiniAppsGridProps) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const modsVisibility = useAppSelector(selectModsVisibility)
+    const shouldShowRearrange = useAppSelector(shouldShowRearrangeMiniapps)
     const [isRearranging, setIsRearranging] = useState<boolean>(false)
     const [actionsMod, setActionsMod] = useState<FediMod>()
     const { height, width, fontScale } = useWindowDimensions()
@@ -326,7 +328,10 @@ const SortableMiniAppsGrid = (props: SortableMiniAppsGridProps) => {
         if (!miniApp) return null
         const isCustomMod = modsVisibility[miniApp.id]?.isCustom
 
-        let numActionButtons = 2
+        let numActionButtons = 1
+        if (shouldShowRearrange) {
+            numActionButtons++
+        }
         if (isCustomMod) {
             numActionButtons++
         }
@@ -353,15 +358,19 @@ const SortableMiniAppsGrid = (props: SortableMiniAppsGridProps) => {
                             </Text>
                         </Pressable>
 
-                        <Divider orientation="vertical" />
+                        {shouldShowRearrange && (
+                            <>
+                                <Divider orientation="vertical" />
 
-                        <Pressable
-                            style={style.tooltipAction}
-                            onPress={() => handleStartRearranging()}>
-                            <Text style={style.tooltipText}>
-                                {t('words.rearrange')}
-                            </Text>
-                        </Pressable>
+                                <Pressable
+                                    style={style.tooltipAction}
+                                    onPress={() => handleStartRearranging()}>
+                                    <Text style={style.tooltipText}>
+                                        {t('words.rearrange')}
+                                    </Text>
+                                </Pressable>
+                            </>
+                        )}
 
                         {isCustomMod && (
                             <>

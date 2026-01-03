@@ -426,6 +426,12 @@ export const selectIsNostrClientEnabled = ({
     )
 }
 
+export const shouldShowRearrangeMiniapps = ({
+    environment: { featureFlags },
+}: CommonState) => {
+    return Boolean(featureFlags?.rearrange_miniapps)
+}
+
 export const selectInternetUnreachableBadgeShown = (s: CommonState) =>
     s.environment.internetUnreachableBadgeShown
 

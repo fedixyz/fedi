@@ -103,6 +103,9 @@ pub struct FeatureCatalog {
     /// JSON. This feature config controls whether this silent migration
     /// operation is permitted.
     pub community_v2_migration: Option<CommunityV2MigrationFeatureConfig>,
+
+    /// Allows users to rearrange the order of mini apps on the Mods screen.
+    pub rearrange_miniapps: Option<RearrangeMiniappsFeatureConfig>,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -177,6 +180,10 @@ pub struct FediFeeConfig {
 #[ts(export)]
 pub struct CommunityV2MigrationFeatureConfig {}
 
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct RearrangeMiniappsFeatureConfig {}
+
 impl FeatureCatalog {
     pub fn new(runtime_env: RuntimeEnvironment) -> Self {
         match runtime_env {
@@ -218,6 +225,7 @@ impl FeatureCatalog {
                 mode: SpTransferUiMode::Chat,
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
+            rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
         }
     }
 
@@ -258,6 +266,7 @@ impl FeatureCatalog {
                 mode: SpTransferUiMode::Chat,
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
+            rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
         }
     }
 
@@ -290,6 +299,7 @@ impl FeatureCatalog {
                 mode: SpTransferUiMode::Chat,
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
+            rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
         }
     }
 
@@ -323,6 +333,7 @@ impl FeatureCatalog {
             sp_transfers_matrix: None,
             sp_transfer_ui: None,
             community_v2_migration: None,
+            rearrange_miniapps: None,
         }
     }
 }

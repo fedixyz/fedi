@@ -49,6 +49,8 @@ export type CommunityMigratedToV2Event = {
   v2Community: RpcCommunity;
 };
 
+export type CommunityV2MigrationFeatureConfig = Record<string, never>;
+
 export type CreateRoomRequest = JSONObject;
 
 /**
@@ -185,6 +187,17 @@ export type FeatureCatalog = {
    * SP Transfer UI feature flag.
    */
   sp_transfer_ui: SpTransferUiFeatureConfig | null;
+  /**
+   * V1 (web-hosted) communities can be silently migrated to V2
+   * (nostr-hosted) communities if the right meta value is added to the V1
+   * JSON. This feature config controls whether this silent migration
+   * operation is permitted.
+   */
+  community_v2_migration: CommunityV2MigrationFeatureConfig | null;
+  /**
+   * Allows users to rearrange the order of mini apps on the Mods screen.
+   */
+  rearrange_miniapps: RearrangeMiniappsFeatureConfig | null;
 };
 
 export type FediFeeConfig = {
@@ -358,6 +371,8 @@ export type OnboardingMethod = "new_seed" | "restored";
 export type OverrideLocalhostFeatureConfig = Record<string, never>;
 
 export type PanicEvent = { message: string };
+
+export type RearrangeMiniappsFeatureConfig = Record<string, never>;
 
 export type RecoveryCompleteEvent = { federationId: RpcFederationId };
 
