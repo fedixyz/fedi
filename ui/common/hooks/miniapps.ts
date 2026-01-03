@@ -8,6 +8,10 @@ import { sanitizeTitle } from '@fedi/common/utils/strings'
 
 const log = makeLog('useValidateMiniAppUrl')
 
+export const DEBOUNCE_MS = 500
+export const MIN_TITLE_LENGTH = 3
+export const MAX_TITLE_LENGTH = 24
+
 export default function useValidateMiniAppUrl() {
     const [url, setUrl] = useState('')
     const [title, setTitle] = useState('')
@@ -42,11 +46,15 @@ export default function useValidateMiniAppUrl() {
             }
         },
         [url],
-        500,
+        DEBOUNCE_MS,
     )
 
     const canSave =
-        isValidUrl && title && url && title.length >= 3 && title.length <= 24
+        isValidUrl &&
+        title &&
+        url &&
+        title.length >= MIN_TITLE_LENGTH &&
+        title.length <= MAX_TITLE_LENGTH
 
     return {
         url,
