@@ -84,17 +84,8 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                     autoCapitalize={'none'}
                                     autoCorrect={false}
                                     selectTextOnFocus
+                                    errorMessage={errorMessage ?? undefined}
                                 />
-                                {errorMessage && (
-                                    <Text
-                                        caption
-                                        style={[
-                                            style.errorLabel,
-                                            style.maxLengthError,
-                                        ]}>
-                                        {errorMessage}
-                                    </Text>
-                                )}
                             </View>
 
                             <Flex
@@ -221,9 +212,6 @@ const styles = (theme: Theme) =>
         },
         textInputOuter: {
             width: '100%',
-        },
-        maxLengthError: {
-            paddingHorizontal: theme.spacing.lg,
         },
         safeAreaContainer: {
             paddingTop: 0,

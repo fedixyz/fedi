@@ -50,6 +50,8 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
 
     if (!room) return <HoloLoader />
 
+    const isValid = groupName.length > 0 && groupName.length < 30
+
     return (
         <KeyboardAwareWrapper>
             <SafeAreaContainer style={style.container} edges="notop">
@@ -67,6 +69,12 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                         inputContainerStyle={style.textInputInner}
                         autoCapitalize={'none'}
                         autoCorrect={false}
+                        errorMessage={
+                            groupName.length >= 30
+                                ? t('errors.group-name-too-long')
+                                : undefined
+                        }
+                        maxLength={30}
                     />
                 </View>
                 <Button
@@ -74,7 +82,7 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                     title={t('phrases.save-changes')}
                     onPress={handleEditRoomName}
                     loading={editingGroupName}
-                    disabled={!groupName || editingGroupName}
+                    disabled={!isValid}
                     containerStyle={style.button}
                 />
             </SafeAreaContainer>
