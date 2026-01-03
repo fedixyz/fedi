@@ -38,18 +38,13 @@ jobs:
           ref: master
           fetch-depth: 0
 
-      - name: Configure Git
-        run: |
-          git config --global user.name "Test CI"
-          git config --global user.email "ci@test.xyz"
-
       - name: Run relay script
         env:
           DOWNLOAD_TOKEN: ${{ secrets.DOWNLOAD_APK_ACCESS_TOKEN }}
           PUBLISH_TOKEN: ${{ secrets.PUBLISH_APK_ACCESS_TOKEN }}
           PUBLIC_FEDI_ORG: ${{ vars.PUBLIC_FEDI_ORG }}
           PUBLIC_FEDI_REPO: ${{ vars.PUBLIC_FEDI_REPO }}
-        # ALLOWED_AUTHORS: ${{ secrets.ALLOWED_AUTHORS }}
+          # ALLOWED_AUTHORS: ${{ secrets.ALLOWED_AUTHORS }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           OVERRIDE_SOURCE_BRANCH: ${{ inputs.source_branch }}
           OVERRIDE_START_COMMIT: ${{ inputs.start_commit }}

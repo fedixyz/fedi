@@ -16,11 +16,11 @@ PUBLIC_FEDI_REPO="${PUBLIC_FEDI_REPO:-}"
 PLACEHOLDER_NAME="${PLACEHOLDER_NAME:-Fedi CI}"
 PLACEHOLDER_EMAIL="${PLACEHOLDER_EMAIL:-ci@fedi.xyz}"
 TARGET_BRANCH="${TARGET_BRANCH:-master}"
-DRY_RUN=false
+DRY_RUN="${DRY_RUN:-false}"
 
 # Optional override parameters
-OVERRIDE_SOURCE_BRANCH=""
-OVERRIDE_START_COMMIT=""
+OVERRIDE_SOURCE_BRANCH="${OVERRIDE_SOURCE_BRANCH:-}"
+OVERRIDE_START_COMMIT="${OVERRIDE_START_COMMIT:-}"
 
 # Allowed authors (comma-separated author names)
 ALLOWED_AUTHORS="${ALLOWED_AUTHORS:-}"
@@ -119,6 +119,11 @@ echo ""
 echo "➡️ Cloning target repository: $target_repo..."
 git clone --no-local "https://$PUBLISH_TOKEN@github.com/$target_repo.git" "$WORK_DIR/target"
 
+echo ""
+echo "🔧 Configuring Git with CI name and email..."
+git config --global user.name "$PLACEHOLDER_NAME"
+git config --global user.email "$PLACEHOLDER_EMAIL"
+
 # Prepare allowed authors list
 # echo "$ALLOWED_AUTHORS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' > "$WORK_DIR/allowed_authors.txt" || true
 
@@ -145,7 +150,8 @@ git clone --no-local "https://$PUBLISH_TOKEN@github.com/$target_repo.git" "$WORK
 
 # Function to extract source commit from message
 extract_source_commit() {
-    echo "$1" | grep -oE '^source commit: [a-f0-9]+$' | tail -1 | sed 's/source commit: //'
+    # Use || true to prevent grep from failing with exit 1 when no match (due to pipefail)
+    echo "$1" | grep -oE '^source commit: [a-f0-9]+$' | tail -1 | sed 's/source commit: //' || true
 }
 
 # Navigate to target and checkout branch
