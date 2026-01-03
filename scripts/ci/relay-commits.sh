@@ -243,8 +243,8 @@ while IFS= read -r commit_sha; do
     # Get commit info from source
     cd "$WORK_DIR/source"
 
-    AUTHOR_NAME=$(git log -1 --format='%an' "$commit_sha")
-    AUTHOR_EMAIL=$(git log -1 --format='%ae' "$commit_sha")
+    # AUTHOR_NAME=$(git log -1 --format='%an' "$commit_sha")
+    # AUTHOR_EMAIL=$(git log -1 --format='%ae' "$commit_sha")
     AUTHOR_DATE=$(git log -1 --format='%aI' "$commit_sha")
     COMMIT_MSG=$(git log -1 --format='%B' "$commit_sha")
     SOURCE_TREE=$(git rev-parse "${commit_sha}^{tree}")
@@ -285,8 +285,8 @@ source commit: $commit_sha"
     fi
 
     # Create commit
-    GIT_AUTHOR_NAME="$AUTHOR_NAME" \
-    GIT_AUTHOR_EMAIL="$AUTHOR_EMAIL" \
+    GIT_AUTHOR_NAME="$PLACEHOLDER_NAME" \
+    GIT_AUTHOR_EMAIL="$PLACEHOLDER_EMAIL" \
     GIT_AUTHOR_DATE="$AUTHOR_DATE" \
     GIT_COMMITTER_NAME="$PLACEHOLDER_NAME" \
     GIT_COMMITTER_EMAIL="$PLACEHOLDER_EMAIL" \
