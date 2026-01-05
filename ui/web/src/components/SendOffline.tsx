@@ -80,11 +80,10 @@ export const SendOffline: React.FC<Props> = ({
     ])
 
     const handleCopy = async () => {
-        if (!navigator.clipboard) return
+        if (!navigator.clipboard || !offlinePayment) return
 
         try {
-            const value = encodeURIComponent(offlinePayment as string)
-            await navigator.clipboard.writeText(value)
+            await navigator.clipboard.writeText(offlinePayment)
 
             toast.show({
                 status: 'success',

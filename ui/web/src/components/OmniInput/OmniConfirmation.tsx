@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BoltIcon from '@fedi/common/assets/svgs/bolt.svg'
+import CashIcon from '@fedi/common/assets/svgs/cash.svg'
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
 import FederationIcon from '@fedi/common/assets/svgs/federation.svg'
 import GlobeIcon from '@fedi/common/assets/svgs/globe.svg'
@@ -14,6 +15,7 @@ import { AnyParsedData, ParserDataType } from '@fedi/common/types'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { BLOCKED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parser'
 
+import { ecashRoute } from '../../constants/routes'
 import { useRouteStateContext } from '../../context/RouteStateContext'
 import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
@@ -50,25 +52,6 @@ export const OmniConfirmation: React.FC<Props> = ({
                 e => toast.error(t, e),
             )
             .finally(() => setIsLoading(false))
-    }
-
-    const handleRedeemToken = async () => {
-        if (
-            !lastUsedFederationId ||
-            parsedData.type !== ParserDataType.FedimintEcash
-        )
-            return
-        setIsLoading(true)
-        try {
-            await fedimint.receiveEcash(
-                parsedData.data.token,
-                lastUsedFederationId,
-            )
-            onSuccess(parsedData)
-        } catch (err) {
-            toast.error(t, err, 'errors.unknown-error')
-        }
-        setIsLoading(false)
     }
 
     const handleJoinRoom = async () => {
@@ -168,9 +151,12 @@ export const OmniConfirmation: React.FC<Props> = ({
                 }
             case ParserDataType.FedimintEcash:
                 return {
-                    icon: BoltIcon,
+                    icon: CashIcon,
                     text: t('feature.omni.confirm-ecash-token'),
-                    continueOnClick: handleRedeemToken,
+                    continueOnClick: () =>
+                        router.push(
+                            `${ecashRoute}#id=${parsedData.data.token}`,
+                        ),
                 }
             case ParserDataType.LnurlAuth:
                 return {
