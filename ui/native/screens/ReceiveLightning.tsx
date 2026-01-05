@@ -1,11 +1,9 @@
-import { useFocusEffect } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Keyboard, View } from 'react-native'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
-import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import {
     useMakeOnchainAddress,
@@ -29,6 +27,7 @@ import {
     TransactionListEntry,
 } from '../types'
 import type { RootStackParamList } from '../types/navigation'
+import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 import { useRecheckInternet } from '../utils/hooks/environment'
 
 export type Props = NativeStackScreenProps<
@@ -58,7 +57,6 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
     const toast = useToast()
 
     const recheckConnection = useRecheckInternet()
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const handleTransactionPaid = (tx: TransactionListEntry) => {
         navigation.dispatch(
@@ -89,11 +87,7 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
         [onSaveNotes, t, toast],
     )
 
-    useFocusEffect(
-        useCallback(() => {
-            syncCurrencyRatesAndCache(federationId)
-        }, [syncCurrencyRatesAndCache, federationId]),
-    )
+    useSyncCurrencyRatesOnFocus(federationId)
 
     // Generate onchain address if needed
     useEffect(() => {

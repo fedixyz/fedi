@@ -15,24 +15,21 @@ export function useSyncCurrencyRatesAndCache() {
     const dispatch = useCommonDispatch()
     const fedimint = useFedimint()
 
-    const syncCurrencyRatesAndCache = useCallback(
-        async (federationId?: string) => {
-            try {
-                await dispatch(
-                    refreshHistoricalCurrencyRates({ fedimint, federationId }),
-                ).unwrap()
-
-                log.info('Successfully refreshed historical currency rates.')
-            } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : String(err)
-                log.warn(
-                    'Failed to refresh historical currency rates:',
-                    message,
-                )
-            }
+    return useCallback(
+        (federationId?: string) => {
+            dispatch(refreshHistoricalCurrencyRates({ fedimint, federationId }))
+                .then(() => {
+                    log.info(
+                        'Successfully refreshed historical currency rates.',
+                    )
+                })
+                .catch(err => {
+                    log.warn(
+                        'Failed to refresh historical currency rates:',
+                        err,
+                    )
+                })
         },
         [dispatch, fedimint],
     )
-
-    return syncCurrencyRatesAndCache
 }

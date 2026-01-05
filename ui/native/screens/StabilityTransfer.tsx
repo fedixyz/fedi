@@ -1,18 +1,18 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keyboard, StyleSheet } from 'react-native'
 
 import { useWithdrawForm } from '@fedi/common/hooks/amount'
-import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 
 import StabilityBalanceTile from '../components/feature/stabilitypool/StabilityBalanceTile'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { Row } from '../components/ui/Flex'
 import { Sats } from '../types'
 import type { RootStackParamList } from '../types/navigation'
+import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -32,8 +32,6 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
         inputAmountCents,
     } = useWithdrawForm(federationId)
     const [submitAttempts, setSubmitAttempts] = useState(0)
-
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)
@@ -63,11 +61,7 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
         Keyboard.dismiss()
     }
 
-    useFocusEffect(
-        useCallback(() => {
-            syncCurrencyRatesAndCache()
-        }, [syncCurrencyRatesAndCache]),
-    )
+    useSyncCurrencyRatesOnFocus(federationId)
 
     const [notes, setNotes] = useState('')
 

@@ -1,17 +1,17 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keyboard, StyleSheet } from 'react-native'
 
 import { useDepositForm } from '@fedi/common/hooks/amount'
-import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { hexToRgba } from '@fedi/common/utils/color'
 
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { Sats } from '../types'
 import type { RootStackParamList } from '../types/navigation'
+import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -33,8 +33,6 @@ const StabilityDeposit: React.FC<Props> = ({ route }: Props) => {
     } = useDepositForm(federationId)
     const [submitAttempts, setSubmitAttempts] = useState(0)
 
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
-
     const onChangeAmount = (updatedValue: Sats) => {
         setSubmitAttempts(0)
         setAmount(updatedValue)
@@ -51,11 +49,8 @@ const StabilityDeposit: React.FC<Props> = ({ route }: Props) => {
         Keyboard.dismiss()
     }
 
-    useFocusEffect(
-        useCallback(() => {
-            syncCurrencyRatesAndCache(federationId)
-        }, [syncCurrencyRatesAndCache, federationId]),
-    )
+    useSyncCurrencyRatesOnFocus(federationId)
+
     const style = styles(theme)
 
     return (

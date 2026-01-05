@@ -1,14 +1,13 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useCallback } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 
 import { OmniInput } from '../components/feature/omni/OmniInput'
 import Flex from '../components/ui/Flex'
 import { ParserDataType } from '../types'
 import { NavigationHook, RootStackParamList } from '../types/navigation'
+import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Receive'>
 
@@ -16,13 +15,8 @@ const Receive: React.FC<Props> = ({ route }) => {
     const { t } = useTranslation()
     const { federationId = '' } = route.params
     const navigation = useNavigation<NavigationHook>()
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
-    useFocusEffect(
-        useCallback(() => {
-            syncCurrencyRatesAndCache(federationId)
-        }, [syncCurrencyRatesAndCache, federationId]),
-    )
+    useSyncCurrencyRatesOnFocus(federationId)
     return (
         <Flex grow fullWidth>
             <OmniInput

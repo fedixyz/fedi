@@ -1,9 +1,7 @@
-import { useFocusEffect } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useCallback, useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOfflineWalletSupported } from '@fedi/common/hooks/federation'
 import { setPayFromFederationId } from '@fedi/common/redux/federation'
 
@@ -15,6 +13,7 @@ import Flex from '../components/ui/Flex'
 import { useAppDispatch } from '../state/hooks'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
+import { useSyncCurrencyRatesOnFocus } from '../utils/hooks/currency'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'Send'>
 
@@ -25,7 +24,6 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
     const showOfflineWallet = useIsOfflineWalletSupported(federationId)
 
     const { navigate } = navigation
-    const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
 
     const customActions: OmniInputAction[] = useMemo(() => {
         if (!showOfflineWallet) return []
@@ -44,11 +42,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
         ]
     }, [showOfflineWallet, t, navigate, dispatch, federationId])
 
-    useFocusEffect(
-        useCallback(() => {
-            syncCurrencyRatesAndCache(federationId)
-        }, [syncCurrencyRatesAndCache, federationId]),
-    )
+    useSyncCurrencyRatesOnFocus(federationId)
 
     return (
         <Flex grow fullWidth>
