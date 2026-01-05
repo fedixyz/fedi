@@ -5,30 +5,22 @@
  * Supports Web & Native
  */
 const isReactNativeDevMode = () => {
-    return eval('__DEV__') || false
+    return typeof __DEV__ !== 'undefined' && __DEV__ === true
 }
 
 export const isDev = () => {
-    try {
-        return (
-            (!!process && process.env.NODE_ENV === 'development') ||
-            isReactNativeDevMode()
-        )
-    } catch (_) {
-        return false
-    }
+    return (
+        (!!process && process.env.NODE_ENV === 'development') ||
+        isReactNativeDevMode()
+    )
 }
 
 export const isNightly = () => {
-    try {
-        return (
-            !!process &&
-            (process.env.FEDI_ENV === 'nightly' ||
-                process.env.NEXT_PUBLIC_FEDI_ENV === 'nightly')
-        )
-    } catch (_) {
-        return false
-    }
+    return (
+        !!process &&
+        (process.env.FEDI_ENV === 'nightly' ||
+            process.env.NEXT_PUBLIC_FEDI_ENV === 'nightly')
+    )
 }
 
-export const isDevOrNightly: boolean = isDev() || isNightly()
+export const isDevOrNightly = isDev() || isNightly()
