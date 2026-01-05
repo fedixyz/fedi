@@ -20,7 +20,7 @@ import CommunityPreview from '../components/feature/onboarding/CommunityPreview'
 import FederationPreview from '../components/feature/onboarding/FederationPreview'
 import { HelpTextLoadingAnimation } from '../components/feature/onboarding/HelpTextLoadingAnimation'
 import { CameraPermissionGate } from '../components/feature/permissions/CameraPermissionGate'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
 import { ParserDataType } from '../types'
@@ -108,9 +108,9 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
     const renderQrCodeScanner = () => {
         if (isJoining || isFetchingPreview) {
             return (
-                <Flex grow center style={style.loadingContainer}>
+                <Column grow center style={style.loadingContainer}>
                     <HelpTextLoadingAnimation />
-                </Flex>
+                </Column>
             )
         } else {
             const customActions: OmniInputAction[] =

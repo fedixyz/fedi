@@ -6,7 +6,7 @@ import { Dimensions, ImageSourcePropType, StyleSheet } from 'react-native'
 
 import { reset } from '../../state/navigation'
 import type { NavigationHook, RootStackParamList } from '../../types/navigation'
-import Flex from './Flex'
+import { Column } from './Flex'
 import HoloCircle from './HoloCircle'
 import { SafeAreaContainer } from './SafeArea'
 import SvgImage from './SvgImage'
@@ -53,11 +53,11 @@ const Success: React.FC<SuccessProps> = ({
 
     return (
         <SafeAreaContainer edges="all">
-            <Flex center grow>
+            <Column center grow>
                 <HoloCircle
                     size={CIRCLE_SIZE}
                     content={
-                        <Flex gap="sm" center grow fullWidth>
+                        <Column gap="sm" center grow fullWidth>
                             <SvgImage name="Check" size={theme.sizes.md} />
                             {message ? (
                                 message
@@ -66,11 +66,11 @@ const Success: React.FC<SuccessProps> = ({
                                     {messageText}
                                 </Text>
                             )}
-                        </Flex>
+                        </Column>
                     }
                 />
-            </Flex>
-            <Flex fullWidth>
+            </Column>
+            <Column fullWidth>
                 {button ? (
                     button
                 ) : (
@@ -83,7 +83,7 @@ const Success: React.FC<SuccessProps> = ({
                         }}
                     />
                 )}
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

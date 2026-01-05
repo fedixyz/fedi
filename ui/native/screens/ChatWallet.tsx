@@ -12,7 +12,7 @@ import {
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -74,11 +74,11 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
 
     if (!existingRoom) {
         return (
-            <Flex grow center fullWidth>
+            <Column grow center fullWidth>
                 <Text style={{ textAlign: 'center' }}>
                     {t('errors.chat-member-not-found')}
                 </Text>
-            </Flex>
+            </Column>
         )
     }
 

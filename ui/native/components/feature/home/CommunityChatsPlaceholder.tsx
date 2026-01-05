@@ -5,7 +5,7 @@ import React from 'react'
 import { StyleSheet, View, Pressable } from 'react-native'
 
 import SvgImage, { SvgImageSize } from '../../../components/ui/SvgImage'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 
 const CommunityChatsPlaceholder: React.FC = () => {
     const { theme } = useTheme()
@@ -14,7 +14,7 @@ const CommunityChatsPlaceholder: React.FC = () => {
     const style = styles(theme)
 
     return (
-        <Flex grow fullWidth>
+        <Column grow fullWidth>
             <Text style={style.sectionTitle}>
                 {t('feature.home.federation-news-title')}
             </Text>
@@ -26,11 +26,11 @@ const CommunityChatsPlaceholder: React.FC = () => {
                         <SvgImage name="Chat" size={SvgImageSize.md} />
                     </View>
                 </View>
-                <Flex grow style={style.textContainer}>
+                <Column grow style={style.textContainer}>
                     <Text style={style.text}>
                         {t('feature.home.federation-updates')}
                     </Text>
-                </Flex>
+                </Column>
                 <SvgImage
                     name="ChevronRightSmall"
                     dimensions={{ width: 10, height: 18 }}
@@ -38,7 +38,7 @@ const CommunityChatsPlaceholder: React.FC = () => {
                     containerStyle={style.chevron}
                 />
             </Pressable>
-        </Flex>
+        </Column>
     )
 }
 

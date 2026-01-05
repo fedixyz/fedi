@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native'
 
 import { DetailItem } from '@fedi/common/utils/wallet'
 
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 
 export type FeeBreakdownItemProps = DetailItem & {
     noBorder?: boolean
@@ -21,14 +21,14 @@ export const FeeBreakdownItem: React.FC<FeeBreakdownItemProps> = props => {
     ]
 
     return (
-        <Flex row align="center" justify="between" style={containerStyle}>
+        <Row align="center" justify="between" style={containerStyle}>
             <Text caption bold style={style.labelText} numberOfLines={2}>
                 {props.label}
             </Text>
             <Text caption style={style.valueText} numberOfLines={2}>
                 {props.value}
             </Text>
-        </Flex>
+        </Row>
     )
 }
 

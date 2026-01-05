@@ -23,7 +23,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useDownloadResource } from '../../../utils/hooks/media'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 import ChatEvent from './ChatEvent'
@@ -144,12 +144,11 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
             contents={{
                 body:
                     deleteMessage && selectedMessage ? (
-                        <Flex
+                        <Column
                             align="center"
                             gap="xl"
                             style={style.confirmDeleteContainer}>
-                            <Flex
-                                row
+                            <Row
                                 align="start"
                                 justify="center"
                                 style={style.previewMessageContainer}>
@@ -161,13 +160,13 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                 />
                                 {/* prevent user from interacting with the chat event */}
                                 <View style={style.previewMessageOverlay} />
-                            </Flex>
+                            </Row>
                             <Text medium>
                                 {t('feature.chat.confirm-delete-message')}
                             </Text>
-                        </Flex>
+                        </Column>
                     ) : (
-                        <Flex fullWidth>
+                        <Column fullWidth>
                             {canReply && (
                                 <Pressable
                                     onPress={handleReply}
@@ -226,7 +225,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                     </Text>
                                 </Pressable>
                             )}
-                        </Flex>
+                        </Column>
                     ),
                 buttons: deleteMessage
                     ? [

@@ -17,7 +17,7 @@ import { refreshOnboardingStatus, selectRedirectTo } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -108,25 +108,25 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
             source={Images.WelcomeBackground}
             style={style.container}>
             <SafeAreaView style={style.content}>
-                <Flex
+                <Column
                     grow
                     shrink
                     center
                     gap="sm"
                     fullWidth
                     style={style.welcomeContainer}>
-                    <Flex center style={style.iconContainer}>
+                    <Column center style={style.iconContainer}>
                         <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
-                    </Flex>
+                    </Column>
                     <Text style={style.title}>
                         {t('feature.onboarding.fedi')}
                     </Text>
                     <Text style={style.welcomeText}>
                         {t('feature.onboarding.tagline')}
                     </Text>
-                </Flex>
+                </Column>
 
-                <Flex
+                <Column
                     grow={false}
                     shrink
                     align="center"
@@ -172,7 +172,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                         day
                         title={t('phrases.recover-my-account')}
                     />
-                    <Flex align="center" justify="evenly" gap="xs" row>
+                    <Row align="center" justify="evenly" gap="xs">
                         <Text style={style.helpText}>
                             {t('feature.onboarding.need-help')}
                         </Text>
@@ -203,8 +203,8 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                                 {t('feature.support.title')}
                             </Text>
                         </Pressable>
-                    </Flex>
-                </Flex>
+                    </Row>
+                </Column>
             </SafeAreaView>
         </ImageBackground>
     )

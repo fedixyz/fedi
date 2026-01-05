@@ -4,7 +4,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -21,8 +21,8 @@ const RecoveryWalletTransfer: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     return (
-        <Flex grow center gap="lg" style={style.container}>
-            <Flex align="center" gap="lg" style={style.centeredContainer}>
+        <Column grow center gap="lg" style={style.container}>
+            <Column align="center" gap="lg" style={style.centeredContainer}>
                 <HoloCircle
                     content={
                         <SvgImage
@@ -39,7 +39,7 @@ const RecoveryWalletTransfer: React.FC<Props> = ({ navigation }: Props) => {
                 <Text medium style={style.centeredText}>
                     {t('feature.recovery.transfer-existing-wallet-guidance-1')}
                 </Text>
-            </Flex>
+            </Column>
             <Text caption style={style.subText}>
                 {t('feature.recovery.transfer-existing-wallet-guidance-2')}
             </Text>
@@ -48,7 +48,7 @@ const RecoveryWalletTransfer: React.FC<Props> = ({ navigation }: Props) => {
                 title={t('words.continue')}
                 onPress={() => navigation.navigate('RecoveryDeviceSelection')}
             />
-        </Flex>
+        </Column>
     )
 }
 

@@ -2,7 +2,7 @@ import { Text, TextProps, Theme, useTheme } from '@rneui/themed'
 import { ReactNode } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 
 export type ChatTileProps = {
     onPress: () => void
@@ -53,25 +53,24 @@ const ChatTile = ({
                         ]}
                     />
                 )}
-                <Flex
-                    row
+                <Row
                     align="center"
                     justify="start"
                     style={style.chatTypeIconContainer}>
                     {avatar}
-                </Flex>
+                </Row>
             </View>
-            <Flex grow row style={style.content}>
-                <Flex grow basis={false} style={style.preview}>
+            <Row grow style={style.content}>
+                <Column grow basis={false} style={style.preview}>
                     <Text style={style.title} numberOfLines={1} bold>
                         {title}
                     </Text>
                     <Text caption numberOfLines={2} {...subtitleProps}>
                         {subtitle}
                     </Text>
-                </Flex>
+                </Column>
                 {timestamp && (
-                    <Flex align="end" justify="start" gap="xs">
+                    <Column align="end" justify="start" gap="xs">
                         <Text
                             small
                             style={style.timestamp}
@@ -79,9 +78,9 @@ const ChatTile = ({
                             maxFontSizeMultiplier={1.4}>
                             {timestamp}
                         </Text>
-                    </Flex>
+                    </Column>
                 )}
-            </Flex>
+            </Row>
         </Pressable>
     )
 }

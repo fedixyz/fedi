@@ -5,7 +5,7 @@ import { Linking, Pressable, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 
 import CheckList from '../components/ui/CheckList'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloAlert from '../components/ui/HoloAlert'
 import HoloCircle from '../components/ui/HoloCircle'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -27,7 +27,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
     return (
         <SafeAreaContainer edges="notop" style={style.container}>
             <ScrollView contentContainerStyle={style.content}>
-                <Flex align="center" gap="xl" style={style.header}>
+                <Column align="center" gap="xl" style={style.header}>
                     <HoloCircle
                         size={100}
                         content={<SvgImage name="Wallet" size={32} />}
@@ -39,7 +39,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                             components={{ bold: <Text h2 bold /> }}
                         />
                     </Text>
-                </Flex>
+                </Column>
                 <CheckList
                     items={[
                         'feature.multispend.intro-1',
@@ -49,7 +49,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                         'feature.multispend.intro-5',
                     ]}
                 />
-                <Flex center style={style.learnMore}>
+                <Column center style={style.learnMore}>
                     <Pressable
                         onPress={() =>
                             Linking.openURL(
@@ -63,10 +63,10 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                             </Text>
                         </HoloAlert>
                     </Pressable>
-                </Flex>
+                </Column>
             </ScrollView>
 
-            <Flex style={style.footer}>
+            <Column style={style.footer}>
                 <Button
                     style={style.button}
                     onPress={() =>
@@ -76,7 +76,7 @@ const MultispendIntro: React.FC<Props> = ({ navigation, route }) => {
                     }>
                     {t('feature.multispend.create-multispend')}
                 </Button>
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

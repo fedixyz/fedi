@@ -3,7 +3,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { RootStackParamList } from '../types/navigation'
@@ -19,13 +19,13 @@ const RecoverFromNonceReuse: React.FC<Props> = () => {
 
     return (
         <SafeAreaContainer edges="notop">
-            <Flex grow center gap="md">
+            <Column grow center gap="md">
                 <SvgImage name="ContinueRecovery" size={64} />
                 <Text h2>{t('feature.recovery.continue-recovery')}</Text>
                 <Text>
                     {t('feature.recovery.continue-recovery-description')}
                 </Text>
-            </Flex>
+            </Column>
             <Button
                 onPress={() =>
                     navigation.navigate('TabsNavigator', {

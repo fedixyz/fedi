@@ -8,7 +8,7 @@ import Video, { VideoRef } from 'react-native-video'
 import { MatrixEvent } from '@fedi/common/types'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
@@ -42,12 +42,12 @@ const ChatPreviewMediaEvent: React.FC<ChatImageEventProps> = ({
     return isError ? (
         <View style={containerBaseStyle}>
             {isError ? (
-                <Flex align="center" gap="md">
+                <Column align="center" gap="md">
                     <SvgImage name="ImageOff" color={theme.colors.grey} />
                     <Text caption color={theme.colors.darkGrey}>
                         {t('errors.failed-to-load-image')}
                     </Text>
-                </Flex>
+                </Column>
             ) : (
                 <ActivityIndicator />
             )}
@@ -78,10 +78,10 @@ const ChatPreviewMediaEvent: React.FC<ChatImageEventProps> = ({
                 blurAmount={10}
                 reducedTransparencyFallbackColor="white"
             />
-            <Flex center style={[style.absolute]}>
+            <Column center style={[style.absolute]}>
                 {/* TODO: add progress spinner when bridge functions available */}
                 <ActivityIndicator color="black" />
-            </Flex>
+            </Column>
         </View>
     )
 }

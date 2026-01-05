@@ -8,7 +8,7 @@ import { useCameraDevice } from 'react-native-vision-camera'
 
 import BackupVideoRecorder from '../components/feature/backup/BackupVideoRecorder'
 import CameraPermissionsRequired from '../components/feature/scan/CameraPermissionsRequired'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -38,9 +38,9 @@ const RecordBackupVideo: React.FC<Props> = ({ navigation, route }) => {
             message={t('feature.backup.camera-access-information')}>
             <ScrollView contentContainerStyle={styles(theme).container}>
                 {!device ? (
-                    <Flex center grow>
+                    <Column center grow>
                         <ActivityIndicator size="large" />
-                    </Flex>
+                    </Column>
                 ) : (
                     <BackupVideoRecorder onConfirmVideo={onConfirmVideo} />
                 )}

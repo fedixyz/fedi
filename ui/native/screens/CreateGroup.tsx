@@ -9,7 +9,7 @@ import { useCreateMatrixRoom } from '@fedi/common/hooks/matrix'
 import { ChatType, MatrixRoom } from '@fedi/common/types'
 
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { SafeAreaContainer, SafeScrollArea } from '../components/ui/SafeArea'
 import type { RootStackParamList } from '../types/navigation'
@@ -69,7 +69,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                         edges="none"
                         safeAreaContainerStyle={style.safeAreaContainer}
                         style={style.container}>
-                        <Flex align="center" justify="start" fullWidth>
+                        <Column align="center" justify="start" fullWidth>
                             <Avatar id={''} icon={icon} size={AvatarSize.md} />
 
                             <View style={style.inputWrapper}>
@@ -88,8 +88,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                 />
                             </View>
 
-                            <Flex
-                                row
+                            <Row
                                 align="center"
                                 justify="between"
                                 fullWidth
@@ -105,10 +104,9 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                         setBroadcastOnly(value)
                                     }}
                                 />
-                            </Flex>
+                            </Row>
 
-                            <Flex
-                                row
+                            <Row
                                 align="center"
                                 justify="between"
                                 fullWidth
@@ -124,14 +122,14 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                         setIsPublic(value)
                                     }}
                                 />
-                            </Flex>
+                            </Row>
 
                             {isPublic && (
                                 <Text caption style={style.errorLabel}>
                                     {t('feature.chat.public-group-warning')}
                                 </Text>
                             )}
-                        </Flex>
+                        </Column>
                     </SafeScrollArea>
 
                     <View

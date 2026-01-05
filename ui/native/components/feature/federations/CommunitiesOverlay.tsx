@@ -12,7 +12,7 @@ import { Community } from '@fedi/common/types'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import CommunityTile from './CommunityTile'
 
 interface Props {
@@ -53,7 +53,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
             onBackdropPress={handleDismiss}
             contents={{
                 body: (
-                    <Flex grow shrink>
+                    <Column grow shrink>
                         <View style={style.topTextContainer}>
                             <Text
                                 h2
@@ -80,7 +80,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
                                 )
                             })}
                         </View>
-                    </Flex>
+                    </Column>
                 ),
             }}
         />

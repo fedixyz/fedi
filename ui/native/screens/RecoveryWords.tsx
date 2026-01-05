@@ -13,7 +13,7 @@ import {
 import type { SeedWords } from '@fedi/common/types'
 
 import { Images } from '../assets/images'
-import Flex, { Column, Row } from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -33,12 +33,12 @@ const SeedWord = ({ number, word }: SeedWordProps) => {
     const style = styles(theme)
 
     return (
-        <Flex row justify="between" style={style.wordContainer}>
+        <Row justify="between" style={style.wordContainer}>
             <Text style={style.wordNumber}>{`${number}`}</Text>
             <Text style={style.wordText} numberOfLines={1} adjustsFontSizeToFit>
                 {word}
             </Text>
-        </Flex>
+        </Row>
     )
 }
 
@@ -104,7 +104,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
 
     return (
         <SafeAreaContainer edges="bottom">
-            <Flex style={style.container}>
+            <Column style={style.container}>
                 <ScrollView style={style.content}>
                     <Column align="center" gap="md" grow style={style.content}>
                         <ImageBackground
@@ -152,14 +152,14 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
                             {t('feature.backup.personal-backup-words-tip')}
                         </Text>
                         <Card containerStyle={style.roundedCardContainer}>
-                            <Flex row>
-                                <Flex grow basis={false} align="start">
+                            <Row>
+                                <Column grow basis={false} align="start">
                                     {renderFirstSixSeedWords()}
-                                </Flex>
-                                <Flex grow basis={false} align="start">
+                                </Column>
+                                <Column grow basis={false} align="start">
                                     {renderLastSixSeedWords()}
-                                </Flex>
-                            </Flex>
+                                </Column>
+                            </Row>
                         </Card>
                     </Column>
                 </ScrollView>
@@ -172,7 +172,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
                         onPress={handleContinueOrDone}
                     />
                 </Column>
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

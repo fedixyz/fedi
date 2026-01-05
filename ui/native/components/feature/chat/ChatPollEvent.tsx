@@ -13,7 +13,7 @@ import { RpcPollResultAnswer } from '@fedi/common/types/bindings'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { MatrixEvent } from '../../../types'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import SvgImage from '../../ui/SvgImage'
 import { bubbleGradient } from './ChatEvent'
@@ -105,7 +105,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                     style.container,
                     isMe ? style.blueBubble : style.greyBubble,
                 ]}>
-                <Flex row align="center" justify="between">
+                <Row align="center" justify="between">
                     <Text style={headerTextStyle} small medium>
                         {t('words.poll')}
                     </Text>
@@ -125,7 +125,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                             {t('words.voted')}
                         </Text>
                     ) : null}
-                </Flex>
+                </Row>
                 <Text style={isMe ? style.outgoingText : style.incomingText}>
                     {event.content.body}
                 </Text>
@@ -193,7 +193,7 @@ const PollVotes: React.FC<{
     const textStyle = isMe ? style.outgoingText : style.incomingText
 
     return (
-        <Flex gap="sm">
+        <Column gap="sm">
             {Object.entries(event.content.votes).map(([id, votes]) => {
                 const answer = event.content.answers.find(
                     ans => ans.id === id,
@@ -201,17 +201,16 @@ const PollVotes: React.FC<{
                 const percentage = votePercentage(votes?.length ?? 0)
 
                 return (
-                    <Flex key={`vote-${id}-${answer.text}`} gap="sm">
-                        <Flex row align="center" justify="between" gap="sm">
+                    <Column key={`vote-${id}-${answer.text}`} gap="sm">
+                        <Row align="center" justify="between" gap="sm">
                             <Text medium small style={textStyle}>
                                 {answer.text}
                             </Text>
                             <Text small style={textStyle}>
                                 {percentage}
                             </Text>
-                        </Flex>
-                        <Flex
-                            row
+                        </Row>
+                        <Row
                             align="center"
                             gap="sm"
                             style={[
@@ -231,11 +230,11 @@ const PollVotes: React.FC<{
                                         : style.incomingResultIndication,
                                 ]}
                             />
-                        </Flex>
-                    </Flex>
+                        </Row>
+                    </Column>
                 )
             })}
-        </Flex>
+        </Column>
     )
 }
 
@@ -279,7 +278,7 @@ const PollAnswers: React.FC<{
     )
 
     return (
-        <Flex gap="sm">
+        <Column gap="sm">
             {!hasVoted && (
                 <Text tiny style={textStyle}>
                     {isReadOnly
@@ -324,7 +323,7 @@ const PollAnswers: React.FC<{
                     wrapperStyle={style.answerWrapper}
                 />
             ))}
-        </Flex>
+        </Column>
     )
 }
 

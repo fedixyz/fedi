@@ -20,7 +20,7 @@ import { formatErrorMessage } from '@fedi/common/utils/format'
 
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { PressableIcon } from '../components/ui/PressableIcon'
@@ -77,7 +77,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
     const renderEmpty = useCallback(() => {
         const style = styles(theme)
         return searchError ? (
-            <Flex grow center style={style.empty}>
+            <Column grow center style={style.empty}>
                 <Text color={theme.colors.primaryLight}>
                     {formatErrorMessage(
                         t,
@@ -85,13 +85,13 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                         'errors.chat-unavailable',
                     )}
                 </Text>
-            </Flex>
+            </Column>
         ) : isSearching ? (
-            <Flex grow align="center" style={style.loader}>
+            <Column grow align="center" style={style.loader}>
                 <HoloLoader size={48} />
-            </Flex>
+            </Column>
         ) : (
-            <Flex grow center style={style.empty}>
+            <Column grow center style={style.empty}>
                 <Text color={theme.colors.primaryLight}>
                     {inputValue === ''
                         ? t('feature.chat.enter-a-username')
@@ -99,7 +99,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                               query: inputValue,
                           })}
                 </Text>
-            </Flex>
+            </Column>
         )
     }, [isSearching, searchError, theme, t, inputValue])
 
@@ -217,7 +217,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
     return (
         <KeyboardAwareWrapper>
             <SafeAreaContainer style={style.container} edges="notop">
-                <Flex align="center" fullWidth>
+                <Column align="center" fullWidth>
                     <ChatSettingsAvatar room={room} />
                     <Text bold style={style.inputLabel}>
                         {t('feature.chat.invite-to-group')}
@@ -242,7 +242,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                             />
                         }
                     />
-                </Flex>
+                </Column>
                 {searchContent}
             </SafeAreaContainer>
         </KeyboardAwareWrapper>

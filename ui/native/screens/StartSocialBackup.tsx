@@ -4,7 +4,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloGuidance from '../components/ui/HoloGuidance'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -20,7 +20,7 @@ const StartSocialBackup: React.FC<Props> = ({ navigation, route }: Props) => {
     const { federationId } = route.params
 
     return (
-        <Flex grow center style={styles(theme).container}>
+        <Column grow center style={styles(theme).container}>
             <HoloGuidance
                 iconImage={
                     <>
@@ -39,7 +39,7 @@ const StartSocialBackup: React.FC<Props> = ({ navigation, route }: Props) => {
                     navigation.navigate('RecordBackupVideo', { federationId })
                 }}
             />
-        </Flex>
+        </Column>
     )
 }
 

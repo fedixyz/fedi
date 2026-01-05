@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ImageBackground, StyleSheet } from 'react-native'
 
 import { Images } from '../../../assets/images'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 export const BetaBadge = () => {
@@ -13,12 +13,12 @@ export const BetaBadge = () => {
 
     return (
         <ImageBackground style={style.betaBadge} source={Images.HoloBackground}>
-            <Flex row center gap="xs" style={style.betaBadgeInner}>
+            <Row center gap="xs" style={style.betaBadgeInner}>
                 <SvgImage name="NorthStar" size={SvgImageSize.xs} />
                 <Text caption medium>
                     {t('words.beta')}
                 </Text>
-            </Flex>
+            </Row>
         </ImageBackground>
     )
 }

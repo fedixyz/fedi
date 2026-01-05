@@ -9,7 +9,7 @@ import { isDev } from '@fedi/common/utils/environment'
 
 import { LoadedFederation } from '../../../types'
 import { isNightly } from '../../../utils/device-info'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { FederationLogo } from './FederationLogo'
 
 export default function FederationEndedPreview({
@@ -28,7 +28,7 @@ export default function FederationEndedPreview({
     const style = styles(theme)
 
     return (
-        <Flex grow center style={style.content}>
+        <Column grow center style={style.content}>
             <View style={style.contentSpacing}>
                 <FederationLogo federation={federation} size={72} />
             </View>
@@ -66,7 +66,7 @@ export default function FederationEndedPreview({
                     />
                 )}
             </Text>
-        </Flex>
+        </Column>
     )
 }
 

@@ -3,7 +3,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type Props = {
@@ -19,7 +19,7 @@ const NoMessagesNotice: React.FC<Props> = ({
     const { theme } = useTheme()
 
     return (
-        <Flex grow center gap="lg">
+        <Column grow center gap="lg">
             <SvgImage name="ChatThin" size={70} color={theme.colors.grey} />
             {isBroadcast ? (
                 <Text medium style={styles(theme).text}>
@@ -34,7 +34,7 @@ const NoMessagesNotice: React.FC<Props> = ({
                         : t('feature.chat.start-the-conversation')}
                 </Text>
             )}
-        </Flex>
+        </Column>
     )
 }
 

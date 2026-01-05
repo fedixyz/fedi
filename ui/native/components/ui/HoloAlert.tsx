@@ -1,7 +1,7 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { StyleProp, StyleSheet, ViewStyle } from 'react-native'
 
-import Flex from './Flex'
+import { Column } from './Flex'
 import GradientView from './GradientView'
 
 interface BaseProps {
@@ -25,7 +25,7 @@ const HoloAlert: React.FC<ChildProps & BaseProps> = ({
 
     return (
         <GradientView variant="sky-heavy" style={style.holoBorder}>
-            <Flex center style={[style.container, containerStyle]}>
+            <Column center style={[style.container, containerStyle]}>
                 {'children' in props ? (
                     props.children
                 ) : (
@@ -33,7 +33,7 @@ const HoloAlert: React.FC<ChildProps & BaseProps> = ({
                         {props.text}
                     </Text>
                 )}
-            </Flex>
+            </Column>
         </GradientView>
     )
 }

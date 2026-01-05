@@ -7,7 +7,7 @@ import { Image, StyleSheet } from 'react-native'
 import { setIsBackingUpBeforePin } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -26,8 +26,8 @@ const CreatePinInstructions: React.FC<Props> = ({ navigation }: Props) => {
 
     return (
         <SafeAreaContainer edges={'bottom'}>
-            <Flex grow style={style.container}>
-                <Flex center grow gap="sm">
+            <Column grow style={style.container}>
+                <Column center grow gap="sm">
                     <Image
                         resizeMode="contain"
                         source={Images.IllustrationPin}
@@ -37,7 +37,7 @@ const CreatePinInstructions: React.FC<Props> = ({ navigation }: Props) => {
                     <Text style={style.backupNotice}>
                         {t('feature.pin.backup-notice')}
                     </Text>
-                </Flex>
+                </Column>
                 <Button
                     containerStyle={style.containerButton}
                     title={t('words.continue')}
@@ -46,7 +46,7 @@ const CreatePinInstructions: React.FC<Props> = ({ navigation }: Props) => {
                         navigation.navigate('RecoveryWords')
                     }}
                 />
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

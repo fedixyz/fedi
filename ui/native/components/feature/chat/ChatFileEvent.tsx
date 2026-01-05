@@ -7,7 +7,7 @@ import { formatFileSize } from '@fedi/common/utils/media'
 
 import { useAppDispatch } from '../../../state/hooks'
 import { useDownloadResource } from '../../../utils/hooks/media'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
@@ -29,27 +29,27 @@ const ChatFileEvent: React.FC<ChatImageEventProps> = ({
 
     return (
         <Pressable style={style.attachment} onLongPress={handleLongPress}>
-            <Flex grow row basis={false} align="center" gap="sm">
+            <Row grow basis={false} align="center" gap="sm">
                 <View style={style.attachmentIcon}>
                     <SvgImage name="File" />
                 </View>
-                <Flex grow basis={false} gap="sm">
+                <Column grow basis={false} gap="sm">
                     <Text medium ellipsizeMode="middle" numberOfLines={1}>
                         {event.content.body}
                     </Text>
                     <Text color={theme.colors.darkGrey} caption>
                         {formatFileSize(event.content.info?.size ?? 0)}
                     </Text>
-                </Flex>
-            </Flex>
+                </Column>
+            </Row>
             <Pressable onPress={handleDownload}>
-                <Flex center style={style.downloadButton}>
+                <Column center style={style.downloadButton}>
                     {isDownloading ? (
                         <ActivityIndicator />
                     ) : (
                         <SvgImage name="Download" />
                     )}
-                </Flex>
+                </Column>
             </Pressable>
         </Pressable>
     )

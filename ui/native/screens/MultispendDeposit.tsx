@@ -14,7 +14,7 @@ import {
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import CustomOverlay from '../components/ui/CustomOverlay'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector, useStabilityPool } from '../state/hooks'
 import { Sats } from '../types'
@@ -107,7 +107,7 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                 />
                             </View>
                         )}
-                        <Flex gap="xs">
+                        <Column gap="xs">
                             <Text
                                 bold
                                 caption
@@ -118,7 +118,7 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                         .federationName
                                 }
                             </Text>
-                            <Flex row align="center" gap="sm">
+                            <Row align="center" gap="sm">
                                 <Text
                                     medium
                                     caption
@@ -172,8 +172,8 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                     backgroundColor={theme.colors.blue100}>
                                     <SvgImage name="Info" size={12} />
                                 </Tooltip>
-                            </Flex>
-                        </Flex>
+                            </Row>
+                        </Column>
                     </View>
                 }
                 notes={notes}

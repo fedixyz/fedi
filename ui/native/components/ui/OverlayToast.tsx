@@ -16,7 +16,7 @@ import { selectToast } from '@fedi/common/redux'
 import { useToastScope } from '../../state/contexts/ToastScopeContext'
 import { useAppSelector } from '../../state/hooks'
 import { toastStyles as styles } from '../../styles/toast'
-import Flex from './Flex'
+import { Row, Column } from './Flex'
 import SvgImage, { SvgImageSize } from './SvgImage'
 
 export default function OverlayToast() {
@@ -110,11 +110,11 @@ export default function OverlayToast() {
                                                 style={style.toastIcon}>
                                                 {icon}
                                             </Text>
-                                            <Flex grow basis={false}>
+                                            <Column grow basis={false}>
                                                 <Text style={style.toastText}>
                                                     {cached.content}
                                                 </Text>
-                                            </Flex>
+                                            </Column>
                                             <Pressable
                                                 onPress={() => {
                                                     setOpen(false)
@@ -129,8 +129,7 @@ export default function OverlayToast() {
                                         </View>
                                         {cached.status === 'error' && (
                                             <View style={style.actionButton}>
-                                                <Flex
-                                                    row
+                                                <Row
                                                     align="center"
                                                     justify="center"
                                                     gap="sm">
@@ -147,7 +146,7 @@ export default function OverlayToast() {
                                                         }>
                                                         {actionLabel}
                                                     </Text>
-                                                </Flex>
+                                                </Row>
                                             </View>
                                         )}
                                     </View>

@@ -13,7 +13,7 @@ import { FileUri, HttpUri } from '@fedi/common/types/media'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { useDownloadResource } from '../../../utils/hooks/media'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 
 type Props = {
     url: string
@@ -102,15 +102,14 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
                     width={dimensions.width}
                 />
             ) : mediaDimensions && isLoading ? (
-                <Flex
+                <Column
                     center
                     style={[style.imageLoadingPlaceholder, dimensions]}>
                     <ActivityIndicator />
-                </Flex>
+                </Column>
             ) : null}
             {urlPreview?.['og:title'] && (
-                <Flex
-                    row
+                <Row
                     gap="md"
                     style={[
                         style.siteContent,
@@ -120,12 +119,12 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
                                 : theme.colors.extraLightGrey,
                         },
                     ]}>
-                    <Flex gap="sm">
-                        <Flex row gap="sm">
+                    <Column gap="sm">
+                        <Row gap="sm">
                             <Text medium caption numberOfLines={2}>
                                 {urlPreview['og:title']}
                             </Text>
-                        </Flex>
+                        </Row>
                         {urlPreview['og:description'] && (
                             <Text
                                 small
@@ -134,8 +133,8 @@ const ChatEmbeddedLinkPreview: React.FC<Props> = ({
                                 {urlPreview['og:description']}
                             </Text>
                         )}
-                    </Flex>
-                </Flex>
+                    </Column>
+                </Row>
             )}
         </Pressable>
     )

@@ -6,7 +6,7 @@ import { Dimensions, ImageBackground, StyleSheet } from 'react-native'
 
 import { Images } from '../assets/images'
 import SelectRecoveryFileButton from '../components/feature/recovery/SelectRecoveryFileButton'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -27,7 +27,7 @@ const SelectRecoveryFileFailure: React.FC<Props> = ({
 
     return (
         <ImageBackground source={Images.HoloBackground} style={style.container}>
-            <Flex center style={style.detailsContainer}>
+            <Column center style={style.detailsContainer}>
                 <SvgImage name="Error" />
                 <Text h2 h2Style={style.failureMessage}>
                     {t('feature.recovery.opening-backup-file-failed')}
@@ -38,8 +38,8 @@ const SelectRecoveryFileFailure: React.FC<Props> = ({
                         { fileName },
                     )}
                 </Text>
-            </Flex>
-            <Flex justify="end" style={style.buttonContainer}>
+            </Column>
+            <Column justify="end" style={style.buttonContainer}>
                 <Button
                     type="clear"
                     title={t('phrases.back-to-app')}
@@ -49,7 +49,7 @@ const SelectRecoveryFileFailure: React.FC<Props> = ({
                     }}
                 />
                 <SelectRecoveryFileButton />
-            </Flex>
+            </Column>
         </ImageBackground>
     )
 }

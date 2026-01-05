@@ -3,7 +3,7 @@ import React from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Linking, StyleSheet } from 'react-native'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import LineBreak from '../components/ui/LineBreak'
 
@@ -14,13 +14,13 @@ const MigratedDeviceSuccess: React.FC = () => {
     const style = styles(theme)
 
     return (
-        <Flex grow justify="center" style={style.container}>
-            <Flex align="center" gap="lg" style={style.headerContainer}>
+        <Column grow justify="center" style={style.container}>
+            <Column align="center" gap="lg" style={style.headerContainer}>
                 <HoloCircle content={<Text>{'✅'}</Text>} size={64} />
                 <Text h2 medium style={style.centeredText}>
                     {t('feature.recovery.migrated-device-success-guidance-1')}
                 </Text>
-            </Flex>
+            </Column>
             <LineBreak />
             <Text medium style={style.centeredText}>
                 {t('feature.recovery.migrated-device-success-guidance-2')}
@@ -42,7 +42,7 @@ const MigratedDeviceSuccess: React.FC = () => {
                     }}
                 />
             </Text>
-        </Flex>
+        </Column>
     )
 }
 

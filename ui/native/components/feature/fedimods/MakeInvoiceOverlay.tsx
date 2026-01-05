@@ -23,7 +23,7 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
 import AmountInputDisplay from '../../ui/AmountInputDisplay'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import FederationWalletSelector from '../send/FederationWalletSelector'
 
 const log = makeLog('MakeInvoiceOverlay')
@@ -150,7 +150,7 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                       }),
                 description: requestInvoiceArgs?.defaultMemo || '',
                 body: (
-                    <Flex
+                    <Column
                         grow
                         align="center"
                         gap="lg"
@@ -174,7 +174,7 @@ export const MakeInvoiceOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                 error={error}
                             />
                         )}
-                    </Flex>
+                    </Column>
                 ),
                 buttons: [
                     {

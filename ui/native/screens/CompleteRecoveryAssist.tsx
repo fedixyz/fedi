@@ -12,7 +12,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import { prefixFileUri } from '@fedi/common/utils/media'
 
 import CheckBox from '../components/ui/CheckBox'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -135,7 +135,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
                     )}
                 </Text>
                 <LineBreak />
-                <Flex grow align="start" style={style.confirmationContainer}>
+                <Column grow align="start" style={style.confirmationContainer}>
                     <CheckBox
                         title={
                             <Text caption medium style={style.checkboxText}>
@@ -168,7 +168,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
                             setDenialSelected(true)
                         }}
                     />
-                </Flex>
+                </Column>
             </ScrollView>
 
             <Button

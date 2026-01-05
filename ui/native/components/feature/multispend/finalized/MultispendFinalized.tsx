@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native'
 import { selectMultispendBalanceCents } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../../state/hooks'
-import Flex from '../../../ui/Flex'
+import { Column } from '../../../ui/Flex'
 import { SafeAreaContainer } from '../../../ui/SafeArea'
 import RequestList from './RequestList'
 
@@ -23,7 +23,7 @@ const MultispendFinalized: React.FC<{
     const style = styles(theme)
 
     return (
-        <Flex grow gap="md">
+        <Column grow gap="md">
             <RequestList roomId={roomId} />
             <SafeAreaContainer edges="notop" style={style.buttons}>
                 <Button
@@ -45,7 +45,7 @@ const MultispendFinalized: React.FC<{
                     titleProps={{ numberOfLines: 1 }}
                 />
             </SafeAreaContainer>
-        </Flex>
+        </Column>
     )
 }
 

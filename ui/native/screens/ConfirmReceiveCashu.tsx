@@ -15,7 +15,7 @@ import FederationWalletSelector from '../components/feature/send/FederationWalle
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { AmountScreen } from '../components/ui/AmountScreen'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
@@ -87,14 +87,14 @@ const ConfirmReceiveCashu: React.FC<Props> = ({ route, navigation }: Props) => {
 
     if (!isReadyToPay)
         return (
-            <Flex
+            <Column
                 grow
                 align="center"
                 justify="between"
                 style={style.loadingContainer}>
                 <Text style={style.loadingText}>{t('words.loading')}</Text>
                 <ActivityIndicator />
-            </Flex>
+            </Column>
         )
 
     const renderDetails = () => {

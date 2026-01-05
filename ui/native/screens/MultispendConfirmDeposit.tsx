@@ -17,7 +17,7 @@ import {
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
@@ -94,31 +94,31 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <SafeAreaContainer edges="notop" style={style.container}>
-            <Flex grow>
-                <Flex align="center" gap="md" style={style.header}>
-                    <Flex row align="center" gap="md">
+            <Column grow>
+                <Column align="center" gap="md" style={style.header}>
+                    <Row align="center" gap="md">
                         <SvgImage
                             name="DollarCircle"
                             size={16}
                             color={theme.colors.green}
                         />
                         <Text>{t('feature.stabilitypool.stable-balance')}</Text>
-                    </Flex>
+                    </Row>
                     <Text h1 medium>
                         {formattedFiatAmount}
                     </Text>
-                </Flex>
-                <Flex>
+                </Column>
+                <Column>
                     <View style={style.row}>
                         <Text caption medium>
                             {t('feature.stabilitypool.deposit-to')}
                         </Text>
-                        <Flex align="end">
+                        <Column align="end">
                             <Text caption>{matrixRoom?.name}</Text>
                             <Text tiny color={theme.colors.grey}>
                                 {t('feature.multispend.multispend-group')}
                             </Text>
-                        </Flex>
+                        </Column>
                     </View>
                     <View style={style.separator} />
                     <View style={style.row}>
@@ -142,7 +142,7 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
                             {formattedFiatAmount}
                         </Text>
                     </View>
-                </Flex>
+                </Column>
                 {notes && (
                     <View style={style.notesWidget}>
                         <Text medium small>
@@ -153,7 +153,7 @@ const MultispendConfirmDeposit: React.FC<Props> = ({ route }: Props) => {
                         </Text>
                     </View>
                 )}
-            </Flex>
+            </Column>
             <Button
                 title={t('words.confirm')}
                 disabled={loading}

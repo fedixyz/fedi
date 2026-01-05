@@ -13,7 +13,7 @@ import {
 } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 
-import Flex from './Flex'
+import { Row } from './Flex'
 
 export interface AmountInputDisplayProps {
     amount: Sats
@@ -50,8 +50,7 @@ const AmountInputDisplay: React.FC<AmountInputDisplayProps> = ({
 
     return (
         <View style={styles(theme).wrapper}>
-            <Flex
-                row
+            <Row
                 align="end"
                 justify="center"
                 fullWidth
@@ -62,7 +61,7 @@ const AmountInputDisplay: React.FC<AmountInputDisplayProps> = ({
                 <Text h2 numberOfLines={1} h2Style={styles(theme).labelText}>
                     {label}
                 </Text>
-            </Flex>
+            </Row>
 
             <Text caption style={styles(theme).secondaryText} numberOfLines={1}>
                 {secondary}

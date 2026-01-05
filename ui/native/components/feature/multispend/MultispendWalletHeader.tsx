@@ -13,7 +13,7 @@ import {
 
 import { reset } from '../../../state/navigation'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import HoloCircle from '../../ui/HoloCircle'
 import { PressableIcon } from '../../ui/PressableIcon'
@@ -107,20 +107,19 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
 
     return (
         <GradientView variant="sky" style={style.container}>
-            <Flex
-                row
+            <Row
                 align="center"
                 justify="between"
                 style={{
                     paddingTop: insets.top,
                     paddingHorizontal: theme.spacing.lg,
                 }}>
-                <Flex grow basis={false}>
+                <Column grow basis={false}>
                     <Pressable onPress={handleBack}>
                         <SvgImage name="ChevronLeft" size={24} />
                     </Pressable>
-                </Flex>
-                <Flex row center gap="xs" basis={false} style={style.title}>
+                </Column>
+                <Row center gap="xs" basis={false} style={style.title}>
                     <Text medium>{t('words.multispend')}</Text>
                     <Pressable onPress={handleInfoPress}>
                         <SvgImage
@@ -129,31 +128,31 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                             color={theme.colors.grey}
                         />
                     </Pressable>
-                </Flex>
-                <Flex row grow basis={false} justify="end">
+                </Row>
+                <Row grow basis={false} justify="end">
                     {actionButtons}
-                </Flex>
-            </Flex>
+                </Row>
+            </Row>
             <View style={style.walletPreviewContainer}>
                 <View style={style.walletPreview}>
                     <HoloCircle
                         size={40}
                         content={<SvgImage name="MultispendGroup" size={24} />}
                     />
-                    <Flex grow align="start" gap="xs">
+                    <Column grow align="start" gap="xs">
                         <Text small bold style={style.infoText}>
                             {federationName}
                         </Text>
-                        <Flex row gap="xs" style={style.balance}>
+                        <Row gap="xs" style={style.balance}>
                             <Text style={style.infoText} bold>
                                 {formattedMultispendBalance}
                             </Text>
                             <Text small bold style={style.infoText}>
                                 {selectedCurrency}
                             </Text>
-                        </Flex>
-                    </Flex>
-                    <Flex align="end" gap="xs">
+                        </Row>
+                    </Column>
+                    <Column align="end" gap="xs">
                         <View style={[style.badge, style.pendingBadge]}>
                             <Text tiny bold>
                                 {status}
@@ -167,7 +166,7 @@ const MultispendWalletHeader: React.FC<Props> = ({ roomId }) => {
                                 })}
                             </Text>
                         </View>
-                    </Flex>
+                    </Column>
                 </View>
             </View>
             <CustomOverlay

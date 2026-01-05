@@ -4,7 +4,7 @@ import { Platform, StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 
-import Flex from './Flex'
+import { Column } from './Flex'
 
 type BubbleViewProps = {
     containerStyle?: StyleProp<ViewStyle>
@@ -113,9 +113,9 @@ export const BubbleCard = ({
                         experimental_backgroundImage: `linear-gradient(to bottom, ${colors.join(', ')})`,
                     },
                 ]}>
-                <Flex gap="md" fullWidth style={[style.wrapper, style.card]}>
+                <Column gap="md" fullWidth style={[style.wrapper, style.card]}>
                     {children}
-                </Flex>
+                </Column>
             </View>
         </BubbleView>
     )

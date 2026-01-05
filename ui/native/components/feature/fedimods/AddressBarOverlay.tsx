@@ -20,7 +20,7 @@ import {
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useKeyboard } from '../../../utils/hooks/keyboard'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import SvgImage from '../../ui/SvgImage'
 
@@ -89,7 +89,7 @@ export default function AddressBarOverlay() {
                         ? { paddingBottom: kbHeight + theme.spacing.lg }
                         : {},
                 ]}>
-                <Flex row align="center" gap="md" fullWidth>
+                <Row align="center" gap="md" fullWidth>
                     <Input
                         inputContainerStyle={style.input}
                         containerStyle={style.inputContainer}
@@ -113,7 +113,7 @@ export default function AddressBarOverlay() {
                     <Pressable onPress={close}>
                         <Text caption>{t('words.cancel')}</Text>
                     </Pressable>
-                </Flex>
+                </Row>
             </SafeAreaContainer>
         </Overlay>
     )

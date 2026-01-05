@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useMultispendVoting } from '@fedi/common/hooks/multispend'
 
 import CustomOverlay from '../../../ui/CustomOverlay'
-import Flex from '../../../ui/Flex'
+import { Column } from '../../../ui/Flex'
 import { SafeAreaContainer } from '../../../ui/SafeArea'
 import GroupVoters from './GroupVoters'
 
@@ -35,7 +35,9 @@ const MultispendActiveInvitation: React.FC<{
         <SafeAreaContainer edges="bottom">
             <GroupVoters roomId={roomId} />
             {canVote && (
-                <Flex gap="md" style={{ paddingHorizontal: theme.spacing.md }}>
+                <Column
+                    gap="md"
+                    style={{ paddingHorizontal: theme.spacing.md }}>
                     <Button
                         disabled={isLoading}
                         onPress={handleAcceptMultispend}>
@@ -47,7 +49,7 @@ const MultispendActiveInvitation: React.FC<{
                             contents={joinBeforeAcceptContents}
                         />
                     )}
-                </Flex>
+                </Column>
             )}
         </SafeAreaContainer>
     )

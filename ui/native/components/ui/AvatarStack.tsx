@@ -2,7 +2,7 @@ import { Theme, useTheme } from '@rneui/themed'
 import { StyleSheet, useWindowDimensions, View } from 'react-native'
 
 import { AvatarSize } from './Avatar'
-import Flex from './Flex'
+import { Column } from './Flex'
 import { getIconSizeMultiplier } from './SvgImage'
 
 function AvatarStack<T>({
@@ -44,7 +44,7 @@ function AvatarStack<T>({
                 },
             ]}>
             {data.map((item, i) => (
-                <Flex
+                <Column
                     center
                     key={`avatar-stack-${i}`}
                     style={[
@@ -58,7 +58,7 @@ function AvatarStack<T>({
                         stackDirection === 'rtl' && { zIndex: data.length - i },
                     ]}>
                     {renderAvatar(item, sizePx)}
-                </Flex>
+                </Column>
             ))}
         </View>
     )

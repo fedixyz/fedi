@@ -7,7 +7,7 @@ import { Camera } from 'react-native-vision-camera'
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const log = makeLog('RequestCameraAccess')
@@ -98,23 +98,23 @@ const RequestCameraAccess: React.FC<RequestCameraAccessProps> = ({
     const style = styles(theme)
 
     return (
-        <Flex grow align="center" justify="between" style={style.container}>
-            <Flex grow center>
+        <Column grow align="center" justify="between" style={style.container}>
+            <Column grow center>
                 <SvgImage name="AllowCameraAccessIcon" size={SvgImageSize.lg} />
                 <Text h2 style={style.titleText}>
                     {t('phrases.allow-camera-access')}
                 </Text>
                 <Text style={style.subtitleText}>{message}</Text>
-            </Flex>
-            <Flex justify="between" fullWidth>
+            </Column>
+            <Column justify="between" fullWidth>
                 {alternativeActionButton}
                 <Button
                     title={t('phrases.allow-camera-access')}
                     onPress={requestPermissions}
                     loading={isRequestingPermission}
                 />
-            </Flex>
-        </Flex>
+            </Column>
+        </Column>
     )
 }
 

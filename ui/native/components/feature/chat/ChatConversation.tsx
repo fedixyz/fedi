@@ -39,7 +39,7 @@ import {
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { RootStackParamList } from '../../../types/navigation'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import ChatEventCollection from './ChatEventCollection'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
 import NoMembersNotice from './NoMembersNotice'
@@ -338,14 +338,14 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     }
                     ListHeaderComponent={
                         isBlocked ? (
-                            <Flex
+                            <Column
                                 align="center"
                                 fullWidth
                                 style={style.blockedContainer}>
                                 <Text tiny style={style.blockedText}>
                                     {t('feature.chat.user-is-blocked-guidance')}
                                 </Text>
-                            </Flex>
+                            </Column>
                         ) : undefined
                     }
                     onScroll={handleScroll}
@@ -372,12 +372,12 @@ const ChatConversation: React.FC<MessagesListProps> = ({
                     viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
                 />
             ) : (
-                <Flex justify="center" grow>
+                <Column justify="center" grow>
                     <ActivityIndicator
                         size="large"
                         color={theme.colors.primary}
                     />
-                </Flex>
+                </Column>
             )}
 
             <ChatUserActionsOverlay

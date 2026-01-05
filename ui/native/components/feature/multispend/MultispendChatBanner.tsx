@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { selectMatrixRoomMultispendStatus } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import SvgImage from '../../ui/SvgImage'
 
@@ -63,15 +63,15 @@ const MultispendChatBanner: React.FC<Props> = ({ roomId }) => {
         <Pressable
             onPress={() => navigation.navigate('GroupMultispend', { roomId })}>
             <GradientView variant="sky-banner" style={style.container}>
-                <Flex gap="xs">
-                    <Flex row align="center" gap="xs">
+                <Column gap="xs">
+                    <Row align="center" gap="xs">
                         <SvgImage name="MultispendGroup" size={16} />
                         <Text caption bold>
                             {t('words.multispend')}
                         </Text>
-                    </Flex>
+                    </Row>
                     {statusBadge}
-                </Flex>
+                </Column>
                 <SvgImage name="ChevronRight" color={theme.colors.grey} />
             </GradientView>
         </Pressable>

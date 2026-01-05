@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import { LoadedFederation } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { FederationLogo } from './FederationLogo'
 
 const FederationCompactTile: React.FC<{
@@ -16,7 +16,7 @@ const FederationCompactTile: React.FC<{
     const style = styles(theme)
 
     return (
-        <Flex gap="md">
+        <Column gap="md">
             <View style={style.tileContainer}>
                 {isLoading ? (
                     <ActivityIndicator />
@@ -29,7 +29,7 @@ const FederationCompactTile: React.FC<{
                     </>
                 )}
             </View>
-        </Flex>
+        </Column>
     )
 }
 

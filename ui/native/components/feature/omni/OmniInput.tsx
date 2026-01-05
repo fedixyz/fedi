@@ -20,7 +20,7 @@ import { parseUserInput } from '@fedi/common/utils/parser'
 import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { OmniConfirmation } from './OmniConfirmation'
 import { OmniMemberSearch } from './OmniMemberSearch'
 import { OmniQrScanner } from './OmniQrScanner'
@@ -300,7 +300,7 @@ export function OmniInput<
     }
 
     return (
-        <Flex grow fullWidth>
+        <Column grow fullWidth>
             {showActivityIndicator && (
                 <Pressable
                     onPress={() => setShowActivityIndicator(false)}
@@ -327,7 +327,7 @@ export function OmniInput<
                 />
             )}
             {confirmation}
-        </Flex>
+        </Column>
     )
 }
 

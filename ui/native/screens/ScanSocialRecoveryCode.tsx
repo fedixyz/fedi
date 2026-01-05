@@ -13,7 +13,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import CameraPermissionsRequired from '../components/feature/scan/CameraPermissionsRequired'
 import QrCodeScanner from '../components/feature/scan/QrCodeScanner'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -134,7 +134,7 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({
                 />
             }
             message={t('feature.recovery.camera-access-information')}>
-            <Flex grow center>
+            <Column grow center>
                 <View style={styles(theme).cameraScannerContainer}>
                     {renderQrCodeScanner()}
                 </View>
@@ -148,7 +148,7 @@ const ScanSocialRecoveryCode: React.FC<Props> = ({
                         )
                     }
                 /> */}
-            </Flex>
+            </Column>
         </CameraPermissionsRequired>
     )
 }

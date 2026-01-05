@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { FeeItem } from '@fedi/common/hooks/transactions'
 import { Federation } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import { HistoryDetailProps } from './HistoryDetail'
 import HistoryDetailOverlay from './HistoryDetailOverlay'
@@ -79,19 +79,19 @@ export function HistoryList<T extends { id: string }>({
 
     if (loading) {
         return (
-            <Flex grow center fullWidth>
+            <Column grow center fullWidth>
                 <ActivityIndicator />
-            </Flex>
+            </Column>
         )
     }
 
     if (!rows.length) {
         return (
-            <Flex grow center fullWidth>
+            <Column grow center fullWidth>
                 <Text style={style.emptyText}>
                     {t('phrases.no-transactions')}
                 </Text>
-            </Flex>
+            </Column>
         )
     }
 

@@ -6,7 +6,7 @@ import { MatrixUser } from '@fedi/common/types'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
 import { AvatarSize } from '../../ui/Avatar'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
@@ -54,7 +54,7 @@ const ChatUserTile: React.FC<UserItemProps> = ({
             containerStyle={containerStyle}
             onPress={disabled ? undefined : () => selectUser(user.id)}
             onLongPress={disabled ? undefined : () => selectUser(user.id)}>
-            <Flex grow row align="center" fullWidth>
+            <Row grow align="center" fullWidth>
                 <ChatAvatar
                     containerStyle={[style.avatar]}
                     user={avatarUser}
@@ -83,11 +83,11 @@ const ChatUserTile: React.FC<UserItemProps> = ({
                         {suffix}
                     </Text>
                 )}
-                <Flex row align="center" style={style.iconContainer}>
+                <Row align="center" style={style.iconContainer}>
                     {rightIcon && rightIcon}
                     {actionIcon && actionIcon}
-                </Flex>
-            </Flex>
+                </Row>
+            </Row>
         </Pressable>
     )
 }

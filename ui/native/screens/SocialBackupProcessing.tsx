@@ -9,7 +9,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { uploadBackupFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloProgressCircle from '../components/ui/HoloProgressCircle'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -86,7 +86,7 @@ const SocialBackupProcessing: React.FC<Props> = ({
     const style = styles(theme)
 
     return (
-        <Flex grow center style={style.container}>
+        <Column grow center style={style.container}>
             <HoloProgressCircle percentComplete={percentComplete} />
             <Text style={style.label}>
                 <Trans
@@ -96,7 +96,7 @@ const SocialBackupProcessing: React.FC<Props> = ({
                     }}
                 />
             </Text>
-        </Flex>
+        </Column>
     )
 }
 

@@ -25,7 +25,7 @@ import {
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import ChatMultispendEvent from '../multispend/chat-events/ChatMultispendEvent'
 import ChatBolt11PaymentEvent from './ChatBolt11PaymentEvent'
 import ChatCommunityInviteEvent from './ChatCommunityInviteEvent'
@@ -113,8 +113,8 @@ const ChatEvent: React.FC<Props> = ({
     return (
         <ErrorBoundary fallback={() => <MessageItemError />}>
             <View style={[style.container, isQueued && style.containerQueued]}>
-                <Flex row>
-                    <Flex align="start" justify="end" fullWidth={fullWidth}>
+                <Row>
+                    <Column align="start" justify="end" fullWidth={fullWidth}>
                         <View style={bubbleContainerStyles}>
                             {isText ? (
                                 <ChatTextEvent
@@ -181,8 +181,8 @@ const ChatEvent: React.FC<Props> = ({
                                 ))}
                             </View>
                         )}
-                    </Flex>
-                </Flex>
+                    </Column>
+                </Row>
             </View>
             <ChatUserActionsOverlay
                 onDismiss={() => setSelectedUserId(null)}

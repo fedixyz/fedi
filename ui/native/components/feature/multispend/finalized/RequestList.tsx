@@ -15,7 +15,7 @@ import {
     MultispendWithdrawalEvent,
 } from '../../../../types'
 import CustomOverlay from '../../../ui/CustomOverlay'
-import Flex from '../../../ui/Flex'
+import { Row, Column } from '../../../ui/Flex'
 import OverlaySelect from '../../../ui/OverlaySelect'
 import SvgImage from '../../../ui/SvgImage'
 import WithdrawalOverlayContents from './WithdrawalOverlayContents'
@@ -85,13 +85,8 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
     }
 
     return (
-        <Flex grow>
-            <Flex
-                row
-                align="center"
-                justify="between"
-                gap="md"
-                style={style.header}>
+        <Column grow>
+            <Row align="center" justify="between" gap="md" style={style.header}>
                 <Text medium>
                     {t('feature.multispend.withdrawal-requests')}
                 </Text>
@@ -102,7 +97,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                     }
                     options={filterOptions}
                 />
-            </Flex>
+            </Row>
             <FlatList
                 style={style.requestList}
                 contentContainerStyle={style.requestListContainer}
@@ -114,7 +109,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                     `multispend-withdrawal-request-${item.id}`
                 }
                 ListEmptyComponent={() => (
-                    <Flex center gap="md" grow style={style.emptyState}>
+                    <Column center gap="md" grow style={style.emptyState}>
                         <SvgImage
                             color={theme.colors.grey}
                             size={52}
@@ -130,7 +125,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                         <Text small style={style.emptyDescription}>
                             {t('feature.multispend.no-requests-notice')}
                         </Text>
-                    </Flex>
+                    </Column>
                 )}
             />
             <CustomOverlay
@@ -162,7 +157,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                               ],
                 }}
             />
-        </Flex>
+        </Column>
     )
 }
 

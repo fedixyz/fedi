@@ -13,7 +13,7 @@ import {
     shouldShowJoinFederation,
 } from '@fedi/common/utils/FederationUtils'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import ShadowScrollView from '../../ui/ShadowScrollView'
 import EndedFederationPreview from '../federations/EndedPreview'
@@ -58,9 +58,9 @@ const FederationPreview: React.FC<Props> = ({
 
     if (isJoining) {
         return (
-            <Flex grow center style={s.loadingContainer}>
+            <Column grow center style={s.loadingContainer}>
                 <HelpTextLoadingAnimation />
-            </Flex>
+            </Column>
         )
     }
 
@@ -132,12 +132,12 @@ const FederationPreview: React.FC<Props> = ({
     return (
         <SafeAreaContainer edges="notop" style={s.joinPreviewContainer}>
             <ShadowScrollView>
-                <Flex center>
+                <Column center>
                     <FederationLogo federation={federation} size={96} />
                     <Text h2 medium style={s.welcome}>
                         {welcomeTitle}
                     </Text>
-                </Flex>
+                </Column>
 
                 {welcomeMessage && (
                     <View
@@ -161,11 +161,11 @@ const FederationPreview: React.FC<Props> = ({
                 )}
             </ShadowScrollView>
 
-            <Flex shrink={false}>
+            <Column shrink={false}>
                 {showJoinFederation && isReturningMember && (
-                    <Flex gap="sm" style={s.switchWrapper}>
-                        <Flex row align="center" justify="between" gap="md">
-                            <Flex grow shrink gap="sm">
+                    <Column gap="sm" style={s.switchWrapper}>
+                        <Row align="center" justify="between" gap="md">
+                            <Column grow shrink gap="sm">
                                 <Text
                                     bold
                                     caption
@@ -180,7 +180,7 @@ const FederationPreview: React.FC<Props> = ({
                                         'feature.federations.recover-from-scratch-warning',
                                     )}
                                 </Text>
-                            </Flex>
+                            </Column>
                             <Switch
                                 testID="RecoverFromScratchSwitch"
                                 value={selectedRecoverFromScratch}
@@ -190,8 +190,8 @@ const FederationPreview: React.FC<Props> = ({
                                     )
                                 }}
                             />
-                        </Flex>
-                    </Flex>
+                        </Row>
+                    </Column>
                 )}
 
                 {showJoinFederation && joinButtons}
@@ -217,7 +217,7 @@ const FederationPreview: React.FC<Props> = ({
                         </Text>
                     </View>
                 )}
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

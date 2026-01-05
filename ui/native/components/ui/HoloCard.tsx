@@ -2,7 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 
-import Flex from './Flex'
+import { Column } from './Flex'
 import GradientView from './GradientView'
 
 type HoloCardProps = {
@@ -22,7 +22,7 @@ const HoloCard: React.FC<HoloCardProps> = ({
 
     return (
         <GradientView variant="sky-banner" style={style.container}>
-            <Flex align="center" fullWidth style={style.innerContainer}>
+            <Column align="center" fullWidth style={style.innerContainer}>
                 {iconImage}
 
                 {title && (
@@ -31,7 +31,7 @@ const HoloCard: React.FC<HoloCardProps> = ({
                     </Text>
                 )}
                 {body}
-            </Flex>
+            </Column>
         </GradientView>
     )
 }

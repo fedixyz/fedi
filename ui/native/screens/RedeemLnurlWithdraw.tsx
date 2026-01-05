@@ -11,7 +11,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
@@ -86,7 +86,7 @@ const RedeemLnurlWithdraw: React.FC<Props> = ({ navigation, route }: Props) => {
                 setNotes={setMemo}
                 isIndependent
             />
-            <Flex gap="md">
+            <Column gap="md">
                 <Button
                     title={`${t('words.redeem')}${
                         amount ? ` ${amountUtils.formatSats(amount)} ` : ' '
@@ -95,7 +95,7 @@ const RedeemLnurlWithdraw: React.FC<Props> = ({ navigation, route }: Props) => {
                     disabled={isWithdrawing}
                     loading={isWithdrawing}
                 />
-            </Flex>
+            </Column>
         </SafeScrollArea>
     )
 }

@@ -20,7 +20,7 @@ import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConve
 import MessageInput from '../components/feature/chat/MessageInput'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import MultispendChatBanner from '../components/feature/multispend/MultispendChatBanner'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -161,9 +161,9 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         }
 
         return (
-            <Flex align="center">
+            <Column align="center">
                 <HoloLoader size={28} />
-            </Flex>
+            </Column>
         )
     }
 
@@ -171,9 +171,9 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         <SafeAreaContainer
             edges={['bottom']}
             style={{ paddingBottom: extraPadAndroid35 }}>
-            <Flex grow basis={false}>
+            <Column grow basis={false}>
                 {content}
-            </Flex>
+            </Column>
             <SelectedMessageOverlay isPublic={!!room.isPublic} />
         </SafeAreaContainer>
     )

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { NavigationHook } from '../../../types/navigation'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 
 type Props = {
     roomId: string
@@ -21,7 +21,7 @@ const NoMembersNotice: React.FC<Props> = ({
     const navigation = useNavigation<NavigationHook>()
 
     return (
-        <Flex grow center>
+        <Column grow center>
             {isBroadcast ? (
                 <Text medium style={styles(theme).text}>
                     {t('feature.chat.broadcast-no-message')}
@@ -40,7 +40,7 @@ const NoMembersNotice: React.FC<Props> = ({
                     navigation.navigate('ChatRoomInvite', { roomId })
                 }
             />
-        </Flex>
+        </Column>
     )
 }
 

@@ -12,7 +12,7 @@ import {
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
-import Flex from './Flex'
+import { Row, Column } from './Flex'
 import QRCode from './QRCode'
 import SvgImage, { SvgImageSize } from './SvgImage'
 
@@ -58,11 +58,11 @@ const QRCodeContainer = ({
     }
 
     return (
-        <Flex gap="lg">
-            <Flex row justify="center" style={style.qrCodeContainer}>
+        <Column gap="lg">
+            <Row justify="center" style={style.qrCodeContainer}>
                 <QRCode value={qrValue} size={width * 0.7} />
-            </Flex>
-            <Flex row align="center" style={style.copyInviteLinkContainer}>
+            </Row>
+            <Row align="center" style={style.copyInviteLinkContainer}>
                 <Text
                     style={style.inviteLinkText}
                     numberOfLines={1}
@@ -85,8 +85,8 @@ const QRCodeContainer = ({
                         {useShare ? t('words.share') : t('words.copy')}
                     </Text>
                 </TouchableOpacity>
-            </Flex>
-        </Flex>
+            </Row>
+        </Column>
     )
 }
 

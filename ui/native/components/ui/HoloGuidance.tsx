@@ -2,7 +2,7 @@ import { Text, TextProps, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 
-import Flex from './Flex'
+import { Column } from './Flex'
 import HoloCircle from './HoloCircle'
 
 type HoloGuidanceProps = {
@@ -49,7 +49,7 @@ const HoloGuidance: React.FC<HoloGuidanceProps> = ({
     }
 
     return (
-        <Flex center grow={!noFlexContainer}>
+        <Column center grow={!noFlexContainer}>
             <HoloCircle
                 size={size === 'default' ? theme.sizes.holoGuidanceCircle : 64}
                 content={iconImage}
@@ -62,7 +62,7 @@ const HoloGuidance: React.FC<HoloGuidanceProps> = ({
                     <Text style={styles(theme).message}>{message}</Text>
                 </>
             )}
-        </Flex>
+        </Column>
     )
 }
 

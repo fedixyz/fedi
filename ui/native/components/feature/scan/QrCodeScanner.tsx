@@ -19,7 +19,7 @@ import {
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import { getBufferEncoding } from '@fedi/common/utils/istextorbinary'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type QrCodeScanner = {
@@ -103,10 +103,10 @@ const QrCodeScanner = ({ processing, onQrCodeDetected }: QrCodeScanner) => {
     const style = styles(theme)
     if (!device)
         return (
-            <Flex center style={style.center}>
+            <Column center style={style.center}>
                 <SvgImage name="ScanSad" size={SvgImageSize.xl} />
                 <Text medium>{t('errors.camera-unavailable')}</Text>
-            </Flex>
+            </Column>
         )
 
     return (
@@ -120,7 +120,7 @@ const QrCodeScanner = ({ processing, onQrCodeDetected }: QrCodeScanner) => {
                     codeScanner={codeScanner}
                 />
             )}
-            {processing && <Flex center style={style.processingCover} />}
+            {processing && <Column center style={style.processingCover} />}
             {Boolean(progress) && (
                 <View style={style.progressContainer}>
                     <View

@@ -27,7 +27,7 @@ import SurveyOverlay from '../components/feature/home/SurveyOverlay'
 import FirstTimeOverlay, {
     FirstTimeOverlayItem,
 } from '../components/feature/onboarding/FirstTimeOverlay'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import type {
     RootStackParamList,
@@ -132,7 +132,7 @@ const Home: React.FC<Props> = () => {
             <ScrollView
                 contentContainerStyle={style.container}
                 alwaysBounceVertical={false}>
-                <Flex gap="lg" fullWidth>
+                <Column gap="lg" fullWidth>
                     {shouldShowAutojoinedCommunityNotice && (
                         <AutojoinedCommunityNotice
                             communityId={selectedCommunity.id}
@@ -145,7 +145,7 @@ const Home: React.FC<Props> = () => {
                     <ErrorBoundary fallback={null}>
                         <ShortcutsList communityId={selectedCommunity.id} />
                     </ErrorBoundary>
-                </Flex>
+                </Column>
             </ScrollView>
 
             {/* Overlays */}

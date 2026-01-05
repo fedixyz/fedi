@@ -14,7 +14,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import MessageInput from '../components/feature/chat/MessageInput'
 import NoMessagesNotice from '../components/feature/chat/NoMessagesNotice'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
@@ -100,16 +100,16 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
         <SafeAreaContainer
             edges={['bottom']}
             style={{ paddingBottom: extraPadAndroid35 }}>
-            <Flex grow basis={false} align="stretch">
+            <Column grow basis={false} align="stretch">
                 {isSending ? (
-                    <Flex grow justify="center">
+                    <Column grow justify="center">
                         <ActivityIndicator size="large" />
-                    </Flex>
+                    </Column>
                 ) : (
                     <NoMessagesNotice />
                 )}
                 {renderMessageInput()}
-            </Flex>
+            </Column>
             <SelectedMessageOverlay isPublic={false} />
         </SafeAreaContainer>
     )

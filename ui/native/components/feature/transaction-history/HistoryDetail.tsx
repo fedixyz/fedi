@@ -22,7 +22,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { Federation, TransactionListEntry } from '../../../types'
-import Flex, { Column, Row } from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import NotesInput from '../../ui/NotesInput'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { HistoryDetailItem, HistoryDetailItemProps } from './HistoryDetailItem'
@@ -170,7 +170,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                     </Row>
                 </Pressable>
             </Column>
-            <Flex gap="xs" fullWidth style={style.detailItemsContainer}>
+            <Column gap="xs" fullWidth style={style.detailItemsContainer}>
                 {items.map((item, idx) => (
                     <HistoryDetailItem
                         key={idx}
@@ -214,7 +214,7 @@ export const HistoryDetail: React.FC<HistoryDetailProps> = ({
                         noBorder
                     />
                 )}
-            </Flex>
+            </Column>
             {txn.kind === 'onchainDeposit' && (
                 <View style={style.checkFundsContainer}>
                     <Button

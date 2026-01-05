@@ -5,7 +5,6 @@ import { ViewProps } from 'react-native-svg/lib/typescript/fabric/utils'
 type Props = {
     /**
      * Determines whether the flex is a row or column. Defaults to `false` (column)
-     * @deprecated use `<Row>` instead
      */
     row?: boolean
     /* Shorthand for alignItems: center + justifyContent: center */
@@ -110,8 +109,6 @@ const justifyStyle = StyleSheet.create({
     around: { justifyContent: 'space-around' },
     evenly: { justifyContent: 'space-evenly' },
 })
-
-export default Flex
 
 export const Row = (props: Omit<React.ComponentProps<typeof Flex>, 'row'>) => (
     <Flex row {...props} />

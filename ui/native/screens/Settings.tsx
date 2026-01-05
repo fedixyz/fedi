@@ -16,7 +16,7 @@ import FederationMenu from '../components/feature/settings/FederationMenu'
 import { GeneralSettings } from '../components/feature/settings/GeneralSettings'
 import { UserQr } from '../components/feature/settings/UserQr'
 import { VersionContainer } from '../components/feature/settings/VersionContainer'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -43,21 +43,21 @@ const Settings: React.FC<Props> = () => {
         <ScrollView
             testID="UserQrContainer"
             contentContainerStyle={style.container}>
-            <Flex gap="lg">
+            <Column gap="lg">
                 {/* in case matrix is not initialized yet */}
                 {matrixAuth ? (
                     <UserQr matrixUser={matrixAuth} />
                 ) : (
                     <ActivityIndicator />
                 )}
-                <Flex gap="lg">
+                <Column gap="lg">
                     <Text color={theme.colors.night} style={style.sectionTitle}>
                         {t('words.general')}
                     </Text>
                     <GeneralSettings />
-                </Flex>
+                </Column>
                 {sortedWalletFederations.length > 0 && (
-                    <Flex gap="lg">
+                    <Column gap="lg">
                         <Text
                             color={theme.colors.night}
                             style={style.sectionTitle}>
@@ -70,10 +70,10 @@ const Settings: React.FC<Props> = () => {
                                 federation={federation}
                             />
                         ))}
-                    </Flex>
+                    </Column>
                 )}
                 {sortedCommunities.length > 0 && (
-                    <Flex gap="lg">
+                    <Column gap="lg">
                         <Text
                             color={theme.colors.night}
                             style={style.sectionTitle}>
@@ -86,9 +86,9 @@ const Settings: React.FC<Props> = () => {
                                 community={federation}
                             />
                         ))}
-                    </Flex>
+                    </Column>
                 )}
-            </Flex>
+            </Column>
             <VersionContainer
                 unlockDevModeCount={unlockDevModeCount}
                 setUnlockDevModeCount={setUnlockDevModeCount}

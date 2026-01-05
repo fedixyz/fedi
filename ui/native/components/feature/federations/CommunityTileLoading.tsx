@@ -2,7 +2,7 @@ import { Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef } from 'react'
 import { Animated, Easing, StyleSheet } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 
 const ShimmerPlaceholder: React.FC<{
     width: number
@@ -51,10 +51,10 @@ const CommunityTileLoading = () => {
     const style = styles(theme)
 
     return (
-        <Flex row align="center" justify="between" style={style.container}>
-            <Flex row align="center" justify="start" gap="md" shrink>
+        <Row align="center" justify="between" style={style.container}>
+            <Row align="center" justify="start" gap="md" shrink>
                 <ShimmerPlaceholder width={48} height={48} borderRadius={8} />
-                <Flex align="start" shrink gap="xs">
+                <Column align="start" shrink gap="xs">
                     <ShimmerPlaceholder
                         width={120}
                         height={20}
@@ -65,9 +65,9 @@ const CommunityTileLoading = () => {
                         height={20}
                         borderRadius={0}
                     />
-                </Flex>
-            </Flex>
-        </Flex>
+                </Column>
+            </Row>
+        </Row>
     )
 }
 

@@ -10,7 +10,7 @@ import { selectMatrixAuth, setSelectedChatMessage } from '@fedi/common/redux'
 import { MatrixEvent, MatrixFederationInviteEvent } from '@fedi/common/types'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import FederationCompactTile from '../federations/FederationCompactTile'
 import ChatEventWrapper from './ChatEventWrapper'
 import ChatTextEvent from './ChatTextEvent'
@@ -87,7 +87,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
         <>
             <ChatEventWrapper event={event} handleLongPress={handleLongPress}>
                 {previewResult ? (
-                    <Flex gap="lg">
+                    <Column gap="lg">
                         <Text small numberOfLines={2} color={textColor}>
                             <Text bold small color={textColor}>
                                 {t('feature.federations.federation-invite')}:
@@ -99,7 +99,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
                             isLoading={isChecking}
                             textColor={textColor}
                         />
-                        <Flex gap="xs">
+                        <Column gap="xs">
                             {previewResult.isMember && (
                                 <Text small color={textColor}>
                                     {t('phrases.you-are-a-member', {
@@ -108,8 +108,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
                                     })}
                                 </Text>
                             )}
-                            <Flex
-                                row
+                            <Row
                                 justify="start"
                                 gap="md"
                                 fullWidth
@@ -131,9 +130,9 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
                                         }
                                     />
                                 ))}
-                            </Flex>
-                        </Flex>
-                    </Flex>
+                            </Row>
+                        </Column>
+                    </Column>
                 ) : null}
             </ChatEventWrapper>
             <JoinFederationOverlay

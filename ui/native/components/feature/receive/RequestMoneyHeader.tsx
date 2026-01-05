@@ -7,7 +7,7 @@ import { StyleSheet } from 'react-native'
 import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
 
 import { NavigationHook, RootStackParamList } from '../../../types/navigation'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
 
@@ -42,7 +42,7 @@ const RequestMoneyHeader: React.FC = () => {
             }
             rightContainerStyle={styles(theme).rightContainer}
             headerRight={
-                <Flex gap="sm" row>
+                <Row gap="sm">
                     <PressableIcon
                         svgName="Scan"
                         onPress={() =>
@@ -59,7 +59,7 @@ const RequestMoneyHeader: React.FC = () => {
                             }
                         />
                     )}
-                </Flex>
+                </Row>
             }
         />
     )

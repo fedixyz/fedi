@@ -17,7 +17,7 @@ import ChatsList from '../components/feature/chat/ChatsList'
 import FirstTimeOverlay, {
     FirstTimeOverlayItem,
 } from '../components/feature/onboarding/FirstTimeOverlay'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { MatrixSyncStatus } from '../types'
 import { RootStackParamList, TabsNavigatorParamList } from '../types/navigation'
@@ -53,24 +53,24 @@ const ChatScreen: React.FC<Props> = () => {
 
     if (syncStatus === MatrixSyncStatus.initialSync) {
         return (
-            <Flex grow center>
+            <Column grow center>
                 <ActivityIndicator size={16} color={theme.colors.primary} />
-            </Flex>
+            </Column>
         )
     }
 
     if (syncStatus === MatrixSyncStatus.stopped) {
         return (
-            <Flex grow center>
+            <Column grow center>
                 <Text style={style.errorText} adjustsFontSizeToFit>
                     {t('errors.chat-connection-unhealthy')}
                 </Text>
-            </Flex>
+            </Column>
         )
     }
 
     return (
-        <Flex grow center>
+        <Column grow center>
             {isChatEmpty ? (
                 <>
                     <Image
@@ -82,11 +82,11 @@ const ChatScreen: React.FC<Props> = () => {
             ) : (
                 <ErrorBoundary
                     fallback={() => (
-                        <Flex grow center>
+                        <Column grow center>
                             <Text style={style.errorText}>
                                 {t('errors.chat-list-render-error')}
                             </Text>
-                        </Flex>
+                        </Column>
                     )}>
                     <ChatsList />
                 </ErrorBoundary>
@@ -98,7 +98,7 @@ const ChatScreen: React.FC<Props> = () => {
                 show={shouldShowFirstTimeModal}
                 onDismiss={completeSeenChat}
             />
-        </Flex>
+        </Column>
     )
 }
 

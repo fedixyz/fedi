@@ -7,7 +7,7 @@ import { StyleSheet } from 'react-native'
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectGuardianFederation } from '@fedi/common/redux'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
@@ -37,7 +37,7 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
     }
 
     return (
-        <Flex grow align="center" justify="start" style={style.container}>
+        <Column grow align="center" justify="start" style={style.container}>
             <Text style={style.instructionsText}>
                 {t('feature.recovery.recovery-assist-description')}
             </Text>
@@ -46,7 +46,7 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
                 title={t('feature.recovery.recovery-assist-process')}
                 body={
                     <>
-                        <Flex fullWidth>
+                        <Column fullWidth>
                             <Text>
                                 {t(
                                     'feature.recovery.recovery-assist-instructions-1',
@@ -77,7 +77,7 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
                                 )}
                             </Text>
                             <LineBreak />
-                        </Flex>
+                        </Column>
                     </>
                 }
             />
@@ -86,7 +86,7 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
                 containerStyle={style.continueButton}
                 onPress={handleContinue}
             />
-        </Flex>
+        </Column>
     )
 }
 

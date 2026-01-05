@@ -5,7 +5,7 @@ import React, { useEffect } from 'react'
 import { selectOnboardingCompleted } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import {
@@ -60,9 +60,9 @@ const Initializing: React.FC<Props> = () => {
     ])
 
     return (
-        <Flex center style={{ width: '100%', height: '100%' }}>
+        <Column center style={{ width: '100%', height: '100%' }}>
             <SvgImage size={SvgImageSize.lg} name="FediLogoIcon" />
-        </Flex>
+        </Column>
     )
 }
 

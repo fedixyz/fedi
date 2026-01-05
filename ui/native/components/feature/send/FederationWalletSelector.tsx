@@ -16,7 +16,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { LoadedFederation, MSats } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 
@@ -59,7 +59,7 @@ const FederationWalletSelector: React.FC<{
     if (federations.length === 0) return null
 
     return (
-        <Flex align="center" fullWidth testID="federation-wallet-selector">
+        <Column align="center" fullWidth testID="federation-wallet-selector">
             <Pressable
                 style={[
                     style.selectedFederation,
@@ -68,7 +68,7 @@ const FederationWalletSelector: React.FC<{
                 onPress={() => setOpened(true)}
                 disabled={readonly}>
                 <FederationLogo federation={paymentFederation} size={32} />
-                <Flex gap="xs" style={style.tileTextContainer}>
+                <Column gap="xs" style={style.tileTextContainer}>
                     <Text caption bold numberOfLines={1}>
                         {paymentFederation?.name || ''}
                     </Text>
@@ -81,7 +81,7 @@ const FederationWalletSelector: React.FC<{
                             {`${primaryAmountToSendFrom} (${secondaryAmountToSendFrom})`}
                         </Text>
                     )}
-                </Flex>
+                </Column>
                 {readonly ? null : (
                     <SvgImage
                         name="ChevronRight"
@@ -116,7 +116,7 @@ const FederationWalletSelector: React.FC<{
                     ),
                 }}
             />
-        </Flex>
+        </Column>
     )
 }
 
@@ -146,14 +146,14 @@ const SelectFederationListItem: React.FC<{
             style={style.tileContainer}
             onPress={() => handleFederationSelected(federation)}>
             <FederationLogo federation={federation} size={32} />
-            <Flex gap="xs" style={style.tileTextContainer}>
+            <Column gap="xs" style={style.tileTextContainer}>
                 <Text bold numberOfLines={1}>
                     {federation.name || ''}
                 </Text>
                 <Text style={{}}>
                     {`${formattedPrimaryAmount} (${formattedSecondaryAmount})`}
                 </Text>
-            </Flex>
+            </Column>
             {isSelected && (
                 <SvgImage
                     name="Check"

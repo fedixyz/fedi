@@ -8,7 +8,7 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { FieldInput } from '../components/ui/FieldInput'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
@@ -93,21 +93,21 @@ const CreatePoll: React.FC<Props> = ({
                 value={question}
                 onChangeText={setQuestion}
             />
-            <Flex gap="sm">
+            <Column gap="sm">
                 <Text small style={style.optionsLabel}>
                     {t('words.options')}
                 </Text>
-                <Flex gap="sm">
+                <Column gap="sm">
                     {options.map(option => (
-                        <Flex row align="center" gap="sm" key={option.id}>
-                            <Flex grow>
+                        <Row align="center" gap="sm" key={option.id}>
+                            <Column grow>
                                 <FieldInput
                                     value={option.text}
                                     onChangeText={text =>
                                         handleOptionChange(option, text)
                                     }
                                 />
-                            </Flex>
+                            </Column>
                             <PressableIcon
                                 svgName="Trash"
                                 onPress={() => {
@@ -116,44 +116,43 @@ const CreatePoll: React.FC<Props> = ({
                                 containerStyle={style.deleteOptionIcon}
                                 disabled={options.length < 3}
                             />
-                        </Flex>
+                        </Row>
                     ))}
-                </Flex>
-                <Flex row>
+                </Column>
+                <Row>
                     <Pressable onPress={handleAddOption}>
-                        <Flex
-                            row
+                        <Row
                             align="center"
                             gap="sm"
                             style={style.addOptionButton}>
                             <Text>{t('words.add')}</Text>
                             <SvgImage name="PlusCircle" />
-                        </Flex>
+                        </Row>
                     </Pressable>
-                </Flex>
-            </Flex>
-            <Flex gap="lg">
-                <Flex row align="center" justify="between" gap="sm">
-                    <Flex row align="center" gap="sm">
+                </Row>
+            </Column>
+            <Column gap="lg">
+                <Row align="center" justify="between" gap="sm">
+                    <Row align="center" gap="sm">
                         <SvgImage name="List" />
                         <Text>{t('feature.chat.multiple-choice')}</Text>
-                    </Flex>
+                    </Row>
                     <Switch
                         value={isMultipleChoice}
                         onValueChange={setIsMultipleChoice}
                     />
-                </Flex>
-                <Flex row align="center" justify="between" gap="sm">
-                    <Flex row align="center" gap="sm">
+                </Row>
+                <Row align="center" justify="between" gap="sm">
+                    <Row align="center" gap="sm">
                         <SvgImage name="Bolt" />
                         <Text>{t('feature.chat.show-live-results')}</Text>
-                    </Flex>
+                    </Row>
                     <Switch
                         value={isDisclosed}
                         onValueChange={setIsDisclosed}
                     />
-                </Flex>
-            </Flex>
+                </Row>
+            </Column>
             <Button
                 title={t('feature.chat.create-poll')}
                 onPress={handleCreatePoll}

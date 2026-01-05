@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
-import Flex from '../components/ui/Flex'
+import { Row } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { resetToWallets } from '../state/navigation'
@@ -28,7 +28,7 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
         <SafeAreaView
             style={style.container}
             edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
-            <Flex row align="center" gap="sm">
+            <Row align="center" gap="sm">
                 <CurrencyAvatar />
                 <SvgImage name="ArrowRight" color={theme.colors.primaryLight} />
                 <SvgImage
@@ -36,7 +36,7 @@ const StabilityWithdrawInitiated: React.FC<Props> = ({ route, navigation }) => {
                     size={SvgImageSize.md}
                     color={theme.colors.orange}
                 />
-            </Flex>
+            </Row>
             <View style={style.holoCircleContainer}>
                 <HoloCircle
                     content={

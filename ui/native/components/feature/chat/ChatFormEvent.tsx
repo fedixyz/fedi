@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native'
 import { ChatEventAction, useMatrixFormEvent } from '@fedi/common/hooks/matrix'
 import { MatrixEvent } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import { bubbleGradient } from './ChatEvent'
 
@@ -19,12 +19,7 @@ export const ActionEventButton = ({ action }: { action: ChatEventAction }) => {
     const style = styles(theme)
 
     return (
-        <Flex
-            row
-            justify="start"
-            gap="md"
-            fullWidth
-            style={style.actionButtons}>
+        <Row justify="start" gap="md" fullWidth style={style.actionButtons}>
             <Button
                 key={action.label}
                 color={theme.colors.secondary}
@@ -38,7 +33,7 @@ export const ActionEventButton = ({ action }: { action: ChatEventAction }) => {
                     </Text>
                 }
             />
-        </Flex>
+        </Row>
     )
 }
 
@@ -48,14 +43,14 @@ export const Options = ({ options }: { options: ChatEventAction[] }) => {
     const style = styles(theme)
 
     return (
-        <Flex
+        <Column
             justify="start"
             align="start"
             gap="md"
             fullWidth
             style={style.actionButtons}>
             {options.map(option => (
-                <Flex row gap="md" align="center" justify="between">
+                <Row gap="md" align="center" justify="between">
                     <Text medium caption style={style.optionText}>
                         {option.label}
                     </Text>
@@ -72,9 +67,9 @@ export const Options = ({ options }: { options: ChatEventAction[] }) => {
                             </Text>
                         }
                     />
-                </Flex>
+                </Row>
             ))}
-        </Flex>
+        </Column>
     )
 }
 

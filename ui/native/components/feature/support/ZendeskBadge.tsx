@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native'
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 
 const ZendeskBadge: React.FC<{ title: string }> = ({ title }) => {
     const { theme } = useTheme()
@@ -18,9 +18,9 @@ const ZendeskBadge: React.FC<{ title: string }> = ({ title }) => {
     }
 
     return (
-        <Flex center style={style.badge}>
+        <Column center style={style.badge}>
             <Text style={style.badgeText}>{unreadCount}</Text>
-        </Flex>
+        </Column>
     )
 }
 

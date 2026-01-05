@@ -27,7 +27,7 @@ import { selectModsVisibility } from '@fedi/common/redux/mod'
 
 import { useAppSelector } from '../../../state/hooks'
 import { FediMod } from '../../../types'
-import Flex, { Column } from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import ShortcutTile from '../home/ShortcutTile'
 import ZendeskBadge from '../support/ZendeskBadge'
 
@@ -425,11 +425,11 @@ const SortableMiniAppsGrid = (props: SortableMiniAppsGridProps) => {
     return (
         <Column style={style.container}>
             {isRearranging && (
-                <Flex center style={style.rearrangeHeader}>
+                <Column center style={style.rearrangeHeader}>
                     <Text style={style.rearrangeHeaderText}>
                         Hold and drag to rearrange
                     </Text>
-                </Flex>
+                </Column>
             )}
 
             <ScrollView

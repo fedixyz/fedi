@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import SelectRecoveryFileButton from '../components/feature/recovery/SelectRecoveryFileButton'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage from '../components/ui/SvgImage'
@@ -21,7 +21,7 @@ const LocateSocialRecovery: React.FC<Props> = () => {
     const { theme } = useTheme()
 
     return (
-        <Flex
+        <Column
             grow
             align="center"
             justify="start"
@@ -34,7 +34,7 @@ const LocateSocialRecovery: React.FC<Props> = () => {
                 title={t('feature.recovery.locate-social-recovery-file')}
                 body={
                     <>
-                        <Flex fullWidth>
+                        <Column fullWidth>
                             <Text>
                                 {t(
                                     'feature.recovery.locate-social-recovery-instructions-1',
@@ -72,12 +72,12 @@ const LocateSocialRecovery: React.FC<Props> = () => {
                             </Text>
                             <Text bold>backup.fedi</Text>
                             <LineBreak />
-                        </Flex>
+                        </Column>
                         <SelectRecoveryFileButton />
                     </>
                 }
             />
-        </Flex>
+        </Column>
     )
 }
 

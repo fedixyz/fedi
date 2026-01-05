@@ -10,7 +10,7 @@ import { AnalyticsVoteMethod } from '@fedi/common/types/analytics'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
 import SvgImage from '../../ui/SvgImage'
 
@@ -33,7 +33,7 @@ const AnalyticsConsentOverlay: React.FC = () => {
             show={show}
             onBackdropPress={() => handleConsent(false, 'modal-dismiss')}
             showCloseButton>
-            <Flex gap="lg" align="center" fullWidth>
+            <Column gap="lg" align="center" fullWidth>
                 <HoloCircle
                     size={64}
                     content={<SvgImage name="Bulb" size={48} />}
@@ -44,7 +44,7 @@ const AnalyticsConsentOverlay: React.FC = () => {
                 <Text center color={theme.colors.darkGrey}>
                     {t('feature.support.analytics-consent-description')}
                 </Text>
-                <Flex gap="sm" fullWidth align="center">
+                <Column gap="sm" fullWidth align="center">
                     <Button
                         onPress={() => handleConsent(true, 'modal-accept')}
                         fullWidth>
@@ -56,8 +56,8 @@ const AnalyticsConsentOverlay: React.FC = () => {
                         text>
                         {t('phrases.not-now')}
                     </Button>
-                </Flex>
-            </Flex>
+                </Column>
+            </Column>
         </CenterOverlay>
     )
 }

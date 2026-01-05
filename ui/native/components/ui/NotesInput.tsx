@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
 import EditNotesOverlay from '../feature/send/EditNotesOverlay'
-import Flex from './Flex'
+import { Row, Column } from './Flex'
 import SvgImage, { SvgImageSize } from './SvgImage'
 
 type NotesInputProps = {
@@ -37,29 +37,29 @@ export default function NotesInput({
     return (
         <>
             <Pressable style={style.container} onPress={handlePressEdit}>
-                <Flex
+                <Column
                     align="stretch"
                     justify="center"
                     gap="xs"
                     fullWidth
                     style={style.content}>
-                    <Flex row grow align="center" justify="between">
+                    <Row grow align="center" justify="between">
                         <Text small bold color={theme.colors.night}>
                             {label ?? t('words.notes')}
                         </Text>
-                        <Flex row align="center" gap="xs">
+                        <Row align="center" gap="xs">
                             <SvgImage name="EditPaper" size={SvgImageSize.sm} />
                             <Text small>
                                 {notes ? t('words.edit') : t('words.add')}
                             </Text>
-                        </Flex>
-                    </Flex>
+                        </Row>
+                    </Row>
                     {notes && (
                         <Text small color={theme.colors.darkGrey}>
                             {notes}
                         </Text>
                     )}
-                </Flex>
+                </Column>
             </Pressable>
             <EditNotesOverlay
                 show={isEditing}

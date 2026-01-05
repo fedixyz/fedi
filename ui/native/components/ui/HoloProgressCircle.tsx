@@ -4,7 +4,7 @@ import { ImageBackground, StyleSheet, View } from 'react-native'
 import * as Progress from 'react-native-progress'
 
 import { Images } from '../../assets/images'
-import Flex from './Flex'
+import { Column } from './Flex'
 
 export type Props = {
     percentComplete: number
@@ -16,7 +16,7 @@ const HoloProgressCircle: React.FC<Props> = ({ percentComplete }: Props) => {
     const style = styles(theme)
 
     return (
-        <Flex center style={style.container}>
+        <Column center style={style.container}>
             {/*
                 Since we cannot provide a color gradient to the Progress.Circle
                 component, we work around this:
@@ -54,7 +54,7 @@ const HoloProgressCircle: React.FC<Props> = ({ percentComplete }: Props) => {
             <View style={style.percentLabelContainer}>
                 <Text medium>{`${percentComplete}%`}</Text>
             </View>
-        </Flex>
+        </Column>
     )
 }
 

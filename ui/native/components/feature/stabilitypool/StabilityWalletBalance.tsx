@@ -7,7 +7,7 @@ import { selectStableBalancePending } from '@fedi/common/redux/wallet'
 import { Federation } from '@fedi/common/types'
 
 import { useAppSelector, useStabilityPool } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 
 type Props = {
     federationId: Federation['id']
@@ -29,8 +29,8 @@ const Balance: React.FC<Props> = ({ federationId }) => {
     const style = styles(theme)
 
     return (
-        <Flex row align="center" gap="lg">
-            <Flex gap="xxs">
+        <Row align="center" gap="lg">
+            <Column gap="xxs">
                 <Text
                     medium
                     style={style.balanceText}
@@ -49,8 +49,8 @@ const Balance: React.FC<Props> = ({ federationId }) => {
                         })}
                     </Text>
                 )}
-            </Flex>
-        </Flex>
+            </Column>
+        </Row>
     )
 }
 

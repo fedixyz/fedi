@@ -11,7 +11,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppSelector } from '../../../state/hooks'
 import { BitcoinOrLightning, BtcLnUri, Federation } from '../../../types'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import NotesInput from '../../ui/NotesInput'
 import QRCode from '../../ui/QRCode'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -74,24 +74,24 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
     const style = styles(theme)
 
     return (
-        <Flex grow justify="between" gap="xl">
-            <Flex grow center gap="lg" style={style.content}>
+        <Column grow justify="between" gap="xl">
+            <Column grow center gap="lg" style={style.content}>
                 {title ? <>{title}</> : null}
                 <Card containerStyle={style.qrCard}>
                     {uri.fullString && (
-                        <Flex center>
+                        <Column center>
                             <QRCode
                                 value={uri.fullString}
                                 size={QR_CODE_SIZE}
                             />
-                        </Flex>
+                        </Column>
                     )}
 
-                    <Flex align="center" style={style.uriContainer}>
+                    <Column align="center" style={style.uriContainer}>
                         <Text style={style.uri} numberOfLines={1} small>
                             {stringUtils.truncateMiddleOfString(uri.body, 6)}
                         </Text>
-                    </Flex>
+                    </Column>
                 </Card>
                 {type === BitcoinOrLightning.bitcoin && (
                     <NotesInput
@@ -103,14 +103,14 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
                 {type === BitcoinOrLightning.bitcoin && federationId && (
                     <OnchainDepositInfo federationId={federationId} />
                 )}
-            </Flex>
+            </Column>
             <View>
                 {type === BitcoinOrLightning.lnurl && federation && (
                     <View style={style.detailItem}>
                         <Text caption bold color={theme.colors.night}>{`${t(
                             'feature.receive.receive-to',
                         )}`}</Text>
-                        <Flex row align="center" gap="xs">
+                        <Row align="center" gap="xs">
                             <FederationLogo federation={federation} size={24} />
 
                             <Text
@@ -120,10 +120,10 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
                                 color={theme.colors.night}>
                                 {federation?.name || ''}
                             </Text>
-                        </Flex>
+                        </Row>
                     </View>
                 )}
-                <Flex row justify="between" fullWidth>
+                <Row justify="between" fullWidth>
                     <Button
                         title={t('words.share')}
                         onPress={openShareDialog}
@@ -134,9 +134,9 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
                         onPress={copyToClipboard}
                         containerStyle={style.button}
                     />
-                </Flex>
+                </Row>
             </View>
-        </Flex>
+        </Column>
     )
 }
 

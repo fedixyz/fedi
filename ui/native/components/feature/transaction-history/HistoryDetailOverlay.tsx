@@ -10,7 +10,7 @@ import { Federation } from '@fedi/common/types'
 import { useToastScope } from '../../../state/contexts/ToastScopeContext'
 import { useLaunchZendesk } from '../../../utils/hooks/support'
 import CenterOverlay from '../../ui/CenterOverlay'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import OverlayToast from '../../ui/OverlayToast'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FeeBreakdown } from '../send/FeeBreakdown'
@@ -92,7 +92,7 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
             topLayer={<OverlayToast />}>
             <ErrorBoundary
                 fallback={
-                    <Flex center style={style.overlayErrorContainer}>
+                    <Column center style={style.overlayErrorContainer}>
                         <SvgImage
                             name="Error"
                             color={theme.colors.red}
@@ -101,7 +101,7 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
                         <Text style={style.overlayErrorText}>
                             {t('errors.history-render-error')}
                         </Text>
-                    </Flex>
+                    </Column>
                 }>
                 {content}
             </ErrorBoundary>
@@ -109,7 +109,7 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
                 <Button
                     fullWidth
                     title={
-                        <Flex row gap="sm" align="center">
+                        <Row gap="sm" align="center">
                             <SvgImage
                                 name="SmileMessage"
                                 color={theme.colors.white}
@@ -118,7 +118,7 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
                             <Text style={style.askFediText}>
                                 {t('feature.support.title')}
                             </Text>
-                        </Flex>
+                        </Row>
                     }
                     onPress={() => {
                         itemDetails.onClose()

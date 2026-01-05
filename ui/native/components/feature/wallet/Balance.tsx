@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { Federation } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 
 type Props = {
     federationId: Federation['id']
@@ -19,16 +19,16 @@ const Balance: React.FC<Props> = ({ federationId }) => {
     const style = styles(theme)
 
     return (
-        <Flex row align="center" gap="lg">
-            <Flex gap="xxs">
+        <Row align="center" gap="lg">
+            <Column gap="xxs">
                 <Text medium style={[style.balanceText]}>
                     {`${formattedBalanceFiat}`}
                 </Text>
                 <Text small style={style.balanceText}>
                     {`${formattedBalanceSats}`}
                 </Text>
-            </Flex>
-        </Flex>
+            </Column>
+        </Row>
     )
 }
 

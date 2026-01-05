@@ -7,7 +7,7 @@ import {
 } from 'react-native'
 
 import * as Svgs from '../../../assets/images/svgs'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 export type SettingsItemProps = {
@@ -50,7 +50,7 @@ const SettingsItem = ({
             ]}
             onPress={disabled ? undefined : onPress}>
             <>
-                <Flex row grow align="center" gap="sm" basis={false}>
+                <Row grow align="center" gap="sm" basis={false}>
                     <SvgImage
                         color={color || theme.colors.primary}
                         dimensions={{ width: 24, height: 24 }}
@@ -65,7 +65,7 @@ const SettingsItem = ({
                         {label}
                     </Text>
                     {adornment ? <>{adornment}</> : null}
-                </Flex>
+                </Row>
                 {isLoading ? (
                     <ActivityIndicator size={theme.sizes.sm} />
                 ) : (

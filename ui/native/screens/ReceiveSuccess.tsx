@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeReceiveSuccessMessage } from '@fedi/common/utils/wallet'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import Success from '../components/ui/Success'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -21,7 +21,7 @@ const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
     return (
         <Success
             message={
-                <Flex align="center" gap="sm">
+                <Column align="center" gap="sm">
                     <Text center h2>
                         {message}
                     </Text>
@@ -31,7 +31,7 @@ const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
                             amountUtils.msatToSat(tx.amount),
                         )} ${t('words.sats').toUpperCase()}`}
                     </Text>
-                </Flex>
+                </Column>
             }
             buttonText={t('words.done')}
             nextScreenProps={{ initialRouteName: 'Federations' }}

@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native'
 
 import { hexToRgba } from '@fedi/common/utils/color'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import { Pressable } from '../components/ui/Pressable'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -25,32 +25,32 @@ const RecoveryWalletOptions: React.FC<Props> = ({ navigation }: Props) => {
 
     return (
         <View style={style.container}>
-            <Flex align="center" gap="lg">
+            <Column align="center" gap="lg">
                 <HoloCircle content={<Text>{'🔒'}</Text>} size={64} />
                 <Text h2 medium>
                     {t('feature.recovery.choose-wallet-option')}
                 </Text>
-            </Flex>
-            <Flex align="center" gap="lg" fullWidth>
+            </Column>
+            <Column align="center" gap="lg" fullWidth>
                 <Pressable
                     containerStyle={style.actionCardContainer}
                     onPress={() =>
                         navigation.navigate('RecoveryWalletTransfer')
                     }>
-                    <Flex center style={style.roundIconContainer}>
+                    <Column center style={style.roundIconContainer}>
                         <SvgImage
                             name="ArrowLoopRight"
                             size={SvgImageSize.sm}
                         />
-                    </Flex>
-                    <Flex align="start" gap="xxs">
+                    </Column>
+                    <Column align="start" gap="xxs">
                         <Text medium>
                             {t('feature.recovery.transfer-existing-wallet')}
                         </Text>
                         <Text small style={{ color: theme.colors.darkGrey }}>
                             {t('feature.recovery.from-different-device')}
                         </Text>
-                    </Flex>
+                    </Column>
                     <View style={style.arrowContainer}>
                         <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
                     </View>
@@ -61,22 +61,22 @@ const RecoveryWalletOptions: React.FC<Props> = ({ navigation }: Props) => {
                     // TODO: reenable once we've figured out a clear
                     // way to communicate this
                     disabled>
-                    <Flex center style={style.roundIconContainer}>
+                    <Column center style={style.roundIconContainer}>
                         <SvgImage name="Wallet" size={SvgImageSize.sm} />
-                    </Flex>
-                    <Flex align="start" gap="xxs">
+                    </Column>
+                    <Column align="start" gap="xxs">
                         <Text medium>
                             {t('feature.recovery.create-new-wallet')}
                         </Text>
                         <Text small style={{ color: theme.colors.darkGrey }}>
                             {t('feature.recovery.fresh-wallet')}
                         </Text>
-                    </Flex>
+                    </Column>
                     <View style={style.arrowContainer}>
                         <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
                     </View>
                 </Pressable>
-            </Flex>
+            </Column>
         </View>
     )
 }

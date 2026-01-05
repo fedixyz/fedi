@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
 import CustomOverlay from './CustomOverlay'
-import Flex from './Flex'
+import { Column } from './Flex'
 import SvgImage from './SvgImage'
 
 type Props = {
@@ -36,7 +36,7 @@ const OverlaySelect: React.FC<Props> = ({ value, options, onValueChange }) => {
                 onBackdropPress={() => setIsOpen(false)}
                 contents={{
                     body: (
-                        <Flex style={style.options}>
+                        <Column style={style.options}>
                             {options.map(option => (
                                 <Pressable
                                     key={option.value}
@@ -51,7 +51,7 @@ const OverlaySelect: React.FC<Props> = ({ value, options, onValueChange }) => {
                                     )}
                                 </Pressable>
                             ))}
-                        </Flex>
+                        </Column>
                     ),
                 }}
             />

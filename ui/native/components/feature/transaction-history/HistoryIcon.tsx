@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native'
 
 import { TransactionStatusBadge } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 export interface HistoryIconProps {
@@ -37,7 +37,7 @@ export const HistoryIcon: React.FC<HistoryIconProps> = ({
     const style = styles()
 
     return (
-        <Flex shrink={false}>
+        <Column shrink={false}>
             {children}
             {badgeSvgName && (
                 <SvgImage
@@ -47,7 +47,7 @@ export const HistoryIcon: React.FC<HistoryIconProps> = ({
                     containerStyle={style.badge}
                 />
             )}
-        </Flex>
+        </Column>
     )
 }
 

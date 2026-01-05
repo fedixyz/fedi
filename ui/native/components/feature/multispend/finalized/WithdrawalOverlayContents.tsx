@@ -11,7 +11,7 @@ import { useAppSelector } from '../../../../state/hooks'
 import { MatrixRoomMember, MultispendWithdrawalEvent } from '../../../../types'
 import { AvatarSize } from '../../../ui/Avatar'
 import AvatarStack from '../../../ui/AvatarStack'
-import Flex from '../../../ui/Flex'
+import { Row, Column } from '../../../ui/Flex'
 import SvgImage from '../../../ui/SvgImage'
 import ChatAvatar from '../../chat/ChatAvatar'
 
@@ -40,7 +40,7 @@ const WithdrawalOverlayContents: React.FC<{
     const style = styles(theme)
 
     return (
-        <Flex grow gap="md" style={style.container}>
+        <Column grow gap="md" style={style.container}>
             <Text>
                 <Trans
                     i18nKey="feature.multispend.user-wants-to-withdraw"
@@ -67,7 +67,7 @@ const WithdrawalOverlayContents: React.FC<{
                 status="reject"
             />
             {(haveIVoted || !canVoteOnWithdrawals) && (
-                <Flex align="center" style={style.votedContainer}>
+                <Column align="center" style={style.votedContainer}>
                     <Text style={style.votedText}>
                         {t(
                             haveIVoted
@@ -75,9 +75,9 @@ const WithdrawalOverlayContents: React.FC<{
                                 : 'feature.multispend.no-permission-to-vote',
                         )}
                     </Text>
-                </Flex>
+                </Column>
             )}
-        </Flex>
+        </Column>
     )
 }
 
@@ -116,7 +116,7 @@ function VoterDropdown({
                         },
                     )}
                 </Text>
-                <Flex row align="center" gap="sm">
+                <Row align="center" gap="sm">
                     <AvatarStack
                         data={members}
                         renderAvatar={member => (
@@ -134,17 +134,17 @@ function VoterDropdown({
                         size={16}
                         color={theme.colors.grey}
                     />
-                </Flex>
+                </Row>
             </Pressable>
             {open && (
-                <Flex gap="sm" style={style.dropdownContent}>
+                <Column gap="sm" style={style.dropdownContent}>
                     {members.map((member, i) => (
                         <ThinAvatarRow
                             key={`multispend-voter-dropdown-${status}-${i}`}
                             member={member}
                         />
                     ))}
-                </Flex>
+                </Column>
             )}
         </View>
     )
@@ -154,7 +154,7 @@ function ThinAvatarRow({ member }: { member: MatrixRoomMember }) {
     const { theme } = useTheme()
 
     return (
-        <Flex row align="center" gap="sm">
+        <Row align="center" gap="sm">
             <ChatAvatar user={member} size={AvatarSize.sm} />
             <Text caption medium numberOfLines={1}>
                 {member.displayName}{' '}
@@ -162,7 +162,7 @@ function ThinAvatarRow({ member }: { member: MatrixRoomMember }) {
                     {getUserSuffix(member.id)}
                 </Text>
             </Text>
-        </Flex>
+        </Row>
     )
 }
 

@@ -3,7 +3,7 @@ import { ResourceKey } from 'i18next'
 import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import Flex from './Flex'
+import { Row, Column } from './Flex'
 
 const CheckList: React.FC<{ items: Array<ResourceKey> }> = ({ items }) => {
     const { theme } = useTheme()
@@ -11,9 +11,9 @@ const CheckList: React.FC<{ items: Array<ResourceKey> }> = ({ items }) => {
     const style = styles(theme)
 
     return (
-        <Flex gap="lg">
+        <Column gap="lg">
             {items.map((listItem, i) => (
-                <Flex row align="start" gap="sm" key={`list-item-${i}`}>
+                <Row align="start" gap="sm" key={`list-item-${i}`}>
                     <Text caption>✅</Text>
                     <Text caption style={style.listItemText}>
                         <Trans
@@ -22,9 +22,9 @@ const CheckList: React.FC<{ items: Array<ResourceKey> }> = ({ items }) => {
                             components={{ bold: <Text bold caption /> }}
                         />
                     </Text>
-                </Flex>
+                </Row>
             ))}
-        </Flex>
+        </Column>
     )
 }
 

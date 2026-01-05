@@ -7,7 +7,7 @@ import { MatrixRoomMember } from '@fedi/common/types'
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 
 interface ConfirmBlockOverlayProps {
     show: boolean
@@ -38,7 +38,7 @@ export const ConfirmBlockOverlay: React.FC<ConfirmBlockOverlayProps> = ({
             loading={confirming}
             contents={{
                 body: (
-                    <Flex align="center" gap="sm">
+                    <Column align="center" gap="sm">
                         <Text
                             medium
                             numberOfLines={2}
@@ -62,7 +62,7 @@ export const ConfirmBlockOverlay: React.FC<ConfirmBlockOverlayProps> = ({
                                 })}
                             </Text>
                         )}
-                    </Flex>
+                    </Column>
                 ),
                 icon: 'AlertWarningTriangle',
                 buttons: [

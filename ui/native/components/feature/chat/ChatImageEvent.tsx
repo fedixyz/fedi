@@ -19,7 +19,7 @@ import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useDownloadResource } from '../../../utils/hooks/media'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type ChatImageEventProps = {
@@ -85,12 +85,12 @@ const ChatImageEvent: React.FC<ChatImageEventProps> = ({
     if (isError)
         return (
             <View style={imageBaseStyle}>
-                <Flex align="center">
+                <Column align="center">
                     <SvgImage name="ImageOff" color={theme.colors.grey} />
                     <Text caption color={theme.colors.darkGrey}>
                         {t('errors.failed-to-load-image')}
                     </Text>
-                </Flex>
+                </Column>
             </View>
         )
 

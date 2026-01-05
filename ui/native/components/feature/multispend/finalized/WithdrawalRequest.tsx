@@ -15,7 +15,7 @@ import {
 import { useAppSelector } from '../../../../state/hooks'
 import { MultispendWithdrawalEvent } from '../../../../types'
 import { AvatarSize } from '../../../ui/Avatar'
-import Flex from '../../../ui/Flex'
+import { Row, Column } from '../../../ui/Flex'
 import SvgImage from '../../../ui/SvgImage'
 import ChatAvatar from '../../chat/ChatAvatar'
 
@@ -83,9 +83,9 @@ const WithdrawalRequest: React.FC<{
 
             <ChatAvatar user={sender} size={AvatarSize.md} />
 
-            <Flex grow gap="sm">
-                <Flex row align="center" justify="between" gap="sm">
-                    <Flex row align="center">
+            <Column grow gap="sm">
+                <Row align="center" justify="between" gap="sm">
+                    <Row align="center">
                         <Text
                             medium
                             numberOfLines={1}
@@ -96,18 +96,18 @@ const WithdrawalRequest: React.FC<{
                             {' '}
                             {getUserSuffix(sender.id)}
                         </Text>
-                    </Flex>
+                    </Row>
 
-                    <Flex row gap="xs" align="center" shrink={false}>
+                    <Row gap="xs" align="center" shrink={false}>
                         <Text medium>{formattedFiatAmount}</Text>
                         <Text bold small>
                             {selectedFiatCurrency}
                         </Text>
-                    </Flex>
-                </Flex>
+                    </Row>
+                </Row>
 
-                <Flex row align="center" justify="between" gap="sm">
-                    <Flex row align="center" gap="sm">
+                <Row align="center" justify="between" gap="sm">
+                    <Row align="center" gap="sm">
                         <View
                             style={[
                                 style.badge,
@@ -119,21 +119,21 @@ const WithdrawalRequest: React.FC<{
                                 {badge.text}
                             </Text>
                         </View>
-                        <Flex row align="center" gap="xs">
+                        <Row align="center" gap="xs">
                             <Text small>✅</Text>
                             <Text bold>{approvalCount}</Text>
-                        </Flex>
-                        <Flex row align="center" gap="xs">
+                        </Row>
+                        <Row align="center" gap="xs">
                             <Text small>❌</Text>
                             <Text bold>{rejectionCount}</Text>
-                        </Flex>
-                    </Flex>
+                        </Row>
+                    </Row>
 
                     <Text caption color={theme.colors.grey}>
                         {dateUtils.formatChatTileTimestamp(event.time / 1000)}
                     </Text>
-                </Flex>
-            </Flex>
+                </Row>
+            </Column>
 
             <SvgImage name="ChevronRight" size={16} color={theme.colors.grey} />
         </Pressable>

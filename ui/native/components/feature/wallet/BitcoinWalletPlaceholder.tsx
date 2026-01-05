@@ -10,7 +10,7 @@ import { MSats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { BubbleCard } from '../../ui/BubbleView'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const BitcoinWalletPlaceholder: React.FC = () => {
@@ -33,32 +33,32 @@ const BitcoinWalletPlaceholder: React.FC = () => {
                     'rgba(255, 255, 255, 0.0)',
                 ]}
                 containerStyle={[stylesPlaceholder.card, { height: 99 }]}>
-                <Flex style={stylesPlaceholder.headerContainer}>
-                    <Flex style={stylesPlaceholder.leftGroup}>
-                        <Flex style={stylesPlaceholder.titleContainer}>
+                <Column style={stylesPlaceholder.headerContainer}>
+                    <Column style={stylesPlaceholder.leftGroup}>
+                        <Column style={stylesPlaceholder.titleContainer}>
                             <SvgImage
                                 name="BitcoinCircle"
                                 size={SvgImageSize.md}
                                 color={theme.colors.white}
                             />
-                            <Flex>
-                                <Flex style={stylesPlaceholder.row}>
+                            <Column>
+                                <Column style={stylesPlaceholder.row}>
                                     <Text
                                         allowFontScaling={false}
                                         bold
                                         style={stylesPlaceholder.title}>
                                         {t('words.bitcoin')}
                                     </Text>
-                                </Flex>
-                            </Flex>
-                        </Flex>
+                                </Column>
+                            </Column>
+                        </Column>
                         <SvgImage
                             name="ChevronRightSmall"
                             color={theme.colors.secondary}
                             dimensions={{ width: 6, height: 12 }}
                         />
-                    </Flex>
-                    <Flex style={stylesPlaceholder.balanceContainer}>
+                    </Column>
+                    <Column style={stylesPlaceholder.balanceContainer}>
                         <Text
                             allowFontScaling={false}
                             medium
@@ -73,9 +73,9 @@ const BitcoinWalletPlaceholder: React.FC = () => {
                             style={stylesPlaceholder.balanceTextSats}>
                             {formattedSecondaryAmount}
                         </Text>
-                    </Flex>
-                </Flex>
-                <Flex style={stylesPlaceholder.buttonsContainer}>
+                    </Column>
+                </Column>
+                <Column style={stylesPlaceholder.buttonsContainer}>
                     <Text
                         allowFontScaling={false}
                         numberOfLines={1}
@@ -83,7 +83,7 @@ const BitcoinWalletPlaceholder: React.FC = () => {
                         style={stylesPlaceholder.buttonLabel}>
                         {t('feature.wallet.join-federation')}
                     </Text>
-                </Flex>
+                </Column>
             </BubbleCard>
         </Pressable>
     )

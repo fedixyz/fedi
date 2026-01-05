@@ -27,7 +27,7 @@ import { MSats, ParserDataType } from '../../../types'
 import AmountInput from '../../ui/AmountInput'
 import AmountInputDisplay from '../../ui/AmountInputDisplay'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import LineBreak from '../../ui/LineBreak'
 import SvgImage from '../../ui/SvgImage'
 import FederationWalletSelector from '../send/FederationWalletSelector'
@@ -186,7 +186,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                     fediMod: siteInfo?.title,
                 }),
                 body: (
-                    <Flex
+                    <Column
                         grow
                         align="center"
                         gap="lg"
@@ -217,7 +217,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                     />
                                 ) : null}
                                 {formattedTotalFee !== '' && (
-                                    <Flex fullWidth>
+                                    <Column fullWidth>
                                         <SendPreviewDetails
                                             onPressFees={() =>
                                                 setShowFeeBreakdown(true)
@@ -230,7 +230,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                             )}
                                             isLoading={isLoading}
                                         />
-                                    </Flex>
+                                    </Column>
                                 )}
                                 <FeeOverlay
                                     show={showFeeBreakdown}
@@ -256,7 +256,7 @@ export const SendPaymentOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                 />
                             </>
                         )}
-                    </Flex>
+                    </Column>
                 ),
                 buttons: [
                     {

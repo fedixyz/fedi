@@ -3,7 +3,7 @@ import React, { useMemo } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { Asset } from 'react-native-image-picker'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 interface Props {
@@ -35,7 +35,7 @@ export const AssetsList: React.FC<Props> = ({ assets, setAttachments }) => {
     )
 
     return (
-        <Flex row gap="lg" wrap>
+        <Row gap="lg" wrap>
             {attachmentListItems.map((asset, i) => (
                 <View key={`asset-item-${i}`} style={style.asset}>
                     {asset.type?.startsWith('image') ? (
@@ -49,13 +49,13 @@ export const AssetsList: React.FC<Props> = ({ assets, setAttachments }) => {
                             resizeMode="cover"
                         />
                     ) : asset.type?.startsWith('video') ? (
-                        <Flex center style={style.preview}>
+                        <Column center style={style.preview}>
                             <SvgImage name="Video" />
-                        </Flex>
+                        </Column>
                     ) : (
-                        <Flex center style={style.preview}>
+                        <Column center style={style.preview}>
                             <SvgImage name="File" />
-                        </Flex>
+                        </Column>
                     )}
                     <Pressable
                         style={style.removeButton}
@@ -70,7 +70,7 @@ export const AssetsList: React.FC<Props> = ({ assets, setAttachments }) => {
                     </Pressable>
                 </View>
             ))}
-        </Flex>
+        </Row>
     )
 }
 

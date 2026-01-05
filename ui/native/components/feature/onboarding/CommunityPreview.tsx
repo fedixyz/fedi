@@ -19,7 +19,7 @@ import {
     shouldShowJoinFederation,
 } from '@fedi/common/utils/FederationUtils'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import RotatingSvg from '../../ui/RotatingSvg'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import { SvgImageSize } from '../../ui/SvgImage'
@@ -68,13 +68,13 @@ const CommunityPreview: React.FC<Props> = ({
 
     if (isJoining) {
         return (
-            <Flex grow center style={s.loadingContainer}>
+            <Column grow center style={s.loadingContainer}>
                 <RotatingSvg
                     name="FediLogoIcon"
                     size={SvgImageSize.md}
                     containerStyle={s.loadingIcon}
                 />
-            </Flex>
+            </Column>
         )
     }
 
@@ -115,19 +115,19 @@ const CommunityPreview: React.FC<Props> = ({
 
     return (
         <SafeAreaContainer edges="notop" style={s.joinPreviewContainer}>
-            <Flex grow shrink style={s.federationInfoContainer}>
+            <Column grow shrink style={s.federationInfoContainer}>
                 {showTopShadow && (
                     <View style={[s.scrollInsetShadow, s.scrollTopShadow]} />
                 )}
                 <ScrollView
                     contentContainerStyle={s.federationInfoScrollView}
                     onScroll={handleScroll}>
-                    <Flex center>
+                    <Column center>
                         <FederationLogo federation={community} size={96} />
                         <Text h2 medium style={s.welcome}>
                             {welcomeTitle}
                         </Text>
-                    </Flex>
+                    </Column>
 
                     <View style={s.roundedCardContainer}>
                         <Text caption style={s.welcomeText}>
@@ -149,9 +149,9 @@ const CommunityPreview: React.FC<Props> = ({
                 {showBottomShadow && (
                     <View style={[s.scrollInsetShadow, s.scrollBottomShadow]} />
                 )}
-            </Flex>
+            </Column>
 
-            <Flex shrink={false}>
+            <Column shrink={false}>
                 {showJoinFederation && joinButtons}
 
                 {showJoinFederation && tosUrl && (
@@ -175,7 +175,7 @@ const CommunityPreview: React.FC<Props> = ({
                         </Text>
                     </View>
                 )}
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

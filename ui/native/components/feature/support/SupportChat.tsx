@@ -10,7 +10,7 @@ import SvgImage from '@fedi/native/components/ui/SvgImage'
 import { HELP_URL, PRIVACY_POLICY_URL } from '../../../constants'
 import { useAppDispatch } from '../../../state/hooks'
 import { useLaunchZendesk } from '../../../utils/hooks/support'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HoloGuidance from '../../ui/HoloGuidance'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 
@@ -40,8 +40,8 @@ const SupportChat: React.FC = () => {
 
     return (
         <SafeAreaContainer edges="bottom">
-            <Flex grow style={[{ backgroundColor: theme.colors.background }]}>
-                <Flex center grow style={style.content}>
+            <Column grow style={[{ backgroundColor: theme.colors.background }]}>
+                <Column center grow style={style.content}>
                     <HoloGuidance
                         iconImage={<SvgImage name="Bulb" size={86} />}
                         title={t('feature.support.friendly-request')}
@@ -75,7 +75,7 @@ const SupportChat: React.FC = () => {
                             </Text>
                         </Text>
                     </View>
-                </Flex>
+                </Column>
                 <View style={style.overlayButtonsContainer}>
                     <Button
                         fullWidth
@@ -83,7 +83,7 @@ const SupportChat: React.FC = () => {
                         title={t('phrases.i-understand')}
                     />
                 </View>
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

@@ -6,7 +6,7 @@ import Video from 'react-native-video'
 
 import { FileUri, HttpUri } from '@fedi/common/types/media'
 
-import Flex from '../components/ui/Flex'
+import { Row } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -30,8 +30,7 @@ const ChatVideoViewer: React.FC<Props> = ({ route, navigation }: Props) => {
 
     return (
         <SafeAreaContainer style={style.fullScreenContainer} edges="vertical">
-            <Flex
-                row
+            <Row
                 align="center"
                 justify="between"
                 style={style.fullScreenVideoHeader}>
@@ -51,7 +50,7 @@ const ChatVideoViewer: React.FC<Props> = ({ route, navigation }: Props) => {
                         />
                     )}
                 </Pressable>
-            </Flex>
+            </Row>
             <Video
                 source={{ uri: videoUri ?? uri }}
                 style={style.fullScreenVideo}

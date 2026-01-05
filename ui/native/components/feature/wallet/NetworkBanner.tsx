@@ -8,7 +8,7 @@ import { selectLoadedFederation } from '@fedi/common/redux'
 import { Federation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 export type Props = {
@@ -26,7 +26,7 @@ export const NetworkBanner: React.FC<Props> = ({ federationId }) => {
 
     const style = styles(theme)
     return (
-        <Flex row center gap="xs" fullWidth>
+        <Row center gap="xs" fullWidth>
             <SvgImage
                 color={theme.colors.night}
                 name="Info"
@@ -43,7 +43,7 @@ export const NetworkBanner: React.FC<Props> = ({ federationId }) => {
                     network: capitalize(federation.network ?? 'unknown'),
                 })}
             </Text>
-        </Flex>
+        </Row>
     )
 }
 

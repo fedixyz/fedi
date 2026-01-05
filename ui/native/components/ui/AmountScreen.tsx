@@ -8,7 +8,7 @@ import { Federation } from '@fedi/common/types'
 import { hexToRgba } from '@fedi/common/utils/color'
 
 import AmountInput, { Props as AmountInputProps } from './AmountInput'
-import Flex from './Flex'
+import { Row } from './Flex'
 import KeyboardAwareWrapper from './KeyboardAwareWrapper'
 import { SafeAreaContainer } from './SafeArea'
 
@@ -61,7 +61,7 @@ export const AmountScreen: React.FC<Props> = ({
                 </View>
                 <AmountInput {...amountInputProps} />
                 {subContent && <View>{subContent}</View>}
-                <Flex row fullWidth style={style.buttonGroup}>
+                <Row fullWidth style={style.buttonGroup}>
                     {buttons.map((button, index) => (
                         <Button
                             key={`btn-${index}`}
@@ -72,7 +72,7 @@ export const AmountScreen: React.FC<Props> = ({
                             {...button}
                         />
                     ))}
-                </Flex>
+                </Row>
             </SafeAreaContainer>
         </KeyboardAwareWrapper>
     )

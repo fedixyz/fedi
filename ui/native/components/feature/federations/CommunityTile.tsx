@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native'
 import { Community } from '@fedi/common/types'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import { PressableIcon } from '../../ui/PressableIcon'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -31,14 +31,14 @@ const CommunityTile = ({
             accessible={false}
             containerStyle={style.container}
             onPress={onSelect}>
-            <Flex row align="center" justify="start" gap="md" shrink>
+            <Row align="center" justify="start" gap="md" shrink>
                 <FederationLogo federation={community} size={48} />
-                <Flex shrink align="start">
+                <Column shrink align="start">
                     <Text style={style.title} bold numberOfLines={1}>
                         {community.name}
                     </Text>
-                </Flex>
-            </Flex>
+                </Column>
+            </Row>
             {showInviteCode && (
                 <PressableIcon
                     testID={community.name

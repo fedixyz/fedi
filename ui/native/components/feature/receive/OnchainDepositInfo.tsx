@@ -8,7 +8,7 @@ import { supportsSafeOnchainDeposit } from '@fedi/common/redux'
 import { Federation } from '@fedi/common/types'
 
 import { useAppDispatch } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import HoloAlert from '../../ui/HoloAlert'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
@@ -26,23 +26,23 @@ const InfoRow = ({ icon, title, subtitle, right }: RowProps) => {
     const { theme } = useTheme()
     const style = styles(theme)
     return (
-        <Flex row align="center" gap="xs">
+        <Row align="center" gap="xs">
             <SvgImage
                 name={icon}
                 color={theme.colors.black}
                 size={theme.sizes.md}
                 containerStyle={style.icon}
             />
-            <Flex justify="center" gap="xs" grow shrink>
+            <Column justify="center" gap="xs" grow shrink>
                 <Text small bold color={theme.colors.darkGrey}>
                     {title}
                 </Text>
                 <Text small color={theme.colors.darkGrey}>
                     {subtitle}
                 </Text>
-            </Flex>
+            </Column>
             {right}
-        </Flex>
+        </Row>
     )
 }
 
@@ -99,11 +99,11 @@ const OnchainDepositInfo: React.FC<Props> = ({ federationId }) => {
 
     return (
         <HoloAlert containerStyle={style.gradient}>
-            <Flex gap="md" style={style.content}>
+            <Column gap="md" style={style.content}>
                 {rows.map((row, idx) => (
                     <InfoRow key={`info-row-onchain-${idx}`} {...row} />
                 ))}
-            </Flex>
+            </Column>
         </HoloAlert>
     )
 }

@@ -26,7 +26,7 @@ import {
 import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import ChatAction from './ChatAction'
 import { ConfirmBlockOverlay } from './ConfirmBlockOverlay'
 
@@ -310,7 +310,7 @@ const ChatUserActions: React.FC<Props> = ({
 
     return (
         <View style={style.container}>
-            <Flex align="start">
+            <Column align="start">
                 <Text caption style={style.sectionTitle}>
                     {t('words.actions')}
                 </Text>
@@ -335,14 +335,14 @@ const ChatUserActions: React.FC<Props> = ({
                         onPress={() => action.onPress()}
                     />
                 ))}
-            </Flex>
+            </Column>
             {/* Only show roles if the user is an admin */}
             {myPowerLevel &&
                 isPowerLevelGreaterOrEqual(
                     myPowerLevel,
                     MatrixPowerLevel.Moderator,
                 ) && (
-                    <Flex align="start">
+                    <Column align="start">
                         <Text caption style={style.sectionTitle}>
                             {t('feature.chat.change-role')}
                         </Text>
@@ -379,7 +379,7 @@ const ChatUserActions: React.FC<Props> = ({
                                 isLoading={loadingAction === action.id}
                             />
                         ))}
-                    </Flex>
+                    </Column>
                 )}
             {/* Only show roles if the user is an admin and if the selected member is not a multispend voter in the current room */}
             {myPowerLevel &&
@@ -388,7 +388,7 @@ const ChatUserActions: React.FC<Props> = ({
                     MatrixPowerLevel.Moderator,
                 ) &&
                 !isMultispendVoter && (
-                    <Flex align="start">
+                    <Column align="start">
                         <Text caption style={style.sectionTitle}>
                             {t('phrases.moderation-tools')}
                         </Text>
@@ -408,7 +408,7 @@ const ChatUserActions: React.FC<Props> = ({
                                 isLoading={loadingAction === action.id}
                             />
                         ))}
-                    </Flex>
+                    </Column>
                 )}
             <ConfirmBlockOverlay
                 show={isConfirmingBlock}

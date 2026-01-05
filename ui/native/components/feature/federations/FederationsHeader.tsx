@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native'
 
 import { NavigationHook } from '../../../types/navigation'
 import { isNightly } from '../../../utils/device-info'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
@@ -27,7 +27,7 @@ const FederationsHeader: React.FC = () => {
 
     return (
         <GradientView variant="sky" style={style.container}>
-            <Flex gap="xs">
+            <Column gap="xs">
                 <Header
                     transparent
                     containerStyle={style.headerContainer}
@@ -41,7 +41,7 @@ const FederationsHeader: React.FC = () => {
                     }
                 />
                 <TotalBalance />
-            </Flex>
+            </Column>
             {/* TODO: restore this on federations screen */}
             {/* <NetworkBanner /> */}
             {showNightlyBanner && (

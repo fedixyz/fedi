@@ -2,7 +2,7 @@ import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 
-import Flex from './Flex'
+import { Column } from './Flex'
 
 export interface ImageBadgeProps {
     children: React.ReactNode
@@ -14,10 +14,10 @@ export const ImageBadge: React.FC<ImageBadgeProps> = ({ children, badge }) => {
     const style = styles(theme)
 
     return (
-        <Flex shrink={false}>
+        <Column shrink={false}>
             {children}
             {badge && <View style={style.badge}>{badge}</View>}
-        </Flex>
+        </Column>
     )
 }
 

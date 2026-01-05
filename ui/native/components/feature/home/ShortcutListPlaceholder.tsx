@@ -10,7 +10,7 @@ import { selectCoreMods } from '@fedi/common/redux/mod'
 
 import { FediModImages } from '../../../assets/images'
 import { FediMod, ShortcutType } from '../../../types'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import ShortcutTile from './ShortcutTile'
 
 const MOD_ORDER = ['catalog', 'lngpt', 'swap'] as const
@@ -62,7 +62,7 @@ const ShortcutsListPlaceholder: React.FC = () => {
     const style = styles(theme)
 
     return (
-        <Flex grow fullWidth>
+        <Column grow fullWidth>
             <Text style={style.sectionTitle}>
                 {t('feature.home.federation-mods-title')}
             </Text>
@@ -70,11 +70,7 @@ const ShortcutsListPlaceholder: React.FC = () => {
                 {t('feature.home.federation-services-selected')}
             </Text>
 
-            <Flex
-                row
-                justify="between"
-                wrap
-                style={{ rowGap: theme.spacing.md }}>
+            <Row justify="between" wrap style={{ rowGap: theme.spacing.md }}>
                 {shortcuts.map(s => (
                     <View key={s.id} style={style.shortcut}>
                         <ShortcutTile
@@ -84,8 +80,8 @@ const ShortcutsListPlaceholder: React.FC = () => {
                         />
                     </View>
                 ))}
-            </Flex>
-        </Flex>
+            </Row>
+        </Column>
     )
 }
 

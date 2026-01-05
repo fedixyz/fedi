@@ -19,7 +19,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -238,7 +238,7 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                     {formattedFiat}
                 </Text>
             </View>
-            <Flex fullWidth style={style.buttonsGroup}>
+            <Column fullWidth style={style.buttonsGroup}>
                 {renderDetails()}
                 <Button
                     fullWidth
@@ -252,7 +252,7 @@ const StabilityConfirmDeposit: React.FC<Props> = ({ route, navigation }) => {
                         </Text>
                     }
                 />
-            </Flex>
+            </Column>
         </SafeAreaView>
     )
 }

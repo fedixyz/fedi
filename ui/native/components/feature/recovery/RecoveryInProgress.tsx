@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import { Federation } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 
 export type Props = {
@@ -24,7 +24,7 @@ const RecoveryInProgress: React.FC<Props> = ({
 
     const style = styles(theme)
     return (
-        <Flex grow center gap="lg" style={style.container}>
+        <Column grow center gap="lg" style={style.container}>
             <HoloLoader
                 size={size}
                 label={
@@ -39,7 +39,7 @@ const RecoveryInProgress: React.FC<Props> = ({
                     {label}
                 </Text>
             )}
-        </Flex>
+        </Column>
     )
 }
 

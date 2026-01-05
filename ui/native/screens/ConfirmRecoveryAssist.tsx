@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import CheckBox from '../components/ui/CheckBox'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import LineBreak from '../components/ui/LineBreak'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -28,12 +28,12 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({
     const style = styles(theme)
 
     return (
-        <Flex grow align="center" justify="start" style={style.container}>
+        <Column grow align="center" justify="start" style={style.container}>
             <Text h2 style={style.instructionsText}>
                 {t('phrases.please-confirm')}
             </Text>
             <LineBreak />
-            <Flex grow align="start" style={style.confirmationContainer}>
+            <Column grow align="start" style={style.confirmationContainer}>
                 <CheckBox
                     title={
                         <Text caption medium style={style.checkboxText}>
@@ -62,7 +62,7 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({
                         )
                     }}
                 />
-            </Flex>
+            </Column>
 
             <Button
                 title={t('words.continue')}
@@ -76,7 +76,7 @@ const ConfirmRecoveryAssist: React.FC<Props> = ({
                 }
                 containerStyle={style.confirmButton}
             />
-        </Flex>
+        </Column>
     )
 }
 

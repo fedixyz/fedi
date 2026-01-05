@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 import { useFederationPreview } from '@fedi/common/hooks/federation'
 import { ParsedStabilityAddress } from '@fedi/common/types'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -49,7 +49,7 @@ export default function OmniSendStability({
 
     if (parsed.federation.type === 'joined') {
         return (
-            <Flex
+            <Column
                 grow
                 align="stretch"
                 gap="lg"
@@ -58,7 +58,7 @@ export default function OmniSendStability({
                 <Text style={style.center}>
                     {t('feature.omni.confirm-stability-address')}
                 </Text>
-            </Flex>
+            </Column>
         )
     }
 
@@ -92,10 +92,10 @@ export default function OmniSendStability({
             <Pressable
                 style={style.actionCardContainer}
                 onPress={() => setShowFederationPreview(true)}>
-                <Flex center style={style.iconContainer}>
+                <Column center style={style.iconContainer}>
                     <FederationLogo federation={federationPreview} size={32} />
-                </Flex>
-                <Flex align="start" gap="xxs">
+                </Column>
+                <Column align="start" gap="xxs">
                     <Text medium>
                         {t('feature.receive.join-new-federation')}
                     </Text>
@@ -113,7 +113,7 @@ export default function OmniSendStability({
                             }}
                         />
                     </Text>
-                </Flex>
+                </Column>
                 <View style={style.arrowContainer}>
                     <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
                 </View>
@@ -123,14 +123,14 @@ export default function OmniSendStability({
 
     return (
         <SafeAreaContainer edges="bottom">
-            <Flex
+            <Column
                 grow
                 align="stretch"
                 gap="lg"
                 fullWidth
                 style={style.container}>
                 {renderContent()}
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

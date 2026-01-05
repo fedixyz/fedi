@@ -8,7 +8,7 @@ import {
     View,
 } from 'react-native'
 
-import Flex from './Flex'
+import { Column } from './Flex'
 
 /**
  * A scroll view with an inset-like shadow at the top/bottom if you scroll up/down
@@ -30,7 +30,7 @@ const ShadowScrollView = ({
     }
 
     return (
-        <Flex grow shrink style={style.federationInfoContainer}>
+        <Column grow shrink style={style.federationInfoContainer}>
             {showTopShadow && (
                 <View
                     style={[style.scrollInsetShadow, style.scrollTopShadow]}
@@ -44,7 +44,7 @@ const ShadowScrollView = ({
                     style={[style.scrollInsetShadow, style.scrollBottomShadow]}
                 />
             )}
-        </Flex>
+        </Column>
     )
 }
 

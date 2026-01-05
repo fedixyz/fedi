@@ -14,7 +14,7 @@ import {
 import { makeLog } from '@fedi/common/utils/log'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -248,7 +248,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
                     )}
                 </View>
             </KeyboardAwareWrapper>
-            <Flex gap="md">
+            <Column gap="md">
                 {!areVotersSufficient(voters) && (
                     <Text caption color={theme.colors.grey} center>
                         {t('feature.multispend.two-voters-required')}
@@ -259,7 +259,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
                     disabled={!canSubmit || isLoading}>
                     {t('words.submit')}
                 </Button>
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useMultispendDepositEventContent } from '@fedi/common/hooks/multispend'
 import { MatrixMultispendEvent } from '@fedi/common/types'
 
-import Flex from '../../../ui/Flex'
+import { Column } from '../../../ui/Flex'
 import MultispendEventTemplate from './MultispendEventTemplate'
 
 type Props = {
@@ -24,7 +24,7 @@ const MultispendDepositEvent: React.FC<Props> = ({ event }) => {
     const navigation = useNavigation()
 
     const body1 = (
-        <Flex gap="xs">
+        <Column gap="xs">
             <Text caption>
                 <Text caption bold>
                     {senderName}{' '}
@@ -37,7 +37,7 @@ const MultispendDepositEvent: React.FC<Props> = ({ event }) => {
                     {formattedFiatAmount}
                 </Text>
             </Text>
-        </Flex>
+        </Column>
     )
 
     return (

@@ -7,7 +7,7 @@ import { selectLoadedFederation } from '@fedi/common/redux'
 import { Federation } from '@fedi/common/types'
 
 import { useAppSelector, useStabilityPool } from '../../../state/hooks'
-import Flex, { Row } from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import { ImageBadge } from '../../ui/ImageBadge'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -60,7 +60,7 @@ const StabilityBalanceTile = ({
                         <FederationLogo federation={federation} size={36} />
                     </ImageBadge>
                 </View>
-                <Flex gap="xs">
+                <Column gap="xs">
                     <Text
                         bold
                         caption
@@ -78,7 +78,7 @@ const StabilityBalanceTile = ({
                             t('feature.stabilitypool.available-balance')}
                         : {formattedStableBalance}
                     </Text>
-                </Flex>
+                </Column>
             </Row>
         </View>
     )

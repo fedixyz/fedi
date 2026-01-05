@@ -3,7 +3,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 export const HistoryRowError: React.FC = () => {
@@ -13,7 +13,7 @@ export const HistoryRowError: React.FC = () => {
     const style = styles(theme)
 
     return (
-        <Flex row center style={style.container}>
+        <Row center style={style.container}>
             <View style={style.leftContainer}>
                 <SvgImage
                     name="Error"
@@ -24,7 +24,7 @@ export const HistoryRowError: React.FC = () => {
             <View style={style.centerContainer}>
                 <Text>{t('errors.history-render-error')}</Text>
             </View>
-        </Flex>
+        </Row>
     )
 }
 

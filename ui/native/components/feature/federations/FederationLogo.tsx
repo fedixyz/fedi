@@ -6,7 +6,7 @@ import { LoadedFederation } from '@fedi/common/types'
 import { getFederationIconUrl } from '@fedi/common/utils/FederationUtils'
 
 import { Images } from '../../../assets/images'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HexImage from '../../ui/HexImage'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
@@ -62,9 +62,9 @@ export const FederationLogo: React.FC<Props> = ({
                         source={Images.FallbackInset}
                     />
                 )}
-                <Flex center style={style.fallbackIconLayer}>
+                <Column center style={style.fallbackIconLayer}>
                     <ActivityIndicator size={16} color={theme.colors.primary} />
-                </Flex>
+                </Column>
                 {shape === 'hex' ? (
                     <HexImage imageUrl={iconUrl} />
                 ) : (

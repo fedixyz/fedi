@@ -11,7 +11,7 @@ import {
 
 import { version } from '../../../package.json'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
 type VersionContainerProps = {
@@ -34,7 +34,7 @@ export const VersionContainer = ({
     const fedimintVersion = useAppSelector(selectFedimintVersion)
 
     return (
-        <Flex center style={style.versionContainer}>
+        <Column center style={style.versionContainer}>
             <SvgImage name="FediLogoIcon" containerStyle={style.logo} />
             <Pressable
                 onPress={() => {
@@ -86,7 +86,7 @@ export const VersionContainer = ({
                     </Text>
                 </Button>
             </Pressable>
-        </Flex>
+        </Column>
     )
 }
 

@@ -11,7 +11,7 @@ import {
 import { Federation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 export type Props = {
@@ -33,8 +33,7 @@ export const StabilityBitcoinBanner: React.FC<Props> = ({ federationId }) => {
     const style = styles(theme)
 
     return (
-        <Flex
-            row
+        <Row
             align="start"
             justify="center"
             gap="xs"
@@ -50,7 +49,7 @@ export const StabilityBitcoinBanner: React.FC<Props> = ({ federationId }) => {
                     currency,
                 })}
             </Text>
-        </Flex>
+        </Row>
     )
 }
 

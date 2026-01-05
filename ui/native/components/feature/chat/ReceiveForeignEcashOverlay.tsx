@@ -13,7 +13,7 @@ import { makeLog } from '@fedi/common/utils/log'
 import { useAppDispatch } from '../../../state/hooks'
 import { MatrixPaymentEvent } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
 import FederationPreview from '../onboarding/FederationPreview'
@@ -102,7 +102,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
             )
         }
         return (
-            <Flex align="start" gap="lg" fullWidth style={style.optionsList}>
+            <Column align="start" gap="lg" fullWidth style={style.optionsList}>
                 {federationPreview ? (
                     <Pressable
                         style={style.actionCardContainer}
@@ -113,7 +113,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                 size={32}
                             />
                         </View>
-                        <Flex align="start" gap="xs">
+                        <Column align="start" gap="xs">
                             <Text medium>
                                 {t('feature.receive.join-new-federation')}
                             </Text>
@@ -135,7 +135,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                     }}
                                 />
                             </Text>
-                        </Flex>
+                        </Column>
                         <View style={style.arrowContainer}>
                             <SvgImage
                                 name="ArrowRight"
@@ -194,7 +194,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                         <Pressable
                             style={style.actionCardContainer}
                             onPress={() => onRejected()}>
-                            <Flex
+                            <Column
                                 center
                                 style={[
                                     style.iconContainer,
@@ -208,12 +208,12 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                                     size={SvgImageSize.sm}
                                     color={theme.colors.white}
                                 />
-                            </Flex>
-                            <Flex align="start" gap="xs">
+                            </Column>
+                            <Column align="start" gap="xs">
                                 <Text medium>
                                     {t('feature.receive.reject-payment')}
                                 </Text>
-                            </Flex>
+                            </Column>
                             <View style={style.arrowContainer}>
                                 <SvgImage
                                     name="ArrowRight"
@@ -249,7 +249,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                         />
                     </View>
                 </Pressable>
-            </Flex>
+            </Column>
         )
     }
 

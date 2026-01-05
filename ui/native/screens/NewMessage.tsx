@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '@fedi/common/hooks/toast'
 
 import { OmniInput } from '../components/feature/omni/OmniInput'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useOmniLinkContext } from '../state/contexts/OmniLinkContext'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -19,7 +19,7 @@ const NewMessage: React.FC<Props> = ({ navigation, route }: Props) => {
     const initialInputMethod = route.params?.initialInputMethod || 'scan'
 
     return (
-        <Flex grow fullWidth>
+        <Column grow fullWidth>
             <OmniInput
                 expectedInputTypes={[
                     ParserDataType.LegacyFediChatMember,
@@ -65,7 +65,7 @@ const NewMessage: React.FC<Props> = ({ navigation, route }: Props) => {
                 ]}
                 initialInputMethod={initialInputMethod}
             />
-        </Flex>
+        </Column>
     )
 }
 

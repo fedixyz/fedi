@@ -9,7 +9,7 @@ import { useDebounce } from '@fedi/common/hooks/util'
 import { ProtectedFeatures, setFeatureUnlocked } from '@fedi/common/redux'
 
 import PinDot from '../components/feature/pin/PinDot'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { usePinContext } from '../state/contexts/PinContext'
@@ -134,9 +134,9 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
 
     return (
         <SafeAreaContainer style={style.container} edges="bottom">
-            <Flex grow center style={style.container}>
-                <Flex grow center style={style.content}>
-                    <Flex row center style={style.dots}>
+            <Column grow center style={style.container}>
+                <Column grow center style={style.content}>
+                    <Row center style={style.dots}>
                         {pinNumbers.map(i => (
                             <PinDot
                                 key={i}
@@ -144,9 +144,9 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
                                 isLast={i === maxPinLength}
                             />
                         ))}
-                    </Flex>
-                </Flex>
-                <Flex row wrap style={style.numpad}>
+                    </Row>
+                </Column>
+                <Row wrap style={style.numpad}>
                     {numpadButtons.map(btn =>
                         btn === '.' ? (
                             <View key="empty" style={style.numpadBtnWidth} />
@@ -164,14 +164,14 @@ const FeatureLockScreen = <T extends keyof RootStackParamList>({
                         ),
                     )}
                     {timeoutSeconds > 0 && (
-                        <Flex center style={style.timeoutOverlay}>
+                        <Column center style={style.timeoutOverlay}>
                             <Text bold h1>
                                 0:{String(timeoutSeconds).padStart(2, '0')}
                             </Text>
-                        </Flex>
+                        </Column>
                     )}
-                </Flex>
-            </Flex>
+                </Row>
+            </Column>
         </SafeAreaContainer>
     )
 }

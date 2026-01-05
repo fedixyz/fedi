@@ -18,7 +18,7 @@ import { useToastScope } from '../../state/contexts/ToastScopeContext'
 import { useAppSelector } from '../../state/hooks'
 import { toastStyles as styles } from '../../styles/toast'
 import { useLaunchZendesk } from '../../utils/hooks/support'
-import Flex from './Flex'
+import { Row, Column } from './Flex'
 import SvgImage, { SvgImageSize } from './SvgImage'
 
 type ToastAction = {
@@ -142,7 +142,7 @@ export default function ToastManager() {
                                                       ? '👀'
                                                       : '⚠️'}
                                             </Text>
-                                            <Flex grow basis={false}>
+                                            <Column grow basis={false}>
                                                 <Text
                                                     style={style.toastText}
                                                     maxFontSizeMultiplier={
@@ -151,7 +151,7 @@ export default function ToastManager() {
                                                     adjustsFontSizeToFit>
                                                     {cachedToast?.content}
                                                 </Text>
-                                            </Flex>
+                                            </Column>
                                             <Pressable
                                                 onPress={handleCloseToast}>
                                                 <SvgImage
@@ -169,8 +169,7 @@ export default function ToastManager() {
                                                         '20',
                                                 }}
                                                 onPress={handleActionPress}>
-                                                <Flex
-                                                    row
+                                                <Row
                                                     align="center"
                                                     justify="center"
                                                     gap="sm">
@@ -187,7 +186,7 @@ export default function ToastManager() {
                                                         }>
                                                         {actionLabel}
                                                     </Text>
-                                                </Flex>
+                                                </Row>
                                             </Pressable>
                                         )}
                                     </View>

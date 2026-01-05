@@ -22,7 +22,7 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut } from '../../../types'
 import { NavigationHook } from '../../../types/navigation'
 import { handleFediModNavigation, openURL } from '../../../utils/linking'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import { Tooltip } from '../../ui/Tooltip'
 import ShortcutTile from './ShortcutTile'
@@ -138,22 +138,18 @@ const ShortcutsList: React.FC<Props> = ({ communityId }) => {
     }
 
     return (
-        <Flex grow fullWidth>
+        <Column grow fullWidth>
             <Text bold style={style.sectionTitle}>
                 {t('feature.home.community-mods-title')}
             </Text>
             <Text caption style={style.servicesSelected}>
                 {t('feature.home.community-services-selected')}
             </Text>
-            <Flex
-                row
-                wrap
-                justify="between"
-                style={{ rowGap: theme.spacing.md }}>
+            <Row wrap justify="between" style={{ rowGap: theme.spacing.md }}>
                 {renderFediModShortcuts()}
                 {renderBuffers()}
-            </Flex>
-        </Flex>
+            </Row>
+        </Column>
     )
 }
 

@@ -7,7 +7,7 @@ import { StyleSheet } from 'react-native'
 import { selectNostrNpub, selectNostrNsec } from '@fedi/common/redux'
 
 import { CopyButton } from '../components/ui/CopyButton'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -28,11 +28,11 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
 
     return (
         <SafeAreaContainer style={style.container} edges="notop">
-            <Flex gap="xs">
-                <Flex row align="center" justify="between" gap="sm">
+            <Column gap="xs">
+                <Row align="center" justify="between" gap="sm">
                     <Text medium>{t('feature.nostr.nostr-public-key')}</Text>
                     {nostrPublic && <CopyButton value={nostrPublic.npub} />}
-                </Flex>
+                </Row>
                 {nostrPublic ? (
                     <Text
                         caption
@@ -44,12 +44,12 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
                 ) : (
                     <HoloLoader size={32} />
                 )}
-            </Flex>
-            <Flex gap="xs">
-                <Flex row align="center" justify="between" gap="sm">
+            </Column>
+            <Column gap="xs">
+                <Row align="center" justify="between" gap="sm">
                     <Text medium>{t('feature.nostr.nostr-secret-key')}</Text>
                     {nostrSecret && (
-                        <Flex grow row justify="between">
+                        <Row grow justify="between">
                             <PressableIcon
                                 onPress={() => setShowNsec(!showNsec)}
                                 svgProps={{
@@ -60,9 +60,9 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
                                 containerStyle={style.pressableIcon}
                             />
                             <CopyButton value={nostrSecret.nsec || ''} />
-                        </Flex>
+                        </Row>
                     )}
-                </Flex>
+                </Row>
                 {nostrSecret ? (
                     <Text
                         caption
@@ -74,7 +74,7 @@ const NostrSettings: React.FC<Props> = (_: Props) => {
                 ) : (
                     <HoloLoader size={32} />
                 )}
-            </Flex>
+            </Column>
         </SafeAreaContainer>
     )
 }

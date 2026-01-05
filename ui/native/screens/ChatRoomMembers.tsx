@@ -20,7 +20,7 @@ import {
 
 import { ChatUserActionsOverlay } from '../components/feature/chat/ChatUserActionsOverlay'
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { type RootStackParamList } from '../types/navigation'
 
@@ -129,7 +129,7 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
             : members
 
     return (
-        <Flex grow fullWidth style={style.container}>
+        <Column grow fullWidth style={style.container}>
             <FlatList
                 data={groupMembersList}
                 renderItem={renderMember}
@@ -147,7 +147,7 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                 selectedUserId={selectedUserId}
                 roomId={roomId}
             />
-        </Flex>
+        </Column>
     )
 }
 

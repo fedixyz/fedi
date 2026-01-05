@@ -16,7 +16,7 @@ import { completeSocialRecovery } from '@fedi/common/redux'
 import type { GuardianApproval, SocialRecoveryEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
 import QRCode from '../components/ui/QRCode'
 import { useAppDispatch } from '../state/hooks'
@@ -124,7 +124,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
             approvals &&
             approvals.approvals.map((approval: GuardianApproval, i) => {
                 return (
-                    <Flex row justify="between" key={`gr-${i}`}>
+                    <Row justify="between" key={`gr-${i}`}>
                         <Text>{approval.guardianName}</Text>
                         <Text
                             style={
@@ -134,7 +134,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
                                 ? t('words.approved')
                                 : t('words.pending')}
                         </Text>
-                    </Flex>
+                    </Row>
                 )
             })
         )
@@ -143,9 +143,9 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
     // Show loading indicator until we have approvals
     if (approvals == null) {
         return (
-            <Flex grow center>
+            <Column grow center>
                 <ActivityIndicator size="large" />
-            </Flex>
+            </Column>
         )
     }
 
@@ -165,13 +165,13 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
             />
 
             <View style={styles(theme).guardiansContainer}>
-                <Flex row justify="between">
+                <Row justify="between">
                     <Text bold>
                         {t('feature.recovery.guardian-approvals')}
                         {'\n'}
                     </Text>
                     {renderGuardianApprovalStatus()}
-                </Flex>
+                </Row>
                 {renderGuardians()}
             </View>
             <Button

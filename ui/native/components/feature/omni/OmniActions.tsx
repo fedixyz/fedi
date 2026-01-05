@@ -2,7 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import { StyleSheet, View, Pressable } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import SvgImage from '../../ui/SvgImage'
 import { OmniInputAction } from './OmniInput'
@@ -28,7 +28,7 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
     )
 
     return (
-        <Flex fullWidth>
+        <Column fullWidth>
             {actions.map(({ label, icon, onPress }, idx) => (
                 <Pressable
                     accessible={false}
@@ -52,7 +52,7 @@ export const OmniActions: React.FC<Props> = ({ actions }) => {
                     )}
                 </Pressable>
             ))}
-        </Flex>
+        </Column>
     )
 }
 

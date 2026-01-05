@@ -7,7 +7,7 @@ import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
@@ -26,7 +26,7 @@ const DisplayNameOverlay: React.FC<DisplayNameOverlayProps> = ({
 
     return (
         <CenterOverlay show={show} onBackdropPress={onDismiss}>
-            <Flex align="center">
+            <Column align="center">
                 <HoloCircle
                     content={<SvgImage name="Profile" size={SvgImageSize.lg} />}
                     size={64}
@@ -40,7 +40,7 @@ const DisplayNameOverlay: React.FC<DisplayNameOverlayProps> = ({
                     “{matrixAuth?.displayName || t('phrases.not-set')}“
                 </Text>
 
-                <Flex row center wrap style={styles.instructionRow}>
+                <Row center wrap style={styles.instructionRow}>
                     <Text
                         style={[
                             styles.instructionText,
@@ -60,8 +60,8 @@ const DisplayNameOverlay: React.FC<DisplayNameOverlayProps> = ({
                         ]}>
                         {' menu.'}
                     </Text>
-                </Flex>
-            </Flex>
+                </Row>
+            </Column>
             <Button fullWidth title="Continue" onPress={onDismiss} />
         </CenterOverlay>
     )

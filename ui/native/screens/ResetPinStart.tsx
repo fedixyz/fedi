@@ -7,7 +7,7 @@ import { Image, StyleSheet } from 'react-native'
 import { setIsBackingUpBeforePin } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -21,8 +21,8 @@ const ResetPinStart: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     return (
-        <Flex grow style={style.container}>
-            <Flex grow center gap="sm">
+        <Column grow style={style.container}>
+            <Column grow center gap="sm">
                 <Image
                     resizeMode="contain"
                     source={Images.IllustrationPin}
@@ -32,7 +32,7 @@ const ResetPinStart: React.FC<Props> = ({ navigation }: Props) => {
                 <Text style={style.backupNotice}>
                     {t('feature.pin.recovery-notice')}
                 </Text>
-            </Flex>
+            </Column>
             <Button
                 style={style.containerButton}
                 onPress={() => {
@@ -41,7 +41,7 @@ const ResetPinStart: React.FC<Props> = ({ navigation }: Props) => {
                 }}>
                 {t('words.continue')}
             </Button>
-        </Flex>
+        </Column>
     )
 }
 

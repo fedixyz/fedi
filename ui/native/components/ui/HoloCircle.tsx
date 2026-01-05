@@ -2,7 +2,7 @@ import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 
-import Flex from './Flex'
+import { Column } from './Flex'
 import GradientView from './GradientView'
 
 export type Props = {
@@ -16,7 +16,7 @@ const HoloCircle: React.FC<Props> = ({ content, size }: Props) => {
 
     const style = styles(theme)
     return (
-        <Flex
+        <Column
             center
             style={[
                 style.container,
@@ -45,7 +45,7 @@ const HoloCircle: React.FC<Props> = ({ content, size }: Props) => {
                     },
                 ]}
             />
-            <Flex
+            <Column
                 center
                 style={{
                     // Draws the largest possible square that fits in the circle
@@ -53,8 +53,8 @@ const HoloCircle: React.FC<Props> = ({ content, size }: Props) => {
                     height: (circleSize - 3) / Math.sqrt(2),
                 }}>
                 {content}
-            </Flex>
-        </Flex>
+            </Column>
+        </Column>
     )
 }
 

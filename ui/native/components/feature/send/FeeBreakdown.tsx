@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native'
 
 import { DetailItem } from '@fedi/common/utils/wallet'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { PressableIcon } from '../../ui/PressableIcon'
 import { SvgImageSize } from '../../ui/SvgImage'
 import { FeeBreakdownItem } from './FeeBreakdownItem'
@@ -33,7 +33,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
     const style = styles(theme)
 
     return (
-        <Flex align="center" fullWidth>
+        <Column align="center" fullWidth>
             <View style={style.headerButtons}>
                 <PressableIcon
                     svgName="ChevronLeft"
@@ -55,7 +55,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
             <Text h2 h2Style={style.detailTitle}>
                 {title}
             </Text>
-            <Flex gap="xs" fullWidth style={style.detailItemsContainer}>
+            <Column gap="xs" fullWidth style={style.detailItemsContainer}>
                 {feeItems.map((item, idx) => (
                     <FeeBreakdownItem
                         key={idx}
@@ -70,8 +70,8 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
                         {guidanceText}
                     </Text>
                 )}
-            </Flex>
-        </Flex>
+            </Column>
+        </Column>
     )
 }
 

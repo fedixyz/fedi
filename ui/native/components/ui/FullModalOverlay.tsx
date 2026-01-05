@@ -13,7 +13,7 @@ import Modal from 'react-native-modal'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useKeyboard } from '../../utils/hooks/keyboard'
-import Flex from './Flex'
+import { Row } from './Flex'
 import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
 
 type OverlayButton = {
@@ -182,9 +182,9 @@ const FullModalOverlay: React.FC<CustomOverlayProps> = ({
                 )}
                 <ScrollView style={style.bodyContainer}>{body}</ScrollView>
                 {buttons?.length > 0 && (
-                    <Flex row justify="between" style={style.overlayButtonView}>
+                    <Row justify="between" style={style.overlayButtonView}>
                         {renderButtons()}
-                    </Flex>
+                    </Row>
                 )}
             </Animated.View>
         </Modal>

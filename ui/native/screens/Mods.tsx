@@ -30,7 +30,7 @@ import FirstTimeOverlay, {
 import CustomOverlay, {
     CustomOverlayContents,
 } from '../components/ui/CustomOverlay'
-import Flex, { Column } from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
@@ -145,7 +145,7 @@ const Mods: React.FC = () => {
 
         return {
             headerElement: (
-                <Flex style={style.modRemovalOverlay}>
+                <Column style={style.modRemovalOverlay}>
                     <Image style={style.modRemovalOverlayBgImage} />
                     <SvgImage
                         name="AlertWarningTriangle"
@@ -153,7 +153,7 @@ const Mods: React.FC = () => {
                         color={theme.colors.orange}
                         containerStyle={style.modRemovalOverlayIcon}
                     />
-                </Flex>
+                </Column>
             ),
             title: t('feature.fedimods.delete-confirmation', {
                 miniAppName: modToBeRemoved?.title,
@@ -194,7 +194,7 @@ const Mods: React.FC = () => {
                     onSelect={onSelectFediMod}
                 />
             ) : (
-                <Flex center grow gap="md">
+                <Column center grow gap="md">
                     <Pressable
                         onPress={() =>
                             navigation.navigate('AddFediMod', {
@@ -204,7 +204,7 @@ const Mods: React.FC = () => {
                         <SvgImage name="NewModIcon" size={48} />
                     </Pressable>
                     <Text>{t('feature.fedimods.add-mods-homescreen')}</Text>
-                </Flex>
+                </Column>
             )}
             <FirstTimeOverlay
                 overlayItems={modsFirstTimeOverlayItems}

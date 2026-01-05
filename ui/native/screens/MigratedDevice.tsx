@@ -10,7 +10,7 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { prefixFileUri } from '@fedi/common/utils/media'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import LineBreak from '../components/ui/LineBreak'
 import type { RootStackParamList } from '../types/navigation'
@@ -60,16 +60,16 @@ const MigratedDevice: React.FC<Props> = ({ navigation }: Props) => {
     }
 
     return (
-        <Flex grow justify="center" style={style.container}>
-            <Flex align="center" gap="lg" style={style.headerContainer}>
+        <Column grow justify="center" style={style.container}>
+            <Column align="center" gap="lg" style={style.headerContainer}>
                 <Pressable onPress={handleExportBridgeStateTap}>
                     <HoloCircle content={<Text>{'📲'}</Text>} size={64} />
                 </Pressable>
                 <Text h2 medium style={style.centeredText}>
                     {t('feature.recovery.device-migration-detected')}
                 </Text>
-            </Flex>
-            <Flex justify="center" style={style.contentContainer}>
+            </Column>
+            <Column justify="center" style={style.contentContainer}>
                 <LineBreak />
                 <Text medium>
                     {t('feature.recovery.migrated-device-guidance-1')}
@@ -84,14 +84,14 @@ const MigratedDevice: React.FC<Props> = ({ navigation }: Props) => {
                 </Text>
                 <LineBreak />
                 <Text>{t('feature.recovery.migrated-device-guidance-4')}</Text>
-            </Flex>
+            </Column>
             <Button
                 fullWidth
                 onPress={goToPersonalBackup}
                 containerStyle={style.buttonContainer}
                 title={t('feature.backup.start-personal-backup')}
             />
-        </Flex>
+        </Column>
     )
 }
 

@@ -10,7 +10,7 @@ import {
     submitAnalyticsConsent,
 } from '@fedi/common/redux/analytics'
 
-import Flex from '../components/ui/Flex'
+import { Row } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -50,17 +50,17 @@ const AppSettings: React.FC<Props> = () => {
 
     return (
         <ScrollView contentContainerStyle={style.container}>
-            <Flex row align="center" justify="between" style={style.item}>
-                <Flex row align="center" gap="sm">
+            <Row align="center" justify="between" style={style.item}>
+                <Row align="center" gap="sm">
                     <SvgImage name="Settings" size={24} />
                     <Text>{t('feature.settings.usage-sharing')}</Text>
-                </Flex>
+                </Row>
                 <Switch
                     value={consent}
                     disabled={isSubmitting}
                     onChange={handleConsentChange}
                 />
-            </Flex>
+            </Row>
         </ScrollView>
     )
 }

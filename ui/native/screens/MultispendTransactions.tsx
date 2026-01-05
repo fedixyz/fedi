@@ -14,7 +14,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import MultispendFederationGate from '../components/feature/multispend/MultispendFederationGate'
 import MultispendTransactionsList from '../components/feature/multispend/MultispendTransactionsList'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import Header from '../components/ui/Header'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { useAppSelector } from '../state/hooks'
@@ -63,7 +63,7 @@ const MultispendTransactions: React.FC<Props> = ({ route }) => {
 
     return (
         <MultispendFederationGate roomId={roomId}>
-            <Flex grow>
+            <Column grow>
                 <Header
                     backButton
                     headerCenter={
@@ -94,7 +94,7 @@ const MultispendTransactions: React.FC<Props> = ({ route }) => {
                         fetchTransactions({ more: true })
                     }
                 />
-            </Flex>
+            </Column>
         </MultispendFederationGate>
     )
 }

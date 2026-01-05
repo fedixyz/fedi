@@ -23,7 +23,7 @@ import InfoEntryList, {
 } from '../components/feature/home/InfoEntryList'
 import { Switcher } from '../components/feature/home/Switcher'
 import { OmniInput } from '../components/feature/omni/OmniInput'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import { resetToChatsScreen } from '../state/navigation'
@@ -125,7 +125,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
     return (
         <SafeAreaContainer edges="bottom">
             {/* HEADER */}
-            <Flex
+            <Column
                 align="center"
                 justify="evenly"
                 gap="sm"
@@ -147,7 +147,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                     }}>
                     {selectedOption.subText}
                 </Text>
-            </Flex>
+            </Column>
 
             <View style={style.switcherContainer}>
                 <Switcher<Tab>
@@ -162,7 +162,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                 contentContainerStyle={style.scrollContainer}
                 overScrollMode="auto">
                 {activeTab === 'discover' && (
-                    <Flex
+                    <Column
                         grow
                         gap="sm"
                         fullWidth
@@ -170,14 +170,13 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                         {publicFederations.map(f => {
                             const hasJoined = joinedFederationIds.includes(f.id)
                             return (
-                                <Flex
-                                    row
+                                <Row
                                     align="center"
                                     gap="md"
                                     key={f.id}
                                     style={style.tileContainer}>
                                     <FederationLogo federation={f} size={40} />
-                                    <Flex grow gap="xs" basis={false}>
+                                    <Column grow gap="xs" basis={false}>
                                         <Text numberOfLines={1} medium>
                                             {f.name}
                                         </Text>
@@ -188,7 +187,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                                             medium>
                                             {f.meta.preview_message}
                                         </Text>
-                                    </Flex>
+                                    </Column>
                                     <Button
                                         testID={f.name
                                             .concat('JoinButton')
@@ -219,10 +218,10 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                                             </Text>
                                         }
                                     />
-                                </Flex>
+                                </Row>
                             )
                         })}
-                    </Flex>
+                    </Column>
                 )}
 
                 {activeTab === 'join' && (

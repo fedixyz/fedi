@@ -15,7 +15,7 @@ import { RpcRegisteredDevice } from '@fedi/common/types/bindings'
 import { hexToRgba } from '@fedi/common/utils/color'
 import { getFormattedDeviceInfo } from '@fedi/common/utils/device'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -50,10 +50,10 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                 style={style.actionCardContainer}
                 disabled={isProcessing}
                 onPress={() => selectDevice(device)}>
-                <Flex center style={style.roundIconContainer}>
+                <Column center style={style.roundIconContainer}>
                     <SvgImage name={iconName} size={SvgImageSize.sm} />
-                </Flex>
-                <Flex
+                </Column>
+                <Column
                     align="start"
                     gap="xxs"
                     style={style.actionCardTextContainer}>
@@ -66,7 +66,7 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
                         style={{ color: theme.colors.darkGrey }}>
                         {lastSeen}
                     </Text>
-                </Flex>
+                </Column>
                 <View style={style.arrowContainer}>
                     {isProcessing ? (
                         <ActivityIndicator />
@@ -80,21 +80,21 @@ const RecoveryDeviceSelection: React.FC<Props> = ({ navigation }: Props) => {
 
     return (
         <ScrollView contentContainerStyle={style.container}>
-            <Flex align="center" gap="lg">
+            <Column align="center" gap="lg">
                 <Text caption>
                     {t('feature.recovery.select-a-device-guidance')}
                 </Text>
-            </Flex>
+            </Column>
             {registeredDevices.length === 0 ? (
-                <Flex align="center" gap="lg" fullWidth>
+                <Column align="center" gap="lg" fullWidth>
                     <Text caption>
                         {t('feature.recovery.no-devices-found')}
                     </Text>
-                </Flex>
+                </Column>
             ) : (
-                <Flex align="center" gap="lg" fullWidth>
+                <Column align="center" gap="lg" fullWidth>
                     {registeredDevices.map(renderDevice)}
-                </Flex>
+                </Column>
             )}
             {/*
                 // TODO: reenable once we've figured out a clear

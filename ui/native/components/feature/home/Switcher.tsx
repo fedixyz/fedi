@@ -2,7 +2,7 @@ import { useTheme, Theme } from '@rneui/themed'
 import React from 'react'
 import { TouchableOpacity, StyleSheet, Text } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 
 export interface Option<T extends string> {
     label: string
@@ -24,7 +24,7 @@ export function Switcher<T extends string>({
     const style = styles(theme)
 
     return (
-        <Flex row fullWidth style={style.container}>
+        <Row fullWidth style={style.container}>
             {options.map(option => {
                 const isSelected = selected === option.value
                 return (
@@ -42,7 +42,7 @@ export function Switcher<T extends string>({
                     </TouchableOpacity>
                 )
             })}
-        </Flex>
+        </Row>
     )
 }
 

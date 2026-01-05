@@ -10,7 +10,7 @@ import { useDebounce } from '@fedi/common/hooks/util'
 import { setFeatureUnlocked } from '@fedi/common/redux'
 
 import PinDot from '../components/feature/pin/PinDot'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { NumpadButton } from '../components/ui/NumpadButton'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { usePinContext } from '../state/contexts/PinContext'
@@ -129,9 +129,9 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
 
     return (
         <SafeAreaContainer edges="bottom">
-            <Flex grow center style={style.container}>
-                <Flex grow center style={style.content}>
-                    <Flex row center style={style.dots}>
+            <Column grow center style={style.container}>
+                <Column grow center style={style.content}>
+                    <Row center style={style.dots}>
                         {isReEnteringPin &&
                         isConfirmationReady &&
                         !isConfirmationCorrect ? (
@@ -173,9 +173,9 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
                                 />
                             </View>
                         )}
-                    </Flex>
-                </Flex>
-                <Flex row wrap fullWidth style={style.numpad}>
+                    </Row>
+                </Column>
+                <Row wrap fullWidth style={style.numpad}>
                     {numpadButtons.map(btn =>
                         btn === '.' ? (
                             <View key="empty" style={style.numpadBtnWidth} />
@@ -187,8 +187,8 @@ const SetPin: React.FC<Props> = ({ navigation }: Props) => {
                             />
                         ),
                     )}
-                </Flex>
-            </Flex>
+                </Row>
+            </Column>
         </SafeAreaContainer>
     )
 }

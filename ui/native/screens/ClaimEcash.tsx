@@ -11,7 +11,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getFederationTosUrl } from '@fedi/common/utils/FederationUtils'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
-import Flex, { Column, Row } from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
@@ -70,9 +70,9 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
 
     if (validating) {
         content = (
-            <Flex center grow>
+            <Column center grow>
                 <HoloLoader size={60} />
-            </Flex>
+            </Column>
         )
     } else if (!parsedEcash) {
         content = (
@@ -196,10 +196,10 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <SafeScrollArea edges="notop">
-            <Flex grow center gap={theme.spacing.sm}>
+            <Column grow center gap={theme.spacing.sm}>
                 {content}
-            </Flex>
-            <Flex fullWidth>{actions}</Flex>
+            </Column>
+            <Column fullWidth>{actions}</Column>
         </SafeScrollArea>
     )
 }

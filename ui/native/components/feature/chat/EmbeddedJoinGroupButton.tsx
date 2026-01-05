@@ -9,7 +9,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
 
 import { NavigationHook } from '../../../types/navigation'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 type Props = {
@@ -44,7 +44,7 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
             }
             onLongPress={copyToClipboard}
             title={
-                <Flex row center style={style.contents}>
+                <Row center style={style.contents}>
                     <SvgImage
                         containerStyle={style.icon}
                         size={SvgImageSize.xs}
@@ -67,7 +67,7 @@ const EmbeddedJoinGroupButton: React.FC<Props> = ({ groupId }: Props) => {
                         style={style.groupNameText}>
                         {`${groupConfig.name}`}
                     </Text> */}
-                </Flex>
+                </Row>
             }
         />
     )

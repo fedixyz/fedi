@@ -20,7 +20,7 @@ import { FediModImages } from '../../../assets/images'
 import { useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut, ShortcutType } from '../../../types'
 import { BubbleView } from '../../ui/BubbleView'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage, {
     SvgImageName,
@@ -180,11 +180,7 @@ const ShortcutTile = ({
 
             {!iconOnly && (
                 <>
-                    <Flex
-                        row
-                        align="center"
-                        justify="start"
-                        style={style.title}>
+                    <Row align="center" justify="start" style={style.title}>
                         <Text
                             caption
                             medium
@@ -193,7 +189,7 @@ const ShortcutTile = ({
                             adjustsFontSizeToFit>
                             {shortcutTitle}
                         </Text>
-                    </Flex>
+                    </Row>
                     {isNew && (
                         <Badge
                             value="New"

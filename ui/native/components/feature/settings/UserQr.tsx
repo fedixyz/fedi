@@ -8,7 +8,7 @@ import { MatrixAuth } from '@fedi/common/types'
 import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import QRCodeContainer from '../../ui/QRCodeContainer'
 
 type UserQrProps = {
@@ -31,14 +31,14 @@ export const UserQr = ({ matrixUser }: UserQrProps) => {
     const displayNameSuffix = useAppSelector(selectMatrixDisplayNameSuffix)
 
     return (
-        <Flex align="center" gap="lg">
+        <Column align="center" gap="lg">
             <QRCodeContainer
                 copyMessage={t('phrases.copied-member-code')}
                 qrValue={qrValue}
                 useShare={true}
                 shareValue={universalLink}
             />
-            <Flex row center gap="xs" fullWidth>
+            <Row center gap="xs" fullWidth>
                 <Text
                     h2
                     medium
@@ -56,8 +56,8 @@ export const UserQr = ({ matrixUser }: UserQrProps) => {
                         {displayNameSuffix}
                     </Text>
                 )}
-            </Flex>
-        </Flex>
+            </Row>
+        </Column>
     )
 }
 

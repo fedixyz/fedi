@@ -60,7 +60,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CheckBox from '../components/ui/CheckBox'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -816,7 +816,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                             )
                         })}
                     {authenticatedGuardian && (
-                        <Flex fullWidth>
+                        <Column fullWidth>
                             <Text small>{'Confirm guardian password'}</Text>
                             <Input
                                 onChangeText={input => {
@@ -832,7 +832,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                                 autoCapitalize={'none'}
                                 autoCorrect={false}
                             />
-                        </Flex>
+                        </Column>
                     )}
 
                     <SettingsSection title="Guardian Status">

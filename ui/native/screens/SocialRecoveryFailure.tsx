@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Dimensions, ImageBackground, StyleSheet } from 'react-native'
 
 import { Images } from '../assets/images'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -23,7 +23,7 @@ const SocialRecoveryFailure: React.FC<Props> = ({ navigation }: Props) => {
 
     return (
         <ImageBackground source={Images.HoloBackground} style={style.container}>
-            <Flex center style={style.detailsContainer}>
+            <Column center style={style.detailsContainer}>
                 <SvgImage name="Error" />
                 <Text h2 h2Style={style.failureMessage}>
                     {t('feature.recovery.social-recovery-unsuccessful')}
@@ -33,8 +33,8 @@ const SocialRecoveryFailure: React.FC<Props> = ({ navigation }: Props) => {
                         'feature.recovery.social-recovery-unsuccessful-instructions',
                     )}
                 </Text>
-            </Flex>
-            <Flex justify="end" style={style.buttonContainer}>
+            </Column>
+            <Column justify="end" style={style.buttonContainer}>
                 <Button
                     type="clear"
                     title={t('phrases.back-to-app')}
@@ -49,7 +49,7 @@ const SocialRecoveryFailure: React.FC<Props> = ({ navigation }: Props) => {
                         navigation.dispatch(reset('LocateSocialRecovery'))
                     }}
                 />
-            </Flex>
+            </Column>
         </ImageBackground>
     )
 }

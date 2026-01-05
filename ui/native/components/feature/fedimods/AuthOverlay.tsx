@@ -11,7 +11,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppSelector } from '../../../state/hooks'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 
 const log = makeLog('AuthOverlay')
 
@@ -57,7 +57,7 @@ export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
             contents={{
                 icon: 'LockSquareRounded',
                 body: (
-                    <Flex gap="lg">
+                    <Column gap="lg">
                         <Text>
                             <Trans
                                 t={t}
@@ -74,7 +74,7 @@ export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                 {error}
                             </Text>
                         )}
-                    </Flex>
+                    </Column>
                 ),
                 buttons: [
                     {

@@ -7,7 +7,7 @@ import { useTransactionHistory } from '@fedi/common/hooks/transactions'
 import { makeLog } from '@fedi/common/utils/log'
 
 import TransactionsList from '../components/feature/transaction-history/TransactionsList'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('Transactions')
@@ -33,14 +33,14 @@ const Transactions: React.FC<Props> = ({ route }: Props) => {
     }, [fetchTransactions, t, toast])
 
     return (
-        <Flex grow>
+        <Column grow>
             <TransactionsList
                 transactions={transactions}
                 loading={transactions.length === 0 && isLoading}
                 loadMoreTransactions={() => fetchTransactions({ more: true })}
                 federationId={federationId}
             />
-        </Flex>
+        </Column>
     )
 }
 

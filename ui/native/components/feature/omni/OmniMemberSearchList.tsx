@@ -8,7 +8,7 @@ import { MatrixUser } from '@fedi/common/types/matrix'
 import { isValidInternetIdentifier } from '@fedi/common/utils/validation'
 
 import { useHasBottomTabsNavigation } from '../../../utils/hooks'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { OmniMemberSearchItem } from './OmniMemberSearchItem'
 
 export type OmniMemberSearchListItemType =
@@ -73,13 +73,13 @@ export const OmniMemberSearchList: React.FC<Props> = ({
             contentContainerStyle={style.searchMembersScrollInner}
             ListEmptyComponent={
                 query ? (
-                    <Flex align="center" gap="md" style={style.searchEmpty}>
+                    <Column align="center" gap="md" style={style.searchEmpty}>
                         <Text>
                             {t('feature.omni.search-no-results', {
                                 query,
                             })}
                         </Text>
-                    </Flex>
+                    </Column>
                 ) : null
             }
         />

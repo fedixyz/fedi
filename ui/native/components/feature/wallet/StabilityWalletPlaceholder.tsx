@@ -13,7 +13,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { useAppSelector } from '../../../state/hooks'
 import { BubbleCard } from '../../ui/BubbleView'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const StabilityWalletPlaceholder: React.FC = () => {
@@ -36,9 +36,9 @@ const StabilityWalletPlaceholder: React.FC = () => {
                     'rgba(255, 255, 255, 0.0)',
                 ]}
                 containerStyle={[stylesPlaceholder.card, { height: 100 }]}>
-                <Flex style={stylesPlaceholder.headerContainer}>
-                    <Flex style={stylesPlaceholder.leftGroup}>
-                        <Flex style={stylesPlaceholder.titleContainer}>
+                <Column style={stylesPlaceholder.headerContainer}>
+                    <Column style={stylesPlaceholder.leftGroup}>
+                        <Column style={stylesPlaceholder.titleContainer}>
                             <SvgImage
                                 name="UsdCircle"
                                 size={SvgImageSize.md}
@@ -52,14 +52,14 @@ const StabilityWalletPlaceholder: React.FC = () => {
                                     'feature.stabilitypool.stable-balance',
                                 )}`}
                             </Text>
-                        </Flex>
+                        </Column>
                         <SvgImage
                             name="ChevronRightSmall"
                             color={theme.colors.secondary}
                             dimensions={{ width: 6, height: 12 }}
                         />
-                    </Flex>
-                    <Flex style={stylesPlaceholder.balanceContainer}>
+                    </Column>
+                    <Column style={stylesPlaceholder.balanceContainer}>
                         <Text
                             allowFontScaling={false}
                             style={stylesPlaceholder.balanceTextMain}>
@@ -67,9 +67,9 @@ const StabilityWalletPlaceholder: React.FC = () => {
                                 formattedPrimaryAmount,
                             )}
                         </Text>
-                    </Flex>
-                </Flex>
-                <Flex style={stylesPlaceholder.buttonsContainer}>
+                    </Column>
+                </Column>
+                <Column style={stylesPlaceholder.buttonsContainer}>
                     <Text
                         allowFontScaling={false}
                         numberOfLines={1}
@@ -77,7 +77,7 @@ const StabilityWalletPlaceholder: React.FC = () => {
                         style={stylesPlaceholder.buttonLabel}>
                         {t('feature.wallet.join-federation')}
                     </Text>
-                </Flex>
+                </Column>
             </BubbleCard>
         </Pressable>
     )

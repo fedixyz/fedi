@@ -13,7 +13,7 @@ import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CustomOverlay from '../components/ui/CustomOverlay'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
@@ -111,7 +111,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <SafeScrollArea edges="notop">
-            <Flex grow gap="lg" style={style.form}>
+            <Column grow gap="lg" style={style.form}>
                 <Input
                     {...inputProps}
                     maxFontSizeMultiplier={1.6}
@@ -127,9 +127,9 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                     autoCapitalize="none"
                     errorMessage={errorMessage}
                 />
-            </Flex>
-            <Flex align="center" gap="lg" shrink={false}>
-                <Flex align="center">
+            </Column>
+            <Column align="center" gap="lg" shrink={false}>
+                <Column align="center">
                     <Pressable style={style.bugButton} onPress={handleBugPress}>
                         <Text>🪲</Text>
                     </Pressable>
@@ -151,10 +151,9 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                             }}
                         />
                     </Text>
-                </Flex>
+                </Column>
                 {sendDb && (
-                    <Flex
-                        row
+                    <Row
                         align="center"
                         justify="between"
                         fullWidth
@@ -163,14 +162,14 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                             {t('feature.bug.database-attached')} 🕷️🐞🦟
                         </Text>
                         <SvgImage name="Check" />
-                    </Flex>
+                    </Row>
                 )}
                 <Button
                     fullWidth
                     disabled={isSubmitDisabled}
                     testID="submit"
                     title={
-                        <Flex row center gap="sm">
+                        <Row center gap="sm">
                             {isSubmitDisabled && (
                                 <ActivityIndicator
                                     size={18}
@@ -180,11 +179,11 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                             <Text medium caption color={submitTextColor}>
                                 {submitText}
                             </Text>
-                        </Flex>
+                        </Row>
                     }
                     onPress={handleSubmit}
                 />
-            </Flex>
+            </Column>
             <CustomOverlay
                 show={isSelectingFederation}
                 onBackdropPress={() => setIsSelectingFederation(false)}

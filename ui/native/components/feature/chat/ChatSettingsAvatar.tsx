@@ -7,7 +7,7 @@ import { MatrixRoom } from '@fedi/common/types'
 import { mxcHttpUrlToDownloadUrl } from '@fedi/common/utils/matrix'
 
 import { AvatarSize } from '../../ui/Avatar'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import ChatAvatar from './ChatAvatar'
 
@@ -33,7 +33,7 @@ export const ChatSettingsAvatar: React.FC<Props> = ({ room }) => {
     if (!room) return <HoloLoader />
 
     return (
-        <Flex center style={style.container}>
+        <Column center style={style.container}>
             <Pressable onPress={handleAvatarPress}>
                 <ChatAvatar
                     room={room}
@@ -45,7 +45,7 @@ export const ChatSettingsAvatar: React.FC<Props> = ({ room }) => {
             <Text h2 style={style.roomName} numberOfLines={1}>
                 {room?.name || ''}
             </Text>
-        </Flex>
+        </Column>
     )
 }
 

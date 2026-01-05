@@ -19,7 +19,7 @@ import {
 import { makePendingBalanceText } from '@fedi/common/utils/wallet'
 
 import { StabilityBitcoinBanner } from '../components/feature/wallet/StabilityBitcoinBanner'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { useAppSelector, useStabilityPool } from '../state/hooks'
 import type { NavigationHook, RootStackParamList } from '../types/navigation'
 
@@ -60,8 +60,8 @@ const StabilityHome: React.FC<Props> = ({ route }) => {
             style={style.container}
             edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             <StabilityBitcoinBanner federationId={federationId} />
-            <Flex grow center style={style.content}>
-                <Flex grow center fullWidth>
+            <Column grow center style={style.content}>
+                <Column grow center fullWidth>
                     <Progress.Circle
                         progress={1}
                         color={
@@ -73,7 +73,7 @@ const StabilityHome: React.FC<Props> = ({ route }) => {
                         size={width - theme.spacing.lg * 2}
                         borderWidth={1}
                     />
-                    <Flex align="center" style={style.balanceTextContainer}>
+                    <Column align="center" style={style.balanceTextContainer}>
                         <Text h1 h1Style={style.balanceText}>
                             {`${formattedStableBalance}`}
                         </Text>
@@ -86,9 +86,9 @@ const StabilityHome: React.FC<Props> = ({ route }) => {
                                 )}
                             </Text>
                         )}
-                    </Flex>
-                </Flex>
-                <Flex row fullWidth style={style.buttonContainer}>
+                    </Column>
+                </Column>
+                <Row fullWidth style={style.buttonContainer}>
                     <Button
                         containerStyle={style.button}
                         onPress={() => {
@@ -161,8 +161,8 @@ const StabilityHome: React.FC<Props> = ({ route }) => {
                             stableBalance === 0 && stableBalancePending === 0
                         }
                     />
-                </Flex>
-            </Flex>
+                </Row>
+            </Column>
         </SafeAreaView>
     )
 }

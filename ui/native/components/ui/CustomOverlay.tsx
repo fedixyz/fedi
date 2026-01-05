@@ -19,7 +19,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getOverlayBottomPadding } from '../../utils/layout'
-import Flex from './Flex'
+import { Row } from './Flex'
 import SvgImage, { SvgImageName, SvgImageSize } from './SvgImage'
 
 type CustomOverlayButton = {
@@ -238,9 +238,9 @@ const CustomOverlay: React.FC<CustomOverlayProps> = ({
                     </ScrollView>
                 )}
                 {buttons?.length > 0 && (
-                    <Flex row justify="between" style={style.overlayButtonView}>
+                    <Row justify="between" style={style.overlayButtonView}>
                         {renderButtons()}
-                    </Flex>
+                    </Row>
                 )}
             </Animated.View>
         </Overlay>

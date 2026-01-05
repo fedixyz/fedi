@@ -11,7 +11,7 @@ import { OmniInput } from '../components/feature/omni/OmniInput'
 import CustomOverlay, {
     CustomOverlayContents,
 } from '../components/ui/CustomOverlay'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { ParsedFediChatUser, ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -143,7 +143,7 @@ const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
     )
 
     return (
-        <Flex grow fullWidth>
+        <Column grow fullWidth>
             <OmniInput
                 expectedInputTypes={[ParserDataType.FediChatUser]}
                 onExpectedInput={handleScannedData}
@@ -165,7 +165,7 @@ const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
                     />
                 </>
             )}
-        </Flex>
+        </Column>
     )
 }
 

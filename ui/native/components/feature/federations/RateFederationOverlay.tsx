@@ -14,7 +14,7 @@ import { scaleAttachment } from '@fedi/common/utils/media'
 
 import { Images } from '../../../assets/images'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from './FederationLogo'
 
@@ -61,7 +61,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
             onBackdropPress={handleDismiss}
             contents={{
                 body: (
-                    <Flex>
+                    <Column>
                         <ImageBackground
                             source={Images.RateFederationBackground}
                             style={[
@@ -81,7 +81,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
                                 <SvgImage name="Close" size={20} />
                             </Pressable>
                         </ImageBackground>
-                        <Flex style={style.content} gap="xl">
+                        <Column style={style.content} gap="xl">
                             <Text h2 bold center>
                                 {t(
                                     'feature.federation.how-was-your-experience-with',
@@ -90,7 +90,7 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
                                     },
                                 )}
                             </Text>
-                            <Flex row>
+                            <Row>
                                 {new Array(5).fill(0).map((_, i) => (
                                     <Pressable
                                         key={`star-${i}`}
@@ -131,14 +131,14 @@ export const RateFederationOverlay: React.FC<Props> = ({ onDismiss, show }) => {
                                         )}
                                     </Pressable>
                                 ))}
-                            </Flex>
+                            </Row>
                             <Button
                                 title={t('words.submit')}
                                 disabled={rating === null}
                                 onPress={handleSubmit}
                             />
-                        </Flex>
-                    </Flex>
+                        </Column>
+                    </Column>
                 ),
             }}
         />

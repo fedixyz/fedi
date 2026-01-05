@@ -6,7 +6,7 @@ import { selectMatrixRoomMultispendStatus } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../../state/hooks'
 import { reset } from '../../../state/navigation'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { SafeAreaContainer } from '../../ui/SafeArea'
 import FederationGate from '../federations/FederationGate'
 
@@ -24,7 +24,7 @@ const MultispendFederationGate: React.FC<{
     if (!multispendStatus)
         return (
             <SafeAreaContainer edges="all">
-                <Flex grow center gap="md">
+                <Column grow center gap="md">
                     <Text h2>
                         {t('feature.multispend.multispend-unavailable')}
                     </Text>
@@ -33,7 +33,7 @@ const MultispendFederationGate: React.FC<{
                             'feature.multispend.multispend-unavailable-description',
                         )}
                     </Text>
-                </Flex>
+                </Column>
                 <Button
                     title={t('phrases.go-back')}
                     onPress={() => {

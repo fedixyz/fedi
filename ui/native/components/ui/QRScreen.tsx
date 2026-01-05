@@ -2,7 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 
-import Flex from './Flex'
+import { Row, Column } from './Flex'
 import QRCodeContainer from './QRCodeContainer'
 
 interface Props {
@@ -38,14 +38,14 @@ const QRScreen: React.FC<Props> = ({
 
     const style = styles(theme, dark)
     return (
-        <Flex
+        <Column
             grow
             align="center"
             justify="between"
             gap="lg"
             style={style.container}>
-            <Flex align="center" justify="end" gap="sm" fullWidth>
-                <Flex row center gap="sm" fullWidth>
+            <Column align="center" justify="end" gap="sm" fullWidth>
+                <Row center gap="sm" fullWidth>
                     {title && (
                         <Text
                             h2
@@ -61,13 +61,13 @@ const QRScreen: React.FC<Props> = ({
                             {titleSuffix}
                         </Text>
                     )}
-                </Flex>
+                </Row>
                 {subtitle && (
                     <Text caption style={style.subtitle}>
                         {subtitle}
                     </Text>
                 )}
-            </Flex>
+            </Column>
 
             <QRCodeContainer
                 copyMessage={copyMessage}
@@ -76,8 +76,8 @@ const QRScreen: React.FC<Props> = ({
                 qrValue={qrValue}
             />
 
-            <Flex fullWidth>{bottom}</Flex>
-        </Flex>
+            <Column fullWidth>{bottom}</Column>
+        </Column>
     )
 }
 

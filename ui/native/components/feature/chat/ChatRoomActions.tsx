@@ -17,7 +17,7 @@ import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 import { resetToChatSettings } from '@fedi/native/state/navigation'
 
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import ChatRoomAction from './ChatAction'
 
 export type Props = {
@@ -135,7 +135,7 @@ const ChatRoomActions: React.FC<Props> = ({ room, dismiss }: Props) => {
 
     return (
         <View style={styles(theme).container}>
-            <Flex align="start">
+            <Column align="start">
                 <Text
                     caption
                     style={styles(theme).sectionTitle}
@@ -153,8 +153,8 @@ const ChatRoomActions: React.FC<Props> = ({ room, dismiss }: Props) => {
                         onPress={() => action.onPress()}
                     />
                 ))}
-            </Flex>
-            <Flex align="start">
+            </Column>
+            <Column align="start">
                 <Text
                     caption
                     style={styles(theme).sectionTitle}
@@ -178,7 +178,7 @@ const ChatRoomActions: React.FC<Props> = ({ room, dismiss }: Props) => {
                         }
                     />
                 ))}
-            </Flex>
+            </Column>
         </View>
     )
 }

@@ -26,7 +26,7 @@ import {
     OmniInput,
     OmniInputAction,
 } from '../components/feature/omni/OmniInput'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { ParserDataType } from '../types'
@@ -149,7 +149,7 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
                 safeAreaContainerStyle={{ paddingTop: 0 }}
                 style={style.container}>
                 <View style={style.inputWrapper}>
-                    <Flex grow gap="xs">
+                    <Column grow gap="xs">
                         <Input
                             value={url}
                             onChangeText={setUrl}
@@ -167,7 +167,7 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
                             placeholder={t('feature.fedimods.mod-title')}
                             numberOfLines={1}
                             label={
-                                <Flex row align="center" justify="between">
+                                <Row align="center" justify="between">
                                     <Text small>{t('words.title')}</Text>
                                     {title.length > 0 && (
                                         <Text
@@ -187,7 +187,7 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
                                                   : ''}
                                         </Text>
                                     )}
-                                </Flex>
+                                </Row>
                             }
                             inputContainerStyle={style.innerInputContainer}
                             containerStyle={style.inputContainer}
@@ -244,7 +244,7 @@ const AddFediMod: React.FC<Props> = ({ route }: Props) => {
                             disabled={isFetching}
                             returnKeyType="done"
                         />
-                    </Flex>
+                    </Column>
                 </View>
             </SafeScrollArea>
             <View

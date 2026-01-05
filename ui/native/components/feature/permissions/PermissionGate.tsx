@@ -3,7 +3,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import HoloCircle from '../../ui/HoloCircle'
 import { SafeAreaContainer } from '../../ui/SafeArea'
@@ -33,7 +33,7 @@ export const PermissionGate: React.FC<Props> = ({
 
     return (
         <SafeAreaContainer style={style.container} edges="notop">
-            <Flex grow center gap="lg">
+            <Column grow center gap="lg">
                 <HoloCircle
                     content={<SvgImage name={icon} size={SvgImageSize.md} />}
                     size={72}
@@ -44,7 +44,7 @@ export const PermissionGate: React.FC<Props> = ({
                 <GradientView
                     variant="sky-banner"
                     style={style.descriptionContainer}>
-                    <Flex row center gap="sm">
+                    <Row center gap="sm">
                         {descriptionIcons.map(name => (
                             <SvgImage
                                 key={name}
@@ -52,7 +52,7 @@ export const PermissionGate: React.FC<Props> = ({
                                 size={SvgImageSize.sm}
                             />
                         ))}
-                    </Flex>
+                    </Row>
                     <Text medium style={style.descriptionText}>
                         {descriptionText}
                     </Text>
@@ -60,7 +60,7 @@ export const PermissionGate: React.FC<Props> = ({
                 <Text caption style={style.disclaimer}>
                     {t('feature.permissions.update-later-disclaimer')}
                 </Text>
-            </Flex>
+            </Column>
             <View style={style.actions}>
                 {alternativeActionButton}
                 <Button

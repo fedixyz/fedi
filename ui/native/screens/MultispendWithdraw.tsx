@@ -17,7 +17,7 @@ import {
 
 import { AmountScreen } from '../components/ui/AmountScreen'
 import Avatar from '../components/ui/Avatar'
-import Flex from '../components/ui/Flex'
+import { Row, Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { Sats } from '../types'
 import { RootStackParamList } from '../types/navigation'
@@ -100,16 +100,16 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
                             <Avatar id={roomId} icon="SocialPeople" />
                         </View>
                     )}
-                    <Flex gap="xs">
+                    <Column gap="xs">
                         <Text bold caption>
                             {matrixRoom?.name}
                         </Text>
-                        <Flex row align="center" gap="sm">
+                        <Row align="center" gap="sm">
                             <Text medium caption color={theme.colors.darkGrey}>
                                 {`${formattedMultispendBalance} ${selectedFiatCurrency}`}
                             </Text>
-                        </Flex>
-                    </Flex>
+                        </Row>
+                    </Column>
                 </View>
             }
             notes={notes}

@@ -13,7 +13,7 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import FiatAmount from '../components/feature/wallet/FiatAmount'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import { BitcoinOrLightning, BtcLnUri } from '../types'
@@ -47,9 +47,9 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
 
     if (isLoading) {
         return (
-            <Flex grow center>
+            <Column grow center>
                 <ActivityIndicator />
-            </Flex>
+            </Column>
         )
     }
 
@@ -58,7 +58,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
     return (
         <SafeScrollArea contentContainerStyle={style.container} edges="all">
             {decoded ? (
-                <Flex center style={style.detailsContainer}>
+                <Column center style={style.detailsContainer}>
                     <Text h2>{`${amountUtils.formatNumber(
                         amountUtils.msatToSat(decoded.amount),
                     )} ${t('words.sats').toUpperCase()}`}</Text>
@@ -69,9 +69,9 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
                     {decoded.description && (
                         <Text small>{decoded.description}</Text>
                     )}
-                </Flex>
+                </Column>
             ) : (
-                <Flex center style={style.errorContainer}>
+                <Column center style={style.errorContainer}>
                     <Text h2>{`- ${t('words.sats').toUpperCase()}`}</Text>
                     <Text medium color={theme.colors.darkGrey}>
                         {`- ${getCurrencyCode(selectedFiatCurrency)}`}
@@ -79,7 +79,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
                     <Text small color={theme.colors.red}>
                         {t('phrases.failed-to-decode-invoice')}
                     </Text>
-                </Flex>
+                </Column>
             )}
             <ReceiveQr
                 uri={

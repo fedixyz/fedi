@@ -7,7 +7,7 @@ import { useMatrixRoomPreview } from '@fedi/common/hooks/matrix'
 import { DEFAULT_GROUP_NAME } from '../../../constants'
 import { MatrixRoom } from '../../../types'
 import { BubbleView } from '../../ui/BubbleView'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage from '../../ui/SvgImage'
 
@@ -46,12 +46,12 @@ const DefaultChatTile = ({
                 onLongPress={() => onLongPress(room)}
                 delayLongPress={300}
                 onPress={() => onSelect(room)}>
-                <Flex center shrink={false} style={style.chatIcon}>
+                <Column center shrink={false} style={style.chatIcon}>
                     <SvgImage
                         name={isPublicBroadcast ? 'SpeakerPhone' : 'Chat'}
                     />
-                </Flex>
-                <Flex grow basis={false}>
+                </Column>
+                <Column grow basis={false}>
                     <Text style={style.title} numberOfLines={1} bold>
                         {room.name || DEFAULT_GROUP_NAME}
                     </Text>
@@ -65,7 +65,7 @@ const DefaultChatTile = ({
                             {text}
                         </Text>
                     )}
-                </Flex>
+                </Column>
                 <SvgImage name="ChevronRight" color={theme.colors.grey} />
             </Pressable>
         </View>

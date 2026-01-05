@@ -24,7 +24,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useForceBlurOnKeyboardHide } from '../../utils/hooks/keyboard'
-import Flex from './Flex'
+import { Row, Column } from './Flex'
 import InvisibleInput from './InvisibleInput'
 import NotesInput from './NotesInput'
 import { NumpadButton } from './NumpadButton'
@@ -175,8 +175,8 @@ const AmountInput: React.FC<Props> = ({
     }))
 
     return (
-        <Flex grow align="center" fullWidth>
-            <Flex center gap="sm" grow style={style.amounts}>
+        <Column grow align="center" fullWidth>
+            <Column center gap="sm" grow style={style.amounts}>
                 <Animated.View style={animatedStyle}>
                     <Pressable
                         style={style.primaryAmount}
@@ -218,7 +218,7 @@ const AmountInput: React.FC<Props> = ({
                         )}
                     </Pressable>
                 )}
-                <Flex center fullWidth>
+                <Column center fullWidth>
                     {customError ? (
                         <Text style={style.error} caption>
                             {customError}
@@ -226,11 +226,14 @@ const AmountInput: React.FC<Props> = ({
                     ) : (
                         error
                     )}
-                </Flex>
+                </Column>
                 {content && (
-                    <Flex align="center" fullWidth style={style.errorContainer}>
+                    <Column
+                        align="center"
+                        fullWidth
+                        style={style.errorContainer}>
                         {content}
-                    </Flex>
+                    </Column>
                 )}
                 {setNotes && (
                     <View style={style.notesContainer}>
@@ -242,9 +245,9 @@ const AmountInput: React.FC<Props> = ({
                         />
                     </View>
                 )}
-            </Flex>
+            </Column>
             {hasNumpad && (
-                <Flex row wrap fullWidth style={style.numpad}>
+                <Row wrap fullWidth style={style.numpad}>
                     {numpadButtons.map(btn => (
                         <NumpadButton
                             key={btn}
@@ -260,9 +263,9 @@ const AmountInput: React.FC<Props> = ({
                             disabled={isSubmitting}
                         />
                     ))}
-                </Flex>
+                </Row>
             )}
-        </Flex>
+        </Column>
     )
 }
 

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { SvgImageName } from '../../ui/SvgImage'
 import InfoEntryList from '../home/InfoEntryList'
 
@@ -39,7 +39,7 @@ const FirstTimeOverlay: React.FC<FirstTimeOverlayProps> = ({
             onBackdropPress={onDismiss}
             contents={{
                 body: (
-                    <Flex gap="lg" fullWidth style={styles.contentWrapper}>
+                    <Column gap="lg" fullWidth style={styles.contentWrapper}>
                         <Text style={styles.title}>{title}</Text>
                         <InfoEntryList items={overlayItems} theme={theme} />
                         <Button
@@ -48,7 +48,7 @@ const FirstTimeOverlay: React.FC<FirstTimeOverlayProps> = ({
                             onPress={onDismiss}
                             containerStyle={styles.exploreButton}
                         />
-                    </Flex>
+                    </Column>
                 ),
             }}
         />

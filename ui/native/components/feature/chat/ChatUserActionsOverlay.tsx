@@ -13,7 +13,7 @@ import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { MatrixPowerLevel } from '../../../types'
 import { AvatarSize } from '../../ui/Avatar'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
@@ -66,7 +66,7 @@ export const ChatUserActionsOverlay: React.FC<Props> = ({
             onBackdropPress={() => onDismiss()}
             contents={{
                 title: (
-                    <Flex row gap="xs" align="center">
+                    <Row gap="xs" align="center">
                         <ChatAvatar
                             containerStyle={style.avatar}
                             user={member}
@@ -76,7 +76,7 @@ export const ChatUserActionsOverlay: React.FC<Props> = ({
                             {member?.displayName ?? ''}
                         </Text>
                         {isAdmin && <SvgImage size={15} name={'AdminBadge'} />}
-                    </Flex>
+                    </Row>
                 ),
                 body: !member ? (
                     <HoloLoader size={48} />

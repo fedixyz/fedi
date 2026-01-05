@@ -10,7 +10,7 @@ import { MSats, MatrixPaymentEvent } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import { NavigationHook } from '../../../types/navigation'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import { OptionalGradient } from '../../ui/OptionalGradient'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
@@ -55,10 +55,10 @@ export const PaymentEventStatus = ({
         ) : null
 
     return (
-        <Flex row align="center" style={style.paymentResult}>
+        <Row align="center" style={style.paymentResult}>
             {icon}
             <Text style={style.statusText}>{statusText}</Text>
-        </Flex>
+        </Row>
     )
 }
 
@@ -71,12 +71,7 @@ export const PaymentEventButtons = ({
     const style = styles(theme)
 
     return (
-        <Flex
-            row
-            justify="start"
-            gap="md"
-            fullWidth
-            style={style.paymentButtons}>
+        <Row justify="start" gap="md" fullWidth style={style.paymentButtons}>
             {buttons.map(button => (
                 <Button
                     key={button.label}
@@ -92,7 +87,7 @@ export const PaymentEventButtons = ({
                     }
                 />
             ))}
-        </Flex>
+        </Row>
     )
 }
 
@@ -166,7 +161,7 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
     return (
         <PaymentEventContainer>
             <>
-                <Flex gap="lg">
+                <Column gap="lg">
                     <Text color={theme.colors.secondary}>{messageText}</Text>
                     {isSentByMe && transaction?.txnNotes && (
                         <Text color={theme.colors.secondary}>
@@ -176,9 +171,9 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
                             : {transaction.txnNotes}
                         </Text>
                     )}
-                </Flex>
+                </Column>
                 {isLoadingTransaction && (
-                    <Flex row align="center" gap="xs" style={{ marginTop: 4 }}>
+                    <Row align="center" gap="xs" style={{ marginTop: 4 }}>
                         <ActivityIndicator
                             size="small"
                             color={theme.colors.secondary}
@@ -190,7 +185,7 @@ const ChatPaymentEvent: React.FC<Props> = ({ event }: Props) => {
                             }}>
                             {t('words.loading')}
                         </Text>
-                    </Flex>
+                    </Row>
                 )}
             </>
             {extra || null}

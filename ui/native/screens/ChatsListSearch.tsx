@@ -15,7 +15,7 @@ import { useChatsListSearch } from '@fedi/common/hooks/matrix'
 import { ChatType, MatrixRoom } from '@fedi/common/types'
 
 import ChatRoomTile from '../components/feature/chat/ChatRoomTile'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -67,7 +67,7 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
                 behavior="padding"
                 style={style.resultsContainer}>
                 {filteredChatsList.length === 0 ? (
-                    <Flex
+                    <Column
                         align="center"
                         justify="center"
                         gap={theme.spacing.sm}
@@ -83,7 +83,7 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
                         <Text medium style={style.emptySubtext}>
                             {t('feature.chat.search-chats-list-no-results')}
                         </Text>
-                    </Flex>
+                    </Column>
                 ) : (
                     <ScrollView style={{ flex: 1 }}>
                         <FlatList

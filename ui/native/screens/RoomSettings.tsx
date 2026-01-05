@@ -30,7 +30,7 @@ import { ConfirmBlockOverlay } from '../components/feature/chat/ConfirmBlockOver
 import SettingsItem, {
     SettingsItemProps,
 } from '../components/feature/settings/SettingsItem'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetToChatsScreen } from '../state/navigation'
@@ -358,7 +358,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                 <ScrollView
                     bounces={false}
                     contentContainerStyle={style.content}>
-                    <Flex gap="lg">
+                    <Column gap="lg">
                         <Text color={theme.colors.primaryLight}>
                             {t('feature.chat.chat-settings')}
                         </Text>
@@ -367,7 +367,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                                 <SettingsItem key={`si-${index}`} {...item} />
                             ))}
                         </View>
-                    </Flex>
+                    </Column>
                 </ScrollView>
             </View>
             <ConfirmBlockOverlay

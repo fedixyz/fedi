@@ -14,7 +14,7 @@ import { useAppSelector } from '../../../state/hooks'
 import AmountInput from '../../ui/AmountInput'
 import AmountInputDisplay from '../../ui/AmountInputDisplay'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import FederationWalletSelector from '../send/FederationWalletSelector'
 
 const log = makeLog('MakeInvoiceOverlay')
@@ -97,7 +97,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
             contents={{
                 title: t('feature.stabilitypool.enter-deposit-amount'),
                 body: (
-                    <Flex
+                    <Column
                         grow
                         align="center"
                         gap="lg"
@@ -123,7 +123,7 @@ export const GenerateEcashOverlay: React.FC<Props> = ({
                                 error={error}
                             />
                         )}
-                    </Flex>
+                    </Column>
                 ),
                 buttons: [
                     {

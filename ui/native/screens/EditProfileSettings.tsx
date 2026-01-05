@@ -27,7 +27,7 @@ import { stripFileUriPrefix } from '@fedi/common/utils/media'
 import { ensureNonNullish } from '@fedi/common/utils/neverthrow'
 
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { Pressable } from '../components/ui/Pressable'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { useStoragePermission } from '../utils/hooks'
@@ -151,7 +151,7 @@ const EditProfileSettings: React.FC = () => {
                     <Text caption>{t('feature.chat.change-avatar')}</Text>
                 </Pressable>
 
-                <Flex grow style={style.content}>
+                <Column grow style={style.content}>
                     <Text
                         testID="DisplayNameLabel"
                         caption
@@ -175,7 +175,7 @@ const EditProfileSettings: React.FC = () => {
                             {errorMessage}
                         </Text>
                     )}
-                </Flex>
+                </Column>
             </ScrollView>
 
             <View

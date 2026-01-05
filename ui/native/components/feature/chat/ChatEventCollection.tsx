@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native'
 import dateUtils from '@fedi/common/utils/DateUtils'
 
 import { MatrixEvent } from '../../../types'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import ChatEventTimeFrame from './ChatEventTimeFrame'
 
 interface Props {
@@ -43,7 +43,7 @@ const ChatEventCollection: React.FC<Props> = memo(
         return (
             <View style={style.container}>
                 {earliestEvent.timestamp && (
-                    <Flex
+                    <Column
                         align="center"
                         fullWidth
                         style={style.timestampContainer}>
@@ -52,9 +52,9 @@ const ChatEventCollection: React.FC<Props> = memo(
                                 earliestEvent.timestamp / 1000,
                             )}
                         </Text>
-                    </Flex>
+                    </Column>
                 )}
-                <Flex style={style.chatEventContainer}>
+                <Column style={style.chatEventContainer}>
                     {collection.map(events => (
                         <ChatEventTimeFrame
                             key={events.at(-1)?.id}
@@ -68,7 +68,7 @@ const ChatEventCollection: React.FC<Props> = memo(
                             isInViewport={isInViewport}
                         />
                     ))}
-                </Flex>
+                </Column>
             </View>
         )
     },

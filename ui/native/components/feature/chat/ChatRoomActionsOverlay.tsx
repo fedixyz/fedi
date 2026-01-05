@@ -7,7 +7,7 @@ import { selectMatrixRoom } from '@fedi/common/redux'
 import { useAppSelector } from '../../../state/hooks'
 import { AvatarSize } from '../../ui/Avatar'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import ChatAvatar from './ChatAvatar'
 import ChatRoomActions from './ChatRoomActions'
@@ -36,7 +36,7 @@ export const ChatRoomActionsOverlay: React.FC<Props> = ({
             onBackdropPress={() => onDismiss()}
             contents={{
                 title: room ? (
-                    <Flex row center gap="xs">
+                    <Row center gap="xs">
                         <ChatAvatar
                             containerStyle={[style.avatar]}
                             room={room}
@@ -49,7 +49,7 @@ export const ChatRoomActionsOverlay: React.FC<Props> = ({
                             adjustsFontSizeToFit>
                             {room?.name ?? ''}
                         </Text>
-                    </Flex>
+                    </Row>
                 ) : (
                     ''
                 ),

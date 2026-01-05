@@ -9,7 +9,7 @@ import {
     OmniInput,
     OmniInputAction,
 } from '../components/feature/omni/OmniInput'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppDispatch } from '../state/hooks'
 import { ParserDataType } from '../types'
 import type { RootStackParamList } from '../types/navigation'
@@ -45,7 +45,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
     useSyncCurrencyRatesOnFocus(federationId)
 
     return (
-        <Flex grow fullWidth>
+        <Column grow fullWidth>
             <OmniInput
                 expectedInputTypes={[
                     ParserDataType.Bolt11,
@@ -73,7 +73,7 @@ const Send: React.FC<Props> = ({ navigation, route }: Props) => {
                 onUnexpectedSuccess={() => null}
                 customActions={customActions}
             />
-        </Flex>
+        </Column>
     )
 }
 

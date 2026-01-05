@@ -14,7 +14,7 @@ import { LoadedFederation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
 import RecoveryInProgress from '../recovery/RecoveryInProgress'
@@ -61,7 +61,7 @@ const FederationTile: React.FC<Props> = ({
     }
 
     return (
-        <Flex gap="md">
+        <Column gap="md">
             <Pressable
                 testID={federation.name
                     .concat('DetailsButton')
@@ -119,7 +119,7 @@ const FederationTile: React.FC<Props> = ({
                     )}
                 </>
             )}
-        </Flex>
+        </Column>
     )
 }
 

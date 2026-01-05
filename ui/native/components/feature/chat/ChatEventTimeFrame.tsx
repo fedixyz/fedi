@@ -20,7 +20,7 @@ import {
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import ChatAvatar from './ChatAvatar'
 import ChatEvent from './ChatEvent'
@@ -89,17 +89,16 @@ const ChatEventTimeFrame = memo(
         return (
             <View style={style.senderGroup}>
                 {showUsernames && !isMe && (
-                    <Flex
-                        row
+                    <Row
                         align="center"
                         gap="xxs"
                         style={style.senderNameContainer}>
                         <Text small>{displayName}</Text>
                         {isAdmin && <SvgImage size={12} name="AdminBadge" />}
-                    </Flex>
+                    </Row>
                 )}
 
-                <Flex row align="end">
+                <Row align="end">
                     {!isMe && showUsernames && (
                         <Pressable
                             style={style.senderAvatar}
@@ -162,7 +161,7 @@ const ChatEventTimeFrame = memo(
                             )
                         })}
                     </View>
-                </Flex>
+                </Row>
             </View>
         )
     },

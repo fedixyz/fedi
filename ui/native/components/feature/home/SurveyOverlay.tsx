@@ -6,7 +6,7 @@ import { openMiniAppSession } from '@fedi/common/redux'
 
 import { useAppDispatch } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
 import SvgImage from '../../ui/SvgImage'
 
@@ -36,7 +36,7 @@ const SurveyOverlay = () => {
             show={show}
             onBackdropPress={handleDismiss}
             showCloseButton>
-            <Flex gap="lg" align="center" fullWidth>
+            <Column gap="lg" align="center" fullWidth>
                 <HoloCircle
                     size={64}
                     content={<SvgImage name="Tooltip" size={48} />}
@@ -50,7 +50,7 @@ const SurveyOverlay = () => {
                 <Button onPress={() => handleAccept(handleNavigate)} fullWidth>
                     {activeSurvey.buttonText}
                 </Button>
-            </Flex>
+            </Column>
         </CenterOverlay>
     )
 }

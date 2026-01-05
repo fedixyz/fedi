@@ -8,7 +8,7 @@ import {
     useCameraPermission,
     useHasBottomTabsNavigation,
 } from '../../../utils/hooks'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 import HoloCircle from '../../ui/HoloCircle'
 import NightHoloGradient from '../../ui/NightHoloGradient'
 import SvgImage from '../../ui/SvgImage'
@@ -61,8 +61,8 @@ export const OmniQrScanner: React.FC<Props> = ({
     }
 
     return (
-        <Flex grow gap="lg" basis={false} style={style.container}>
-            <Flex grow fullWidth basis={false} style={style.scanner}>
+        <Column grow gap="lg" basis={false} style={style.container}>
+            <Column grow fullWidth basis={false} style={style.scanner}>
                 {cameraPermission === 'granted' && (
                     <QrCodeScanner
                         processing={isProcessing}
@@ -73,7 +73,7 @@ export const OmniQrScanner: React.FC<Props> = ({
                     <NightHoloGradient
                         style={style.permissionContainer}
                         gradientStyle={style.permissionGradient}>
-                        <Flex
+                        <Column
                             center
                             gap="lg"
                             fullWidth
@@ -96,12 +96,12 @@ export const OmniQrScanner: React.FC<Props> = ({
                                     </Text>
                                 }
                             />
-                        </Flex>
+                        </Column>
                     </NightHoloGradient>
                 )}
-            </Flex>
+            </Column>
             <OmniActions actions={actions} />
-        </Flex>
+        </Column>
     )
 }
 

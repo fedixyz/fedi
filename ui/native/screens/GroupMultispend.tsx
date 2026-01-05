@@ -9,7 +9,7 @@ import MultispendFederationGate from '../components/feature/multispend/Multispen
 import MultispendWalletHeader from '../components/feature/multispend/MultispendWalletHeader'
 import MultispendFinalized from '../components/feature/multispend/finalized/MultispendFinalized'
 import MultispendActiveInvitation from '../components/feature/multispend/invitation/MultispendActiveInvitation'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 
@@ -32,7 +32,7 @@ const GroupMultispend: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <MultispendFederationGate roomId={roomId}>
-            <Flex grow>
+            <Column grow>
                 {shouldShowHeader && <MultispendWalletHeader roomId={roomId} />}
                 {multispendStatus?.status === 'activeInvitation' && (
                     <MultispendActiveInvitation roomId={roomId} />
@@ -40,7 +40,7 @@ const GroupMultispend: React.FC<Props> = ({ route }: Props) => {
                 {multispendStatus?.status === 'finalized' && (
                     <MultispendFinalized roomId={roomId} />
                 )}
-            </Flex>
+            </Column>
         </MultispendFederationGate>
     )
 }

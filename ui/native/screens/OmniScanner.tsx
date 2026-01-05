@@ -8,7 +8,7 @@ import { OmniInput } from '../components/feature/omni/OmniInput'
 import FirstTimeOverlay, {
     FirstTimeOverlayItem,
 } from '../components/feature/onboarding/FirstTimeOverlay'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import { RootStackParamList, TabsNavigatorParamList } from '../types/navigation'
@@ -35,13 +35,13 @@ const OmniScanner: React.FC<Props> = () => {
     return (
         <>
             <SafeAreaContainer edges={'bottom'}>
-                <Flex grow fullWidth>
+                <Column grow fullWidth>
                     <OmniInput
                         expectedInputTypes={[]}
                         onExpectedInput={() => null}
                         onUnexpectedSuccess={() => null}
                     />
-                </Flex>
+                </Column>
             </SafeAreaContainer>
 
             <FirstTimeOverlay

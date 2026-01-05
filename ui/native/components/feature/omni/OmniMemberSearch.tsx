@@ -20,7 +20,7 @@ import { encodeFediMatrixUserUri } from '@fedi/common/utils/matrix'
 import { useAppSelector } from '../../../state/hooks'
 import { useHasBottomTabsNavigation } from '../../../utils/hooks'
 import Avatar, { AvatarSize } from '../../ui/Avatar'
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
 import SvgImage from '../../ui/SvgImage'
 import { ChatConnectionBadge } from '../chat/ChatConnectionBadge'
@@ -60,9 +60,9 @@ export const OmniMemberSearch: React.FC<Props> = ({
     let content: React.ReactNode
     if (isSearching) {
         content = (
-            <Flex align="center" style={style.loadingContainer}>
+            <Column align="center" style={style.loadingContainer}>
                 <HoloLoader size={24} />
-            </Flex>
+            </Column>
         )
     } else if (searchError) {
         content = (
@@ -91,11 +91,11 @@ export const OmniMemberSearch: React.FC<Props> = ({
                 }
                 style={style.defaultContainer}>
                 {recentRoomMembers.length > 0 && (
-                    <Flex>
+                    <Column>
                         <Text small medium style={style.recentMembersLabel}>
                             {t('words.people')}
                         </Text>
-                        <Flex row fullWidth>
+                        <Row fullWidth>
                             {recentRoomMembers.map(user => (
                                 <Pressable
                                     key={user.id}
@@ -119,8 +119,8 @@ export const OmniMemberSearch: React.FC<Props> = ({
                                     </Text>
                                 </Pressable>
                             ))}
-                        </Flex>
-                    </Flex>
+                        </Row>
+                    </Column>
                 )}
                 <OmniActions actions={actions} />
             </SafeAreaView>
@@ -173,9 +173,9 @@ export const OmniMemberSearch: React.FC<Props> = ({
                     </Pressable>
                 )}
             </SafeAreaView>
-            <Flex grow fullWidth>
+            <Column grow fullWidth>
                 {content}
-            </Flex>
+            </Column>
             <ChatConnectionBadge hide={!query} offset={80} noSafeArea />
         </KeyboardAvoidingView>
     )

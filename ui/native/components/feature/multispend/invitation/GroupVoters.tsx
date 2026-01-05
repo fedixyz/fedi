@@ -12,7 +12,7 @@ import {
 import { getUserSuffix } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../../state/hooks'
-import Flex from '../../../ui/Flex'
+import { Row, Column } from '../../../ui/Flex'
 import OverlaySelect from '../../../ui/OverlaySelect'
 import ChatAvatar from '../../chat/ChatAvatar'
 
@@ -64,8 +64,8 @@ const GroupVoters: React.FC<Props> = ({ roomId }) => {
     }, [filter, multispendStatus, getVoterStatus])
 
     return (
-        <Flex grow gap="md" style={style.container}>
-            <Flex row align="center" justify="between" gap="lg">
+        <Column grow gap="md" style={style.container}>
+            <Row align="center" justify="between" gap="lg">
                 <Text medium>{t('words.voters')}</Text>
                 <OverlaySelect
                     value={filter}
@@ -80,7 +80,7 @@ const GroupVoters: React.FC<Props> = ({ roomId }) => {
                         { value: 'rejected', label: t('words.rejected') },
                     ]}
                 />
-            </Flex>
+            </Row>
             {multispendStatus?.status === 'activeInvitation' && (
                 <View style={style.incompleteNotice}>
                     <Text style={style.greyText} caption>
@@ -100,7 +100,7 @@ const GroupVoters: React.FC<Props> = ({ roomId }) => {
                     />
                 ))}
             </ScrollView>
-        </Flex>
+        </Column>
     )
 }
 
@@ -126,26 +126,26 @@ function MultispendVoter({
     if (!member) return null
 
     return (
-        <Flex row align="center" justify="between">
-            <Flex row align="center" gap="sm">
+        <Row align="center" justify="between">
+            <Row align="center" gap="sm">
                 <ChatAvatar user={member} />
-                <Flex gap="xxs">
-                    <Flex row align="center" gap="sm">
+                <Column gap="xxs">
+                    <Row align="center" gap="sm">
                         <Text bold caption>
                             {member.displayName}
                         </Text>
                         <Text small medium style={style.greyText}>
                             {getUserSuffix(member.id)}
                         </Text>
-                    </Flex>
+                    </Row>
                     {voterRole === 'proposer' && (
                         <Text small medium style={style.greyText}>
                             {t('words.admin')}
                         </Text>
                     )}
-                </Flex>
-            </Flex>
-            <Flex row align="center" gap="sm">
+                </Column>
+            </Row>
+            <Row align="center" gap="sm">
                 <Text medium style={style.greyText} small>
                     {t(
                         status === 'approved'
@@ -162,8 +162,8 @@ function MultispendVoter({
                           ? '❌'
                           : '⏳'}
                 </Text>
-            </Flex>
-        </Flex>
+            </Row>
+        </Row>
     )
 }
 

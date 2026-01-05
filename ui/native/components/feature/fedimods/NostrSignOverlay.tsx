@@ -13,7 +13,7 @@ import { eventHashFromEvent } from '@fedi/injections/src/injectables/nostr/utils
 
 import { useAppSelector } from '../../../state/hooks'
 import CustomOverlay from '../../ui/CustomOverlay'
-import Flex from '../../ui/Flex'
+import { Column } from '../../ui/Flex'
 
 const log = makeLog('AuthOverlay')
 
@@ -83,7 +83,7 @@ export const NostrSignOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                       }),
                 message: display?.kind && !isAuthEvent ? display.kind : '',
                 body: (
-                    <Flex gap="lg">
+                    <Column gap="lg">
                         {isAuthEvent ? (
                             <Text>
                                 <Trans
@@ -118,7 +118,7 @@ export const NostrSignOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
                                 {error}
                             </Text>
                         )}
-                    </Flex>
+                    </Column>
                 ),
                 buttons: [
                     {

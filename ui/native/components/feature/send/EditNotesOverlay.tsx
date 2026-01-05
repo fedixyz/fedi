@@ -2,7 +2,7 @@ import { Text, Theme, useTheme, Input } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import Flex from '../../ui/Flex'
+import { Row } from '../../ui/Flex'
 import FullModalOverlay from '../../ui/FullModalOverlay'
 import { PressableIcon } from '../../ui/PressableIcon'
 import { SvgImageSize } from '../../ui/SvgImage'
@@ -32,7 +32,7 @@ const EditNotesOverlay = ({
             contents={{
                 headerElement: (
                     <>
-                        <Flex row center style={style.headerContainer}>
+                        <Row center style={style.headerContainer}>
                             <PressableIcon
                                 svgName="Close"
                                 onPress={() => dismiss()}
@@ -42,7 +42,7 @@ const EditNotesOverlay = ({
                             <Text bold style={style.title}>
                                 {t('phrases.add-notes')}
                             </Text>
-                        </Flex>
+                        </Row>
                     </>
                 ),
                 body: (

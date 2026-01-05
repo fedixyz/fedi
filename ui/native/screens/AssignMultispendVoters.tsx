@@ -14,7 +14,7 @@ import { getUserSuffix } from '@fedi/common/utils/matrix'
 import ChatAvatar from '../components/feature/chat/ChatAvatar'
 import { AvatarSize } from '../components/ui/Avatar'
 import CheckBox from '../components/ui/CheckBox'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
@@ -72,7 +72,7 @@ const AssignMultispendVoters: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <SafeAreaContainer edges="notop" style={style.container}>
-            <Flex grow gap="lg">
+            <Column grow gap="lg">
                 <Input
                     leftIcon={
                         <SvgImage
@@ -140,7 +140,7 @@ const AssignMultispendVoters: React.FC<Props> = ({ navigation, route }) => {
                     ))}
                 </ScrollView>
                 {selectedVoters.length > 0 && (
-                    <Flex align="center">
+                    <Column align="center">
                         <View style={style.selectedVotersBadge}>
                             <Text small>
                                 <Trans
@@ -152,9 +152,9 @@ const AssignMultispendVoters: React.FC<Props> = ({ navigation, route }) => {
                                 />
                             </Text>
                         </View>
-                    </Flex>
+                    </Column>
                 )}
-            </Flex>
+            </Column>
             <Button onPress={handleSubmit} disabled={selectedVoters.length < 2}>
                 {t('words.confirm')}
             </Button>

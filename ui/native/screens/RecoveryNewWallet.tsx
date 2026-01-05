@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native'
 
 import { useDeviceRegistration } from '@fedi/common/hooks/recovery'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { reset } from '../state/navigation'
@@ -31,8 +31,8 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
     }
 
     return (
-        <Flex grow center gap="lg" style={style.container}>
-            <Flex align="center" gap="lg" style={style.centeredContainer}>
+        <Column grow center gap="lg" style={style.container}>
+            <Column align="center" gap="lg" style={style.centeredContainer}>
                 <HoloCircle
                     content={<SvgImage name="Wallet" size={SvgImageSize.md} />}
                     size={64}
@@ -44,7 +44,7 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
                 <Text medium style={style.centeredText}>
                     {t('feature.recovery.create-new-wallet-guidance')}
                 </Text>
-            </Flex>
+            </Column>
             <Text caption style={style.subText}>
                 {t('words.enjoy')}
             </Text>
@@ -53,7 +53,7 @@ const RecoveryNewWallet: React.FC<Props> = ({ navigation }: Props) => {
                 title={t('words.continue')}
                 onPress={handleContinue}
             />
-        </Flex>
+        </Column>
     )
 }
 

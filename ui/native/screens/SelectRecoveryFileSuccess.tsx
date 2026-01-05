@@ -4,7 +4,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import Success from '../components/ui/Success'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -22,11 +22,11 @@ const SelectRecoveryFileSuccess: React.FC<Props> = () => {
     return (
         <Success
             message={
-                <Flex align="center" style={style.textContainer}>
+                <Column align="center" style={style.textContainer}>
                     <Text h2 h2Style={style.successMessage}>
                         {t('feature.recovery.successfully-opened-fedi-file')}
                     </Text>
-                </Flex>
+                </Column>
             }
             buttonText={t('words.okay')}
             nextScreen={'CompleteSocialRecovery'}

@@ -3,7 +3,7 @@ import { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import Flex from '../../../ui/Flex'
+import { Row, Column } from '../../../ui/Flex'
 
 type Props = {
     heading?: ReactNode
@@ -28,13 +28,13 @@ const MultispendEventTemplate: React.FC<Props> = ({
     return (
         <View style={[style.bubble, { width: theme.sizes.maxMessageWidth }]}>
             {heading && (
-                <Flex row align="center" justify="between">
+                <Row align="center" justify="between">
                     <Text style={style.headerText} caption bold>
                         {t('feature.multispend.message-header')}
                     </Text>
-                </Flex>
+                </Row>
             )}
-            <Flex gap="md" style={style.body}>
+            <Column gap="md" style={style.body}>
                 {typeof body === 'string' ? (
                     <Text caption style={style.incomingText}>
                         {body}
@@ -49,7 +49,7 @@ const MultispendEventTemplate: React.FC<Props> = ({
                 ) : (
                     footer
                 )}
-            </Flex>
+            </Column>
             {button && (
                 <Button
                     containerStyle={style.button}

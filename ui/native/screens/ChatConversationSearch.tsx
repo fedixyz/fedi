@@ -12,7 +12,7 @@ import { selectMatrixRoom } from '@fedi/common/redux'
 import { SendableMatrixEvent } from '@fedi/common/types'
 
 import ChatMessageTile from '../components/feature/chat/ChatMessageTile'
-import Flex from '../components/ui/Flex'
+import { Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -109,7 +109,7 @@ const ChatConversationSearch: React.FC<Props> = ({
         if (!query) return null
         if (isSearching) return null
         return (
-            <Flex
+            <Column
                 align="center"
                 justify="center"
                 gap={theme.spacing.sm}
@@ -122,13 +122,13 @@ const ChatConversationSearch: React.FC<Props> = ({
                 <Text h2 bold style={style.emptyText}>
                     {t('phrases.no-result')}
                 </Text>
-            </Flex>
+            </Column>
         )
     }, [t, theme, style, query, isSearching])
 
     return (
         <SafeAreaView style={style.container} edges={['bottom']}>
-            <Flex style={style.resultsContainer}>
+            <Column style={style.resultsContainer}>
                 <FlatList
                     data={searchResults as SendableMatrixEvent[]}
                     renderItem={renderMessage}
@@ -139,16 +139,16 @@ const ChatConversationSearch: React.FC<Props> = ({
                     ListFooterComponent={renderFooter}
                 />
                 {isSearching && searchResults.length === 0 && (
-                    <Flex
+                    <Column
                         align="center"
                         justify="center"
                         style={style.loadingState}>
                         <Text medium style={style.loadingText}>
                             {`${t('words.searching')}...`}
                         </Text>
-                    </Flex>
+                    </Column>
                 )}
-            </Flex>
+            </Column>
         </SafeAreaView>
     )
 }

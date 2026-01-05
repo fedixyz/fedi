@@ -5,7 +5,7 @@ import { StyleSheet, TouchableOpacity } from 'react-native'
 import { MSats, TransactionAmountState } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 
-import Flex from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 
 export interface HistoryRowProps {
     type: string
@@ -46,7 +46,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
         }, [amountState, theme])
 
         const amountNode: React.ReactNode = (
-            <Flex row align="end" justify="end" gap="xxs">
+            <Row align="end" justify="end" gap="xxs">
                 <Text
                     medium
                     caption
@@ -63,7 +63,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
                         {currencyText}
                     </Text>
                 )}
-            </Flex>
+            </Row>
         )
 
         return (
@@ -73,16 +73,16 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
                 hitSlop={4}
                 testID="transaction-item">
                 {icon}
-                <Flex grow gap="xs" fullWidth basis={false}>
+                <Column grow gap="xs" fullWidth basis={false}>
                     <Text caption medium>
                         {status}
                     </Text>
                     <Text small numberOfLines={1} style={style.subText}>
                         {type} {notes ? `(${notes.replace(/\n/g, ' ')})` : ''}
                     </Text>
-                </Flex>
+                </Column>
 
-                <Flex shrink={false} justify="end" gap="xs">
+                <Column shrink={false} justify="end" gap="xs">
                     {amountNode}
                     {timestamp && (
                         <Text
@@ -92,7 +92,7 @@ export const HistoryRow: React.FC<HistoryRowProps> = memo(
                             {dateUtils.formatTxnTileTimestamp(timestamp)}
                         </Text>
                     )}
-                </Flex>
+                </Column>
             </TouchableOpacity>
         )
     },
