@@ -5,11 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import Share from 'react-native-share'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 import { prefixFileUri } from '@fedi/common/utils/media'
 
-import { fedimint } from '../bridge'
 import HoloGuidance from '../components/ui/HoloGuidance'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import {
@@ -32,6 +32,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const appDispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const [backupsCompleted, setBackupsCompleted] = useState<number>(0)
     const { dispatch } = useBackupRecoveryContext()
     const [isCreatingBackup, setIsCreatingBackup] = useState(false)

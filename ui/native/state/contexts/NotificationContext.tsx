@@ -9,11 +9,11 @@ import { Linking } from 'react-native'
 import { requestNotifications } from 'react-native-permissions'
 import { useSelector } from 'react-redux'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { selectMatrixChatsWithoutDefaultGroupPreviewsList } from '@fedi/common/redux/matrix'
 import { selectSupportPermissionGranted } from '@fedi/common/redux/support'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../bridge'
 import { useNotificationsPermission } from '../../utils/hooks'
 import { useUpdateZendeskNotificationCount } from '../../utils/hooks/support'
 import { manuallyPublishNotificationToken } from '../../utils/notifications'
@@ -36,6 +36,7 @@ export const NotificationContextProvider: React.FC<{
     const chatList = useSelector(
         selectMatrixChatsWithoutDefaultGroupPreviewsList,
     )
+    const fedimint = useFedimint()
 
     log.debug(`Current notifications permission: ${notificationsPermission}`)
 
@@ -54,7 +55,7 @@ export const NotificationContextProvider: React.FC<{
             supportPermissionGranted,
             fedimint,
         )
-    }, [notificationsPermission, supportPermissionGranted])
+    }, [notificationsPermission, supportPermissionGranted, fedimint])
 
     const value = useMemo(
         () => ({

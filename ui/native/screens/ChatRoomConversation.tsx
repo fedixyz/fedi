@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -14,7 +15,6 @@ import { ChatType, InputAttachment, InputMedia } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 import { stripFileUriPrefix } from '@fedi/common/utils/media'
 
-import { fedimint } from '../bridge'
 import ChatConversation from '../components/feature/chat/ChatConversation'
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
 import MessageInput from '../components/feature/chat/MessageInput'
@@ -40,6 +40,7 @@ export type Props = NativeStackScreenProps<
 const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { roomId, chatType = ChatType.group } = route.params
     const [isSending, setIsSending] = useState(false)
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
@@ -105,7 +106,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                 setIsSending(false)
             }
         },
-        [chatType, dispatch, isSending, roomId, t, toast],
+        [chatType, dispatch, isSending, roomId, t, toast, fedimint],
     )
 
     const renderMessageInput = useCallback((): React.ReactElement => {

@@ -4,11 +4,11 @@ import React, { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Platform, ScrollView, StyleSheet, TextInput } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import type { SeedWords } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 
-import { fedimint } from '../bridge'
 import SeedWordInput from '../components/feature/recovery/SeedWordInput'
 import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
@@ -27,6 +27,7 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'ResetPin'>
 const ResetPin: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const fedimint = useFedimint()
     const pin = usePinContext()
     const [seedWords, setSeedWords] = useState<SeedWords>(
         new Array(12).fill(''),
@@ -51,7 +52,7 @@ const ResetPin: React.FC<Props> = ({ navigation }: Props) => {
         await pin.unset()
 
         navigation.dispatch(reset('SetPin'))
-    }, [navigation, seedWords, pin, toast, t])
+    }, [navigation, seedWords, pin, toast, t, fedimint])
 
     const handleInputUpdate = (inputValue: string, index: number) => {
         const validatedInput = stringUtils.keepOnlyLowercaseLetters(inputValue)

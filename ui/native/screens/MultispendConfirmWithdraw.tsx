@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectBtcExchangeRate,
@@ -16,7 +17,6 @@ import {
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
@@ -39,6 +39,7 @@ const MultispendConfirmWithdraw: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
+    const fedimint = useFedimint()
     const navigation = useNavigation()
     const selectedFiatCurrency = useAppSelector(s =>
         selectCurrency(s, federationId),
@@ -70,7 +71,7 @@ const MultispendConfirmWithdraw: React.FC<Props> = ({ route }: Props) => {
         } finally {
             setLoading(false)
         }
-    }, [amount, roomId, t, toast, navigation, notes])
+    }, [amount, roomId, t, toast, navigation, notes, fedimint])
 
     const formattedFiatAmount = amountUtils.formatFiat(
         amountUtils.convertCentsToOtherFiat(

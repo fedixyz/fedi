@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, ScrollView, StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -24,7 +25,6 @@ import { MatrixPowerLevel } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { isPowerLevelGreaterOrEqual } from '@fedi/common/utils/matrix'
 
-import { fedimint } from '../bridge'
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import { ConfirmBlockOverlay } from '../components/feature/chat/ConfirmBlockOverlay'
 import SettingsItem, {
@@ -41,6 +41,7 @@ export type Props = NativeStackScreenProps<RootStackParamList, 'RoomSettings'>
 
 const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { show } = useToast()
@@ -90,7 +91,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         } catch (err) {
             toast.error(t, err)
         }
-    }, [dispatch, navigation, roomId, t, toast])
+    }, [dispatch, navigation, roomId, t, toast, fedimint])
 
     const handleLeaveChat = useCallback(() => {
         if (shouldBlockLeaveRoom) {
@@ -141,7 +142,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         } catch (error) {
             toast.error(t, t('feature.chat.block-user-failure'))
         }
-    }, [dispatch, room?.directUserId, show, t, toast])
+    }, [dispatch, room?.directUserId, show, t, toast, fedimint])
 
     const unblockUser = useCallback(async () => {
         try {
@@ -161,7 +162,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         } catch (error) {
             toast.error(t, t('feature.chat.unblock-user-failure'))
         }
-    }, [dispatch, room?.directUserId, show, t, toast])
+    }, [dispatch, room?.directUserId, show, t, toast, fedimint])
 
     const handleViewMembers = useCallback(() => {
         navigation.navigate('ChatRoomMembers', { roomId })
@@ -202,6 +203,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         toast,
         t,
         multispendStatus,
+        fedimint,
     ])
 
     const handleNavigateToMultispend = useCallback(() => {

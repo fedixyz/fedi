@@ -4,10 +4,10 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectMatrixRoom, setMatrixRoomName } from '@fedi/common/redux'
 
-import { fedimint } from '../bridge'
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import HoloLoader from '../components/ui/HoloLoader'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
@@ -22,6 +22,7 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { roomId } = route.params
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const [groupName, setGroupName] = useState<string>(room?.name || '')
@@ -46,7 +47,7 @@ const EditGroup: React.FC<Props> = ({ navigation, route }: Props) => {
             toast.error(t, 'errors.unknown-error')
         }
         setEditingGroupName(false)
-    }, [room, groupName, dispatch, navigation, toast, t])
+    }, [room, groupName, dispatch, navigation, toast, t, fedimint])
 
     if (!room) return <HoloLoader />
 

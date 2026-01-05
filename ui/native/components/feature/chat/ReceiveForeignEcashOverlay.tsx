@@ -4,12 +4,12 @@ import { Trans, useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 
 import { useFederationPreview } from '@fedi/common/hooks/federation'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import { parseEcash } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import { MatrixPaymentEvent } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
@@ -35,6 +35,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
+    const fedimint = useFedimint()
     const { theme } = useTheme()
     const [showFederationPreview, setShowFederationPreview] =
         useState<boolean>(false)
@@ -79,7 +80,7 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
                     parsed.federation_invite || federationInviteCode || '',
                 )
             })
-    }, [paymentEvent.content.ecash, federationInviteCode, dispatch])
+    }, [paymentEvent.content.ecash, federationInviteCode, dispatch, fedimint])
 
     useEffect(() => {
         if (!inviteCode) return

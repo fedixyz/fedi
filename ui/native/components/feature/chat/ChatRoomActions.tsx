@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectMatrixRoomNotificationMode,
@@ -16,7 +17,6 @@ import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 import { resetToChatSettings } from '@fedi/native/state/navigation'
 
-import { fedimint } from '../../../bridge'
 import Flex from '../../ui/Flex'
 import ChatRoomAction from './ChatAction'
 
@@ -36,12 +36,16 @@ type Action = {
 const log = makeLog('chat/ChatRoomActions')
 
 const ChatRoomActions: React.FC<Props> = ({ room, dismiss }: Props) => {
-    const { theme } = useTheme()
+    const [loadingAction, setLoadingAction] = useState<number | null>(null)
+
     const { t } = useTranslation()
+    const { theme } = useTheme()
+
     const navigation = useNavigation()
     const dispatch = useAppDispatch()
-    const { error, show } = useToast()
-    const [loadingAction, setLoadingAction] = useState<number | null>(null)
+    const fedimint = useFedimint()
+    const toast = useToast()
+
     const notificationMode = useAppSelector(s =>
         selectMatrixRoomNotificationMode(s, room.id),
     )
@@ -86,13 +90,13 @@ const ChatRoomActions: React.FC<Props> = ({ room, dismiss }: Props) => {
                     mode,
                 }),
             ).unwrap()
-            show({
+            toast.show({
                 content: t('feature.chat.notification-update-success'),
                 status: 'success',
             })
         } catch (err) {
             log.error('Failed to update notifications for room', err)
-            error(t, 'feature.errors.failed-to-update-notification')
+            toast.error(t, 'feature.errors.failed-to-update-notification')
         }
         setLoadingAction(null)
         dismiss()

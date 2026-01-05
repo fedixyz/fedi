@@ -13,11 +13,11 @@ import {
     StyleSheet,
 } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { getMatrixRoomPreview, selectIsDefaultGroup } from '@fedi/common/redux'
 import { MatrixEvent, MatrixGroupPreview } from '@fedi/common/types'
 import { makeMatrixEventGroups } from '@fedi/common/utils/matrix'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import ChatEventCollection from './ChatEventCollection'
 import { ChatUserActionsOverlay } from './ChatUserActionsOverlay'
@@ -29,20 +29,24 @@ type Props = {
 }
 
 const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+    const [hasNewMessage, setHasNewMessages] = useState(false)
+    const [isRefreshing, setIsRefreshing] = useState(false)
+
     const { t } = useTranslation()
     const { theme } = useTheme()
+
     const dispatch = useAppDispatch()
     const isFocused = useIsFocused()
-
-    const [isRefreshing, setIsRefreshing] = useState(false)
+    const fedimint = useFedimint()
 
     const isBroadcast = preview.info?.broadcastOnly === true
     const isDefault = useAppSelector(s => selectIsDefaultGroup(s, id))
 
-    const [hasNewMessage, setHasNewMessages] = useState(false)
     const animatedNewMessageBottom = useRef(new Animated.Value(0)).current
+    const isScrolledToBottomRef = useRef(true)
+    const listRef = useRef<FlatList>(null)
 
-    const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
     const handleSelectMember = useCallback((userId: string) => {
         setSelectedUserId(userId)
     }, [])
@@ -60,9 +64,7 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
         [events],
     )
 
-    const listRef = useRef<FlatList>(null)
     const lastScrolledMessageIdRef = useRef(events?.[0]?.id)
-    const isScrolledToBottomRef = useRef(true)
 
     const handleRefresh = useCallback(async () => {
         if (isRefreshing) return
@@ -70,56 +72,7 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
         dispatch(getMatrixRoomPreview({ fedimint, roomId: id }))
             .unwrap()
             .finally(() => setIsRefreshing(false))
-    }, [id, dispatch, isRefreshing])
-
-    useEffect(() => {
-        const timer = setInterval(
-            () => isFocused && handleRefresh(),
-            // refresh every 2 minutes
-            60 * 1000 * 2,
-        )
-
-        return () => clearInterval(timer)
-    }, [isFocused, handleRefresh])
-
-    const style = styles(theme)
-
-    // Animate new message button in and out
-    useEffect(() => {
-        Animated.timing(animatedNewMessageBottom, {
-            toValue: hasNewMessage ? 90 : -50,
-            duration: 100,
-            useNativeDriver: false,
-            easing: Easing.linear,
-        }).start()
-    }, [animatedNewMessageBottom, hasNewMessage])
-
-    const scrollToEnd = useCallback(() => {
-        // Use scrollToOffset instead of scrollToEnd because the list is inverted
-        listRef.current?.scrollToOffset({ offset: 0, animated: true })
-        setHasNewMessages(false)
-    }, [])
-
-    // When new messages come in, either scroll to the bottom (if we sent)
-    // or pop up a notice that we have new messages.
-    useEffect(() => {
-        if (!eventGroups.length) return
-        // Bail out if we've already handled this message
-        const lastMessage = eventGroups[0]?.[0]?.[0]
-        const shouldScroll =
-            lastMessage && lastMessage.id !== lastScrolledMessageIdRef.current
-        if (!shouldScroll) return
-        // Update ref so we don't scroll again
-        lastScrolledMessageIdRef.current = lastMessage.id
-        // If we're already at the bottom, scroll without asking
-        if (isScrolledToBottomRef.current) {
-            return
-        }
-        // Otherwise, mark that we have new messages
-        else {
-            setHasNewMessages(true)
-        }
-    }, [eventGroups, scrollToEnd])
+    }, [id, dispatch, isRefreshing, fedimint])
 
     // Mark hasNewMessages as false when we scroll to the bottom, and keep a ref up to date
     const handleScroll = useCallback(
@@ -147,6 +100,55 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
         },
         [handleSelectMember, id],
     )
+
+    const scrollToEnd = useCallback(() => {
+        // Use scrollToOffset instead of scrollToEnd because the list is inverted
+        listRef.current?.scrollToOffset({ offset: 0, animated: true })
+        setHasNewMessages(false)
+    }, [])
+
+    useEffect(() => {
+        const timer = setInterval(
+            () => isFocused && handleRefresh(),
+            // refresh every 2 minutes
+            60 * 1000 * 2,
+        )
+
+        return () => clearInterval(timer)
+    }, [isFocused, handleRefresh])
+
+    // Animate new message button in and out
+    useEffect(() => {
+        Animated.timing(animatedNewMessageBottom, {
+            toValue: hasNewMessage ? 90 : -50,
+            duration: 100,
+            useNativeDriver: false,
+            easing: Easing.linear,
+        }).start()
+    }, [animatedNewMessageBottom, hasNewMessage])
+
+    // When new messages come in, either scroll to the bottom (if we sent)
+    // or pop up a notice that we have new messages.
+    useEffect(() => {
+        if (!eventGroups.length) return
+        // Bail out if we've already handled this message
+        const lastMessage = eventGroups[0]?.[0]?.[0]
+        const shouldScroll =
+            lastMessage && lastMessage.id !== lastScrolledMessageIdRef.current
+        if (!shouldScroll) return
+        // Update ref so we don't scroll again
+        lastScrolledMessageIdRef.current = lastMessage.id
+        // If we're already at the bottom, scroll without asking
+        if (isScrolledToBottomRef.current) {
+            return
+        }
+        // Otherwise, mark that we have new messages
+        else {
+            setHasNewMessages(true)
+        }
+    }, [eventGroups, scrollToEnd])
+
+    const style = styles(theme)
 
     return (
         <>

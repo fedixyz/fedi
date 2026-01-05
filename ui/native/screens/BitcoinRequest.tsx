@@ -4,13 +4,13 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { selectCurrency } from '@fedi/common/redux'
 import { RpcInvoice } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
 import FiatAmount from '../components/feature/wallet/FiatAmount'
 import Flex from '../components/ui/Flex'
@@ -27,6 +27,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const { invoice, federationId = null } = route.params
+    const fedimint = useFedimint()
 
     const [isLoading, setIsLoading] = useState<boolean>(true)
     const [decoded, setDecoded] = useState<RpcInvoice | null>(null)
@@ -42,7 +43,7 @@ const BitcoinRequest: React.FC<Props> = ({ route }: Props) => {
                 err => log.error('error decoding invoice', err),
             )
             .finally(() => setIsLoading(false))
-    }, [invoice, federationId])
+    }, [invoice, federationId, fedimint])
 
     if (isLoading) {
         return (

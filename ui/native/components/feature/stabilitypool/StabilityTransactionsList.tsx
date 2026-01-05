@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useTxnDisplayUtils } from '@fedi/common/hooks/transactions'
 import { updateTransactionNotes } from '@fedi/common/redux/transactions'
 import type { Federation, TransactionListEntry } from '@fedi/common/types'
 import { makeTransactionAmountState } from '@fedi/common/utils/wallet'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import { HistoryList } from '../transaction-history/HistoryList'
 import { TransactionIcon } from '../transaction-history/TransactionIcon'
@@ -26,6 +26,7 @@ const StabilityTransactionsList = ({
     federationId,
 }: StabilityTransactionsListProps) => {
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { t } = useTranslation()
     const toast = useToast()
     const [isUpdating, setIsUpdating] = useState(false)

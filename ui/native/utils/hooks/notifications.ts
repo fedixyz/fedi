@@ -3,9 +3,8 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
-
-import { fedimint } from '../../bridge'
 
 const log = makeLog('Notifications')
 
@@ -18,6 +17,7 @@ const log = makeLog('Notifications')
  */
 export const useAppIsInForeground = () => {
     const appState = useRef(AppState.currentState)
+    const fedimint = useFedimint()
     const [isActive, setIsActive] = useState<boolean>(
         appState.current === 'active',
     )
@@ -37,7 +37,7 @@ export const useAppIsInForeground = () => {
             },
         )
         return () => subscription.remove()
-    }, [])
+    }, [fedimint])
 
     // True if
     return isActive

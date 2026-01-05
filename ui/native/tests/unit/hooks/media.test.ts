@@ -32,11 +32,10 @@ const mockUseDownloadPermission = jest.fn(() => ({
 const mockRNFetchBlobFetch = jest.fn()
 const mockShareOpen = jest.fn()
 
-jest.mock('@fedi/native/bridge', () => ({
-    ...jest.requireActual('@fedi/native/bridge'),
-    fedimint: {
+jest.mock('@fedi/common/hooks/fedimint', () => ({
+    useFedimint: jest.fn(() => ({
         matrixDownloadFile: (...args: any[]) => mockMatrixDownloadFile(...args),
-    },
+    })),
 }))
 
 jest.mock('@react-native-documents/picker', () => ({

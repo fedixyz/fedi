@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { FlatList, ListRenderItem, StyleSheet } from 'react-native'
 
 import { DEEPLINK_HOSTS, LINK_PATH } from '@fedi/common/constants/linking'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useMatrixUserSearch } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -17,7 +18,6 @@ import {
 import { RpcMatrixMembership } from '@fedi/common/types/bindings'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 
-import { fedimint } from '../bridge'
 import { ChatSettingsAvatar } from '../components/feature/chat/ChatSettingsAvatar'
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
 import Flex from '../components/ui/Flex'
@@ -39,6 +39,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
     const { roomId } = route.params
     const navigation = useNavigation<NavigationHook>()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { error } = useToast()
@@ -63,7 +64,7 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
             }
             setInvitingUsers(users => users.filter(id => id !== userId))
         },
-        [setInvitingUsers, dispatch, roomId, error, t],
+        [setInvitingUsers, dispatch, roomId, error, t, fedimint],
     )
 
     const selectUser = useCallback(

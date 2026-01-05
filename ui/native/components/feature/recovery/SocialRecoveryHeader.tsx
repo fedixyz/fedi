@@ -4,7 +4,8 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Pressable } from 'react-native'
 
-import { fedimint } from '../../../bridge'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
+
 import { NavigationHook } from '../../../types/navigation'
 import Header from '../../ui/Header'
 import SvgImage from '../../ui/SvgImage'
@@ -22,6 +23,7 @@ const SocialRecoveryHeader: React.FC<SocialRecoveryHeaderProps> = ({
 }: SocialRecoveryHeaderProps) => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
+    const fedimint = useFedimint()
 
     async function handleCancelSocialRecovery() {
         navigation.reset({

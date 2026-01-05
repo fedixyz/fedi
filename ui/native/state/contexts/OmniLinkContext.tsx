@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useUpdatingRef } from '@fedi/common/hooks/util'
 import {
     selectLastUsedFederationId,
@@ -17,7 +18,6 @@ import {
 import { makeLog } from '@fedi/common/utils/log'
 import { parseUserInput } from '@fedi/common/utils/parser'
 
-import { fedimint } from '../../bridge'
 import { AnyParsedData, ParserDataType } from '../../types'
 import { useAppSelector } from '../hooks'
 
@@ -56,6 +56,7 @@ export const OmniLinkContextProvider: React.FC<{
     const [isParsingLink, setIsParsingLink] = useState(false)
     const [parsedLink, setParsedLink] = useState<AnyParsedData | null>(null)
     const interceptorsRef = useRef<OmniLinkInterceptFunction[]>([])
+    const fedimint = useFedimint()
     const tRef = useUpdatingRef(t)
 
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
@@ -87,7 +88,7 @@ export const OmniLinkContextProvider: React.FC<{
             }
             setIsParsingLink(false)
         },
-        [tRef, federationId, isInternetUnreachable],
+        [tRef, federationId, isInternetUnreachable, fedimint],
     )
 
     const subscribeInterceptor: OmniLinkContextState['subscribeInterceptor'] =

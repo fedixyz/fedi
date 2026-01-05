@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 import Share from 'react-native-share'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloGuidance from '../components/ui/HoloGuidance'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -26,6 +26,7 @@ const SocialBackupCloudUpload: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
 
     const shareVideo = async () => {
         try {

@@ -18,6 +18,7 @@ import {
     UnsupportedMethodError,
 } from 'webln'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useInjectionsPermissions } from '@fedi/common/hooks/injections'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -71,7 +72,6 @@ import {
 } from '@fedi/injections'
 import { SignedNostrEvent } from '@fedi/injections/src/injectables/nostr/types'
 
-import { fedimint } from '../bridge'
 import AddressBarOverlay from '../components/feature/fedimods/AddressBarOverlay'
 import { AuthOverlay } from '../components/feature/fedimods/AuthOverlay'
 import ExitFedimodOverlay from '../components/feature/fedimods/ExitFedimodOverlay'
@@ -126,6 +126,7 @@ type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 const FediModBrowser: React.FC<Props> = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const nostrPublic = useAppSelector(selectNostrNpub)
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const member = useAppSelector(selectMatrixAuth)
@@ -696,7 +697,7 @@ const FediModBrowser: React.FC<Props> = () => {
         return () => {
             fedimint.onAppForeground()
         }
-    }, [])
+    }, [fedimint])
 
     // If currentUrl is null, navigate back to Mods screen
     // This shouldn't happen in normal use, but handles edge cases

@@ -6,6 +6,7 @@ import DeviceInfo from 'react-native-device-info'
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux'
 
 import { usePublishNotificationToken } from '@fedi/common/hooks/chat'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { usePushNotificationToken } from '@fedi/common/hooks/matrix'
 import {
     refreshStabilityPool,
@@ -19,7 +20,6 @@ import { Federation } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../bridge'
 import { NavigationHook } from '../../types/navigation'
 import { useNotificationsPermission } from '../../utils/hooks'
 import { updateZendeskPushNotificationToken } from '../../utils/support'
@@ -147,6 +147,7 @@ export const useStableBalances = (federationId: Federation['id']) => {
 // to makes sure to regularly refresh the account balance
 export const useStabilityPool = (federationId: Federation['id']) => {
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const navigation = useNavigation<NavigationHook>()
     const { formattedStableBalance, formattedStableBalancePending } =
         useStableBalances(federationId)
@@ -158,7 +159,7 @@ export const useStabilityPool = (federationId: Federation['id']) => {
                 federationId,
             }),
         )
-    }, [dispatch, federationId])
+    }, [dispatch, federationId, fedimint])
 
     // Refreshes the active stability pool when the navigator
     // finishes transitioning onto the current screen

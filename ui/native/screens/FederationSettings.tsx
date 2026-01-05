@@ -4,9 +4,9 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, ScrollView, StyleSheet } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 
-import { fedimint } from '../bridge'
 import SettingsItem from '../components/feature/settings/SettingsItem'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -20,6 +20,7 @@ const FederationSettings: React.FC<Props> = ({ route }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
+    const fedimint = useFedimint()
 
     const handleRepairWallet = async () => {
         try {

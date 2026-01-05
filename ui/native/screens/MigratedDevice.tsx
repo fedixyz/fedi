@@ -6,10 +6,10 @@ import { Pressable, StyleSheet } from 'react-native'
 import RNFS from 'react-native-fs'
 import Share from 'react-native-share'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { prefixFileUri } from '@fedi/common/utils/media'
 
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
 import LineBreak from '../components/ui/LineBreak'
@@ -21,6 +21,7 @@ const MigratedDevice: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
+    const fedimint = useFedimint()
     const [exportBridgeStateTapCount, setExportBridgeStateTapCount] =
         useState(0)
     useState(0)

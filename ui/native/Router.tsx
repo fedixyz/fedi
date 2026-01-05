@@ -6,12 +6,12 @@ import { useTheme } from '@rneui/themed'
 import { useCallback, useEffect, useRef } from 'react'
 import { StyleSheet, View, Linking } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectOnboardingCompleted, setRedirectTo } from '@fedi/common/redux'
 import { isUniversalLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from './bridge'
 import { OmniLinkHandler } from './components/feature/omni/OmniLinkHandler'
 import SvgImage, { SvgImageSize } from './components/ui/SvgImage'
 import ToastManager from './components/ui/ToastManager'
@@ -33,13 +33,20 @@ import {
 const log = makeLog('NavigationRouter')
 
 const Router = () => {
-    const dispatch = useAppDispatch()
-    const { theme } = useTheme()
-    const navigation = useNavigationContainerRef()
-    const isAppUnlocked = useIsFeatureUnlocked('app')
-    const pin = usePinContext()
     const { parseUrl } = useOmniLinkContext()
+    const { theme } = useTheme()
+
+    const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
+    const toast = useToast()
+
     const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
+    const isAppUnlocked = useIsFeatureUnlocked('app')
+    const navigation = useNavigationContainerRef()
+    const pin = usePinContext()
+
+    const routeRef = useRef<string | undefined>(undefined)
+
     useHandleDeferredLink()
 
     useEffect(() => setNavigationRef(navigation), [navigation])
@@ -115,9 +122,6 @@ const Router = () => {
         }
     }, [])
 
-    const toast = useToast()
-    const routeRef = useRef<string | undefined>(undefined)
-
     // Logs changes in navigation state for debugging
     const handleStateChange = useCallback(() => {
         toast.close()
@@ -151,7 +155,7 @@ const Router = () => {
             log.info('nonce reuse check failed', event)
             navigation.navigate('RecoverFromNonceReuse')
         })
-    }, [navigation])
+    }, [navigation, fedimint])
 
     // If deep link url then Store it in state and redirect to it
     // after clicking primary button on Splash screen

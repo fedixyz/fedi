@@ -6,13 +6,13 @@ import { StyleSheet } from 'react-native'
 import RNFS from 'react-native-fs'
 import { launchImageLibrary } from 'react-native-image-picker'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectMatrixAuth,
     uploadAndSetMatrixAvatarUrl,
 } from '@fedi/common/redux'
 
-import { fedimint } from '../bridge'
 import { StoragePermissionGate } from '../components/feature/permissions/StoragePermissionGate'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import Flex from '../components/ui/Flex'
@@ -30,6 +30,7 @@ const UploadAvatarImage: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const toast = useToast()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
 
     const style = styles(theme)
 
@@ -78,7 +79,7 @@ const UploadAvatarImage: React.FC<Props> = ({ navigation }: Props) => {
         } finally {
             setIsUploading(false)
         }
-    }, [dispatch, t, toast])
+    }, [dispatch, t, toast, fedimint])
 
     const renderPreUploadButtons = () => {
         return (

@@ -13,6 +13,7 @@ import { PermissionStatus, RESULTS } from 'react-native-permissions'
 import Share from 'react-native-share'
 import RNFetchBlob from 'rn-fetch-blob'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { addTempMediaUriEntry, selectTempMediaUriMap } from '@fedi/common/redux'
 import { SupportedFileSource } from '@fedi/common/types/media'
@@ -30,7 +31,6 @@ import {
 } from '@fedi/common/utils/media'
 
 import { useDownloadPermission } from '.'
-import { fedimint } from '../../bridge'
 import { useAppDispatch, useAppSelector } from '../../state/hooks'
 import {
     deriveCopyableFileUri,
@@ -214,6 +214,7 @@ export const useDownloadResource = (
 
     const tempMediaUriMap = useAppSelector(selectTempMediaUriMap)
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const toast = useToast()
 
     // Creates a unique hash based on the file source that can be used to reference cached URIs copied to the temp dir
@@ -315,7 +316,7 @@ export const useDownloadResource = (
         }
 
         return null
-    }, [resource, tempMediaUriMap, dispatch, resourceHash])
+    }, [resource, tempMediaUriMap, dispatch, resourceHash, fedimint])
 
     const handleDownload = useCallback(async () => {
         if (!resourceHash || !resource) return

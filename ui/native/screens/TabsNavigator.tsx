@@ -13,6 +13,7 @@ import {
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     refreshCommunities,
     refreshFederations,
@@ -20,7 +21,6 @@ import {
 } from '@fedi/common/redux'
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 
-import { fedimint } from '../bridge'
 import ChatHeader from '../components/feature/chat/ChatHeader'
 import FederationsHeader from '../components/feature/federations/FederationsHeader'
 import HomeHeader from '../components/feature/home/HomeHeader'
@@ -54,6 +54,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     const hasUnreadMessages = useAppSelector(selectMatrixHasNotifications)
     const zendeskMsgCount = useAppSelector(selectZendeskUnreadMessageCount)
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const appStateRef = useRef<AppStateStatus>(
         AppState.currentState,
     ) as MutableRefObject<AppStateStatus>
@@ -77,7 +78,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
             },
         )
         return () => subscription.remove()
-    }, [dispatch])
+    }, [dispatch, fedimint])
 
     const style = styles(
         theme,

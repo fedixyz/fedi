@@ -10,9 +10,9 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 import RNFS from 'react-native-fs'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../../bridge'
 import { NavigationHook } from '../../../types/navigation'
 
 const log = makeLog('SelectRecoveryFileButton')
@@ -20,6 +20,7 @@ const log = makeLog('SelectRecoveryFileButton')
 const SelectRecoveryFileButton: React.FC = () => {
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
+    const fedimint = useFedimint()
     const [validationInProgress, setValidationInProgress] =
         useState<boolean>(false)
     const [result, setResult] = useState<
@@ -79,7 +80,7 @@ const SelectRecoveryFileButton: React.FC = () => {
                 checkForValidFile()
             })
         }
-    }, [navigation, result, validationInProgress])
+    }, [navigation, result, validationInProgress, fedimint])
 
     return (
         <Button

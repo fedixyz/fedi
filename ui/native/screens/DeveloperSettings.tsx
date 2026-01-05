@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 
 import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     changeAuthenticatedGuardian,
@@ -57,7 +58,6 @@ import {
 } from '@fedi/common/utils/FederationUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CheckBox from '../components/ui/CheckBox'
 import Flex from '../components/ui/Flex'
@@ -121,6 +121,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const { shareLogs, status: shareLogsStatus } = useShareNativeLogs(
         paymentFederation?.id,
     )
+    const fedimint = useFedimint()
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
@@ -152,7 +153,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     ),
                 )
         }
-    }, [paymentFederation])
+    }, [paymentFederation, fedimint])
 
     useEffect(() => {
         if (paymentFederation) {
@@ -178,7 +179,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     ),
                 )
         }
-    }, [paymentFederation])
+    }, [paymentFederation, fedimint])
 
     useEffect(() => {
         fedimint
@@ -187,7 +188,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             .catch(err =>
                 log.warn('Failed to get sensitive logging status', err),
             )
-    }, [])
+    }, [fedimint])
 
     useEffect(() => {
         const loadGuardianStatus = async () => {
@@ -200,7 +201,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
 
         loadGuardianStatus()
-    }, [paymentFederation])
+    }, [paymentFederation, fedimint])
 
     useEffect(() => {
         const getGatewaysList = async () => {
@@ -225,7 +226,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         }
 
         getGatewaysList()
-    }, [toast, t, paymentFederation, reduxDispatch])
+    }, [toast, t, paymentFederation, reduxDispatch, fedimint])
 
     useEffect(() => {
         if (stabilityPoolSupported)
@@ -235,7 +236,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                     federationId: paymentFederation?.id || '',
                 }),
             )
-    }, [paymentFederation?.id, reduxDispatch, stabilityPoolSupported])
+    }, [paymentFederation?.id, reduxDispatch, stabilityPoolSupported, fedimint])
 
     const handleSelectGateway = async (gateway: LightningGateway) => {
         try {

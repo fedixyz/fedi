@@ -4,11 +4,11 @@ import React, { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { uploadBackupFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloProgressCircle from '../components/ui/HoloProgressCircle'
 import { useAppDispatch } from '../state/hooks'
@@ -28,6 +28,7 @@ const SocialBackupProcessing: React.FC<Props> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const toast = useToast()
     const { videoFilePath, federationId } = route.params
     const [percentComplete, setPercentComplete] = useState<number>(0)
@@ -66,6 +67,7 @@ const SocialBackupProcessing: React.FC<Props> = ({
         federationId,
         setUploadStarted,
         t,
+        fedimint,
     ])
 
     // TODO: Remove this simulation when bridge is emitting events

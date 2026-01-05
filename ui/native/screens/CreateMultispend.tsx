@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectDoesFederationHaveMultispend,
@@ -12,7 +13,6 @@ import {
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import Flex from '../components/ui/Flex'
 import HoloCircle from '../components/ui/HoloCircle'
@@ -49,6 +49,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
     const { roomId, voters } = route.params
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const fedimint = useFedimint()
     const toast = useToast()
 
     const handleAssignVoters = useCallback(() => {
@@ -141,6 +142,7 @@ const CreateMultispend: React.FC<Props> = ({ navigation, route }) => {
         navigation,
         t,
         toast,
+        fedimint,
     ])
 
     const style = styles(theme)

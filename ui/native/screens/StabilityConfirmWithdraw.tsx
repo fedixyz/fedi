@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     decreaseStableBalanceV1,
@@ -16,7 +17,6 @@ import {
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import { CurrencyAvatar } from '../components/feature/stabilitypool/CurrencyAvatar'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -33,6 +33,7 @@ const StabilityConfirmWithdraw: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { amountSats, amountCents, federationId = '' } = route.params
     const toast = useToast()
     const [processingDeposit, setProcessingDeposit] = useState<boolean>(false)

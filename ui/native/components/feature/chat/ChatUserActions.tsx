@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     banUser,
@@ -25,7 +26,6 @@ import {
 import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '@fedi/native/state/hooks'
 
-import { fedimint } from '../../../bridge'
 import Flex from '../../ui/Flex'
 import ChatAction from './ChatAction'
 import { ConfirmBlockOverlay } from './ConfirmBlockOverlay'
@@ -70,7 +70,8 @@ const ChatUserActions: React.FC<Props> = ({
     )
     const navigation = useNavigation()
     const dispatch = useAppDispatch()
-    const { error, show } = useToast()
+    const fedimint = useFedimint()
+    const toast = useToast()
     const [loadingAction, setLoadingAction] = useState<number | null>(null)
 
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false)
@@ -88,7 +89,7 @@ const ChatUserActions: React.FC<Props> = ({
                 await dispatch(
                     unignoreUser({ fedimint, userId: member.id, roomId }),
                 ).unwrap()
-                show({
+                toast.show({
                     content: t('feature.chat.unblock-user-success'),
                     status: 'success',
                 })
@@ -96,18 +97,27 @@ const ChatUserActions: React.FC<Props> = ({
                 await dispatch(
                     ignoreUser({ fedimint, userId: member.id, roomId }),
                 ).unwrap()
-                show({
+                toast.show({
                     content: t('feature.chat.block-user-success'),
                     status: 'success',
                 })
             }
         } catch (err) {
             log.error('Failed to ignore user', err)
-            error(t, 'feature.chat.block-user-failure')
+            toast.error(t, 'feature.chat.block-user-failure')
         }
         setIsBlockingUser(false)
         dismiss()
-    }, [dispatch, member.id, show, t, dismiss, error, roomId, member.ignored])
+    }, [
+        dispatch,
+        member.id,
+        t,
+        dismiss,
+        roomId,
+        member.ignored,
+        fedimint,
+        toast,
+    ])
 
     const handleChangePowerLevel = async (
         userId: string,
@@ -125,13 +135,13 @@ const ChatUserActions: React.FC<Props> = ({
                 }),
             ).unwrap()
             log.info(`Updated user's power level to ${powerLevel}`)
-            show({
+            toast.show({
                 content: t('feature.chat.change-role-success'),
                 status: 'success',
             })
         } catch (err) {
             log.error("Failed to update user's power level", err)
-            error(t, err, 'feature.chat.change-role-failure')
+            toast.error(t, err, 'feature.chat.change-role-failure')
         }
         setLoadingAction(null)
         dismiss()
@@ -200,13 +210,13 @@ const ChatUserActions: React.FC<Props> = ({
             await dispatch(
                 kickUser({ fedimint, roomId, userId, reason }),
             ).unwrap()
-            show({
+            toast.show({
                 content: t('feature.chat.user-remove-success'),
                 status: 'success',
             })
         } catch (err) {
             log.error('Failed to remove user from room', err)
-            error(t, 'feature.errors.failed-to-remove-user')
+            toast.error(t, 'feature.errors.failed-to-remove-user')
         }
         setLoadingAction(null)
         dismiss()
@@ -223,13 +233,13 @@ const ChatUserActions: React.FC<Props> = ({
             await dispatch(
                 banUser({ fedimint, roomId, userId, reason }),
             ).unwrap()
-            show({
+            toast.show({
                 content: t('feature.chat.user-ban-success'),
                 status: 'success',
             })
         } catch (err) {
             log.error('Failed to ban user from room', err)
-            error(t, 'feature.errors.failed-to-ban-user')
+            toast.error(t, 'feature.errors.failed-to-ban-user')
         }
         setLoadingAction(null)
         dismiss()

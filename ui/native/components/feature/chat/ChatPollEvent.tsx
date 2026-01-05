@@ -3,6 +3,7 @@ import { Dispatch, SetStateAction, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Pressable, StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     selectMatrixAuth,
     selectMatrixRoomIsReadOnly,
@@ -10,7 +11,6 @@ import {
 } from '@fedi/common/redux'
 import { RpcPollResultAnswer } from '@fedi/common/types/bindings'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { MatrixEvent } from '../../../types'
 import Flex from '../../ui/Flex'
@@ -27,7 +27,10 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
 
     const { theme } = useTheme()
     const { t } = useTranslation()
+
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
+
     const matrixAuth = useAppSelector(selectMatrixAuth)
     const isReadOnly = useAppSelector(s =>
         selectMatrixRoomIsReadOnly(s, event.roomId),
@@ -66,7 +69,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
             event.id,
             selections.map(s => s.id),
         )
-    }, [event.roomId, event.id, selections])
+    }, [event.roomId, event.id, selections, fedimint])
 
     const handleEndPoll = useCallback(async () => {
         Alert.alert(
@@ -87,7 +90,7 @@ const ChatPollEvent: React.FC<Props> = ({ event }) => {
                 },
             ],
         )
-    }, [event, t])
+    }, [event, t, fedimint])
 
     const style = styles(theme)
     const headerTextStyle = isMe

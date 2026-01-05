@@ -10,12 +10,12 @@ import {
     View,
 } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { completeSocialRecovery } from '@fedi/common/redux'
 import type { GuardianApproval, SocialRecoveryEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import HoloCard from '../components/ui/HoloCard'
 import QRCode from '../components/ui/QRCode'
@@ -40,6 +40,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
     const toast = useToast()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const [recovering, setRecovering] = useState(false)
 
     const [approvals, setApprovals] = useState<SocialRecoveryEvent | undefined>(
@@ -60,7 +61,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
         }
 
         getRecoveryAssistCode()
-    }, [navigation, toast, t])
+    }, [navigation, toast, t, fedimint])
 
     // ask bridge for social recovery status every second
     useEffect(() => {
@@ -80,7 +81,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
         }, 1000)
 
         return () => clearInterval(interval)
-    }, [toast, recovering, recoveryQrCode, setApprovals, t])
+    }, [toast, recovering, recoveryQrCode, setApprovals, t, fedimint])
 
     useEffect(() => {
         const completeRecovery = async () => {
@@ -104,7 +105,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
         if (recovering) {
             completeRecovery()
         }
-    }, [dispatch, navigation, recovering, toast, t])
+    }, [dispatch, navigation, recovering, toast, t, fedimint])
 
     const renderGuardianApprovalStatus = () => {
         if (approvals?.remaining === 0) {

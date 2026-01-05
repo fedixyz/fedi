@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectMatrixAuth,
@@ -19,7 +20,6 @@ import {
     isVideoEvent,
 } from '@fedi/common/utils/matrix'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useDownloadResource } from '../../../utils/hooks/media'
 import CustomOverlay from '../../ui/CustomOverlay'
@@ -36,6 +36,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     const [isDeleting, setIsDeleting] = useState(false)
     const selectedMessage = useAppSelector(selectSelectedChatMessage)
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
@@ -79,7 +80,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         } finally {
             setIsDeleting(false)
         }
-    }, [t, toast, closeOverlay, selectedMessage])
+    }, [t, toast, closeOverlay, selectedMessage, fedimint])
 
     const handleCopy = useCallback(() => {
         if (!selectedMessage || selectedMessage.content.msgtype !== 'm.text')

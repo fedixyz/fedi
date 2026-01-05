@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     previewAllDefaultChats,
     refetchMatrixRoomList,
@@ -18,7 +19,6 @@ import {
 } from '@fedi/common/redux'
 import { ChatType, MatrixRoom, MatrixSyncStatus } from '@fedi/common/types'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import HoloLoader from '../../ui/HoloLoader'
@@ -31,6 +31,7 @@ const ChatsList: React.FC = () => {
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
 
     const rooms = useAppSelector(selectMatrixChatsList)
     const syncStatus = useAppSelector(selectMatrixStatus)
@@ -45,7 +46,7 @@ const ChatsList: React.FC = () => {
         ])
             .catch(() => null) // no-op
             .finally(() => setIsRefetching(false))
-    }, [dispatch])
+    }, [dispatch, fedimint])
 
     const handleLongPressChat = useCallback((chat: MatrixRoom) => {
         Vibration.vibrate(10)

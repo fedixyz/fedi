@@ -11,12 +11,12 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { refreshOnboardingStatus, selectRedirectTo } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
-import { fedimint } from '../bridge'
 import Flex from '../components/ui/Flex'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { usePinContext } from '../state/contexts/PinContext'
@@ -36,6 +36,7 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
     const pin = usePinContext()
     const toast = useToast()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const [loading, setLoading] = useState<boolean>(false)
     const redirectTo = useAppSelector(selectRedirectTo)
 

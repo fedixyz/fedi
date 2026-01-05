@@ -10,6 +10,7 @@ import Share from 'react-native-share'
 
 import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     cancelEcash,
@@ -18,7 +19,6 @@ import {
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import { Column, Row } from '../components/ui/Flex'
 import HoloAlert from '../components/ui/HoloAlert'
 import QRCode from '../components/ui/QRCode'
@@ -43,6 +43,7 @@ const SendOfflineQr: React.FC<Props> = ({ navigation, route }: Props) => {
         federationId: paymentFederation?.id,
     })
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const isOffline = useAppSelector(selectIsInternetUnreachable)
 
     const frames = useMemo(() => {

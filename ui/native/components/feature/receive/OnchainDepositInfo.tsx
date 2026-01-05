@@ -3,10 +3,10 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Linking, Pressable, StyleSheet } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { supportsSafeOnchainDeposit } from '@fedi/common/redux'
 import { Federation } from '@fedi/common/types'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch } from '../../../state/hooks'
 import Flex from '../../ui/Flex'
 import HoloAlert from '../../ui/HoloAlert'
@@ -53,6 +53,7 @@ type Props = {
 const OnchainDepositInfo: React.FC<Props> = ({ federationId }) => {
     const [supportsSafeDeposit, setSupportsSafeOnchainDeposit] = useState(false)
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { t } = useTranslation()
     const { theme } = useTheme()
 
@@ -94,7 +95,7 @@ const OnchainDepositInfo: React.FC<Props> = ({ federationId }) => {
         dispatch(supportsSafeOnchainDeposit({ fedimint, federationId }))
             .unwrap()
             .then(setSupportsSafeOnchainDeposit)
-    }, [dispatch, federationId])
+    }, [dispatch, federationId, fedimint])
 
     return (
         <HoloAlert containerStyle={style.gradient}>

@@ -6,13 +6,13 @@ import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useBtcFiatPrice } from '@fedi/common/hooks/amount'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import { transferStableBalance } from '@fedi/common/redux'
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
@@ -34,6 +34,7 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { amount, federationId, recipient } = route.params
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const { feeBreakdownTitle, makeSPTransferFeeContent } = useFeeDisplayUtils(

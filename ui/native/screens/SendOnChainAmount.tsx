@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useOmniPaymentState } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -12,7 +13,6 @@ import {
 } from '@fedi/common/redux'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { fedimint } from '../bridge'
 import InternetUnreachableBanner from '../components/feature/environment/InternetUnreachableBanner'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
@@ -35,6 +35,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
     const [notes, setNotes] = useState<string>('')
     const isOffline = useAppSelector(selectIsInternetUnreachable)
     const recheckConnection = useRecheckInternet()
+    const fedimint = useFedimint()
 
     const {
         isReadyToPay,
@@ -100,6 +101,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
         toast,
         t,
         notes,
+        fedimint,
     ])
 
     if (!isReadyToPay) return <ActivityIndicator />

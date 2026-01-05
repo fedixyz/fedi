@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { GUARDIANITO_BOT_DISPLAY_NAME } from '@fedi/common/constants/matrix'
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useMessageInputState } from '@fedi/common/hooks/chat'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useMentionInput } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -42,7 +43,6 @@ import {
 import { RpcMatrixMembership } from '@fedi/common/types/bindings'
 import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 
-import { fedimint } from '../../../bridge'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { useMessageAttachments } from '../../../utils/hooks/attachments'
 import { useKeyboard } from '../../../utils/hooks/keyboard'
@@ -83,6 +83,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const existingRoom = useAppSelector(s => selectMatrixRoom(s, id))
     const navigation = useNavigation()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
 
     const toast = useToast()
     const isReadOnly = useAppSelector(s => selectMatrixRoomIsReadOnly(s, id))
@@ -202,6 +203,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         resetMessageText,
         t,
         toast,
+        fedimint,
     ])
 
     const trimmedMessageText = messageText

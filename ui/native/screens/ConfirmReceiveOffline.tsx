@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     receiveEcash,
@@ -17,7 +18,6 @@ import { RpcEcashInfo } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import RecoveryInProgress from '../components/feature/recovery/RecoveryInProgress'
 import FiatAmount from '../components/feature/wallet/FiatAmount'
@@ -43,6 +43,7 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
     const { t } = useTranslation()
     const toast = useToast()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const { ecash } = route.params
     const [parsedEcash, setParsedEcash] = useState<RpcEcashInfo | null>(null)
     const [receiving, setReceiving] = useState(false)
@@ -99,7 +100,16 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
             toast.error(t, e)
             setReceiving(false)
         }
-    }, [ecash, dispatch, navigation, receiving, toast, t, parsedEcash])
+    }, [
+        ecash,
+        dispatch,
+        navigation,
+        receiving,
+        toast,
+        t,
+        parsedEcash,
+        fedimint,
+    ])
 
     useEffect(() => {
         dispatch(parseEcash({ fedimint, ecash }))
@@ -111,7 +121,7 @@ const ConfirmReceiveOffline: React.FC<Props> = ({
                 log.error('PANIC: ecash validation failed')
                 toast.error(t, 'errors.invalid-ecash-token')
             })
-    }, [ecash, dispatch, toast, t])
+    }, [ecash, dispatch, toast, t, fedimint])
 
     if (parsedEcash && parsedEcash.federation_type !== 'joined') {
         // Should never happen since you are required to go through the join flow

@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FlatList, ListRenderItem, StyleSheet } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     refetchMatrixRoomMembers,
     selectMatrixAuth,
@@ -17,7 +18,6 @@ import {
     sortMultispendRoomMembers,
 } from '@fedi/common/utils/matrix'
 
-import { fedimint } from '../bridge'
 import { ChatUserActionsOverlay } from '../components/feature/chat/ChatUserActionsOverlay'
 import ChatUserTile from '../components/feature/chat/ChatUserTile'
 import Flex from '../components/ui/Flex'
@@ -37,6 +37,7 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
     const { theme } = useTheme()
 
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
     const myUserId = useAppSelector(selectMatrixAuth)?.userId
     const members = useAppSelector(s => selectMatrixRoomMembersByMe(s, roomId))
@@ -55,7 +56,7 @@ const ChatRoomMembers: React.FC<ChatRoomMembersProps> = ({
                     // no-op
                 },
             )
-    }, [dispatch, roomId])
+    }, [dispatch, roomId, fedimint])
 
     const handleRefresh = useCallback(() => {
         setIsRefetching(true)

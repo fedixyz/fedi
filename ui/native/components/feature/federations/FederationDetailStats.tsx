@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { FALLBACK_LIMIT_MSATS } from '@fedi/common/constants/limits'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { GuardianStatus } from '@fedi/common/types/bindings'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import {
@@ -12,7 +13,6 @@ import {
 } from '@fedi/common/utils/FederationUtils'
 import { formatLargeNumber } from '@fedi/common/utils/format'
 
-import { fedimint } from '../../../bridge'
 import { LoadedFederation } from '../../../types'
 import { Column, Row } from '../../ui/Flex'
 
@@ -27,6 +27,7 @@ function FederationDetailStats({
 
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const fedimint = useFedimint()
 
     const totalGuardians = guardianStatuses ? guardianStatuses.length : 0
     const onlineGuardians = guardianStatuses
@@ -49,7 +50,7 @@ function FederationDetailStats({
             .getGuardianStatus(federation.id)
             .then(setGuardianStatuses)
             .finally(() => setIsLoadingGuardians(false))
-    }, [federation.id])
+    }, [federation.id, fedimint])
 
     const style = styles(theme)
 

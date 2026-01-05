@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 
-import { fedimint } from '../bridge'
 import { FieldInput } from '../components/ui/FieldInput'
 import Flex from '../components/ui/Flex'
 import { PressableIcon } from '../components/ui/PressableIcon'
@@ -40,6 +40,7 @@ const CreatePoll: React.FC<Props> = ({
     const [isDisclosed, setIsDisclosed] = useState(true)
     const [isLoading, setIsLoading] = useState(false)
     const style = styles(theme)
+    const fedimint = useFedimint()
     const toast = useToast()
 
     const handleAddOption = () => {

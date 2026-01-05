@@ -16,6 +16,7 @@ import { RESULTS } from 'react-native-permissions'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useDisplayNameForm } from '@fedi/common/hooks/chat'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectMatrixAuth,
@@ -25,7 +26,6 @@ import { makeLog } from '@fedi/common/utils/log'
 import { stripFileUriPrefix } from '@fedi/common/utils/media'
 import { ensureNonNullish } from '@fedi/common/utils/neverthrow'
 
-import { fedimint } from '../bridge'
 import Avatar, { AvatarSize } from '../components/ui/Avatar'
 import Flex from '../components/ui/Flex'
 import { Pressable } from '../components/ui/Pressable'
@@ -54,6 +54,7 @@ const EditProfileSettings: React.FC = () => {
 
     const toast = useToast()
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const navigation = useNavigation()
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
@@ -121,6 +122,7 @@ const EditProfileSettings: React.FC = () => {
         profileImageUri,
         profileImageMimeType,
         navigation,
+        fedimint,
     ])
     const hasChanged =
         username.trim() !== matrixAuth?.displayName || profileImageUri !== null

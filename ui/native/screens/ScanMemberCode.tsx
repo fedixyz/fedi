@@ -2,11 +2,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { inviteUserToMatrixRoom, selectMatrixRoom } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import { OmniInput } from '../components/feature/omni/OmniInput'
 import CustomOverlay, {
     CustomOverlayContents,
@@ -30,6 +30,7 @@ const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
     const roomName = room ? room.name : t('phrases.this-group')
     const isInvitation = !!inviteToRoomId
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const [scannedUser, setScannedUser] = useState<ParsedFediChatUser | null>(
         null,
     )
@@ -69,7 +70,15 @@ const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
                 setScannedUser(null)
             }
         },
-        [setIsLoading, setScannedUser, toast, t, dispatch, handleNavigate],
+        [
+            setIsLoading,
+            setScannedUser,
+            toast,
+            t,
+            dispatch,
+            handleNavigate,
+            fedimint,
+        ],
     )
 
     const handleConfirmation = useCallback(() => {

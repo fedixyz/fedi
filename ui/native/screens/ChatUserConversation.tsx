@@ -3,6 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     selectMatrixAuth,
     selectMatrixDirectMessageRoom,
@@ -10,7 +11,6 @@ import {
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../bridge'
 import MessageInput from '../components/feature/chat/MessageInput'
 import NoMessagesNotice from '../components/feature/chat/NoMessagesNotice'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
@@ -41,6 +41,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
     const extraPadAndroid35 = useImeFooterLift()
 
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
 
     // If this is a chat with ourselves, redirect to main chat screen
     const navigationReplace = navigation.replace
@@ -79,7 +80,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
                 setIsSending(false)
             }
         },
-        [dispatch, userId],
+        [dispatch, userId, fedimint],
     )
 
     const renderMessageInput = useCallback((): React.ReactElement => {

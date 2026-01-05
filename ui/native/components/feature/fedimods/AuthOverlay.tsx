@@ -3,12 +3,12 @@ import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { RejectionError } from 'webln'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { selectLnurlAuthRequest, selectSiteInfo } from '@fedi/common/redux'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
 import CustomOverlay from '../../ui/CustomOverlay'
 import Flex from '../../ui/Flex'
@@ -23,6 +23,7 @@ interface Props {
 export const AuthOverlay: React.FC<Props> = ({ onReject, onAccept }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const fedimint = useFedimint()
     const lnurlAuthRequest = useAppSelector(selectLnurlAuthRequest)
     const siteInfo = useAppSelector(selectSiteInfo)
     const [isLoading, setIsLoading] = useState(false)

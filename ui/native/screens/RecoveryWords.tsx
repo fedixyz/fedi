@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImageBackground, ScrollView, StyleSheet, View } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useNuxStep } from '@fedi/common/hooks/nux'
 import {
     selectIsRecoveringBeforePin,
@@ -12,7 +13,6 @@ import {
 import type { SeedWords } from '@fedi/common/types'
 
 import { Images } from '../assets/images'
-import { fedimint } from '../bridge'
 import Flex, { Column, Row } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -55,6 +55,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
 
     const isBackingUpBeforePin = useAppSelector(selectIsRecoveringBeforePin)
     const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
 
     useEffect(() => {
         const getMnemonicWrapper = async () => {
@@ -63,7 +64,7 @@ const RecoveryWords: React.FC<Props> = ({ navigation, route }: Props) => {
         }
 
         getMnemonicWrapper()
-    }, [])
+    }, [fedimint])
 
     const renderFirstSixSeedWords = () => {
         return seedWords

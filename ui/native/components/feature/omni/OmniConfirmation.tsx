@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Linking } from 'react-native'
 
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectAreAllFederationsRecovering,
@@ -15,7 +16,6 @@ import {
     BLOCKED_PARSER_TYPES_DURING_RECOVERY,
 } from '@fedi/common/utils/parser'
 
-import { fedimint } from '../../../bridge'
 import { useAppSelector } from '../../../state/hooks'
 import { resetToWallets } from '../../../state/navigation'
 import {
@@ -45,6 +45,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
 }: Props<T>) => {
     const { t } = useTranslation()
     const toast = useToast()
+    const fedimint = useFedimint()
     const navigation = useNavigation()
     const [isLoading, setIsLoading] = useState(false)
     const walletFederations = useAppSelector(selectLoadedFederations)
