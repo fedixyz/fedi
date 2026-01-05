@@ -28,6 +28,7 @@ import {
 } from '@fedi/common/utils/bug-report'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { fedimint } from '../../bridge'
 import { useAppSelector } from '../../state/hooks'
 import { getAllDeviceInfo } from '../device-info'
 import { exportBridgeLogs } from '../log'
@@ -134,6 +135,7 @@ export const useCompressNativeLogs = (federationId?: Federation['id']) => {
         handleCollectDbContents,
         handleCollectExtraFiles,
         federationId,
+        fedimint,
     })
 }
 

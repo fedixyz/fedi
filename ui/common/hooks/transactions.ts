@@ -1,5 +1,5 @@
 import { TFunction } from 'i18next'
-import { useCallback } from 'react'
+import { useCallback, useContext } from 'react'
 
 import {
     makeStabilityTxnDetailItems as makeStabilityTxnDetailItemsUtil,
@@ -18,6 +18,7 @@ import {
     makeTxnStatusBadge,
 } from '@fedi/common/utils/wallet'
 
+import { FedimintContext } from '../components/FedimintProvider'
 import {
     fetchMultispendTransactions,
     selectCurrency,
@@ -56,6 +57,7 @@ import {
     makeTransactionHistoryCSV,
     makeMultispendTransactionHistoryCSV,
 } from '../utils/csv'
+import { FedimintBridge } from '../utils/fedimint'
 import {
     coerceMultispendTxn,
     isWithdrawalRequestRejected,
@@ -64,9 +66,15 @@ import { useAmountFormatter, useBtcFiatPrice } from './amount'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
-export function useTransactionHistory(federationId: Federation['id']) {
+export function useTransactionHistory(
+    federationId: Federation['id'],
+    // IMPORTANT: since this hook is used on the error screen, the FedimintContext may not be available
+    // For normal use cases unrelated to log exporting, you don't need to pass in this argument
+    fedimintBridge?: FedimintBridge,
+) {
     const dispatch = useCommonDispatch()
-    const fedimint = useFedimint()
+    // Falls back to `fedimintBridge` if the context is not available
+    const fedimint = useContext(FedimintContext) ?? fedimintBridge
     const transactions = useCommonSelector(s =>
         selectTransactions(s, federationId),
     )
@@ -81,7 +89,7 @@ export function useTransactionHistory(federationId: Federation['id']) {
                 'limit' | 'more' | 'refresh'
             >,
         ) => {
-            if (!federationId) return []
+            if (!federationId || !fedimint) return []
             return dispatch(
                 reduxFetchTransactions({
                     federationId,

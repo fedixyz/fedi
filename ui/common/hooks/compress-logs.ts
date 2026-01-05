@@ -13,8 +13,8 @@ import {
 } from '@fedi/common/utils/log'
 
 import { Federation, StorageApi } from '../types'
+import { FedimintBridge } from '../utils/fedimint'
 import { makeTarGz, File } from '../utils/targz'
-import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 
 const log = makeLog('common/hooks/compress-logs')
@@ -24,20 +24,24 @@ export const useCompressLogs = ({
     handleCollectDbContents,
     handleCollectExtraFiles,
     federationId = '',
+    fedimint,
 }: {
     storage: StorageApi
     handleCollectDbContents: (path: string) => Promise<string>
     handleCollectExtraFiles: () => Record<string, () => Promise<string>>
     federationId?: Federation['id']
+    // IMPORTANT: this `fedimint` argument **must** be passed into this hook for exporting logs
+    // Log exporting is used on the ErrorScreen, in which the FedimintContext may not be available
+    // Do **not** use the `useFedimint` hook for this one
+    fedimint: FedimintBridge
 }) => {
     const dispatch = useCommonDispatch()
-    const fedimint = useFedimint()
     const federation = useCommonSelector(s =>
         selectLoadedFederation(s, federationId || ''),
     )
     const npub = useCommonSelector(selectNostrNpub)
 
-    const { fetchTransactions } = useTransactionHistory(federationId)
+    const { fetchTransactions } = useTransactionHistory(federationId, fedimint)
 
     const compressLogs = useCallback(
         ({ sendDb }: { sendDb: boolean }) => {

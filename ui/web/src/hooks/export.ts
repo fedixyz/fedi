@@ -10,7 +10,7 @@ import {
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useAppSelector } from '../hooks'
-import { readBridgeFile, getBridgeLogs } from '../lib/bridge'
+import { readBridgeFile, getBridgeLogs, fedimint } from '../lib/bridge'
 import { asyncLocalStorage } from '../utils/localstorage'
 
 const log = makeLog('web/src/hooks/export')
@@ -38,6 +38,7 @@ export const useShareLogs = () => {
         storage: asyncLocalStorage,
         handleCollectDbContents,
         handleCollectExtraFiles,
+        fedimint,
     })
 
     const collectAttachmentsAndSubmit = useCallback(
