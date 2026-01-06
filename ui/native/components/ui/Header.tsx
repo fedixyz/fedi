@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Header as HeaderRNE, useTheme } from '@rneui/themed'
 import React, { memo } from 'react'
 import { View, ViewStyle } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { reset } from '../../state/navigation'
 import { NavigationHook, TabsNavigatorParamList } from '../../types/navigation'
@@ -57,6 +58,7 @@ const Header: React.FC<HeaderProps> = memo(
         closeRoute,
     }: HeaderProps) => {
         const { theme } = useTheme()
+        const insets = useSafeAreaInsets()
         const navigation = useNavigation<NavigationHook>()
 
         // This logic allows for custom UI in the left side of the Header
@@ -120,7 +122,7 @@ const Header: React.FC<HeaderProps> = memo(
             shadowColor: transparent
                 ? 'transparent'
                 : defaultContainerStyle.shadowColor,
-            paddingTop: theme.spacing.lg,
+            paddingTop: insets.top + theme.spacing.lg,
             ...containerStyle,
         }
 
@@ -154,6 +156,10 @@ const Header: React.FC<HeaderProps> = memo(
                     ...defaultRightContainerStyle,
                     ...rightContainerStyle,
                 }}
+                // The top edge causes jitter do to its use of onLayout.
+                // https://echobind.com/post/react-native-fix-jumping-screens-in-the-react-navigation-tabnavigator
+                // Adding the top inset to the padding fixes this.
+                edges={['left', 'right']}
             />
         )
     },
