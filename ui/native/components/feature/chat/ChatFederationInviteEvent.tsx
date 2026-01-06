@@ -109,6 +109,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
                                 </Text>
                             )}
                             <Row
+                                wrap
                                 justify="start"
                                 gap="md"
                                 fullWidth
