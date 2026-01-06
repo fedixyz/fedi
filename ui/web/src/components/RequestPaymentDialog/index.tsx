@@ -3,9 +3,6 @@ import { useRouter } from 'next/router'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ScanLightningIcon from '@fedi/common/assets/svgs/scan-lightning.svg'
-import SwitchLeftIcon from '@fedi/common/assets/svgs/switch-left.svg'
-import SwitchRightIcon from '@fedi/common/assets/svgs/switch-right.svg'
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
 import {
@@ -20,10 +17,8 @@ import { config, theme } from '../../styles'
 import { getHashParams } from '../../utils/linking'
 import { Dialog } from '.././Dialog'
 import { DialogStatus } from '.././DialogStatus'
-import { Icon } from '.././Icon'
-import { Text } from '.././Text'
+import { Switcher, type Option as SwitcherOption } from '../Switcher'
 import LightningRequest from './LightningRequest'
-import LnurlReceive from './LnurlReceive'
 import LnurlWithdraw from './LnurlWithdraw'
 import OnchainRequest from './OnchainRequest'
 
@@ -31,6 +26,8 @@ interface Props {
     open: boolean
     onOpenChange(open: boolean): void
 }
+
+type Tab = 'lightning' | 'onchain'
 
 export const RequestPaymentDialog: React.FC<Props> = ({
     open,
@@ -41,7 +38,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const params = getHashParams(router.asPath)
     const lnurlw = useRouteState('/request')
     const federationId = params.id
-
     const [isCompleted, setIsCompleted] = useState(false)
     const [requestType, setRequestType] = useState<
         'lightning' | 'bitcoin' | 'lnurlw'
@@ -50,12 +46,17 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const [showLnurlReceive, setShowLnurlReceive] = useState(false)
     const [receivedTransaction, setReceivedTransaction] =
         useState<TransactionListEntry | null>(null)
+    const [activeTab, setActiveTab] = useState<Tab>('lightning')
 
     const containerRef = useRef<HTMLDivElement | null>(null)
 
     const isOnchainSupported = useIsOnchainDepositSupported(federationId)
 
     const { supportsLnurl } = useLnurlReceiveCode(federationId || '')
+
+    useEffect(() => {
+        setRequestType(activeTab === 'lightning' ? 'lightning' : 'bitcoin')
+    }, [activeTab])
 
     const handleSubmit = () => {
         setIsCompleted(true)
@@ -73,6 +74,11 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         })
 
     const syncCurrencyRatesAndCache = useSyncCurrencyRatesAndCache()
+
+    const switcherOptions: SwitcherOption<Tab>[] = [
+        { label: t('words.lightning'), value: 'lightning' },
+        { label: t('words.onchain'), value: 'onchain' },
+    ]
 
     // Reset on close, focus input on desktop open
     useEffect(() => {
@@ -104,57 +110,26 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     return (
         <Dialog
             title={t('feature.receive.request-money')}
-            titleRight={
-                supportsLnurl ? (
-                    <Icon
-                        icon={ScanLightningIcon}
-                        size="sm"
-                        onClick={() => setShowLnurlReceive(!showLnurlReceive)}
-                    />
-                ) : null
-            }
             open={open}
             mobileDismiss="back"
             onOpenChange={onOpenChange}>
             <Container ref={containerRef}>
                 {isOnchainSupported && !isCompleted && !showLnurlReceive && (
-                    <RequestTypeToggle
-                        onClick={() =>
-                            setRequestType(
-                                requestType === 'lightning'
-                                    ? 'bitcoin'
-                                    : 'lightning',
-                            )
-                        }>
-                        <Text variant="caption" weight="medium">
-                            {t(
-                                requestType === 'lightning'
-                                    ? 'words.lightning'
-                                    : 'words.onchain',
-                            )}
-                        </Text>
-                        <Icon
-                            size={20}
-                            icon={
-                                requestType === 'lightning'
-                                    ? SwitchLeftIcon
-                                    : SwitchRightIcon
-                            }
-                        />
-                    </RequestTypeToggle>
+                    <Switcher
+                        options={switcherOptions}
+                        selected={activeTab}
+                        onChange={newTab => setActiveTab(newTab)}
+                    />
                 )}
 
-                {showLnurlReceive ? (
-                    <LnurlReceive
-                        onSubmit={handleSubmit}
-                        onWithdrawPaid={onTransactionReceived}
-                        federationId={federationId}
-                    />
-                ) : requestType === 'lightning' ? (
+                {requestType === 'lightning' ? (
                     <LightningRequest
                         onSubmit={handleSubmit}
                         onInvoicePaid={onTransactionReceived}
                         federationId={federationId}
+                        {...(!!supportsLnurl && {
+                            onLnurlClick: () => setShowLnurlReceive(true),
+                        })}
                     />
                 ) : requestType === 'lnurlw' ? (
                     <LnurlWithdraw
@@ -191,22 +166,10 @@ const Container = styled('div', {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    paddingTop: 24,
-    gap: 24,
+    paddingTop: theme.spacing.sm,
+    gap: theme.spacing.md,
     minHeight: 0,
-})
-
-const RequestTypeToggle = styled('button', {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    color: theme.colors.grey,
-    outline: 'none',
-
-    '&:hover, &:focus': {
-        color: theme.colors.primary,
-    },
+    height: '100%',
 })
 
 export const NoteInput = styled('input', {

@@ -3,21 +3,25 @@ import React from 'react'
 import { styled, theme } from '../styles'
 import { Text } from './Text'
 
-interface Option {
+export interface Option<T extends string> {
     label: string
-    value: string
+    value: T
 }
 
-export interface Props {
-    options: Option[]
-    onChange: (value: string) => void
+export interface Props<T extends string> {
+    options: Option<T>[]
+    onChange: (value: T) => void
     selected: string
 }
 
-export const Switcher: React.FC<Props> = ({ options, onChange, selected }) => {
+export function Switcher<T extends string>({
+    options,
+    onChange,
+    selected,
+}: Props<T>) {
     return (
         <Container>
-            {options.map((option: Option) => (
+            {options.map(option => (
                 <Item
                     key={option.value}
                     data-testid={`${option.value}Tab`}

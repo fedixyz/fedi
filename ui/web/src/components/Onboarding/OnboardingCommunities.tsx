@@ -25,17 +25,17 @@ import PublicFederations from '../PublicFederations'
 import { Switcher } from '../Switcher'
 import { Text } from '../Text'
 
-type TabValue = 'discover' | 'join' | 'create'
+type Tab = 'discover' | 'join' | 'create'
 
 type SwitcherOption = {
     label: string
-    value: TabValue
+    value: Tab
     subText: string
 }
 
 const permittedTabs: string[] = ['join', 'create']
-const getTab = (tab: string): TabValue => {
-    return permittedTabs.includes(tab) ? (tab as TabValue) : 'join' // need this typecast
+const getTab = (tab: string): Tab => {
+    return permittedTabs.includes(tab) ? (tab as Tab) : 'join' // need this typecast
 }
 
 // Add type and component for info entry list
@@ -71,7 +71,7 @@ export function OnboardingCommunities() {
     const { t } = useTranslation()
     const { push, query, replace } = useRouter()
 
-    const [activeTab, setActiveTab] = useState<TabValue>('join')
+    const [activeTab, setActiveTab] = useState<Tab>('join')
     const [showBrowser, setShowBrowser] = useState(false)
 
     const switcherOptions: SwitcherOption[] = [

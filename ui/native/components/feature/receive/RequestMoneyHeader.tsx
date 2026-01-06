@@ -4,10 +4,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
-import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
-
 import { NavigationHook, RootStackParamList } from '../../../types/navigation'
-import { Row } from '../../ui/Flex'
 import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
 
@@ -28,7 +25,6 @@ const RequestMoneyHeader: React.FC = () => {
 
     // Show close button only if back button would not take us to TabsNavigator
     const shouldShowClose = routes[routes.length - 2]?.name !== 'TabsNavigator'
-    const { supportsLnurl } = useLnurlReceiveCode(federationId || '')
 
     return (
         <Header
@@ -42,24 +38,12 @@ const RequestMoneyHeader: React.FC = () => {
             }
             rightContainerStyle={styles(theme).rightContainer}
             headerRight={
-                <Row gap="sm">
-                    <PressableIcon
-                        svgName="Scan"
-                        onPress={() =>
-                            navigation.navigate('Receive', { federationId })
-                        }
-                    />
-                    {supportsLnurl && (
-                        <PressableIcon
-                            svgName="ScanLightning"
-                            onPress={() =>
-                                navigation.navigate('ReceiveLnurl', {
-                                    federationId,
-                                })
-                            }
-                        />
-                    )}
-                </Row>
+                <PressableIcon
+                    svgName="Scan"
+                    onPress={() =>
+                        navigation.navigate('Receive', { federationId })
+                    }
+                />
             }
         />
     )

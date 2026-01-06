@@ -2,7 +2,7 @@ import { useTheme, Theme } from '@rneui/themed'
 import React from 'react'
 import { TouchableOpacity, StyleSheet, Text } from 'react-native'
 
-import { Row } from '../../ui/Flex'
+import { Row } from './Flex'
 
 export interface Option<T extends string> {
     label: string

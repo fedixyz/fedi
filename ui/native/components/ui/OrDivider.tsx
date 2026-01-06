@@ -2,7 +2,7 @@ import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { Text, StyleSheet } from 'react-native'
 
-import { Row, Column } from '../../ui/Flex'
+import { Row, Column } from './Flex'
 
 export const OrDivider: React.FC = () => {
     const { theme } = useTheme()

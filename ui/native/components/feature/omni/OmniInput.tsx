@@ -21,10 +21,10 @@ import SvgImage, { SvgImageName } from '@fedi/native/components/ui/SvgImage'
 
 import { useAppSelector } from '../../../state/hooks'
 import { Column } from '../../ui/Flex'
+import { OrDivider } from '../../ui/OrDivider'
 import { OmniConfirmation } from './OmniConfirmation'
 import { OmniMemberSearch } from './OmniMemberSearch'
 import { OmniQrScanner } from './OmniQrScanner'
-import { OrDivider } from './OrDivider'
 
 export interface OmniInputAction {
     label: React.ReactNode

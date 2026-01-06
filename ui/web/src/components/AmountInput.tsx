@@ -221,7 +221,7 @@ const Container = styled('div', {
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    gap: 24,
+    gap: theme.spacing.md,
     overflow: 'hidden',
 })
 
@@ -376,21 +376,12 @@ const NumpadButton = styled('button', {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 16,
     borderRadius: 8,
     fontSize: 20,
     fontWeight: theme.fontWeights.medium,
     lineHeight: '32px',
     transition: 'background-color 80ms ease',
-
-    '@media (max-height: 760px)': {
-        padding: 16,
-    },
-
-    '@media (max-height: 700px)': {
-        lineHeight: '28px',
-        padding: 12,
-    },
 
     '&:hover, &:focus': {
         background: theme.colors.primary05,

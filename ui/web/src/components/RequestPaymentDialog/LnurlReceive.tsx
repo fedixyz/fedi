@@ -25,7 +25,7 @@ export default function LnurlReceive({
     const { t } = useTranslation()
 
     return (
-        <>
+        <Container>
             <LnurlNotice>
                 <LnurlNoticeTitle variant="body" weight="medium">
                     ℹ️ {t('feature.receive.lnurl-receive-notice-1')}
@@ -49,9 +49,15 @@ export default function LnurlReceive({
                     </>
                 )}
             </QRContainer>
-        </>
+        </Container>
     )
 }
+
+const Container = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: theme.spacing.lg,
+})
 
 const LnurlNotice = styled('div', {
     display: 'flex',

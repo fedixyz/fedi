@@ -21,10 +21,10 @@ import { FederationLogo } from '../components/feature/federations/FederationLogo
 import InfoEntryList, {
     type InfoItem,
 } from '../components/feature/home/InfoEntryList'
-import { Switcher } from '../components/feature/home/Switcher'
 import { OmniInput } from '../components/feature/omni/OmniInput'
 import { Row, Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
+import { Switcher } from '../components/ui/Switcher'
 import { useAppSelector } from '../state/hooks'
 import { resetToChatsScreen } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'

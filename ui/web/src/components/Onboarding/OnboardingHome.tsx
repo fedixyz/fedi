@@ -11,7 +11,10 @@ import { Button } from '../../components/Button'
 import CreateFederation from '../../components/CreateFederation'
 import * as Layout from '../../components/Layout'
 import PublicFederations from '../../components/PublicFederations'
-import { Switcher } from '../../components/Switcher'
+import {
+    Switcher,
+    type Option as SwitcherOption,
+} from '../../components/Switcher'
 import { Text } from '../../components/Text'
 import {
     chatRoute,
@@ -24,16 +27,11 @@ import { useAppSelector } from '../../hooks'
 import { keyframes, styled, theme } from '../../styles'
 import { OmniInput } from '../OmniInput'
 
-type TabValue = 'discover' | 'join' | 'create'
-
-type SwitcherOption = {
-    label: string
-    value: TabValue
-}
+type Tab = 'discover' | 'join' | 'create'
 
 const permittedTabs: string[] = ['discover', 'join', 'create']
-const getTab = (tab: string): TabValue => {
-    return permittedTabs.includes(tab) ? (tab as TabValue) : 'discover' // need this typecast
+const getTab = (tab: string): Tab => {
+    return permittedTabs.includes(tab) ? (tab as Tab) : 'discover' // need this typecast
 }
 
 export function OnboardingHome() {
@@ -51,9 +49,9 @@ export function OnboardingHome() {
         showGoToChatButton,
     } = useGuardianito(t)
 
-    const [activeTab, setActiveTab] = useState<TabValue>('discover')
+    const [activeTab, setActiveTab] = useState<Tab>('discover')
 
-    const switcherOptions: SwitcherOption[] = [
+    const switcherOptions: SwitcherOption<Tab>[] = [
         { label: t('words.discover'), value: 'discover' },
         { label: t('words.join'), value: 'join' },
         { label: t('words.create'), value: 'create' },
