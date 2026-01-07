@@ -206,6 +206,7 @@ export function useIFrameListener(
                             data.communityId,
                             communityToEdit,
                         )
+                        sendSuccess(event, { success: true })
                     } catch {
                         log.error('Failed to edit community')
                         sendError(event, 'EditCommunity error')
