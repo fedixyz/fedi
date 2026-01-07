@@ -2,8 +2,13 @@ import { useNavigation } from '@react-navigation/native'
 import { Divider, Text, Theme, Tooltip, useTheme } from '@rneui/themed'
 import React, { RefObject, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Animated, LayoutChangeEvent, StyleSheet } from 'react-native'
-import { Pressable } from 'react-native-gesture-handler'
+import {
+    Alert,
+    Animated,
+    LayoutChangeEvent,
+    StyleSheet,
+    View,
+} from 'react-native'
 import WebView from 'react-native-webview'
 
 import { useToast } from '@fedi/common/hooks/toast'
@@ -21,6 +26,7 @@ import {
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { Row } from '../../ui/Flex'
+import { Pressable } from '../../ui/Pressable'
 import { PressableIcon } from '../../ui/PressableIcon'
 
 const TOOLTIP_ITEM_HEIGHT = 40
@@ -99,7 +105,7 @@ const AddressBar: React.FC<AddressBarProps> = ({ isLoading, loadProgress }) => {
 
     return (
         <Pressable
-            style={[style.addressInput]}
+            containerStyle={style.addressInput}
             disabled={isLoading && loadProgress < 1}
             onPress={() => dispatch(setAddressOverlayOpen(true))}
             onLayout={handleLayout}>
@@ -220,9 +226,11 @@ const MoreActionsTooltip: React.FC<MoreActionsTooltipProps> = ({
             onClose={onToggleMenu}
             containerStyle={style.tooltipPopover}
             popover={
-                <>
+                <View
+                    onStartShouldSetResponder={() => true}
+                    style={style.tooltipContent}>
                     <Pressable
-                        style={style.tooltipAction}
+                        containerStyle={style.tooltipAction}
                         onPress={handleRefresh}>
                         <Text style={style.tooltipText}>
                             {t('words.refresh')}
@@ -234,7 +242,7 @@ const MoreActionsTooltip: React.FC<MoreActionsTooltipProps> = ({
                             <Divider orientation="vertical" />
 
                             <Pressable
-                                style={style.tooltipAction}
+                                containerStyle={style.tooltipAction}
                                 onPress={handleClearHistory}>
                                 <Text style={style.tooltipText}>
                                     {t('feature.fedimods.clear-history')}
@@ -248,7 +256,7 @@ const MoreActionsTooltip: React.FC<MoreActionsTooltipProps> = ({
                             <Divider orientation="vertical" />
 
                             <Pressable
-                                style={style.tooltipAction}
+                                containerStyle={style.tooltipAction}
                                 onPress={handleClearCache}>
                                 <Text style={style.tooltipText}>
                                     {t('feature.fedimods.clear-cache')}
@@ -259,10 +267,12 @@ const MoreActionsTooltip: React.FC<MoreActionsTooltipProps> = ({
 
                     <Divider orientation="vertical" />
 
-                    <Pressable style={style.tooltipAction} onPress={onExit}>
+                    <Pressable
+                        containerStyle={style.tooltipAction}
+                        onPress={onExit}>
                         <Text style={style.tooltipText}>{t('words.exit')}</Text>
                     </Pressable>
-                </>
+                </View>
             }>
             <PressableIcon
                 svgName="DotsMore"
@@ -355,10 +365,14 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             flexGrow: 1,
             padding: theme.spacing.sm,
+            borderRadius: 0,
         },
         tooltipText: {
             color: theme.colors.primary,
             flexGrow: 1,
+        },
+        tooltipContent: {
+            width: '100%',
         },
     })
 
