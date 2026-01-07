@@ -14,10 +14,9 @@ import { LoadedFederation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
-import { Column } from '../../ui/Flex'
+import { Column, Row } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
 import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
-import RecoveryInProgress from '../recovery/RecoveryInProgress'
 import StabilityWallet from '../stabilitypool/StabilityWallet'
 import BitcoinWallet from '../wallet/BitcoinWallet'
 import { FederationLogo } from './FederationLogo'
@@ -68,7 +67,11 @@ const FederationTile: React.FC<Props> = ({
                     .replaceAll(' ', '')}
                 containerStyle={style.tileContainer}
                 onPress={goToFederationDetails}>
-                <View style={style.logoContainer}>
+                <View
+                    style={[
+                        style.logoContainer,
+                        { opacity: recoveryInProgress ? 0.5 : 1 },
+                    ]}>
                     <FederationLogo federation={federation} size={48} />
                     {(popupInfo?.ended || status !== 'online') && (
                         <View style={style.endedIndicator}>
@@ -84,9 +87,18 @@ const FederationTile: React.FC<Props> = ({
                         </View>
                     )}
                 </View>
-                <Text bold style={style.title}>
-                    {federation?.name}
-                </Text>
+                <Column justify="center" gap="xxs">
+                    <Text bold style={style.title}>
+                        {federation?.name}
+                    </Text>
+                    {recoveryInProgress && (
+                        <Row align="center" gap="xs">
+                            <Text small color={theme.colors.darkGrey}>
+                                {t('feature.federations.recovering-label')}
+                            </Text>
+                        </Row>
+                    )}
+                </Column>
                 <SvgImage
                     name="ChevronRight"
                     color={theme.colors.grey}
@@ -94,30 +106,17 @@ const FederationTile: React.FC<Props> = ({
                     size={SvgImageSize.sm}
                 />
             </Pressable>
-            {recoveryInProgress ? (
-                <View style={style.recovery}>
-                    <RecoveryInProgress
-                        label={t(
-                            'feature.recovery.recovery-in-progress-balance',
-                        )}
-                        federationId={federation.id}
-                    />
-                </View>
-            ) : (
-                <>
-                    <BitcoinWallet
-                        federation={federation}
-                        expanded={expanded}
-                        setExpandedWalletId={setExpandedWalletId}
-                    />
-                    {showStabilityWallet && (
-                        <StabilityWallet
-                            federation={federation}
-                            expanded={expanded}
-                            setExpandedWalletId={setExpandedWalletId}
-                        />
-                    )}
-                </>
+            <BitcoinWallet
+                federation={federation}
+                expanded={expanded}
+                setExpandedWalletId={setExpandedWalletId}
+            />
+            {showStabilityWallet && (
+                <StabilityWallet
+                    federation={federation}
+                    expanded={expanded}
+                    setExpandedWalletId={setExpandedWalletId}
+                />
             )}
         </Column>
     )

@@ -7,6 +7,7 @@ jest.mock('@fedi/common/hooks/recovery', () => ({
     ...jest.requireActual('@fedi/common/hooks/recovery'),
     useRecoveryProgress: () => ({
         progress: 0.5,
+        formattedPercent: '50%',
     }),
 }))
 

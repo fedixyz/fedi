@@ -10,7 +10,7 @@ import { uploadBackupFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Column } from '../components/ui/Flex'
-import HoloProgressCircle from '../components/ui/HoloProgressCircle'
+import HoloLoader from '../components/ui/HoloLoader'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -87,7 +87,10 @@ const SocialBackupProcessing: React.FC<Props> = ({
 
     return (
         <Column grow center style={style.container}>
-            <HoloProgressCircle percentComplete={percentComplete} />
+            <HoloLoader
+                progress={percentComplete / 100}
+                size={theme.sizes.progressCircle}
+            />
             <Text style={style.label}>
                 <Trans
                     i18nKey="feature.backup.creating-recovery-file"

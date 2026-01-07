@@ -16,6 +16,7 @@ import {
     transferExistingWallet,
     refreshOnboardingStatus,
     setDeviceIndexRequired,
+    selectIsFederationRecovering,
 } from '../redux'
 import { Federation, SeedWords } from '../types'
 import { RpcRegisteredDevice } from '../types/bindings'
@@ -191,10 +192,15 @@ export function useDeviceRegistration(t: TFunction) {
 }
 
 export function useRecoveryProgress(federationId: Federation['id']) {
-    const fedimint = useFedimint()
     const [progress, setProgress] = useState<number | undefined>(undefined)
+
+    const fedimint = useFedimint()
+    const recoveryInProgress = useCommonSelector(s =>
+        selectIsFederationRecovering(s, federationId),
+    )
+
     useEffect(() => {
-        if (!federationId) return
+        if (!federationId || !recoveryInProgress) return
         const unsubscribe = fedimint.addListener('recoveryProgress', event => {
             log.info('recovery progress', event)
             if (event.federationId === federationId) {
@@ -209,9 +215,11 @@ export function useRecoveryProgress(federationId: Federation['id']) {
         return () => {
             unsubscribe()
         }
-    }, [fedimint, federationId])
+    }, [fedimint, federationId, recoveryInProgress])
 
     return {
         progress,
+        formattedPercent: progress ? `${Math.floor(progress * 100)}%` : '',
+        recoveryInProgress,
     }
 }

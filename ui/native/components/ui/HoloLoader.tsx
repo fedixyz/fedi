@@ -1,17 +1,10 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useRef } from 'react'
-import {
-    Animated,
-    Easing,
-    ImageBackground,
-    StyleSheet,
-    View,
-    ViewStyle,
-} from 'react-native'
+import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native'
 import * as Progress from 'react-native-progress'
 
-import { Images } from '../../assets/images'
 import { Column } from './Flex'
+import GradientView from './GradientView'
 
 export type Props = {
     size?: number
@@ -51,11 +44,7 @@ const HoloLoader: React.FC<Props> = ({
 
     return (
         <Column center style={style.container}>
-            <ImageBackground
-                source={Images.HoloBackgroundStrong}
-                style={style.holoCircle}
-                imageStyle={style.holoCircleImage}
-            />
+            <GradientView variant="sky" style={style.holoCircle} />
             <View style={style.whiteCircle} />
             <Animated.View
                 style={[style.progressCircleContainer, transformedStyle]}>
@@ -95,6 +84,8 @@ const styles = (theme: Theme, size: number) =>
             // progress ring is uncovering the holographic ring
             height: size,
             width: size,
+            borderRadius: 1024,
+            overflow: 'hidden',
         },
         holoCircleImage: {
             borderRadius: size * 0.5,
@@ -103,7 +94,7 @@ const styles = (theme: Theme, size: number) =>
             position: 'absolute',
             height: size - 10,
             width: size - 10,
-            borderRadius: (size - 10) * 0.5,
+            borderRadius: 1024,
             backgroundColor: theme.colors.white,
         },
     })

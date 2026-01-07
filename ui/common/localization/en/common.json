@@ -671,6 +671,7 @@
             "please-reconnect": "Please reconnect to the internet to refresh the federation status.",
             "recover-from-scratch": "Recover from scratch",
             "recover-from-scratch-warning": "Warning: This takes a long time. You should NOT select this option unless instructed by Fedi support.",
+            "recovering-label": "Recovering...",
             "scan-federation-invite": "Scan a federation Invite",
             "spend-limit": "Spend limit",
             "wallet-balance": "Wallet balance"

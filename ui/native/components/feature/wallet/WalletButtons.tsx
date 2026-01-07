@@ -3,8 +3,10 @@ import React, { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Animated } from 'react-native'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
+import { selectIsFederationRecovering } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
+import { useAppSelector } from '../../../state/hooks'
 import SvgImage from '../../ui/SvgImage'
 
 type Override = {
@@ -31,6 +33,9 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
     const style = styles(theme)
 
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
+    const recoveryInProgress = useAppSelector(s =>
+        selectIsFederationRecovering(s, federation?.id ?? ''),
+    )
 
     // even with maxHeight: 0 the Animated.View is still rendered and will
     // affect the parent flexbox layout so we need to make sure that:
@@ -79,6 +84,8 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
         outputRange: [0, 1],
     })
 
+    const isButtonDisabled = popupInfo?.ended || recoveryInProgress
+
     return (
         <Animated.View
             style={{
@@ -94,7 +101,7 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 bubble
                 outline
                 size="sm"
-                disabled={incoming.disabled || popupInfo?.ended}
+                disabled={incoming.disabled || isButtonDisabled}
                 onPress={handleIncoming}
                 icon={<SvgImage name="ArrowDown" />}
                 containerStyle={style.buttonContainer}
@@ -104,7 +111,7 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 bubble
                 outline
                 size="sm"
-                disabled={outgoing.disabled || popupInfo?.ended}
+                disabled={outgoing.disabled || isButtonDisabled}
                 onPress={handleOutgoing}
                 icon={<SvgImage name="ArrowUpRight" />}
                 containerStyle={style.buttonContainer}
@@ -114,7 +121,7 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 bubble
                 outline
                 size="sm"
-                disabled={popupInfo?.ended}
+                disabled={isButtonDisabled}
                 onPress={handleHistory}
                 icon={<SvgImage name="TxnHistory" />}
                 containerStyle={style.circleButtonContainer}

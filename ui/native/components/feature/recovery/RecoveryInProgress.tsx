@@ -20,18 +20,14 @@ const RecoveryInProgress: React.FC<Props> = ({
     size = 100,
 }: Props) => {
     const { theme } = useTheme()
-    const { progress } = useRecoveryProgress(federationId)
+    const { progress, formattedPercent } = useRecoveryProgress(federationId)
 
     const style = styles(theme)
     return (
         <Column grow center gap="lg" style={style.container}>
             <HoloLoader
                 size={size}
-                label={
-                    progress !== undefined
-                        ? `${Math.floor(progress * 100)}%`
-                        : ''
-                }
+                label={formattedPercent}
                 progress={progress}
             />
             {label && (

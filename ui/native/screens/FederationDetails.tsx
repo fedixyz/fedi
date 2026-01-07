@@ -7,9 +7,11 @@ import { Linking, Pressable, StyleSheet } from 'react-native'
 
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { useLeaveFederation } from '@fedi/common/hooks/leave'
+import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectDefaultChats,
+    selectIsFederationRecovering,
     selectLoadedFederation,
     selectShouldShowAutojoinedNoticeForFederation,
 } from '@fedi/common/redux'
@@ -27,6 +29,7 @@ import FederationStatus from '../components/feature/federations/FederationStatus
 import AutojoinedCommunityNotice from '../components/feature/home/AutojoinedCommunityNotice'
 import DefaultChatTile from '../components/feature/home/DefaultChatTile'
 import { Column, Row } from '../components/ui/Flex'
+import HoloLoader from '../components/ui/HoloLoader'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import ShadowScrollView from '../components/ui/ShadowScrollView'
 import { useAppSelector } from '../state/hooks'
@@ -55,6 +58,10 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
     const shouldShowAutojoinedCommunityNotice = useAppSelector(s =>
         selectShouldShowAutojoinedNoticeForFederation(s, federationId),
     )
+    const recoveryInProgress = useAppSelector(s =>
+        selectIsFederationRecovering(s, federationId),
+    )
+    const { progress, formattedPercent } = useRecoveryProgress(federationId)
     const popupInfo = usePopupFederationInfo(federation?.meta || {})
     const navigation = useNavigation()
     const toast = useToast()
@@ -106,7 +113,19 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                         <Text h2 medium maxFontSizeMultiplier={1.2}>
                             {federation.name}
                         </Text>
+                        {recoveryInProgress && (
+                            <Text caption color={theme.colors.darkGrey}>
+                                {t('feature.federations.recovering-label')}
+                            </Text>
+                        )}
                     </Column>
+                    {recoveryInProgress && (
+                        <HoloLoader
+                            progress={progress}
+                            size={48}
+                            label={formattedPercent}
+                        />
+                    )}
                 </Row>
                 <Column gap="md">
                     {shouldShowAutojoinedCommunityNotice && (

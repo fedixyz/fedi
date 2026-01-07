@@ -13,14 +13,11 @@ export const RecoveryInProgress: React.FC<Props> = ({
     label,
     federationId,
 }) => {
-    const { progress } = useRecoveryProgress(federationId)
+    const { formattedPercent } = useRecoveryProgress(federationId)
 
     return (
         <Container aria-label="recovery-in-progress">
-            <HoloLoader
-                size="xl"
-                label={progress ? `${Math.floor(progress * 100)}%` : undefined}
-            />
+            <HoloLoader size="xl" label={formattedPercent} />
             <Label variant="caption">{label}</Label>
         </Container>
     )
