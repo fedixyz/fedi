@@ -1,4 +1,5 @@
 import { act, waitFor } from '@testing-library/react'
+import i18next from 'i18next'
 
 import { useFederationInviteCode } from '../../../hooks/federation'
 import { createIntegrationTestBuilder } from '../../utils/remote-bridge-setup'
@@ -22,7 +23,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with the invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(inviteCode),
+                () => useFederationInviteCode(i18next.t, inviteCode),
                 store,
                 fedimint,
             )
@@ -56,7 +57,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with the invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(inviteCode),
+                () => useFederationInviteCode(i18next.t, inviteCode),
                 store,
                 fedimint,
             )
@@ -87,7 +88,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with an invalid invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(invalidInviteCode),
+                () => useFederationInviteCode(i18next.t, invalidInviteCode),
                 store,
                 fedimint,
             )
@@ -118,7 +119,7 @@ describe('parseInviteCode RPC', () => {
 
             // Render the hook with the invite code
             const { result } = renderHookWithBridge(
-                () => useFederationInviteCode(inviteCode),
+                () => useFederationInviteCode(i18next.t, inviteCode),
                 store,
                 fedimint,
             )

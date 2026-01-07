@@ -32,7 +32,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
     const inviteCode = event.content.body
 
     const { previewResult, isChecking, handleJoin, isError, isJoining } =
-        useFederationInviteCode(inviteCode)
+        useFederationInviteCode(t, inviteCode)
 
     const toast = useToast()
 

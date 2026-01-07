@@ -795,7 +795,7 @@ export const checkFederationPreview = createAsyncThunk<
     { fedimint: FedimintBridge; inviteCode: string },
     { state: CommonState }
 >(
-    'federation/getFederationPreview',
+    'federation/checkFederationPreview',
     async ({ fedimint, inviteCode }, { getState }) => {
         const { federationId } = await fedimint.parseInviteCode(inviteCode)
         const joinedFederation = selectLoadedFederation(

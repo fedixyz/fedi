@@ -368,6 +368,84 @@ export function useFederationPreview(t: TFunction, invite: string) {
         useState<RpcFederationPreview>()
     const [communityPreview, setCommunityPreview] = useState<CommunityPreview>()
 
+    const handleJoinFederation = useCallback(
+        async (inviteCode: string, recoverFromScratch = false) => {
+            try {
+                setIsJoining(true)
+                const joinedFederation = await dispatch(
+                    joinFederation({
+                        fedimint,
+                        code: inviteCode,
+                        recoverFromScratch,
+                    }),
+                ).unwrap()
+                // check if there are any communities to autojoin
+                // this function will check, autojoin, AND select the community
+                // to bring more attention to the autojoin
+                await dispatch(
+                    checkFederationForAutojoinCommunities({
+                        fedimint,
+                        federation: joinedFederation,
+                        setAsSelected: true,
+                    }),
+                )
+                // refresh all federations after joining a new one to keep all metadata fresh
+                dispatch(refreshFederations(fedimint))
+            } catch (err) {
+                // TODO: Expect an error code from bridge that maps to a localized error message
+                log.error('handleJoinFederation', err)
+                const typedError = err as Error
+                // This catches specific errors caused by:
+                // 1. leaving a federation immediately before... After
+                // force-quitting, joining again is successful so advise
+                // the user here
+                if (
+                    typedError?.message?.includes('No record locks available')
+                ) {
+                    toast.show({
+                        content: t('errors.please-force-quit-the-app'),
+                        status: 'error',
+                    })
+                } else {
+                    toast.error(
+                        t,
+                        typedError,
+                        'errors.failed-to-join-federation',
+                    )
+                }
+            } finally {
+                setIsJoining(false)
+            }
+        },
+        [dispatch, fedimint, toast, t],
+    )
+
+    const handleJoinCommunity = useCallback(
+        async (inviteCode: string) => {
+            try {
+                setIsJoining(true)
+                const joinedCommunity = await dispatch(
+                    joinCommunity({
+                        fedimint,
+                        code: inviteCode,
+                    }),
+                ).unwrap()
+                // when joining a new community, always set it to selected
+                dispatch(setLastSelectedCommunityId(joinedCommunity.id))
+                // refresh all communities after joining a new one to keep all metadata fresh
+                dispatch(refreshCommunities(fedimint))
+            } catch (err) {
+                // TODO: Expect an error code from bridge that maps to a localized error message
+                log.error('handleJoinCommunity', err)
+                const typedError = err as Error
+                toast.error(t, typedError, 'errors.failed-to-join-community')
+            } finally {
+                setIsJoining(false)
+            }
+        },
+        [dispatch, fedimint, toast, t],
+    )
+
     const handleCode = useCallback(
         async (code: string, onSuccess?: () => void) => {
             try {
@@ -421,81 +499,30 @@ export function useFederationPreview(t: TFunction, invite: string) {
 
     const handleJoin = useCallback(
         async (onSuccess?: () => void, recoverFromScratch = false) => {
-            setIsJoining(true)
             try {
                 if (previewCodeType === 'federation') {
                     if (!federationPreview) throw new Error()
-                    const joinedFederation = await dispatch(
-                        joinFederation({
-                            fedimint,
-                            code: federationPreview.inviteCode,
-                            recoverFromScratch,
-                        }),
-                    ).unwrap()
-                    // check if there are any communities to autojoin
-                    // this function will check, autojoin, AND select the community
-                    // to bring more attention to the autojoin
-                    await dispatch(
-                        checkFederationForAutojoinCommunities({
-                            fedimint,
-                            federation: joinedFederation,
-                            setAsSelected: true,
-                        }),
+                    await handleJoinFederation(
+                        federationPreview.inviteCode,
+                        recoverFromScratch,
                     )
-                    // refresh all federations after joining a new one to keep all metadata fresh
-                    dispatch(refreshFederations(fedimint))
                 } else {
                     if (!communityPreview) throw new Error()
-                    const joinedCommunity = await dispatch(
-                        joinCommunity({
-                            fedimint,
-                            code: communityPreview.communityInvite
-                                .invite_code_str,
-                        }),
-                    ).unwrap()
-                    // when joining a new community, always set it to selected
-                    dispatch(setLastSelectedCommunityId(joinedCommunity.id))
-                    // refresh all communities after joining a new one to keep all metadata fresh
-                    dispatch(refreshCommunities(fedimint))
-                }
-
-                onSuccess && onSuccess()
-            } catch (err) {
-                // TODO: Expect an error code from bridge that maps to
-                // a localized error message
-                log.error('handleJoin', err)
-                const typedError = err as Error
-                // This catches specific errors caused by:
-                // 1. leaving a federation immediately before... After
-                // force-quitting, joining again is successful so advise
-                // the user here
-                // 2. scanning a federation code after you already joined
-                if (
-                    typedError?.message?.includes('No record locks available')
-                ) {
-                    toast.show({
-                        content: t('errors.please-force-quit-the-app'),
-                        status: 'error',
-                    })
-                } else {
-                    toast.error(
-                        t,
-                        typedError,
-                        'errors.failed-to-join-federation',
+                    await handleJoinCommunity(
+                        communityPreview.communityInvite.invite_code_str,
                     )
                 }
-            } finally {
-                setIsJoining(false)
+                onSuccess && onSuccess()
+            } catch (err) {
+                log.error('handleJoin', err)
             }
         },
         [
             communityPreview,
-            dispatch,
             federationPreview,
-            fedimint,
+            handleJoinCommunity,
+            handleJoinFederation,
             previewCodeType,
-            t,
-            toast,
         ],
     )
 
@@ -509,6 +536,8 @@ export function useFederationPreview(t: TFunction, invite: string) {
         setCommunityPreview,
         handleCode,
         handleJoin,
+        handleJoinFederation,
+        handleJoinCommunity,
         previewCodeType,
     }
 }
@@ -580,10 +609,13 @@ export function useFederationRating() {
     }
 }
 
-export function useFederationInviteCode(inviteCode: string) {
+export function useFederationInviteCode(t: TFunction, inviteCode: string) {
     const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
-    const [isJoining, setIsJoining] = useState(false)
+    const { isJoining, handleJoinFederation } = useFederationPreview(
+        t,
+        inviteCode,
+    )
     const [isChecking, setIsChecking] = useState(false)
     const [isError, setIsError] = useState(false)
     const checkedRef = useRef(false)
@@ -591,22 +623,6 @@ export function useFederationInviteCode(inviteCode: string) {
         preview: RpcFederationPreview
         isMember: boolean
     } | null>(null)
-
-    const handleJoin = useCallback(async () => {
-        setIsJoining(true)
-        try {
-            await dispatch(
-                joinFederation({
-                    fedimint,
-                    code: inviteCode,
-                }),
-            ).unwrap()
-        } catch (e) {
-            log.error('Error joining federation', e)
-        } finally {
-            setIsJoining(false)
-        }
-    }, [dispatch, fedimint, inviteCode])
 
     useEffect(() => {
         if (checkedRef.current) return
@@ -624,7 +640,7 @@ export function useFederationInviteCode(inviteCode: string) {
         isChecking,
         isError,
         previewResult,
-        handleJoin,
+        handleJoin: () => handleJoinFederation(inviteCode),
     }
 }
 
