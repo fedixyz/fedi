@@ -182,7 +182,10 @@ pub fn fedimint_get_supported_events() -> Vec<String> {
         String::from("recoveryProgress"),
         String::from("streamUpdate"),
         String::from("deviceRegistration"),
+        String::from("stabilityPoolUnfilledDepositSwept"),
         String::from("communityMetadataUpdated"),
+        String::from("nonceReuseCheckFailed"),
+        String::from("communityMigratedToV2"),
     ]
 }
 
