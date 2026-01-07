@@ -31,7 +31,7 @@ export const surveySlice = createSlice({
     name: 'survey',
     initialState,
     reducers: {
-        setActiveSurvey(state, action: PayloadAction<ActiveSurvey>) {
+        setActiveSurvey(state, action: PayloadAction<ActiveSurvey | null>) {
             state.activeSurvey = action.payload
         },
         setSurveyTimestamp(state, action: PayloadAction<number>) {
@@ -98,6 +98,7 @@ export const checkSurveyCondition = createAsyncThunk<
     undefined,
     { state: CommonState }
 >('support/checkSurveyCondition', async (_, { getState, dispatch }) => {
+    dispatch(setActiveSurvey(null))
     log.info('-- Checking survey condition --')
 
     if (!getState().environment.onboardingCompleted) {

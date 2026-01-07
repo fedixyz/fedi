@@ -78,6 +78,8 @@ describe('useSurveyForm', () => {
                 fedimint,
             )
 
+            const activeSurveyId = result.current.activeSurvey?.id ?? ''
+
             await waitFor(() => {
                 expect(result.current.show).toBeTruthy()
             })
@@ -85,9 +87,9 @@ describe('useSurveyForm', () => {
             act(() => result.current.handleDismiss())
 
             await waitFor(() => {
-                const activeSurveyId = result.current.activeSurvey?.id ?? ''
                 const completion =
                     store.getState().survey.surveyCompletions[activeSurveyId]
+                expect(activeSurveyId).toBeTruthy()
                 expect(completion?.timesDismissed).toEqual(1)
             })
         })
@@ -106,6 +108,8 @@ describe('useSurveyForm', () => {
                 fedimint,
             )
 
+            const activeSurveyId = result.current.activeSurvey?.id ?? ''
+
             await waitFor(() => {
                 expect(result.current.show).toBeTruthy()
             })
@@ -113,7 +117,6 @@ describe('useSurveyForm', () => {
             act(() => result.current.handleAccept(() => {}))
 
             await waitFor(() => {
-                const activeSurveyId = result.current.activeSurvey?.id ?? ''
                 const completion =
                     store.getState().survey.surveyCompletions[activeSurveyId]
                 expect(completion?.isCompleted).toBeTruthy()
@@ -182,6 +185,8 @@ describe('useSurveyForm', () => {
                 fedimint,
             )
 
+            const activeSurveyId = result.current.activeSurvey?.id ?? ''
+
             await waitFor(() => {
                 expect(result.current.show).toBeTruthy()
                 expect(result.current.activeSurvey?.id).toEqual(
@@ -192,7 +197,6 @@ describe('useSurveyForm', () => {
             act(() => result.current.handleAccept(() => {}))
 
             await waitFor(() => {
-                const activeSurveyId = result.current.activeSurvey?.id ?? ''
                 const completion =
                     store.getState().survey.surveyCompletions[activeSurveyId]
                 expect(completion?.isCompleted).toBeTruthy()

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import {
     acceptActiveSurvey,
+    checkSurveyCondition,
     dismissActiveSurvey,
     selectActiveSurvey,
     selectLanguage,
@@ -20,6 +21,7 @@ export function useSurveyForm() {
     const handleDismiss = useCallback(() => {
         dispatch(dismissActiveSurvey())
         dispatch(setSurveyTimestamp(Date.now()))
+        dispatch(checkSurveyCondition())
         setIsShowing(false)
     }, [dispatch])
 
@@ -32,6 +34,7 @@ export function useSurveyForm() {
 
             dispatch(acceptActiveSurvey())
             dispatch(setSurveyTimestamp(Date.now()))
+            dispatch(checkSurveyCondition())
             setIsShowing(false)
 
             onSuccess(surveyUrl)
