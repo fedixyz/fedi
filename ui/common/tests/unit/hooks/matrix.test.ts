@@ -1,15 +1,18 @@
-import { waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 
+import { ROOM_MENTION } from '@fedi/common/constants/matrix'
 import {
     useMatrixFormEvent,
     useMatrixPaymentTransaction,
+    useMentionInput,
 } from '@fedi/common/hooks/matrix'
 import { setupStore, setMatrixAuth } from '@fedi/common/redux'
-import { MatrixAuth } from '@fedi/common/types'
+import { MatrixAuth, MatrixRoomMember, MentionSelect } from '@fedi/common/types'
 
 import {
     createMockPaymentEvent,
     createMockFormEvent,
+    mockRoomMembers,
 } from '../../mock-data/matrix-event'
 import { createMockTransaction } from '../../mock-data/transactions'
 import {
@@ -337,6 +340,237 @@ describe('useMatrixFormEvent hook', () => {
             expect(result.current.actionButton).toBeUndefined()
             expect(result.current.options).toHaveLength(1)
             expect(result.current.options[0].label).toBe('')
+        })
+    })
+})
+
+describe('useMentionInput', () => {
+    let roomMembers: MatrixRoomMember[]
+
+    beforeEach(() => {
+        jest.clearAllMocks()
+        roomMembers = [...mockRoomMembers]
+    })
+
+    describe('mention detection & insertion', () => {
+        it('should detect @ trigger when text changes', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            expect(result.current.activeMentionQuery).toBeNull()
+            expect(result.current.shouldShowSuggestions).toBe(false)
+
+            rerender({ text: '@al', cursor: 3 })
+            expect(result.current.activeMentionQuery).toBe('al')
+            expect(result.current.shouldShowSuggestions).toBe(true)
+
+            rerender({ text: 'Hello @bob', cursor: 10 })
+            expect(result.current.activeMentionQuery).toBe('bob')
+            expect(result.current.shouldShowSuggestions).toBe(true)
+        })
+
+        it('should not trigger without @', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: 'Hello world', cursor: 11 })
+            expect(result.current.activeMentionQuery).toBeNull()
+            expect(result.current.shouldShowSuggestions).toBe(false)
+        })
+
+        it('@room should show suggestions and insert correctly when selected', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: '@roo', cursor: 4 })
+
+            expect(result.current.shouldShowSuggestions).toBe(true)
+
+            const roomMention: MentionSelect = {
+                id: '@room',
+                displayName: ROOM_MENTION,
+            }
+            let insertResult = { newText: '', newCursorPosition: 0 }
+            act(() => {
+                insertResult = result.current.insertMention(roomMention, '@roo')
+            })
+
+            expect(insertResult.newText).toBe(`@${ROOM_MENTION} `)
+        })
+
+        it('should insert mention, update cursor, and clear state', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: 'Hello @al', cursor: 9 })
+
+            const alice = roomMembers.find(m => m.displayName === 'Alice')
+            expect(alice).toBeDefined()
+
+            let insertResult = { newText: '', newCursorPosition: 0 }
+            act(() => {
+                insertResult = result.current.insertMention(
+                    alice as MatrixRoomMember,
+                    'Hello @al',
+                )
+            })
+
+            expect(insertResult.newText).toBe('Hello @Alice ')
+            expect(insertResult.newCursorPosition).toBe(13)
+            expect(result.current.activeMentionQuery).toBeNull()
+            expect(result.current.shouldShowSuggestions).toBe(false)
+        })
+
+        it('should preserve text after cursor when inserting mention', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: 'Hello @al everyone', cursor: 9 })
+
+            const alice = roomMembers.find(m => m.displayName === 'Alice')
+            expect(alice).toBeDefined()
+
+            let insertResult = { newText: '', newCursorPosition: 0 }
+            act(() => {
+                insertResult = result.current.insertMention(
+                    alice as MatrixRoomMember,
+                    'Hello @al everyone',
+                )
+            })
+
+            expect(insertResult.newText).toBe('Hello @Alice  everyone')
+        })
+    })
+
+    describe('member filtering', () => {
+        it('should filter by display name case-insensitively', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: '@ALICE', cursor: 6 })
+
+            expect(result.current.mentionSuggestions).toHaveLength(1)
+            expect(result.current.mentionSuggestions[0].displayName).toBe(
+                'Alice',
+            )
+            expect(result.current.shouldShowSuggestions).toBe(true)
+        })
+
+        it('should filter by matrix ID/handle', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: '@dave.test', cursor: 10 })
+
+            expect(result.current.mentionSuggestions).toHaveLength(1)
+            expect(result.current.mentionSuggestions[0].displayName).toBe(
+                'Dave Test',
+            )
+            expect(result.current.shouldShowSuggestions).toBe(true)
+        })
+
+        it('should limit suggestions to 7 members', () => {
+            const manyMembers: MatrixRoomMember[] = Array.from(
+                { length: 10 },
+                (_, i) => ({
+                    id: `@user${i}:example.com`,
+                    displayName: `User ${i}`,
+                    avatarUrl: undefined,
+                    powerLevel: { type: 'int' as const, value: 0 },
+                    roomId: '!room:example.com',
+                    membership: 'join' as const,
+                    ignored: false,
+                }),
+            )
+
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(manyMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: '@user', cursor: 5 })
+
+            expect(result.current.mentionSuggestions).toHaveLength(7)
+            expect(result.current.shouldShowSuggestions).toBe(true)
+        })
+
+        it('should exclude specified user from suggestions', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(
+                        roomMembers,
+                        text,
+                        cursor,
+                        '@alice:example.com',
+                    ),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: '@alice', cursor: 6 })
+
+            expect(
+                result.current.mentionSuggestions.some(
+                    m => m.id === '@alice:example.com',
+                ),
+            ).toBe(false)
+            expect(result.current.shouldShowSuggestions).toBe(false)
+        })
+    })
+
+    describe('clearing mentions', () => {
+        it('should clear state when invoked', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: '@alice', cursor: 6 })
+            expect(result.current.activeMentionQuery).not.toBeNull()
+            expect(result.current.shouldShowSuggestions).toBe(true)
+
+            act(() => result.current.clearMentions())
+            expect(result.current.activeMentionQuery).toBeNull()
+            expect(result.current.mentionSuggestions).toHaveLength(0)
+            expect(result.current.shouldShowSuggestions).toBe(false)
+        })
+
+        it('should clear when @ is deleted', () => {
+            const { result, rerender } = renderHook(
+                ({ text, cursor }) =>
+                    useMentionInput(roomMembers, text, cursor),
+                { initialProps: { text: '', cursor: 0 } },
+            )
+
+            rerender({ text: '@alice', cursor: 6 })
+            expect(result.current.activeMentionQuery).not.toBeNull()
+            expect(result.current.shouldShowSuggestions).toBe(true)
+
+            rerender({ text: 'alice', cursor: 5 })
+            expect(result.current.activeMentionQuery).toBeNull()
+            expect(result.current.shouldShowSuggestions).toBe(false)
         })
     })
 })

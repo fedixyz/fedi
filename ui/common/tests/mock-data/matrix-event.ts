@@ -3,6 +3,7 @@ import {
     MatrixEventKind,
     MatrixFormEvent,
     MatrixPaymentEvent,
+    MatrixRoomMember,
 } from '@fedi/common/types'
 
 import { RpcMediaSource, RpcTimelineEventItemId } from '../../types/bindings'
@@ -173,3 +174,43 @@ export const mockMatrixEventFile: MatrixEvent<'m.file'> = {
         source: 'mxc://m1.8fa.in/HIIFNqoGfANjvFOEDULIPoKy' as unknown as RpcMediaSource,
     },
 } satisfies MatrixEvent<'m.file'>
+
+// Mock room members for mention testing
+export const mockRoomMembers: MatrixRoomMember[] = [
+    {
+        id: '@alice:example.com',
+        displayName: 'Alice',
+        avatarUrl: undefined,
+        powerLevel: { type: 'int', value: 0 },
+        roomId: '!room:example.com',
+        membership: 'join',
+        ignored: false,
+    },
+    {
+        id: '@bob:example.com',
+        displayName: 'Bob Smith',
+        avatarUrl: undefined,
+        powerLevel: { type: 'int', value: 0 },
+        roomId: '!room:example.com',
+        membership: 'join',
+        ignored: false,
+    },
+    {
+        id: '@charlie:example.com',
+        displayName: 'Charlie',
+        avatarUrl: undefined,
+        powerLevel: { type: 'int', value: 50 },
+        roomId: '!room:example.com',
+        membership: 'join',
+        ignored: false,
+    },
+    {
+        id: '@dave.test_user-123:example.com',
+        displayName: 'Dave Test',
+        avatarUrl: undefined,
+        powerLevel: { type: 'int', value: 0 },
+        roomId: '!room:example.com',
+        membership: 'join',
+        ignored: false,
+    },
+]
