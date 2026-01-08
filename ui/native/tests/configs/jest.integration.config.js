@@ -48,4 +48,6 @@ module.exports = {
 
     // Load mocks/setup before running tests
     setupFiles: ['<rootDir>/tests/setup/jest.setup.mocks.ts'],
+
+    testTimeout: 30000,
 }

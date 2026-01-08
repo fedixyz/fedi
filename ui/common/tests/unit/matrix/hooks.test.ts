@@ -114,12 +114,9 @@ describe('Real-time Payment Event Updates', () => {
         })
 
         // Wait for all events to be processed
-        await waitFor(
-            () => {
-                expect(receivedEvents).toHaveLength(3)
-            },
-            { timeout: 1000 },
-        )
+        await waitFor(() => {
+            expect(receivedEvents).toHaveLength(3)
+        })
 
         // Verify all events were received in order
         expect(receivedEvents[0].content.status).toBe('pushed')

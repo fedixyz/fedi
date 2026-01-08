@@ -25,14 +25,11 @@ describe('/screens/EditProfileSettings', () => {
 
             renderWithBridge(<EditProfileSettings />, { store, fedimint })
 
-            await waitFor(
-                async () => {
-                    const input = await screen.getByTestId('DisplayNameInput')
-                    const words = input.props.value.split(' ')
-                    expect(words.length).toBe(2)
-                },
-                { timeout: 5000 },
-            )
+            await waitFor(async () => {
+                const input = await screen.getByTestId('DisplayNameInput')
+                const words = input.props.value.split(' ')
+                expect(words.length).toBe(2)
+            })
         })
     })
 })

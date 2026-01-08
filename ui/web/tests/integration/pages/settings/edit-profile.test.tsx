@@ -21,17 +21,14 @@ describe('/pages/settings/edit-profile', () => {
 
             renderWithBridge(<EditProfilePage />, { store, fedimint })
 
-            await waitFor(
-                async () => {
-                    const input =
-                        await screen.getByLabelText<HTMLInputElement>(
-                            /display name/i,
-                        )
-                    const words = input.value.split(' ')
-                    expect(words.length).toBe(2)
-                },
-                { timeout: 5000 },
-            )
+            await waitFor(async () => {
+                const input =
+                    await screen.getByLabelText<HTMLInputElement>(
+                        /display name/i,
+                    )
+                const words = input.value.split(' ')
+                expect(words.length).toBe(2)
+            })
         })
     })
 })

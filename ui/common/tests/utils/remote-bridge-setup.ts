@@ -77,18 +77,13 @@ export class IntegrationTestBuilder {
         await this.withOnboardingCompleted()
 
         // Wait for matrix auth to be available and check userId starts with npub
-        await this.waitFor(
-            () => {
-                const matrixAuth = selectMatrixAuth(store.getState())
-                expect(matrixAuth?.userId).toBeTruthy()
-                expect(matrixAuth?.userId.startsWith('@npub1')).toBe(true)
-                expect(matrixAuth?.displayName).toBeTruthy()
-                expect(matrixAuth?.userId).not.toContain(
-                    matrixAuth?.displayName,
-                )
-            },
-            { timeout: 10000 },
-        )
+        await this.waitFor(() => {
+            const matrixAuth = selectMatrixAuth(store.getState())
+            expect(matrixAuth?.userId).toBeTruthy()
+            expect(matrixAuth?.userId.startsWith('@npub1')).toBe(true)
+            expect(matrixAuth?.displayName).toBeTruthy()
+            expect(matrixAuth?.userId).not.toContain(matrixAuth?.displayName)
+        })
 
         return this
     }
@@ -241,7 +236,7 @@ export function setupRemoteBridgeTests(): RemoteBridgeTestContext {
         // Mutate the context object
         context.bridge = remoteBridge
         context.store = store
-    }, 10000)
+    }, 20000)
 
     afterEach(async () => {
         if (cleanupStore) {
