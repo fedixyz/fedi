@@ -14,7 +14,7 @@
         "format:check": "prettier --check .",
         "test": "yarn test:unit && yarn test:integration",
         "test:unit": "jest --config='./tests/configs/jest.unit.config.js'",
-        "test:integration": "jest --config='./tests/configs/jest.integration.config.js'"
+        "test:integration": "jest --config='./tests/configs/jest.integration.config.js' --runInBand"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.451.0",
