@@ -10,7 +10,7 @@
         "dev": "react-native start",
         "test": "yarn test:unit && yarn test:integration",
         "test:unit": "jest --config='tests/configs/jest.unit.config.js' ",
-        "test:integration": "jest --config='tests/configs/jest.integration.config.js'",
+        "test:integration": "jest --config='tests/configs/jest.integration.config.js' --runInBand",
         "test:android:regtest": "bash scripts/run-detox-tests-android.sh -n regtest",
         "test:android:mainnet": "bash scripts/run-detox-tests-android.sh -n mainnet",
         "test:ios:regtest": "bash scripts/run-detox-tests-ios.sh -n regtest",
