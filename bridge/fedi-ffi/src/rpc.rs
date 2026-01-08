@@ -677,6 +677,27 @@ async fn approveSocialRecoveryRequest(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn setGuardianPassword(
+    bridge: &BridgeFull,
+    federation_id: RpcFederationId,
+    peer_id: RpcPeerId,
+    guardian_password: String,
+) -> anyhow::Result<()> {
+    bridge
+        .set_guardian_password(federation_id, peer_id, guardian_password)
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
+async fn getGuardianPassword(
+    bridge: &BridgeFull,
+    federation_id: RpcFederationId,
+    peer_id: RpcPeerId,
+) -> anyhow::Result<String> {
+    bridge.get_guardian_password(federation_id, peer_id).await
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn completeSocialRecovery(bridge: Arc<BridgeOnboarding>) -> anyhow::Result<()> {
     bridge.complete_social_recovery().await
 }
@@ -2378,6 +2399,8 @@ rpc_methods!(RpcMethods {
     completeSocialRecovery,
     socialRecoveryDownloadVerificationDoc,
     approveSocialRecoveryRequest,
+    setGuardianPassword,
+    getGuardianPassword,
     // LNURL
     signLnurlMessage,
     supportsRecurringdLnurl,

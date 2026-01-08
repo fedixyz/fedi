@@ -774,6 +774,8 @@ export type RpcMethods = {
     string | null,
   ];
   approveSocialRecoveryRequest: [approveSocialRecoveryRequest, null];
+  setGuardianPassword: [setGuardianPassword, null];
+  getGuardianPassword: [getGuardianPassword, string];
   signLnurlMessage: [signLnurlMessage, RpcSignedLnurlMessage];
   supportsRecurringdLnurl: [supportsRecurringdLnurl, boolean];
   getRecurringdLnurl: [getRecurringdLnurl, string];
@@ -1797,6 +1799,11 @@ export type getAccruedPendingFediFeesPerTXType = {
 
 export type getFeatureCatalog = {};
 
+export type getGuardianPassword = {
+  federationId: RpcFederationId;
+  peerId: RpcPeerId;
+};
+
 export type getGuardianStatus = { federationId: RpcFederationId };
 
 export type getMnemonic = {};
@@ -2168,6 +2175,12 @@ export type recoveryQr = {};
 export type repairWallet = { federationId: RpcFederationId };
 
 export type restoreMnemonic = { mnemonic: Array<string> };
+
+export type setGuardianPassword = {
+  federationId: RpcFederationId;
+  peerId: RpcPeerId;
+  guardianPassword: string;
+};
 
 export type setLightningModuleFediFeeSchedule = {
   federationId: RpcFederationId;

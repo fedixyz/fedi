@@ -459,6 +459,7 @@ impl AppStateOnboarding {
                     internal_bridge_export: false,
                     onboarding_method: Some(onboarding_method),
                     first_comm_invite_code: FirstCommunityInviteCodeState::NeverSet,
+                    guardian_password_map: BTreeMap::new(),
                     base: AppStateJsonBase {
                         root_mnemonic,
                         joined_federations: BTreeMap::new(),

@@ -277,6 +277,41 @@ impl BridgeFull {
             .await
     }
 
+    pub async fn set_guardian_password(
+        &self,
+        federation_id: RpcFederationId,
+        peer_id: RpcPeerId,
+        guardian_password: String,
+    ) -> Result<()> {
+        self.runtime
+            .app_state
+            .with_write_lock(|state| {
+                state
+                    .guardian_password_map
+                    .insert((federation_id.0, peer_id.to_string()), guardian_password);
+            })
+            .await
+    }
+
+    pub async fn get_guardian_password(
+        &self,
+        federation_id: RpcFederationId,
+        peer_id: RpcPeerId,
+    ) -> Result<String> {
+        self.runtime
+            .app_state
+            .with_read_lock(|state| {
+                state
+                    .guardian_password_map
+                    .get(&(federation_id.0, peer_id.to_string()))
+                    .cloned()
+            })
+            .await
+            .ok_or(anyhow!(
+                "No entry found for given federation ID and peer ID"
+            ))
+    }
+
     pub async fn set_module_fedi_fee_schedule(
         &self,
         federation_id: RpcFederationId,
