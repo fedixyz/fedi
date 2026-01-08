@@ -332,7 +332,7 @@ impl FeatureCatalog {
             },
             sp_transfers_matrix: None,
             sp_transfer_ui: None,
-            community_v2_migration: None,
+            community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: None,
         }
     }
