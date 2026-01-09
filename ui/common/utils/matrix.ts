@@ -13,7 +13,6 @@ import {
     MATRIX_URL_BASE,
     ROOM_MENTION,
 } from '../constants/matrix'
-import { FormattedAmounts } from '../hooks/amount'
 import {
     InputMedia,
     LoadedFederation,
@@ -42,6 +41,7 @@ import {
     RpcMatrixEventKinds,
     TransactionListEntry,
 } from '../types'
+import { FormattedAmounts } from '../types/amount'
 import {
     GroupInvitation,
     RpcMultispendGroupStatus,

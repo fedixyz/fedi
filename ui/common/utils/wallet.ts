@@ -1,6 +1,5 @@
 import { TFunction } from 'i18next'
 
-import { AmountSymbolPosition, FormattedAmounts } from '../hooks/amount'
 import { FeeItem } from '../hooks/transactions'
 import {
     MSats,
@@ -18,6 +17,7 @@ import {
     MultispendActiveInvitation,
     MultispendFinalized,
 } from '../types'
+import { AmountSymbolPosition, FormattedAmounts } from '../types/amount'
 import {
     StabilityPoolWithdrawalEvent,
     StabilityPoolDepositEvent,

@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useWindowDimensions, View } from 'react-native'
 
 import { maxPinLength, pinNumbers } from '@fedi/common/constants/security'
-import { numpadButtons } from '@fedi/common/hooks/amount'
 import { useDebounce } from '@fedi/common/hooks/util'
 import { ProtectedFeatures, setFeatureUnlocked } from '@fedi/common/redux'
+import { numpadButtons } from '@fedi/common/types/amount'
 
 import PinDot from '../components/feature/pin/PinDot'
 import { Row, Column } from '../components/ui/Flex'

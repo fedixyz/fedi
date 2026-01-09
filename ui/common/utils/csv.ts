@@ -1,7 +1,6 @@
 // csv.ts
 import { TFunction } from 'i18next'
 
-import { AmountSymbolPosition, FormattedAmounts } from '../hooks/amount'
 import {
     MSats,
     TransactionListEntry,
@@ -14,6 +13,7 @@ import {
     MatrixRoomMember,
     MatrixUser,
 } from '../types'
+import { AmountSymbolPosition, FormattedAmounts } from '../types/amount'
 import { RpcTransactionListEntry } from '../types/bindings'
 import amountUtils, { FIAT_MAX_DECIMAL_PLACES } from './AmountUtils'
 import { findUserDisplayName } from './matrix'

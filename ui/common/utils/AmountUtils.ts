@@ -2,7 +2,6 @@ import accounting from 'accounting'
 
 import { FiatFXInfo } from '@fedi/common/types/bindings'
 
-import { AmountSymbolPosition } from '../hooks/amount'
 import {
     Btc,
     BtcString,
@@ -15,6 +14,7 @@ import {
     UsdCents,
     UsdString,
 } from '../types'
+import { AmountSymbolPosition } from '../types/amount'
 import { getCurrencyCode } from './currency'
 
 class AmountUtils {

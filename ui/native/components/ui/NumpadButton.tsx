@@ -8,7 +8,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
-import { NumpadButtonValue } from '@fedi/common/hooks/amount'
+import { NumpadButtonValue } from '@fedi/common/types/amount'
 import { hexToRgba } from '@fedi/common/utils/color'
 
 import SvgImage from './SvgImage'
