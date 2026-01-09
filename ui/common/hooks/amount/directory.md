@@ -4,6 +4,11 @@ As you may have noticed by now, there is an unholy amount of `amount` hooks (pun
 
 This guide is written in a simple, example-based format with the intention of helping you find the right hook to use.
 
+The order of the hooks listed go from most to least versatile.
+
+-   [`useAmountFormatter`](#useamountformatter)
+-   [`useAmountInput`](#useamountinput)
+
 ## `useAmountFormatter`
 
 Provides a selection of conversion utilities (Sats, MSats, Cents, and Transactions) that outputs a set of formatted values in both **fiat** and **bitcoin**.
@@ -34,3 +39,11 @@ const { formattedPrimaryAmount, formattedSecondaryAmount } =
 
 console.log(`You have ${formattedPrimaryAmount} (${formattedSecondaryAmount})`)
 ```
+
+## `useAmountInput`
+
+A hook containing the logic for an amount input, usually used within an `<AmountInput />` component in either the `web` or `native` codebase.
+
+### Usage
+
+You probably won't use this hook directly. See `native/components/ui/AmountInput.tsx` and `web/src/components/AmountInput.tsx` for more information.

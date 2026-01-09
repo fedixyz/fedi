@@ -11,11 +11,10 @@ import {
     setCurrencyLocale,
     fetchCurrencyPrices,
 } from '@fedi/common/redux'
+import { setupRemoteBridgeTests } from '@fedi/common/tests/utils/remote-bridge-setup'
+import { renderHookWithBridge } from '@fedi/common/tests/utils/render'
+import { mockSystemLocale } from '@fedi/common/tests/utils/setup'
 import { Sats, SupportedCurrency } from '@fedi/common/types'
-
-import { setupRemoteBridgeTests } from '../../utils/remote-bridge-setup'
-import { renderHookWithBridge } from '../../utils/render'
-import { mockSystemLocale } from '../../utils/setup'
 
 describe('useAmountInput hook', () => {
     const mockOnChangeAmount = jest.fn()
