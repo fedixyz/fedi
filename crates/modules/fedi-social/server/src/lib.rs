@@ -293,7 +293,7 @@ impl ServerModule for FediSocial {
                 "get_verification",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: RecoveryId| -> Option<VerificationDocument> {
-                    // check_auth(context)?; // TODO: check auth
+                    check_auth(context)?;
                     module
                         .handle_get_verification(&mut context.dbtx().to_ref_nc(), request).await
                 }
@@ -426,13 +426,6 @@ impl FediSocial {
         request: RecoveryId,
     ) -> Result<Option<VerificationDocument>, ApiError> {
         debug!(id = %request.0, "Received social recovery verification document request");
-
-        // TODO: ideally, we would verify this request with guardian pass, but that
-        // would be a breaking change:
-        // verify_req_admin_pass(&req_admin_pass)?;
-        // Fortunately the `RequestId` is already a semi-secret: random and unguessable,
-        // making it not strictly neccessary. Even if the attacker is able to get the
-        // verification document, it is only privacy risk, and not security risk.
 
         let Some(recovery) = dbtx.get_value(&request).await else {
             return Ok(None);
