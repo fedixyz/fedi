@@ -108,10 +108,11 @@ pub struct AppStateJsonOnboarded {
     #[serde(default, rename = "first_comm_invite_code_ng")]
     pub first_comm_invite_code: FirstCommunityInviteCodeState,
 
-    // Mapping of (Federation ID, Peer ID) => Guardian Password
+    // Mapping of "{Federation ID}:{Peer ID} => Guardian Password
+    //
     // Persistent on-device storage for guardians to be used within a social recovery context
     #[serde(default)]
-    pub guardian_password_map: BTreeMap<(String, String), String>,
+    pub guardian_password_map: BTreeMap<String, String>,
 
     #[serde(flatten)]
     pub base: AppStateJsonBase,

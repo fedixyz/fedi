@@ -286,9 +286,10 @@ impl BridgeFull {
         self.runtime
             .app_state
             .with_write_lock(|state| {
-                state
-                    .guardian_password_map
-                    .insert((federation_id.0, peer_id.to_string()), guardian_password);
+                state.guardian_password_map.insert(
+                    format!("{}:{}", federation_id.0, peer_id),
+                    guardian_password,
+                );
             })
             .await
     }
@@ -303,7 +304,7 @@ impl BridgeFull {
             .with_read_lock(|state| {
                 state
                     .guardian_password_map
-                    .get(&(federation_id.0, peer_id.to_string()))
+                    .get(&format!("{}:{}", federation_id.0, peer_id))
                     .cloned()
             })
             .await
