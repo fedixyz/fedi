@@ -51,6 +51,7 @@ use rpc_types::matrix::{
 };
 use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
 use rpc_types::sp_transfer::{RpcAccountId, RpcSpTransferState, SpMatrixTransferId};
+use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{
     FrontendMetadata, GuardianStatus, NetworkError, RpcAmount, RpcAppFlavor, RpcEcashInfo,
     RpcEventId, RpcFederation, RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview,
@@ -1078,6 +1079,7 @@ async fn spv2Transfer(
             rpc_types::SPv2TransferMetadata::StableBalance {
                 frontend_metadata: Some(frontend_meta),
             },
+            Spv2TransferTxMeta::default(),
         )
         .await
         .map(Into::into)

@@ -5,6 +5,7 @@ use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as
 use futures::StreamExt as _;
 use rpc_types::SPv2TransferMetadata;
 use rpc_types::sp_transfer::SpMatrixTransferId;
+use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use runtime::bridge_runtime::Runtime;
 use stability_pool_client::common::FiatAmount;
 use tokio::sync::Notify;
@@ -96,6 +97,9 @@ impl SptTransferSubmitter {
 
         // Submit transfer with SP Transfers metadata so that on acceptance we enqueue
         // completion
+        let transfer_meta = Spv2TransferTxMeta::for_sp_transfer_matrix_pending_start_event_id(
+            &transfer_id.event_id,
+        );
         self.provider
             .spv2_transfer_with_nonce(
                 &transfer.federation_id.0,
@@ -105,6 +109,7 @@ impl SptTransferSubmitter {
                 SPv2TransferMetadata::MatrixSpTransfer {
                     transfer_id: transfer_id.clone(),
                 },
+                transfer_meta,
             )
             .await
             .context("failed to submit SPv2 transfer")?;

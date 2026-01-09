@@ -34,6 +34,7 @@ pub mod matrix;
 pub mod multispend;
 pub mod nostril;
 pub mod sp_transfer;
+pub mod spv2_transfer_meta;
 
 pub use communities::{CommunityInvite, CommunityInviteV2};
 

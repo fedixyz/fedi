@@ -9,6 +9,7 @@ use fedimint_core::{TransactionId, apply, async_trait_maybe_send};
 use multispend::FederationProvider;
 use multispend::services::MultispendServices;
 use rpc_types::matrix::RpcRoomId;
+use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{RpcEventId, SPv2TransferMetadata, SpMatrixTransferId};
 use sp_transfer::services::SptFederationProvider;
 use sp_transfer::services::transfer_complete_notifier::SptTransferCompleteNotifier;
@@ -116,12 +117,17 @@ impl SptFederationProvider for SptFederationProviderWrapper {
         nonce: u64,
         to_account: AccountId,
         amount: FiatAmount,
-        meta: SPv2TransferMetadata,
+        extra_meta: SPv2TransferMetadata,
+        transfer_meta: Spv2TransferTxMeta,
     ) -> anyhow::Result<OperationId> {
         let federation = self.0.get_federation(federation_id)?;
-        let signed_request =
-            federation.spv2_build_signed_transfer_request_with_nonce(nonce, to_account, amount)?;
-        federation.spv2_transfer(signed_request, meta).await
+        let signed_request = federation.spv2_build_signed_transfer_request_with_nonce(
+            nonce,
+            to_account,
+            amount,
+            transfer_meta,
+        )?;
+        federation.spv2_transfer(signed_request, extra_meta).await
     }
 
     async fn our_seeker_account_id(&self, federation_id: &str) -> Option<AccountId> {
@@ -138,7 +144,7 @@ impl SptFederationProvider for SptFederationProviderWrapper {
         }
     }
 
-    async fn spv2_wait_for_completed_transfer_in(
+    async fn spv2_wait_for_user_operation_history_item(
         &self,
         federation_id: &str,
         txid: TransactionId,
@@ -148,6 +154,8 @@ impl SptFederationProvider for SptFederationProviderWrapper {
             .spv2_history_service
             .get()
             .context("spv2 history service not initialized")?;
-        Ok(history_service.wait_for_completed_transfer_in(txid).await)
+        Ok(history_service
+            .wait_for_user_operation_history_item(txid)
+            .await)
     }
 }

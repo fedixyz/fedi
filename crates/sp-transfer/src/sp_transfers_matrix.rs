@@ -16,9 +16,11 @@ use rpc_types::matrix::{RpcRoomId, RpcUserId};
 use rpc_types::sp_transfer::{
     RpcSpTransferEvent, RpcSpTransferState, RpcSpTransferStatus, SpMatrixTransferId,
 };
+use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount};
 use runtime::bridge_runtime::Runtime;
 use stability_pool_client::common::FiatAmount;
+use stability_pool_client::db::UserOperationHistoryItemKind;
 use tokio::sync::Notify;
 use tracing::warn;
 
@@ -219,9 +221,18 @@ impl SpTransfersMatrix {
                 // we are the sender, we trust us
                 yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
             } else {
-                match this.services.provider.spv2_wait_for_completed_transfer_in(&federation_id.0, sent_hint_txid.0).await {
+                match this.services.provider.spv2_wait_for_user_operation_history_item(&federation_id.0, sent_hint_txid.0).await {
                     Ok(history_item) => {
-                        if history_item.fiat_amount == FiatAmount(transfer.amount.0) {
+                        let is_valid = match &history_item.kind {
+                            UserOperationHistoryItemKind::TransferIn { meta, .. } => {
+                                history_item.fiat_amount == FiatAmount(transfer.amount.0)
+                                    && Spv2TransferTxMeta::decode(meta).is_ok_and(|m| {
+                                        m.is_for_sp_transfer_matrix_pending_start_event_id(&transfer_id.event_id)
+                                    })
+                            }
+                            _ => false,
+                        };
+                        if is_valid {
                             yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
                         } else {
                             // no sending the correct amount is considered cheating and you move to failed state

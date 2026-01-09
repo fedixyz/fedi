@@ -88,6 +88,7 @@ use rand::Rng;
 use rpc_types::error::ErrorCode;
 use rpc_types::event::{Event, RecoveryProgressEvent, TypedEventExt};
 use rpc_types::matrix::RpcRoomId;
+use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{
     BaseMetadata, EcashReceiveMetadata, EcashSendMetadata, FrontendMetadata, GuardianStatus,
     LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
@@ -3549,10 +3550,15 @@ impl FederationV2 {
         to_account: AccountId,
         amount: FiatAmount,
         meta: SPv2TransferMetadata,
+        transfer_meta: Spv2TransferTxMeta,
     ) -> Result<OperationId> {
         ensure!(to_account.acc_type() == AccountType::Seeker);
-        let request =
-            self.spv2_build_signed_transfer_request_with_nonce(rand::random(), to_account, amount)?;
+        let request = self.spv2_build_signed_transfer_request_with_nonce(
+            rand::random(),
+            to_account,
+            amount,
+            transfer_meta,
+        )?;
         self.spv2_transfer(request, meta).await
     }
 
@@ -3588,6 +3594,7 @@ impl FederationV2 {
         nonce: u64,
         to_account: AccountId,
         amount: FiatAmount,
+        transfer_meta: Spv2TransferTxMeta,
     ) -> anyhow::Result<SignedTransferRequest> {
         let spv2 = self.client.spv2()?;
         let request = TransferRequest::new(
@@ -3595,7 +3602,7 @@ impl FederationV2 {
             spv2.our_account(AccountType::Seeker),
             amount,
             to_account,
-            vec![],
+            transfer_meta.encode(),
             u64::MAX,
             None,
         )?;
@@ -4514,6 +4521,7 @@ impl FederationV2 {
                 description,
                 frontend_metadata: Some(frontend_meta),
             },
+            Spv2TransferTxMeta::default(),
         )
         .await?;
         Ok(())

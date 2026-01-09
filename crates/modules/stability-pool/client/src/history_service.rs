@@ -32,8 +32,8 @@ pub struct StabilityPoolHistoryService {
     module_api: DynModuleApi,
     account_id: AccountId,
     /// Notified after each history sync completes.
-    /// Used by `wait_for_completed_transfer_in` to wake up and check for new
-    /// entries.
+    /// Used by `wait_for_user_operation_history_item` to wake up and check for
+    /// new entries.
     update_notify: Notify,
 }
 
@@ -207,7 +207,7 @@ impl StabilityPoolHistoryService {
         operation_entries
     }
 
-    pub async fn wait_for_completed_transfer_in(
+    pub async fn wait_for_user_operation_history_item(
         &self,
         txid: TransactionId,
     ) -> UserOperationHistoryItem {
