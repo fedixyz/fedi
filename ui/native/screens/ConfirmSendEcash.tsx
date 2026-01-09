@@ -4,10 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, Keyboard, StyleSheet } from 'react-native'
 
-import {
-    useAmountFormatter,
-    useBalanceDisplay,
-} from '@fedi/common/hooks/amount'
+import { useAmountFormatter, useBalance } from '@fedi/common/hooks/amount'
 import { useSendEcash } from '@fedi/common/hooks/pay'
 import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
@@ -38,7 +35,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     const { amount, notes = null } = route.params
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const balanceDisplay = useBalanceDisplay(t, paymentFederation?.id || '')
+    const { formattedBalanceText } = useBalance(t, paymentFederation?.id || '')
     const { feeBreakdownTitle, ecashFeesGuidanceText, makeEcashFeeContent } =
         useFeeDisplayUtils(t, paymentFederation?.id || '')
     const { formattedTotalFee, feeItemsBreakdown } = makeEcashFeeContent(
@@ -97,7 +94,7 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
         <SafeAreaContainer style={style.container} edges="notop">
             <FederationWalletSelector />
             <SendAmounts
-                balanceDisplay={balanceDisplay}
+                balanceDisplay={formattedBalanceText}
                 formattedPrimaryAmount={formattedPrimaryAmount}
                 formattedSecondaryAmount={formattedSecondaryAmount}
             />

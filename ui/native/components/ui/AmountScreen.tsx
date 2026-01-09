@@ -3,7 +3,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import { useBalanceDisplay } from '@fedi/common/hooks/amount'
+import { useBalance } from '@fedi/common/hooks/amount'
 import { Federation } from '@fedi/common/types'
 import { hexToRgba } from '@fedi/common/utils/color'
 
@@ -34,7 +34,7 @@ export const AmountScreen: React.FC<Props> = ({
     const federationId = amountInputProps?.federationId || ''
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const balanceDisplay = useBalanceDisplay(t, federationId)
+    const { formattedBalanceText } = useBalance(t, federationId)
 
     const style = styles(theme)
 
@@ -49,13 +49,13 @@ export const AmountScreen: React.FC<Props> = ({
                 edges={isIndependent ? 'notop' : 'none'}>
                 <View style={style.subHeader}>
                     {subHeader}
-                    {showBalance && balanceDisplay && (
+                    {showBalance && federationId && (
                         <Text
                             caption
                             style={style.balance}
                             numberOfLines={1}
                             adjustsFontSizeToFit>
-                            {`${balanceDisplay} `}
+                            {formattedBalanceText}
                         </Text>
                     )}
                 </View>

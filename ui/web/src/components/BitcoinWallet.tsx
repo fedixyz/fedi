@@ -37,6 +37,7 @@ export const BitcoinWallet: React.FC<Props> = ({
     const { push } = useRouter()
     const dispatch = useAppDispatch()
     const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
+        t,
         federation.id,
     )
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})

@@ -1,5 +1,6 @@
 import { Text } from '@rneui/themed'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
@@ -14,8 +15,11 @@ type Props = {
 }
 
 const Balance: React.FC<Props> = ({ federationId }) => {
-    const { formattedBalanceSats, formattedBalanceFiat } =
-        useBalance(federationId)
+    const { t } = useTranslation()
+    const { formattedBalanceSats, formattedBalanceFiat } = useBalance(
+        t,
+        federationId,
+    )
     const { progress, recoveryInProgress } = useRecoveryProgress(federationId)
 
     if (recoveryInProgress) return <HoloProgressCircle progress={progress} />

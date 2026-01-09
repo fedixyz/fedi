@@ -7,6 +7,7 @@ This guide is written in a simple, example-based format with the intention of he
 The order of the hooks listed go from most to least versatile.
 
 -   [`useAmountFormatter`](#useamountformatter)
+-   [`useBalance`](#usebalance)
 -   [`useAmountInput`](#useamountinput)
 
 ## `useAmountFormatter`
@@ -38,6 +39,30 @@ const { formattedPrimaryAmount, formattedSecondaryAmount } =
     makeFormattedAmountsFromSats(balance)
 
 console.log(`You have ${formattedPrimaryAmount} (${formattedSecondaryAmount})`)
+```
+
+## `useBalance`
+
+Returns the balance for a given federation in Sats and various formatted values consisting of Sats and/or Fiat
+
+```js
+{
+    satsBalance: 10,
+    formattedBalanceFiat: "0.01 USD",
+    formattedBalanceSats: "10 SATS",
+    formattedBalance: "0.01 USD (10 SATS)",
+    formattedBalanceText: "Balance: 0.01 USD (10 SATS)",
+}
+```
+
+### Usage
+
+```ts
+const { satsBalance, formattedBalanceFiat } = useBalance(federationId)
+
+console.log(`You have ${satsBalance} sats`)
+console.log(`Your fiat balance is ${formattedBalanceFiat}`)
+// ...
 ```
 
 ## `useAmountInput`

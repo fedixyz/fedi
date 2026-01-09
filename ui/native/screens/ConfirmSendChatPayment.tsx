@@ -4,10 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import {
-    useAmountFormatter,
-    useBalanceDisplay,
-} from '@fedi/common/hooks/amount'
+import { useAmountFormatter, useBalance } from '@fedi/common/hooks/amount'
 import { useChatPaymentPush } from '@fedi/common/hooks/chat'
 import { useCommonSelector } from '@fedi/common/hooks/redux'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
@@ -45,7 +42,7 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
     const { formattedTotalFee, feeItemsBreakdown } = makeEcashFeeContent(
         amountUtils.satToMsat(amount),
     )
-    const balanceDisplay = useBalanceDisplay(t, paymentFederation?.id || '')
+    const { formattedBalanceText } = useBalance(t, paymentFederation?.id || '')
     const selectedCurrency = useCommonSelector(s =>
         selectCurrency(s, paymentFederation?.id),
     )
@@ -80,7 +77,7 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
         <SafeAreaContainer style={style.container} edges="notop">
             <FederationWalletSelector />
             <SendAmounts
-                balanceDisplay={balanceDisplay}
+                balanceDisplay={formattedBalanceText}
                 formattedPrimaryAmount={formattedPrimaryAmount}
                 formattedSecondaryAmount={formattedSecondaryAmount}
             />

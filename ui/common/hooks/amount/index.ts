@@ -1,7 +1,6 @@
 export * from './useAmountFormatter'
 export * from './useAmountInput'
 export * from './useBalance'
-export * from './useBalanceDisplay'
 export * from './useBtcFiatPrice'
 export * from './useDepositForm'
 export * from './useFormattedFiatSats'
