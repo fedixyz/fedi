@@ -9,7 +9,6 @@ import { keyframes, styled, theme } from '../styles'
 import { CommunityInviteDialog } from './CommunityInviteDialog'
 import { Column, Row } from './Flex'
 import { Icon } from './Icon'
-import { IconButton } from './IconButton'
 import MainHeaderButtons from './MainHeaderButtons'
 import SelectedCommunity from './SelectedCommunity'
 import { ShadowScroller } from './ShadowScroller'
@@ -96,10 +95,10 @@ export function Header({
         <HeaderContainer {...props}>
             <Row fullWidth align="center">
                 {back && (
-                    <BackButtonWrapper>
-                        <IconButton
+                    <LeftComponentWrapper>
+                        <Icon
                             icon={ChevronLeft}
-                            size="md"
+                            size="sm"
                             onClick={
                                 // provide string to specify next route on back
                                 // or provide boolean to call router history back
@@ -108,7 +107,7 @@ export function Header({
                                     : () => router.back()
                             }
                         />
-                    </BackButtonWrapper>
+                    </LeftComponentWrapper>
                 )}
 
                 <HeaderContent centered={centered}>{children}</HeaderContent>
@@ -140,14 +139,13 @@ export const HeaderContainer = styled('div', {
     width: '100%',
 })
 
-export const BackButtonWrapper = styled('div', {
+export const LeftComponentWrapper = styled('div', {
     alignItems: 'center',
     cursor: 'pointer',
     display: 'flex',
-    left: theme.spacing.sm,
+    left: theme.spacing.md,
     justifyContent: 'center',
     position: 'absolute',
-    width: 30,
 })
 
 export const RightComponentWrapper = styled('div', {
@@ -156,8 +154,7 @@ export const RightComponentWrapper = styled('div', {
     display: 'flex',
     justifyContent: 'center',
     position: 'absolute',
-    right: theme.spacing.sm,
-    width: 30,
+    right: theme.spacing.md,
 })
 
 const HeaderContent = styled('div', {
