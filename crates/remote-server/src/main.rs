@@ -230,14 +230,18 @@ async fn handle_events(
     State(state): State<AppState>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_websocket(socket, device_id, state))
+    let bridges = state.bridges;
+    ws.on_upgrade(move |socket| handle_websocket(socket, device_id, bridges))
 }
 
-async fn handle_websocket(mut socket: WebSocket, device_id: String, state: AppState) {
+async fn handle_websocket(
+    mut socket: WebSocket,
+    device_id: String,
+    bridges: Arc<RwLock<HashMap<String, BridgeState>>>,
+) {
     info!("WebSocket connection established for device: {}", device_id);
 
-    let event_rx = state
-        .bridges
+    let event_rx = bridges
         .read()
         .await
         .get(&device_id)
@@ -277,7 +281,7 @@ async fn handle_websocket(mut socket: WebSocket, device_id: String, state: AppSt
         }
     }
     {
-        let mut state = state.bridges.write().await;
+        let mut state = bridges.write().await;
         let bridge = state
             .remove(&device_id)
             .expect("bridge must be present")
