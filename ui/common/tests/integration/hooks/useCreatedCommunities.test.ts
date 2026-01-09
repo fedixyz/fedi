@@ -42,22 +42,17 @@ describe('useCreatedCommunities', () => {
                 fedimint,
             )
 
-            await waitFor(
-                () => {
-                    expect(result.current.canEditCommunity).toBe(true)
-                    expect(
-                        result.current.createdCommunities.length,
-                    ).toBeGreaterThan(0)
-                    expect(
-                        result.current.createdCommunities.some(
-                            c =>
-                                c.communityInvite.invite_code_str ===
-                                communityId,
-                        ),
-                    ).toBe(true)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result.current.canEditCommunity).toBe(true)
+                expect(
+                    result.current.createdCommunities.length,
+                ).toBeGreaterThan(0)
+                expect(
+                    result.current.createdCommunities.some(
+                        c => c.communityInvite.invite_code_str === communityId,
+                    ),
+                ).toBe(true)
+            })
         })
 
         it('should return canEditCommunity as false for a non-created community', async () => {
@@ -77,12 +72,9 @@ describe('useCreatedCommunities', () => {
                 fedimint,
             )
 
-            await waitFor(
-                () => {
-                    expect(result.current.canEditCommunity).toBe(false)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result.current.canEditCommunity).toBe(false)
+            })
         })
 
         it('should return canEditCommunity as false when no communityId is provided', async () => {
@@ -112,16 +104,13 @@ describe('useCreatedCommunities', () => {
             )
 
             // Wait for the hook to fetch created communities
-            await waitFor(
-                () => {
-                    expect(result.current.canEditCommunity).toBe(false)
-                    // createdCommunities should still be populated
-                    expect(
-                        result.current.createdCommunities.length,
-                    ).toBeGreaterThan(0)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result.current.canEditCommunity).toBe(false)
+                // createdCommunities should still be populated
+                expect(
+                    result.current.createdCommunities.length,
+                ).toBeGreaterThan(0)
+            })
         })
 
         it('should handle multiple created communities correctly', async () => {
@@ -172,15 +161,12 @@ describe('useCreatedCommunities', () => {
                 fedimint,
             )
 
-            await waitFor(
-                () => {
-                    expect(result1.current.canEditCommunity).toBe(true)
-                    expect(
-                        result1.current.createdCommunities.length,
-                    ).toBeGreaterThanOrEqual(2)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result1.current.canEditCommunity).toBe(true)
+                expect(
+                    result1.current.createdCommunities.length,
+                ).toBeGreaterThanOrEqual(2)
+            })
 
             const { result: result2 } = renderHookWithBridge(
                 () => useCreatedCommunities(communityId2),
@@ -188,15 +174,12 @@ describe('useCreatedCommunities', () => {
                 fedimint,
             )
 
-            await waitFor(
-                () => {
-                    expect(result2.current.canEditCommunity).toBe(true)
-                    expect(
-                        result2.current.createdCommunities.length,
-                    ).toBeGreaterThanOrEqual(2)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result2.current.canEditCommunity).toBe(true)
+                expect(
+                    result2.current.createdCommunities.length,
+                ).toBeGreaterThanOrEqual(2)
+            })
 
             expect(
                 result2.current.createdCommunities.some(

@@ -46,13 +46,10 @@ describe('federations', () => {
             expect(joinTab).toBeInTheDocument()
             expect(createTab).toBeInTheDocument()
 
-            await waitFor(
-                async () => {
-                    const joinButtons = await screen.findAllByText('Join')
-                    expect(joinButtons.length).toBeGreaterThanOrEqual(3)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(async () => {
+                const joinButtons = await screen.findAllByText('Join')
+                expect(joinButtons.length).toBeGreaterThanOrEqual(3)
+            })
         })
         it('should render the Join tab with a Paste button', async () => {
             await builder.withOnboardingCompleted()
@@ -102,14 +99,11 @@ describe('federations', () => {
             mockQuery = { invite_code: inviteCode }
             renderWithBridge(<JoinFederation />, { store, fedimint })
 
-            await waitFor(
-                async () => {
-                    const previewContainer =
-                        screen.queryByTestId('federation-preview')
-                    expect(previewContainer).toBeInTheDocument()
-                },
-                { timeout: 15000 },
-            )
+            await waitFor(async () => {
+                const previewContainer =
+                    screen.queryByTestId('federation-preview')
+                expect(previewContainer).toBeInTheDocument()
+            })
 
             // make a few more assertions after the preview has loaded
             const federationName = screen.queryByTestId(

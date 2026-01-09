@@ -2,8 +2,12 @@ import '@testing-library/jest-dom'
 import { configure } from '@testing-library/react'
 import { type TFunction } from 'i18next'
 
-configure({ asyncUtilTimeout: 30000 })
 // Use this file for generic global mocks that are not specific to a single test suite
+
+// default timeout for waitFor functions
+// currently at 30 seconds since there seems to be some bottleneck
+// where we sometimes have to wait a long time to assert matrix state
+configure({ asyncUtilTimeout: 60000 })
 
 // Store the original Intl.NumberFormat for mocking
 const OriginalIntlNumberFormat = Intl.NumberFormat

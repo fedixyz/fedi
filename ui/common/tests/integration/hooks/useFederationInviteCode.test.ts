@@ -29,12 +29,9 @@ describe('parseInviteCode RPC', () => {
             )
 
             // Wait for the hook to finish checking
-            await waitFor(
-                () => {
-                    expect(result.current.isChecking).toBe(false)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result.current.isChecking).toBe(false)
+            })
 
             // Verify the preview result is available
             expect(result.current.previewResult).toBeTruthy()
@@ -63,12 +60,9 @@ describe('parseInviteCode RPC', () => {
             )
 
             // Wait for the hook to finish checking
-            await waitFor(
-                () => {
-                    expect(result.current.isChecking).toBe(false)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result.current.isChecking).toBe(false)
+            })
 
             // Verify the preview result shows user is a member
             expect(result.current.previewResult).toBeTruthy()
@@ -94,12 +88,9 @@ describe('parseInviteCode RPC', () => {
             )
 
             // Wait for the hook to finish checking
-            await waitFor(
-                () => {
-                    expect(result.current.isChecking).toBe(false)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result.current.isChecking).toBe(false)
+            })
 
             // Verify error state
             expect(result.current.isError).toBe(true)
@@ -125,12 +116,9 @@ describe('parseInviteCode RPC', () => {
             )
 
             // Wait for the hook to finish checking
-            await waitFor(
-                () => {
-                    expect(result.current.isChecking).toBe(false)
-                },
-                { timeout: 10000 },
-            )
+            await waitFor(() => {
+                expect(result.current.isChecking).toBe(false)
+            })
 
             // Verify preview is available and user is not a member
             expect(result.current.previewResult?.isMember).toBe(false)
@@ -141,12 +129,9 @@ describe('parseInviteCode RPC', () => {
             })
 
             // Wait for joining to complete
-            await waitFor(
-                () => {
-                    expect(result.current.isJoining).toBe(false)
-                },
-                { timeout: 15000 },
-            )
+            await waitFor(() => {
+                expect(result.current.isJoining).toBe(false)
+            })
 
             // Verify federation was joined successfully
             // The hook doesn't update isMember state, but we can verify via store

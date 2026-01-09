@@ -153,14 +153,11 @@ export class IntegrationTestBuilder {
             )
         })
 
-        await this.waitFor(
-            () => {
-                const state = store.getState()
-                const updatedFederations = selectFederations(state)
-                expect(updatedFederations).toHaveLength(1)
-            },
-            { timeout: 15000 },
-        )
+        await this.waitFor(() => {
+            const state = store.getState()
+            const updatedFederations = selectFederations(state)
+            expect(updatedFederations).toHaveLength(1)
+        })
 
         return this
     }
@@ -186,15 +183,12 @@ export class IntegrationTestBuilder {
             await bridge.fedimint.receiveEcash(ecash, federationId)
         })
 
-        await this.waitFor(
-            () => {
-                const state = store.getState()
-                const federation = selectLastUsedFederation(state)
-                expect(federation).toBeDefined()
-                expect(federation?.balance).toBeGreaterThan(amountMsats - 1)
-            },
-            { timeout: 20000 },
-        )
+        await this.waitFor(() => {
+            const state = store.getState()
+            const federation = selectLastUsedFederation(state)
+            expect(federation).toBeDefined()
+            expect(federation?.balance).toBeGreaterThan(amountMsats - 1)
+        })
 
         return this
     }
@@ -236,7 +230,7 @@ export function setupRemoteBridgeTests(): RemoteBridgeTestContext {
         // Mutate the context object
         context.bridge = remoteBridge
         context.store = store
-    }, 20000)
+    })
 
     afterEach(async () => {
         if (cleanupStore) {

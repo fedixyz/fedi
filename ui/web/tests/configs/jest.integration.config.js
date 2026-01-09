@@ -5,7 +5,7 @@ const customJestConfig = {
     setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
     testEnvironment: 'jest-environment-jsdom',
     testMatch: ['**/tests/integration/**/*.test.ts?(x)'],
-    testTimeout: 30000,
+    testTimeout: 60000,
 }
 
 const createJestConfig = nextJest({

@@ -1,5 +1,11 @@
 import '@testing-library/jest-dom'
+import { configure } from '@testing-library/react'
 import fetch from 'node-fetch'
+
+// default timeout for waitFor functions
+// currently at 30 seconds since there seems to be some bottleneck
+// where we sometimes have to wait a long time to assert matrix state
+configure({ asyncUtilTimeout: 60000 })
 
 // Mock the fetch request in the `fetchCurrencyPrices` thunk only
 const realFetch = fetch

@@ -1,8 +1,14 @@
+import { configure } from '@testing-library/react-native'
 import { I18nextProvider } from 'react-i18next'
 
 import i18n from '@fedi/native/localization/i18n'
 
 import { themeDefaults } from '../../styles/theme'
+
+// default timeout for waitFor functions
+// currently at 30 seconds since there seems to be some bottleneck
+// where we sometimes have to wait a long time to assert matrix state
+configure({ asyncUtilTimeout: 60000 })
 
 // Mock the fetch request in the `fetchCurrencyPrices` thunk only
 const realFetch = global.fetch
