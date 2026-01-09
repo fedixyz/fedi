@@ -20,7 +20,13 @@ import { AmountSymbolPosition, FormattedAmounts } from '../../types/amount'
 import { useCommonSelector } from '../redux'
 import { useBtcFiatPrice } from './useBtcFiatPrice'
 
-const log = makeLog('hooks/amount')
+const log = makeLog('common/hooks/useAmountFormatter')
+
+/**
+ * Provides a selection of amount formatting util functions which can be used for Sats, MSats, Cents, and `TransactionListEntry`s.
+ * Automatically handles btc/fiat conversions/rates under the hood with `useBtcFiatPrice`.
+ * Can be used for displaying formatted primary, secondary, and numeric amounts like `121,828 SATS`, `2,500.20 USD`, and `60,000`.
+ */
 export const useAmountFormatter = (options?: {
     currency?: SelectableCurrency
     federationId?: Federation['id']

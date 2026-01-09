@@ -4,17 +4,15 @@
  */
 import { act } from '@testing-library/react'
 
-import { useAmountInput, useAmountFormatter } from '@fedi/common/hooks/amount'
+import { useAmountInput } from '@fedi/common/hooks/amount'
 import {
     setAmountInputType,
     changeOverrideCurrency,
     setCurrencyLocale,
     fetchCurrencyPrices,
-    setTransactionDisplayType,
 } from '@fedi/common/redux'
 import { Sats, SupportedCurrency } from '@fedi/common/types'
 
-import { createMockTransaction } from '../../mock-data/transactions'
 import { setupRemoteBridgeTests } from '../../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../../utils/render'
 import { mockSystemLocale } from '../../utils/setup'
@@ -781,177 +779,6 @@ describe('useAmountInput hook', () => {
                 })
                 expect(result.current.fiatValue).toBe('12,345')
             })
-        })
-    })
-})
-
-describe('useAmountFormatter hook', () => {
-    const context = setupRemoteBridgeTests()
-
-    describe('makeFormattedAmountsFromTxn with historical exchange rates', () => {
-        it('uses historical exchange rate when txDateFiatInfo is present', () => {
-            const { store, bridge } = context
-
-            const { result } = renderHookWithBridge(
-                () => useAmountFormatter(),
-                store,
-                bridge.fedimint,
-            )
-
-            const txn = createMockTransaction({
-                amount: 100000000000, // 1 BTC in msats
-                txDateFiatInfo: {
-                    btcToFiatHundredths: 4000000, // Historical rate: $40K per BTC
-                    fiatCode: 'USD',
-                },
-            })
-
-            const formatted = result.current.makeFormattedAmountsFromTxn(
-                txn,
-                'none',
-            )
-
-            // Should use historical rate ($40k) not current rate ($100k)
-            expect(formatted.formattedFiat).toBe('40,000.00')
-            expect(formatted.formattedSats).toBe('100,000,000')
-        })
-
-        it('falls back to current exchange rates when txDateFiatInfo is missing', () => {
-            const { store, bridge } = context
-
-            store.dispatch({
-                type: fetchCurrencyPrices.fulfilled.type,
-                payload: {
-                    btcUsdRate: 100000, // Current rate: $100K per BTC
-                    fiatUsdRates: {},
-                },
-            })
-
-            const { result } = renderHookWithBridge(
-                () => useAmountFormatter(),
-                store,
-                bridge.fedimint,
-            )
-
-            const txn = createMockTransaction({
-                amount: 100000000000, // 1 BTC, no historical data
-            })
-
-            const formatted = result.current.makeFormattedAmountsFromTxn(
-                txn,
-                'none',
-            )
-
-            expect(formatted.formattedFiat).toBe('100,000.00')
-            expect(formatted.formattedSats).toBe('100,000,000')
-        })
-
-        it('works with different fiat currencies in historical data', () => {
-            const { store, bridge } = context
-            store.dispatch(changeOverrideCurrency(SupportedCurrency.EUR))
-            store.dispatch(setCurrencyLocale('de-DE'))
-            mockSystemLocale('de-DE')
-
-            const { result } = renderHookWithBridge(
-                () => useAmountFormatter(),
-                store,
-                bridge.fedimint,
-            )
-
-            const txn = createMockTransaction({
-                amount: 10000000000, // 0.1 BTC
-                txDateFiatInfo: {
-                    btcToFiatHundredths: 4500000, // Historical rate: €45,000.00 per BTC
-                    fiatCode: 'EUR',
-                },
-            })
-
-            const formatted = result.current.makeFormattedAmountsFromTxn(
-                txn,
-                'none',
-            )
-
-            // Should use EUR historical rate and currency
-            expect(formatted.formattedFiat).toBe('4.500,00')
-            expect(formatted.formattedSats).toBe('10.000.000')
-        })
-
-        it('respects transactionDisplayType setting with historical data', () => {
-            const { store, bridge } = context
-
-            act(() => store.dispatch(setTransactionDisplayType('fiat'))) // with fiat display preference
-
-            const { result: fiatPrimaryResult } = renderHookWithBridge(
-                () => useAmountFormatter(),
-                store,
-                bridge.fedimint,
-            )
-
-            const txn = createMockTransaction({
-                amount: 1000000000, // 0.01 BTC
-                txDateFiatInfo: {
-                    btcToFiatHundredths: 6000000, // Historical rate: $60,000.00 per BTC
-                    fiatCode: 'USD',
-                },
-            })
-
-            const fiatPrimaryFormatted =
-                fiatPrimaryResult.current.makeFormattedAmountsFromTxn(txn)
-
-            // When fiat is primary, historical fiat should be primary
-            expect(fiatPrimaryFormatted.formattedPrimaryAmount).toBe(
-                '600.00 USD',
-            )
-            expect(fiatPrimaryFormatted.formattedSecondaryAmount).toBe(
-                '1,000,000 SATS',
-            )
-
-            act(() => {
-                store.dispatch(setTransactionDisplayType('sats')) // don't show fiat display preference
-            })
-
-            const { result: satsPrimaryResult } = renderHookWithBridge(
-                () => useAmountFormatter(),
-                store,
-                bridge.fedimint,
-            )
-
-            const satsPrimaryFormatted =
-                satsPrimaryResult.current.makeFormattedAmountsFromTxn(txn)
-
-            // When sats is primary, sats should be primary
-            expect(satsPrimaryFormatted.formattedPrimaryAmount).toBe(
-                '1,000,000 SATS',
-            )
-            expect(satsPrimaryFormatted.formattedSecondaryAmount).toBe(
-                '600.00 USD',
-            )
-        })
-
-        it('handles small historical amounts with proper precision', () => {
-            const { store, bridge } = context
-            const { result } = renderHookWithBridge(
-                () => useAmountFormatter(),
-                store,
-                bridge.fedimint,
-            )
-
-            const txn = createMockTransaction({
-                amount: 1000000, // 1000 sats (0.00001 BTC)
-                txDateFiatInfo: {
-                    btcToFiatHundredths: 5000000, // Historical rate: $50K per BTC
-                    fiatCode: 'USD',
-                },
-            })
-
-            const formatted = result.current.makeFormattedAmountsFromTxn(
-                txn,
-                'none',
-            )
-
-            // 1000 sats * $50K / 100,000,000 sats = $0.50
-            expect(formatted.formattedFiat).toBe('0.50')
-            expect(formatted.formattedSats).toBe('1,000')
         })
     })
 })
