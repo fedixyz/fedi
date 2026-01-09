@@ -276,3 +276,32 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use strum::VariantNames;
+
+    use super::fedimint_get_supported_events;
+
+    #[test]
+    fn test_no_missing_supported_events_ignorecase() {
+        // Caveats of this test:
+        // 1. Does not check for exact match between FFI events and RPC events. Only
+        //    that RPC events are a subset of FFI events
+        // 2. Does not ensure that character-casing is the same between FFI events and
+        //    RPC events.
+        let mut rpc_types = BTreeSet::new();
+        for event in rpc_types::event::Event::VARIANTS {
+            rpc_types.insert(event.to_string().to_lowercase());
+        }
+
+        let mut ffi_types = BTreeSet::new();
+        for event in fedimint_get_supported_events() {
+            ffi_types.insert(event.to_lowercase());
+        }
+
+        assert!(rpc_types.is_subset(&ffi_types));
+    }
+}

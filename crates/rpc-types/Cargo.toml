@@ -36,6 +36,8 @@ nostr-sdk = { workspace = true }
 ring = { workspace = true }
 runtime = { workspace = true }
 bech32 = { workspace = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { workspace = true, features = ["wasm32_unknown_unknown_js"] }

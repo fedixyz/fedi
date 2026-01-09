@@ -71,6 +71,7 @@ imbl = { workspace = true, features = ["serde"] }
 eyeball-im = { version = "0.8", features = ["serde"] }
 base64 = { workspace = true }
 reqwest = { workspace = true }
+strum = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 ring = { version = "0.17.14", features = ["wasm32_unknown_unknown_js"] }

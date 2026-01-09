@@ -5,6 +5,7 @@ use stability_pool_client::{
     StabilityPoolDepositOperationState, StabilityPoolTransferOperationState,
     StabilityPoolWithdrawalOperationState,
 };
+use strum::VariantNames;
 use ts_rs::TS;
 
 use crate::communities::RpcCommunity;
@@ -262,9 +263,10 @@ pub struct NonceReuseCheckFailedEvent {
     pub federation_id: RpcFederationId,
 }
 
-#[derive(Debug, TS)]
+#[derive(Debug, TS, VariantNames)]
 #[ts(export)]
 #[ts(rename_all = "camelCase")]
+#[strum(serialize_all = "camelCase")]
 pub enum Event {
     Transaction(Box<TransactionEvent>),
     Log(LogEvent),
