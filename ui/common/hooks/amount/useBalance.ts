@@ -7,8 +7,26 @@ import { useCommonSelector } from '../redux'
 import { useAmountFormatter } from './useAmountFormatter'
 
 /**
- * Returns the balance for a given federation in Sats and various formatted values consisting of Sats and/or Fiat
- * (`10`, `0.01 USD`, `10 SATS`, `0.01 USD (10 SATS)`, `Balance: 0.01 USD (10 SATS)`)
+ * Returns the balance for a given federation in Sats and various formatted values consisting of Sats and/or Fiat like
+ *
+ * ```json
+ * {
+ *     satsBalance: 10,
+ *     formattedBalanceFiat: "0.01 USD",
+ *     formattedBalanceSats: "10 SATS",
+ *     formattedBalance: "0.01 USD (10 SATS)",
+ *     formattedBalanceText: "Balance: 0.01 USD (10 SATS)",
+ * }
+ * ```
+ *
+ * Usage:
+ * ```ts
+ * const { satsBalance, formattedBalanceFiat } = useBalance(federationId)
+ *
+ * console.log(`You have ${satsBalance} sats`)
+ * console.log(`Your fiat balance is ${formattedBalanceFiat}`)
+ * // ...
+ * ```
  */
 export function useBalance(t: TFunction, federationId: string) {
     const balance = useCommonSelector(s =>

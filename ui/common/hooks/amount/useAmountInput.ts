@@ -14,8 +14,9 @@ import { useCommonDispatch, useCommonSelector } from '../redux'
 import { useUpdatingRef } from '../util'
 
 /**
- * Provides state, callbacks, and misc information for rendering an amount
- * input that allows entry in both fiat and sats.
+ * A hook containing the logic for an amount input, usually used within an `<AmountInput />` component in either the `web` or `native` codebase.
+ *
+ * You probably won't use this hook directly. See `native/components/ui/AmountInput.tsx` and `web/src/components/AmountInput.tsx` for more information.
  */
 export function useAmountInput(
     amount: Sats,

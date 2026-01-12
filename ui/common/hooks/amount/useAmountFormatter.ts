@@ -26,6 +26,17 @@ const log = makeLog('common/hooks/useAmountFormatter')
  * Provides a selection of amount formatting util functions which can be used for Sats, MSats, Cents, and `TransactionListEntry`s.
  * Automatically handles btc/fiat conversions/rates under the hood with `useBtcFiatPrice`.
  * Can be used for displaying formatted primary, secondary, and numeric amounts like `121,828 SATS`, `2,500.20 USD`, and `60,000`.
+ *
+ * Usage:
+ * ```ts
+ * const { makeFormattedAmountsFromSats } = useAmountFormatter()
+ *
+ * const balance: Sats = 1000
+ * const { formattedPrimaryAmount, formattedSecondaryAmount } =
+ *     makeFormattedAmountsFromSats(balance)
+ *
+ * console.log(`You have ${formattedPrimaryAmount} (${formattedSecondaryAmount})`)
+ * ```
  */
 export const useAmountFormatter = (options?: {
     currency?: SelectableCurrency
