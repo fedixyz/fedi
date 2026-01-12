@@ -20,6 +20,27 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { AmountSymbolPosition } from '../../types/amount'
 import { useCommonSelector } from '../redux'
 
+/**
+ * Provides a set of conversion utility functions for converting and formatting Bitcoin, Fiat, and Cents.
+ *
+ * Unlike `useAmountFormatter`, each function provided by this hook returns a direct value instead of a set of formatted values.
+ *
+ * Currency/bitcoin rates, currency locale, symbol positioning are already handled.
+ *
+ * Usage:
+ * ```ts
+ * const { convertSatsToFiat } = useBtcFiatPrice()
+ * const { convertCentsToSats } = useBtcFiatPrice(SupportedCurrency.USD)
+ * const { convertCentsToFormattedFiat } = useBtcFiatPrice(
+ *     SupportedCurrency.USD,
+ *     federationId,
+ * )
+ *
+ * convertSatsToFiat(1000 as Sats) // Sats
+ * convertCentsToSats(1000 as UsdCents) // Usd
+ * convertCentsToFormattedFiat(1000 as UsdCents) // "10.00 USD"
+ * ```
+ */
 export const useBtcFiatPrice = (
     currency?: SelectableCurrency,
     federationId?: Federation['id'],
