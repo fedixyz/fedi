@@ -25,7 +25,6 @@ import { isDev } from '@fedi/common/utils/environment'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { version } from '../../package.json'
 import { homeRoute, onboardingJoinRoute } from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
@@ -74,7 +73,11 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 const deviceId = await dispatchRef
                     .current(initializeDeviceIdWeb({ deviceId: newDeviceId }))
                     .unwrap()
-                dispatchRef.current(initializePwaVersion({ version }))
+                dispatchRef.current(
+                    initializePwaVersion({
+                        version: process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0',
+                    }),
+                )
                 const appFlavor = getAppFlavor()
                 dispatchRef.current(setAppFlavor(appFlavor))
                 log.info('initializing bridge with deviceId', deviceId)
