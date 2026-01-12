@@ -51,7 +51,7 @@ check_version() {
         return 1
     fi
 }
-appium_version=$(appium --version 2>&1)
+appium_version=$(appium --version 2>&1 | tail -n1)
 echo "Using appium: $(command -v appium)"
 echo "Appium version: $appium_version"
 echo "APPIUM_HOME: ${APPIUM_HOME:-unset}"

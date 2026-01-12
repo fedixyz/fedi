@@ -9,7 +9,7 @@ export class OnboardingTest extends AppiumTestBase {
         await this.clickElementByKey('FediTestnetJoinButton')
         await this.clickElementByKey('JoinFederationButton')
         //TODO: validate the seed here
-        await this.clickElementByKey('ContinueButton')
+        await this.clickElementByKey('HomeTabButton')
         await this.clickElementByKey('Continue')
         await this.clickElementByKey('ChatTabButton')
         await this.clickElementByKey('FirstTimeOverlayButton')
@@ -83,6 +83,7 @@ export class OnboardingTest extends AppiumTestBase {
         await this.clickElementByKey('HeaderBackButton')
         await new Promise(resolve => setTimeout(resolve, 1000))
         await this.clickElementByKey('HeaderCloseButton')
+        await this.clickElementByKey('FederationsTabButton')
         if ((await this.isTextPresent('ARS', false, 2000)) === false) {
             throw new Error(`Display currency change could be broken`)
         }

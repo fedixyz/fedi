@@ -88,6 +88,7 @@ export class JoinLeaveFederation extends AppiumTestBase {
             )
         }
         // END of the process of leaving a Public Federation.
+        await this.clickElementByKey('FederationsTabButton')
         await this.clickElementByKey('PlusButton')
         await this.scrollToElement('BitcoinPrinciplesJoinButton')
         await this.clickElementByKey('BitcoinPrinciplesJoinButton')
@@ -159,7 +160,9 @@ export class JoinLeaveFederation extends AppiumTestBase {
             )
         }
         // End of test - Leave a Federation without TOS - Same as with TOS - No difference
+        await this.clickElementByKey('FederationsTabButton')
         await this.clickElementByKey('PlusButton')
+        await this.scrollToElement('E-CashClubJoinButton')
         await this.clickElementByKey('E-CashClubJoinButton')
         await this.clickElementByKey('RecoverFromScratchSwitch')
         await this.clickElementByKey('RecoverFromScratchSwitch')
