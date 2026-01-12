@@ -58,6 +58,8 @@ pub enum ErrorCode {
     RecurringdMetaNotFound,
     #[error("Unknown federation")]
     UnknownFederation,
+    #[error("Exact notes unavailable offline and guardians unreachable")]
+    OfflineExactEcashFailed,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, Clone)]

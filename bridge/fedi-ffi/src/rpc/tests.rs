@@ -2410,10 +2410,11 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
         let bridge = td.bridge_full().await?;
         assert!(bridge.federations.get_federations_map().len() == 1);
 
+        let event_sink = td.event_sink();
         // Wait for federation ready event for a max of 2s
         let rpc_federation = fedimint_core::task::timeout(Duration::from_secs(2), async move {
             'check: loop {
-                let events = td.event_sink().events();
+                let events = event_sink.events();
                 for (_, ev_body) in events.iter().rev().filter(|(kind, _)| kind == "federation") {
                     let ev_body =
                         serde_json::from_str::<RpcFederationMaybeLoading>(ev_body).unwrap();
@@ -2439,6 +2440,44 @@ async fn test_bridge_handles_federation_offline() -> anyhow::Result<()> {
 
         // Ensure balance is still the same
         assert_eq!(rpc_federation.balance.0, original_balance);
+
+        let federation = bridge
+            .federations
+            .get_federation_maybe_recovering(&rpc_federation.id.0)?;
+
+        // Attempt to repeatedly generateEcash for exactly 3msat.
+        // After using up all locally held 1msat notes, bridge should throw
+        // error. This is because we are offline, and generateEcash
+        // shouldn't even attempt reissuing.
+        let mut count = 0;
+        loop {
+            if let Err(e) = generateEcash(
+                federation.clone(),
+                RpcAmount(Amount::from_msats(3)),
+                false,
+                FrontendMetadata::default(),
+            )
+            .await
+            {
+                if RpcError::from_anyhow(&e)
+                    .error_code
+                    .is_some_and(|code| code == ErrorCode::OfflineExactEcashFailed)
+                {
+                    break;
+                }
+            }
+
+            count += 1;
+            if count == 10 {
+                bail!("Expected generateEcash to eventually error when offline");
+            }
+
+            fedimint_core::task::sleep_in_test(
+                "retrying generateEcash until failure",
+                Duration::from_millis(100),
+            )
+            .await;
+        }
     }
     Ok(())
 }

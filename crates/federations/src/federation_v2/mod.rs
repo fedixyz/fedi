@@ -2161,6 +2161,16 @@ impl FederationV2 {
                 break (spend_guard, operation_id, notes);
             };
 
+            // Essentially a ping to the guardian servers with the "ThresholdConsensus"
+            // strategy. We do not want to proceed with selecting an excess
+            // amount of notes (and reissuing them) if we can already determine
+            // at this step that we don't have good connectivity.
+            timeout(Duration::from_secs(10), self.client.api().session_count())
+                .await
+                .map_err(anyhow::Error::from)
+                .and_then(|inner| inner.map_err(anyhow::Error::from))
+                .context(ErrorCode::OfflineExactEcashFailed)?;
+
             let (_, notes) = mint
                 .spend_notes_with_selector(
                     &SelectNotesWithAtleastAmount,
