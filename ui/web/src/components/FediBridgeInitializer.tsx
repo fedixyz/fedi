@@ -12,7 +12,6 @@ import {
     setShouldLockDevice,
     refreshOnboardingStatus,
     selectOnboardingCompleted,
-    selectMatrixAuth,
     setAppFlavor,
     selectEventListenersReady,
 } from '@fedi/common/redux'
@@ -21,7 +20,6 @@ import {
     DeviceRegistrationEvent,
     PanicEvent,
 } from '@fedi/common/types/bindings'
-import { isDev } from '@fedi/common/utils/environment'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -30,7 +28,7 @@ import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
 import { getAppFlavor } from '../lib/bridge/worker'
 import { keyframes, styled, theme } from '../styles'
-import { generateDeviceId, isNightly } from '../utils/browserInfo'
+import { generateDeviceId } from '../utils/browserInfo'
 import { isDeepLink, getDeepLinkPath } from '../utils/linking'
 import { Redirect } from './Redirect'
 import { Text } from './Text'
@@ -54,7 +52,6 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         s => s.recovery.deviceIndexRequired,
     )
     const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
-    const matrixAuth = useAppSelector(selectMatrixAuth)
 
     const tRef = useUpdatingRef(t)
     const dispatchRef = useUpdatingRef(dispatch)
@@ -130,19 +127,6 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
             unsubscribeDeviceRegistration()
         }
     }, [dispatchRef])
-
-    // this is dev + nightly only logic to force an error if the production homeserver is still being used
-    // TODO: remove this after a few months after all nightly users have updated & migrated
-    useEffect(() => {
-        if ((isNightly() || isDev()) && matrixAuth && matrixAuth.userId) {
-            const [, homeserver] = matrixAuth.userId.split(':')
-            if (homeserver !== 'staging.m1.8fa.in') {
-                setError(
-                    'This is an expected nightly only error intentionally forced to ensure clean metrics. Please uninstall & recover from seed.\n',
-                )
-            }
-        }
-    }, [matrixAuth])
 
     if (isLoading) {
         return (
