@@ -331,7 +331,9 @@ impl FeatureCatalog {
                 remittance_max_delay_secs: 3 * 24 * 60 * 60, // 3 days for prod
             },
             sp_transfers_matrix: None,
-            sp_transfer_ui: None,
+            sp_transfer_ui: Some(SpTransferUiFeatureConfig {
+                mode: SpTransferUiMode::QrCode,
+            }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: None,
         }
