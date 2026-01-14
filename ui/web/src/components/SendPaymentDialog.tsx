@@ -239,7 +239,6 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                 )}
                 open={open}
                 disableClose={isCloseDisabled}
-                mobileDismiss="back"
                 onOpenChange={onOpenChange}>
                 <Container ref={containerRef}>
                     {content}

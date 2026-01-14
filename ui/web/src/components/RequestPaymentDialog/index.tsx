@@ -111,7 +111,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
         <Dialog
             title={t('feature.receive.request-money')}
             open={open}
-            mobileDismiss="back"
             onOpenChange={onOpenChange}>
             <Container ref={containerRef}>
                 {isOnchainSupported && !isCompleted && !showLnurlReceive && (

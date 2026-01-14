@@ -38,12 +38,7 @@ export const SelectPublicChats: React.FC<Props> = ({ open, onConfirm }) => {
     }
 
     return (
-        <Dialog
-            open={open}
-            onOpenChange={() => {}}
-            mobileDismiss="overlay"
-            disableClose
-            disablePadding>
+        <Dialog open={open} onOpenChange={() => {}} type="tray" hideCloseButton>
             {publicChats.length > 0 ? (
                 <Container aria-label="select public chats dialog">
                     <Header>
@@ -131,7 +126,6 @@ const Container = styled('div', {
     height: '50dvh',
     maxHeight: 400,
     justifyContent: 'space-between',
-    padding: 20,
     width: '100%',
 })
 

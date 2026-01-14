@@ -147,9 +147,9 @@ export default function ShareLogsPage() {
             </Layout.Root>
 
             <Dialog
-                mobileDismiss="overlay"
                 open={isSelectingFederation}
                 onOpenChange={setIsSelectingFederation}
+                type="tray"
                 title={t('phrases.select-federation')}
                 description={t(
                     'feature.developer.select-federation-share-logs',

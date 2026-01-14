@@ -40,8 +40,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
                 title={t('words.communities')}
                 open={open}
                 onOpenChange={onOpenChange}
-                size="md"
-                mobileDismiss="overlay">
+                type="tray">
                 <Content>
                     <CommunitiesList>
                         {communities.map((c, i) => (

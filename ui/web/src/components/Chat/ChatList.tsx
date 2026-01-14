@@ -98,9 +98,9 @@ export const ChatList: React.FC = () => {
             </Layout.Root>
 
             <Dialog
-                mobileDismiss="overlay"
                 onOpenChange={setShowOverlay}
                 open={showOverlay}
+                type="tray"
                 hideCloseButton>
                 {optionsContent()}
             </Dialog>

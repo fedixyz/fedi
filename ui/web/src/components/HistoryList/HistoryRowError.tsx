@@ -30,10 +30,7 @@ export const HistoryRowError: React.FC<Props> = ({ error, item }) => {
                 </Text>
             </Message>
 
-            <Dialog
-                open={isShowingDetails}
-                onOpenChange={setIsShowingDetails}
-                size="lg">
+            <Dialog open={isShowingDetails} onOpenChange={setIsShowingDetails}>
                 <Text>
                     {formatErrorMessage(t, error, 'errors.unknown-error')}
                 </Text>

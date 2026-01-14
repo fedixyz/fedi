@@ -194,11 +194,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
     }
 
     return (
-        <Dialog
-            open={open}
-            onOpenChange={onOpenChange}
-            title={title}
-            mobileDismiss="back">
+        <Dialog open={open} onOpenChange={onOpenChange} title={title}>
             {content}
         </Dialog>
     )

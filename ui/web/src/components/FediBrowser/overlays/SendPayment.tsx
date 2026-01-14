@@ -99,12 +99,7 @@ export const SendPayment: React.FC<Props> = ({ open, onAccept, onReject }) => {
     } ${t('words.sats').toUpperCase()}`
 
     return (
-        <Dialog
-            open={open}
-            onOpenChange={() => {}}
-            mobileDismiss="overlay"
-            disableClose
-            disablePadding>
+        <Dialog open={open} onOpenChange={() => {}} type="tray" hideCloseButton>
             <Container aria-label="send payment dialog">
                 <Header>
                     <Text variant="body" weight="bold">
@@ -185,7 +180,6 @@ const Container = styled('div', {
     height: '50dvh',
     maxHeight: 400,
     justifyContent: 'space-between',
-    padding: 20,
     width: '100%',
 })
 

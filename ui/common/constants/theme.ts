@@ -82,6 +82,7 @@ export const theme = {
         smallAvatar: 32,
         mediumAvatar: 48,
         largeAvatar: 88,
+        desktopAppWidth: 480,
     },
     holoGradient: {
         '900': makeHoloGradientRgbas(1.0),

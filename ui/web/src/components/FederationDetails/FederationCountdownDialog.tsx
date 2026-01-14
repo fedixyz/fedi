@@ -29,7 +29,7 @@ function FederationCountdownDialog({
             open={open}
             onOpenChange={onOpenChange}
             title={t('feature.federations.federation-expiration')}
-            mobileDismiss="overlay">
+            type="tray">
             <Column gap="md">
                 <FederationPopupCountdown federation={federation} />
                 {popupInfo.countdownMessage && (

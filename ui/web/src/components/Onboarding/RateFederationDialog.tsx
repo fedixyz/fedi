@@ -54,8 +54,8 @@ const RateFederationDialog: React.FC<Props> = ({ show, onDismiss }) => {
         <Dialog
             open={show}
             onOpenChange={handleDismiss}
-            mobileDismiss="overlay"
-            disableClose
+            type="tray"
+            hideCloseButton
             disablePadding>
             <Container data-testid="rate-federation-overlay">
                 <Banner

@@ -2,52 +2,38 @@ import * as RadixDialog from '@radix-ui/react-dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { useCallback } from 'react'
 
-import ChevronLeftIcon from '@fedi/common/assets/svgs/chevron-left.svg'
 import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 
-import { useMediaQuery } from '../hooks'
-import { config, keyframes, styled, theme } from '../styles'
+import { keyframes, styled, theme } from '../styles'
 import { Icon } from './Icon'
-import { IconButton } from './IconButton'
 import { Text } from './Text'
 
 interface Props {
     open: boolean
     onOpenChange(open: boolean): void
     title?: React.ReactNode
-    titleLeft?: React.ReactNode
-    titleRight?: React.ReactNode
     description?: React.ReactNode
     children: React.ReactNode
-    size?: 'sm' | 'md' | 'lg'
     disableClose?: boolean
     hideCloseButton?: boolean
-    /**
-     * Behaves like a normal dialog when the view is greater than the `sm` breakpoint.
-     * If specified, behaves like an overlay on mobile, showing a Back button and a centered header instead of a Close button.
-     */
-    mobileDismiss?: 'back' | 'close' | 'overlay'
     disablePadding?: boolean
+    /**
+     * trays appear at the bottom of the screen on mobile only
+     */
+    type?: 'modal' | 'tray'
 }
 
 export const Dialog: React.FC<Props> = ({
     open,
     onOpenChange,
     title,
-    titleLeft,
-    titleRight,
     description,
     children,
-    size,
     disableClose,
     hideCloseButton,
-    mobileDismiss = 'close',
     disablePadding = false,
+    type = 'modal',
 }) => {
-    const isSm = useMediaQuery(config.media.sm)
-
-    const mobileDismissBack = mobileDismiss === 'back' && isSm
-
     const handleCloseTrigger = useCallback(
         (ev: Event) => {
             if (disableClose) ev.preventDefault()
@@ -55,40 +41,22 @@ export const Dialog: React.FC<Props> = ({
         [disableClose],
     )
 
-    const isMobileOverlay = isSm && mobileDismiss === 'overlay'
-
     const renderContents = useCallback(() => {
         return (
             <>
-                <Header>
+                {!hideCloseButton && (
+                    <CloseButton>
+                        <Icon icon={CloseIcon} />
+                    </CloseButton>
+                )}
+
+                <Header disablePadding={disablePadding}>
                     {title && (
-                        <>
-                            <Title center={isSm}>
-                                <TitleLeft center={isSm}>
-                                    {!disableClose && mobileDismissBack && (
-                                        <BackButtonContainer>
-                                            <IconButton
-                                                icon={ChevronLeftIcon}
-                                                size="md"
-                                                onClick={() =>
-                                                    onOpenChange(false)
-                                                }
-                                            />
-                                        </BackButtonContainer>
-                                    )}
-                                    {titleLeft}
-                                </TitleLeft>
-                                <TitleText
-                                    variant="body"
-                                    weight="bold"
-                                    center={isSm}>
-                                    {title}
-                                </TitleText>
-                                <TitleRight center={isSm}>
-                                    {titleRight}
-                                </TitleRight>
-                            </Title>
-                        </>
+                        <Title asChild>
+                            <Text variant="body" weight="bold">
+                                {title}
+                            </Text>
+                        </Title>
                     )}
                     {description && (
                         <Description asChild>
@@ -98,42 +66,26 @@ export const Dialog: React.FC<Props> = ({
                         </Description>
                     )}
                 </Header>
-                <Main>{children}</Main>
-                {!disableClose && !mobileDismissBack && !hideCloseButton && (
-                    <CloseButton>
-                        <Icon icon={CloseIcon} />
-                    </CloseButton>
-                )}
+
+                <Body>{children}</Body>
             </>
         )
-    }, [
-        children,
-        description,
-        disableClose,
-        hideCloseButton,
-        mobileDismissBack,
-        isSm,
-        onOpenChange,
-        title,
-        titleLeft,
-        titleRight,
-    ])
+    }, [children, description, disablePadding, hideCloseButton, title])
 
     return (
         <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
             <RadixDialog.Portal>
-                <Overlay isMobileOverlay={isMobileOverlay}>
+                <Overlay isTray={type === 'tray'}>
                     <Content
-                        size={size}
                         disablePadding={disablePadding}
                         onOpenAutoFocus={ev => ev.preventDefault()}
                         onEscapeKeyDown={handleCloseTrigger}
                         onPointerDownOutside={handleCloseTrigger}
                         onInteractOutside={handleCloseTrigger}
-                        isMobileOverlay={isMobileOverlay}>
+                        isTray={type === 'tray'}>
                         <VisuallyHidden>
-                            <Title>{title || ''}</Title>
-                            <Description>{description || ''}</Description>
+                            <div>{title || ''}</div>
+                            <div>{description || ''}</div>
                         </VisuallyHidden>
                         {renderContents()}
                     </Content>
@@ -164,7 +116,7 @@ const Overlay = styled(RadixDialog.Overlay, {
     },
 
     variants: {
-        isMobileOverlay: {
+        isTray: {
             true: {
                 '@sm': {
                     background: theme.colors.primary80,
@@ -187,55 +139,35 @@ const contentShow = keyframes({
 })
 
 const Content = styled(RadixDialog.Content, {
+    animation: `${contentShow} 150ms ease`,
+    background: theme.colors.white,
     position: 'relative',
+    borderRadius: 20,
     display: 'flex',
     flexDirection: 'column',
-    padding: 32,
-    borderRadius: 20,
-    width: '90vw',
-    background: theme.colors.white,
     overflow: 'hidden',
-    animation: `${contentShow} 150ms ease`,
+    padding: 24,
+    width: theme.sizes.desktopAppWidth,
 
     '@sm': {
-        padding: 24,
-        width: '100%',
-        height: '100%',
         borderRadius: 0,
-        maxWidth: 'none !important',
-    },
-
-    '@xs': {
-        padding: 16,
+        height: '100%',
+        width: '100%',
     },
 
     '@standalone': {
         '@sm': {
             paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
         },
-        '@xs': {
-            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-        },
     },
 
     variants: {
-        size: {
-            sm: {
-                maxWidth: 340,
-            },
-            md: {
-                maxWidth: 500,
-            },
-            lg: {
-                maxWidth: 640,
-            },
-        },
         disablePadding: {
             true: {
                 padding: 0,
             },
         },
-        isMobileOverlay: {
+        isTray: {
             true: {
                 '@sm': {
                     position: 'absolute',
@@ -249,108 +181,59 @@ const Content = styled(RadixDialog.Content, {
             },
         },
     },
-    defaultVariants: {
-        size: 'md',
-    },
 })
 
 const Header = styled('div', {
-    '@sm': {
-        textAlign: 'center',
+    alignItems: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    flexShrink: 0,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    textAlign: 'center',
+    position: 'relative',
+    width: '100%',
+
+    variants: {
+        disablePadding: {
+            true: {
+                marginBottom: 0,
+            },
+        },
     },
+})
+
+const CloseButton = styled(RadixDialog.Close, {
+    alignItems: 'center',
+    display: 'flex',
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 20,
+    top: 34,
+    transform: 'translateY(-50%)',
+    outline: 'none',
+    cursor: 'pointer',
+    zIndex: 1000,
 })
 
 const Title = styled(RadixDialog.Title, {
-    marginBottom: 8,
-    display: 'flex',
     alignItems: 'center',
-    gap: 16,
-
-    variants: {
-        center: {
-            true: {
-                display: 'grid',
-                gridTemplateColumns: '1fr auto 1fr',
-            },
-        },
-    },
-})
-
-const BackButtonContainer = styled('div', {
     display: 'flex',
-    alignItems: 'center',
-})
-
-const TitleText = styled(Text, {
-    textAlign: 'left',
     flex: 1,
-    variants: {
-        center: {
-            true: {
-                textAlign: 'center',
-            },
-        },
-    },
+    height: '100%',
+    justifyContent: 'center',
+    textAlign: 'center',
 })
 
 const Description = styled(RadixDialog.Description, {
     color: theme.colors.darkGrey,
     marginBottom: 20,
+    textAlign: 'center',
+    width: '100%',
 })
 
-const Main = styled('div', {
+const Body = styled('div', {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-})
-
-const CloseButton = styled(RadixDialog.Close, {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    padding: 4,
-    opacity: 0.5,
-    outline: 'none',
-    cursor: 'pointer',
-    zIndex: 1000,
-
-    '&:hover, &:focus': {
-        opacity: 1,
-    },
-
-    '@sm': {
-        top: 18,
-        right: 18,
-    },
-})
-
-const TitleRight = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    flexShrink: 0,
-    // Avoids overlap with the close button on desktop
-    paddingRight: 16,
-
-    variants: {
-        center: {
-            true: {
-                justifyContent: 'flex-end',
-                paddingRight: 0,
-            },
-        },
-    },
-})
-
-const TitleLeft = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    flexShrink: 0,
-
-    variants: {
-        center: {
-            true: {
-                justifyContent: 'flex-start',
-            },
-        },
-    },
 })

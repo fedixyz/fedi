@@ -122,7 +122,7 @@ function CommunityDetails() {
             <Dialog
                 open={wantsToLeaveCommunity}
                 onOpenChange={handleClose}
-                mobileDismiss="overlay">
+                type="tray">
                 <Column gap="lg" align="center">
                     <IconContainer>
                         <Icon

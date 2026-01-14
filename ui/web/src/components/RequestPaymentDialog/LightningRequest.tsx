@@ -117,11 +117,7 @@ export default function LightningRequest({
                 </Column>
             )}
 
-            <Dialog
-                title={t('words.lnurl')}
-                open={open}
-                mobileDismiss="back"
-                onOpenChange={setOpen}>
+            <Dialog title={t('words.lnurl')} open={open} onOpenChange={setOpen}>
                 <LnurlReceive
                     onSubmit={handleSubmit}
                     onWithdrawPaid={onInvoicePaid}

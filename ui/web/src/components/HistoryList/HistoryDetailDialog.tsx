@@ -81,7 +81,7 @@ export const HistoryDetailDialog: React.FC<HistoryDetailDialogProps> = ({
     }
 
     return (
-        <Dialog size="sm" open onOpenChange={handleClose}>
+        <Dialog open onOpenChange={handleClose}>
             <Container>
                 <IconWrap>{icon}</IconWrap>
                 <Text>{title}</Text>

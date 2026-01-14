@@ -67,7 +67,6 @@ export const DialogDemo: React.FC = () => {
             <Dialog
                 title="Dialog title"
                 description="This is a description for the dialog."
-                size={size}
                 open={open}
                 onOpenChange={setOpen}>
                 <Form onSubmit={handleSubmit}>
