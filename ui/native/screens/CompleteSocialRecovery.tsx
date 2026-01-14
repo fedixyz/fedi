@@ -53,7 +53,11 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
             try {
                 const recoveryAssistCode = await fedimint.recoveryQr()
                 log.info('recoveryAssistCode', recoveryAssistCode)
-                setRecoveryQrCode(JSON.stringify(recoveryAssistCode))
+
+                // add fedimint:recovery: prefix so that it can be parsed by Fedi app
+                setRecoveryQrCode(
+                    `fedimint:recovery:${JSON.stringify(recoveryAssistCode)}`,
+                )
             } catch (error) {
                 toast.error(t, error)
                 navigation.dispatch(resetAfterFailedSocialRecovery())

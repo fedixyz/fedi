@@ -59,7 +59,7 @@ export const themeDefaults = {
         maxMessageInputHeight: 120,
         recordButtonOuter: 68,
         recordButtonInner: 56,
-        socialBackupCameraWidth: dimensions.width * 0.9,
+        socialBackupCameraWidth: dimensions.width * 0.8,
         socialBackupCameraHeight: dimensions.height * 0.4,
         splashImageSize: 360,
         splashLogoHeight: 32,

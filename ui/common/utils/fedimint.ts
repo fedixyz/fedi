@@ -709,6 +709,25 @@ export class FedimintBridge {
         })
     }
 
+    async setGuardianPassword(
+        federationId: string,
+        peerId: number,
+        password: string,
+    ) {
+        return this.rpcTyped('setGuardianPassword', {
+            federationId,
+            peerId: String(peerId),
+            guardianPassword: password,
+        })
+    }
+
+    async getGuardianPassword(federationId: string, peerId: number) {
+        return this.rpcTyped('getGuardianPassword', {
+            federationId,
+            peerId: String(peerId),
+        })
+    }
+
     async completeSocialRecovery() {
         return this.rpcTyped('completeSocialRecovery', {})
     }

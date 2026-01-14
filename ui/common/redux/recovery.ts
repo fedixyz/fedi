@@ -5,6 +5,7 @@ import { SeedWords, SocialRecoveryEvent } from '../types'
 import { RpcFederation, RpcRegisteredDevice } from '../types/bindings'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
+import { changeAuthenticatedGuardian } from './federation'
 
 const log = makeLog('common/redux/recovery')
 
@@ -186,25 +187,23 @@ export const fetchRegisteredDevices = createAsyncThunk<
 })
 
 export const approveSocialRecoveryRequest = createAsyncThunk<
-    void,
+    null,
     {
         fedimint: FedimintBridge
         recoveryId: string
         peerId: number
-        guardianPassword: string
         federationId: string
     },
     { state: CommonState }
 >(
     'recovery/approveSocialRecoveryRequest',
-    async ({
-        fedimint,
-        recoveryId,
-        peerId,
-        guardianPassword,
-        federationId,
-    }) => {
-        await fedimint.approveSocialRecoveryRequest(
+    async ({ fedimint, recoveryId, peerId, federationId }) => {
+        const guardianPassword = await fedimint.getGuardianPassword(
+            federationId,
+            peerId,
+        )
+
+        return fedimint.approveSocialRecoveryRequest(
             recoveryId,
             peerId,
             guardianPassword,
@@ -221,25 +220,23 @@ export const locateRecoveryFile = createAsyncThunk<string, FedimintBridge>(
 )
 
 export const socialRecoveryDownloadVerificationDoc = createAsyncThunk<
-    void,
+    string | null,
     {
         fedimint: FedimintBridge
         recoveryId: string
         peerId: number
         federationId: string
-        guardianPassword: string
     },
     { state: CommonState }
 >(
     'recovery/socialRecoveryDownloadVerificationDoc',
-    async ({
-        fedimint,
-        recoveryId,
-        federationId,
-        peerId,
-        guardianPassword,
-    }) => {
-        await fedimint.socialRecoveryDownloadVerificationDoc(
+    async ({ fedimint, recoveryId, federationId, peerId }) => {
+        const guardianPassword = await fedimint.getGuardianPassword(
+            federationId,
+            peerId,
+        )
+
+        return fedimint.socialRecoveryDownloadVerificationDoc(
             recoveryId,
             federationId,
             peerId,
@@ -256,6 +253,60 @@ export const uploadBackupFile = createAsyncThunk<
     'recovery/uploadBackupFile',
     async ({ fedimint, federationId, videoFilePath }) => {
         await fedimint.uploadBackupFile(videoFilePath, federationId)
+    },
+)
+
+export const setGuardianPassword = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        federationId: string
+        peerId: number
+        password: string
+    }
+>(
+    'recovery/setGuardianPassword',
+    async ({ fedimint, federationId, peerId, password }) => {
+        await fedimint.setGuardianPassword(federationId, peerId, password)
+    },
+)
+
+export const getGuardianPassword = createAsyncThunk<
+    string,
+    { fedimint: FedimintBridge; federationId: string; peerId: number }
+>(
+    'recovery/getGuardianPassword',
+    async ({ fedimint, federationId, peerId }) => {
+        return fedimint.getGuardianPassword(federationId, peerId)
+    },
+)
+
+export const setGuardianAssist = createAsyncThunk<
+    void,
+    {
+        fedimint: FedimintBridge
+        federationId: string
+        peerId: number
+        name: string
+        url: string
+        password: string
+    }
+>(
+    'recovery/setGuardianAssist',
+    async (
+        { fedimint, federationId, peerId, name, url, password },
+        { dispatch },
+    ) => {
+        await fedimint.setGuardianPassword(federationId, peerId, password)
+
+        dispatch(
+            changeAuthenticatedGuardian({
+                peerId,
+                name,
+                url,
+                federationId,
+            }),
+        )
     },
 )
 

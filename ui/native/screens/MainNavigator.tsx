@@ -97,7 +97,6 @@ import CompleteSocialRecovery from './CompleteSocialRecovery'
 import ConfirmJoinPublicGroup from './ConfirmJoinPublicGroup'
 import ConfirmReceiveCashu from './ConfirmReceiveCashu'
 import ConfirmReceiveOffline from './ConfirmReceiveOffline'
-import ConfirmRecoveryAssist from './ConfirmRecoveryAssist'
 import ConfirmSendChatPayment from './ConfirmSendChatPayment'
 import ConfirmSendEcash from './ConfirmSendEcash'
 import ConfirmSendLightning from './ConfirmSendLightning'
@@ -153,7 +152,7 @@ import ReceiveStabilityQr from './ReceiveStabilityQr'
 import ReceiveSuccess from './ReceiveSuccess'
 import RecordBackupVideo from './RecordBackupVideo'
 import RecoverFromNonceReuse from './RecoverFromNonceReuse'
-import RecoveryAssistSuccess from './RecoveryAssistSuccess'
+import RecoveryAssistConfirmation from './RecoveryAssistConfirmation'
 import RecoveryDeviceSelection from './RecoveryDeviceSelection'
 import RecoveryNewWallet from './RecoveryNewWallet'
 import RecoveryWalletOptions from './RecoveryWalletOptions'
@@ -984,23 +983,11 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
-                                name="ConfirmRecoveryAssist"
-                                component={ConfirmRecoveryAssist}
-                                options={() => ({
-                                    header: () => (
-                                        <RecoveryAssistHeader backButton />
-                                    ),
-                                })}
-                            />
-                            <Stack.Screen
                                 name="ScanSocialRecoveryCode"
                                 component={ScanSocialRecoveryCode}
                                 options={() => ({
                                     header: () => (
-                                        <RecoveryAssistHeader
-                                            backButton
-                                            closeButton
-                                        />
+                                        <RecoveryAssistHeader backButton />
                                     ),
                                 })}
                             />
@@ -1014,8 +1001,8 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
-                                name="RecoveryAssistSuccess"
-                                component={RecoveryAssistSuccess}
+                                name="RecoveryAssistConfirmation"
+                                component={RecoveryAssistConfirmation}
                                 options={{ headerShown: false }}
                             />
                             {/* Personal Backup */}

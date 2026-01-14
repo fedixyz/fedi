@@ -17,6 +17,8 @@ import {
     ParsedFediChatRoom,
     ParsedFediChatUser,
     ParsedFedimintEcash,
+    ParsedFedimintGuardian,
+    ParsedFedimintRecovery,
     ParsedLegacyFediChatGroup,
     ParsedLegacyFediChatMember,
     ParsedLnurlAuth,
@@ -50,6 +52,8 @@ export const BLOCKED_PARSER_TYPES_BEFORE_FEDERATION = [
     ParserDataType.BitcoinAddress,
     ParserDataType.Bip21,
     ParserDataType.CashuEcash,
+    ParserDataType.FedimintGuardian,
+    ParserDataType.FedimintRecovery,
 ]
 
 /** List of parse types that are not usable before recovery is complete */
@@ -137,6 +141,14 @@ const onlineParsers: Parser[] = [
     {
         name: 'parseFediUri',
         handler: (raw, fedimint) => parseFediUri(raw, fedimint),
+    },
+    {
+        name: 'parseFedimintGuardian',
+        handler: raw => parseFedimintGuardian(raw),
+    },
+    {
+        name: 'parseFedimintRecovery',
+        handler: raw => parseFedimintRecovery(raw),
     },
 ]
 
@@ -697,6 +709,46 @@ async function parseCashuEcash(
     try {
         await validateCashuTokens(raw)
         return { type: ParserDataType.CashuEcash, data: { token: raw } }
+    } catch {
+        // no-op
+    }
+}
+
+async function parseFedimintGuardian(
+    raw: string,
+): Promise<ParsedFedimintGuardian | undefined> {
+    try {
+        const prefix = 'fedimint:guardian:'
+        if (raw.toLowerCase().startsWith(prefix)) {
+            const result = raw.slice(prefix.length)
+
+            const data = JSON.parse(result)
+
+            return {
+                type: ParserDataType.FedimintGuardian,
+                data,
+            }
+        }
+    } catch {
+        // no-op
+    }
+}
+
+async function parseFedimintRecovery(
+    raw: string,
+): Promise<ParsedFedimintRecovery | undefined> {
+    try {
+        const prefix = 'fedimint:recovery:'
+        if (raw.toLowerCase().startsWith(prefix)) {
+            const result = raw.slice(prefix.length)
+
+            const data = JSON.parse(result)
+
+            return {
+                type: ParserDataType.FedimintRecovery,
+                data,
+            }
+        }
     } catch {
         // no-op
     }

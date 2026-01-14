@@ -9,14 +9,16 @@ import {
     selectAreAllFederationsRecovering,
     selectFeatureFlag,
     selectLoadedFederations,
+    setGuardianAssist,
 } from '@fedi/common/redux'
+import { findAuthenticatedFederation } from '@fedi/common/utils/FederationUtils'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import {
     BLOCKED_PARSER_TYPES_BEFORE_FEDERATION,
     BLOCKED_PARSER_TYPES_DURING_RECOVERY,
 } from '@fedi/common/utils/parser'
 
-import { useAppSelector } from '../../../state/hooks'
+import { useAppSelector, useAppDispatch } from '../../../state/hooks'
 import { resetToWallets } from '../../../state/navigation'
 import {
     AnyParsedData,
@@ -42,6 +44,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     onSuccess,
 }: Props<T>) => {
     const { t } = useTranslation()
+    const dispatch = useAppDispatch()
     const toast = useToast()
     const fedimint = useFedimint()
     const navigation = useNavigation()
@@ -339,6 +342,53 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                         handleNavigate('SendOnChainAmount', {
                             parsedData,
                         })
+                    },
+                }
+            case ParserDataType.FedimintGuardian:
+                return {
+                    contents: {
+                        icon: 'FedimintLogo',
+                        title: t('feature.omni.confirm-fedimint-guardian'),
+                    },
+                    continueOnPress: () => {
+                        const { peerId, password, name, url } = parsedData.data
+
+                        const authenticatedFederation =
+                            findAuthenticatedFederation(walletFederations, url)
+
+                        if (!authenticatedFederation) {
+                            onGoBack()
+                            toast.error(
+                                t,
+                                'feature.recovery.recovery-assist-federation-not-found',
+                            )
+                            return
+                        }
+
+                        dispatch(
+                            setGuardianAssist({
+                                fedimint,
+                                federationId: authenticatedFederation.id,
+                                peerId,
+                                name,
+                                url,
+                                password,
+                            }),
+                        )
+                            .then(() => {
+                                handleNavigate('StartRecoveryAssist')
+                            })
+                            .catch(e => {
+                                onGoBack()
+                                toast.error(t, e)
+                            })
+                    },
+                }
+            case ParserDataType.FedimintRecovery:
+                return {
+                    contents: {
+                        icon: 'FedimintLogo',
+                        title: t('feature.omni.confirm-fedimint-recovery'),
                     },
                 }
         }

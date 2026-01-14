@@ -2,15 +2,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectGuardianFederation } from '@fedi/common/redux'
+import { selectAuthenticatedGuardian } from '@fedi/common/redux'
 
-import { Column } from '../components/ui/Flex'
-import HoloCard from '../components/ui/HoloCard'
-import LineBreak from '../components/ui/LineBreak'
-import SvgImage from '../components/ui/SvgImage'
+import { Column, Row } from '../components/ui/Flex'
+import GradientView from '../components/ui/GradientView'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
+import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -23,87 +23,118 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
-    const guardianFederation = useAppSelector(selectGuardianFederation)
+
+    const authenticatedGuardian = useAppSelector(selectAuthenticatedGuardian)
 
     const style = styles(theme)
 
+    const steps = [
+        t('feature.recovery.recovery-assist-step-1'),
+        t('feature.recovery.recovery-assist-step-2'),
+        t('feature.recovery.recovery-assist-step-3'),
+        t('feature.recovery.recovery-assist-step-4'),
+    ]
+
     const handleContinue = () => {
-        if (!guardianFederation) {
+        if (!authenticatedGuardian) {
             return toast.error(t, 'errors.failed-to-authenticate-guardian')
         }
-        navigation.navigate('ConfirmRecoveryAssist', {
-            federationId: guardianFederation.id,
-        })
+        navigation.navigate('ScanSocialRecoveryCode')
     }
 
     return (
-        <Column grow align="center" justify="start" style={style.container}>
-            <Text style={style.instructionsText}>
-                {t('feature.recovery.recovery-assist-description')}
-            </Text>
-            <HoloCard
-                iconImage={<SvgImage name="SocialPeople" />}
-                title={t('feature.recovery.recovery-assist-process')}
-                body={
-                    <>
-                        <Column fullWidth>
-                            <Text>
-                                {t(
-                                    'feature.recovery.recovery-assist-instructions-1',
-                                )}
-                            </Text>
-                            <LineBreak />
-                            <Text>
-                                {t(
-                                    'feature.recovery.recovery-assist-instructions-2',
-                                )}
-                            </Text>
-                            <LineBreak />
-                            <Text>
-                                {t(
-                                    'feature.recovery.recovery-assist-instructions-3',
-                                )}
-                            </Text>
-                            <LineBreak />
-                            <Text>
-                                {t(
-                                    'feature.recovery.recovery-assist-instructions-4',
-                                )}
-                            </Text>
-                            <LineBreak />
-                            <Text>
-                                {t(
-                                    'feature.recovery.recovery-assist-instructions-5',
-                                )}
-                            </Text>
-                            <LineBreak />
+        <SafeAreaContainer edges="bottom">
+            <Column style={style.container}>
+                <Column align="center" gap="lg" grow style={style.content}>
+                    <GradientView variant="sky-banner" style={style.heroIcon}>
+                        <SvgImage name="Keyring" size={SvgImageSize.lg} />
+                    </GradientView>
+                    <Text numberOfLines={2} center style={style.title}>
+                        {t('feature.recovery.recovery-assist-title')}
+                    </Text>
+                    <Text numberOfLines={2} center style={style.subtitle}>
+                        {t('feature.recovery.recovery-assist-subtitle')}
+                    </Text>
+                    <View style={style.boxOutline}>
+                        <Text h4 bold>
+                            {t('words.steps')}
+                        </Text>
+                        <Column gap="md" style={style.steps}>
+                            {steps.map((step, index) => (
+                                <Row align="center" gap="sm" key={step}>
+                                    <GradientView
+                                        variant="sky-banner"
+                                        style={style.stepNumberWrapper}>
+                                        <Text small bold>
+                                            {index + 1}
+                                        </Text>
+                                    </GradientView>
+                                    <Text caption style={{ flexShrink: 1 }}>
+                                        {step}
+                                    </Text>
+                                </Row>
+                            ))}
                         </Column>
-                    </>
-                }
-            />
-            <Button
-                title={t('words.continue')}
-                containerStyle={style.continueButton}
-                onPress={handleContinue}
-            />
-        </Column>
+                    </View>
+                </Column>
+                <Button title={t('words.continue')} onPress={handleContinue} />
+            </Column>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
+            flex: 1,
             padding: theme.spacing.xl,
         },
-        continueButton: {
-            width: '100%',
-            marginTop: 'auto',
+        content: {},
+        heroIcon: {
+            alignItems: 'center',
+            borderRadius: 40,
+            display: 'flex',
+            justifyContent: 'center',
+            height: 80,
+            width: 80,
         },
-        instructionsText: {
-            textAlign: 'center',
-            paddingHorizontal: theme.spacing.xl,
-            marginBottom: theme.spacing.md,
-            fontWeight: '400',
+        title: {
+            fontSize: 24,
+            fontWeight: '500',
+        },
+        subtitle: {
+            color: theme.colors.darkGrey,
+            fontSize: 15,
+        },
+        iconBackground: {
+            alignItems: 'center',
+            borderRadius: 1024,
+            display: 'flex',
+            flexDirection: 'row',
+            height: 80,
+            justifyContent: 'center',
+            overflow: 'hidden',
+            width: 80,
+        },
+        boxOutline: {
+            borderColor: theme.colors.extraLightGrey,
+            borderRadius: theme.borders.defaultRadius,
+            borderWidth: 1,
+            padding: theme.spacing.lg,
+            width: '100%',
+        },
+        steps: {
+            paddingBottom: theme.spacing.md,
+            paddingTop: theme.spacing.md,
+            width: '100%',
+        },
+        stepNumberWrapper: {
+            alignItems: 'center',
+            borderRadius: 15,
+            display: 'flex',
+            justifyContent: 'center',
+            height: 30,
+            width: 30,
         },
     })
 

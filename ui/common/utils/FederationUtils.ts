@@ -681,3 +681,20 @@ export const getPreviewFromLoadedFederation = (
         returningMemberStatus: { type: 'returningMember' },
     }
 }
+
+// Finds matching federation using url
+// Used for Recovery Assist
+export const findAuthenticatedFederation = (
+    federations: LoadedFederation[],
+    url: string,
+) => {
+    try {
+        return federations.find(federation =>
+            Object.values(federation.nodes).some(
+                node => new URL(node.url).hostname === new URL(url).hostname,
+            ),
+        )
+    } catch {
+        return undefined
+    }
+}

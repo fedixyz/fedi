@@ -150,7 +150,8 @@ export interface NodeMap {
 
 export interface Guardian extends Node {
     peerId: number
-    password: string
+    federationId?: string // todo - optional until guardian auth removed from dev settings
+    password?: string // todo - remove when guardian auth removed from dev settings
 }
 
 export interface FederationCredentials {

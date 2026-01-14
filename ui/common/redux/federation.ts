@@ -1628,23 +1628,8 @@ export const selectShouldRateFederation = createSelector(
     },
 )
 
-// searches for the guardian by URL in the nodes of each loaded federation
-// to know which federation the guardian is authenticated in
-// TODO: save federation id when authenticating the guardian
-export const selectGuardianFederation = createSelector(
-    (s: CommonState) => s.federation.authenticatedGuardian,
-    selectLoadedFederations,
-    (authenticatedGuardian, federations) => {
-        if (!authenticatedGuardian) return undefined
-
-        return federations.find(federation => {
-            const guardianUrl = authenticatedGuardian.url
-            return Object.values(federation.nodes).some(
-                node => node.url === guardianUrl,
-            )
-        })
-    },
-)
+export const selectAuthenticatedGuardian = (s: CommonState) =>
+    s.federation.authenticatedGuardian
 
 // Selects up to three communities, the selected community being the first
 export const selectCommunityStack = createSelector(

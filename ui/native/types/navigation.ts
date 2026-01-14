@@ -98,7 +98,6 @@ export type RootStackParamList = {
     CompleteRecoveryAssist: {
         videoPath: string
         recoveryId: string
-        federationId: Federation['id']
     }
     CompleteSocialBackup: undefined
     CompleteSocialRecovery: undefined
@@ -168,7 +167,7 @@ export type RootStackParamList = {
               nextScreenParams?: NavigationArgs
           }
         | undefined
-    RecoveryAssistSuccess: undefined
+    RecoveryAssistConfirmation: { type: 'success' | 'error' }
     RecoveryWalletOptions: undefined
     RecoveryWalletTransfer: undefined
     RecoveryNewWallet: undefined
@@ -182,7 +181,7 @@ export type RootStackParamList = {
     GroupInvite: { groupId: string }
     RecoverFromNonceReuse: undefined
     ScanMemberCode: { inviteToRoomId?: string } | undefined
-    ScanSocialRecoveryCode: { federationId: Federation['id'] }
+    ScanSocialRecoveryCode: undefined
     SelectRecoveryFileSuccess: { fileName: string }
     SelectRecoveryFileFailure: { fileName: string }
     Send: { federationId?: Federation['id'] }

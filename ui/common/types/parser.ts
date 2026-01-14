@@ -13,7 +13,9 @@ export enum ParserDataType {
     CashuEcash = 'cashu:ecash',
     DeepLink = 'deeplink',
     FedimintEcash = 'fedimint:ecash',
+    FedimintGuardian = 'fedimint:guardian', // used forsocial recovery
     FedimintInvite = 'fedimint:invite',
+    FedimintRecovery = 'fedimint:recovery', // used for social recovery
     LegacyFediChatMember = 'fedi:member', // TODO: remove after matrixification
     LegacyFediChatGroup = 'fedi:group', // TODO: remove after matrixification
     CommunityInvite = 'fedi:community',
@@ -134,6 +136,16 @@ export type ParsedFederationInvite = ParsedData<
     }
 >
 
+export type ParsedFedimintGuardian = ParsedData<
+    ParserDataType.FedimintGuardian,
+    { peerId: number; name: string; url: string; password: string }
+>
+
+export type ParsedFedimintRecovery = ParsedData<
+    ParserDataType.FedimintRecovery,
+    { recoveryId: string }
+>
+
 /** @deprecated XMPP legacy code  */
 export type ParsedLegacyFediChatMember = ParsedData<
     ParserDataType.LegacyFediChatMember,
@@ -180,6 +192,8 @@ export type AnyParsedData =
     | ParsedStabilityAddress
     | ParsedDeepLink
     | ParsedFedimintEcash
+    | ParsedFedimintGuardian
+    | ParsedFedimintRecovery
     | ParsedFederationInvite
     | ParsedCommunityInvite
     | ParsedLegacyFediChatMember

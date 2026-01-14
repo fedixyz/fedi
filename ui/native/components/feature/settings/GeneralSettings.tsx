@@ -30,8 +30,6 @@ export const GeneralSettings = () => {
     const [hasPerformedPersonalBackup] = useNuxStep(
         'hasPerformedPersonalBackup',
     )
-    const showSocialRecovery =
-        useAppSelector(s => s.federation.authenticatedGuardian) !== null
     const { status } = usePinContext()
 
     const createOrManagePin = () => {
@@ -109,15 +107,6 @@ export const GeneralSettings = () => {
                 label={t('feature.backup.personal-backup')}
                 onPress={() => navigation.navigate('RecoveryWords')}
             />
-            {showSocialRecovery && (
-                <SettingsItem
-                    icon="SocialPeople"
-                    label={t('feature.recovery.recovery-assist')}
-                    onPress={() => {
-                        navigation.navigate('StartRecoveryAssist')
-                    }}
-                />
-            )}
             <SettingsItem
                 icon="LockSecurity"
                 label={t('feature.pin.pin-access')}

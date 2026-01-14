@@ -1,19 +1,21 @@
-import Clipboard from '@react-native-clipboard/clipboard'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
+import { Text, Theme, useTheme } from '@rneui/themed'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
-import { socialRecoveryDownloadVerificationDoc } from '@fedi/common/redux'
-import type { SocialRecoveryQrCode } from '@fedi/common/types'
+import {
+    selectAuthenticatedGuardian,
+    socialRecoveryDownloadVerificationDoc,
+} from '@fedi/common/redux'
+import { ParserDataType } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
-import CameraPermissionsRequired from '../components/feature/scan/CameraPermissionsRequired'
-import QrCodeScanner from '../components/feature/scan/QrCodeScanner'
+import { OmniInput } from '../components/feature/omni/OmniInput'
 import { Column } from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -24,144 +26,81 @@ export type Props = NativeStackScreenProps<
     'ScanSocialRecoveryCode'
 >
 
-const ScanSocialRecoveryCode: React.FC<Props> = ({
-    navigation,
-    route,
-}: Props) => {
+const ScanSocialRecoveryCode: React.FC<Props> = ({ navigation }: Props) => {
     const { theme } = useTheme()
-    const { federationId } = route.params
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const { t } = useTranslation()
     const toast = useToast()
-    const [downloading, setDownloading] = useState<boolean>(false)
-    const authenticatedGuardian = useAppSelector(
-        s => s.federation.authenticatedGuardian,
-    )
+    const authenticatedGuardian = useAppSelector(selectAuthenticatedGuardian)
 
-    const handleUserInput = useCallback(
-        async (input: string) => {
-            if (downloading || !authenticatedGuardian) return
-            try {
-                const qr: SocialRecoveryQrCode = JSON.parse(input)
-                if (!qr)
-                    throw new Error(
-                        'Recovery QR should always exist in this context',
-                    )
-                try {
-                    setDownloading(true)
-                    // FIXME: this is getting called over-and-over
-                    if (!federationId) throw new Error('No federation ID')
-                    const videoPath = await dispatch(
-                        socialRecoveryDownloadVerificationDoc({
-                            fedimint,
-                            recoveryId: qr.recoveryId,
-                            peerId: authenticatedGuardian.peerId,
-                            federationId,
-                            guardianPassword: authenticatedGuardian.password,
-                        }),
-                    ).unwrap()
-                    if (videoPath == null) {
-                        toast.show(t('feature.recovery.nothing-to-download'))
-                    } else {
-                        navigation.navigate('CompleteRecoveryAssist', {
-                            videoPath: videoPath as string,
-                            recoveryId: qr.recoveryId,
-                            federationId,
-                        })
-                    }
-                } catch (e) {
-                    log.error("couldn't download video", e)
-                    toast.show({
-                        content: t('feature.recovery.download-failed'),
-                        status: 'error',
-                    })
-                }
-            } catch (e) {
-                log.error("couldn't generate social recovery QR code", e)
-                toast.show({
-                    content: t('feature.recovery.invalid-qr-code'),
-                    status: 'error',
+    const style = styles(theme)
+
+    const handleUserInput = async (data: { recoveryId: string }) => {
+        if (!authenticatedGuardian?.federationId) return
+
+        try {
+            const videoPath = await dispatch(
+                socialRecoveryDownloadVerificationDoc({
+                    fedimint,
+                    recoveryId: data.recoveryId,
+                    peerId: authenticatedGuardian.peerId,
+                    federationId: authenticatedGuardian.federationId,
+                }),
+            ).unwrap()
+
+            if (videoPath == null) {
+                toast.show(t('feature.recovery.nothing-to-download'))
+            } else {
+                navigation.navigate('CompleteRecoveryAssist', {
+                    videoPath: videoPath as string,
+                    recoveryId: data.recoveryId,
                 })
             }
-            log.debug(input)
-            setDownloading(false)
-        },
-        [
-            downloading,
-            navigation,
-            toast,
-            t,
-            authenticatedGuardian,
-            federationId,
-            dispatch,
-            fedimint,
-        ],
-    )
-
-    const checkClipboard = useCallback(async () => {
-        const text = await Clipboard.getString()
-        handleUserInput(text.trim())
-    }, [handleUserInput])
-
-    const renderQrCodeScanner = () => {
-        if (downloading) {
-            return (
-                <View style={styles(theme).activityIndicator}>
-                    <ActivityIndicator />
-                </View>
-            )
-        } else {
-            return (
-                <QrCodeScanner
-                    onQrCodeDetected={(qrCodeData: string) => {
-                        handleUserInput(qrCodeData)
-                    }}
-                />
-            )
+        } catch (e) {
+            log.error("Couldn't download video", e)
+            toast.show({
+                content: t('feature.recovery.download-failed'),
+                status: 'error',
+            })
         }
     }
 
     return (
-        <CameraPermissionsRequired
-            alternativeActionButton={
-                <Button
-                    title={t(
-                        'feature.recovery.paste-social-recovery-code-instead',
-                    )}
-                    onPress={checkClipboard}
-                    type="clear"
-                />
-            }
-            message={t('feature.recovery.camera-access-information')}>
-            <Column grow center>
-                <View style={styles(theme).cameraScannerContainer}>
-                    {renderQrCodeScanner()}
-                </View>
-                {/* <Button
-                    title={t('feature.recovery.paste-social-recovery-code')}
-                    // TODO: Swap commented code when bridge is ready
-                    // onPress={checkClipboard}
-                    onPress={() =>
-                        handleUserInput(
-                            'socialrecovery::pubkey::http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-                        )
-                    }
-                /> */}
+        <SafeAreaContainer edges={'bottom'}>
+            <Column style={style.container}>
+                <Column align="center" gap="md" grow style={style.content}>
+                    <Text center style={style.title}>
+                        {t('feature.recovery.recovery-assist-scan-title')}
+                    </Text>
+                    <Text numberOfLines={2} center style={style.subtitle}>
+                        {t('feature.recovery.recovery-assist-scan-subtitle')}
+                    </Text>
+                    <OmniInput
+                        expectedInputTypes={[ParserDataType.FedimintRecovery]}
+                        onExpectedInput={input => handleUserInput(input.data)}
+                        onUnexpectedSuccess={() => null}
+                    />
+                </Column>
             </Column>
-        </CameraPermissionsRequired>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        activityIndicator: {
-            marginVertical: 'auto',
+        container: {
+            flex: 1,
+            padding: theme.spacing.lg,
         },
-        cameraScannerContainer: {
-            height: '100%',
-            width: '100%',
-            margin: theme.spacing.lg,
+        content: {},
+        title: {
+            fontSize: 24,
+            fontWeight: '500',
+        },
+        subtitle: {
+            color: theme.colors.darkGrey,
+            fontSize: 15,
         },
     })
 
