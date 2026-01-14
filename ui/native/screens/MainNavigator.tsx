@@ -53,10 +53,9 @@ import SendHeader from '../components/feature/send/SendHeader'
 import SettingsHeader from '../components/feature/settings/SettingsHeader'
 import ConfirmDepositHeader from '../components/feature/stabilitypool/ConfirmDepositHeader'
 import ConfirmWithdrawHeader from '../components/feature/stabilitypool/ConfirmWithdrawHeader'
-import StabilityDepositHeader from '../components/feature/stabilitypool/StabilityDepositHeader'
 import StabilityHistoryHeader from '../components/feature/stabilitypool/StabilityHistoryHeader'
+import StabilityMoveHeader from '../components/feature/stabilitypool/StabilityMoveHeader'
 import StabilityTransferHeader from '../components/feature/stabilitypool/StabilityTransferHeader'
-import StabilityWithdrawHeader from '../components/feature/stabilitypool/StabilityWithdrawHeader'
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
 import HelpCentreHeader from '../components/feature/support/HelpCentreHeader'
 import TransactionsHeader from '../components/feature/transaction-history/TransactionsHeader'
@@ -180,10 +179,9 @@ import Splash from './Splash'
 import StabilityConfirmDeposit from './StabilityConfirmDeposit'
 import StabilityConfirmTransfer from './StabilityConfirmTransfer'
 import StabilityConfirmWithdraw from './StabilityConfirmWithdraw'
-import StabilityDeposit from './StabilityDeposit'
 import StabilityHistory from './StabilityHistory'
+import StabilityMove from './StabilityMove'
 import StabilityTransfer from './StabilityTransfer'
-import StabilityWithdraw from './StabilityWithdraw'
 import StabilityWithdrawInitiated from './StabilityWithdrawInitiated'
 import StartRecoveryAssist from './StartRecoveryAssist'
 import StartSocialBackup from './StartSocialBackup'
@@ -1221,17 +1219,10 @@ export const MainNavigator = () => {
                                 })}
                             />
                             <Stack.Screen
-                                name="StabilityDeposit"
-                                component={StabilityDeposit}
+                                name="StabilityMove"
+                                component={StabilityMove}
                                 options={() => ({
-                                    header: () => <StabilityDepositHeader />,
-                                })}
-                            />
-                            <Stack.Screen
-                                name="StabilityWithdraw"
-                                component={StabilityWithdraw}
-                                options={() => ({
-                                    header: () => <StabilityWithdrawHeader />,
+                                    header: () => <StabilityMoveHeader />,
                                 })}
                             />
                             <Stack.Screen

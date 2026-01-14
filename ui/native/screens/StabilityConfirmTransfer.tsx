@@ -93,7 +93,7 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
             style={style.container}
             edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             {federation ? (
-                <StabilityBalanceTile federation={federation} />
+                <StabilityBalanceTile federation={federation} badgeLogo="usd" />
             ) : (
                 <ActivityIndicator />
             )}

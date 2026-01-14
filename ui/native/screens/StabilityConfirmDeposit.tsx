@@ -304,9 +304,6 @@ const styles = (theme: Theme) =>
         detailItemTitle: {
             marginRight: 'auto',
         },
-        black: {
-            color: theme.colors.night,
-        },
         detailsButton: {
             backgroundColor: theme.colors.grey100,
         },

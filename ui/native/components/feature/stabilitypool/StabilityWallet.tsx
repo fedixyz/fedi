@@ -69,7 +69,7 @@ const StabilityWallet: React.FC<Props> = ({
 
     const style = styles(theme)
 
-    const handleDeposit = () => {
+    const handleMove = () => {
         if (stabilityPoolDisabledByFederation) {
             toast.show({
                 content: t(
@@ -92,13 +92,13 @@ const StabilityWallet: React.FC<Props> = ({
             })
         } else {
             dispatch(setPayFromFederationId(federation.id))
-            navigation.navigate('StabilityDeposit', {
+            navigation.navigate('StabilityMove', {
                 federationId: federation.id,
             })
         }
     }
 
-    const handleWithdraw = () => {
+    const handleTransfer = () => {
         if (stableBalancePending < 0) {
             toast.show({
                 content: t('feature.stabilitypool.pending-withdrawal-blocking'),
@@ -112,7 +112,7 @@ const StabilityWallet: React.FC<Props> = ({
             })
         } else {
             dispatch(setPayFromFederationId(federation.id))
-            navigation.navigate('StabilityWithdraw', {
+            navigation.navigate('StabilityTransfer', {
                 federationId: federation.id,
             })
         }
@@ -144,7 +144,7 @@ const StabilityWallet: React.FC<Props> = ({
                     expanded={expanded}
                     federation={federation}
                     incoming={{
-                        onPress: handleDeposit,
+                        onPress: handleMove,
                         // if stable payment address is available, we don't need to disable based on ecash balance since the user can receive stable balance directly from others via transfers
                         disabled: shouldShowStablePaymentAddress
                             ? false
@@ -153,7 +153,7 @@ const StabilityWallet: React.FC<Props> = ({
                         icon: 'ArrowsUpDown',
                     }}
                     outgoing={{
-                        onPress: handleWithdraw,
+                        onPress: handleTransfer,
                         // Disable transfers for spv1
                         disabled: isLegacyStabilityPool,
                         message: t('words.transfer'),

@@ -117,6 +117,7 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
                             fullWidth
                             style={style.subHeaderContainer}>
                             <StabilityBalanceTile
+                                badgeLogo="usd"
                                 federation={federation}
                                 onSelectFederation={setFederationId}
                             />

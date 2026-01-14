@@ -210,9 +210,8 @@ export type RootStackParamList = {
         amountCents: UsdCents
         federationId: Federation['id']
     }
-    StabilityDeposit: { federationId: Federation['id'] }
     StabilityHistory: { federationId: Federation['id'] }
-    StabilityWithdraw: { federationId: Federation['id'] }
+    StabilityMove: { federationId: Federation['id'] }
     StabilityTransfer: {
         recipient?: Spv2ParsedPaymentAddress
         federationId: Federation['id']

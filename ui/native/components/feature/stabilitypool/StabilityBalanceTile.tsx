@@ -19,6 +19,7 @@ type Props = {
     onSelectFederation?: (federationId: Federation['id']) => void
     balanceDescription?: string
     badgeLogo?: 'usd' | 'btc'
+    balance?: string
 }
 
 const StabilityBalanceTile = ({
@@ -26,7 +27,8 @@ const StabilityBalanceTile = ({
     onSelectFederation,
     showSwitcher = false,
     balanceDescription,
-    badgeLogo = 'usd',
+    badgeLogo,
+    balance,
 }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -47,20 +49,22 @@ const StabilityBalanceTile = ({
                     <View style={{ flexShrink: 0 }}>
                         <ImageBadge
                             badge={
-                                <SvgImage
-                                    name={
-                                        badgeLogo === 'usd'
-                                            ? 'UsdCircleFilled'
-                                            : 'BitcoinCircle'
-                                    }
-                                    size={SvgImageSize.sm}
-                                    color={
-                                        badgeLogo === 'usd'
-                                            ? theme.colors.mint
-                                            : theme.colors.orange
-                                    }
-                                    containerStyle={style.badgeContainer}
-                                />
+                                badgeLogo ? (
+                                    <SvgImage
+                                        name={
+                                            badgeLogo === 'usd'
+                                                ? 'UsdCircleFilled'
+                                                : 'BitcoinCircle'
+                                        }
+                                        size={SvgImageSize.sm}
+                                        color={
+                                            badgeLogo === 'usd'
+                                                ? theme.colors.mint
+                                                : theme.colors.orange
+                                        }
+                                        containerStyle={style.badgeContainer}
+                                    />
+                                ) : null
                             }>
                             <FederationLogo federation={federation} size={36} />
                         </ImageBadge>
@@ -82,9 +86,11 @@ const StabilityBalanceTile = ({
                             {balanceDescription ||
                                 t('feature.stabilitypool.available-balance')}
                             :{' '}
-                            {badgeLogo === 'usd'
-                                ? formattedStableBalance
-                                : formattedBalanceFiat}
+                            {balance
+                                ? balance
+                                : badgeLogo === 'usd'
+                                  ? formattedStableBalance
+                                  : formattedBalanceFiat}
                         </Text>
                     </Column>
                 </Row>
