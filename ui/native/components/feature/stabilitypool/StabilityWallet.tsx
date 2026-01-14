@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pressable, StyleSheet } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 
 import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
@@ -125,29 +125,19 @@ const StabilityWallet: React.FC<Props> = ({
         }
     }
 
-    const handleHeaderPress = () => {
-        if (expanded) {
-            navigation.navigate('StabilityHome', {
-                federationId: federation.id,
-            })
-        } else {
-            setExpandedWalletId(federation.id)
-        }
-    }
-
     return (
         <Pressable onPress={handlePress}>
             <BubbleCard
                 gradientColors={[...fediTheme.dayLinearGradient]}
                 containerStyle={style.card}>
-                <Pressable style={style.header} onPress={handleHeaderPress}>
+                <View style={style.header}>
                     {/* Icon, title, and chevron grouped together */}
                     <Row align="center" gap="sm" shrink style={style.leftGroup}>
                         <StabilityWalletTitle federationId={federation.id} />
                     </Row>
                     {/* Balance on the right */}
                     <StabilityWalletBalance federationId={federation.id} />
-                </Pressable>
+                </View>
 
                 <WalletButtons
                     expanded={expanded}

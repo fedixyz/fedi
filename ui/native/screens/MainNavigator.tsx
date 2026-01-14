@@ -55,7 +55,6 @@ import ConfirmDepositHeader from '../components/feature/stabilitypool/ConfirmDep
 import ConfirmWithdrawHeader from '../components/feature/stabilitypool/ConfirmWithdrawHeader'
 import StabilityDepositHeader from '../components/feature/stabilitypool/StabilityDepositHeader'
 import StabilityHistoryHeader from '../components/feature/stabilitypool/StabilityHistoryHeader'
-import StabilityHomeHeader from '../components/feature/stabilitypool/StabilityHomeHeader'
 import StabilityTransferHeader from '../components/feature/stabilitypool/StabilityTransferHeader'
 import StabilityWithdrawHeader from '../components/feature/stabilitypool/StabilityWithdrawHeader'
 import WithdrawInitiatedHeader from '../components/feature/stabilitypool/WithdrawInitiatedHeader'
@@ -183,7 +182,6 @@ import StabilityConfirmTransfer from './StabilityConfirmTransfer'
 import StabilityConfirmWithdraw from './StabilityConfirmWithdraw'
 import StabilityDeposit from './StabilityDeposit'
 import StabilityHistory from './StabilityHistory'
-import StabilityHome from './StabilityHome'
 import StabilityTransfer from './StabilityTransfer'
 import StabilityWithdraw from './StabilityWithdraw'
 import StabilityWithdrawInitiated from './StabilityWithdrawInitiated'
@@ -1215,13 +1213,6 @@ export const MainNavigator = () => {
                                 })}
                             />
                             {/* Stability Pools */}
-                            <Stack.Screen
-                                name="StabilityHome"
-                                component={StabilityHome}
-                                options={() => ({
-                                    header: () => <StabilityHomeHeader />,
-                                })}
-                            />
                             <Stack.Screen
                                 name="StabilityHistory"
                                 component={StabilityHistory}

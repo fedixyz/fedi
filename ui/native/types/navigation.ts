@@ -212,7 +212,6 @@ export type RootStackParamList = {
     }
     StabilityDeposit: { federationId: Federation['id'] }
     StabilityHistory: { federationId: Federation['id'] }
-    StabilityHome: { federationId: Federation['id'] }
     StabilityWithdraw: { federationId: Federation['id'] }
     StabilityTransfer: {
         recipient?: Spv2ParsedPaymentAddress

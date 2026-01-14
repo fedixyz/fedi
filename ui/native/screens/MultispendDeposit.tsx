@@ -17,6 +17,7 @@ import CustomOverlay from '../components/ui/CustomOverlay'
 import { Row, Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector, useStabilityPool } from '../state/hooks'
+import { resetToWallets } from '../state/navigation'
 import { Sats } from '../types'
 import { RootStackParamList } from '../types/navigation'
 
@@ -147,11 +148,8 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                                                                     setInfoTooltip(
                                                                         false,
                                                                     )
-                                                                    navigation.navigate(
-                                                                        'StabilityHome',
-                                                                        {
-                                                                            federationId,
-                                                                        },
+                                                                    navigation.dispatch(
+                                                                        resetToWallets(),
                                                                     )
                                                                 }}
                                                             />
@@ -206,9 +204,7 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                             text: t('words.continue'),
                             onPress: () => {
                                 setInsufficientBalanceOverlay(false)
-                                navigation.navigate('StabilityHome', {
-                                    federationId,
-                                })
+                                navigation.dispatch(resetToWallets())
                             },
                             primary: true,
                         },
