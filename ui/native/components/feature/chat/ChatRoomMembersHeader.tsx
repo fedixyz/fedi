@@ -1,6 +1,6 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useCallback, useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
@@ -29,18 +29,10 @@ const ChatConversationHeader: React.FC = () => {
     const me = members.find(m => m.id === matrixAuth?.userId)
     const { t } = useTranslation()
 
-    const handleInviteMember = useCallback(() => {
-        if (
-            me?.powerLevel &&
-            !isPowerLevelGreaterOrEqual(
-                me.powerLevel,
-                MatrixPowerLevel.Moderator,
-            )
-        )
-            return
-
-        navigation.replace('ChatRoomInvite', { roomId })
-    }, [navigation, roomId, me])
+    const isModOrAdmin =
+        me?.powerLevel &&
+        isPowerLevelGreaterOrEqual(me.powerLevel, MatrixPowerLevel.Moderator)
+    const canAddMembers = isModOrAdmin && !displayMultispendRoles
 
     const style = useMemo(() => styles(theme), [theme])
 
@@ -58,12 +50,14 @@ const ChatConversationHeader: React.FC = () => {
                     </Text>
                 }
                 headerRight={
-                    displayMultispendRoles ? undefined : (
+                    canAddMembers ? (
                         <PressableIcon
-                            onPress={handleInviteMember}
+                            onPress={() =>
+                                navigation.replace('ChatRoomInvite', { roomId })
+                            }
                             svgName="Plus"
                         />
-                    )
+                    ) : undefined
                 }
             />
             <ChatConnectionBadge offset={40} />
