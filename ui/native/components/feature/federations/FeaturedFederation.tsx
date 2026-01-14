@@ -30,7 +30,8 @@ const styles = (theme: Theme) =>
         container: {
             borderBottomLeftRadius: 16,
             borderBottomRightRadius: 16,
-            padding: theme.spacing.lg,
+            paddingTop: theme.spacing.lg,
+            paddingHorizontal: theme.spacing.lg,
             width: '100%',
             backgroundColor: theme.colors.secondary,
         },

@@ -12,7 +12,7 @@ import {
     selectFederationBalance,
     selectMaxStableBalanceSats,
     selectShouldShowStablePaymentAddress,
-    selectStableBalance,
+    selectStabilityPoolVersion,
     selectStableBalancePending,
     selectStableBalanceSats,
     setPayFromFederationId,
@@ -43,6 +43,9 @@ const StabilityWallet: React.FC<Props> = ({
     const dispatch = useAppDispatch()
     const toast = useToast()
 
+    const isLegacyStabilityPool = useAppSelector(
+        s => selectStabilityPoolVersion(s, federation.id) === 1,
+    )
     useMonitorStabilityPool(federation.id)
 
     const shouldShowStablePaymentAddress = useAppSelector(s =>
@@ -50,9 +53,7 @@ const StabilityWallet: React.FC<Props> = ({
     )
     const stabilityPoolDisabledByFederation =
         !useIsStabilityPoolEnabledByFederation(federation.id)
-    const stableBalance = useAppSelector(s =>
-        selectStableBalance(s, federation.id),
-    )
+
     const stableBalanceSats = useAppSelector(s =>
         selectStableBalanceSats(s, federation.id),
     )
@@ -120,6 +121,10 @@ const StabilityWallet: React.FC<Props> = ({
     const handlePress = () => {
         if (!expanded) {
             setExpandedWalletId(federation.id)
+        } else {
+            navigation.navigate('StabilityHistory', {
+                federationId: federation.id,
+            })
         }
     }
 
@@ -144,11 +149,15 @@ const StabilityWallet: React.FC<Props> = ({
                         disabled: shouldShowStablePaymentAddress
                             ? false
                             : balance === 0,
+                        message: t('words.move'),
+                        icon: 'ArrowsUpDown',
                     }}
                     outgoing={{
                         onPress: handleWithdraw,
-                        disabled:
-                            stableBalance === 0 && stableBalancePending === 0,
+                        // Disable transfers for spv1
+                        disabled: isLegacyStabilityPool,
+                        message: t('words.transfer'),
+                        icon: 'TransferPeople',
                     }}
                     history={{
                         onPress: () =>
@@ -173,16 +182,8 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-        },
-        /** Allow the title group to shrink so the balance never gets clipped */
-        leftGroup: {
-            minWidth: 0,
-        },
-        buttons: {
-            // marginTop: theme.spacing.lg,
-        },
-        chevron: {
-            left: -58, // align with title text; matches placeholder offset
+            // Exact height value from designs. Matches bitcoin wallet height.
+            height: 42,
         },
     })
 

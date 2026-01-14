@@ -72,7 +72,7 @@ const FederationTile: React.FC<Props> = ({
                         style.logoContainer,
                         { opacity: recoveryInProgress ? 0.5 : 1 },
                     ]}>
-                    <FederationLogo federation={federation} size={48} />
+                    <FederationLogo federation={federation} size={36} />
                     {(popupInfo?.ended || status !== 'online') && (
                         <View style={style.endedIndicator}>
                             <SvgImage
@@ -101,7 +101,7 @@ const FederationTile: React.FC<Props> = ({
                 </Column>
                 <SvgImage
                     name="ChevronRight"
-                    color={theme.colors.grey}
+                    color={theme.colors.black}
                     containerStyle={style.icon}
                     size={SvgImageSize.sm}
                 />
@@ -126,8 +126,8 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         logoContainer: {
             position: 'relative',
-            width: 48,
-            height: 48,
+            width: 36,
+            height: 36,
         },
         endedIndicator: {
             position: 'absolute',
@@ -142,7 +142,8 @@ const styles = (theme: Theme) =>
             width: '100%',
             flexDirection: 'row',
             alignItems: 'center',
-            gap: theme.spacing.sm,
+            gap: theme.spacing.md,
+            paddingVertical: 0,
         },
         icon: {
             marginLeft: 'auto',

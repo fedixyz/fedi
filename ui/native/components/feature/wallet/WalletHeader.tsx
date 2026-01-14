@@ -63,6 +63,8 @@ const styles = (theme: Theme) =>
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
+            // Exact height value from designs. Matches stability wallet height.
+            height: 42,
         },
         title: {
             color: theme.colors.primary,

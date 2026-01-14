@@ -58,15 +58,23 @@ const Federations: React.FC<Props> = ({ navigation }) => {
         <ScrollView
             contentContainerStyle={style.container}
             alwaysBounceVertical={false}>
-            <Column gap="lg" fullWidth>
+            <Column fullWidth>
                 <FeaturedFederation />
-                {federations.map(federation => (
+                {federations.length > 0 && (
+                    <View style={style.tileContainer}>
+                        <View style={style.divider} />
+                    </View>
+                )}
+                {federations.map((federation, idx) => (
                     <View key={federation.id} style={style.tileContainer}>
                         <FederationTile
                             federation={federation}
                             expanded={expandedWalletId === federation.id}
                             setExpandedWalletId={setExpandedWalletId}
                         />
+                        {idx < federations.length - 1 && (
+                            <View style={style.divider} />
+                        )}
                     </View>
                 ))}
             </Column>
@@ -80,12 +88,17 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             justifyContent: 'flex-start',
             marginTop: theme.spacing.sm,
-            // paddingHorizontal: theme.spacing.lg,
             paddingBottom: theme.spacing.xl,
             width: '100%',
         },
         tileContainer: {
             paddingHorizontal: theme.spacing.lg,
+        },
+        divider: {
+            height: 1,
+            width: '100%',
+            backgroundColor: theme.colors.dividerGrey,
+            marginVertical: theme.spacing.xl,
         },
     })
 

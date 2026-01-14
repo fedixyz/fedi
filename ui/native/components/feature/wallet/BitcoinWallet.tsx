@@ -91,10 +91,14 @@ const BitcoinWallet: React.FC<Props> = ({
                     incoming={{
                         onPress: handleReceive,
                         disabled: receivesDisabled,
+                        message: t('words.receive'),
+                        icon: 'ArrowDown',
                     }}
                     outgoing={{
                         onPress: handleSend,
                         disabled: federation.balance < 1000,
+                        message: t('words.send'),
+                        icon: 'ArrowUp',
                     }}
                     history={{
                         onPress: () =>
@@ -114,6 +118,7 @@ const styles = (theme: Theme) =>
             backgroundColor: theme.colors.lightGrey,
             borderWidth: 1,
             borderColor: theme.colors.lightGrey,
+            display: 'flex',
         },
     })
 

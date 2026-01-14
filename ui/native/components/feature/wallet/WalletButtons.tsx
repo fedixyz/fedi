@@ -1,4 +1,4 @@
-import { Button, Theme, useTheme } from '@rneui/themed'
+import { Button, Theme, useTheme, Text } from '@rneui/themed'
 import React, { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Animated } from 'react-native'
 
@@ -7,11 +7,13 @@ import { selectIsFederationRecovering } from '@fedi/common/redux'
 import { LoadedFederation } from '@fedi/common/types'
 
 import { useAppSelector } from '../../../state/hooks'
-import SvgImage from '../../ui/SvgImage'
+import SvgImage, { SvgImageName } from '../../ui/SvgImage'
 
 type Override = {
     onPress?: () => void
     disabled?: boolean
+    message?: string
+    icon?: SvgImageName
 }
 
 export type WalletButtonsProps = {
@@ -94,7 +96,7 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 overflow: 'hidden',
                 display: displayStyle,
                 flexDirection: 'row',
-                gap: theme.spacing.lg,
+                gap: theme.spacing.sm,
                 alignItems: 'center',
             }}>
             <Button
@@ -103,7 +105,12 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 size="sm"
                 disabled={incoming.disabled || isButtonDisabled}
                 onPress={handleIncoming}
-                icon={<SvgImage name="ArrowDown" />}
+                title={
+                    <Text medium center>
+                        {incoming.message}
+                    </Text>
+                }
+                icon={<SvgImage name={incoming.icon || 'ArrowDown'} />}
                 containerStyle={style.buttonContainer}
                 buttonStyle={style.button}
             />
@@ -113,7 +120,12 @@ const WalletButtons: React.FC<WalletButtonsProps> = ({
                 size="sm"
                 disabled={outgoing.disabled || isButtonDisabled}
                 onPress={handleOutgoing}
-                icon={<SvgImage name="ArrowUpRight" />}
+                title={
+                    <Text medium center>
+                        {outgoing.message}
+                    </Text>
+                }
+                icon={<SvgImage name={outgoing.icon || 'ArrowUpRight'} />}
                 containerStyle={style.buttonContainer}
                 buttonStyle={style.button}
             />
@@ -137,7 +149,7 @@ const styles = (theme: Theme) =>
             flex: 1,
         },
         button: {
-            gap: theme.spacing.sm,
+            gap: theme.spacing.xs,
         },
         circleButtonContainer: {
             flex: 0,
