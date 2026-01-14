@@ -418,6 +418,11 @@ export const selectPwaVersion = (s: CommonState) => s.environment.pwaVersion
 
 export const selectFeatureFlags = (s: CommonState) => s.environment.featureFlags
 
+export const selectFeatureFlag = <T extends keyof FeatureCatalog>(
+    s: CommonState,
+    featureFlag: T,
+) => s.environment.featureFlags?.[featureFlag]
+
 export const selectIsNostrClientEnabled = ({
     environment: { featureFlags },
 }: CommonState) => {

@@ -7,8 +7,8 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectAreAllFederationsRecovering,
+    selectFeatureFlag,
     selectLoadedFederations,
-    selectShouldShowStablePaymentAddress,
 } from '@fedi/common/redux'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import {
@@ -50,15 +50,9 @@ export const OmniConfirmation = <T extends AnyParsedData>({
     const areAllFederationsRecovering = useAppSelector(
         selectAreAllFederationsRecovering,
     )
-    const shouldShowStablePaymentAddress = useAppSelector(state => {
-        if (parsedData.type !== ParserDataType.StabilityAddress) return false
-        return selectShouldShowStablePaymentAddress(
-            state,
-            parsedData.data.federation.type === 'joined'
-                ? parsedData.data.federation.federationId
-                : undefined,
-        )
-    })
+    const spTransferFlag = useAppSelector(s =>
+        selectFeatureFlag(s, 'sp_transfer_ui'),
+    )
 
     // OmniConfirmation can be rendered ourside of StackNavigator, so `replace`
     // is not always available, so fall back to navigate. Cast as NavigationHook
@@ -227,7 +221,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                 }
             case ParserDataType.StabilityAddress:
                 // don't parse if feature flag is off
-                if (!shouldShowStablePaymentAddress)
+                if (!spTransferFlag === null)
                     return {
                         contents: {
                             icon: 'ScanSad',
@@ -238,15 +232,12 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                 return {
                     contents: {
                         title: t('feature.omni.confirm-send-stability'),
-                        icon:
-                            parsedData.data.federation.type === 'joined'
-                                ? 'Usd'
-                                : undefined,
+                        icon: 'Usd',
                         body: (
                             <OmniSendStability
                                 parsed={parsedData.data}
                                 onContinue={() =>
-                                    // if the user is joining the fedration after scanning a sp payment address
+                                    // if the user is joining the federation after scanning a sp payment address
                                     // they likely won't have any stable balance yet so send them to
                                     // the wallets screen instead of StabilityTransfer
                                     navigation.dispatch(resetToWallets())
