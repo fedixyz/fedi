@@ -12,6 +12,7 @@ bech32 = { workspace = true }
 fedimint-aead = { workspace = true }
 fedimint-derive-secret = { workspace = true }
 futures = "0.3"
+itertools = { workspace = true }
 hex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["time", "macros"] }

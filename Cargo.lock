@@ -7461,6 +7461,7 @@ dependencies = [
  "fedimint-derive-secret",
  "futures",
  "hex",
+ "itertools 0.14.0",
  "nostr-sdk",
  "rand 0.8.5",
  "reqwest",

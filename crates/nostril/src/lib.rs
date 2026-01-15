@@ -4,6 +4,7 @@ use anyhow::bail;
 use base64::Engine;
 use base64::engine::general_purpose;
 use fedimint_derive_secret::{ChildId, DerivableSecret};
+use itertools::Itertools;
 use nostr_sdk::secp256k1::{self, Message};
 use nostr_sdk::{
     Client, ClientOptions, EventBuilder, Filter, Keys, Kind, NostrSigner, PublicKey, Tag, TagKind,
@@ -199,15 +200,18 @@ impl Nostril {
                 Duration::from_secs(10),
             )
             .await?
-            .to_vec()
             .into_iter()
             .filter_map(|event| {
                 let Some(uuid) = event.tags.identifier() else {
                     error!(?event, "Missing UUID in d tag");
                     return None;
                 };
-
-                let uuid_bytes = hex::decode(uuid)
+                Some((uuid.to_owned(), event))
+            })
+            .sorted_by(|(u1, e1), (u2, e2)| u1.cmp(u2).then(e2.created_at.cmp(&e1.created_at)))
+            .dedup_by(|(u1, _), (u2, _)| u1 == u2)
+            .filter_map(|(uuid, event)| {
+                let uuid_bytes = hex::decode(&uuid)
                     .inspect_err(|e| error!(?event, %uuid, ?e, "Couldn't hex-decode UUID"))
                     .ok()?;
 
@@ -223,7 +227,7 @@ impl Nostril {
                 Some(RpcCommunity {
                     community_invite: From::from(&CommunityInviteV2 {
                         author_pubkey: event.pubkey,
-                        community_uuid_hex: uuid.to_owned(),
+                        community_uuid_hex: uuid,
                         decryption_key: creation_keys.encryption_key,
                     }),
                     name: community.name,
