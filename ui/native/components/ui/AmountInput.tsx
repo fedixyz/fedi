@@ -21,6 +21,7 @@ import Animated, {
 import { useAmountInput } from '@fedi/common/hooks/amount'
 import { Federation, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
+import { getCurrencyCode } from '@fedi/common/utils/currency'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { useForceBlurOnKeyboardHide } from '../../utils/hooks/keyboard'
@@ -187,7 +188,7 @@ const AmountInput: React.FC<Props> = ({
                             value={isFiat ? fiatValue : satsValue}
                             label={
                                 isFiat
-                                    ? currency
+                                    ? getCurrencyCode(currency)
                                     : t('words.sats').toUpperCase()
                             }
                             onChangeText={

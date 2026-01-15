@@ -1,11 +1,11 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import toUpper from 'lodash/toUpper'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { selectCurrency, selectStabilityPoolVersion } from '@fedi/common/redux'
 import { Federation } from '@fedi/common/types'
+import { getCurrencyCode } from '@fedi/common/utils/currency'
 import { isDev } from '@fedi/common/utils/environment'
 
 import { useAppSelector } from '../../../state/hooks'
@@ -56,7 +56,7 @@ const StabilityWalletTitle: React.FC<Props> = ({
                     adjustsFontSizeToFit
                     minimumFontScale={0.5}
                     numberOfLines={1}>
-                    {`${showCurrency ? `${toUpper(selectedCurrency)} ` : ''}${t(
+                    {`${showCurrency ? `${getCurrencyCode(selectedCurrency)} ` : ''}${t(
                         'feature.stabilitypool.stable-balance',
                         // Helpful for dev testing to easily distinguish spv1 from spv2 federations
                     )}${isDev() && version ? (version === 1 ? ' (SPV1)' : ' (SPV2)') : ''}`}
