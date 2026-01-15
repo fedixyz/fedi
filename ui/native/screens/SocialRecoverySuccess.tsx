@@ -17,7 +17,7 @@ const SocialRecoverySuccess: React.FC<Props> = () => {
         <Success
             messageText={t('feature.recovery.you-completed-social-recovery')}
             buttonText={t('words.okay')}
-            nextScreen={'Initializing'}
+            nextScreen={'RecoveryWalletOptions'}
         />
     )
 }
