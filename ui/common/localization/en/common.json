@@ -341,6 +341,7 @@
         "invoice-already-paid": "This invoice has already been paid.",
         "multispend-cannot-be-broadcast": "Multispend groups cannot be Broadcast-only.",
         "multispend-notes-required": "Please enter a purpose for this withdrawal",
+        "network-connection-failed": "Unable to connect. Try switching between Wi-Fi and cellular or disable your VPN.",
         "no-address-lnurlp": "This address does not support lightning payments",
         "no-lightning-gateways": "No lightning gateways found for this user",
         "please-force-quit-the-app": "An error occurred, please force quit the app and try again",

@@ -55,6 +55,7 @@ import {
     shouldShowOfflineWallet,
     shouldShowSocialRecovery,
 } from '../utils/FederationUtils'
+import { BridgeError } from '../utils/errors'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'
 import { useToast } from './toast'
@@ -489,7 +490,18 @@ export function useFederationPreview(t: TFunction, invite: string) {
                 }
             } catch (err) {
                 log.error('handleCode', err)
-                toast.error(t, err, 'errors.invalid-federation-code')
+
+                if (
+                    err instanceof BridgeError &&
+                    err.error.includes('Failed to connect to peer')
+                ) {
+                    toast.show({
+                        content: t('errors.network-connection-failed'),
+                        status: 'error',
+                    })
+                } else {
+                    toast.error(t, err, 'errors.invalid-federation-code')
+                }
             } finally {
                 setIsFetchingPreview(false)
             }
