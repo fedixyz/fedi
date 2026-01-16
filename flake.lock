@@ -479,16 +479,16 @@
         "nixpkgs-unstable": "nixpkgs-unstable"
       },
       "locked": {
-        "lastModified": 1763121573,
-        "narHash": "sha256-9cl6EKUzdyQCjfQ8BwUfdotvLse+ZFz+CfICUkk28RI=",
+        "lastModified": 1768493921,
+        "narHash": "sha256-lazQaUsAPkX04zkcm5kD15P754ELN4TCfR63oTLWsW0=",
         "owner": "fedibtc",
         "repo": "fedimint",
-        "rev": "1d6ed8f7048234c3a505f39805ad297f03edce83",
+        "rev": "de2efd89701460a7d75f1b796cbe952ea187b999",
         "type": "github"
       },
       "original": {
         "owner": "fedibtc",
-        "ref": "v0.9.0-fedi3",
+        "ref": "v0.9.1-fedi0",
         "repo": "fedimint",
         "type": "github"
       }

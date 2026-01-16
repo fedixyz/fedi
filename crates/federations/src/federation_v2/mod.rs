@@ -2281,7 +2281,7 @@ impl FederationV2 {
 
     pub async fn repair_wallet(&self) -> Result<()> {
         let mint = self.client.mint()?;
-        mint.try_repair_wallet().await?;
+        mint.try_repair_wallet(100).await?;
         Ok(())
     }
 
