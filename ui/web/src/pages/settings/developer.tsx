@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    changeAuthenticatedGuardian,
     clearAllMiniAppSessions,
     resetNuxSteps,
     resetSurveyCompletions,
@@ -21,7 +20,6 @@ import { exportUiLogs } from '@fedi/common/utils/log'
 
 import { Button } from '../../components/Button'
 import { FederationWalletSelector } from '../../components/FederationWalletSelector'
-import { Input } from '../../components/Input'
 import * as Layout from '../../components/Layout'
 import { RadioGroup } from '../../components/RadioGroup'
 import { Text } from '../../components/Text'
@@ -33,15 +31,10 @@ function DeveloperPage() {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const authenticatedGuardian = useAppSelector(
-        s => s.federation.authenticatedGuardian,
-    )
     const [gateways, setGateways] = useState<LightningGateway[]>([])
-    const [guardianPassword, setGuardianPassword] = useState('')
     const toast = useToast()
 
     const federationId = paymentFederation?.id
-    const federationNodes = paymentFederation?.nodes
 
     const { makeFormattedAmountsFromMSats } = useAmountFormatter({
         federationId,
@@ -123,51 +116,6 @@ function DeveloperPage() {
         [federationId],
     )
 
-    /* Authenticated guardian */
-
-    const guardians = useMemo(() => {
-        if (!federationNodes) return []
-        return Object.entries(federationNodes).map(entry => {
-            const [i, node] = entry
-            const idx = Number(i)
-            return {
-                ...node,
-                peerId: idx,
-                password: `${idx + 1}${idx + 1}${idx + 1}${idx + 1}`,
-            }
-        })
-    }, [federationNodes])
-
-    const guardianOptions = useMemo(
-        () => [
-            { label: 'None', value: '' },
-            ...guardians.map(g => ({ label: g.name, value: g.url })),
-        ],
-        [guardians],
-    )
-
-    const handleSelectGuardian = useCallback(
-        (guardianUrl: string) => {
-            const guardian = guardians.find(g => g.url === guardianUrl) || null
-            dispatch(changeAuthenticatedGuardian(guardian))
-        },
-        [dispatch, guardians],
-    )
-
-    const handleSaveGuardianPassword = useCallback(() => {
-        if (!authenticatedGuardian) return
-        dispatch(
-            changeAuthenticatedGuardian({
-                ...authenticatedGuardian,
-                password: guardianPassword,
-            }),
-        )
-    }, [dispatch, authenticatedGuardian, guardianPassword])
-
-    useEffect(() => {
-        setGuardianPassword(authenticatedGuardian?.password || '')
-    }, [authenticatedGuardian])
-
     return (
         <Layout.Root>
             <Layout.Header>
@@ -184,31 +132,6 @@ function DeveloperPage() {
                                 value={activeGatewayPubKey}
                                 onChange={handleSelectGateway}
                             />
-                        </Setting>
-                        <Setting>
-                            <Text weight="bold">Simulate guardian mode</Text>
-                            <RadioGroup
-                                options={guardianOptions}
-                                value={authenticatedGuardian?.url || ''}
-                                onChange={handleSelectGuardian}
-                            />
-                            {authenticatedGuardian && (
-                                <>
-                                    <Input
-                                        label="Password"
-                                        value={guardianPassword}
-                                        onChange={ev =>
-                                            setGuardianPassword(
-                                                ev.currentTarget.value,
-                                            )
-                                        }
-                                    />
-                                    <Button
-                                        onClick={handleSaveGuardianPassword}>
-                                        Save password
-                                    </Button>
-                                </>
-                            )}
                         </Setting>
                         <Setting>
                             <Text weight="bold">NUX</Text>

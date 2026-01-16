@@ -1,7 +1,7 @@
 import Clipboard from '@react-native-clipboard/clipboard'
 import messaging from '@react-native-firebase/messaging'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Input, Switch, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Switch, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -18,7 +18,6 @@ import { useIsStabilityPoolSupported } from '@fedi/common/hooks/federation'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    changeAuthenticatedGuardian,
     clearAllMiniAppSessions,
     clearAutojoinedCommunitiesAndNotices,
     listGateways,
@@ -47,7 +46,6 @@ import { selectCurrency } from '@fedi/common/redux/currency'
 import { clearAllMiniAppPermissions } from '@fedi/common/redux/mod'
 import {
     FediModCacheMode,
-    Guardian,
     LightningGateway,
     SupportedCurrency,
 } from '@fedi/common/types'
@@ -60,7 +58,6 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import CheckBox from '../components/ui/CheckBox'
-import { Column } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { version } from '../package.json'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -125,9 +122,6 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
 
     // This is a partial refactor of state management from context to redux
     const reduxDispatch = useAppDispatch()
-    const authenticatedGuardian = useAppSelector(
-        s => s.federation.authenticatedGuardian,
-    )
 
     useEffect(() => {
         if (paymentFederation) {
@@ -756,139 +750,60 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         />
                     </View>
                 )}
-                <SettingsSection title="Select a node to simulate Guardian Mode">
-                    <CheckBox
-                        checkedIcon={<SvgImage name="RadioSelected" />}
-                        uncheckedIcon={<SvgImage name="RadioUnselected" />}
-                        title={
-                            <Text
-                                caption
-                                style={{
-                                    color:
-                                        authenticatedGuardian == null
-                                            ? theme.colors.primary
-                                            : theme.colors.red,
-                                }}>
-                                {authenticatedGuardian == null
-                                    ? 'None'
-                                    : 'Reset'}
-                            </Text>
+
+                <SettingsSection title="Guardian Status">
+                    {guardianOnlineStatus.map((n, index) => {
+                        let statusText
+                        let statusStyle
+
+                        if ('online' in n) {
+                            statusText = `Guardian ${n.online.guardian}: Online: ${n.online.latency_ms}ms`
+                            statusStyle = style.onlineStatus
                         }
-                        checked={!authenticatedGuardian}
-                        onPress={() => {
-                            reduxDispatch(changeAuthenticatedGuardian(null))
-                        }}
-                        containerStyle={style.checkboxContainer}
+                        if ('error' in n) {
+                            statusText = `Guardian  ${n.error.guardian} Error: ${n.error.error}`
+                            statusStyle = style.errorStatus
+                        }
+                        if ('timeout' in n) {
+                            statusText = `Guardian  ${n.timeout.guardian} Timeout: ${n.timeout.elapsed}`
+                            statusStyle = style.timeoutStatus
+                        }
+
+                        return (
+                            <Text key={index} style={statusStyle}>
+                                {statusText}
+                            </Text>
+                        )
+                    })}
+                </SettingsSection>
+
+                <SettingsSection title="Danger zone">
+                    <Button
+                        title={t('feature.developer.share-logs')}
+                        containerStyle={style.buttonContainer}
+                        onPress={shareLogs}
+                        loading={shareLogsStatus === 'generating-data'}
                     />
-                    {paymentFederation &&
-                        paymentFederation.nodes &&
-                        Object.entries(paymentFederation.nodes).map(entry => {
-                            const [index, node] = entry
-                            const id = Number(index)
-                            const guardian: Guardian = {
-                                ...node,
-                                peerId: id,
-                                password: `${id + 1}${id + 1}${id + 1}${id + 1}`,
-                            }
-                            return (
-                                <CheckBox
-                                    key={id}
-                                    checkedIcon={
-                                        <SvgImage name="RadioSelected" />
-                                    }
-                                    uncheckedIcon={
-                                        <SvgImage name="RadioUnselected" />
-                                    }
-                                    title={<Text caption>{guardian.name}</Text>}
-                                    checked={
-                                        authenticatedGuardian?.name ===
-                                        guardian.name
-                                    }
-                                    onPress={() => {
-                                        reduxDispatch(
-                                            changeAuthenticatedGuardian(
-                                                guardian,
-                                            ),
-                                        )
-                                    }}
-                                    containerStyle={style.checkboxContainer}
-                                />
-                            )
-                        })}
-                    {authenticatedGuardian && (
-                        <Column fullWidth>
-                            <Text small>{'Confirm guardian password'}</Text>
-                            <Input
-                                onChangeText={input => {
-                                    reduxDispatch(
-                                        changeAuthenticatedGuardian({
-                                            ...authenticatedGuardian,
-                                            password: input,
-                                        }),
-                                    )
-                                }}
-                                value={authenticatedGuardian.password}
-                                returnKeyType="done"
-                                autoCapitalize={'none'}
-                                autoCorrect={false}
-                            />
-                        </Column>
-                    )}
-
-                    <SettingsSection title="Guardian Status">
-                        {guardianOnlineStatus.map((n, index) => {
-                            let statusText
-                            let statusStyle
-
-                            if ('online' in n) {
-                                statusText = `Guardian ${n.online.guardian}: Online: ${n.online.latency_ms}ms`
-                                statusStyle = style.onlineStatus
-                            }
-                            if ('error' in n) {
-                                statusText = `Guardian  ${n.error.guardian} Error: ${n.error.error}`
-                                statusStyle = style.errorStatus
-                            }
-                            if ('timeout' in n) {
-                                statusText = `Guardian  ${n.timeout.guardian} Timeout: ${n.timeout.elapsed}`
-                                statusStyle = style.timeoutStatus
-                            }
-
-                            return (
-                                <Text key={index} style={statusStyle}>
-                                    {statusText}
-                                </Text>
-                            )
-                        })}
-                    </SettingsSection>
-
-                    <SettingsSection title="Danger zone">
-                        <Button
-                            title={t('feature.developer.share-logs')}
-                            containerStyle={style.buttonContainer}
-                            onPress={shareLogs}
-                            loading={shareLogsStatus === 'generating-data'}
-                        />
-                        <Button
-                            title="Evil Spam Invoices"
-                            containerStyle={style.buttonContainer}
-                            onPress={async () => {
-                                if (!paymentFederation?.id) return
-                                await fedimint.evilSpamInvoices({
-                                    federationId: paymentFederation.id,
-                                })
-                            }}
-                        />
-                        <Button
-                            title="Evil Spam Address"
-                            containerStyle={style.buttonContainer}
-                            onPress={async () => {
-                                if (!paymentFederation?.id) return
-                                await fedimint.evilSpamAddress({
-                                    federationId: paymentFederation.id,
-                                })
-                            }}
-                        />
-                    </SettingsSection>
+                    <Button
+                        title="Evil Spam Invoices"
+                        containerStyle={style.buttonContainer}
+                        onPress={async () => {
+                            if (!paymentFederation?.id) return
+                            await fedimint.evilSpamInvoices({
+                                federationId: paymentFederation.id,
+                            })
+                        }}
+                    />
+                    <Button
+                        title="Evil Spam Address"
+                        containerStyle={style.buttonContainer}
+                        onPress={async () => {
+                            if (!paymentFederation?.id) return
+                            await fedimint.evilSpamAddress({
+                                federationId: paymentFederation.id,
+                            })
+                        }}
+                    />
                 </SettingsSection>
             </SettingsSection>
             <Modal
