@@ -8,7 +8,7 @@ import { JoinFederation } from '../../src/components/Onboarding/JoinFederation'
 import { OnboardingHome } from '../../src/components/Onboarding/OnboardingHome'
 import { renderWithBridge } from '../utils/render'
 
-let mockQuery: { tab?: string; invite_code?: string } = {}
+let mockQuery: { tab?: string; id?: string } = {}
 
 jest.mock('next/router', () => ({
     useRouter: () => ({
@@ -96,7 +96,7 @@ describe('federations', () => {
 
             const inviteCode = await bridge.getInviteCode()
 
-            mockQuery = { invite_code: inviteCode }
+            mockQuery = { id: inviteCode }
             renderWithBridge(<JoinFederation />, { store, fedimint })
 
             await waitFor(async () => {

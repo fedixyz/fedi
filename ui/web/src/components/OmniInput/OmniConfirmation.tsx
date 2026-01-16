@@ -124,7 +124,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                     text: t('feature.omni.confirm-federation-invite'),
                     continueOnClick: () =>
                         router.push(
-                            `/onboarding/join?invite_code=${parsedData.data.invite}`,
+                            `/onboarding/join?id=${parsedData.data.invite}`,
                         ),
                 }
             case ParserDataType.CommunityInvite:
@@ -133,7 +133,7 @@ export const OmniConfirmation: React.FC<Props> = ({
                     text: t('feature.omni.confirm-community-invite'),
                     continueOnClick: () =>
                         router.push(
-                            `/onboarding/join?invite_code=${parsedData.data.invite}`,
+                            `/onboarding/join?id=${parsedData.data.invite}`,
                         ),
                 }
             case ParserDataType.CashuEcash:

@@ -42,8 +42,8 @@ export function useCopy() {
 // in a mobile sized window, this hook will look at the userAgent string
 // This means that this will return false for a narrow window in a desktop browser
 export function useDeviceQuery() {
-    const [isMobile, setIsMobile] = useState<boolean>(false)
-    const [isIOS, setIsIOS] = useState<boolean>(false)
+    const [isMobile, setIsMobile] = useState<boolean | undefined>(undefined)
+    const [isIOS, setIsIOS] = useState<boolean | undefined>(undefined)
 
     useEffect(() => {
         if (!window) return
@@ -100,6 +100,8 @@ export function useShowInstallPromptBanner() {
         useNuxStep('pwaHasDismissedInstallPrompt')
 
     useEffect(() => {
+        if (isMobile === undefined) return
+
         setShowInstallBanner(
             isMobile && !isStandalone && !hasDismissedInstallPrompt,
         )

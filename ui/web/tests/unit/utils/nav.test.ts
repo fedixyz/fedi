@@ -13,7 +13,7 @@ describe('utils/nav', () => {
         // for a quicker flow to join a federation
         describe('Welcome page route with a query string param', () => {
             it('should hide the nav bar', () => {
-                const result = shouldHideNavigation('/?invite_code=123')
+                const result = shouldHideNavigation('/?id=123')
                 expect(result).toBe(true)
             })
         })

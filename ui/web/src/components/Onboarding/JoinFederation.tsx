@@ -19,7 +19,7 @@ export const JoinFederation: React.FC = () => {
     const { t } = useTranslation()
     const { push, query } = useRouter()
 
-    const inviteCode = String(query.invite_code) || ''
+    const inviteCode = String(query.id) || ''
 
     const {
         isJoining,

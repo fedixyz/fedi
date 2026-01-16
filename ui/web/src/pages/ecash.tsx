@@ -50,10 +50,6 @@ function EcashPage() {
     // Get ecash token from hash on page load
     useEffect(() => {
         const hashParams = getHashParams(window.location.hash)
-        if (!hashParams?.id) {
-            push(homeRoute)
-            return
-        }
 
         parseEcash(hashParams.id)
     }, [push, parseEcash])

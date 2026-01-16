@@ -5,19 +5,19 @@ import { Trans, useTranslation } from 'react-i18next'
 import welcomeBackground from '@fedi/common/assets/images/welcome-bg.png'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
 import { useToast } from '@fedi/common/hooks/toast'
-import { refreshOnboardingStatus } from '@fedi/common/redux'
+import {
+    refreshOnboardingStatus,
+    selectOnboardingCompleted,
+} from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
+import { Redirect } from '../components/Redirect'
 import { Text } from '../components/Text'
-import {
-    ecashRoute,
-    onboardingRoute,
-    onboardingJoinRoute,
-} from '../constants/routes'
-import { useAppDispatch } from '../hooks'
+import { homeRoute, onboardingRoute } from '../constants/routes'
+import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 import { getHashParams } from '../utils/linking'
@@ -26,10 +26,15 @@ const log = makeLog('WelcomePage')
 
 function WelcomePage() {
     const { t } = useTranslation()
-    const { query, push } = useRouter()
+    const { push } = useRouter()
     const dispatch = useAppDispatch()
     const toast = useToast()
+    const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
     const [loading, setLoading] = useState<boolean>(false)
+
+    if (onboardingCompleted && !loading) {
+        return <Redirect path={homeRoute} />
+    }
 
     const handleOnContinue = async () => {
         try {
@@ -37,14 +42,18 @@ function WelcomePage() {
             await fedimint.completeOnboardingNewSeed()
             await dispatch(refreshOnboardingStatus(fedimint)).unwrap()
 
-            if (query.invite_code) {
-                push(onboardingJoinRoute(String(query.invite_code)))
-                return
-            }
+            // Handle deeplink routing after onboarding
+            const { screen, id } = getHashParams(window.location.hash)
+            if (screen) {
+                let path = `/${screen}`
 
-            const params = getHashParams(window.location.hash)
-            if (params?.id) {
-                push(`${ecashRoute}#id=${params.id}`)
+                if (id) {
+                    // Ecash screen must use hash params to avoid sending raw ecash to server
+                    const delimiter = screen === 'ecash' ? '#' : '?'
+                    path += `${delimiter}id=${id}`
+                }
+
+                push(path)
                 return
             }
 
@@ -52,7 +61,6 @@ function WelcomePage() {
         } catch (err) {
             log.error('handleOnContinue', err)
             toast.error(t, err, 'errors.unknown-error')
-        } finally {
             setLoading(false)
         }
     }
@@ -83,14 +91,12 @@ function WelcomePage() {
                         loading={loading}>
                         {t('phrases.get-started')}
                     </Button>
-                    {!query?.invite_code && (
-                        <Button
-                            width="full"
-                            href="/onboarding/recover"
-                            variant="secondary">
-                            {t('phrases.recover-my-account')}
-                        </Button>
-                    )}
+                    <Button
+                        width="full"
+                        href="/onboarding/recover"
+                        variant="secondary">
+                        {t('phrases.recover-my-account')}
+                    </Button>
 
                     <TextWrapper>
                         <Text

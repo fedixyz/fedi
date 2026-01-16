@@ -23,13 +23,12 @@ import {
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { homeRoute, onboardingJoinRoute } from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
 import { getAppFlavor } from '../lib/bridge/worker'
 import { keyframes, styled, theme } from '../styles'
 import { generateDeviceId } from '../utils/browserInfo'
-import { isDeepLink, getDeepLinkPath } from '../utils/linking'
+import { getHashParams } from '../utils/linking'
 import { Redirect } from './Redirect'
 import { Text } from './Text'
 
@@ -42,7 +41,7 @@ interface Props {
 export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
-    const { asPath, pathname, query } = useRouter()
+    const { asPath, pathname } = useRouter()
 
     const hasLoadedStorage = useAppSelector(selectStorageIsReady)
     const eventListenersReady = useAppSelector(selectEventListenersReady)
@@ -177,38 +176,23 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         return <Redirect path="/onboarding/recover/social" />
     }
 
-    // Handle deep links
-    if (isDeepLink(window.location.href)) {
-        return <Redirect path={getDeepLinkPath(window.location.href)} />
-    }
-
-    // If onboarding is not completed, redirect to Welcome page
-    // but allow access to recovery routes
-    // (Note: we could move all recovery pages out of /onboarding route and into /recover)
     if (
         !onboardingCompleted &&
         pathname !== '/' &&
         !asPath.includes('recover')
     ) {
-        // Preserve any query string or hash params when redirecting to Welcome page
-        const params = window.location.search || window.location.hash
-        return <Redirect path={`/${params}`} />
-    }
+        // Preserve any query string or hash params when redirecting to Welcome/Splash page
+        const url = new URL(window.location.href)
+        const screen = url.pathname.replace(/^\/+/, '')
+        const id = url.searchParams.get('id') ?? getHashParams(url.hash).id
 
-    // If invite code in query string but user has already onboarded
-    // then go straight to join federation page
-    if (query.invite_code && pathname === '/' && onboardingCompleted) {
-        return (
-            <Redirect
-                path={`${onboardingJoinRoute(String(query.invite_code))}`}
-            />
-        )
-    }
+        const params = new URLSearchParams({ screen })
 
-    // If user has onboarded and no invite code in query string then
-    // redirect user to /home
-    if (onboardingCompleted && !query.invite_code && pathname === '/') {
-        return <Redirect path={homeRoute} />
+        if (id) {
+            params.set('id', id)
+        }
+
+        return <Redirect path={`/#${params.toString()}`} />
     }
 
     return <FedimintProvider fedimint={fedimint}>{children}</FedimintProvider>
