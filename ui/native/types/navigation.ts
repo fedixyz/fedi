@@ -156,7 +156,6 @@ export type RootStackParamList = {
     LocateSocialRecovery: undefined
     Receive: { federationId: Federation['id'] }
     ReceiveLightning: { federationId: Federation['id'] }
-    ReceiveLnurl: { federationId: Federation['id'] }
     ReceiveSuccess: {
         tx: ReceiveSuccessData
         status?: ReceiveSuccessStatus

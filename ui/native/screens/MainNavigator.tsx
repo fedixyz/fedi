@@ -147,7 +147,6 @@ import PublicCommunities from './PublicCommunities'
 import PublicFederations from './PublicFederations'
 import Receive from './Receive'
 import ReceiveLightning from './ReceiveLightning'
-import ReceiveLnurl from './ReceiveLnurl'
 import ReceiveStabilityQr from './ReceiveStabilityQr'
 import ReceiveSuccess from './ReceiveSuccess'
 import RecordBackupVideo from './RecordBackupVideo'
@@ -802,18 +801,6 @@ export const MainNavigator = () => {
                                 component={ReceiveLightning}
                                 options={() => ({
                                     header: () => <RequestMoneyHeader />,
-                                })}
-                            />
-                            <Stack.Screen
-                                name="ReceiveLnurl"
-                                component={ReceiveLnurl}
-                                options={() => ({
-                                    header: () => (
-                                        <CenteredHeader
-                                            backButton
-                                            title={t('words.lnurl')}
-                                        />
-                                    ),
                                 })}
                             />
                             <Stack.Screen

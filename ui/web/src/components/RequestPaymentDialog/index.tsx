@@ -19,6 +19,7 @@ import { Dialog } from '.././Dialog'
 import { DialogStatus } from '.././DialogStatus'
 import { Switcher, type Option as SwitcherOption } from '../Switcher'
 import LightningRequest from './LightningRequest'
+import LnurlReceive from './LnurlReceive'
 import LnurlWithdraw from './LnurlWithdraw'
 import OnchainRequest from './OnchainRequest'
 
@@ -27,7 +28,7 @@ interface Props {
     onOpenChange(open: boolean): void
 }
 
-type Tab = 'lightning' | 'onchain'
+type Tab = 'lightning' | 'onchain' | 'lnurl'
 
 export const RequestPaymentDialog: React.FC<Props> = ({
     open,
@@ -39,10 +40,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const lnurlw = useRouteState('/request')
     const federationId = params.id
     const [isCompleted, setIsCompleted] = useState(false)
-    const [requestType, setRequestType] = useState<
-        'lightning' | 'bitcoin' | 'lnurlw'
-    >('lightning')
-
     const [showLnurlReceive, setShowLnurlReceive] = useState(false)
     const [receivedTransaction, setReceivedTransaction] =
         useState<TransactionListEntry | null>(null)
@@ -53,10 +50,6 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     const isOnchainSupported = useIsOnchainDepositSupported(federationId)
 
     const { supportsLnurl } = useLnurlReceiveCode(federationId || '')
-
-    useEffect(() => {
-        setRequestType(activeTab === 'lightning' ? 'lightning' : 'bitcoin')
-    }, [activeTab])
 
     const handleSubmit = () => {
         setIsCompleted(true)
@@ -77,14 +70,18 @@ export const RequestPaymentDialog: React.FC<Props> = ({
 
     const switcherOptions: SwitcherOption<Tab>[] = [
         { label: t('words.lightning'), value: 'lightning' },
-        { label: t('words.onchain'), value: 'onchain' },
     ]
+
+    if (supportsLnurl)
+        switcherOptions.push({ label: t('words.lnurl'), value: 'lnurl' })
+    if (isOnchainSupported)
+        switcherOptions.push({ label: t('words.onchain'), value: 'onchain' })
 
     // Reset on close, focus input on desktop open
     useEffect(() => {
         if (!open) {
             setIsCompleted(false)
-            setRequestType('lightning')
+            setActiveTab('lightning')
             setReceivedTransaction(null)
             reset()
         } else {
@@ -98,14 +95,10 @@ export const RequestPaymentDialog: React.FC<Props> = ({
     }, [open, syncCurrencyRatesAndCache, reset, federationId])
 
     useEffect(() => {
-        if (open && lnurlw) setRequestType('lnurlw')
-    }, [open, lnurlw])
-
-    useEffect(() => {
-        if (isOnchainSupported && requestType === 'bitcoin' && !address) {
+        if (isOnchainSupported && activeTab === 'onchain' && !address) {
             makeOnchainAddress()
         }
-    }, [isOnchainSupported, requestType, makeOnchainAddress, address])
+    }, [isOnchainSupported, activeTab, makeOnchainAddress, address])
 
     return (
         <Dialog
@@ -121,7 +114,13 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                     />
                 )}
 
-                {requestType === 'lightning' ? (
+                {lnurlw ? (
+                    <LnurlWithdraw
+                        onSubmit={handleSubmit}
+                        lnurlw={lnurlw}
+                        onWithdrawPaid={onTransactionReceived}
+                    />
+                ) : activeTab === 'lightning' ? (
                     <LightningRequest
                         onSubmit={handleSubmit}
                         onInvoicePaid={onTransactionReceived}
@@ -130,11 +129,11 @@ export const RequestPaymentDialog: React.FC<Props> = ({
                             onLnurlClick: () => setShowLnurlReceive(true),
                         })}
                     />
-                ) : requestType === 'lnurlw' ? (
-                    <LnurlWithdraw
+                ) : activeTab === 'lnurl' ? (
+                    <LnurlReceive
                         onSubmit={handleSubmit}
                         onWithdrawPaid={onTransactionReceived}
-                        lnurlw={lnurlw}
+                        federationId={federationId}
                     />
                 ) : (
                     <OnchainRequest

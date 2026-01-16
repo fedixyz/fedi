@@ -7,25 +7,20 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { Sats, TransactionListEntry } from '@fedi/common/types'
 
 import { NoteInput, QRContainer } from '.'
-import { Dialog } from '.././Dialog'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { CopyInput } from '../CopyInput'
 import { Column } from '../Flex'
-import { HorizontalLine } from '../HorizontalLine'
 import { QRCode } from '../QRCode'
-import LnurlReceive from './LnurlReceive'
 
 export default function LightningRequest({
     onSubmit,
     onInvoicePaid,
     federationId,
-    onLnurlClick,
 }: {
     onSubmit: () => void
     onInvoicePaid: (txn: TransactionListEntry) => void
     federationId?: string
-    onLnurlClick?: () => void
 }) {
     const { t } = useTranslation()
     const toast = useToast()
@@ -45,7 +40,6 @@ export default function LightningRequest({
         })
 
     const [submitAttempts, setSubmitAttempts] = useState(0)
-    const [open, setOpen] = useState(false)
 
     const handleSubmit = async () => {
         setSubmitAttempts(attempts => attempts + 1)
@@ -104,26 +98,8 @@ export default function LightningRequest({
                             amount,
                         })}
                     </Button>
-                    {!!onLnurlClick && (
-                        <>
-                            <HorizontalLine text={t('words.or')} />
-                            <Button
-                                variant="secondary"
-                                onClick={() => setOpen(true)}>
-                                {t('phrases.reusable-payment-code')}
-                            </Button>
-                        </>
-                    )}
                 </Column>
             )}
-
-            <Dialog title={t('words.lnurl')} open={open} onOpenChange={setOpen}>
-                <LnurlReceive
-                    onSubmit={handleSubmit}
-                    onWithdrawPaid={onInvoicePaid}
-                    federationId={federationId || ''}
-                />
-            </Dialog>
         </>
     )
 }
