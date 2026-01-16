@@ -81,7 +81,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         if (!federationId) {
             dispatch(setSuggestedPaymentFederation())
         }
-    }, [])
+    }, [dispatch, federationId])
 
     useEffect(() => {
         syncCurrencyRatesAndCache(federationId)
