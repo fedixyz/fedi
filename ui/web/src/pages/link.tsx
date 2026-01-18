@@ -174,7 +174,7 @@ const Top = styled('div', {
 const Bottom = styled(Column, {
     background: theme.colors.white,
     padding: theme.spacing.lg,
-    height: 80,
+    height: 60,
     overflow: 'hidden',
 })
 
