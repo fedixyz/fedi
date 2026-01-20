@@ -335,7 +335,7 @@ impl FeatureCatalog {
                 mode: SpTransferUiMode::QrCode,
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
-            rearrange_miniapps: None,
+            rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
         }
     }
 }
