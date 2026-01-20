@@ -232,7 +232,6 @@ export type RootStackParamList = {
         federationId: Federation['id']
     }
     SocialBackupSuccess: undefined
-    SocialRecoveryQrModal: undefined
     SocialRecoverySuccess: undefined
     SocialRecoveryFailure: undefined
     TabsNavigator:

@@ -178,7 +178,6 @@ import SocialBackupCloudUpload from './SocialBackupCloudUpload'
 import SocialBackupProcessing from './SocialBackupProcessing'
 import SocialBackupSuccess from './SocialBackupSuccess'
 import SocialRecoveryFailure from './SocialRecoveryFailure'
-import SocialRecoveryQrModal from './SocialRecoveryQrModal'
 import SocialRecoverySuccess from './SocialRecoverySuccess'
 import Splash from './Splash'
 import StabilityConfirmDeposit from './StabilityConfirmDeposit'
@@ -1363,17 +1362,9 @@ export const MainNavigator = () => {
                                 })}
                             />
                         </Stack.Group>
-                        {/* Put all Overlay/Modal screens here */}
-                        <Stack.Group>
-                            <Stack.Screen
-                                name="SocialRecoveryQrModal"
-                                component={SocialRecoveryQrModal}
-                                options={{
-                                    presentation: 'transparentModal',
-                                    headerShown: false,
-                                }}
-                            />
-                        </Stack.Group>
+                        {/* Put all Overlay/Modal screens inside the Stack.Group */}
+                        {/* <Stack.Group> */}
+                        {/* </Stack.Group> */}
                     </Stack.Group>
                 ) : (
                     <Stack.Group
