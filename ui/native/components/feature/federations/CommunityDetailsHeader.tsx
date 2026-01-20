@@ -27,16 +27,24 @@ const CommunityDetailsHeader: React.FC = () => {
     const { communityId } = route.params
     const community = useAppSelector(s => selectCommunity(s, communityId))
     const showInviteCode = shouldShowInviteCode(community?.meta || {})
-    const { canEditCommunity } = useCreatedCommunities(communityId)
+    const { canEditCommunity, editCommunityUrl } =
+        useCreatedCommunities(communityId)
 
     const handleEditCommunity = () => {
+        if (!editCommunityUrl) return
+
+        const url = editCommunityUrl.toString()
+
         dispatch(
             openMiniAppSession({
                 miniAppId: COMMUNITY_TOOL_URL,
-                url: COMMUNITY_TOOL_URL,
+                url,
             }),
         )
-        navigation.navigate('FediModBrowser')
+
+        navigation.navigate('FediModBrowser', {
+            url,
+        })
     }
 
     const handleShowQr = () => {
