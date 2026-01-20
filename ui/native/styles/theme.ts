@@ -70,6 +70,7 @@ export const themeDefaults = {
         addFederationButtonHeight: 56,
         bubbleButtonSize: 32,
         circleButtonSize: 40,
+        miniAppTitleLineHeight: 20,
     },
     spacing: {
         ...fediTheme.spacing,

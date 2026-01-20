@@ -28,6 +28,7 @@ import { selectModsVisibility } from '@fedi/common/redux/mod'
 
 import { useAppSelector } from '../../../state/hooks'
 import { FediMod } from '../../../types'
+import { getMiniAppTileMinHeight } from '../../../utils/layout'
 import { Column } from '../../ui/Flex'
 import ShortcutTile from '../home/ShortcutTile'
 import ZendeskBadge from '../support/ZendeskBadge'
@@ -180,7 +181,7 @@ const SortableMiniAppsGrid = (props: SortableMiniAppsGridProps) => {
     const itemWidth = width / columns
     const style = styles(theme, columns)
     const containerHeight = isRearranging ? height * 0.85 : height * 0.8
-    const itemHeight = containerHeight / 6
+    const itemHeight = getMiniAppTileMinHeight(theme, fontScale)
 
     const activeAppIdShared = useSharedValue<string | undefined>(undefined)
     const pendingSwapIndex = useSharedValue<number | undefined>(undefined)

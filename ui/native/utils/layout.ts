@@ -1,5 +1,7 @@
+import { Theme } from '@rneui/themed'
 import { Platform } from 'react-native'
 
+import { getIconSizeMultiplier } from '../components/ui/SvgImage'
 import { AndroidScreenSize } from '../constants'
 
 // Determine Android screen size category based on height
@@ -31,4 +33,31 @@ export const getOverlayBottomPadding = (
 
 export const isAndroidAPI35Plus = () => {
     return Platform.OS === 'android' && Platform.Version >= 35
+}
+
+/**
+ * Calculate the icon size for MiniApp tiles based on theme and font scale.
+ */
+export const getMiniAppTileIconSize = (
+    theme: Theme,
+    fontScale: number,
+): number => {
+    const cappedFontScale = Math.min(fontScale, 2)
+    return theme.sizes.lg * getIconSizeMultiplier(cappedFontScale)
+}
+
+/**
+ * Calculate the minimum required height for a MiniApp tile item.
+ * This accounts for icon size, allowable lines of text, and all padding/spacing.
+ */
+export const getMiniAppTileMinHeight = (
+    theme: Theme,
+    fontScale: number,
+): number => {
+    const iconSize = getMiniAppTileIconSize(theme, fontScale)
+    const iconWithSpacing = iconSize + theme.spacing.xs // icon + marginBottom
+    const textHeight = 2 * theme.sizes.miniAppTitleLineHeight // 2 lines with body line height
+    const verticalPadding = theme.spacing.xs * 2 // top + bottom padding
+    const titlePadding = theme.spacing.xs // title paddingBottom
+    return iconWithSpacing + textHeight + verticalPadding + titlePadding
 }
