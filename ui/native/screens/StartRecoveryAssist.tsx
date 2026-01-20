@@ -2,15 +2,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { Image, StyleSheet, View } from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
 import { selectAuthenticatedGuardian } from '@fedi/common/redux'
 
+import { Images } from '../assets/images'
 import { Column, Row } from '../components/ui/Flex'
 import GradientView from '../components/ui/GradientView'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
 
@@ -47,7 +47,7 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
             <Column style={style.container}>
                 <Column align="center" gap="lg" grow style={style.content}>
                     <GradientView variant="sky-banner" style={style.heroIcon}>
-                        <SvgImage name="Keyring" size={SvgImageSize.lg} />
+                        <Image source={Images.KeyringIcon} />
                     </GradientView>
                     <Text numberOfLines={2} center style={style.title}>
                         {t('feature.recovery.recovery-assist-title')}

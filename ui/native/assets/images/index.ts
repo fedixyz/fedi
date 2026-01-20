@@ -24,6 +24,7 @@ export const Images: ImagesMap = {
     WelcomeBackground: require('@fedi/common/assets/images/welcome-bg.png'),
     Red: require('@fedi/common/assets/images/red.png'),
     RateFederationBackground: require('@fedi/common/assets/images/rate-federation-bg.png'),
+    KeyringIcon: require('@fedi/common/assets/images/keyring.png'),
 }
 
 export const FediModImages: ImagesMap = {
