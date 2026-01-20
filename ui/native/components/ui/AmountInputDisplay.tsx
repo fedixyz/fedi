@@ -3,14 +3,9 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import { useFormattedFiatSats } from '@fedi/common/hooks/amount'
+import { useAmountFormatter } from '@fedi/common/hooks/amount'
 import { useCommonSelector } from '@fedi/common/hooks/redux'
-import {
-    selectBtcExchangeRate,
-    selectCurrency,
-    selectCurrencyLocale,
-    selectAmountInputType,
-} from '@fedi/common/redux'
+import { selectCurrency, selectAmountInputType } from '@fedi/common/redux'
 import { Sats } from '@fedi/common/types'
 
 import { Row } from './Flex'
@@ -27,19 +22,16 @@ const AmountInputDisplay: React.FC<AmountInputDisplayProps> = ({
     const { theme } = useTheme()
     const { t } = useTranslation()
 
-    const btcToFiatRate = useCommonSelector(selectBtcExchangeRate)
     const currency = useCommonSelector(selectCurrency)
-    const currencyLocale = useCommonSelector(selectCurrencyLocale)
     const lastInputType = useCommonSelector(selectAmountInputType)
     const isFiat = showFiat ?? lastInputType !== 'sats'
 
+    const { makeFormattedAmountsFromSats } = useAmountFormatter({
+        currency,
+    })
+
     const { formattedFiat: fiatString, formattedSats: satsString } =
-        useFormattedFiatSats(
-            amount,
-            btcToFiatRate,
-            currency,
-            currencyLocale || 'en-US',
-        )
+        makeFormattedAmountsFromSats(amount, 'none')
 
     const primary = isFiat ? fiatString : satsString
     const secondary = isFiat
