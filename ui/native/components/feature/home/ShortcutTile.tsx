@@ -19,14 +19,11 @@ import { stripAndDeduplicateWhitespace } from '@fedi/common/utils/strings'
 import { FediModImages } from '../../../assets/images'
 import { useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut, ShortcutType } from '../../../types'
+import { getMiniAppTileIconSize } from '../../../utils/layout'
 import { BubbleView } from '../../ui/BubbleView'
 import { Row } from '../../ui/Flex'
 import { Pressable } from '../../ui/Pressable'
-import SvgImage, {
-    SvgImageName,
-    SvgImageSize,
-    getIconSizeMultiplier,
-} from '../../ui/SvgImage'
+import SvgImage, { SvgImageName, SvgImageSize } from '../../ui/SvgImage'
 
 type ShortcutTileProps = {
     disabled?: boolean
@@ -186,7 +183,8 @@ const ShortcutTile = ({
                             medium
                             style={style.titleText}
                             numberOfLines={2}
-                            adjustsFontSizeToFit>
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.5}>
                             {shortcutTitle}
                         </Text>
                     </Row>
@@ -205,7 +203,7 @@ const ShortcutTile = ({
 }
 
 const styles = (theme: Theme, fontScale: number) => {
-    const iconSize = theme.sizes.lg * getIconSizeMultiplier(fontScale)
+    const iconSize = getMiniAppTileIconSize(theme, fontScale)
     return StyleSheet.create({
         badge: {
             backgroundColor: theme.colors.green100,
@@ -274,7 +272,7 @@ const styles = (theme: Theme, fontScale: number) => {
         },
         titleText: {
             textAlign: 'center',
-            lineHeight: 20,
+            lineHeight: theme.sizes.miniAppTitleLineHeight,
         },
     })
 }
