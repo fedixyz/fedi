@@ -13,7 +13,7 @@ import { InjectionMessageResponseMap, InjectionMessageType } from '../types'
 import { sendInjectorMessage } from '../utils'
 
 class InjectionFediProvider {
-    public version: FediInternalVersion = 2
+    public version: FediInternalVersion = 3
     private lastMessageId = 0
 
     async generateEcash(
@@ -137,6 +137,16 @@ class InjectionFediProvider {
         return this.sendMessage(
             InjectionMessageType.fedi_installMiniApp,
             request,
+        )
+    }
+
+    async previewMatrixRoom(chatId: string): Promise<{
+        name: string
+        avatarUrl: string | null
+    } | null> {
+        return this.sendMessage(
+            InjectionMessageType.fedi_previewMatrixRoom,
+            chatId,
         )
     }
 

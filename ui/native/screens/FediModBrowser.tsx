@@ -52,6 +52,7 @@ import {
     selectCurrentUrl,
     setCurrentUrl,
     commitUrlToHistory,
+    selectMatrixRooms,
 } from '@fedi/common/redux'
 import { addCustomMod, selectConfigurableMods } from '@fedi/common/redux/mod'
 import {
@@ -121,6 +122,7 @@ type FediModResponse =
     | string
     | Array<string>
     | boolean
+
 type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 
 const FediModBrowser: React.FC<Props> = () => {
@@ -146,6 +148,7 @@ const FediModBrowser: React.FC<Props> = () => {
     const communities = useAppSelector(selectCommunities)
     const isInternetUnreachable = useAppSelector(selectIsInternetUnreachable)
     const currentUrl = useAppSelector(selectCurrentUrl)
+    const chats = useAppSelector(selectMatrixRooms)
 
     const webview = useRef<WebView | null>(null)
     const overlayResolveRef = useRef<
@@ -613,6 +616,20 @@ const FediModBrowser: React.FC<Props> = () => {
                         status: 'error',
                     })
                 }
+            },
+            [InjectionMessageType.fedi_previewMatrixRoom]: async (
+                chatId: string,
+            ) => {
+                log.info('fedi.fedi_previewMatrixRoom')
+                const room = chats.find(
+                    chat => chat.isPublic && chat.id === chatId,
+                )
+                return room
+                    ? {
+                          name: room.name,
+                          avatarUrl: room.avatarUrl,
+                      }
+                    : null
             },
         },
     )

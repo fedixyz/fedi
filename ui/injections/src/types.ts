@@ -48,6 +48,7 @@ export enum InjectionMessageType {
     fedi_navigateHome = 'fedi_navigateHome',
     fedi_getInstalledMiniApps = 'fedi_getInstalledMiniApps',
     fedi_installMiniApp = 'fedi_installMiniApp',
+    fedi_previewMatrixRoom = 'fedi_previewMatrixRoom',
 }
 
 export type InjectionMessageResponseMap = {
@@ -185,6 +186,10 @@ export type InjectionMessageResponseMap = {
     [InjectionMessageType.fedi_installMiniApp]: {
         message: InstallMiniAppRequest
         response: void
+    }
+    [InjectionMessageType.fedi_previewMatrixRoom]: {
+        message: string
+        response: { name: string; avatarUrl: string | null } | null
     }
 }
 

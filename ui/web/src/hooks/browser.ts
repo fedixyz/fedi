@@ -7,6 +7,7 @@ import {
     joinCommunity,
     refreshCommunities,
     selectCommunities,
+    selectMatrixRooms,
     selectNostrNpub,
     selectPaymentFederation,
     setInvoiceToPay,
@@ -62,6 +63,7 @@ export function useIFrameListener(
     const nostrPublic = useAppSelector(selectNostrNpub)
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const communities = useAppSelector(selectCommunities)
+    const chats = useAppSelector(selectMatrixRooms)
     const [overlayId, setOverlayId] = useState<InjectionMessageType | null>(
         null,
     )
@@ -321,6 +323,25 @@ export function useIFrameListener(
                     }
                     break
                 }
+                case InjectionMessageType.fedi_previewMatrixRoom: {
+                    if (!hasPermission(ev.origin, ['manageCommunities'])) {
+                        return sendError(event, 'InvalidPermissions')
+                    }
+
+                    const room = chats.find(
+                        chat => chat.isPublic && chat.id === payload,
+                    )
+                    sendSuccess(
+                        event,
+                        room
+                            ? {
+                                  name: room.name,
+                                  avatarUrl: room.avatarUrl,
+                              }
+                            : null,
+                    )
+                    break
+                }
             }
         }
 
@@ -336,6 +357,7 @@ export function useIFrameListener(
         replace,
         sendSuccess,
         sendError,
+        chats,
     ])
 
     return { sendSuccess, sendError, overlayId, resetOverlay }

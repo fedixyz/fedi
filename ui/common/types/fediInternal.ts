@@ -8,7 +8,7 @@ import { FediMod } from './fedimint'
 
 export type EcashRequest = Omit<RequestInvoiceArgs, 'defaultMemo'>
 
-export type FediInternalVersion = 2
+export type FediInternalVersion = 3
 
 export type InstallMiniAppRequest = Omit<FediMod, 'color'>
 
@@ -153,4 +153,5 @@ export const INJECTION_HANDLERS_PERMISSIONS_MAP: Partial<{
     ],
     [InjectionMessageType.fedi_installMiniApp]: ['manageInstalledMiniApps'],
     [InjectionMessageType.fedi_navigateHome]: ['navigation'],
+    [InjectionMessageType.fedi_previewMatrixRoom]: ['manageCommunities'],
 }
