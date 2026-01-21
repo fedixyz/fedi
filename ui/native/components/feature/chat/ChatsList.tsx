@@ -40,10 +40,10 @@ const ChatsList: React.FC = () => {
 
     const handleRefresh = useCallback(() => {
         setIsRefetching(true)
-        Promise.all([
-            dispatch(refetchMatrixRoomList({ fedimint })),
-            dispatch(previewAllDefaultChats({ fedimint })),
-        ])
+        // Refresh default chat previews in background (don't block loading indicator)
+        dispatch(previewAllDefaultChats({ fedimint }))
+        // Only wait for room list refresh before clearing loading state
+        dispatch(refetchMatrixRoomList({ fedimint }))
             .catch(() => null) // no-op
             .finally(() => setIsRefetching(false))
     }, [dispatch, fedimint])
