@@ -3,17 +3,7 @@ env:
     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 on:
-    push:
-        branches:
-            - web/release/*
-        paths:
-            - .github/workflows/vercel-prod.yml
-            - scripts/ci/vercel-prod.sh
-            - scripts/build-wasm.sh
-            - scripts/ui/install-wasm.sh
-            - bridge/fedi-wasm/**
-            - ui/web/**
-            - ui/common/**
+    workflow_dispatch:
 jobs:
     Deploy-Production:
         runs-on: [self-hosted, linux]
