@@ -132,4 +132,26 @@ describe('useCreateMatrixRoom', () => {
             i18next.t('errors.group-name-too-long'),
         )
     }, 30000)
+
+    it('should error if the group name is 30 characters ending with whitespace', async () => {
+        await builder.withChatReady()
+
+        const {
+            store,
+            bridge: { fedimint },
+        } = context
+
+        const { result } = renderHookWithBridge(
+            () => useCreateMatrixRoom(i18next.t),
+            store,
+            fedimint,
+        )
+
+        // 29 characters + 1 trailing space = 30 characters total
+        act(() => result.current.setGroupName('a'.repeat(29) + ' '))
+
+        expect(result.current.errorMessage).toEqual(
+            i18next.t('errors.group-name-too-long'),
+        )
+    }, 30000)
 })

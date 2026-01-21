@@ -1086,7 +1086,7 @@ export function useCreateMatrixRoom(
     const toast = useToast()
 
     useEffect(() => {
-        if (groupName.trim().length >= 30) {
+        if (groupName.length >= 30) {
             setErrorMessage(t('errors.group-name-too-long'))
         } else {
             setErrorMessage(null)
