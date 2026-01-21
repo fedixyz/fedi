@@ -9,7 +9,7 @@ import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { selectMatrixChatsList } from '@fedi/common/redux'
 
 import * as Layout from '../../components/Layout'
-import { chatNewRoomRoute, scanRoute } from '../../constants/routes'
+import { chatNewRoute, chatNewRoomRoute } from '../../constants/routes'
 import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Dialog } from '../Dialog'
@@ -65,7 +65,7 @@ export const ChatList: React.FC = () => {
                     icon={SocialPeopleIcon}
                 />
                 <ChatAddOption
-                    href={scanRoute}
+                    href={chatNewRoute}
                     text={t('phrases.scan-or-paste')}
                     icon={ScanIcon}
                 />
