@@ -7,7 +7,7 @@ import { ScrollView, StyleSheet, View } from 'react-native'
 
 import { COMMUNITY_TOOL_URL } from '@fedi/common/constants/fedimods'
 import { useLatestPublicCommunities } from '@fedi/common/hooks/federation'
-import { openMiniAppSession, selectCommunityIds } from '@fedi/common/redux'
+import { selectCommunityIds, setCurrentUrl } from '@fedi/common/redux'
 import { Images } from '@fedi/native/assets/images'
 
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
@@ -170,8 +170,7 @@ const PublicCommunities: React.FC<Props> = ({ navigation }) => {
                         title={t('phrases.create-my-community')}
                         onPress={() => {
                             dispatch(
-                                openMiniAppSession({
-                                    miniAppId: COMMUNITY_TOOL_URL,
+                                setCurrentUrl({
                                     url: COMMUNITY_TOOL_URL,
                                 }),
                             )

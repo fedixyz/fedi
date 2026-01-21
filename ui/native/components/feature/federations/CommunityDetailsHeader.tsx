@@ -3,9 +3,8 @@ import { Text } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { COMMUNITY_TOOL_URL } from '@fedi/common/constants/fedimods'
 import { useCreatedCommunities } from '@fedi/common/hooks/federation'
-import { openMiniAppSession, selectCommunity } from '@fedi/common/redux'
+import { selectCommunity, setCurrentUrl } from '@fedi/common/redux'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
@@ -35,12 +34,8 @@ const CommunityDetailsHeader: React.FC = () => {
 
         const url = editCommunityUrl.toString()
 
-        dispatch(
-            openMiniAppSession({
-                miniAppId: COMMUNITY_TOOL_URL,
-                url,
-            }),
-        )
+        // The community tool is a single page application, so no need to create a history session
+        dispatch(setCurrentUrl({ url }))
 
         navigation.navigate('FediModBrowser', {
             url,

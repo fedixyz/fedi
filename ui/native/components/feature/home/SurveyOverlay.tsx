@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Text, Button, useTheme } from '@rneui/themed'
 
 import { useSurveyForm } from '@fedi/common/hooks/survey'
-import { openMiniAppSession } from '@fedi/common/redux'
+import { setCurrentUrl } from '@fedi/common/redux'
 
 import { useAppDispatch } from '../../../state/hooks'
 import CenterOverlay from '../../ui/CenterOverlay'
@@ -22,9 +22,7 @@ const SurveyOverlay = () => {
         // wait for the modal's close animation + unmount to finish
         // immediately navigating while the modal is actively unmounting causes the screen to be unresponsive
         setTimeout(() => {
-            dispatch(
-                openMiniAppSession({ miniAppId: urlString, url: urlString }),
-            )
+            dispatch(setCurrentUrl({ url: urlString }))
             navigation.navigate('FediModBrowser')
         }, 500)
     }
