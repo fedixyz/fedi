@@ -180,7 +180,7 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
             {isOffline && <InternetUnreachableBanner />}
             <SafeAreaContainer edges="horizontal">
                 <View style={{ marginTop: 16 }}>
-                    {isOnchainSupported && (
+                    {(isOnchainSupported || supportsLnurl) && (
                         <Switcher<Tab>
                             options={switcherOptions}
                             selected={activeTab}
