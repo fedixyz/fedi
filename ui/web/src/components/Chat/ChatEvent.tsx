@@ -102,7 +102,7 @@ export const ChatEvent: React.FC<Props> = ({ event, onReplyTap }) => {
     if (isFederationInviteEvent(event)) {
         return (
             <TextContent isMe={isMe}>
-                <ChatFederationInviteEvent event={event} />
+                <ChatFederationInviteEvent event={event} isMe={isMe} />
             </TextContent>
         )
     }
