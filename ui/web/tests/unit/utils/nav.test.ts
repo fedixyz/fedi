@@ -25,13 +25,6 @@ describe('utils/nav', () => {
             })
         })
 
-        describe('Scan page route', () => {
-            it('should hide the nav bar', () => {
-                const result = shouldHideNavigation('/scan')
-                expect(result).toBe(true)
-            })
-        })
-
         describe('Onboarding page route', () => {
             it('should hide the nav bar', () => {
                 const result = shouldHideNavigation('/onboarding')

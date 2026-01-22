@@ -1,6 +1,5 @@
 import Link from 'next/link'
-import { useRouter } from 'next/router'
-import React, { useCallback } from 'react'
+import React, { useState } from 'react'
 
 import HamburgerIcon from '@fedi/common/assets/svgs/hamburger-icon.svg'
 import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
@@ -13,6 +12,7 @@ import { styled } from '../styles'
 import { Row } from './Flex'
 import { Icon } from './Icon'
 import { ProfileIcon } from './ProfileIcon'
+import { ScanDialog } from './ScanDialog'
 
 type Props = {
     onShowCommunitiesPress?: () => void
@@ -23,32 +23,32 @@ const MainHeaderButtons: React.FC<Props> = ({
     onShowCommunitiesPress,
     onAddPress,
 }) => {
-    const router = useRouter()
     const matrixAuth = useAppSelector(selectMatrixAuth)
-
-    const openOmniScanner = useCallback(() => {
-        router.push('/scan')
-    }, [router])
+    const [open, setOpen] = useState(false)
 
     return (
-        <Row gap="md" align="center">
-            {onShowCommunitiesPress && (
-                <IconButton onClick={onShowCommunitiesPress}>
-                    <Icon icon={HamburgerIcon} size="sm" />
+        <>
+            <Row gap="md" align="center">
+                {onShowCommunitiesPress && (
+                    <IconButton onClick={onShowCommunitiesPress}>
+                        <Icon icon={HamburgerIcon} size="sm" />
+                    </IconButton>
+                )}
+                {onAddPress && (
+                    <IconButton onClick={onAddPress}>
+                        <Icon icon={PlusIcon} size="sm" />
+                    </IconButton>
+                )}
+                <Link href={settingsRoute}>
+                    <ProfileIcon url={matrixAuth?.avatarUrl} />
+                </Link>
+                <IconButton onClick={() => setOpen(true)}>
+                    <Icon icon={ScanIcon} size="sm" />
                 </IconButton>
-            )}
-            {onAddPress && (
-                <IconButton onClick={onAddPress}>
-                    <Icon icon={PlusIcon} size="sm" />
-                </IconButton>
-            )}
-            <Link href={settingsRoute}>
-                <ProfileIcon url={matrixAuth?.avatarUrl} />
-            </Link>
-            <IconButton onClick={openOmniScanner}>
-                <Icon icon={ScanIcon} size="sm" />
-            </IconButton>
-        </Row>
+            </Row>
+
+            <ScanDialog open={open} onOpenChange={setOpen} />
+        </>
     )
 }
 

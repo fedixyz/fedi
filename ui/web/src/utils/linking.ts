@@ -6,7 +6,6 @@ import {
     federationsRoute,
     homeRoute,
     onboardingJoinRoute,
-    scanRoute,
 } from '../constants/routes'
 
 // if url contains /link?screen or /link#screen then it's a deep link
@@ -46,8 +45,6 @@ export const getDeepLinkPath = (url: string): string => {
                 return chatRoute
             case 'federations':
                 return federationsRoute
-            case 'scan':
-                return scanRoute
             case 'ecash': {
                 const tokenId = params.get('id')
                 if (!tokenId) return '/'

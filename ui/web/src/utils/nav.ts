@@ -25,7 +25,5 @@ export const shouldHideNavigation = (pathname: string) => {
 
     if (path === routes.transactionsRoute) return true
 
-    if (path === routes.scanRoute) return true
-
     return false
 }

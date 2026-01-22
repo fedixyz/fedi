@@ -8,7 +8,6 @@ export const miniAppsRoute = '/mini-apps'
 export const federationsRoute = '/federations'
 
 // Other pages
-export const scanRoute = '/scan'
 export const federationRoute = (id: string) => `${federationsRoute}/${id}`
 export const communitiesRoute = '/communities'
 export const communityRoute = (id: string) => `${communitiesRoute}/${id}`
