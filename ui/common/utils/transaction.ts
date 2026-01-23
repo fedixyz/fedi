@@ -53,6 +53,7 @@ export const getTxnDirection = (txn: TransactionListEntry): string => {
         case 'sPV2Withdrawal':
         case 'sPV2TransferIn':
             return TransactionDirection.receive
+        // TODO+TEST: Cover transactions of type "multispend"
         default:
             return TransactionDirection.send
     }
