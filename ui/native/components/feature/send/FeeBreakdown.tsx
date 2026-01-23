@@ -2,7 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 
-import { DetailItem } from '@fedi/common/utils/wallet'
+import { DetailItem } from '@fedi/common/utils/transaction'
 
 import { Column } from '../../ui/Flex'
 import { PressableIcon } from '../../ui/PressableIcon'

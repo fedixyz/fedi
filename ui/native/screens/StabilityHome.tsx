@@ -16,7 +16,7 @@ import {
     selectStableBalancePending,
     selectStableBalanceSats,
 } from '@fedi/common/redux'
-import { makePendingBalanceText } from '@fedi/common/utils/wallet'
+import { makePendingBalanceText } from '@fedi/common/utils/stabilitypool'
 
 import { StabilityBitcoinBanner } from '../components/feature/wallet/StabilityBitcoinBanner'
 import { Row, Column } from '../components/ui/Flex'

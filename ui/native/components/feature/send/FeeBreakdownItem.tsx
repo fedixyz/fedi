@@ -2,7 +2,7 @@ import { Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { StyleSheet } from 'react-native'
 
-import { DetailItem } from '@fedi/common/utils/wallet'
+import { DetailItem } from '@fedi/common/utils/transaction'
 
 import { Row } from '../../ui/Flex'
 

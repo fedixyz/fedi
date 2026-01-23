@@ -57,7 +57,7 @@ import {
 import { makeLog } from './log'
 import { constructUrl } from './neverthrow'
 import { isBolt11 } from './parser'
-import { coerceTxn } from './wallet'
+import { coerceTxn } from './transaction'
 
 const log = makeLog('common/utils/matrix')
 

@@ -52,7 +52,7 @@ import {
     handleSpv2Deposit,
     handleSpv2Withdrawal,
     calculateStabilityPoolWithdrawalV2,
-} from '../utils/wallet'
+} from '../utils/stabilitypool'
 
 const log = makeLog('common/redux/wallet')
 

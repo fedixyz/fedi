@@ -9,7 +9,7 @@ import {
     getTxnDirection,
     makeTxnDetailTitleText,
     makeTxnStatusText,
-} from '@fedi/common/utils/wallet'
+} from '@fedi/common/utils/transaction'
 
 import { useAppDispatch } from '../../hooks'
 import { fedimint } from '../../lib/bridge'

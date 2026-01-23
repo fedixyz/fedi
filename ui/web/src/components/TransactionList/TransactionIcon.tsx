@@ -2,7 +2,7 @@ import React from 'react'
 
 import BitcoinCircleIcon from '@fedi/common/assets/svgs/bitcoin-circle.svg'
 import { TransactionListEntry } from '@fedi/common/types'
-import { makeTxnStatusBadge } from '@fedi/common/utils/wallet'
+import { makeTxnStatusBadge } from '@fedi/common/utils/transaction'
 
 import { theme } from '../../styles'
 import { HistoryIcon } from '../HistoryList/HistoryIcon'

@@ -26,7 +26,7 @@ import { TaggedError } from '@fedi/common/utils/errors'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 import { encodeFediMatrixRoomUri } from '@fedi/common/utils/matrix'
-import { getTxnDirection } from '@fedi/common/utils/wallet'
+import { getTxnDirection } from '@fedi/common/utils/transaction'
 
 import { store, AppDispatch } from '../state/store'
 import {

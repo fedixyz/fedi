@@ -6,7 +6,7 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useTxnDisplayUtils } from '@fedi/common/hooks/transactions'
 import { updateTransactionNotes } from '@fedi/common/redux/transactions'
 import { Federation, TransactionListEntry } from '@fedi/common/types'
-import { makeTransactionAmountState } from '@fedi/common/utils/wallet'
+import { makeTransactionAmountState } from '@fedi/common/utils/transaction'
 
 import { useAppDispatch } from '../../../state/hooks'
 import { HistoryList } from './HistoryList'

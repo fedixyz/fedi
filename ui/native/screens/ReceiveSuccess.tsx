@@ -4,7 +4,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { makeReceiveSuccessMessage } from '@fedi/common/utils/wallet'
+import { makeReceiveSuccessMessage } from '@fedi/common/utils/transaction'
 
 import { Column } from '../components/ui/Flex'
 import Success from '../components/ui/Success'

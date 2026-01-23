@@ -1,7 +1,10 @@
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 
-import { isMultispendTxn, makeTxnStatusBadge } from '@fedi/common/utils/wallet'
+import {
+    isMultispendTxn,
+    makeTxnStatusBadge,
+} from '@fedi/common/utils/transaction'
 
 import { TransactionListEntry, TransactionStatusBadge } from '../../../types'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'

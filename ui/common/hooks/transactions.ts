@@ -1,23 +1,6 @@
 import { TFunction } from 'i18next'
 import { useCallback, useContext } from 'react'
 
-import {
-    makeStabilityTxnDetailItems as makeStabilityTxnDetailItemsUtil,
-    makeStabilityTxnFeeDetails as makeStabilityTxnFeeDetailsUtil,
-    makeTxnAmountText as makeTxnAmountTextUtil,
-    makeTxnDetailItems as makeTxnDetailItemsUtil,
-    makeTxnFeeDetails as makeTxnFeeDetailsUtil,
-    makeTxnStatusText as makeTxnStatusTextUtil,
-    makeTxnTypeText as makeTxnTypeTextUtil,
-    makeTxnDetailTitleText as makeTxnDetailTitleTextUtil,
-    makeStabilityTxnDetailTitleText as makeStabilityTxnDetailTitleTextUtil,
-    makeMultispendTxnStatusText as makeMultispendTxnStatusTextUtil,
-    makeMultispendTxnDetailItems as makeMultispendTxnDetailItemsUtil,
-    makeTransactionAmountState,
-    shouldShowAskFedi,
-    makeTxnStatusBadge,
-} from '@fedi/common/utils/wallet'
-
 import { FedimintContext } from '../components/FedimintProvider'
 import {
     fetchMultispendTransactions,
@@ -62,6 +45,22 @@ import {
     coerceMultispendTxn,
     isWithdrawalRequestRejected,
 } from '../utils/matrix'
+import {
+    makeStabilityTxnDetailItems as makeStabilityTxnDetailItemsUtil,
+    makeStabilityTxnFeeDetails as makeStabilityTxnFeeDetailsUtil,
+    makeTxnAmountText as makeTxnAmountTextUtil,
+    makeTxnDetailItems as makeTxnDetailItemsUtil,
+    makeTxnFeeDetails as makeTxnFeeDetailsUtil,
+    makeTxnStatusText as makeTxnStatusTextUtil,
+    makeTxnTypeText as makeTxnTypeTextUtil,
+    makeTxnDetailTitleText as makeTxnDetailTitleTextUtil,
+    makeStabilityTxnDetailTitleText as makeStabilityTxnDetailTitleTextUtil,
+    makeMultispendTxnStatusText as makeMultispendTxnStatusTextUtil,
+    makeMultispendTxnDetailItems as makeMultispendTxnDetailItemsUtil,
+    makeTransactionAmountState,
+    shouldShowAskFedi,
+    makeTxnStatusBadge,
+} from '../utils/transaction'
 import { useAmountFormatter, useBtcFiatPrice } from './amount'
 import { useFedimint } from './fedimint'
 import { useCommonDispatch, useCommonSelector } from './redux'

@@ -23,7 +23,7 @@ import {
     makeMultispendTxnTypeText,
     makeTxnStatusText,
     makeTxnTypeText,
-} from './wallet'
+} from './transaction'
 
 type CSVColumns<T> = { name: string; getValue: (item: T) => string | number }[]
 

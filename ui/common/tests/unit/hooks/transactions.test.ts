@@ -8,8 +8,8 @@ import { setMatrixRoomMultispendStatus } from '@fedi/common/redux/matrix'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { TransactionListEntry } from '@fedi/common/types'
 import { RpcMultispendGroupStatus } from '@fedi/common/types/bindings'
-import * as walletUtils from '@fedi/common/utils/wallet'
 
+import * as walletUtils from '../../../utils/transaction'
 import {
     createMockTransaction,
     createMockMultispendTransaction,
