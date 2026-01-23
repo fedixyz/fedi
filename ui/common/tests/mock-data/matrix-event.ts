@@ -1,4 +1,5 @@
 import {
+    MatrixCommunityInviteEvent,
     MatrixEvent,
     MatrixEventKind,
     MatrixFormEvent,
@@ -82,6 +83,15 @@ const MOCK_FEDERATION_INVITE_EVENT = {
     },
 } satisfies MatrixEvent<'xyz.fedi.federationInvite'>
 
+const MOCK_COMMUNITY_INVITE_EVENT = {
+    ...MOCK_EVENT,
+    content: {
+        msgtype: 'xyz.fedi.communityInvite' as const,
+        body: 'fedi:community:test-community-invite-code',
+        formatted: null,
+    },
+} satisfies MatrixEvent<'xyz.fedi.communityInvite'>
+
 // Helper type for overriding matrix event content
 type MockOverride<T extends MatrixEventKind> = Partial<
     Omit<MatrixEvent<T>, 'content'> & {
@@ -109,6 +119,15 @@ export const createMockFederationInviteEvent = (
 ) => {
     return makeEventWithOverrides<'xyz.fedi.federationInvite'>(
         MOCK_FEDERATION_INVITE_EVENT,
+        overrides,
+    )
+}
+
+export const createMockCommunityInviteEvent = (
+    overrides: MockOverride<'xyz.fedi.communityInvite'> = {},
+): MatrixCommunityInviteEvent => {
+    return makeEventWithOverrides<'xyz.fedi.communityInvite'>(
+        MOCK_COMMUNITY_INVITE_EVENT,
         overrides,
     )
 }

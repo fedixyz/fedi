@@ -2,36 +2,35 @@ import { useRouter } from 'next/router'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useFederationInviteCode } from '@fedi/common/hooks/federation'
+import { useCommunityInviteCode } from '@fedi/common/hooks/federation'
 import { useToast } from '@fedi/common/hooks/toast'
 import { MatrixEvent } from '@fedi/common/types'
+import stringUtils from '@fedi/common/utils/StringUtils'
 
-import { Button } from '../../components/Button'
 import { onboardingJoinRoute } from '../../constants/routes'
 import { useCopy } from '../../hooks'
 import { styled, theme } from '../../styles'
+import { Button } from '../Button'
 import { FederationAvatar } from '../FederationAvatar'
 import { Column, Row } from '../Flex'
 import { Text } from '../Text'
 
 interface Props {
-    event: MatrixEvent<'xyz.fedi.federationInvite'>
+    event: MatrixEvent<'xyz.fedi.communityInvite'>
     isMe?: boolean
 }
 
-export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
+export const ChatCommunityInviteEvent: React.FC<Props> = ({ event, isMe }) => {
     const { t } = useTranslation()
     const toast = useToast()
-    const { copy } = useCopy()
     const router = useRouter()
 
     const inviteCode = event.content.body
-    const { previewResult, isChecking, isError } = useFederationInviteCode(
-        t,
-        inviteCode,
-    )
+    const { copy } = useCopy()
 
-    const handleOnCopy = () => {
+    const { joined, isFetching, preview } = useCommunityInviteCode(inviteCode)
+
+    const handleCopy = () => {
         copy(inviteCode).then(() => {
             toast.show({
                 content: t('phrases.copied-to-clipboard'),
@@ -44,21 +43,20 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
         router.push(onboardingJoinRoute(inviteCode))
     }
 
-    // Fallback to simple display while loading or on error
-    if (isError || isChecking || !previewResult) {
+    const truncatedCode = stringUtils.truncateMiddleOfString(inviteCode, 20)
+
+    // Fallback UI while loading or if there's no preview
+    if (isFetching || !preview) {
         return (
             <Wrapper>
                 <Title variant="caption" weight="bold">
-                    {t('feature.chat.federation-invite')}
+                    {t('feature.communities.community-invite')}
                 </Title>
                 <InviteCode variant="small" weight="normal">
                     {inviteCode}
                 </InviteCode>
                 <ButtonRow>
-                    <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={handleOnCopy}>
+                    <Button variant="secondary" size="xs" onClick={handleCopy}>
                         {t('phrases.copy-invite-code')}
                     </Button>
                 </ButtonRow>
@@ -66,20 +64,19 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
         )
     }
 
-    const { preview, isMember } = previewResult
-
+    // Rich preview UI
     return (
         <Wrapper>
-            <Column gap="md">
+            <Column gap="sm">
                 <InviteLabel>
                     <Text variant="small" weight="bold">
-                        {t('feature.federations.federation-invite')}:
+                        {t('feature.communities.community-invite')}:
                     </Text>
                     <TruncatedCode title={inviteCode} isMe={isMe}>
-                        {inviteCode.slice(0, 30)}...
+                        {truncatedCode}
                     </TruncatedCode>
                 </InviteLabel>
-                <FederationRow align="center" gap="sm">
+                <Row align="center" gap="sm">
                     <FederationAvatar
                         federation={{
                             id: preview.id,
@@ -88,29 +85,26 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
                         }}
                         size="sm"
                     />
-                    <Text variant="body" weight="medium">
+                    <Text variant="caption" weight="medium">
                         {preview.name}
                     </Text>
-                </FederationRow>
-                {isMember && (
+                </Row>
+                {joined && (
                     <MemberText variant="small" isMe={isMe}>
                         {t('phrases.you-are-a-member', {
                             federationName: preview.name,
                         })}
                     </MemberText>
                 )}
-                <ButtonRow wrap gap="sm">
+                <ButtonRow>
                     <Button
                         variant="secondary"
                         size="xs"
                         onClick={handleJoin}
-                        disabled={isMember}>
-                        {isMember ? t('words.joined') : t('words.join')}
+                        disabled={joined}>
+                        {joined ? t('words.joined') : t('words.join')}
                     </Button>
-                    <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={handleOnCopy}>
+                    <Button variant="secondary" size="xs" onClick={handleCopy}>
                         {t('phrases.copy-invite-code')}
                     </Button>
                 </ButtonRow>
@@ -148,8 +142,6 @@ const TruncatedCode = styled('span', {
     },
 })
 
-const FederationRow = styled(Row, {})
-
 const MemberText = styled(Text, {
     variants: {
         isMe: {
@@ -167,5 +159,6 @@ const MemberText = styled(Text, {
 })
 
 const ButtonRow = styled(Row, {
-    marginTop: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
 })

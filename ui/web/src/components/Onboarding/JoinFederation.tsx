@@ -38,8 +38,9 @@ export const JoinFederation: React.FC = () => {
         if (!inviteCode) return
         // skip handling the code if we already have a preview
         if (federationPreview) return
+        if (communityPreview) return
         handleCode(inviteCode)
-    }, [federationPreview, handleCode, inviteCode])
+    }, [federationPreview, communityPreview, handleCode, inviteCode])
 
     let content: React.ReactNode
 

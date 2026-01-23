@@ -1,4 +1,9 @@
-import { MSats, Federation, Community } from '@fedi/common/types'
+import {
+    MSats,
+    Federation,
+    Community,
+    CommunityPreview,
+} from '@fedi/common/types'
 
 import { RpcFederationPreview } from '../../types/bindings'
 
@@ -68,6 +73,21 @@ export const createMockFederationPreview = (
 ): RpcFederationPreview => {
     return {
         ...MOCK_FEDERATION_PREVIEW,
+        ...overrides,
+    }
+}
+
+const MOCK_COMMUNITY_PREVIEW: CommunityPreview = {
+    ...mockCommunity,
+    returningMemberStatus: { type: 'unknown' },
+    version: 1,
+}
+
+export const createMockCommunityPreview = (
+    overrides: Partial<CommunityPreview> = {},
+): CommunityPreview => {
+    return {
+        ...MOCK_COMMUNITY_PREVIEW,
         ...overrides,
     }
 }

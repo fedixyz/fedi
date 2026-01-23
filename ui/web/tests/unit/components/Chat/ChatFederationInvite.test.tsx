@@ -14,7 +14,7 @@ jest.mock('next/router', () => ({
     }),
 }))
 
-const mockCopy = jest.fn()
+const mockCopy = jest.fn().mockResolvedValue(undefined)
 jest.mock('../../../../src/hooks/util', () => ({
     ...jest.requireActual('../../../../src/hooks/util'),
     useCopy: () => ({
@@ -267,8 +267,7 @@ describe('/components/Chat/ChatFederationInviteEvent', () => {
 
             // Should navigate to the onboarding join page with the invite code
             expect(mockPush).toHaveBeenCalledWith(
-                '/onboarding/join?id=' +
-                    encodeURIComponent(mockInviteEvent.content.body),
+                `/onboarding/join?id=${mockInviteEvent.content.body}`,
             )
         })
     })
