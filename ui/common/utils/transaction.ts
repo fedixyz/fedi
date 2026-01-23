@@ -90,6 +90,7 @@ export const makeTxnTypeText = (
     }
 }
 
+// TODO+TEST: ensure that ALL txn kinds and states are covered
 export const makeTxnDetailTitleText = (
     t: TFunction,
     txn: TransactionListEntry,
@@ -132,9 +133,13 @@ export const makeTxnDetailTitleText = (
             case 'completeWithdrawal':
             case 'completedWithdrawal':
                 return t('feature.receive.you-received')
+            // TODO+TEST: This should NOT be the case for SPV2 withdrawals
+            // of state `dataNotInCache` and `failedWithdrawal`
+            // We need to properly handle these states later
             default:
                 return t('phrases.receive-pending')
         }
+        // TODO+TEST: We should properly handle multispend txns instead of blindly saying "you received"
     } else if (txn.kind === 'sPV2TransferIn' && isMultispendTxn(txn)) {
         return t('feature.receive.you-received')
     } else {
