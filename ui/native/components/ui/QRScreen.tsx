@@ -84,7 +84,6 @@ const QRScreen: React.FC<Props> = ({
 const styles = (theme: Theme, dark?: boolean) =>
     StyleSheet.create({
         container: {
-            padding: theme.spacing.xl,
             backgroundColor: dark ? theme.colors.primary : undefined,
         },
         title: {

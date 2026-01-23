@@ -125,22 +125,28 @@ const DEFAULT_DOCUMENT_TYPES = [
     documentTypes.xls,
     documentTypes.xlsx,
     documentTypes.zip,
+    documentTypes.allFiles,
 ]
 
 /**
  * Hook for picking documents from the device.
  * Handles loading state and async URI resolution for Android content URIs.
  */
-export function useDocumentPicker(allowedTypes?: string[]) {
+export function useDocumentPicker({
+    allowAll = false,
+    allowMultiple = true,
+}: {
+    /* Allows picking of all file types - required for custom file types (e.g. .fedi) */
+    allowAll?: boolean
+    /* Allows picking multiple files */
+    allowMultiple?: boolean
+} = {}) {
     const { t } = useTranslation()
     const toast = useToast()
     const [isLoading, setIsLoading] = useState(false)
     const [pending, setPending] = useState<DocumentPickerResponse[]>([])
 
-    const types = useMemo(
-        () => allowedTypes ?? DEFAULT_DOCUMENT_TYPES,
-        [allowedTypes],
-    )
+    const types = allowAll ? documentTypes.allFiles : DEFAULT_DOCUMENT_TYPES
 
     const pickDocuments = useCallback(async (): Promise<
         DocumentPickerResponse[]
@@ -153,7 +159,7 @@ export function useDocumentPicker(allowedTypes?: string[]) {
             const result = await tryPickDocuments(
                 {
                     type: types,
-                    allowMultiSelection: true,
+                    allowMultiSelection: allowMultiple,
                     allowVirtualFiles: true,
                 },
                 t,
@@ -186,7 +192,7 @@ export function useDocumentPicker(allowedTypes?: string[]) {
         }
 
         return resolvedDocuments
-    }, [types, t, toast])
+    }, [allowMultiple, types, t, toast])
 
     return { pickDocuments, isLoading, pending }
 }

@@ -163,8 +163,6 @@ import ResetPinStart from './ResetPinStart'
 import RoomSettings from './RoomSettings'
 import ScanMemberCode from './ScanMemberCode'
 import ScanSocialRecoveryCode from './ScanSocialRecoveryCode'
-import SelectRecoveryFileFailure from './SelectRecoveryFileFailure'
-import SelectRecoveryFileSuccess from './SelectRecoveryFileSuccess'
 import Send from './Send'
 import SendOfflineAmount from './SendOfflineAmount'
 import SendOfflineQr from './SendOfflineQr'
@@ -369,7 +367,12 @@ export const MainNavigator = () => {
                         name="CompleteSocialRecovery"
                         component={CompleteSocialRecovery}
                         options={() => ({
-                            header: () => <SocialRecoveryHeader cancelButton />,
+                            header: () => (
+                                <SocialRecoveryHeader
+                                    backButton
+                                    cancelSocialRecovery
+                                />
+                            ),
                         })}
                     />
                     {/* Deeplink screen */}
@@ -937,16 +940,6 @@ export const MainNavigator = () => {
                                         <SocialRecoveryHeader backButton />
                                     ),
                                 })}
-                            />
-                            <Stack.Screen
-                                name="SelectRecoveryFileSuccess"
-                                component={SelectRecoveryFileSuccess}
-                                options={{ headerShown: false }}
-                            />
-                            <Stack.Screen
-                                name="SelectRecoveryFileFailure"
-                                component={SelectRecoveryFileFailure}
-                                options={{ headerShown: false }}
                             />
                             <Stack.Screen
                                 name="SocialRecoveryFailure"

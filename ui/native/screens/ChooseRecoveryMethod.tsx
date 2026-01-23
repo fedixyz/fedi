@@ -2,11 +2,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet } from 'react-native'
+import { Image, ScrollView, StyleSheet } from 'react-native'
 
-import HoloCard from '../components/ui/HoloCard'
-import LineBreak from '../components/ui/LineBreak'
-import SvgImage from '../components/ui/SvgImage'
+import { Images } from '../assets/images'
+import { Column } from '../components/ui/Flex'
+import GradientView from '../components/ui/GradientView'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -18,10 +18,6 @@ const ChooseRecoveryMethod: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
-    const onChooseSocialRecovery = () => {
-        navigation.navigate('LocateSocialRecovery')
-    }
-
     const style = styles(theme)
 
     return (
@@ -29,43 +25,39 @@ const ChooseRecoveryMethod: React.FC<Props> = ({ navigation }: Props) => {
             <Text style={style.instructionsText}>
                 {t('feature.recovery.choose-method-instructions')}
             </Text>
-            <HoloCard
-                iconImage={<SvgImage name="SocialPeople" />}
-                title={t('feature.recovery.social-recovery')}
-                body={
-                    <>
-                        <Text style={style.recoveryMethodInstructions}>
-                            {t('feature.recovery.social-recovery-method')}
-                        </Text>
-                        <Button
-                            title={t('feature.recovery.start-social-recovery')}
-                            containerStyle={style.recoveryMethodButton}
-                            onPress={onChooseSocialRecovery}
-                        />
-                    </>
-                }
-            />
-            <LineBreak />
-            <HoloCard
-                iconImage={<SvgImage name="Note" />}
-                title={t('feature.recovery.personal-recovery')}
-                body={
-                    <>
-                        <Text style={style.recoveryMethodInstructions}>
-                            {t('feature.recovery.personal-recovery-method')}
-                        </Text>
-                        <Button
-                            title={t(
-                                'feature.recovery.start-personal-recovery',
-                            )}
-                            containerStyle={style.recoveryMethodButton}
-                            onPress={() => {
-                                navigation.navigate('PersonalRecovery')
-                            }}
-                        />
-                    </>
-                }
-            />
+            <Column align="center" gap="md" style={style.box}>
+                <GradientView variant="sky-banner" style={style.iconWrapper}>
+                    <Image source={Images.ProfileSecurityIcon} />
+                </GradientView>
+                <Text h2 medium>
+                    {t('feature.recovery.personal-recovery')}
+                </Text>
+                <Text center style={{ color: theme.colors.darkGrey }}>
+                    {t('feature.recovery.personal-recovery-method')}
+                </Text>
+                <Button
+                    fullWidth
+                    title={t('feature.recovery.start-personal-recovery')}
+                    onPress={() => navigation.navigate('PersonalRecovery')}
+                />
+            </Column>
+            <Column align="center" gap="md" style={style.box}>
+                <GradientView variant="sky-banner" style={style.iconWrapper}>
+                    <Image source={Images.SocialRecoveryIcon} />
+                </GradientView>
+                <Text h2 medium>
+                    {t('feature.recovery.social-recovery')}
+                </Text>
+                <Text center style={{ color: theme.colors.darkGrey }}>
+                    {t('feature.recovery.social-recovery-method')}
+                </Text>
+                <Button
+                    fullWidth
+                    day
+                    title={t('feature.recovery.start-social-recovery')}
+                    onPress={() => navigation.navigate('LocateSocialRecovery')}
+                />
+            </Column>
         </ScrollView>
     )
 }
@@ -76,19 +68,27 @@ const styles = (theme: Theme) =>
             alignItems: 'center',
             justifyContent: 'flex-start',
             padding: theme.spacing.xl,
+            gap: theme.spacing.md,
         },
         instructionsText: {
-            textAlign: 'center',
+            color: theme.colors.darkGrey,
             marginBottom: theme.spacing.xl,
-            paddingHorizontal: theme.spacing.md,
-        },
-        recoveryMethodButton: {
-            width: '100%',
-            marginTop: theme.spacing.md,
-        },
-        recoveryMethodInstructions: {
             textAlign: 'center',
-            paddingVertical: theme.spacing.xs,
+        },
+        box: {
+            borderRadius: theme.borders.defaultRadius,
+            borderWidth: 1,
+            borderColor: theme.colors.extraLightGrey,
+            padding: theme.spacing.lg,
+            width: '100%',
+        },
+        iconWrapper: {
+            alignItems: 'center',
+            borderRadius: 40,
+            display: 'flex',
+            justifyContent: 'center',
+            height: 80,
+            width: 80,
         },
     })
 

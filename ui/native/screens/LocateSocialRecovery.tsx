@@ -1,96 +1,197 @@
+import { DocumentPickerResponse } from '@react-native-documents/picker'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Text, Theme, useTheme } from '@rneui/themed'
-import React from 'react'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet } from 'react-native'
+import { Image, Pressable, StyleSheet, View } from 'react-native'
+import RNFS from 'react-native-fs'
 
-import SelectRecoveryFileButton from '../components/feature/recovery/SelectRecoveryFileButton'
-import { Column } from '../components/ui/Flex'
-import HoloCard from '../components/ui/HoloCard'
-import LineBreak from '../components/ui/LineBreak'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useToast } from '@fedi/common/hooks/toast'
+import { makeLog } from '@fedi/common/utils/log'
+import { formatFileSize } from '@fedi/common/utils/media'
+
+import { Images } from '../assets/images'
+import { Column, Row } from '../components/ui/Flex'
+import GradientView from '../components/ui/GradientView'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
+import { useDocumentPicker } from '../utils/hooks/media'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
     'LocateSocialRecovery'
 >
 
-const LocateSocialRecovery: React.FC<Props> = () => {
+const log = makeLog('LocateSocialRecoveryScreen')
+
+const LocateSocialRecovery: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const { pickDocuments, isLoading: pickerLoading } = useDocumentPicker({
+        allowAll: true,
+        allowMultiple: false,
+    })
+
+    const [file, setFile] = useState<DocumentPickerResponse | undefined>()
+    const [loading, setLoading] = useState<boolean>(false)
+
+    const style = styles(theme)
+
+    const handleFileUpload = async () => {
+        try {
+            setLoading(true)
+
+            const files = await pickDocuments()
+
+            if (!files?.length) {
+                return
+            }
+
+            setFile(files[0])
+        } catch (error) {
+            log.error('Social recovery file could not be uploaded', error)
+            toast.show({
+                content: t(
+                    'feature.recovery.locate-social-recovery-file-upload-error',
+                ),
+                status: 'error',
+            })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleProcessFile = async () => {
+        if (!file) return
+
+        setLoading(true)
+
+        const dest = `${RNFS.DocumentDirectoryPath}/backup.fedi`
+
+        try {
+            // Remove existing file if it exists
+            await RNFS.unlink(dest).catch(() => {})
+
+            // Copy into the path Rust expects
+            await RNFS.copyFile(file.uri, dest)
+
+            // Ensure the file is valid
+            await fedimint.validateRecoveryFile(dest)
+
+            navigation.navigate('CompleteSocialRecovery')
+        } catch (error) {
+            log.error('Social recovery file could not be processed', error)
+            toast.show({
+                content: t(
+                    'feature.recovery.locate-social-recovery-file-process-error',
+                ),
+                status: 'error',
+            })
+            setFile(undefined)
+        } finally {
+            setLoading(false)
+        }
+    }
 
     return (
-        <Column
-            grow
-            align="center"
-            justify="start"
-            style={styles(theme).container}>
-            <Text style={styles(theme).instructionsText}>
-                {t('feature.recovery.social-recovery-instructions')}
-            </Text>
-            <HoloCard
-                iconImage={<SvgImage name="FediFile" />}
-                title={t('feature.recovery.locate-social-recovery-file')}
-                body={
-                    <>
-                        <Column fullWidth>
-                            <Text>
-                                {t(
-                                    'feature.recovery.locate-social-recovery-instructions-1',
+        <SafeAreaContainer edges="bottom">
+            <Column style={style.container}>
+                <Column grow align="center" justify="start" gap="md">
+                    <GradientView
+                        variant="sky-banner"
+                        style={style.iconWrapper}>
+                        <Image source={Images.SocialRecoveryFileIcon} />
+                    </GradientView>
+                    <Text h2 bold>
+                        {t('feature.recovery.locate-social-recovery-title')}
+                    </Text>
+                    <Text style={style.instructionsText}>
+                        {t(
+                            'feature.recovery.locate-social-recovery-instructions',
+                        )}
+                    </Text>
+                    {file && (
+                        <Row
+                            align="center"
+                            justify="center"
+                            gap="md"
+                            style={style.uploadWrapper}>
+                            <View style={style.fileIconWrapper}>
+                                <SvgImage name="File" />
+                            </View>
+                            <View style={style.fileTextWrapper}>
+                                <Text>{file.name}</Text>
+                                {file?.size && (
+                                    <Text
+                                        small
+                                        style={{
+                                            color: theme.colors.darkGrey,
+                                        }}>
+                                        {formatFileSize(file.size)}
+                                    </Text>
                                 )}
-                            </Text>
-                            <Text>
-                                {'  \u2022 '}
-                                {t(
-                                    'feature.recovery.locate-social-recovery-instructions-check-1',
-                                )}
-                            </Text>
-                            <Text>
-                                {'  \u2022 '}
-                                {t(
-                                    'feature.recovery.locate-social-recovery-instructions-check-2',
-                                )}
-                            </Text>
-                            <Text>
-                                {'  \u2022 '}
-                                {t(
-                                    'feature.recovery.locate-social-recovery-instructions-check-3',
-                                )}
-                            </Text>
-                            <Text>
-                                {'  \u2022 '}
-                                {t(
-                                    'feature.recovery.locate-social-recovery-instructions-check-4',
-                                )}
-                            </Text>
-                            <LineBreak />
-                            <Text>
-                                {t(
-                                    'feature.recovery.locate-social-recovery-instructions-3',
-                                )}
-                            </Text>
-                            <Text bold>backup.fedi</Text>
-                            <LineBreak />
-                        </Column>
-                        <SelectRecoveryFileButton />
-                    </>
-                }
-            />
-        </Column>
+                            </View>
+
+                            <Pressable onPress={() => setFile(undefined)}>
+                                <View style={style.closeIconWrapper}>
+                                    <SvgImage name="Close" />
+                                </View>
+                            </Pressable>
+                        </Row>
+                    )}
+                </Column>
+                <Button
+                    fullWidth
+                    title={
+                        !file
+                            ? t(
+                                  'feature.recovery.locate-social-recovery-button-label',
+                              )
+                            : t('words.submit')
+                    }
+                    onPress={!file ? handleFileUpload : handleProcessFile}
+                    loading={loading || pickerLoading}
+                    disabled={loading || pickerLoading}
+                />
+            </Column>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            paddingHorizontal: theme.spacing.xl,
+            flex: 1,
+            padding: theme.spacing.xl,
         },
         instructionsText: {
+            color: theme.colors.darkGrey,
             textAlign: 'center',
-            paddingHorizontal: theme.spacing.md,
-            marginVertical: theme.spacing.lg,
         },
+        iconWrapper: {
+            alignItems: 'center',
+            borderRadius: 40,
+            display: 'flex',
+            justifyContent: 'center',
+            height: 80,
+            width: 80,
+        },
+        uploadWrapper: {
+            borderRadius: theme.borders.defaultRadius,
+            borderWidth: 1,
+            borderColor: theme.colors.extraLightGrey,
+            padding: theme.spacing.lg,
+            width: '100%',
+        },
+        fileIconWrapper: {},
+        fileTextWrapper: {
+            flex: 1,
+        },
+        closeIconWrapper: {},
     })
 
 export default LocateSocialRecovery

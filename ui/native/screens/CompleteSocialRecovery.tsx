@@ -2,13 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    ActivityIndicator,
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    View,
-} from 'react-native'
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -17,8 +11,10 @@ import type { GuardianApproval, SocialRecoveryEvent } from '@fedi/common/types'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Row, Column } from '../components/ui/Flex'
-import HoloCard from '../components/ui/HoloCard'
-import QRCode from '../components/ui/QRCode'
+import GradientView from '../components/ui/GradientView'
+import QRScreen from '../components/ui/QRScreen'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
+import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch } from '../state/hooks'
 import {
     resetAfterFailedSocialRecovery,
@@ -33,8 +29,6 @@ export type Props = NativeStackScreenProps<
     'CompleteSocialRecovery'
 >
 
-const QR_CODE_SIZE = Dimensions.get('window').width * 0.7
-
 const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -47,6 +41,8 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
         undefined,
     )
     const [recoveryQrCode, setRecoveryQrCode] = useState<string>('')
+
+    const style = styles(theme)
 
     useEffect(() => {
         const getRecoveryAssistCode = async () => {
@@ -82,7 +78,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
                 })
                 log.error('failed to get approvals', e)
             }
-        }, 1000)
+        }, 3000)
 
         return () => clearInterval(interval)
     }, [toast, recovering, recoveryQrCode, setApprovals, t, fedimint])
@@ -128,8 +124,17 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
             approvals &&
             approvals.approvals.map((approval: GuardianApproval, i) => {
                 return (
-                    <Row justify="between" key={`gr-${i}`}>
-                        <Text>{approval.guardianName}</Text>
+                    <Row
+                        gap="sm"
+                        justify="between"
+                        align="center"
+                        key={`gr-${i}`}>
+                        <GradientView
+                            variant="sky-banner"
+                            style={style.userIconWrapper}>
+                            <SvgImage name="User" size={SvgImageSize.xs} />
+                        </GradientView>
+                        <Text style={{ flex: 1 }}>{approval.guardianName}</Text>
                         <Text
                             style={
                                 approval.approved ? styles(theme).completed : {}
@@ -154,49 +159,89 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
     }
 
     return (
-        <ScrollView contentContainerStyle={styles(theme).container}>
-            <Text style={styles(theme).instructionsText}>
-                {t('feature.recovery.guardian-approval-instructions')}
-            </Text>
-            <HoloCard
-                body={
-                    recoveryQrCode ? (
-                        <QRCode value={recoveryQrCode} size={QR_CODE_SIZE} />
+        <SafeAreaContainer edges="bottom">
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={style.scrollContainer}>
+                <Column
+                    grow
+                    align="center"
+                    justify="start"
+                    gap="sm"
+                    style={style.container}>
+                    <Text h2 bold>
+                        {t('feature.recovery.complete-social-recovery-title')}
+                    </Text>
+                    <Text style={style.instructionsText}>
+                        {t(
+                            'feature.recovery.complete-social-recovery-description',
+                        )}
+                    </Text>
+                    {recoveryQrCode ? (
+                        <QRScreen
+                            qrValue={recoveryQrCode}
+                            copyMessage={t(
+                                'feature.recovery.copied-recovery-code',
+                            )}
+                        />
                     ) : (
                         <ActivityIndicator />
-                    )
-                }
-            />
-
-            <View style={styles(theme).guardiansContainer}>
-                <Row justify="between">
-                    <Text bold>
-                        {t('feature.recovery.guardian-approvals')}
-                        {'\n'}
-                    </Text>
-                    {renderGuardianApprovalStatus()}
-                </Row>
-                {renderGuardians()}
+                    )}
+                    <View style={style.guardiansContainer}>
+                        <Row justify="between">
+                            <Text bold>
+                                {t('feature.recovery.guardian-approvals')}
+                                {'\n'}
+                            </Text>
+                            {renderGuardianApprovalStatus()}
+                        </Row>
+                        {renderGuardians()}
+                    </View>
+                </Column>
+            </ScrollView>
+            <View style={style.buttonContainer}>
+                <Button
+                    title={t('feature.recovery.complete-social-recovery')}
+                    containerStyle={[styles(theme).completeButton]}
+                    loading={recovering}
+                    disabled={approvals?.remaining > 0}
+                    onPress={() => setRecovering(true)}
+                />
             </View>
-            <Button
-                title={t('feature.recovery.complete-social-recovery')}
-                containerStyle={[
-                    styles(theme).completeButton,
-                    approvals?.remaining > 0 ? styles(theme).hidden : {},
-                ]}
-                loading={recovering}
-                onPress={() => setRecovering(true)}
-            />
-        </ScrollView>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        scrollContainer: {},
         container: {
-            alignItems: 'center',
-            justifyContent: 'center',
+            flex: 1,
             padding: theme.spacing.xl,
+        },
+        buttonContainer: {
+            alignItems: 'center',
+            padding: theme.spacing.lg,
+            paddingTop: theme.spacing.md,
+            width: '100%',
+        },
+        instructionsText: {
+            color: theme.colors.darkGrey,
+            textAlign: 'center',
+        },
+        qrCodeContainer: {
+            borderRadius: theme.borders.defaultRadius,
+            borderWidth: 1,
+            borderColor: theme.colors.lightGrey,
+            padding: theme.spacing.lg,
+        },
+        userIconWrapper: {
+            alignItems: 'center',
+            borderRadius: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            height: 34,
+            width: 34,
         },
         completed: {
             color: theme.colors.success,
@@ -206,16 +251,11 @@ const styles = (theme: Theme) =>
             marginTop: 'auto',
         },
         guardiansContainer: {
+            gap: theme.spacing.xs,
             width: '100%',
-            marginVertical: theme.spacing.xl,
         },
         hidden: {
             opacity: 0,
-        },
-        instructionsText: {
-            textAlign: 'center',
-            paddingHorizontal: theme.spacing.xl,
-            marginBottom: theme.spacing.lg,
         },
         openButton: {
             width: '100%',

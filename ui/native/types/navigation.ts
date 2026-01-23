@@ -181,8 +181,6 @@ export type RootStackParamList = {
     RecoverFromNonceReuse: undefined
     ScanMemberCode: { inviteToRoomId?: string } | undefined
     ScanSocialRecoveryCode: undefined
-    SelectRecoveryFileSuccess: { fileName: string }
-    SelectRecoveryFileFailure: { fileName: string }
     Send: { federationId?: Federation['id'] }
     SendOfflineAmount: undefined
     SendOfflineQr: { ecash: string; amount: MSats }
