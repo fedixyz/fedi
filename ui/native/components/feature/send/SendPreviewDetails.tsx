@@ -38,6 +38,8 @@ const DetailItem = ({
     const { theme } = useTheme()
     const style = styles(theme)
 
+    // The pressable is only used for fees row, which has an info icon.
+    // So no need to style it differently.
     const Wrapper = onPress ? Pressable : View
     return (
         <Wrapper
