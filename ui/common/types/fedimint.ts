@@ -46,7 +46,7 @@ export enum TransactionDirection {
     receive = 'receive',
 }
 
-type CommonTxnFields = Pick<
+export type CommonTxnFields = Pick<
     RpcTransactionListEntry,
     | 'createdAt'
     | 'id'
