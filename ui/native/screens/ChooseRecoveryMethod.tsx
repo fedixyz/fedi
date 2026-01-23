@@ -27,7 +27,10 @@ const ChooseRecoveryMethod: React.FC<Props> = ({ navigation }: Props) => {
             </Text>
             <Column align="center" gap="md" style={style.box}>
                 <GradientView variant="sky-banner" style={style.iconWrapper}>
-                    <Image source={Images.ProfileSecurityIcon} />
+                    <Image
+                        source={Images.ProfileSecurityIcon}
+                        style={{ height: 40, width: 40 }}
+                    />
                 </GradientView>
                 <Text h2 medium>
                     {t('feature.recovery.personal-recovery')}
@@ -43,7 +46,10 @@ const ChooseRecoveryMethod: React.FC<Props> = ({ navigation }: Props) => {
             </Column>
             <Column align="center" gap="md" style={style.box}>
                 <GradientView variant="sky-banner" style={style.iconWrapper}>
-                    <Image source={Images.SocialRecoveryIcon} />
+                    <Image
+                        source={Images.SocialRecoveryIcon}
+                        style={{ height: 40, width: 40 }}
+                    />
                 </GradientView>
                 <Text h2 medium>
                     {t('feature.recovery.social-recovery')}

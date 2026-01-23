@@ -47,7 +47,10 @@ const StartRecoveryAssist: React.FC<Props> = ({ navigation }: Props) => {
             <Column style={style.container}>
                 <Column align="center" gap="lg" grow style={style.content}>
                     <GradientView variant="sky-banner" style={style.heroIcon}>
-                        <Image source={Images.KeyringIcon} />
+                        <Image
+                            source={Images.KeyringIcon}
+                            style={{ height: 40, width: 40 }}
+                        />
                     </GradientView>
                     <Text numberOfLines={2} center style={style.title}>
                         {t('feature.recovery.recovery-assist-title')}

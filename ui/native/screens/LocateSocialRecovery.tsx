@@ -104,7 +104,10 @@ const LocateSocialRecovery: React.FC<Props> = ({ navigation }) => {
                     <GradientView
                         variant="sky-banner"
                         style={style.iconWrapper}>
-                        <Image source={Images.SocialRecoveryFileIcon} />
+                        <Image
+                            source={Images.SocialRecoveryFileIcon}
+                            style={{ height: 40, width: 40 }}
+                        />
                     </GradientView>
                     <Text h2 bold>
                         {t('feature.recovery.locate-social-recovery-title')}
