@@ -85,6 +85,7 @@ export const makeTxnTypeText = (
         case 'oobSend':
         case 'oobReceive':
             return t('words.ecash')
+        // TOOD+TEST: Cover transactions of kind "multispend"
         default:
             return t('words.unknown')
     }
