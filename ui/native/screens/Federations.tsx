@@ -1,8 +1,8 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { useFocusEffect } from '@react-navigation/native'
 import { useTheme, type Theme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { InteractionManager, ScrollView, StyleSheet, View } from 'react-native'
 
 import {
     selectLoadedFederations,
@@ -24,9 +24,8 @@ export type Props = BottomTabScreenProps<
     'Federations'
 >
 
-const Federations: React.FC<Props> = () => {
+const Federations: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
-    const navigation = useNavigation()
 
     const [expandedWalletId, setExpandedWalletId] = useState<string | null>(
         null,
@@ -41,9 +40,13 @@ const Federations: React.FC<Props> = () => {
     // make sure we have at least 1 federation, if not push to JoinFederation screen
     useFocusEffect(
         useCallback(() => {
-            if (loadedFederations.length === 0) {
-                navigation.dispatch(resetToJoinFederation)
-            }
+            const task = InteractionManager.runAfterInteractions(() => {
+                if (loadedFederations.length === 0) {
+                    navigation.dispatch(resetToJoinFederation)
+                }
+            })
+
+            return () => task.cancel()
         }, [loadedFederations.length, navigation]),
     )
 
