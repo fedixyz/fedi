@@ -186,6 +186,7 @@ const theme = createTheme({
                     : {}),
                 ...(props.day
                     ? {
+                          backgroundColor: 'transparent',
                           experimental_backgroundImage: `linear-gradient(to bottom, ${fediTheme.dayLinearGradient.join(', ')})`,
                       }
                     : {}),
