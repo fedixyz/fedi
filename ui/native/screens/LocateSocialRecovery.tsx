@@ -48,6 +48,7 @@ const LocateSocialRecovery: React.FC<Props> = ({ navigation }) => {
             const files = await pickDocuments()
 
             if (!files?.length) {
+                log.info('No file selected')
                 return
             }
 

@@ -170,14 +170,23 @@ export function useDocumentPicker({
                     setPending(files)
 
                     await Promise.all(
-                        files.map(file =>
-                            deriveCopyableFileUri(file).map(uri => {
-                                setPending(p =>
-                                    p.filter(d => d.uri !== file.uri),
-                                )
-                                resolvedDocuments.push({ ...file, uri })
-                            }),
-                        ),
+                        files.map(async file => {
+                            const uriResult = await deriveCopyableFileUri(file)
+                            uriResult.match(
+                                uri => {
+                                    setPending(p =>
+                                        p.filter(d => d.uri !== file.uri),
+                                    )
+                                    resolvedDocuments.push({ ...file, uri })
+                                },
+                                e => {
+                                    log.error(
+                                        `Error copying document ${file.uri}`,
+                                        e,
+                                    )
+                                },
+                            )
+                        }),
                     )
                 },
                 e => {
