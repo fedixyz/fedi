@@ -678,6 +678,16 @@ export const MainNavigator = () => {
                                 <Stack.Screen
                                     name="ChatWallet"
                                     component={ChatWallet}
+                                    options={() => ({
+                                        header: () => (
+                                            <CenteredHeader
+                                                backButton
+                                                title={t(
+                                                    'feature.chat.request-or-send-money',
+                                                )}
+                                            />
+                                        ),
+                                    })}
                                 />
                                 <Stack.Screen
                                     name="ConfirmSendChatPayment"
@@ -686,7 +696,7 @@ export const MainNavigator = () => {
                                         header: () => (
                                             <DefaultChatHeader
                                                 title={t(
-                                                    'phrases.confirm-chat-send',
+                                                    'feature.multispend.confirm-transaction',
                                                 )}
                                             />
                                         ),

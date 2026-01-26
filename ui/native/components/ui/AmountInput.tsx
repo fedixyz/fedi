@@ -50,6 +50,7 @@ export type Props = {
     notesOptional?: boolean
     setNotes?: (notes: string) => void
     content?: React.ReactNode | null
+    preHeader?: React.ReactNode | null
     federationId?: Federation['id']
 }
 
@@ -70,6 +71,7 @@ const AmountInput: React.FC<Props> = ({
     setNotes,
     notesOptional = true,
     content = null,
+    preHeader = null,
     federationId,
 }) => {
     const { t } = useTranslation()
@@ -178,6 +180,7 @@ const AmountInput: React.FC<Props> = ({
     return (
         <Column grow align="center" fullWidth>
             <Column center gap="sm" grow style={style.amounts}>
+                <Column fullWidth>{preHeader}</Column>
                 <Animated.View style={animatedStyle}>
                     <Pressable
                         style={style.primaryAmount}
@@ -228,14 +231,7 @@ const AmountInput: React.FC<Props> = ({
                         error
                     )}
                 </Column>
-                {content && (
-                    <Column
-                        align="center"
-                        fullWidth
-                        style={style.errorContainer}>
-                        {content}
-                    </Column>
-                )}
+                {content && <Column fullWidth>{content}</Column>}
                 {setNotes && (
                     <View style={style.notesContainer}>
                         <NotesInput
@@ -273,10 +269,6 @@ const AmountInput: React.FC<Props> = ({
 const styles = (theme: Theme, width: number) =>
     StyleSheet.create({
         amounts: {
-            paddingHorizontal: theme.spacing.lg,
-        },
-        errorContainer: {
-            maxHeight: 60,
             paddingHorizontal: theme.spacing.lg,
         },
         primaryAmount: {

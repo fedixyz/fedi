@@ -12,7 +12,8 @@ import {
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import { AmountScreen } from '../components/ui/AmountScreen'
-import { Column } from '../components/ui/Flex'
+import { Column, Row } from '../components/ui/Flex'
+import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -89,7 +90,15 @@ const ChatWallet: React.FC<Props> = ({ navigation, route }: Props) => {
             submitAttempts={submitAttempts}
             isSubmitting={submitAction !== null}
             verb={submitType === 'send' ? t('words.send') : t('words.request')}
-            subHeader={<FederationWalletSelector />}
+            content={<FederationWalletSelector fullWidth />}
+            preHeader={
+                <Row gap="xs" center>
+                    <SvgImage name="FediLogoIcon" size={16} />
+                    <Text bold caption>
+                        {t('words.ecash')}
+                    </Text>
+                </Row>
+            }
             {...inputMinMax}
             buttons={[
                 {

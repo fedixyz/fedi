@@ -8,7 +8,7 @@ import { Federation } from '@fedi/common/types'
 import { hexToRgba } from '@fedi/common/utils/color'
 
 import AmountInput, { Props as AmountInputProps } from './AmountInput'
-import { Row } from './Flex'
+import { Column, Row } from './Flex'
 import KeyboardAwareWrapper from './KeyboardAwareWrapper'
 import { SafeAreaContainer } from './SafeArea'
 
@@ -47,7 +47,7 @@ export const AmountScreen: React.FC<Props> = ({
             <SafeAreaContainer
                 style={style.container}
                 edges={isIndependent ? 'notop' : 'none'}>
-                <View style={style.subHeader}>
+                <Column style={style.subHeader}>
                     {subHeader}
                     {showBalance && federationId && (
                         <Text
@@ -58,7 +58,7 @@ export const AmountScreen: React.FC<Props> = ({
                             {formattedBalanceText}
                         </Text>
                     )}
-                </View>
+                </Column>
                 <AmountInput {...amountInputProps} />
                 {subContent && <View>{subContent}</View>}
                 <Row fullWidth style={style.buttonGroup}>

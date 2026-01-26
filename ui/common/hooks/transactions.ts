@@ -577,6 +577,8 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
         } = makeFormattedAmountsFromMSats(federationFee)
         const { formattedPrimaryAmount: formattedTotalFee } =
             makeFormattedAmountsFromMSats(totalFees)
+        const { formattedPrimaryAmount: formattedTotalAmount } =
+            makeFormattedAmountsFromMSats((amount + totalFees) as MSats)
 
         const ecashFeeItems: FeeItem[] = [
             {
@@ -591,9 +593,8 @@ export function useFeeDisplayUtils(t: TFunction, federationId: string) {
 
         return {
             feeItemsBreakdown: ecashFeeItems,
-            formattedTotalFee: `${
-                totalFees > 0 ? '+' : ''
-            }${formattedTotalFee}`,
+            formattedTotalFee,
+            formattedTotalAmount,
         }
     }
 

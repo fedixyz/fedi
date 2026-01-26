@@ -31,25 +31,24 @@ const EditNotesOverlay = ({
         <FullModalOverlay
             contents={{
                 headerElement: (
-                    <>
-                        <Row center style={style.headerContainer}>
-                            <PressableIcon
-                                svgName="Close"
-                                onPress={() => dismiss()}
-                                svgProps={{ size: SvgImageSize.md }}
-                                containerStyle={style.backIconContainer}
-                            />
-                            <Text bold style={style.title}>
-                                {t('phrases.add-notes')}
-                            </Text>
-                        </Row>
-                    </>
+                    <Row center style={style.headerContainer}>
+                        <PressableIcon
+                            svgName="Close"
+                            onPress={() => dismiss()}
+                            svgProps={{ size: SvgImageSize.md }}
+                            containerStyle={style.backIconContainer}
+                        />
+                        <Text bold style={style.title}>
+                            {t('phrases.add-notes')}
+                        </Text>
+                    </Row>
                 ),
                 body: (
                     <Input
                         value={notes}
                         onChangeText={setNotes}
                         numberOfLines={5}
+                        maxLength={144}
                         multiline
                         textAlignVertical="top"
                         placeholder={t('feature.send.edit-notes-placeholder')}

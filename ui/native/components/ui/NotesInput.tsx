@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
 import EditNotesOverlay from '../feature/send/EditNotesOverlay'
-import { Row, Column } from './Flex'
+import { Column, Row } from './Flex'
 import SvgImage, { SvgImageSize } from './SvgImage'
 
 type NotesInputProps = {
@@ -55,7 +55,10 @@ export default function NotesInput({
                         </Row>
                     </Row>
                     {notes && (
-                        <Text small color={theme.colors.darkGrey}>
+                        <Text
+                            small
+                            color={theme.colors.darkGrey}
+                            numberOfLines={3}>
                             {notes}
                         </Text>
                     )}

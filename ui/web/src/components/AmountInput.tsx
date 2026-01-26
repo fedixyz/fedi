@@ -20,6 +20,7 @@ interface Props {
     maximumAmount?: Sats | null
     submitAttempts?: number
     extraInput?: React.ReactNode
+    content?: React.ReactNode
     onChangeAmount?: (amount: Sats) => void
 }
 
@@ -32,6 +33,7 @@ export const AmountInput: React.FC<Props> = ({
     maximumAmount,
     submitAttempts = 0,
     extraInput,
+    content,
     onChangeAmount,
 }) => {
     const { t } = useTranslation()
@@ -153,6 +155,7 @@ export const AmountInput: React.FC<Props> = ({
     return (
         <Container>
             <InputContainer>
+                {content}
                 <AmountInputContainer
                     ref={amountInputContainerElRef}
                     css={{
