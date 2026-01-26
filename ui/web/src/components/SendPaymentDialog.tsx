@@ -24,6 +24,7 @@ import { DialogStatus, DialogStatusProps } from './DialogStatus'
 import { FederationWalletSelector } from './FederationWalletSelector'
 import { OmniInput, type OmniCustomAction } from './OmniInput'
 import RateFederationDialog from './Onboarding/RateFederationDialog'
+import PaymentType from './PaymentType'
 import { SendOffline } from './SendOffline'
 import { Text } from './Text'
 
@@ -164,6 +165,7 @@ export const SendPaymentDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                                 </InvoiceDescription>
                             ) : undefined
                         }
+                        content={<PaymentType type="lightning" />}
                     />
                 </InvoiceContainer>
                 <Button onClick={handleSend}>{t('words.send')}</Button>

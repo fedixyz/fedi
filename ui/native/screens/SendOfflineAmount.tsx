@@ -7,6 +7,7 @@ import { useMinMaxSendAmount } from '@fedi/common/hooks/amount'
 import { selectPaymentFederation } from '@fedi/common/redux'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
+import PaymentType from '../components/feature/send/PaymentType'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { SafeScrollArea } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
@@ -46,6 +47,7 @@ const SendOfflineAmount: React.FC<Props> = () => {
         <SafeScrollArea edges="none">
             <AmountScreen
                 subHeader={<FederationWalletSelector />}
+                preHeader={<PaymentType type="ecash" />}
                 amount={amount}
                 onChangeAmount={onChangeAmount}
                 minimumAmount={minimumAmount}

@@ -17,6 +17,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import InternetUnreachableBanner from '../components/feature/environment/InternetUnreachableBanner'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
+import PaymentType from '../components/feature/send/PaymentType'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import LineBreak from '../components/ui/LineBreak'
@@ -166,6 +167,7 @@ const ConfirmSendLightning: React.FC<Props> = ({ route }: Props) => {
                 readOnly={!!exactAmount}
                 description={description}
                 subContent={renderDetails()}
+                preHeader={<PaymentType type="lightning" />}
                 buttons={
                     !exactAmount
                         ? [

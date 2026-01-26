@@ -26,6 +26,7 @@ import { Dialog } from '../Dialog'
 import { FederationWalletSelector } from '../FederationWalletSelector'
 import { Column, Row } from '../Flex'
 import { Icon } from '../Icon'
+import PaymentType from '../PaymentType'
 import { Text } from '../Text'
 import { ChatAvatar } from './ChatAvatar'
 
@@ -254,14 +255,7 @@ export const ChatPaymentDialog: React.FC<Props> = ({
                                     : t('words.request')
                             }
                             submitAttempts={submitAttempts}
-                            content={
-                                <Row gap="xs" center>
-                                    <Icon icon={FediLogoIcon} size={16} />
-                                    <Text weight="bold" variant="caption">
-                                        {t('words.ecash')}
-                                    </Text>
-                                </Row>
-                            }
+                            content={<PaymentType type="ecash" />}
                             extraInput={
                                 <Column gap="md" fullWidth>
                                     <FederationWalletSelector />

@@ -17,6 +17,7 @@ import { Button } from './Button'
 import { Checkbox } from './Checkbox'
 import { FederationWalletSelector } from './FederationWalletSelector'
 import { Row } from './Flex'
+import PaymentType from './PaymentType'
 import { QRCode } from './QRCode'
 import { Text } from './Text'
 
@@ -159,6 +160,7 @@ export const SendOffline: React.FC<Props> = ({
                         minimumAmount={minimumAmount}
                         maximumAmount={maximumAmount}
                         submitAttempts={submitAttempts}
+                        content={<PaymentType type="ecash" />}
                     />
                 </AmountContainer>
 

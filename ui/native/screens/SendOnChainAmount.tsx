@@ -15,6 +15,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import InternetUnreachableBanner from '../components/feature/environment/InternetUnreachableBanner'
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
+import PaymentType from '../components/feature/send/PaymentType'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { useAppSelector } from '../state/hooks'
 import { ParserDataType } from '../types'
@@ -111,6 +112,7 @@ const SendOnChainAmount: React.FC<Props> = ({ route }: Props) => {
             {isOffline && <InternetUnreachableBanner />}
             <AmountScreen
                 subHeader={<FederationWalletSelector />}
+                preHeader={<PaymentType type="onchain" />}
                 amount={inputAmount}
                 onChangeAmount={setInputAmount}
                 minimumAmount={minimumAmount}

@@ -15,6 +15,7 @@ import { hexToRgba } from '@fedi/common/utils/color'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
+import PaymentType from '../components/feature/send/PaymentType'
 import NotesInput from '../components/ui/NotesInput'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
@@ -159,6 +160,7 @@ const ConfirmSendOnChain: React.FC<Props> = ({ route }: Props) => {
             */}
             <FederationWalletSelector readonly />
             <View style={style.amountContainer}>
+                <PaymentType type="onchain" style={style.onchainIndicator} />
                 <Text h1 numberOfLines={1}>
                     {formattedPrimaryAmount}
                 </Text>
@@ -259,6 +261,7 @@ const styles = (theme: Theme) =>
             marginRight: theme.spacing.xs,
             marginTop: theme.spacing.xs,
         },
+        onchainIndicator: { paddingBottom: theme.spacing.xs },
     })
 
 export default ConfirmSendOnChain

@@ -17,13 +17,13 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 
 import ChatAvatar from '../components/feature/chat/ChatAvatar'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
+import PaymentType from '../components/feature/send/PaymentType'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import { AvatarSize } from '../components/ui/Avatar'
 import { Column, Row } from '../components/ui/Flex'
 import NotesInput from '../components/ui/NotesInput'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
-import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import { resetToDirectChat } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -79,12 +79,7 @@ const ConfirmSendChatPayment: React.FC<Props> = ({ route, navigation }) => {
         <SafeAreaContainer style={style.container} edges="notop">
             <Column style={style.content} fullWidth align="center" grow>
                 <Column style={style.amountContainer} align="center" fullWidth>
-                    <Row center gap="xs">
-                        <SvgImage name="FediLogoIcon" size={16} />
-                        <Text bold caption>
-                            {t('words.ecash')}
-                        </Text>
-                    </Row>
+                    <PaymentType type="ecash" />
                     <SendAmounts
                         balanceDisplay={formattedBalanceText}
                         formattedPrimaryAmount={formattedPrimaryAmount}

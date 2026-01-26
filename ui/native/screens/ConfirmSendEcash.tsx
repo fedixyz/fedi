@@ -15,8 +15,10 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
+import PaymentType from '../components/feature/send/PaymentType'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
+import { Column } from '../components/ui/Flex'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import { useAppSelector } from '../state/hooks'
 import { reset } from '../state/navigation'
@@ -93,11 +95,14 @@ const ConfirmSendEcash: React.FC<Props> = ({ route, navigation }) => {
     return (
         <SafeAreaContainer style={style.container} edges="notop">
             <FederationWalletSelector />
-            <SendAmounts
-                balanceDisplay={formattedBalanceText}
-                formattedPrimaryAmount={formattedPrimaryAmount}
-                formattedSecondaryAmount={formattedSecondaryAmount}
-            />
+            <Column style={style.amountContainer}>
+                <PaymentType type="ecash" />
+                <SendAmounts
+                    balanceDisplay={formattedBalanceText}
+                    formattedPrimaryAmount={formattedPrimaryAmount}
+                    formattedSecondaryAmount={formattedSecondaryAmount}
+                />
+            </Column>
             <SendPreviewDetails
                 onPressFees={() => setShowFeeBreakdown(true)}
                 formattedTotalFee={formattedTotalFee}
@@ -128,12 +133,6 @@ const styles = (theme: Theme) =>
         balance: {
             color: hexToRgba(theme.colors.primary, 0.6),
             textAlign: 'center',
-        },
-        secondaryAmountText: {
-            color: theme.colors.darkGrey,
-            textAlign: 'center',
-            marginRight: theme.spacing.xs,
-            marginTop: theme.spacing.xs,
         },
     })
 
