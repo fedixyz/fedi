@@ -197,6 +197,9 @@ export const makeTxnAmountText = (
             amount,
             'none',
         )
+        // TODO+TEST: `txnDisplay` isn't changing the transaction display type correctly
+        // Instead, it is controlled by the `environment.transactionDisplayType` in redux
+        // This should be `formattedSats` instead
         formattedAmount = formattedPrimaryAmount
 
         if (txnDisplay === 'fiat') {
