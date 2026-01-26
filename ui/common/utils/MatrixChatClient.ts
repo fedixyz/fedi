@@ -965,13 +965,12 @@ export class MatrixChatClient {
               )
             : null
 
+        const name = this.ensureDisplayName(room.name)
+
         return {
             ...room,
             preview,
-            // TODO: Move this to bridge?
-            name: room.directUserId
-                ? this.ensureDisplayName(room.name)
-                : room.name,
+            name,
             // this ensures we show a different ChatRoomInvite screen for public rooms
             inviteCode: encodeFediMatrixRoomUri(room.id),
             // Avoid showing a user's avatar for non-DM rooms that currently
