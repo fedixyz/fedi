@@ -5,9 +5,13 @@ import {
     Platform,
     Pressable,
     StyleSheet,
+    View,
     ViewStyle,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+
+import { useImeFooterLift } from '../../utils/hooks/keyboard'
+import { isAndroidAPI35Plus } from '../../utils/layout'
 
 /*
     UI Component: KeyboardAwareWrapper
@@ -45,11 +49,35 @@ const KeyboardAwareWrapper: React.FC<KeyboardAwareWrapperProps> = ({
         dismissableAreaStyle,
     ]
 
+    const android35Space = useImeFooterLift()
+
+    if (
+        Platform.OS === 'android' &&
+        isAndroidAPI35Plus() &&
+        behavior === 'padding'
+    ) {
+        return (
+            <View
+                style={[
+                    mergedContainerStyles,
+                    { paddingBottom: android35Space },
+                ]}>
+                <Pressable
+                    accessible={false}
+                    disabled={dismissableArea === false}
+                    style={mergedDismissableAreaStyles}
+                    onPress={() => Keyboard.dismiss()}>
+                    {children}
+                </Pressable>
+            </View>
+        )
+    }
+
     return (
         <KeyboardAvoidingView
             style={mergedContainerStyles}
-            enabled={Platform.OS === 'ios'}
             keyboardVerticalOffset={insets.bottom + additionalVerticalOffset}
+            enabled={Platform.OS === 'ios'}
             behavior={behavior}>
             <Pressable
                 accessible={false}

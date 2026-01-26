@@ -2,12 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    FlatList,
-    KeyboardAvoidingView,
-    ListRenderItem,
-    StyleSheet,
-} from 'react-native'
+import { FlatList, ListRenderItem, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
@@ -16,6 +11,7 @@ import { ChatType, MatrixRoom } from '@fedi/common/types'
 
 import ChatRoomTile from '../components/feature/chat/ChatRoomTile'
 import { Column } from '../components/ui/Flex'
+import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
@@ -29,7 +25,6 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const { initialQuery } = route.params
-
     const { query, filteredChatsList } = useChatsListSearch(initialQuery)
 
     const handleOpenChat = useCallback(
@@ -63,9 +58,9 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
                     {t('feature.chat.search-chats-list-guidance')}
                 </Text>
             )}
-            <KeyboardAvoidingView
-                behavior="padding"
-                style={style.resultsContainer}>
+            <KeyboardAwareWrapper
+                containerStyle={style.resultsContainer}
+                dismissableArea={false}>
                 {filteredChatsList.length === 0 ? (
                     <Column
                         align="center"
@@ -85,7 +80,11 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
                         </Text>
                     </Column>
                 ) : (
-                    <ScrollView style={{ flex: 1 }}>
+                    <ScrollView
+                        style={{
+                            flex: 1,
+                            width: '100%',
+                        }}>
                         <FlatList
                             data={filteredChatsList}
                             renderItem={renderChat}
@@ -96,7 +95,7 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
                         />
                     </ScrollView>
                 )}
-            </KeyboardAvoidingView>
+            </KeyboardAwareWrapper>
         </SafeAreaContainer>
     )
 }
@@ -112,7 +111,8 @@ const styles = (theme: Theme) =>
             paddingHorizontal: theme.spacing.lg,
         },
         resultsContainer: {
-            flexGrow: 1,
+            flex: 1,
+            width: '100%',
         },
         listContent: {
             paddingHorizontal: theme.spacing.sm,

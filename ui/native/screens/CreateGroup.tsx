@@ -13,7 +13,7 @@ import { Row, Column } from '../components/ui/Flex'
 import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import { SafeAreaContainer, SafeScrollArea } from '../components/ui/SafeArea'
 import type { RootStackParamList } from '../types/navigation'
-import { useImeFooterLift, useIosKeyboardOpen } from '../utils/hooks/keyboard'
+import { useIosKeyboardOpen } from '../utils/hooks/keyboard'
 
 export type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>
 
@@ -54,7 +54,6 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
 
     const style = styles(theme)
     const openIOS = useIosKeyboardOpen(80)
-    const extraPadAndroid35 = useImeFooterLift()
 
     return (
         <KeyboardAwareWrapper>
@@ -139,8 +138,7 @@ const CreateGroup: React.FC<Props> = ({ navigation, route }: Props) => {
                                 paddingBottom:
                                     insets.bottom +
                                     theme.spacing.lg +
-                                    (openIOS ? 40 : 0) +
-                                    extraPadAndroid35,
+                                    (openIOS ? 40 : 0),
                             },
                         ]}>
                         <Button
