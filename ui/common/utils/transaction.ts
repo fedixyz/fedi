@@ -767,6 +767,7 @@ export const makeTxnDetailItems = (
     if (
         (txn.kind === 'lnReceive' ||
             txn.kind === 'lnPay' ||
+            // TODO+TEST: lnRecurringdReceive does not have an ln_invoice field
             txn.kind === 'lnRecurringdReceive') &&
         'ln_invoice' in txn
     ) {
