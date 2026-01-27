@@ -146,8 +146,6 @@ export function useDocumentPicker({
     const [isLoading, setIsLoading] = useState(false)
     const [pending, setPending] = useState<DocumentPickerResponse[]>([])
 
-    const types = allowAll ? documentTypes.allFiles : DEFAULT_DOCUMENT_TYPES
-
     const pickDocuments = useCallback(async (): Promise<
         DocumentPickerResponse[]
     > => {
@@ -158,7 +156,7 @@ export function useDocumentPicker({
         try {
             const result = await tryPickDocuments(
                 {
-                    type: types,
+                    type: allowAll ? ['public.item'] : DEFAULT_DOCUMENT_TYPES,
                     allowMultiSelection: allowMultiple,
                     allowVirtualFiles: true,
                 },
@@ -170,23 +168,14 @@ export function useDocumentPicker({
                     setPending(files)
 
                     await Promise.all(
-                        files.map(async file => {
-                            const uriResult = await deriveCopyableFileUri(file)
-                            uriResult.match(
-                                uri => {
-                                    setPending(p =>
-                                        p.filter(d => d.uri !== file.uri),
-                                    )
-                                    resolvedDocuments.push({ ...file, uri })
-                                },
-                                e => {
-                                    log.error(
-                                        `Error copying document ${file.uri}`,
-                                        e,
-                                    )
-                                },
-                            )
-                        }),
+                        files.map(file =>
+                            deriveCopyableFileUri(file).map(uri => {
+                                setPending(p =>
+                                    p.filter(d => d.uri !== file.uri),
+                                )
+                                resolvedDocuments.push({ ...file, uri })
+                            }),
+                        ),
                     )
                 },
                 e => {
@@ -201,7 +190,7 @@ export function useDocumentPicker({
         }
 
         return resolvedDocuments
-    }, [allowMultiple, types, t, toast])
+    }, [allowAll, allowMultiple, t, toast])
 
     return { pickDocuments, isLoading, pending }
 }
