@@ -13,6 +13,7 @@ import {
     RpcOnchainWithdrawState,
     RpcOOBReissueState,
     RpcOOBSpendState,
+    RpcOperationFediFeeStatus,
     RpcSPDepositState,
     RpcSPV2DepositState,
     RpcSPV2TransferInState,
@@ -460,5 +461,24 @@ export function makeTestGroupInvitationWithKeys(): GroupInvitationWithKeys {
         pubkeys: {},
         rejections: [],
         federationId: '1',
+    }
+}
+
+export function makeTestFediFeeStatus(
+    type: RpcOperationFediFeeStatus['type'],
+    fee: number = 0,
+): RpcOperationFediFeeStatus {
+    const fedi_fee = fee as MSats
+    switch (type) {
+        case 'pendingSend':
+            return { type, fedi_fee }
+        case 'pendingReceive':
+            return { type, fedi_fee_ppm: 0 }
+        case 'success':
+            return { type, fedi_fee }
+        case 'failedSend':
+            return { type, fedi_fee }
+        case 'failedReceive':
+            return { type, fedi_fee_ppm: 0 }
     }
 }
