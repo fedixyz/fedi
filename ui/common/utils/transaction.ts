@@ -509,10 +509,12 @@ export const makeTxnStatusBadge = (
                     case 'completedDeposit':
                         badge = 'outgoing'
                         break
+                    // TODO+TEST: Handle `failedDeposit` state
                     default:
                         break
                 }
             } else if (txn.kind === 'sPV2TransferOut') {
+                // TODO+TEST: Handle `dataNotInCache` state and different kinds (sp transfer ui, multispend, etc)
                 badge = 'outgoing'
                 break
             }
@@ -539,6 +541,7 @@ export const makeTxnStatusBadge = (
                 switch (txn.state?.type) {
                     case 'claimed':
                     case 'created': // Remove this once bug is fixed
+                        // TODO+TEST: Identify what "bug" refers to and set to "pending" if the bug is fixed
                         badge = 'incoming'
                         break
                     case 'canceled':
@@ -578,6 +581,7 @@ export const makeTxnStatusBadge = (
                     case 'completedWithdrawal':
                         badge = 'incoming'
                         break
+                    // TODO+TEST: Handle `failedWithdrawal` state
                     case 'pendingWithdrawal':
                     default:
                         badge = 'pending'

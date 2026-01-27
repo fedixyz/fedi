@@ -422,7 +422,7 @@ export function makeTestDepositEventData(): MultispendDepositEventData {
 }
 
 export function makeTestMultispendWithdrawRequest(
-    status: 'accepted' | 'rejected',
+    status: 'accepted' | 'rejected' | 'unknown',
 ): WithdrawRequestWithApprovals {
     let txSubmissionStatus: WithdrawTxSubmissionStatus = 'unknown'
 
@@ -432,6 +432,9 @@ export function makeTestMultispendWithdrawRequest(
             break
         case 'rejected':
             txSubmissionStatus = { rejected: { error: TEST_ERROR } }
+            break
+        case 'unknown':
+            txSubmissionStatus = 'unknown'
             break
     }
 
