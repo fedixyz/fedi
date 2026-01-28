@@ -1043,6 +1043,7 @@ export const makeMultispendTxnDetailItems = (
         value: t('words.multispend'),
     })
 
+    // TODO+TEST: Inconsistent time format compared to other *TxnDetailItems functions
     items.push({
         label: t('words.time'),
         value: dateUtils.formatTimestamp(
