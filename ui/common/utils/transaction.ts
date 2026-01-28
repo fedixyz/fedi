@@ -869,6 +869,7 @@ export const makeStabilityTxnDetailTitleText = (
     return t('words.unknown')
 }
 
+// TODO+TEST: Consider merging/using this from makeTxnDetailItems as it takes the same inputs and a lot of logic seems duplicated
 export const makeStabilityTxnDetailItems = (
     t: TFunction,
     txn: TransactionListEntry,

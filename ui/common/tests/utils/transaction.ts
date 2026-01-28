@@ -322,8 +322,9 @@ export function makeTestOOBReissueState(
     }
 }
 
-export function makeTestSPDepositState(
-    type: RpcSPDepositState['type'],
+export function makeTestSPDepositState<T extends RpcSPDepositState['type']>(
+    type: T,
+    overrides: Partial<Extract<RpcSPDepositState, { type: T }>> = {},
 ): RpcSPDepositState {
     switch (type) {
         case 'completeDeposit':
@@ -331,9 +332,10 @@ export function makeTestSPDepositState(
                 type,
                 initial_amount_cents: 0,
                 fees_paid_so_far: 0 as MSats,
+                ...overrides,
             }
         default:
-            return { type }
+            return { type, ...overrides }
     }
 }
 
@@ -343,23 +345,25 @@ export function makeTestSPWithdrawalState(
     return { type, estimated_withdrawal_cents: 0 }
 }
 
-export function makeTestSPV2DepositState(
-    type: RpcSPV2DepositState['type'],
+export function makeTestSPV2DepositState<T extends RpcSPV2DepositState['type']>(
+    type: T,
+    overrides: Partial<Extract<RpcSPV2DepositState, { type: T }>> = {},
 ): RpcSPV2DepositState {
     switch (type) {
         case 'pendingDeposit':
-            return { type, amount: 0 as MSats, fiat_amount: 0 }
+            return { type, amount: 0 as MSats, fiat_amount: 0, ...overrides }
         case 'completedDeposit':
             return {
                 type,
                 amount: 0 as MSats,
                 fiat_amount: 0,
                 fees_paid_so_far: 0 as MSats,
+                ...overrides,
             }
         case 'failedDeposit':
-            return { type, error: TEST_ERROR }
+            return { type, error: TEST_ERROR, ...overrides }
         case 'dataNotInCache':
-            return { type }
+            return { type, ...overrides }
     }
 }
 
