@@ -1145,6 +1145,8 @@ export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
                     case 'failed':
                     case 'refunded':
                         return true
+                    // TODO+TEST: Should we hide the button for if `txn.state.type` is undefined?
+                    // We should either use a whitelist of success states or just handle all states to avoid confusion
                     default:
                         return false
                 }
@@ -1166,6 +1168,7 @@ export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
                     case 'userCanceledProcessing':
                     case 'refunded':
                         return true
+                    // TODO+TEST: we shouldn't hide the button if `txn.state.type` is undefined
                     default:
                         return false
                 }
@@ -1176,6 +1179,7 @@ export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
                     case 'pendingDeposit':
                     case 'failedDeposit':
                         return true
+                    // TODO+TEST: Need to handle `dataNotInCache` states and show the "Ask Fedi" button for those
                     default:
                         return false
                 }
