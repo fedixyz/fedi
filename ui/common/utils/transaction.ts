@@ -1124,6 +1124,7 @@ export const isMultispendTxn = (
     txn: TransactionListEntry,
 ): txn is MultispendTransactionListEntry => {
     return (
+        // `Extract<TransactionListEntry, { kind: 'sPV2TransferOut' | 'sPV2TransferIn' }>` is not assignable to `Extract<TransactionListEntry, { kind: 'multispend' }>` and should not be treated as such
         (txn.kind === 'sPV2TransferOut' || txn.kind === 'sPV2TransferIn') &&
         'kind' in txn.state &&
         txn.state.kind === 'multispend'
