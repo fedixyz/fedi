@@ -1116,20 +1116,6 @@ export const coerceTxn = (txn: RpcTransaction): TransactionListEntry => {
     }
 }
 
-export const makeMultispendTxnTypeText = (
-    txn: MultispendTransactionListEntry,
-    t: TFunction,
-): string => {
-    switch (txn.state) {
-        case 'withdrawal':
-            return t('phrases.multispend-withdrawal')
-        case 'deposit':
-            return t('phrases.multispend-deposit')
-        default:
-            return t('words.unknown')
-    }
-}
-
 // Helper to distinguish multispend spv2 transfers from non-multispend transfers
 export const isMultispendTxn = (
     txn: TransactionListEntry,
