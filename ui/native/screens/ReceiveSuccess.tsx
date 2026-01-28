@@ -4,7 +4,6 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import amountUtils from '@fedi/common/utils/AmountUtils'
-import { makeReceiveSuccessMessage } from '@fedi/common/utils/transaction'
 
 import { Column } from '../components/ui/Flex'
 import Success from '../components/ui/Success'
@@ -16,7 +15,13 @@ const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
     const { t } = useTranslation()
     const { tx, status = 'success' } = route.params
 
-    const { message, subtext } = makeReceiveSuccessMessage(t, tx, status)
+    let message = t('feature.receive.you-received')
+
+    if (status === 'pending') {
+        message = t('feature.receive.payment-received-pending')
+    } else if ('onchain_address' in tx) {
+        message = t('feature.receive.pending-transaction')
+    }
 
     return (
         <Success
@@ -25,7 +30,13 @@ const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
                     <Text center h2>
                         {message}
                     </Text>
-                    {subtext && <Text caption>{subtext}</Text>}
+                    {status === 'pending' && (
+                        <Text caption>
+                            {t(
+                                'feature.receive.payment-received-pending-subtext',
+                            )}
+                        </Text>
+                    )}
                     <Text center h2>
                         {`${amountUtils.formatNumber(
                             amountUtils.msatToSat(tx.amount),
