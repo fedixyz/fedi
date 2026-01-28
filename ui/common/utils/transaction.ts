@@ -846,8 +846,11 @@ export const makeTxnDetailItems = (
     return items
 }
 
+// TODO+TEST: Consider using within `makeTxnDetailTitleText`?
+// Can remain as its own function but worth unifying to avoid the `words.unknown` fallback
 export const makeStabilityTxnDetailTitleText = (
     t: TFunction,
+    // TODO+TEST: Consider using a type only including stability transactions to avoid the `words.unknown` fallback
     txn: TransactionListEntry,
 ) => {
     if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
