@@ -1,4 +1,8 @@
-import { DocumentPickerResponse } from '@react-native-documents/picker'
+import {
+    pick,
+    DocumentPickerResponse,
+    types,
+} from '@react-native-documents/picker'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
@@ -17,7 +21,6 @@ import GradientView from '../components/ui/GradientView'
 import { SafeAreaContainer } from '../components/ui/SafeArea'
 import SvgImage from '../components/ui/SvgImage'
 import type { RootStackParamList } from '../types/navigation'
-import { useDocumentPicker } from '../utils/hooks/media'
 
 export type Props = NativeStackScreenProps<
     RootStackParamList,
@@ -31,10 +34,6 @@ const LocateSocialRecovery: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const fedimint = useFedimint()
     const toast = useToast()
-    const { pickDocuments, isLoading: pickerLoading } = useDocumentPicker({
-        allowAll: true,
-        allowMultiple: false,
-    })
 
     const [file, setFile] = useState<DocumentPickerResponse | undefined>()
     const [loading, setLoading] = useState<boolean>(false)
@@ -45,7 +44,11 @@ const LocateSocialRecovery: React.FC<Props> = ({ navigation }) => {
         try {
             setLoading(true)
 
-            const files = await pickDocuments()
+            const files = await pick({
+                type: types.allFiles,
+                allowMultiSelection: false,
+                allowVirtualFiles: true,
+            })
 
             if (!files?.length) {
                 log.info('No file selected')
@@ -158,8 +161,8 @@ const LocateSocialRecovery: React.FC<Props> = ({ navigation }) => {
                             : t('words.submit')
                     }
                     onPress={!file ? handleFileUpload : handleProcessFile}
-                    loading={loading || pickerLoading}
-                    disabled={loading || pickerLoading}
+                    loading={loading}
+                    disabled={loading}
                 />
             </Column>
         </SafeAreaContainer>

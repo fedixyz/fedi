@@ -132,19 +132,16 @@ const DEFAULT_DOCUMENT_TYPES = [
  * Hook for picking documents from the device.
  * Handles loading state and async URI resolution for Android content URIs.
  */
-export function useDocumentPicker({
-    allowAll = false,
-    allowMultiple = true,
-}: {
-    /* Allows picking of all file types - required for custom file types (e.g. .fedi) */
-    allowAll?: boolean
-    /* Allows picking multiple files */
-    allowMultiple?: boolean
-} = {}) {
+export function useDocumentPicker(allowedTypes?: string[]) {
     const { t } = useTranslation()
     const toast = useToast()
     const [isLoading, setIsLoading] = useState(false)
     const [pending, setPending] = useState<DocumentPickerResponse[]>([])
+
+    const types = useMemo(
+        () => allowedTypes ?? DEFAULT_DOCUMENT_TYPES,
+        [allowedTypes],
+    )
 
     const pickDocuments = useCallback(async (): Promise<
         DocumentPickerResponse[]
@@ -156,8 +153,8 @@ export function useDocumentPicker({
         try {
             const result = await tryPickDocuments(
                 {
-                    type: allowAll ? ['public.item'] : DEFAULT_DOCUMENT_TYPES,
-                    allowMultiSelection: allowMultiple,
+                    type: types,
+                    allowMultiSelection: true,
                     allowVirtualFiles: true,
                 },
                 t,
@@ -190,7 +187,7 @@ export function useDocumentPicker({
         }
 
         return resolvedDocuments
-    }, [allowAll, allowMultiple, t, toast])
+    }, [types, t, toast])
 
     return { pickDocuments, isLoading, pending }
 }
