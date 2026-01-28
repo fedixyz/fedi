@@ -41,8 +41,9 @@ jest.mock('@fedi/common/hooks/fedimint', () => ({
 jest.mock('@react-native-documents/picker', () => ({
     pick: jest.fn(),
     keepLocalCopy: jest.fn(),
-    types: jest.requireActual('@react-native-documents/picker/src/fileTypes')
-        .types,
+    types: {
+        allFiles: '*/*',
+    },
     DocumentPickerResponse: {},
 }))
 

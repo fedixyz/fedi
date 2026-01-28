@@ -55,7 +55,10 @@ const LocateSocialRecovery: React.FC<Props> = ({ navigation }) => {
                 return
             }
 
-            setFile(files[0])
+            const selectedFile = files[0]
+            log.info('File', selectedFile)
+
+            setFile(selectedFile)
         } catch (error) {
             log.error('Social recovery file could not be uploaded', error)
             toast.show({
