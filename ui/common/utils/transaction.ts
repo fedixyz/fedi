@@ -1006,6 +1006,7 @@ export const makeMultispendTxnStatusText = (
     )
         return t('words.unknown')
 
+    // TODO+TEST: Perhaps using `is Type` assertion functions would be better than `in txn.event`
     if ('depositNotification' in txn.event)
         return csvExport ? t('words.complete') : t('words.deposit')
     if ('withdrawalRequest' in txn.event) {
