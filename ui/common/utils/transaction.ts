@@ -1120,6 +1120,8 @@ export const coerceTxn = (txn: RpcTransaction): TransactionListEntry => {
 }
 
 // Helper to distinguish multispend spv2 transfers from non-multispend transfers
+// TODO+TEST: Transactions of kind "sPV2TransferOut" and "sPV2TransferIn" are absolutely NOT assignable to MultispendTransactionListEntry
+// Additionally, this util function doesn't even properly work for `MultispendTransactionListEntry`s!
 export const isMultispendTxn = (
     txn: TransactionListEntry,
 ): txn is MultispendTransactionListEntry => {
