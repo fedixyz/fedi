@@ -53,7 +53,7 @@ impl LnGatewayService {
             )
             .await
             .map_err(|e| match e {
-                AutocommitError::CommitFailed { last_error, .. } => last_error,
+                AutocommitError::CommitFailed { last_error, .. } => anyhow::anyhow!(last_error),
                 AutocommitError::ClosureError { error, .. } => error,
             })
     }

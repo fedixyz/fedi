@@ -3,8 +3,7 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use common::common::{SignedRecoveryRequest, VerificationDocument};
 use common::config::{
-    FediSocialClientConfig, FediSocialConfig, FediSocialConsensusConfig, FediSocialGenParams,
-    FediSocialPrivateConfig,
+    FediSocialClientConfig, FediSocialConfig, FediSocialConsensusConfig, FediSocialPrivateConfig,
 };
 use common::db::{
     BackupKeyPrefix, DbKeyPrefix, DecryptionShareId, DecryptionSharePrefix, RecoveryPrefix,
@@ -17,21 +16,23 @@ use common::{
 pub use fedi_social_common as common;
 use fedi_social_common::{FediSocialInputError, FediSocialOutputError};
 use fedimint_core::config::{
-    ConfigGenModuleParams, ServerModuleConfig, ServerModuleConsensusConfig,
-    TypedServerModuleConfig, TypedServerModuleConsensusConfig,
+    ServerModuleConfig, ServerModuleConsensusConfig, TypedServerModuleConfig,
+    TypedServerModuleConsensusConfig,
 };
 use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
     ApiEndpoint, ApiError, ApiVersion, CoreConsensusVersion, InputMeta, ModuleCommon,
-    ModuleConsensusVersion, ModuleInit, SupportedModuleApiVersions, TransactionItemAmount,
+    ModuleConsensusVersion, ModuleInit, SupportedModuleApiVersions, TransactionItemAmounts,
     api_endpoint,
 };
+use fedimint_core::net::auth::check_auth;
 use fedimint_core::{InPoint, NumPeersExt, OutPoint, PeerId, push_db_pair_items};
 use fedimint_server::core::config::PeerHandleOps;
-use fedimint_server::core::net::check_auth;
-use fedimint_server::core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
+use fedimint_server::core::{
+    ConfigGenModuleArgs, ServerModule, ServerModuleInit, ServerModuleInitArgs,
+};
 use fedimint_threshold_crypto::serde_impl::SerdeSecret;
 use fedimint_threshold_crypto::{PublicKeySet, SecretKey, SecretKeyShare};
 use futures::stream::StreamExt;
@@ -113,7 +114,6 @@ impl ModuleInit for FediSocialInit {
 #[async_trait]
 impl ServerModuleInit for FediSocialInit {
     type Module = FediSocial;
-    type Params = FediSocialGenParams;
 
     fn versions(&self, _core: CoreConsensusVersion) -> &[ModuleConsensusVersion] {
         &[CONSENSUS_VERSION]
@@ -131,8 +131,7 @@ impl ServerModuleInit for FediSocialInit {
     fn trusted_dealer_gen(
         &self,
         peers: &[PeerId],
-        _params: &ConfigGenModuleParams,
-        _disable_base_fees: bool,
+        _args: &ConfigGenModuleArgs,
     ) -> BTreeMap<PeerId, ServerModuleConfig> {
         let sks = fedimint_threshold_crypto::SecretKeySet::random(
             peers.to_num_peers().degree(),
@@ -165,8 +164,7 @@ impl ServerModuleInit for FediSocialInit {
     async fn distributed_gen(
         &self,
         peers: &(dyn PeerHandleOps + Send + Sync),
-        _params: &ConfigGenModuleParams,
-        _disable_base_fees: bool,
+        _args: &ConfigGenModuleArgs,
     ) -> anyhow::Result<ServerModuleConfig> {
         let (polynomial, sks) = peers.run_dkg_g1().await?;
 
@@ -246,7 +244,7 @@ impl ServerModule for FediSocial {
         _dbtx: &mut DatabaseTransaction<'b>,
         _output: &'a <Self::Common as ModuleCommon>::Output,
         _out_point: OutPoint,
-    ) -> Result<TransactionItemAmount, FediSocialOutputError> {
+    ) -> Result<TransactionItemAmounts, FediSocialOutputError> {
         unreachable!("FediSocial does not have any outputs")
     }
 
@@ -274,7 +272,7 @@ impl ServerModule for FediSocial {
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: SignedBackupRequest| -> () {
                         module
-                            .handle_backup(&mut context.dbtx().to_ref_nc(), request).await?;
+                            .handle_backup(&mut context.db().begin_transaction_nc().await, request).await?;
                         Ok(())
                 }
             },
@@ -284,7 +282,7 @@ impl ServerModule for FediSocial {
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: SignedRecoveryRequest| -> () {
                         module
-                            .handle_recover(&mut context.dbtx().to_ref_nc(), request).await?;
+                            .handle_recover(&mut context.db().begin_transaction_nc().await, request).await?;
                         Ok(())
                 }
             },
@@ -295,7 +293,7 @@ impl ServerModule for FediSocial {
                 async |module: &FediSocial, context, request: RecoveryId| -> Option<VerificationDocument> {
                     check_auth(context)?;
                     module
-                        .handle_get_verification(&mut context.dbtx().to_ref_nc(), request).await
+                        .handle_get_verification(&mut context.db().begin_transaction_nc().await, request).await
                 }
             },
             // guardian's call to approve the recovery and produce decryption share
@@ -305,7 +303,7 @@ impl ServerModule for FediSocial {
                 async |module: &FediSocial, context, req: RecoveryId| -> () {
                     check_auth(context)?;
                     module
-                        .handle_approve_recovery(&mut context.dbtx().to_ref_nc(), req).await?;
+                        .handle_approve_recovery(&mut context.db().begin_transaction_nc().await, req).await?;
                     Ok(())
                 }
             },
@@ -314,7 +312,7 @@ impl ServerModule for FediSocial {
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: RecoveryId| -> Option<EncryptedRecoveryShare> {
                         module
-                            .handle_get_decryption_share(&mut context.dbtx().to_ref_nc(), request).await
+                            .handle_get_decryption_share(&mut context.db().begin_transaction_nc().await, request).await
                 }
             },
         ]

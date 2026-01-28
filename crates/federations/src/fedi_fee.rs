@@ -565,7 +565,9 @@ impl FediFeeRemittanceService {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             })?;
 
@@ -634,7 +636,9 @@ impl FediFeeRemittanceService {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             })?;
 
@@ -670,7 +674,7 @@ impl FediFeeRemittanceService {
                 .await
                 .map_err(|e| match e {
                     fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
-                        last_error
+                        anyhow::anyhow!(last_error)
                     }
                     fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
                 })?;

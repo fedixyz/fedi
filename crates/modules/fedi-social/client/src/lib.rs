@@ -12,8 +12,8 @@ use fedimint_client::module::sm::{Context, DynState, State, StateTransition};
 use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::DatabaseTransaction;
 use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::module::{ApiVersion, ModuleInit, MultiApiVersion};
-use fedimint_core::{Amount, apply, async_trait_maybe_send};
+use fedimint_core::module::{Amounts, ApiVersion, ModuleInit, MultiApiVersion};
+use fedimint_core::{apply, async_trait_maybe_send};
 
 #[derive(Debug, Clone)]
 pub struct FediSocialClientInit;
@@ -61,17 +61,17 @@ impl ClientModule for FediSocialClientModule {
 
     fn input_fee(
         &self,
-        _amount: Amount,
+        _amount: &Amounts,
         _input: &<Self::Common as fedimint_core::module::ModuleCommon>::Input,
-    ) -> Option<fedimint_core::Amount> {
+    ) -> Option<Amounts> {
         unreachable!("FediSocial does not have any inputs")
     }
 
     fn output_fee(
         &self,
-        _amount: Amount,
+        _amount: &Amounts,
         _output: &<Self::Common as fedimint_core::module::ModuleCommon>::Output,
-    ) -> Option<fedimint_core::Amount> {
+    ) -> Option<Amounts> {
         unreachable!("FediSocial does not have any outputs")
     }
 }

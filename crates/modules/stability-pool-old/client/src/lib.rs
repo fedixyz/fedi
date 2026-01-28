@@ -30,7 +30,7 @@ use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, Operati
 use fedimint_core::db::{Database, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
-    ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
+    Amounts, ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
 };
 use fedimint_core::task::timeout;
 use fedimint_core::{Amount, OutPoint, TransactionId, apply, async_trait_maybe_send};
@@ -120,22 +120,14 @@ impl ClientModule for StabilityPoolClientModule {
         }
     }
 
-    fn input_fee(
-        &self,
-        _amount: Amount,
-        _input: &StabilityPoolInput,
-    ) -> Option<fedimint_core::Amount> {
+    fn input_fee(&self, _amount: &Amounts, _input: &StabilityPoolInput) -> Option<Amounts> {
         // TODO shaurya figure out fees
-        Some(Amount::ZERO)
+        Some(Amounts::ZERO)
     }
 
-    fn output_fee(
-        &self,
-        _amount: Amount,
-        _output: &StabilityPoolOutput,
-    ) -> Option<fedimint_core::Amount> {
+    fn output_fee(&self, _amount: &Amounts, _output: &StabilityPoolOutput) -> Option<Amounts> {
         // TODO shaurya figure out fees
-        Some(Amount::ZERO)
+        Some(Amounts::ZERO)
     }
 
     async fn handle_cli_command(
@@ -704,7 +696,7 @@ impl StabilityPoolClientModule {
 
         if unlocked_amount != Amount::ZERO {
             let input = ClientInput {
-                amount: unlocked_amount,
+                amounts: Amounts::new_bitcoin(unlocked_amount),
                 input: StabilityPoolInput::new_v0(
                     self.client_key_pair.public_key(),
                     unlocked_amount,
@@ -970,7 +962,7 @@ async fn submit_tx_with_intended_action(
         IntendedAction::Seek(Seek(amount)) | IntendedAction::Provide(Provide { amount, .. }) => {
             let output = ClientOutputBundle::new(
                 vec![ClientOutput {
-                    amount,
+                    amounts: Amounts::new_bitcoin(amount),
                     output: stability_pool_output,
                 }],
                 vec![ClientOutputSM {
@@ -995,7 +987,7 @@ async fn submit_tx_with_intended_action(
         IntendedAction::CancelRenewal(CancelRenewal { bps }) => {
             let output = ClientOutputBundle::new(
                 vec![ClientOutput {
-                    amount: Amount::ZERO,
+                    amounts: Amounts::ZERO,
                     output: stability_pool_output,
                 }],
                 vec![ClientOutputSM {
@@ -1097,7 +1089,7 @@ async fn claim_idle_balance_input(
     idle_balance: Amount,
 ) -> StabilityPoolCancelLockedStateMachine {
     let input = ClientInput {
-        amount: idle_balance,
+        amounts: Amounts::new_bitcoin(idle_balance),
         input: StabilityPoolInput::new_v0(
             context.module.client_key_pair.public_key(),
             idle_balance,
@@ -1140,7 +1132,7 @@ async fn maybe_fund_cancellation_output(
             Some(bps) => {
                 let output = ClientOutputBundle::new(
                     vec![ClientOutput {
-                        amount: Amount::ZERO,
+                        amounts: Amounts::ZERO,
                         output: StabilityPoolOutput::new_v0(
                             context.module.client_key_pair.public_key(),
                             IntendedAction::CancelRenewal(CancelRenewal { bps }),

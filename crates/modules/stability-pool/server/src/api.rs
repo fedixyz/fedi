@@ -23,21 +23,21 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
             "account_history",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: AccountHistoryRequest| -> Vec<AccountHistoryItem> {
-                Ok(get_account_history_items(&mut context.dbtx().into_nc(), request.account_id, request.range.start..request.range.end).await)
+                Ok(get_account_history_items(&mut context.db().begin_transaction_nc().await, request.account_id, request.range.start..request.range.end).await)
             }
         },
         api_endpoint! {
             "sync",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: AccountId| -> SyncResponse {
-                sync(&mut context.dbtx().into_nc(), request).await
+                sync(&mut context.db().begin_transaction_nc().await, request).await
             }
         },
         api_endpoint! {
             "active_deposits",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: AccountId| -> ActiveDeposits {
-                active_deposits(&mut context.dbtx().into_nc(), request).await
+                active_deposits(&mut context.db().begin_transaction_nc().await, request).await
             }
         },
         api_endpoint! {
@@ -51,14 +51,14 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
             "liquidity_stats",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> LiquidityStats {
-                Ok(liquidity_stats(&mut context.dbtx().into_nc()).await?)
+                Ok(liquidity_stats(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
         api_endpoint! {
             "average_fee_rate",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: u64| -> FeeRate {
-                Ok(average_fee_rate(&mut context.dbtx().into_nc(), request).await?)
+                Ok(average_fee_rate(&mut context.db().begin_transaction_nc().await, request).await?)
             }
         },
     ]
@@ -199,11 +199,12 @@ async fn next_cycle_start_time(
 
 /// See [`stability_pool_common::UnlockRequestStatus`]
 pub async fn unlock_request_status(
-    context: &mut ApiEndpointContext<'_>,
+    context: &mut ApiEndpointContext,
     account: AccountId,
     stability_pool: &StabilityPool,
 ) -> anyhow::Result<UnlockRequestStatus, ApiError> {
-    let mut dbtx = context.dbtx().into_nc();
+    let db = context.db();
+    let mut dbtx = db.begin_transaction_nc().await;
     Ok(match dbtx.get_value(&UnlockRequestKey(account)).await {
         Some(request) => UnlockRequestStatus::Pending {
             request,

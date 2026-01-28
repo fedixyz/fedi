@@ -1,4 +1,3 @@
-use fedimint_core::config::EmptyGenParams;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::serde_json;
@@ -49,26 +48,8 @@ impl FediSocialClientConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct FediSocialGenParams {
-    consensus: EmptyGenParams,
-    local: EmptyGenParams,
-}
-
-impl FediSocialGenParams {
-    pub fn new() -> Self {
-        Self {
-            consensus: EmptyGenParams {},
-            local: EmptyGenParams {},
-        }
-    }
-}
-
 plugin_types_trait_impl_config!(
     FediSocialCommonGen,
-    FediSocialGenParams,
-    EmptyGenParams,
-    EmptyGenParams,
     FediSocialConfig,
     FediSocialPrivateConfig,
     FediSocialConsensusConfig,

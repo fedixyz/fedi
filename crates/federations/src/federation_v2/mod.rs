@@ -32,10 +32,7 @@ use fedi_social_client::{
     FediSocialClientInit, RecoveryFile, RecoveryId, SOCIAL_RECOVERY_SECRET_CHILD_ID, SocialBackup,
     SocialRecoveryClient, SocialRecoveryState, SocialVerification, UserSeedPhrase,
 };
-use fedimint_api_client::api::net::Connector;
-use fedimint_api_client::api::{
-    DynClientConnector, DynGlobalApi, DynModuleApi, FederationApiExt as _, StatusResponse,
-};
+use fedimint_api_client::api::{DynGlobalApi, DynModuleApi, FederationApiExt as _, StatusResponse};
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::backup::ClientBackup;
 use fedimint_client::db::{CachedApiVersionSetKey, ChronologicalOperationLogKey};
@@ -3995,7 +3992,9 @@ impl FederationV2 {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             });
 
@@ -4105,7 +4104,9 @@ impl FederationV2 {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             });
 
@@ -4203,7 +4204,9 @@ impl FederationV2 {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             });
 
@@ -4254,7 +4257,9 @@ impl FederationV2 {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             });
 
@@ -4352,7 +4357,9 @@ impl FederationV2 {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             });
 
@@ -4423,7 +4430,9 @@ impl FederationV2 {
             )
             .await
             .map_err(|e| match e {
-                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => last_error,
+                fedimint_core::db::AutocommitError::CommitFailed { last_error, .. } => {
+                    anyhow::anyhow!(last_error)
+                }
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             });
 

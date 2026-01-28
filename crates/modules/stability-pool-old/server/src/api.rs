@@ -20,28 +20,28 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
             "account_info",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: PublicKey| -> AccountInfo {
-                Ok(account_info(&mut context.dbtx().into_nc(), request).await)
+                Ok(account_info(&mut context.db().begin_transaction_nc().await, request).await)
             }
         },
         api_endpoint! {
             "current_cycle_index",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> u64 {
-                Ok(current_cycle_index(&mut context.dbtx().into_nc()).await?)
+                Ok(current_cycle_index(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
         api_endpoint! {
             "next_cycle_start_time",
             ApiVersion::new(0, 0),
             async |module: &StabilityPool, context, _request: ()| -> u64 {
-                Ok(next_cycle_start_time(&mut context.dbtx().into_nc(), module).await?)
+                Ok(next_cycle_start_time(&mut context.db().begin_transaction_nc().await, module).await?)
             }
         },
         api_endpoint! {
             "cycle_start_price",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> u64 {
-                Ok(cycle_start_price(&mut context.dbtx().into_nc()).await?)
+                Ok(cycle_start_price(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
         api_endpoint! {
@@ -55,14 +55,14 @@ pub fn endpoints() -> Vec<ApiEndpoint<StabilityPool>> {
             "liquidity_stats",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, _request: ()| -> LiquidityStats {
-                Ok(liquidity_stats(&mut context.dbtx().into_nc()).await?)
+                Ok(liquidity_stats(&mut context.db().begin_transaction_nc().await).await?)
             }
         },
         api_endpoint! {
             "average_fee_rate",
             ApiVersion::new(0, 0),
             async |_module: &StabilityPool, context, request: u64| -> u64 {
-                Ok(average_fee_rate(&mut context.dbtx().into_nc(), request).await?)
+                Ok(average_fee_rate(&mut context.db().begin_transaction_nc().await, request).await?)
             }
         },
     ]
@@ -169,10 +169,11 @@ pub async fn cycle_start_price(
 /// Wait until the given account's staged cancellation is processed
 /// and return the amount of idle balance that can be withdrawn.
 pub async fn wait_cancellation_processed(
-    context: &mut ApiEndpointContext<'_>,
+    context: &mut ApiEndpointContext,
     account: PublicKey,
 ) -> anyhow::Result<Amount, ApiError> {
-    let mut dbtx = context.dbtx().into_nc();
+    let db = context.db();
+    let mut dbtx = db.begin_transaction_nc().await;
     let starting_idle_balance = match dbtx.get_value(&IdleBalanceKey(account)).await {
         Some(IdleBalance(amt)) => amt,
         None => Amount::ZERO,

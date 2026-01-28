@@ -9,7 +9,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use common::config::{
     CollateralRatio, OracleConfig, StabilityPoolClientConfig, StabilityPoolConfig,
-    StabilityPoolConfigConsensus, StabilityPoolConfigPrivate, StabilityPoolGenParams,
+    StabilityPoolConfigConsensus, StabilityPoolConfigPrivate,
 };
 use common::{
     BPS_UNIT, CONSENSUS_VERSION, CancelRenewal, IntendedAction, LockedProvide, LockedSeek, Provide,
@@ -26,20 +26,22 @@ use db::{
     StagedSeeksKeyPrefix, migrate_to_v2,
 };
 use fedimint_core::config::{
-    ConfigGenModuleParams, ServerModuleConfig, ServerModuleConsensusConfig,
-    TypedServerModuleConfig, TypedServerModuleConsensusConfig,
+    ServerModuleConfig, ServerModuleConsensusConfig, TypedServerModuleConfig,
+    TypedServerModuleConsensusConfig,
 };
 use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::db::{DatabaseTransaction, DatabaseVersion, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
-    ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit,
-    SupportedModuleApiVersions, TransactionItemAmount,
+    Amounts, ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit,
+    SupportedModuleApiVersions, TransactionItemAmounts,
 };
 use fedimint_core::{Amount, InPoint, NumPeersExt, OutPoint, PeerId, TransactionId};
 use fedimint_server_core::config::PeerHandleOps;
 use fedimint_server_core::migration::ServerModuleDbMigrationFn;
-use fedimint_server_core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
+use fedimint_server_core::{
+    ConfigGenModuleArgs, ServerModule, ServerModuleInit, ServerModuleInitArgs,
+};
 use futures::{FutureExt, StreamExt, stream};
 use itertools::Itertools;
 use oracle::{AggregateOracle, MockOracle, Oracle};
@@ -52,7 +54,15 @@ use tracing::{info, warn};
 const B: u128 = 1_000_000_000;
 
 #[derive(Debug, Clone)]
-pub struct StabilityPoolInit;
+pub struct StabilityPoolInit {
+    pub oracle_config: OracleConfig,
+    pub cycle_duration: Duration,
+    pub collateral_ratio: CollateralRatio,
+    pub min_allowed_seek: Amount,
+    pub min_allowed_provide: Amount,
+    pub max_allowed_provide_fee_rate_ppb: u64,
+    pub min_allowed_cancellation_bps: u32,
+}
 
 impl ModuleInit for StabilityPoolInit {
     type Common = StabilityPoolCommonGen;
@@ -70,7 +80,6 @@ impl ModuleInit for StabilityPoolInit {
 #[async_trait]
 impl ServerModuleInit for StabilityPoolInit {
     type Module = StabilityPool;
-    type Params = StabilityPoolGenParams;
 
     fn versions(&self, _core: CoreConsensusVersion) -> &[ModuleConsensusVersion] {
         &[CONSENSUS_VERSION]
@@ -87,13 +96,8 @@ impl ServerModuleInit for StabilityPoolInit {
     fn trusted_dealer_gen(
         &self,
         peers: &[PeerId],
-        params: &ConfigGenModuleParams,
-        _disable_base_fees: bool,
+        _args: &ConfigGenModuleArgs,
     ) -> BTreeMap<PeerId, ServerModuleConfig> {
-        let params = params
-            .to_typed::<StabilityPoolGenParams>()
-            .expect("Invalid mint params");
-
         let mint_cfg: BTreeMap<_, StabilityPoolConfig> = peers
             .iter()
             .map(|&peer| {
@@ -101,15 +105,13 @@ impl ServerModuleInit for StabilityPoolInit {
                     private: StabilityPoolConfigPrivate,
                     consensus: StabilityPoolConfigConsensus {
                         consensus_threshold: peers.to_num_peers().threshold() as _,
-                        oracle_config: params.consensus.oracle_config.clone(),
-                        cycle_duration: params.consensus.cycle_duration,
-                        collateral_ratio: params.consensus.collateral_ratio.clone(),
-                        min_allowed_seek: params.consensus.min_allowed_seek,
-                        min_allowed_provide: params.consensus.min_allowed_provide,
-                        max_allowed_provide_fee_rate_ppb: params
-                            .consensus
-                            .max_allowed_provide_fee_rate_ppb,
-                        min_allowed_cancellation_bps: params.consensus.min_allowed_cancellation_bps,
+                        oracle_config: self.oracle_config.clone(),
+                        cycle_duration: self.cycle_duration,
+                        collateral_ratio: self.collateral_ratio.clone(),
+                        min_allowed_seek: self.min_allowed_seek,
+                        min_allowed_provide: self.min_allowed_provide,
+                        max_allowed_provide_fee_rate_ppb: self.max_allowed_provide_fee_rate_ppb,
+                        min_allowed_cancellation_bps: self.min_allowed_cancellation_bps,
                     },
                 };
                 (peer, config)
@@ -125,24 +127,19 @@ impl ServerModuleInit for StabilityPoolInit {
     async fn distributed_gen(
         &self,
         peers: &(dyn PeerHandleOps + Send + Sync),
-        params: &ConfigGenModuleParams,
-        _disable_base_fees: bool,
+        _args: &ConfigGenModuleArgs,
     ) -> anyhow::Result<ServerModuleConfig> {
-        let params = params
-            .to_typed::<StabilityPoolGenParams>()
-            .expect("Invalid mint params");
-
         let server = StabilityPoolConfig {
             private: StabilityPoolConfigPrivate,
             consensus: StabilityPoolConfigConsensus {
                 consensus_threshold: peers.num_peers().threshold() as _,
-                oracle_config: params.consensus.oracle_config,
-                cycle_duration: params.consensus.cycle_duration,
-                collateral_ratio: params.consensus.collateral_ratio,
-                min_allowed_seek: params.consensus.min_allowed_seek,
-                min_allowed_provide: params.consensus.min_allowed_provide,
-                max_allowed_provide_fee_rate_ppb: params.consensus.max_allowed_provide_fee_rate_ppb,
-                min_allowed_cancellation_bps: params.consensus.min_allowed_cancellation_bps,
+                oracle_config: self.oracle_config.clone(),
+                cycle_duration: self.cycle_duration,
+                collateral_ratio: self.collateral_ratio.clone(),
+                min_allowed_seek: self.min_allowed_seek,
+                min_allowed_provide: self.min_allowed_provide,
+                max_allowed_provide_fee_rate_ppb: self.max_allowed_provide_fee_rate_ppb,
+                min_allowed_cancellation_bps: self.min_allowed_cancellation_bps,
             },
         };
 
@@ -583,7 +580,10 @@ impl ServerModule for StabilityPool {
         // TODO shaurya decide on TX fee for withdrawals
         let fee = Amount::ZERO;
         return Ok(InputMeta {
-            amount: TransactionItemAmount { amount, fee },
+            amount: TransactionItemAmounts {
+                amounts: Amounts::new_bitcoin(amount),
+                fees: Amounts::new_bitcoin(fee),
+            },
             pub_key: account,
         });
     }
@@ -593,7 +593,7 @@ impl ServerModule for StabilityPool {
         dbtx: &mut DatabaseTransaction<'b>,
         output: &'a StabilityPoolOutput,
         outpoint: OutPoint,
-    ) -> Result<TransactionItemAmount, StabilityPoolOutputError> {
+    ) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
         let (account, intended_action) = (
             output
                 .account()
@@ -691,9 +691,9 @@ impl ServerModule for StabilityPool {
                         .await;
                     dbtx.insert_entry(&StagedSeeksKey(account), &user_staged_seeks)
                         .await;
-                    Ok(TransactionItemAmount {
-                        amount: seek.0,
-                        fee,
+                    Ok(TransactionItemAmounts {
+                        amounts: Amounts::new_bitcoin(seek.0),
+                        fees: Amounts::new_bitcoin(fee),
                     })
                 } else {
                     Err(StabilityPoolOutputError::CannotSeek)
@@ -719,9 +719,9 @@ impl ServerModule for StabilityPool {
                         .await;
                     dbtx.insert_entry(&StagedProvidesKey(account), &user_staged_provides)
                         .await;
-                    Ok(TransactionItemAmount {
-                        amount: provide.amount,
-                        fee,
+                    Ok(TransactionItemAmounts {
+                        amounts: Amounts::new_bitcoin(provide.amount),
+                        fees: Amounts::new_bitcoin(fee),
                     })
                 } else {
                     Err(StabilityPoolOutputError::CannotProvide)
@@ -737,9 +737,9 @@ impl ServerModule for StabilityPool {
                 {
                     dbtx.insert_entry(&StagedCancellationKey(account), &(outpoint.txid, cancel))
                         .await;
-                    Ok(TransactionItemAmount {
-                        amount: Amount::ZERO,
-                        fee,
+                    Ok(TransactionItemAmounts {
+                        amounts: Amounts::ZERO,
+                        fees: Amounts::new_bitcoin(fee),
                     })
                 } else {
                     Err(StabilityPoolOutputError::CannotCancelAutoRenewal)
@@ -749,9 +749,9 @@ impl ServerModule for StabilityPool {
                 // Must have a staged cancellation
                 if user_staged_cancellation.is_some() {
                     dbtx.remove_entry(&StagedCancellationKey(account)).await;
-                    Ok(TransactionItemAmount {
-                        amount: Amount::ZERO,
-                        fee,
+                    Ok(TransactionItemAmounts {
+                        amounts: Amounts::ZERO,
+                        fees: Amounts::new_bitcoin(fee),
                     })
                 } else {
                     Err(StabilityPoolOutputError::CannotUndoAutoRenewalCancellation)

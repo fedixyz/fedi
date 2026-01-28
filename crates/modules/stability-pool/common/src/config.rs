@@ -1,6 +1,5 @@
 use std::time::{Duration, SystemTime};
 
-use fedimint_core::config::EmptyGenParams;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::{Amount, plugin_types_trait_impl_config};
@@ -24,23 +23,6 @@ pub enum OracleConfig {
 pub struct CollateralRatio {
     pub provider: u8,
     pub seeker: u8,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StabilityPoolGenParams {
-    pub local: EmptyGenParams,
-    pub consensus: StabilityPoolGenParamsConsensus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StabilityPoolGenParamsConsensus {
-    pub oracle_config: OracleConfig,
-    pub cycle_duration: Duration,
-    pub collateral_ratio: CollateralRatio,
-    pub min_allowed_seek: Amount,
-    pub min_allowed_provide: Amount,
-    pub max_allowed_provide_fee_rate_ppb: u64,
-    pub min_allowed_cancellation_bps: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -92,9 +74,6 @@ impl std::fmt::Display for StabilityPoolClientConfig {
 
 plugin_types_trait_impl_config!(
     StabilityPoolCommonGen,
-    StabilityPoolGenParams,
-    EmptyGenParams,
-    StabilityPoolGenParamsConsensus,
     StabilityPoolConfig,
     StabilityPoolConfigPrivate,
     StabilityPoolConfigConsensus,

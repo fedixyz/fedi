@@ -29,7 +29,7 @@ use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, Operati
 use fedimint_core::db::{Database, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
-    ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
+    Amounts, ApiRequestErased, ApiVersion, CommonModuleInit, ModuleInit, MultiApiVersion,
 };
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::util::backoff_util::background_backoff;
@@ -132,22 +132,14 @@ impl ClientModule for StabilityPoolClientModule {
         }
     }
 
-    fn input_fee(
-        &self,
-        _amount: Amount,
-        _input: &StabilityPoolInput,
-    ) -> Option<fedimint_core::Amount> {
+    fn input_fee(&self, _amounts: &Amounts, _input: &StabilityPoolInput) -> Option<Amounts> {
         // TODO shaurya figure out fees
-        Some(Amount::ZERO)
+        Some(Amounts::ZERO)
     }
 
-    fn output_fee(
-        &self,
-        _amount: Amount,
-        _output: &StabilityPoolOutput,
-    ) -> Option<fedimint_core::Amount> {
+    fn output_fee(&self, _amounts: &Amounts, _output: &StabilityPoolOutput) -> Option<Amounts> {
         // TODO shaurya figure out fees
-        Some(Amount::ZERO)
+        Some(Amounts::ZERO)
     }
 
     async fn handle_cli_command(
@@ -746,7 +738,7 @@ impl StabilityPoolClientModule {
 
         let account = self.our_account(acc_type);
         let input = ClientInput {
-            amount: Amount::ZERO,
+            amounts: Amounts::ZERO,
             input: StabilityPoolInput::V0(StabilityPoolInputV0::UnlockForWithdrawal(
                 UnlockForWithdrawalInput {
                     account: account.clone(),
@@ -876,7 +868,7 @@ impl StabilityPoolClientModule {
 
         let account = self.our_account(acc_type);
         let input = ClientInput {
-            amount,
+            amounts: Amounts::new_bitcoin(amount),
             input: StabilityPoolInput::V0(StabilityPoolInputV0::Withdrawal(WithdrawalInput {
                 account: account.clone(),
                 amount,
@@ -977,7 +969,7 @@ async fn submit_tx_with_output(
     };
     let output = ClientOutputBundle::new(
         vec![ClientOutput {
-            amount,
+            amounts: Amounts::new_bitcoin(amount),
             output: StabilityPoolOutput::V0(output_v0.clone()),
         }],
         vec![ClientOutputSM {
@@ -1053,7 +1045,7 @@ async fn claim_idle_balance_input(
     idle_balance: Amount,
 ) -> StabilityPoolWithdrawalStateMachine {
     let input = ClientInput {
-        amount: idle_balance,
+        amounts: Amounts::new_bitcoin(idle_balance),
         input: StabilityPoolInput::V0(StabilityPoolInputV0::Withdrawal(WithdrawalInput {
             account: old_state.account.clone(),
             amount: idle_balance,

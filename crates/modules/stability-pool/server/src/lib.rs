@@ -12,7 +12,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use common::config::{
     CollateralRatio, OracleConfig, StabilityPoolClientConfig, StabilityPoolConfig,
-    StabilityPoolConfigConsensus, StabilityPoolConfigPrivate, StabilityPoolGenParams,
+    StabilityPoolConfigConsensus, StabilityPoolConfigPrivate,
 };
 use common::{
     CONSENSUS_VERSION, Provide, Seek, StabilityPoolCommonGen, StabilityPoolConsensusItem,
@@ -27,8 +27,8 @@ use db::{
     UnlockRequestsKeyPrefix,
 };
 use fedimint_core::config::{
-    ConfigGenModuleParams, ServerModuleConfig, ServerModuleConsensusConfig,
-    TypedServerModuleConfig, TypedServerModuleConsensusConfig,
+    ServerModuleConfig, ServerModuleConsensusConfig, TypedServerModuleConfig,
+    TypedServerModuleConsensusConfig,
 };
 use fedimint_core::core::ModuleInstanceId;
 use fedimint_core::db::{
@@ -36,13 +36,15 @@ use fedimint_core::db::{
 };
 use fedimint_core::module::audit::Audit;
 use fedimint_core::module::{
-    ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit,
-    SupportedModuleApiVersions, TransactionItemAmount,
+    Amounts, ApiEndpoint, CoreConsensusVersion, InputMeta, ModuleConsensusVersion, ModuleInit,
+    SupportedModuleApiVersions, TransactionItemAmounts,
 };
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{Amount, InPoint, NumPeersExt, OutPoint, PeerId, TransactionId};
 use fedimint_server_core::config::PeerHandleOps;
-use fedimint_server_core::{ServerModule, ServerModuleInit, ServerModuleInitArgs};
+use fedimint_server_core::{
+    ConfigGenModuleArgs, ServerModule, ServerModuleInit, ServerModuleInitArgs,
+};
 use futures::{StreamExt, stream};
 use itertools::Itertools;
 use oracle::{AggregateOracle, MockOracle, Oracle};
@@ -60,7 +62,15 @@ use tracing::{info, warn};
 const B: u128 = 1_000_000_000;
 
 #[derive(Debug, Clone)]
-pub struct StabilityPoolInit;
+pub struct StabilityPoolInit {
+    pub oracle_config: OracleConfig,
+    pub cycle_duration: Duration,
+    pub collateral_ratio: CollateralRatio,
+    pub min_allowed_seek: Amount,
+    pub min_allowed_provide: Amount,
+    pub max_allowed_provide_fee_rate_ppb: u64,
+    pub min_allowed_cancellation_bps: u32,
+}
 
 impl ModuleInit for StabilityPoolInit {
     type Common = StabilityPoolCommonGen;
@@ -78,7 +88,6 @@ impl ModuleInit for StabilityPoolInit {
 #[async_trait]
 impl ServerModuleInit for StabilityPoolInit {
     type Module = StabilityPool;
-    type Params = StabilityPoolGenParams;
 
     fn versions(&self, _core: CoreConsensusVersion) -> &[ModuleConsensusVersion] {
         &[CONSENSUS_VERSION]
@@ -95,13 +104,8 @@ impl ServerModuleInit for StabilityPoolInit {
     fn trusted_dealer_gen(
         &self,
         peers: &[PeerId],
-        params: &ConfigGenModuleParams,
-        _disable_base_fees: bool,
+        _args: &ConfigGenModuleArgs,
     ) -> BTreeMap<PeerId, ServerModuleConfig> {
-        let params = params
-            .to_typed::<StabilityPoolGenParams>()
-            .expect("Invalid mint params");
-
         let mint_cfg: BTreeMap<_, StabilityPoolConfig> = peers
             .iter()
             .map(|&peer| {
@@ -109,15 +113,13 @@ impl ServerModuleInit for StabilityPoolInit {
                     private: StabilityPoolConfigPrivate,
                     consensus: StabilityPoolConfigConsensus {
                         consensus_threshold: peers.to_num_peers().threshold() as _,
-                        oracle_config: params.consensus.oracle_config.clone(),
-                        cycle_duration: params.consensus.cycle_duration,
-                        collateral_ratio: params.consensus.collateral_ratio.clone(),
-                        min_allowed_seek: params.consensus.min_allowed_seek,
-                        min_allowed_provide: params.consensus.min_allowed_provide,
-                        max_allowed_provide_fee_rate_ppb: params
-                            .consensus
-                            .max_allowed_provide_fee_rate_ppb,
-                        min_allowed_cancellation_bps: params.consensus.min_allowed_cancellation_bps,
+                        oracle_config: self.oracle_config.clone(),
+                        cycle_duration: self.cycle_duration,
+                        collateral_ratio: self.collateral_ratio.clone(),
+                        min_allowed_seek: self.min_allowed_seek,
+                        min_allowed_provide: self.min_allowed_provide,
+                        max_allowed_provide_fee_rate_ppb: self.max_allowed_provide_fee_rate_ppb,
+                        min_allowed_cancellation_bps: self.min_allowed_cancellation_bps,
                     },
                 };
                 (peer, config)
@@ -133,24 +135,19 @@ impl ServerModuleInit for StabilityPoolInit {
     async fn distributed_gen(
         &self,
         peers: &(dyn PeerHandleOps + Send + Sync),
-        params: &ConfigGenModuleParams,
-        _disable_base_fees: bool,
+        _args: &ConfigGenModuleArgs,
     ) -> anyhow::Result<ServerModuleConfig> {
-        let params = params
-            .to_typed::<StabilityPoolGenParams>()
-            .expect("Invalid mint params");
-
         let server = StabilityPoolConfig {
             private: StabilityPoolConfigPrivate,
             consensus: StabilityPoolConfigConsensus {
                 consensus_threshold: peers.num_peers().threshold() as _,
-                oracle_config: params.consensus.oracle_config,
-                cycle_duration: params.consensus.cycle_duration,
-                collateral_ratio: params.consensus.collateral_ratio,
-                min_allowed_seek: params.consensus.min_allowed_seek,
-                min_allowed_provide: params.consensus.min_allowed_provide,
-                max_allowed_provide_fee_rate_ppb: params.consensus.max_allowed_provide_fee_rate_ppb,
-                min_allowed_cancellation_bps: params.consensus.min_allowed_cancellation_bps,
+                oracle_config: self.oracle_config.clone(),
+                cycle_duration: self.cycle_duration,
+                collateral_ratio: self.collateral_ratio.clone(),
+                min_allowed_seek: self.min_allowed_seek,
+                min_allowed_provide: self.min_allowed_provide,
+                max_allowed_provide_fee_rate_ppb: self.max_allowed_provide_fee_rate_ppb,
+                min_allowed_cancellation_bps: self.min_allowed_cancellation_bps,
             },
         };
 
@@ -483,7 +480,7 @@ impl ServerModule for StabilityPool {
         dbtx: &mut DatabaseTransaction<'b>,
         output: &'a StabilityPoolOutput,
         outpoint: OutPoint,
-    ) -> Result<TransactionItemAmount, StabilityPoolOutputError> {
+    ) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
         let v0 = output
             .ensure_v0_ref()
             .map_err(|e| StabilityPoolOutputError::UnknownOutputVariant(e.to_string()))?;
@@ -727,9 +724,9 @@ where
     .await;
 
     Ok(InputMeta {
-        amount: TransactionItemAmount {
-            amount: Amount::ZERO,
-            fee: Amount::ZERO,
+        amount: TransactionItemAmounts {
+            amounts: Amounts::ZERO,
+            fees: Amounts::ZERO,
         },
         pub_key: *input
             .account
@@ -804,9 +801,9 @@ async fn process_withdrawal_input(
         .await;
 
     Ok(InputMeta {
-        amount: TransactionItemAmount {
-            amount: input.amount,
-            fee: Amount::ZERO,
+        amount: TransactionItemAmounts {
+            amounts: Amounts::new_bitcoin(input.amount),
+            fees: Amounts::ZERO,
         },
         pub_key: *input
             .account
@@ -820,7 +817,7 @@ async fn process_deposit_to_seek_output(
     dbtx: &mut DatabaseTransaction<'_>,
     txid: TransactionId,
     output: &DepositToSeekOutput,
-) -> Result<TransactionItemAmount, StabilityPoolOutputError> {
+) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
     if output.seek_request.0 < config.consensus.min_allowed_seek {
         return Err(StabilityPoolOutputError::AmountTooLow);
     }
@@ -855,9 +852,9 @@ async fn process_deposit_to_seek_output(
         }],
     )
     .await;
-    Ok(TransactionItemAmount {
-        amount: output.seek_request.0,
-        fee: Amount::ZERO,
+    Ok(TransactionItemAmounts {
+        amounts: Amounts::new_bitcoin(output.seek_request.0),
+        fees: Amounts::ZERO,
     })
 }
 
@@ -866,7 +863,7 @@ async fn process_deposit_to_provide_output(
     dbtx: &mut DatabaseTransaction<'_>,
     txid: TransactionId,
     output: &DepositToProvideOutput,
-) -> Result<TransactionItemAmount, StabilityPoolOutputError> {
+) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
     if output.provide_request.amount < config.consensus.min_allowed_provide {
         return Err(StabilityPoolOutputError::AmountTooLow);
     }
@@ -906,9 +903,9 @@ async fn process_deposit_to_provide_output(
         }],
     )
     .await;
-    Ok(TransactionItemAmount {
-        amount: output.provide_request.amount,
-        fee: Amount::ZERO,
+    Ok(TransactionItemAmounts {
+        amounts: Amounts::new_bitcoin(output.provide_request.amount),
+        fees: Amounts::ZERO,
     })
 }
 
@@ -1091,7 +1088,7 @@ async fn process_transfer_output(
     dbtx: &mut DatabaseTransaction<'_>,
     txid: TransactionId,
     output: &TransferOutput,
-) -> Result<TransactionItemAmount, StabilityPoolOutputError> {
+) -> Result<TransactionItemAmounts, StabilityPoolOutputError> {
     let TransferOutput { signed_request } = output;
     // Ensure account types match
     if signed_request.details().from().acc_type() != signed_request.details().to().acc_type() {
@@ -1160,9 +1157,9 @@ async fn process_transfer_output(
     // If call to inner function was successful, write the updated current cycle
     // to the DB
     dbtx.insert_entry(&CurrentCycleKey, &current_cycle).await;
-    Ok(TransactionItemAmount {
-        amount: Amount::ZERO,
-        fee: Amount::ZERO,
+    Ok(TransactionItemAmounts {
+        amounts: Amounts::ZERO,
+        fees: Amounts::ZERO,
     })
 }
 
