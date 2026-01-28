@@ -672,7 +672,8 @@ export function useFederationInviteCode(t: TFunction, inviteCode: string) {
         isChecking,
         isError,
         previewResult,
-        handleJoin: () => handleJoinFederation(inviteCode),
+        handleJoin: (recoverFromScratch?: boolean) =>
+            handleJoinFederation(inviteCode, recoverFromScratch),
     }
 }
 

@@ -1,17 +1,18 @@
-import { useRouter } from 'next/router'
-import React from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useFederationInviteCode } from '@fedi/common/hooks/federation'
+import { useCommonSelector } from '@fedi/common/hooks/redux'
 import { useToast } from '@fedi/common/hooks/toast'
+import { selectFederationIds } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 
 import { Button } from '../../components/Button'
-import { onboardingJoinRoute } from '../../constants/routes'
 import { useCopy } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { FederationAvatar } from '../FederationAvatar'
 import { Column, Row } from '../Flex'
+import { JoinFederationDialog } from '../JoinFederationDialog'
 import { Text } from '../Text'
 
 interface Props {
@@ -23,13 +24,23 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
     const { t } = useTranslation()
     const toast = useToast()
     const { copy } = useCopy()
-    const router = useRouter()
+
+    const [isShowing, setIsShowing] = useState(false)
 
     const inviteCode = event.content.body
-    const { previewResult, isChecking, isError } = useFederationInviteCode(
-        t,
-        inviteCode,
+    const { previewResult, isChecking, isError, isJoining, handleJoin } =
+        useFederationInviteCode(t, inviteCode)
+
+    // Memoized selector that only returns boolean for this specific federation
+    // This prevents re-renders when other federations change
+    const selectIsMember = useCallback(
+        (state: Parameters<typeof selectFederationIds>[0]) =>
+            previewResult
+                ? selectFederationIds(state).includes(previewResult.preview.id)
+                : false,
+        [previewResult],
     )
+    const isMemberFromRedux = useCommonSelector(selectIsMember)
 
     const handleOnCopy = () => {
         copy(inviteCode).then(() => {
@@ -40,8 +51,13 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
         })
     }
 
-    const handleJoin = () => {
-        router.push(onboardingJoinRoute(inviteCode))
+    const handleOpenDialog = () => {
+        setIsShowing(true)
+    }
+
+    const handleJoinFederation = async (recoverFromScratch?: boolean) => {
+        await handleJoin(recoverFromScratch)
+        setIsShowing(false)
     }
 
     // Fallback to simple display while loading or on error
@@ -66,56 +82,66 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
         )
     }
 
-    const { preview, isMember } = previewResult
+    const { preview } = previewResult
+    const isMember = isMemberFromRedux
 
     return (
-        <Wrapper>
-            <Column gap="md">
-                <InviteLabel>
-                    <Text variant="small" weight="bold">
-                        {t('feature.federations.federation-invite')}:
-                    </Text>
-                    <TruncatedCode title={inviteCode} isMe={isMe}>
-                        {inviteCode.slice(0, 30)}...
-                    </TruncatedCode>
-                </InviteLabel>
-                <FederationRow align="center" gap="sm">
-                    <FederationAvatar
-                        federation={{
-                            id: preview.id,
-                            name: preview.name,
-                            meta: preview.meta,
-                        }}
-                        size="sm"
-                    />
-                    <Text variant="body" weight="medium">
-                        {preview.name}
-                    </Text>
-                </FederationRow>
-                {isMember && (
-                    <MemberText variant="small" isMe={isMe}>
-                        {t('phrases.you-are-a-member', {
-                            federationName: preview.name,
-                        })}
-                    </MemberText>
-                )}
-                <ButtonRow wrap gap="sm">
-                    <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={handleJoin}
-                        disabled={isMember}>
-                        {isMember ? t('words.joined') : t('words.join')}
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={handleOnCopy}>
-                        {t('phrases.copy-invite-code')}
-                    </Button>
-                </ButtonRow>
-            </Column>
-        </Wrapper>
+        <>
+            <Wrapper>
+                <Column gap="sm">
+                    <InviteLabel>
+                        <Text variant="small" weight="bold">
+                            {t('feature.federations.federation-invite')}:
+                        </Text>
+                        <TruncatedCode title={inviteCode} isMe={isMe}>
+                            {inviteCode}
+                        </TruncatedCode>
+                    </InviteLabel>
+                    <NameRow align="center" gap="sm">
+                        <FederationAvatar
+                            federation={{
+                                id: preview.id,
+                                name: preview.name,
+                                meta: preview.meta,
+                            }}
+                            size="sm"
+                        />
+                        <NameText variant="caption" weight="medium">
+                            {preview.name}
+                        </NameText>
+                    </NameRow>
+                    {isMember && (
+                        <MemberText variant="small" isMe={isMe}>
+                            {t('phrases.you-are-a-member', {
+                                federationName: preview.name,
+                            })}
+                        </MemberText>
+                    )}
+                    <ButtonRow>
+                        <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={handleOpenDialog}
+                            disabled={isMember}>
+                            {isMember ? t('words.joined') : t('words.join')}
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={handleOnCopy}>
+                            {t('phrases.copy-invite-code')}
+                        </Button>
+                    </ButtonRow>
+                </Column>
+            </Wrapper>
+            <JoinFederationDialog
+                open={isShowing}
+                onOpenChange={setIsShowing}
+                preview={preview}
+                isJoining={isJoining}
+                onJoin={handleJoinFederation}
+            />
+        </>
     )
 }
 
@@ -133,6 +159,12 @@ const InviteLabel = styled(Column, {
 
 const TruncatedCode = styled('span', {
     fontSize: theme.fontSizes.small,
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    width: 0,
+    minWidth: '100%',
     variants: {
         isMe: {
             true: {
@@ -147,8 +179,6 @@ const TruncatedCode = styled('span', {
         isMe: false,
     },
 })
-
-const FederationRow = styled(Row, {})
 
 const MemberText = styled(Text, {
     variants: {
@@ -166,6 +196,22 @@ const MemberText = styled(Text, {
     },
 })
 
-const ButtonRow = styled(Row, {
-    marginTop: theme.spacing.sm,
+const NameRow = styled(Row, {
+    overflow: 'hidden',
+    width: 0,
+    minWidth: '100%',
+})
+
+const NameText = styled(Text, {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    minWidth: 0,
+})
+
+const ButtonRow = styled('div', {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
 })
