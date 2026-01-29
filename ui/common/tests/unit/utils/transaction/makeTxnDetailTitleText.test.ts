@@ -123,17 +123,15 @@ describe('makeTxnDetailTitleText', () => {
         expect(makeTxnDetailTitleText(t, spWithdrawComplete)).toBe(
             t('feature.receive.you-received'),
         )
-
-        // TODO:TEST: This should NOT be the case
         expect(makeTxnDetailTitleText(t, spDataNotInCache)).toBe(
-            t('phrases.receive-pending'),
+            t('words.pending'),
         )
         expect(makeTxnDetailTitleText(t, spWithdrawFailed)).toBe(
-            t('phrases.receive-pending'),
+            t('words.failed'),
         )
     })
 
-    it('(spV2 transfer in + multispend txns) should say "you-received"', () => {
+    it('spV2 transfer in should say "you-received"', () => {
         const spTransferInPending = makeTestRpcTxnEntry('sPV2TransferIn')
         const multispendGroupInvitation =
             makeTestMultispendTxnEntry('groupInvitation')
@@ -141,10 +139,29 @@ describe('makeTxnDetailTitleText', () => {
         expect(makeTxnDetailTitleText(t, spTransferInPending)).toBe(
             t('feature.receive.you-received'),
         )
-
-        // TODO:TEST: This should NOT be the case
         expect(makeTxnDetailTitleText(t, multispendGroupInvitation)).toBe(
-            t('feature.send.you-sent'),
+            t('words.unknown'),
+        )
+    })
+
+    it('multispend deposits/withdrawals should be labeled, non-txns should be unknown', () => {
+        const multispendDeposit = makeTestMultispendTxnEntry('deposit')
+        const multispendWithdrawal = makeTestMultispendTxnEntry('withdrawal')
+        const multispendGroupInvitation =
+            makeTestMultispendTxnEntry('groupInvitation')
+        const multispendInvalid = makeTestMultispendTxnEntry('invalid')
+
+        expect(makeTxnDetailTitleText(t, multispendDeposit)).toBe(
+            t('feature.stabilitypool.you-deposited'),
+        )
+        expect(makeTxnDetailTitleText(t, multispendWithdrawal)).toBe(
+            t('feature.stabilitypool.you-withdrew'),
+        )
+        expect(makeTxnDetailTitleText(t, multispendGroupInvitation)).toBe(
+            t('words.unknown'),
+        )
+        expect(makeTxnDetailTitleText(t, multispendInvalid)).toBe(
+            t('words.unknown'),
         )
     })
 })

@@ -118,53 +118,80 @@ export const makeTxnDetailTitleText = (
     // there should always be a state, but return unknown just in case
     if (!txn.state) return t('words.unknown')
 
-    const direction = getTxnDirection(txn)
-    if (direction === TransactionDirection.send) {
-        if (txn.kind === 'sPV2TransferOut' && isMultispendTxn(txn)) {
-            return t('feature.stabilitypool.you-deposited')
-            // TODO+TEST: Handle `multispend` txns properly
-        } else {
+    switch (txn.kind) {
+        case 'lnPay':
+        case 'spDeposit':
+        case 'oobSend':
+        case 'onchainWithdraw':
+        case 'sPV2Deposit':
             return t('feature.send.you-sent')
-        }
-    }
-    if (txn.kind === 'lnReceive' || txn.kind === 'lnRecurringdReceive') {
-        switch (txn.state?.type) {
-            case 'waitingForPayment':
-                return t('phrases.receive-pending')
-            case 'claimed':
-                return t('feature.receive.you-received')
-            case 'canceled':
-                return t('words.expired')
-            default:
-                return t('phrases.receive-pending')
-        }
-    } else if (txn.kind === 'onchainDeposit') {
-        switch (txn.state?.type) {
-            case 'waitingForTransaction':
-                return t('phrases.address-created')
-            case 'claimed':
-                return t('feature.receive.you-received')
-            default:
-                return t('phrases.receive-pending')
-        }
-    } else if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
-        switch (txn.state?.type) {
-            case 'pendingWithdrawal':
-                return t('phrases.receive-pending')
-            case 'completeWithdrawal':
-            case 'completedWithdrawal':
-                return t('feature.receive.you-received')
-            // TODO+TEST: This should NOT be the case for SPV2 withdrawals
-            // of state `dataNotInCache` and `failedWithdrawal`
-            // We need to properly handle these states later
-            default:
-                return t('phrases.receive-pending')
-        }
-        // TODO+TEST: We should properly handle multispend txns instead of blindly saying "you received"
-    } else if (txn.kind === 'sPV2TransferIn' && isMultispendTxn(txn)) {
-        return t('feature.receive.you-received')
-    } else {
-        return t('feature.receive.you-received')
+        case 'sPV2TransferIn':
+        case 'oobReceive':
+            return t('feature.receive.you-received')
+        case 'lnReceive':
+        case 'lnRecurringdReceive':
+            switch (txn.state.type) {
+                case 'claimed':
+                    return t('feature.receive.you-received')
+                case 'canceled':
+                    return t('words.expired')
+                default:
+                    txn.state.type satisfies
+                        | 'created'
+                        | 'funded'
+                        | 'awaitingFunds'
+                        | 'waitingForPayment'
+                    return t('phrases.receive-pending')
+            }
+        case 'onchainDeposit':
+            switch (txn.state.type) {
+                case 'waitingForTransaction':
+                    return t('phrases.address-created')
+                case 'claimed':
+                    return t('feature.receive.you-received')
+                case 'failed':
+                    return t('words.failed')
+                default:
+                    txn.state.type satisfies
+                        | 'confirmed'
+                        | 'waitingForConfirmation'
+                    return t('phrases.receive-pending')
+            }
+        case 'spWithdraw':
+        case 'sPV2Withdrawal':
+            switch (txn.state.type) {
+                case 'pendingWithdrawal':
+                    return t('phrases.receive-pending')
+                case 'completeWithdrawal':
+                case 'completedWithdrawal':
+                    return t('feature.receive.you-received')
+                case 'dataNotInCache':
+                    return t('words.pending')
+                default:
+                    txn.state.type satisfies 'failedWithdrawal'
+                    return t('words.failed')
+            }
+        case 'sPV2TransferOut':
+            switch (txn.state.type) {
+                case 'completedTransfer':
+                    return t('feature.stabilitypool.you-deposited')
+                default:
+                    txn.state.type satisfies 'dataNotInCache'
+                    return t('words.pending')
+            }
+        case 'multispend':
+            switch (txn.state) {
+                case 'deposit':
+                    return t('feature.stabilitypool.you-deposited')
+                case 'withdrawal':
+                    return t('feature.stabilitypool.you-withdrew')
+                default:
+                    txn.state satisfies 'groupInvitation' | 'invalid'
+                    return t('words.unknown')
+            }
+        default:
+            txn satisfies never
+            return t('words.unknown')
     }
 }
 
