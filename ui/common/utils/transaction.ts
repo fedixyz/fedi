@@ -78,15 +78,26 @@ export const makeTxnTypeText = (
             return t('feature.stabilitypool.stable-balance')
         case 'sPV2TransferIn':
         case 'sPV2TransferOut':
+            // TODO+TEST: `isMultispendTxn` incorrectly casts transaction types
+            // This should be removed later
             return isMultispendTxn(txn)
                 ? t('words.multispend')
                 : t('feature.stabilitypool.stable-balance')
         case 'oobSend':
         case 'oobReceive':
             return t('words.ecash')
-        // TOOD+TEST: Cover transactions of kind "multispend"
-        default:
-            return t('words.unknown')
+        case 'multispend': {
+            switch (txn.state) {
+                case 'deposit':
+                    return t('words.deposit')
+                case 'withdrawal':
+                    return t('words.withdrawal')
+                default:
+                    // `groupInvitation` and `invalid` are not transaction types
+                    txn.state satisfies 'groupInvitation' | 'invalid'
+                    return t('words.unknown')
+            }
+        }
     }
 }
 

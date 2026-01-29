@@ -71,9 +71,9 @@ describe('makeTxnTypeText', () => {
             makeTestMultispendTxnEntry('groupInvitation')
         const multispendInvalid = makeTestMultispendTxnEntry('invalid')
 
-        expect(makeTxnTypeText(multispendDeposit, t)).toBe(t('words.unknown'))
+        expect(makeTxnTypeText(multispendDeposit, t)).toBe(t('words.deposit'))
         expect(makeTxnTypeText(multispendWithdrawal, t)).toBe(
-            t('words.unknown'),
+            t('words.withdrawal'),
         )
         expect(makeTxnTypeText(multispendGroupInvitation, t)).toBe(
             t('words.unknown'),
