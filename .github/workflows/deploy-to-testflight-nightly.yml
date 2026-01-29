@@ -26,6 +26,7 @@ jobs:
               run: nix develop .#xcode -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release scripts/ci/run-in-fs-dir-cache.sh build-bridge-ios ./scripts/bridge/build-bridge-ios.sh
 
             - name: Build UI dependencies
+              id: build-deps
               run: nix develop -c ./scripts/ui/build-deps.sh
 
             - name: Install iOS dependencies (Cocoapods)
@@ -55,6 +56,7 @@ jobs:
                   BUILD_UI_DEPS: 0
                   REINSTALL_PODS: 0
                   FLAVOR: 'nightly'
+                  SHORT_HASH: ${{ steps.build-deps.outputs.SHORT_HASH}}
               run: |
                   ./scripts/ui/deploy-to-testflight.sh
 

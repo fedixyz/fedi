@@ -35,4 +35,12 @@ echo "Building UI modules: @fedi/common and @fedi/injections"
 yarn build:deps
 echo "UI modules built: @fedi/common and @fedi/injections"
 
+# export short commit sha for nightly version string
+
+SHORT_HASH=$(git rev-parse --short HEAD)
+export SHORT_HASH
+if [[ -n "$CI" ]]; then
+  echo "SHORT_HASH=$SHORT_HASH" >> "$GITHUB_OUTPUT"
+fi
+
 popd

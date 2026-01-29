@@ -11,6 +11,7 @@ import {
 
 import { version } from '../../../package.json'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
+import { isNightly } from '../../../utils/device-info'
 import { Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 
@@ -32,6 +33,10 @@ export const VersionContainer = ({
     const navigation = useNavigation()
     const style = styles(theme)
     const fedimintVersion = useAppSelector(selectFedimintVersion)
+    let nightlyVersion = version
+    if (process.env.SHORT_HASH) {
+        nightlyVersion = `${version}-${process.env.SHORT_HASH.toString().trim()}`
+    }
 
     return (
         <Column center style={style.versionContainer}>
@@ -62,7 +67,9 @@ export const VersionContainer = ({
                     medium
                     center
                     color={theme.colors.darkGrey}>
-                    {t('phrases.app-version', { version })}
+                    {isNightly()
+                        ? t('phrases.app-version', { version: nightlyVersion })
+                        : t('phrases.app-version', { version })}
                 </Text>
                 {fedimintVersion && (
                     <Text

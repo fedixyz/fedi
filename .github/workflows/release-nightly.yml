@@ -43,6 +43,7 @@ jobs:
               run: nix develop -c env BUILD_ALL_BRIDGE_TARGETS=1 CARGO_PROFILE=release ./scripts/bridge/build-bridge-android.sh
 
             - name: Build UI dependencies
+              id: build-deps
               run: nix develop -c ./scripts/ui/build-deps.sh
 
             - name: Prep for APK build
@@ -54,6 +55,7 @@ jobs:
             - name: Build APK
               env:
                   APK_PATH: ${{ steps.prep-apk.outputs.APK_PATH }}
+                  SHORT_HASH: ${{ steps.build-deps.outputs.SHORT_HASH }}
                   BUILD_BRIDGE: 0
                   BUILD_UI_DEPS: 0
               run: nix develop -c ./scripts/ui/build-nightly-apk.sh
