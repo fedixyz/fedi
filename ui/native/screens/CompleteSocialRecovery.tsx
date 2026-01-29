@@ -169,10 +169,10 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
                     justify="start"
                     gap="sm"
                     style={style.container}>
-                    <Text h2 bold>
+                    <Text center h2 bold>
                         {t('feature.recovery.complete-social-recovery-title')}
                     </Text>
-                    <Text style={style.instructionsText}>
+                    <Text center style={style.instructionsText}>
                         {t(
                             'feature.recovery.complete-social-recovery-description',
                         )}
@@ -227,7 +227,6 @@ const styles = (theme: Theme) =>
         },
         instructionsText: {
             color: theme.colors.darkGrey,
-            textAlign: 'center',
         },
         qrCodeContainer: {
             borderRadius: theme.borders.defaultRadius,
