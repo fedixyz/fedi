@@ -62,13 +62,22 @@ export default function ShareLogsPage() {
     }, [status])
 
     const handleOnSubmit = async () => {
+        if (!isValid) {
+            setError(t('feature.support.invalid-ticket-number'))
+            return
+        }
+
         if (walletFederations.length > 0 && paymentFederation) {
             setIsSelectingFederation(true)
             return
         }
-        if (!isValid) return
 
+        submitLogs()
+    }
+
+    const submitLogs = async () => {
         await collectAttachmentsAndSubmit(sendDb, ticketNumber)
+        setIsSelectingFederation(false)
     }
 
     const handleOnBugClick = async () => {
@@ -140,7 +149,8 @@ export default function ShareLogsPage() {
                     <Button
                         width="full"
                         loading={status === 'loading'}
-                        onClick={() => handleOnSubmit()}>
+                        disabled={status === 'loading'}
+                        onClick={handleOnSubmit}>
                         {t('words.submit')}
                     </Button>
                 </Layout.Actions>
@@ -156,7 +166,11 @@ export default function ShareLogsPage() {
                 )}>
                 <SelectFederationContent>
                     <FederationWalletSelector />
-                    <Button width="full" onClick={() => handleOnSubmit()}>
+                    <Button
+                        width="full"
+                        onClick={submitLogs}
+                        loading={status === 'loading'}
+                        disabled={status === 'loading'}>
                         {t('words.continue')}
                     </Button>
                 </SelectFederationContent>

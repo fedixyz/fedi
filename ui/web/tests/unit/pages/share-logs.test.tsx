@@ -65,7 +65,26 @@ describe('ShareLogs screen', () => {
         expect(dbDumpIndicator).toBeInTheDocument()
     })
 
-    it('should show the federation selector overlay if the active federation is a community AND the user has joined at least one federation', async () => {
+    it("should allow the user to submit logs if they haven't joined a federation", async () => {
+        renderWithProviders(<ShareLogs />)
+
+        const input = screen.getByTestId('ticket-number-input')
+        await user.type(input, '1234')
+
+        const submitText = i18n.t('words.submit')
+        const submitButton = screen.getByText(submitText)
+
+        expect(submitButton).toBeInTheDocument()
+        expect(submitButton).not.toBeDisabled()
+
+        await user.click(submitButton)
+
+        await waitFor(() =>
+            expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalled(),
+        )
+    })
+
+    it('should allow the user to submit logs if they have joined a federation', async () => {
         store.dispatch(setFederations([mockFederation2]))
         store.dispatch(setCommunities([mockCommunity]))
         store.dispatch(setPayFromFederationId('2'))
@@ -96,21 +115,8 @@ describe('ShareLogs screen', () => {
         const continueButton = screen.getByText(i18n.t('words.continue'))
         expect(federationWalletSelector).toBeInTheDocument()
         expect(continueButton).toBeInTheDocument()
-    })
 
-    it("should allow the user to submit logs if they haven't joined a federation", async () => {
-        renderWithProviders(<ShareLogs />)
-
-        const input = screen.getByTestId('ticket-number-input')
-        await user.type(input, '1234')
-
-        const submitText = i18n.t('words.submit')
-        const submitButton = screen.getByText(submitText)
-
-        expect(submitButton).toBeInTheDocument()
-        expect(submitButton).not.toBeDisabled()
-
-        await user.click(submitButton)
+        await user.click(continueButton)
 
         await waitFor(() =>
             expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalled(),
