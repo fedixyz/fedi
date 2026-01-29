@@ -1,7 +1,14 @@
-import { TransactionDirection, TransactionListEntry } from '../../../../types'
+import {
+    MultispendTransactionListEntry,
+    TransactionDirection,
+    TransactionListEntry,
+} from '../../../../types'
 import { RpcTransactionListEntry } from '../../../../types/bindings'
 import { getTxnDirection } from '../../../../utils/transaction'
-import { makeTestRpcTxnEntry } from '../../../utils/transaction'
+import {
+    makeTestMultispendTxnEntry,
+    makeTestRpcTxnEntry,
+} from '../../../utils/transaction'
 
 describe('getTxnDirection', () => {
     it('should correctly determine the direction of a transaction based on its kind', () => {
@@ -32,6 +39,28 @@ describe('getTxnDirection', () => {
 
         for (const [kind, direction] of entries) {
             const txn = makeTestRpcTxnEntry(kind)
+            const dir = getTxnDirection(txn)
+            expect(dir).toBe(direction)
+        }
+    })
+
+    it('should correctly determine the direction of a multispend transaction based on its state', () => {
+        const multispendTransactions: Record<
+            MultispendTransactionListEntry['state'],
+            string
+        > = {
+            deposit: TransactionDirection.receive,
+            withdrawal: TransactionDirection.send,
+            invalid: '',
+            groupInvitation: '',
+        }
+
+        for (const [state, direction] of Object.entries(
+            multispendTransactions,
+        )) {
+            const txn = makeTestMultispendTxnEntry(
+                state as MultispendTransactionListEntry['state'],
+            )
             const dir = getTxnDirection(txn)
             expect(dir).toBe(direction)
         }

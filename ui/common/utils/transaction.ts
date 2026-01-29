@@ -44,17 +44,26 @@ export const getTxnDirection = (txn: TransactionListEntry): string => {
         case 'sPV2Deposit':
         case 'sPV2TransferOut':
             return TransactionDirection.send
-        case 'lnReceive':
-        case 'lnRecurringdReceive':
-        case 'onchainDeposit':
-        case 'oobReceive':
-        case 'spWithdraw':
-        case 'sPV2Withdrawal':
-        case 'sPV2TransferIn':
-            return TransactionDirection.receive
-        // TODO+TEST: Cover transactions of type "multispend"
+        case 'multispend':
+            switch (txn.state) {
+                case 'deposit':
+                    return TransactionDirection.receive
+                case 'withdrawal':
+                    return TransactionDirection.send
+                default:
+                    txn.state satisfies 'groupInvitation' | 'invalid'
+                    return ''
+            }
         default:
-            return TransactionDirection.send
+            txn.kind satisfies
+                | 'lnReceive'
+                | 'lnRecurringdReceive'
+                | 'onchainDeposit'
+                | 'oobReceive'
+                | 'spWithdraw'
+                | 'sPV2Withdrawal'
+                | 'sPV2TransferIn'
+            return TransactionDirection.receive
     }
 }
 
