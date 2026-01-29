@@ -11,12 +11,17 @@ use nostr_sdk::{
     ToBech32,
 };
 use rand::RngCore;
-use rpc_types::communities::{CommunityInviteV2, RawChaCha20Poly1305Key, RpcCommunity};
+use rpc_types::communities::{
+    CommunityInviteV2, RawChaCha20Poly1305Key, RpcCommunity, RpcCommunityInvite,
+};
 use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
 use runtime::bridge_runtime::Runtime;
-use runtime::constants::{NOSTR_CHILD_ID, NOSTR_COMMUNITY_CREATION_EVENT_KIND};
+use runtime::constants::{
+    NOSTR_CHILD_ID, NOSTR_COMMUNITY_CREATION_EVENT_KIND, NOSTR_COMMUNITY_STATUS_DELETED,
+    NOSTR_COMMUNITY_STATUS_TAG,
+};
 use runtime::storage::state::CommunityJson;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 pub struct Nostril {
     keys: Keys,
@@ -182,8 +187,13 @@ impl Nostril {
         };
 
         let community_keys = self.community_creation_keys(&uuid_bytes);
-        self.sign_and_publish_community(&community_keys, &hex::encode(uuid_bytes), community_json)
-            .await
+        self.sign_and_publish_community(
+            &community_keys,
+            &hex::encode(uuid_bytes),
+            community_json,
+            vec![],
+        )
+        .await
     }
 
     /// Fetches our own community creation events and returns a list
@@ -206,6 +216,15 @@ impl Nostril {
                     error!(?event, "Missing UUID in d tag");
                     return None;
                 };
+
+                if let Some(status_tag) =
+                    event.tags.find(TagKind::custom(NOSTR_COMMUNITY_STATUS_TAG))
+                    && status_tag.content() == Some(NOSTR_COMMUNITY_STATUS_DELETED)
+                {
+                    info!(?event, "Community marked deleting, skipping");
+                    return None;
+                }
+
                 Some((uuid.to_owned(), event))
             })
             .sorted_by(|(u1, e1), (u2, e2)| u1.cmp(u2).then(e2.created_at.cmp(&e1.created_at)))
@@ -247,8 +266,46 @@ impl Nostril {
     ) -> anyhow::Result<()> {
         let uuid_bytes = hex::decode(community_uuid_hex)?;
         let community_keys = self.community_creation_keys(&uuid_bytes);
-        self.sign_and_publish_community(&community_keys, community_uuid_hex, new_community_json)
-            .await?;
+        self.sign_and_publish_community(
+            &community_keys,
+            community_uuid_hex,
+            new_community_json,
+            vec![],
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Given the hex encoded UUID of one of the communities we created,
+    /// publishes a new replacement event with a new tag "status:deleted"
+    /// without modifying the event content. This is meant to indicate that the
+    /// creator has effectively deleted that community and it is treated as an
+    /// irreversible operation.
+    pub async fn delete_community(&self, community_uuid_hex: &str) -> anyhow::Result<()> {
+        // First fetch latest JSON. This also ensures that community exists.
+        let our_communities = self.list_our_communities().await?;
+        let to_delete = our_communities
+            .iter()
+            .find(|&c| matches!(&c.community_invite, RpcCommunityInvite::Nostr { invite_code, .. } if invite_code.community_uuid_hex == community_uuid_hex))
+            .ok_or(anyhow::anyhow!("Community to delete not found!"))?;
+        let existing_json = CommunityJson {
+            name: to_delete.name.clone(),
+            version: 2, // 2 for RpcCommunityInvite::Nostr
+            meta: to_delete.meta.clone(),
+        };
+        let uuid_bytes = hex::decode(community_uuid_hex)?;
+        let community_keys = self.community_creation_keys(&uuid_bytes);
+        let deletion_tag = Tag::custom(
+            TagKind::custom(NOSTR_COMMUNITY_STATUS_TAG),
+            vec![NOSTR_COMMUNITY_STATUS_DELETED],
+        );
+        self.sign_and_publish_community(
+            &community_keys,
+            community_uuid_hex,
+            existing_json,
+            vec![deletion_tag],
+        )
+        .await?;
         Ok(())
     }
 
@@ -317,6 +374,7 @@ impl Nostril {
         keys: &CommunityKeys,
         uuid_hex: &str,
         json: CommunityJson,
+        custom_tags: Vec<Tag>,
     ) -> anyhow::Result<RpcCommunity> {
         let Some(client) = &self.client else {
             anyhow::bail!("nostr client feature flag is not enabled");
@@ -334,6 +392,7 @@ impl Nostril {
         )
         .tag(Tag::identifier(uuid_hex))
         .tag(Tag::public_key(self.keys.public_key))
+        .tags(custom_tags)
         .sign_with_keys(&keys.publishing_key)?;
         client.send_event(&nostr_event).await?;
 

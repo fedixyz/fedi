@@ -855,6 +855,14 @@ async fn nostrEditCommunity(
         .await
 }
 
+#[macro_rules_derive(rpc_method!)]
+async fn nostrDeleteCommunity(
+    bridge: &BridgeFull,
+    community_hex_uuid: String,
+) -> anyhow::Result<()> {
+    bridge.nostril.delete_community(&community_hex_uuid).await
+}
+
 #[macro_rules_derive(federation_rpc_method!)]
 async fn stabilityPoolAccountInfo(
     federation: Arc<FederationV2>,
@@ -2420,6 +2428,7 @@ rpc_methods!(RpcMethods {
     nostrCreateCommunity,
     nostrListOurCommunities,
     nostrEditCommunity,
+    nostrDeleteCommunity,
     // Stability Pool
     stabilityPoolAccountInfo,
     stabilityPoolNextCycleStartTime,

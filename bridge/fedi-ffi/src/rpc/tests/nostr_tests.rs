@@ -101,6 +101,18 @@ pub async fn test_nostr_community_workflow(_dev_fed: DevFed) -> anyhow::Result<(
     );
     assert_eq!(fetched_community.meta, new_meta, "community meta mismatch");
 
+    fedimint_core::task::sleep_in_test("waiting before community deletion", Duration::from_secs(1))
+        .await;
+
+    // Finally let's try deleting our community
+    nostrDeleteCommunity(bridge, created_invite.community_uuid_hex.clone()).await?;
+    let our_communities = nostrListOurCommunities(bridge).await?;
+    assert!(
+        our_communities.is_empty(),
+        "expected no communities, found {}",
+        our_communities.len()
+    );
+
     Ok(())
 }
 
