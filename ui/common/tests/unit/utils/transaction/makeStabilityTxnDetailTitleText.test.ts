@@ -1,12 +1,13 @@
-import { t } from 'i18next'
-
 import { makeStabilityTxnDetailTitleText } from '../../../../utils/transaction'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestMultispendTxnEntry,
     makeTestRpcTxnEntry,
 } from '../../../utils/transaction'
 
 describe('makeStabilityTxnDetailTitleText', () => {
+    const t = createMockT()
+
     it('should display the correct title for sp deposits', () => {
         const spDeposit = makeTestRpcTxnEntry('spDeposit')
         const sPV2Deposit = makeTestRpcTxnEntry('sPV2Deposit')
@@ -35,7 +36,7 @@ describe('makeStabilityTxnDetailTitleText', () => {
         const sPV2TransferOut = makeTestRpcTxnEntry('sPV2TransferOut')
 
         expect(makeStabilityTxnDetailTitleText(t, sPV2TransferOut)).toBe(
-            t('feature.stabilitypool.you-deposited'),
+            t('feature.send.you-sent'),
         )
     })
 

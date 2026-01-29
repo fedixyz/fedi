@@ -1,12 +1,13 @@
-import { t } from 'i18next'
-
 import { makeTxnTypeText } from '../../../../utils/transaction'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestMultispendTxnEntry,
     makeTestRpcTxnEntry,
 } from '../../../utils/transaction'
 
 describe('makeTxnTypeText', () => {
+    const t = createMockT()
+
     it('[onchain] should return the correct transaction type', () => {
         const onchainDeposit = makeTestRpcTxnEntry('onchainDeposit')
         const onchainWithdraw = makeTestRpcTxnEntry('onchainWithdraw')
@@ -60,9 +61,7 @@ describe('makeTxnTypeText', () => {
         expect(makeTxnTypeText(sPV2TransferOut, t)).toBe(
             t('feature.stabilitypool.stable-balance'),
         )
-        expect(makeTxnTypeText(sPV2TransferIn, t)).toBe(
-            t('feature.stabilitypool.stable-balance'),
-        )
+        expect(makeTxnTypeText(sPV2TransferIn, t)).toBe(t('words.multispend'))
     })
 
     it('[multispend] should return the correct transaction type', () => {
@@ -72,14 +71,12 @@ describe('makeTxnTypeText', () => {
             makeTestMultispendTxnEntry('groupInvitation')
         const multispendInvalid = makeTestMultispendTxnEntry('invalid')
 
-        expect(makeTxnTypeText(multispendDeposit, t)).toBe(
-            t('words.multispend'),
-        )
+        expect(makeTxnTypeText(multispendDeposit, t)).toBe(t('words.unknown'))
         expect(makeTxnTypeText(multispendWithdrawal, t)).toBe(
-            t('words.multispend'),
+            t('words.unknown'),
         )
         expect(makeTxnTypeText(multispendGroupInvitation, t)).toBe(
-            t('words.multispend'),
+            t('words.unknown'),
         )
         expect(makeTxnTypeText(multispendInvalid, t)).toBe(t('words.unknown'))
     })

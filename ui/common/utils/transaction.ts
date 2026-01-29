@@ -102,6 +102,7 @@ export const makeTxnDetailTitleText = (
     if (direction === TransactionDirection.send) {
         if (txn.kind === 'sPV2TransferOut' && isMultispendTxn(txn)) {
             return t('feature.stabilitypool.you-deposited')
+            // TODO+TEST: Handle `multispend` txns properly
         } else {
             return t('feature.send.you-sent')
         }

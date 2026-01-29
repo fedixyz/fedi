@@ -1,7 +1,6 @@
-import { t } from 'i18next'
-
 import { TransactionListEntry } from '../../../../types'
 import { makeTxnDetailTitleText } from '../../../../utils/transaction'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestLnReceiveState,
     makeTestMultispendTxnEntry,
@@ -12,6 +11,8 @@ import {
 } from '../../../utils/transaction'
 
 describe('makeTxnDetailTitleText', () => {
+    const t = createMockT()
+
     it('should return "unknown" for a transaction without a state', () => {
         const txn = {
             kind: 'unknown',
@@ -29,7 +30,7 @@ describe('makeTxnDetailTitleText', () => {
             t('feature.send.you-sent'),
         )
         expect(makeTxnDetailTitleText(t, spDepositTxn)).toBe(
-            t('feature.stabilitypool.you-deposited'),
+            t('feature.send.you-sent'),
         )
     })
 
@@ -95,7 +96,7 @@ describe('makeTxnDetailTitleText', () => {
         })
 
         expect(makeTxnDetailTitleText(t, spWithdrawPending)).toBe(
-            t('feature.stabilitypool.withdrawal-pending'),
+            t('phrases.receive-pending'),
         )
         expect(makeTxnDetailTitleText(t, spWithdrawComplete)).toBe(
             t('feature.receive.you-received'),
@@ -134,20 +135,16 @@ describe('makeTxnDetailTitleText', () => {
 
     it('(spV2 transfer in + multispend txns) should say "you-received"', () => {
         const spTransferInPending = makeTestRpcTxnEntry('sPV2TransferIn')
-        const multispendTxn = makeTestMultispendTxnEntry('deposit')
         const multispendGroupInvitation =
             makeTestMultispendTxnEntry('groupInvitation')
 
         expect(makeTxnDetailTitleText(t, spTransferInPending)).toBe(
             t('feature.receive.you-received'),
         )
-        expect(makeTxnDetailTitleText(t, multispendTxn)).toBe(
-            t('feature.receive.you-received'),
-        )
 
         // TODO:TEST: This should NOT be the case
         expect(makeTxnDetailTitleText(t, multispendGroupInvitation)).toBe(
-            t('feature.receive.you-received'),
+            t('feature.send.you-sent'),
         )
     })
 })

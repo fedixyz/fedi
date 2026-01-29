@@ -1,10 +1,9 @@
-import { t } from 'i18next'
-
 import {
     MultispendActiveInvitation,
     MultispendFinalized,
 } from '../../../../types'
 import { makeMultispendTxnStatusText } from '../../../../utils/transaction'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestGroupInvitationWithKeys,
     makeTestMultispendTxnEntry,
@@ -24,6 +23,8 @@ const multispendActiveInvitationStatus: MultispendActiveInvitation = {
 }
 
 describe('makeMultispendTxnStatusText', () => {
+    const t = createMockT()
+
     it('should display the correct status for a multispend transaction', () => {
         const deposit = makeTestMultispendTxnEntry('deposit')
         const withdrawalPending = makeTestMultispendTxnEntry('withdrawal', {

@@ -1,11 +1,11 @@
 import { act } from '@testing-library/react'
-import { t } from 'i18next'
 
 import { useAmountFormatter } from '../../../../hooks/amount'
 import { fetchCurrencyPrices, setupStore } from '../../../../redux'
 import { MSats } from '../../../../types'
 import { makeStabilityTxnFeeDetails } from '../../../../utils/transaction'
 import { renderHookWithState } from '../../../utils/render'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestFediFeeStatus,
     makeTestRpcTxnEntry,
@@ -14,6 +14,7 @@ import {
 } from '../../../utils/transaction'
 
 describe('makeStabilityTxnDetailItems', () => {
+    const t = createMockT()
     const store = setupStore()
 
     let makeFormattedAmountsFromMSats: ReturnType<

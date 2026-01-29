@@ -1,5 +1,4 @@
 import { act } from '@testing-library/react'
-import { t } from 'i18next'
 
 import { useAmountFormatter, useBtcFiatPrice } from '../../../../hooks/amount'
 import { fetchCurrencyPrices, setupStore } from '../../../../redux'
@@ -7,6 +6,7 @@ import { MSats, SupportedCurrency, UsdCents } from '../../../../types'
 import { RpcSPDepositState } from '../../../../types/bindings'
 import { makeTxnDetailItems } from '../../../../utils/transaction'
 import { renderHookWithState } from '../../../utils/render'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestLnPayState,
     makeTestRpcTxnEntry,
@@ -18,6 +18,7 @@ import {
 } from '../../../utils/transaction'
 
 describe('makeTxnDetailItems', () => {
+    const t = createMockT()
     const store = setupStore()
 
     let makeFormattedAmountsFromMSats: ReturnType<

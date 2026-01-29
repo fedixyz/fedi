@@ -1,17 +1,18 @@
 import { act } from '@testing-library/react'
-import { t } from 'i18next'
 
 import { useAmountFormatter } from '../../../../hooks/amount'
 import { fetchCurrencyPrices, setupStore } from '../../../../redux'
 import { MSats } from '../../../../types'
 import { makeTxnFeeDetails } from '../../../../utils/transaction'
 import { renderHookWithState } from '../../../utils/render'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestFediFeeStatus,
     makeTestRpcTxnEntry,
 } from '../../../utils/transaction'
 
 describe('makeTxnFeeDetails', () => {
+    const t = createMockT()
     const store = setupStore()
 
     let makeFormattedAmountsFromMSats: ReturnType<

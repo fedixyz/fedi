@@ -1,5 +1,4 @@
 import { act } from '@testing-library/react'
-import { t } from 'i18next'
 
 import { useBtcFiatPrice } from '../../../../hooks/amount'
 import { fetchCurrencyPrices, setupStore } from '../../../../redux'
@@ -7,6 +6,7 @@ import { makeNameWithSuffix } from '../../../../utils/matrix'
 import { makeMultispendTxnDetailItems } from '../../../../utils/transaction'
 import { mockRoomMembers } from '../../../mock-data/matrix-event'
 import { renderHookWithState } from '../../../utils/render'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestMultispendTxnEntry,
     makeTestMultispendWithdrawRequest,
@@ -14,6 +14,7 @@ import {
 } from '../../../utils/transaction'
 
 describe('makeMultispendTxnDetailItems', () => {
+    const t = createMockT()
     const store = setupStore()
 
     let convertCentsToFormattedFiat: ReturnType<

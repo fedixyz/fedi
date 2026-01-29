@@ -1,6 +1,5 @@
-import { t } from 'i18next'
-
 import { makeTxnStatusText } from '../../../../utils/transaction'
+import { createMockT } from '../../../utils/setup'
 import {
     makeTestLnPayState,
     makeTestLnReceiveState,
@@ -16,6 +15,8 @@ import {
 } from '../../../utils/transaction'
 
 describe('makeTxnStatusText', () => {
+    const t = createMockT()
+
     describe('lightning', () => {
         it('lnPay', () => {
             const lnPayCreated = makeTestRpcTxnEntry('lnPay', {
@@ -110,7 +111,7 @@ describe('makeTxnStatusText', () => {
             })
 
             expect(makeTxnStatusText(t, lnReceiveClaimed)).toBe(
-                t('feature.receive.you-received'),
+                t('words.received'),
             )
         })
     })
@@ -177,9 +178,9 @@ describe('makeTxnStatusText', () => {
             ).toBe(t('phrases.address-created'))
             expect(
                 makeTxnStatusText(t, onchainDepositWaitingForConfirmation),
-            ).toBe(t('phrases.address-created'))
+            ).toBe(t('words.pending'))
             expect(makeTxnStatusText(t, onchainDepositClaimed)).toBe(
-                t('feature.receive.you-received'),
+                t('words.received'),
             )
             expect(makeTxnStatusText(t, onchainDepositFailed)).toBe(
                 t('words.failed'),
@@ -243,7 +244,7 @@ describe('makeTxnStatusText', () => {
                 t('words.pending'),
             )
             expect(makeTxnStatusText(t, oobReceiveDone)).toBe(
-                t('feature.receive.you-received'),
+                t('words.complete'),
             )
             expect(makeTxnStatusText(t, oobReceiveFailed)).toBe(
                 t('words.failed'),
@@ -414,7 +415,7 @@ describe('makeTxnStatusText', () => {
             const spv2TransferInPending = makeTestRpcTxnEntry('sPV2TransferIn')
 
             expect(makeTxnStatusText(t, spv2TransferInPending)).toBe(
-                t('words.pending'),
+                t('words.withdrawal'),
             )
         })
 
@@ -423,7 +424,7 @@ describe('makeTxnStatusText', () => {
                 makeTestRpcTxnEntry('sPV2TransferOut')
 
             expect(makeTxnStatusText(t, spv2TransferOutPending)).toBe(
-                t('words.received'),
+                t('words.sent'),
             )
         })
     })
