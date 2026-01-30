@@ -18,8 +18,8 @@ const MOCK_FEDERATION_INVITE_CODE: &str = "fed11qgqrgvnhwden5te0v9k8q6rp9ekh2arf
 const MOCK_FEDERATION_ID: &str = "15db8cb4f1ec8e484d73b889372bec94812580f929e8148b7437d359af422cd3";
 
 pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
     let matrix = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
     let multispend_matrix = td1.multispend().await?;
@@ -73,8 +73,8 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
 }
 
 pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
     let matrix1 = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
     let multispend_matrix1 = td1.multispend().await?;
@@ -207,8 +207,8 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
 }
 
 pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
     let matrix1 = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
     let multispend_matrix1 = td1.multispend().await?;

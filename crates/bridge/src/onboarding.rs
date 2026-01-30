@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context as _, bail};
 use fedi_social_client::SocialRecoveryState;
+use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::db::Database;
 use fedimint_core::util::backoff_util::aggressive_backoff;
 use fedimint_core::util::retry;
@@ -26,6 +27,7 @@ pub struct BridgeOnboarding {
     fedi_api: Arc<dyn IFediApi>,
     // saved for transitioning into full
     storage: Storage,
+    connectors: ConnectorRegistry,
     event_sink: EventSink,
     feature_catalog: Arc<FeatureCatalog>,
     device_identifier: DeviceIdentifier,
@@ -45,10 +47,12 @@ pub enum RpcOnboardingStage {
 }
 
 impl BridgeOnboarding {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         state: AppStateOnboarding,
         fedi_api: Arc<dyn IFediApi>,
         storage: Storage,
+        connectors: ConnectorRegistry,
         global_db: Database,
         event_sink: EventSink,
         feature_catalog: Arc<FeatureCatalog>,
@@ -62,6 +66,7 @@ impl BridgeOnboarding {
             event_sink,
             feature_catalog,
             device_identifier,
+            connectors,
         }
     }
 
@@ -137,6 +142,7 @@ impl BridgeOnboarding {
             Ok(new_state) => Ok(Bridge::load_bridge_full(
                 self.storage.clone(),
                 self.global_db.clone(),
+                self.connectors.clone(),
                 self.event_sink.clone(),
                 self.fedi_api.clone(),
                 new_state,

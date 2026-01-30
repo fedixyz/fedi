@@ -33,6 +33,7 @@ async fn flaky_starter_test() -> anyhow::Result<()> {
         esplora,
         gw_ldk_second,
         recurringd,
+        recurringdv2,
     } = dev_fed(&process_mgr).await?;
 
     // Get clients for seeker and provider

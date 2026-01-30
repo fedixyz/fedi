@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use anyhow::{Context, Result, anyhow, bail};
 use bitcoin::key::Secp256k1;
 use either::Either;
+use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::db::{Database, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_derive_secret::{ChildId, DerivableSecret};
 pub use full::{BridgeFull, BridgeOffboardingReason};
@@ -69,6 +70,7 @@ pub enum BridgeState {
 impl Bridge {
     pub async fn new(
         storage: Storage,
+        connectors: ConnectorRegistry,
         event_sink: EventSink,
         fedi_api: Arc<dyn IFediApi>,
         feature_catalog: Arc<FeatureCatalog>,
@@ -83,6 +85,7 @@ impl Bridge {
                 Self::load_bridge_full(
                     storage,
                     global_db,
+                    connectors,
                     event_sink,
                     fedi_api,
                     state,
@@ -95,6 +98,7 @@ impl Bridge {
                 state,
                 fedi_api,
                 storage,
+                connectors,
                 global_db,
                 event_sink,
                 feature_catalog,
@@ -116,9 +120,11 @@ impl Bridge {
         *self.state.ensure_lock() = bridge_state;
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn load_bridge_full(
         storage: Storage,
         global_db: Database,
+        connectors: ConnectorRegistry,
         event_sink: EventSink,
         fedi_api: Arc<dyn IFediApi>,
         app_state: AppState,
@@ -128,6 +134,7 @@ impl Bridge {
         let runtime = Runtime::new(
             storage,
             global_db,
+            connectors,
             event_sink,
             fedi_api,
             app_state,

@@ -15,8 +15,8 @@ pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
     }
 
     // Two devices: sender and receiver
-    let td_sender = TestDevice::new();
-    let td_receiver = TestDevice::new();
+    let td_sender = TestDevice::new().await?;
+    let td_receiver = TestDevice::new().await?;
     let bridge_sender = td_sender.bridge_full().await?;
     let bridge_receiver = td_receiver.bridge_full().await?;
     let matrix_sender = td_sender.matrix().await?;
@@ -138,8 +138,8 @@ pub async fn test_receiver_joins_federation_later(_dev_fed: DevFed) -> anyhow::R
     }
 
     // Two devices: sender and receiver
-    let td_sender = TestDevice::new();
-    let td_receiver = TestDevice::new();
+    let td_sender = TestDevice::new().await?;
+    let td_receiver = TestDevice::new().await?;
     let bridge_sender = td_sender.bridge_full().await?;
     let bridge_receiver = td_receiver.bridge_full().await?;
     let matrix_sender = td_sender.matrix().await?;

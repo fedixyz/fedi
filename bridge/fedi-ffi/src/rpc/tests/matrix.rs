@@ -17,7 +17,7 @@ use tracing::warn;
 use super::*;
 
 pub async fn test_matrix_login(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td = TestDevice::new();
+    let td = TestDevice::new().await?;
     let bridge = td.bridge_full().await?;
 
     // Wait for matrix to initialize
@@ -58,8 +58,8 @@ fn timeline_as_text(items: &Vector<RpcTimelineItem>) -> Vec<Option<String>> {
 }
 
 pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
     let m1 = td1.matrix().await?;
     let m2 = td2.matrix().await?;
     let user2 = m2.client.user_id().unwrap();
@@ -147,8 +147,8 @@ pub async fn test_matrix_dms(_dev_fed: DevFed) -> anyhow::Result<()> {
 }
 
 pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let mut td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+    let mut td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
     let m1 = td1.matrix().await?;
     let m2 = td2.matrix().await?;
     let user2 = m2.client.user_id().unwrap();
@@ -175,7 +175,7 @@ pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
     let mnemonic = getMnemonic(td1.bridge_full().await?.runtime.clone()).await?;
     td1.shutdown().await?;
 
-    let td1_recovered = TestDevice::new();
+    let td1_recovered = TestDevice::new().await?;
     let bridge = td1_recovered.bridge_maybe_onboarding().await?;
     restoreMnemonic(bridge.try_get()?, mnemonic).await?;
     onboardTransferExistingDeviceRegistration(bridge.try_get()?, 0).await?;
@@ -226,7 +226,7 @@ pub async fn test_matrix_recovery(_dev_fed: DevFed) -> anyhow::Result<()> {
 }
 
 pub async fn test_matrix_create_room(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td = TestDevice::new();
+    let td = TestDevice::new().await?;
     let matrix = td.matrix().await?;
     let mut request = ::matrix::create_room::Request::default();
     let room_name = "my name is one".to_string();
@@ -250,8 +250,8 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
 
     info!("Testing matrix file upload with file size: {}B", file_size);
 
-    let td1 = TestDevice::new();
-    let td2 = TestDevice::new();
+    let td1 = TestDevice::new().await?;
+    let td2 = TestDevice::new().await?;
     let matrix = td1.matrix().await?;
     let matrix2 = td2.matrix().await?;
 

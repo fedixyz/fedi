@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 fedimint-core = { workspace = true }
+fedimint-connectors = { workspace = true }
 fedimint-mint-client = { workspace = true }
 fedimint-api-client = { workspace = true }
 fedi-social-client = { workspace = true }
@@ -37,4 +38,7 @@ device-registration = { workspace = true }
 either = "1.15.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-zip = { version = "4", default-features = false, features = ["deflate", "time"] }
+zip = { version = "4", default-features = false, features = [
+  "deflate",
+  "time",
+] }

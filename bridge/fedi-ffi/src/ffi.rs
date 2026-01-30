@@ -118,9 +118,14 @@ pub async fn fedimint_initialize_inner(
     let storage = PathBasedStorage::new(data_dir)
         .await
         .context("Failed to initialize storage")?;
+
+    let connectors = fedimint_connectors::ConnectorRegistry::build_from_client_env()?
+        .bind()
+        .await?;
     let mut bridge_lock = BRIDGE.lock().await;
     let bridge = match fedimint_initialize_async(
         Arc::new(storage),
+        connectors,
         event_sink,
         init_opts.device_identifier,
         init_opts.app_flavor,
@@ -210,7 +215,7 @@ where
         db_name: &str,
     ) -> anyhow::Result<fedimint_core::db::Database> {
         let db_name = self.data_dir.as_ref().join(format!("{db_name}.db"));
-        let db = fedimint_rocksdb::RocksDb::open(db_name).await?;
+        let db = fedimint_rocksdb::RocksDb::build(db_name).open().await?;
         Ok(db.into())
     }
 

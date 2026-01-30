@@ -16,6 +16,7 @@ empty-line-after-doc-comments = "allow"
 api-types = { workspace = true }
 env = { workspace = true }
 fedimint-core = { workspace = true }
+fedimint-connectors = { workspace = true }
 fedimint-client = { workspace = true }
 fedimint-mint-client = { workspace = true }
 fedimint-ln-common = { workspace = true }

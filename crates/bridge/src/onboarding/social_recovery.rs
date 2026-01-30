@@ -46,17 +46,16 @@ impl BridgeOnboarding {
             )
             .expect("needs social recovery module client config");
 
-        let social_api = DynGlobalApi::from_endpoints(
+        let social_api = DynGlobalApi::new(
+            self.connectors.clone(),
             config
                 .global
                 .api_endpoints
                 .iter()
-                .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone())),
-            &None, // FIXME: api secret
-            false,
-            false,
-        )
-        .await?
+                .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone()))
+                .collect(),
+            None, // FIXME: api secret
+        )?
         .with_module(social_module_id);
         let client = SocialRecoveryClient::new_start(
             social_module_id,
@@ -144,17 +143,16 @@ impl BridgeOnboarding {
                 "fedi-social",
             )
             .expect("needs social recovery module client config");
-        let social_api = DynGlobalApi::from_endpoints(
+        let social_api = DynGlobalApi::new(
+            self.connectors.clone(),
             config
                 .global
                 .api_endpoints
                 .iter()
-                .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone())),
-            &None, // FIXME: api secret
-            false,
-            false,
-        )
-        .await?
+                .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone()))
+                .collect(),
+            None, // FIXME: api secret
+        )?
         .with_module(social_module_id);
         let recovery_client = SocialRecoveryClient::new_continue(
             social_module_id,

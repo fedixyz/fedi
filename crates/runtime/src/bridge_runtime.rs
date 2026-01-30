@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::db::Database;
 use fedimint_core::task::TaskGroup;
 
@@ -27,12 +28,14 @@ pub struct Runtime {
     pub global_db: Database,
     pub feature_catalog: Arc<FeatureCatalog>,
     pub stream_pool: RpcStreamPool,
+    pub connectors: ConnectorRegistry,
 }
 
 impl Runtime {
     pub async fn new(
         storage: Storage,
         global_db: Database,
+        connectors: ConnectorRegistry,
         event_sink: EventSink,
         fedi_api: Arc<dyn IFediApi>,
         app_state: AppState,
@@ -40,9 +43,9 @@ impl Runtime {
     ) -> Self {
         let task_group = TaskGroup::new();
         let stream_pool = RpcStreamPool::new(event_sink.clone(), task_group.clone());
-
         Self {
             storage,
+            connectors,
             app_state,
             event_sink,
             task_group,

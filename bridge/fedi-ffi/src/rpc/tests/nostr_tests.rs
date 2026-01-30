@@ -6,7 +6,7 @@ use runtime::storage::state::CommunityJson;
 use super::*;
 
 pub async fn test_nostr_community_workflow(_dev_fed: DevFed) -> anyhow::Result<()> {
-    let td = TestDevice::new();
+    let td = TestDevice::new().await?;
     let bridge = td.bridge_full().await?;
 
     // No communities initially
@@ -127,7 +127,7 @@ pub async fn test_nostr_community_preview_join_leave(_dev_fed: DevFed) -> anyhow
         BTreeMap::from([("description".to_string(), community_description.clone())]);
 
     let invite_code = {
-        let creator = TestDevice::new();
+        let creator = TestDevice::new().await?;
         let bridge = creator.bridge_full().await?;
 
         let create_payload = CommunityJson {
@@ -145,7 +145,7 @@ pub async fn test_nostr_community_preview_join_leave(_dev_fed: DevFed) -> anyhow
     };
 
     // Joiner previews, then joins, then leaves
-    let joiner = TestDevice::new();
+    let joiner = TestDevice::new().await?;
     let bridge = joiner.bridge_full().await?;
 
     let preview = communityPreview(bridge, invite_code.to_string()).await?;

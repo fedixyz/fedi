@@ -43,13 +43,14 @@ use fedimint_client::module::module::recovery::RecoveryProgress;
 use fedimint_client::module::oplog::{OperationLogEntry, UpdateStreamOrOutcome};
 use fedimint_client::secret::RootSecretStrategy;
 use fedimint_client::{Client, ClientBuilder, ClientHandle};
+use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::config::{ClientConfig, FederationId};
 use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::db::{Committable, DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::Encodable;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::module::registry::ModuleDecoderRegistry;
-use fedimint_core::module::{ApiRequestErased, ApiVersion};
+use fedimint_core::module::{AmountUnit, ApiRequestErased, ApiVersion};
 use fedimint_core::task::{MaybeSend, MaybeSync, TaskGroup, timeout};
 use fedimint_core::timing::TimeReporter;
 use fedimint_core::util::backoff_util::{aggressive_backoff, background_backoff};
@@ -89,7 +90,7 @@ use rpc_types::matrix::RpcRoomId;
 use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{
     BaseMetadata, EcashReceiveMetadata, EcashSendMetadata, FrontendMetadata, GuardianStatus,
-    LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
+    JsonValue, LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
     RpcGenerateEcashResponse, RpcInvoice, RpcJsonClientConfig, RpcLightningGateway,
     RpcOperationFediFeeStatus, RpcOperationId, RpcPayInvoiceResponse, RpcPeerId,
@@ -272,7 +273,6 @@ pub struct FederationPrefetchedInfo {
     pub(crate) federation_id: FederationId,
     client_config: ClientConfig,
     backup: Option<ClientBackup>,
-    connector: DynClientConnector,
     invite_code: InviteCode,
 }
 
@@ -289,7 +289,6 @@ impl FederationV2 {
         client_builder.with_module(FediSocialClientInit);
         client_builder.with_module(StabilityPoolClientInit);
         client_builder.with_module(stability_pool_client_old::StabilityPoolClientInit);
-        client_builder.with_primary_module_kind(fedimint_mint_client::KIND);
         let client_builder = client_builder
             .with_iroh_enable_dht(false)
             .with_iroh_enable_next(false);
@@ -507,6 +506,7 @@ impl FederationV2 {
             let _g = TimeReporter::new("federation loading").level(Level::INFO);
             client_builder
                 .open(
+                    runtime.connectors.clone(),
                     federation_db.clone(),
                     fedimint_client::RootSecret::Custom(
                         Self::client_root_secret_from_root_mnemonic(
@@ -538,16 +538,29 @@ impl FederationV2 {
 
     pub async fn federation_preview(
         info: &FederationPrefetchedInfo,
+        connectors: ConnectorRegistry,
     ) -> Result<RpcFederationPreview> {
+        let api = DynGlobalApi::new(
+            connectors.clone(),
+            // TODO: change join logic to use FederationId v2
+            info.client_config
+                .global
+                .api_endpoints
+                .iter()
+                .map(|(peer_id, peer_url)| (*peer_id, peer_url.url.clone()))
+                .collect(),
+            info.invite_code.api_secret().as_deref(),
+        )?;
+
         let meta_source =
             MetaModuleMetaSourceWithFallback::new(LegacyMetaSourceWithExternalUrl::default());
-        let api = DynGlobalApi::new(info.connector.clone())?;
+
         let meta = meta_source
             .fetch(&info.client_config, &api, FetchKind::Initial, None)
             .await?
             .values
             .into_iter()
-            .map(|(k, v)| (k.0, v.0))
+            .map(|(k, v)| (k.0, v.0.to_string()))
             .collect();
 
         Ok(RpcFederationPreview {
@@ -625,7 +638,11 @@ impl FederationV2 {
         // restore from scratch is not used because it takes too much time.
         // FIXME: api secret
         let client_preview = client_builder
-            .preview_with_existing_config(info.client_config.clone(), None, None)
+            .preview_with_existing_config(
+                runtime.connectors.clone(),
+                info.client_config.clone(),
+                info.invite_code.api_secret(),
+            )
             .await?;
         let client = if recover_from_scratch {
             info!("recovering from scratch");
@@ -734,7 +751,21 @@ impl FederationV2 {
     }
 
     pub async fn get_cached_meta(&self) -> MetaEntries {
-        let cfg_fetcher = async { self.client.config().await.global.meta };
+        let cfg_fetcher = async {
+            self.client
+                .config()
+                .await
+                .global
+                .meta
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k,
+                        serde_json::Value::from_str(&v).unwrap_or(serde_json::Value::String(v)),
+                    )
+                })
+                .collect()
+        };
 
         // Wait at most 2s for very first meta fetching
         match timeout(
@@ -1730,7 +1761,10 @@ impl FederationV2 {
             |fed| async move {
                 // always send an initial balance event
                 fed.send_balance_event().await;
-                let mut updates = fed.client.subscribe_balance_changes().await;
+                let mut updates = fed
+                    .client
+                    .subscribe_balance_changes(AmountUnit::BITCOIN)
+                    .await;
                 while (updates.next().await).is_some() {
                     fed.send_balance_event().await;
                 }
@@ -1898,7 +1932,7 @@ impl FederationV2 {
             network,
             name,
             invite_code,
-            meta,
+            meta: meta.into_iter().map(|(k, v)| (k, JsonValue(v))).collect(),
             nodes,
             recovering: self.recovering(),
             client_config: Some(RpcJsonClientConfig {
@@ -3215,7 +3249,7 @@ impl FederationV2 {
         let mut dbtx = self.dbtx().await;
         dbtx.insert_entry(&TransactionNotesKey(transaction), &notes)
             .await;
-        dbtx.commit_tx_result().await
+        dbtx.commit_tx_result().await.context("DbError")
     }
 
     // FIXME this is busted in social recovery
@@ -4735,17 +4769,9 @@ fn internal_pay_is_bad_state(outcome: serde_json::Value) -> bool {
     serde_json::from_value::<InternalPayState>(outcome).is_err()
 }
 
-pub async fn download_from_invite_code(
-    invite_code: &InviteCode,
-) -> anyhow::Result<(ClientConfig, DynGlobalApi)> {
-    let connector = Connector::Tcp;
-    connector
-        .download_from_invite_code(invite_code, false, false)
-        .await
-}
-
 impl FederationPrefetchedInfo {
     pub async fn fetch(
+        connectors: ConnectorRegistry,
         invite_code: &str,
         root_mnemonic: &bip39::Mnemonic,
         device_index: u8,
@@ -4756,13 +4782,11 @@ impl FederationPrefetchedInfo {
         if should_override_localhost {
             override_localhost_invite_code(&mut invite_code);
         }
-        let api_single_guardian = DynGlobalApi::from_endpoints(
+        let api_single_guardian = DynGlobalApi::new(
+            connectors.clone(),
             invite_code.peers(),
-            &invite_code.api_secret(),
-            false,
-            false,
-        )
-        .await?;
+            invite_code.api_secret().as_deref(),
+        )?;
         let federation_id = invite_code.federation_id();
         let client_root_sercet = {
             // We do an additional derivation using `DerivableSecret::federation_key` since
@@ -4774,9 +4798,16 @@ impl FederationPrefetchedInfo {
             )
             .federation_key(&federation_id)
         };
+
+        // TODO: we should be using upstream preview functionality instead of
+        // replicating it. let client_preview = Client::builder()
+        //     .await?
+        //     .preview(connectors.clone(), &invite_code)
+        //     .await?;
+
         let decoders = ModuleDecoderRegistry::default().with_fallback();
-        let ((mut client_config, api), backup) = tokio::try_join!(
-            download_from_invite_code(&invite_code),
+        let ((mut client_config, _api), backup) = tokio::try_join!(
+            fedimint_api_client::download_from_invite_code(&connectors, &invite_code),
             Client::download_backup_from_federation_static(
                 &api_single_guardian,
                 &client_root_sercet,
@@ -4791,7 +4822,6 @@ impl FederationPrefetchedInfo {
             client_config,
             backup,
             invite_code,
-            connector: api.connector().clone(),
         })
     }
 }

@@ -15,6 +15,7 @@ use federations::federation_v2::FederationV2;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::secret::RootSecretStrategy as _;
 use fedimint_client::ModuleKind;
+use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::{apply, async_trait_maybe_send, Amount};
 use lightning_invoice::Bolt11Invoice;
 use matrix::Matrix;
@@ -32,11 +33,11 @@ use tokio::sync::{Mutex, OnceCell};
 use crate::rpc::{self, TryGet};
 
 /// A device for running the bridge, restarting the bridge, read from storage.
-#[derive(Default)]
 pub struct TestDevice {
     // once{cell,lock} is for laziness of computing (the default) values
     // when user overrides the values, we just overwrite the entire OnceCell.
     storage: OnceCell<Storage>,
+    connectors: ConnectorRegistry,
     device_identifier: OnceLock<DeviceIdentifier>,
     fedi_api: OnceLock<Arc<MockFediApi>>,
     feature_catalog: OnceLock<Arc<FeatureCatalog>>,
@@ -54,8 +55,20 @@ impl AsRef<Path> for TempDataDir {
 }
 
 impl TestDevice {
-    pub fn new() -> Self {
-        Self::default()
+    pub async fn new() -> anyhow::Result<Self> {
+        Ok(Self {
+            storage: Default::default(),
+            connectors: ConnectorRegistry::build_from_testing_defaults()
+                .bind()
+                .await?,
+            device_identifier: Default::default(),
+            fedi_api: Default::default(),
+            feature_catalog: Default::default(),
+            event_sink: Default::default(),
+            bridge_uncommited: Default::default(),
+            bridge_full: Default::default(),
+            default_client: Default::default(),
+        })
     }
 
     pub async fn with_data_dir(
@@ -96,6 +109,10 @@ impl TestDevice {
             .await
     }
 
+    pub async fn connectors(&self) -> &ConnectorRegistry {
+        &self.connectors
+    }
+
     fn device_identifier(&self) -> DeviceIdentifier {
         self.device_identifier
             .get_or_init(|| DeviceIdentifier::from_str("test:device:default").unwrap())
@@ -126,6 +143,7 @@ impl TestDevice {
                 Ok(Arc::new(
                     Bridge::new(
                         self.storage().await?.clone(),
+                        self.connectors().await.clone(),
                         self.event_sink(),
                         self.fedi_api(),
                         self.feature_catalog(),

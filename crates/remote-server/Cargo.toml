@@ -11,6 +11,7 @@ clap = { workspace = true }
 devi = { workspace = true }
 devimint = { workspace = true }
 fedi-ffi = { workspace = true }
+fedimint-connectors = { workspace = true }
 redb-storage = { workspace = true }
 fedimint-logging = { workspace = true }
 fedimint-core = { workspace = true }

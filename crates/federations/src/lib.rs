@@ -139,13 +139,15 @@ impl Federations {
         let root_mnemonic = self.runtime.app_state.root_mnemonic().await;
         let device_index = self.runtime.app_state.device_index().await;
         let info = FederationPrefetchedInfo::fetch(
+            self.runtime.connectors.clone(),
             invite_code,
             &root_mnemonic,
             device_index,
             self.runtime.feature_catalog.override_localhost.is_some(),
         )
         .await?;
-        let preview = FederationV2::federation_preview(&info).await;
+        let preview =
+            FederationV2::federation_preview(&info, self.runtime.connectors.clone()).await;
         *self.last_federation_preview_info.ensure_lock() = Some(info);
         preview
     }
@@ -176,6 +178,7 @@ impl Federations {
             last_info
         } else {
             FederationPrefetchedInfo::fetch(
+                self.runtime.connectors.clone(),
                 &invite_code_string,
                 &self.runtime.app_state.root_mnemonic().await,
                 self.runtime.app_state.device_index().await,

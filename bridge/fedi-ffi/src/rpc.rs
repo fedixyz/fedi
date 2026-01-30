@@ -88,6 +88,7 @@ pub enum FedimintError {
 
 pub async fn fedimint_initialize_async(
     storage: Storage,
+    connectors: ConnectorRegistry,
     event_sink: EventSink,
     device_identifier: String,
     app_flavor: RpcAppFlavor,
@@ -109,6 +110,7 @@ pub async fn fedimint_initialize_async(
 
     let bridge = Bridge::new(
         storage,
+        connectors,
         event_sink,
         fedi_api,
         feature_catalog,
