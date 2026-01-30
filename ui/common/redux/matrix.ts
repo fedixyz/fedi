@@ -19,6 +19,7 @@ import {
     selectCommunities,
     selectGlobalCommunityMetadata,
     setGuardianitoBot,
+    cancelEcash,
 } from '.'
 import { GUARDIANITO_BOT_DISPLAY_NAME } from '../constants/matrix'
 import {
@@ -97,6 +98,7 @@ import {
     hasMentions,
     isTextEvent,
     isPowerLevelGreaterOrEqual,
+    getReclaimablePaymentEvents,
 } from '../utils/matrix'
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
@@ -1454,6 +1456,46 @@ export const claimMatrixPayment = createAsyncThunk<
     await client.markRoomAsUnread(event.roomId, true)
 })
 
+export const tryReclaimMatrixPayment = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; event: MatrixPaymentEvent },
+    { state: CommonState }
+>(
+    'matrix/tryReclaimMatrixPayment',
+    async ({ fedimint, event }, { dispatch }) => {
+        if (
+            !event.content.ecash ||
+            !event.content.federationId ||
+            !event.content.senderOperationId ||
+            event.content.status !== 'rejected'
+        )
+            return
+
+        const transaction = await fedimint.getTransaction(
+            event.content.federationId,
+            event.content.senderOperationId,
+        )
+
+        if (
+            !transaction ||
+            transaction.kind !== 'oobSend' ||
+            transaction.state?.type !== 'created'
+        ) {
+            log.info(
+                `Skip reclaiming rejected matrix payment with operation ID ${event.content.senderOperationId}: already in "${transaction.state?.type}" state`,
+            )
+            return
+        }
+
+        log.info(
+            'Reclaiming rejected payment with operation ID:',
+            event.content.senderOperationId,
+        )
+
+        dispatch(cancelEcash({ fedimint, ecash: event.content.ecash }))
+    },
+)
+
 export const checkForReceivablePayments = createAsyncThunk<
     void,
     {
@@ -1518,6 +1560,47 @@ export const checkForReceivablePayments = createAsyncThunk<
                 .catch(err => {
                     log.warn(
                         'Failed to claim matrix payment, will try again later',
+                        err,
+                    )
+                    // if claim fails, free up this payment ID to retry later
+                    receivedPayments.delete(event.content.paymentId)
+                })
+        })
+
+        const reclaimablePayments = getReclaimablePaymentEvents(
+            timeline,
+            myId,
+            walletFederations,
+        )
+        log.info(
+            `Found ${reclaimablePayments.length} potentially-reclaimable payments`,
+        )
+
+        reclaimablePayments.forEach(event => {
+            if (receivedPayments.has(event.content.paymentId)) return
+            receivedPayments.add(event.content.paymentId)
+            // Remove the `ecash` field from the event before logging, to respect user privacy
+            const eventToLog = {
+                ...event,
+                content: { ...event.content, ecash: undefined },
+            }
+
+            log.info(
+                'Rejected matrix payment event detected, attempting to reclaim',
+                eventToLog,
+            )
+
+            dispatch(tryReclaimMatrixPayment({ fedimint, event }))
+                .unwrap()
+                .then(() =>
+                    log.info(
+                        'Successfully reclaimed matrix payment',
+                        eventToLog,
+                    ),
+                )
+                .catch(err => {
+                    log.warn(
+                        'Failed to reclaim matrix payment, will try again later',
                         err,
                     )
                     // if claim fails, free up this payment ID to retry later
