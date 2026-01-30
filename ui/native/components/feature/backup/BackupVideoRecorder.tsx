@@ -13,6 +13,7 @@ const BackupVideoRecorder = ({ onConfirmVideo }: Props) => {
     const { theme } = useTheme()
     const { state } = useBackupRecoveryContext()
     const { videoFile } = state
+
     return (
         <View style={styles(theme).container}>
             {videoFile ? (

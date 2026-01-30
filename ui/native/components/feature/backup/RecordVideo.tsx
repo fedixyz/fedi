@@ -1,7 +1,7 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
+import { Dimensions, Pressable, StyleSheet, View } from 'react-native'
 import {
     Camera,
     useCameraDevice,
@@ -11,11 +11,12 @@ import {
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { Images } from '../../../assets/images'
 import {
     saveVideo,
     useBackupRecoveryContext,
 } from '../../../state/contexts/BackupRecoveryContext'
+import { Column } from '../../ui/Flex'
+import GradientView from '../../ui/GradientView'
 
 const log = makeLog('RecordVideo')
 
@@ -68,8 +69,6 @@ const RecordVideo = () => {
         return deviceFormat
     }, [device, t, toast])
 
-    if (device === undefined || format === undefined) return null
-
     const startRecording = async () => {
         setIsRecording(true)
         camera.current?.startRecording({
@@ -107,120 +106,118 @@ const RecordVideo = () => {
 
     return (
         <View style={styles(theme).container}>
-            <ImageBackground
-                source={isRecording ? Images.Red : Images.HoloBackground}
-                style={styles(theme).gradient}>
-                <View style={styles(theme).cameraRing}>
-                    <View
-                        style={[
-                            styles(theme).cameraContainer,
-                            isRecording
-                                ? styles(theme).recordingActive
-                                : styles(theme).recordingInactive,
-                        ]}>
-                        <Camera
-                            style={styles(theme).camera}
-                            ref={camera}
-                            device={device}
-                            isActive={true}
-                            video={true}
-                            audio={true}
-                            format={format}
-                            fps={15}
-                            videoHdr={false}
-                            onError={handleError}
-                        />
+            <Column align="center" gap="lg" grow>
+                <View
+                    style={[
+                        styles(theme).cameraRing,
+                        {
+                            borderColor: isRecording
+                                ? theme.colors.red
+                                : theme.colors.extraLightGrey,
+                        },
+                    ]}>
+                    <View style={styles(theme).cameraContainer}>
+                        {device ? (
+                            <Camera
+                                style={styles(theme).camera}
+                                ref={camera}
+                                device={device}
+                                isActive={true}
+                                video={true}
+                                audio={true}
+                                format={format}
+                                fps={15}
+                                videoHdr={false}
+                                onError={handleError}
+                            />
+                        ) : (
+                            <View style={styles(theme).cameraPlaceholder} />
+                        )}
                     </View>
                 </View>
-            </ImageBackground>
-            <Text
-                style={[
-                    styles(theme).instructionsText,
-                    isRecording ? { color: theme.colors.primaryVeryLight } : {},
-                ]}>
-                {t('feature.backup.hold-record-button')}
-            </Text>
-            <ImageBackground
-                source={Images.HoloBackground}
-                style={styles(theme).promptGradient}>
-                <View style={styles(theme).promptContainer}>
-                    <Text medium>
-                        {'"'}
-                        {t('feature.backup.social-backup-video-prompt')}
-                        {'"'}
-                    </Text>
-                </View>
-            </ImageBackground>
-            <View style={styles(theme).privacyNotice}>
-                <Text style={styles(theme).privacyText}>
-                    {t('feature.backup.privacy-notice')}
+                <Text style={{ color: theme.colors.darkGrey }}>
+                    {t('feature.backup.record-video-tip')}
                 </Text>
-            </View>
-            <Pressable
-                style={[
-                    styles(theme).recordButton,
-                    isRecording
-                        ? styles(theme).recordingActive
-                        : styles(theme).recordingInactive,
-                ]}
-                onPressOut={stopRecording}
-                onPressIn={startRecording}>
-                <View style={styles(theme).innerRecordButton} />
-            </Pressable>
+
+                <Text style={{ color: theme.colors.darkGrey }}>
+                    {t('feature.backup.record-video-prompt')}
+                </Text>
+
+                <GradientView
+                    variant="sky-banner"
+                    style={{ borderRadius: 5, padding: theme.spacing.sm }}>
+                    <Text medium>
+                        {t('feature.backup.record-video-sentence')}
+                    </Text>
+                </GradientView>
+            </Column>
+
+            <Column align="center" gap="md">
+                <Text style={{ color: theme.colors.darkGrey }}>
+                    {isRecording
+                        ? t('words.recording')
+                        : t('feature.backup.record-video-hold-text')}
+                </Text>
+
+                <Pressable
+                    style={[
+                        styles(theme).recordButton,
+                        isRecording
+                            ? styles(theme).recordingActive
+                            : styles(theme).recordingInactive,
+                    ]}
+                    onPressOut={stopRecording}
+                    onPressIn={startRecording}>
+                    <View style={styles(theme).innerRecordButton} />
+                </Pressable>
+            </Column>
         </View>
     )
 }
 
+const screenWidth = Dimensions.get('screen').width
+const ringSize = Math.min(300, screenWidth - 40)
+
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
             alignItems: 'center',
+            flex: 1,
+            gap: theme.spacing.lg,
             width: '100%',
-            paddingHorizontal: theme.spacing.md,
-        },
-        gradient: {
-            borderRadius: 1024,
-            padding: 4,
-            overflow: 'hidden',
-            height: theme.sizes.socialBackupCameraHeight,
-            width: theme.sizes.socialBackupCameraWidth,
-            backgroundColor: theme.colors.red,
         },
         cameraRing: {
-            padding: 16,
-            borderRadius: 1024,
-            overflow: 'hidden',
             backgroundColor: theme.colors.white,
+            borderRadius: '100%',
+            borderWidth: 3,
+            height: ringSize,
+            overflow: 'hidden',
+            padding: theme.spacing.md,
+            width: ringSize,
         },
         cameraContainer: {
-            borderWidth: 0,
-            borderRadius: 1024,
+            borderRadius: '100%',
+            height: '100%',
+            width: '100%',
             overflow: 'hidden',
         },
         camera: {
             height: '100%',
             width: '100%',
         },
-        instructionsText: {
-            textAlign: 'center',
-            marginTop: theme.spacing.xl,
-        },
-        playIconContainer: {
-            position: 'absolute',
-            justifyContent: 'center',
+        cameraPlaceholder: {
             alignItems: 'center',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
+            backgroundColor: theme.colors.darkGrey,
+            display: 'flex',
+            justifyContent: 'center',
+            height: '100%',
+            width: '100%',
         },
         recordButton: {
             textAlign: 'center',
             height: theme.sizes.recordButtonOuter,
             width: theme.sizes.recordButtonOuter,
             borderRadius: theme.sizes.recordButtonOuter / 2,
-            marginBottom: theme.spacing.xl,
         },
         recordingActive: {
             backgroundColor: theme.colors.red,
@@ -260,15 +257,6 @@ const styles = (theme: Theme) =>
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-        },
-        privacyNotice: {
-            flex: 1,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        privacyText: {
-            color: theme.colors.grey,
         },
     })
 

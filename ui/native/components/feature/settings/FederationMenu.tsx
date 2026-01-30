@@ -18,7 +18,6 @@ import { useAppSelector } from '../../../state/hooks'
 import { useNativeExport } from '../../../utils/hooks/export'
 import SvgImage from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
-import { BetaBadge } from './BetaBadge'
 import SettingsItem from './SettingsItem'
 
 type FederationMenuProps = {
@@ -65,6 +64,7 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
     const [isExpanded, setIsExpanded] = useState(false)
 
     const tosUrl = getFederationTosUrl(federation.meta)
+
     const runSocialBackup = () => {
         navigation.navigate('StartSocialBackup', {
             federationId: federation.id,
@@ -150,7 +150,6 @@ const FederationMenu = ({ federation }: FederationMenuProps) => {
                         <SettingsItem
                             icon="SocialPeople"
                             label={t('feature.backup.social-backup')}
-                            adornment={<BetaBadge />}
                             onPress={() => runSocialBackup()}
                         />
                     )}

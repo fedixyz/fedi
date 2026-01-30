@@ -7,6 +7,7 @@ const HEX_COLORS = {
     moneyGreen: '#26A07B',
     green: '#00A829',
     green100: '#B4F1C7',
+    green500: '#09DE3C',
     orange: '#DF7B00',
     orange100: '#F8DFB3',
     orange200: '#FFF9DE',

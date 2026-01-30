@@ -910,7 +910,7 @@ export const MainNavigator = () => {
                                 component={SocialBackupProcessing}
                                 options={() => ({
                                     header: () => (
-                                        <SocialBackupHeader closeButton />
+                                        <SocialBackupHeader backButton />
                                     ),
                                 })}
                             />
@@ -919,7 +919,7 @@ export const MainNavigator = () => {
                                 component={SocialBackupCloudUpload}
                                 options={() => ({
                                     header: () => (
-                                        <SocialBackupHeader closeButton />
+                                        <SocialBackupHeader backButton />
                                     ),
                                 })}
                             />
@@ -928,7 +928,7 @@ export const MainNavigator = () => {
                                 component={CompleteSocialBackup}
                                 options={() => ({
                                     header: () => (
-                                        <SocialBackupHeader closeButton />
+                                        <SocialBackupHeader backButton />
                                     ),
                                 })}
                             />

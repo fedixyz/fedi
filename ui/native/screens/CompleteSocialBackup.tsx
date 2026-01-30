@@ -1,8 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Theme, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { Image, StyleSheet } from 'react-native'
 import Share from 'react-native-share'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
@@ -10,8 +10,10 @@ import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 import { prefixFileUri } from '@fedi/common/utils/media'
 
-import HoloGuidance from '../components/ui/HoloGuidance'
-import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
+import { Images } from '../assets/images'
+import { Column } from '../components/ui/Flex'
+import GradientView from '../components/ui/GradientView'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import {
     completeSocialBackup,
     useBackupRecoveryContext,
@@ -60,64 +62,71 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const style = styles(theme)
 
     return (
-        <ScrollView contentContainerStyle={style.container}>
-            <HoloGuidance
-                iconImage={<SvgImage name="FediFile" size={SvgImageSize.lg} />}
-                title={t('feature.backup.save-your-wallet-backup-file')}
-                titleProps={{ bold: true }}
-                message={t('feature.backup.save-your-wallet-backup-file-where')}
-            />
-            <View style={style.buttonsContainer}>
-                {backupsCompleted > 0 && (
+        <SafeAreaContainer edges="bottom">
+            <Column grow style={style.container}>
+                <Column grow center gap="md">
+                    <GradientView
+                        variant="sky-banner"
+                        style={style.iconWrapper}>
+                        <Image
+                            source={Images.SocialRecoveryFileIcon}
+                            style={{ height: 60, width: 60 }}
+                        />
+                    </GradientView>
+                    <Text h2 center bold>
+                        {t('feature.backup.complete-backup-save-file')}
+                    </Text>
+                    <Text center style={{ color: theme.colors.darkGrey }}>
+                        {t('feature.backup.complete-backup-save-file-help')}
+                    </Text>
+                </Column>
+                <Column gap="md">
                     <Button
                         fullWidth
-                        type="clear"
-                        title={t(
-                            'feature.backup.save-your-wallet-backup-file-again',
-                        )}
-                        onPress={createBackup}
+                        title={
+                            backupsCompleted === 0
+                                ? t('feature.backup.save-file')
+                                : t('words.done')
+                        }
+                        onPress={() => {
+                            if (backupsCompleted === 0) {
+                                createBackup()
+                            } else {
+                                dispatch(completeSocialBackup())
+                                navigation.navigate('SocialBackupSuccess')
+                            }
+                        }}
                         loading={isCreatingBackup}
                     />
-                )}
-                <Button
-                    fullWidth
-                    title={
-                        backupsCompleted === 0
-                            ? t('feature.backup.save-file')
-                            : t('words.complete')
-                    }
-                    containerStyle={style.saveFileButton}
-                    onPress={() => {
-                        if (backupsCompleted === 0) {
-                            createBackup()
-                        } else {
-                            dispatch(completeSocialBackup())
-                            navigation.navigate('SocialBackupSuccess')
-                        }
-                    }}
-                    loading={isCreatingBackup}
-                />
-            </View>
-        </ScrollView>
+                    {backupsCompleted > 0 && (
+                        <Button
+                            fullWidth
+                            type="clear"
+                            title={t(
+                                'feature.backup.save-your-wallet-backup-file-again',
+                            )}
+                            onPress={createBackup}
+                            loading={isCreatingBackup}
+                        />
+                    )}
+                </Column>
+            </Column>
+        </SafeAreaContainer>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
-            flex: 1,
+            padding: theme.spacing.lg,
+        },
+        iconWrapper: {
             alignItems: 'center',
+            borderRadius: '100%',
+            display: 'flex',
             justifyContent: 'center',
-            padding: theme.spacing.xl,
-        },
-        buttonsContainer: {
-            marginTop: 'auto',
-            alignItems: 'center',
-            width: '100%',
-            marginBottom: theme.spacing.md,
-        },
-        saveFileButton: {
-            marginTop: theme.spacing.md,
+            height: 120,
+            width: 120,
         },
     })
 

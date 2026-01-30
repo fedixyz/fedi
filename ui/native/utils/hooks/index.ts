@@ -46,7 +46,7 @@ export function useCameraPermission() {
             })
     }, [permission])
 
-    const requestCameraPermission = useCallback(() => {
+    const requestCameraPermission = useCallback(async () => {
         if (!permission) {
             log.error('requestCameraPermission: unsupported platform')
             throw new Error('Unsupported platform')
@@ -57,6 +57,43 @@ export function useCameraPermission() {
     }, [permission])
 
     return { cameraPermission, requestCameraPermission }
+}
+
+export function useMicrophonePermission() {
+    const [microphonePermission, setMicrophonePermission] =
+        useState<PermissionStatus>()
+    const permission = Platform.select({
+        ios: PERMISSIONS.IOS.MICROPHONE,
+        android: PERMISSIONS.ANDROID.RECORD_AUDIO,
+    })
+
+    useEffect(() => {
+        if (!permission) {
+            log.error('useMicrophonePermission: unsupported platform')
+            setMicrophonePermission('unavailable')
+            return
+        }
+        checkPermission(permission)
+            .then(status => {
+                setMicrophonePermission(status)
+            })
+            .catch(err => {
+                log.error('useCameraPermission check', err)
+                setMicrophonePermission('unavailable')
+            })
+    }, [permission])
+
+    const requestMicrophonePermission = useCallback(async () => {
+        if (!permission) {
+            log.error('requestCameraPermission: unsupported platform')
+            throw new Error('Unsupported platform')
+        }
+        return requestPermission(permission).then(status => {
+            setMicrophonePermission(status)
+        })
+    }, [permission])
+
+    return { microphonePermission, requestMicrophonePermission }
 }
 
 export function useNotificationsPermission() {

@@ -1,14 +1,12 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
-import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
-import { ScrollView } from 'react-native-gesture-handler'
 import { useCameraDevice } from 'react-native-vision-camera'
 
 import BackupVideoRecorder from '../components/feature/backup/BackupVideoRecorder'
-import CameraPermissionsRequired from '../components/feature/scan/CameraPermissionsRequired'
 import { Column } from '../components/ui/Flex'
+import { SafeAreaContainer } from '../components/ui/SafeArea'
 import type { RootStackParamList } from '../types/navigation'
 
 export type Props = NativeStackScreenProps<
@@ -18,8 +16,9 @@ export type Props = NativeStackScreenProps<
 
 const RecordBackupVideo: React.FC<Props> = ({ navigation, route }) => {
     const { theme } = useTheme()
-    const { t } = useTranslation()
     const { federationId } = route.params
+
+    const style = styles(theme)
 
     const onConfirmVideo = (videoFilePath: string) => {
         navigation.navigate('SocialBackupProcessing', {
@@ -30,13 +29,9 @@ const RecordBackupVideo: React.FC<Props> = ({ navigation, route }) => {
 
     const device = useCameraDevice('front')
 
-    // Render UI
     return (
-        <CameraPermissionsRequired
-            requireMicrophone
-            alternativeActionButton={null}
-            message={t('feature.backup.camera-access-information')}>
-            <ScrollView contentContainerStyle={styles(theme).container}>
+        <SafeAreaContainer edges="bottom">
+            <Column grow style={style.container}>
                 {!device ? (
                     <Column center grow>
                         <ActivityIndicator size="large" />
@@ -44,8 +39,8 @@ const RecordBackupVideo: React.FC<Props> = ({ navigation, route }) => {
                 ) : (
                     <BackupVideoRecorder onConfirmVideo={onConfirmVideo} />
                 )}
-            </ScrollView>
-        </CameraPermissionsRequired>
+            </Column>
+        </SafeAreaContainer>
     )
 }
 

@@ -3,7 +3,6 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Header from '../../ui/Header'
-import BackupBetaBanner from './BackupBetaBanner'
 
 type SocialBackupHeaderProps = {
     backButton?: boolean
@@ -27,7 +26,6 @@ const SocialBackupHeader: React.FC<SocialBackupHeaderProps> = ({
                 }
                 closeButton={closeButton}
             />
-            <BackupBetaBanner />
         </>
     )
 }

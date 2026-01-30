@@ -1,17 +1,17 @@
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ImageBackground, Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native'
 import RNFS from 'react-native-fs'
 import Video, { VideoRef } from 'react-native-video'
 
 import { makeLog } from '@fedi/common/utils/log'
 
-import { Images } from '../../../assets/images'
 import {
     resetVideo,
     useBackupRecoveryContext,
 } from '../../../state/contexts/BackupRecoveryContext'
+import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 
 const log = makeLog('ReviewVideo')
@@ -23,11 +23,15 @@ type Props = {
 const ReviewVideo = ({ onConfirmVideo }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
+    const { width: screenWidth } = useWindowDimensions()
+    const { state, dispatch } = useBackupRecoveryContext()
+
     const [isPaused, setIsPaused] = useState(true)
     const [confirmingVideo, setConfirmingVideo] = useState(false)
-    const { state, dispatch } = useBackupRecoveryContext()
     const videoFile = state.videoFile
     const videoRef = useRef<VideoRef | null>(null)
+
+    const ringSize = Math.min(300, screenWidth - 40)
 
     useEffect(() => {
         const copyVideoAndProceed = async () => {
@@ -53,10 +57,12 @@ const ReviewVideo = ({ onConfirmVideo }: Props) => {
 
     return (
         <View style={styles(theme).container}>
-            <ImageBackground
-                source={Images.HoloBackground}
-                style={styles(theme).gradient}>
-                <View style={styles(theme).cameraRing}>
+            <Column align="center" gap="lg" grow>
+                <View
+                    style={[
+                        styles(theme).cameraRing,
+                        { height: ringSize, width: ringSize },
+                    ]}>
                     <View style={styles(theme).cameraContainer}>
                         <Video
                             ref={videoRef}
@@ -86,25 +92,24 @@ const ReviewVideo = ({ onConfirmVideo }: Props) => {
                         )}
                     </View>
                 </View>
-            </ImageBackground>
 
-            <Text style={styles(theme).instructionsText}>
-                {t('feature.backup.please-review-backup-video')}
-            </Text>
-
-            <View style={styles(theme).buttonsContainer}>
+                <Text center style={{ color: theme.colors.darkGrey }}>
+                    {t('feature.backup.confirm-video-text')}
+                </Text>
+            </Column>
+            <Column gap="md">
                 <Button
+                    fullWidth
+                    title={t('feature.backup.confirm-backup-video')}
+                    onPress={() => setConfirmingVideo(true)}
+                />
+                <Button
+                    fullWidth
                     title={t('feature.backup.record-again')}
                     onPress={() => dispatch(resetVideo())}
                     type="clear"
                 />
-
-                <Button
-                    title={t('feature.backup.confirm-backup-video')}
-                    onPress={() => setConfirmingVideo(true)}
-                    containerStyle={styles(theme).confirmButton}
-                />
-            </View>
+            </Column>
         </View>
     )
 }
@@ -113,55 +118,25 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flex: 1,
-            alignItems: 'center',
-            justifyContent: 'space-evenly',
             width: '100%',
-        },
-        buttonsContainer: {
-            marginTop: 'auto',
-            alignItems: 'center',
-            width: '100%',
-        },
-        confirmButton: {
-            marginTop: theme.spacing.md,
-            width: '100%',
-        },
-        gradient: {
-            borderRadius: 1024,
-            padding: 4,
-            overflow: 'hidden',
-            height: theme.sizes.socialBackupCameraHeight,
-            width: theme.sizes.socialBackupCameraWidth,
-            backgroundColor: theme.colors.red,
         },
         cameraRing: {
-            padding: 16,
-            borderRadius: 1024,
-            overflow: 'hidden',
             backgroundColor: theme.colors.white,
+            borderColor: theme.colors.green500,
+            borderRadius: '100%',
+            borderWidth: 3,
+            overflow: 'hidden',
+            padding: theme.spacing.md,
         },
         cameraContainer: {
-            borderWidth: 0,
-            borderRadius: 1024,
+            borderRadius: '100%',
+            height: '100%',
+            width: '100%',
             overflow: 'hidden',
         },
         camera: {
             height: '100%',
             width: '100%',
-        },
-        confirmationContainer: {
-            flex: 1,
-            alignItems: 'flex-start',
-            paddingHorizontal: 0,
-            marginHorizontal: 0,
-        },
-        checkboxText: {
-            paddingHorizontal: theme.spacing.md,
-            textAlign: 'left',
-        },
-        instructionsText: {
-            textAlign: 'center',
-            marginTop: theme.spacing.lg,
         },
         playIconContainer: {
             position: 'absolute',
