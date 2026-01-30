@@ -40,10 +40,11 @@ BUILD_NUMBER="${YY}${DDD}${HHMM}"
 npx react-native-version --target android --increment-build --never-amend --set-build $BUILD_NUMBER
 
 echo "Building Android release AAB with fastlane (see $REPO_ROOT/ui/native/ios/Fastfile for lane configurations)..."
+SHORT_HASH=$(git rev-parse --short HEAD)
 if [ -z "${FLAVOR:-}" ]; then
-    fastlane internal
+    SHORT_HASH=$SHORT_HASH fastlane internal
 else
-    fastlane internal_$FLAVOR
+    SHORT_HASH=$SHORT_HASH fastlane internal_$FLAVOR
 fi
 echo "Deployment complete!"
 
