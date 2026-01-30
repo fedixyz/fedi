@@ -358,6 +358,25 @@ impl AppStateOnboarding {
         Ok(())
     }
 
+    /// SocialRecovery -> SocialRecovery
+    pub async fn social_recovery_update(
+        &self,
+        social_recovery_state: SocialRecoveryState,
+    ) -> anyhow::Result<()> {
+        self.with_write_lock(|state| {
+            match state.stage {
+                OnboardingStage::SocialRecovery { .. } => {}
+                _ => bail!("Illegal transition in onboarding (social recovery)"),
+            };
+            state.stage = OnboardingStage::SocialRecovery {
+                state: social_recovery_state,
+            };
+            Ok(())
+        })
+        .await??;
+        Ok(())
+    }
+
     /// SocialRecovery -> Init
     pub async fn social_recovery_cancel(&self) -> anyhow::Result<()> {
         self.with_write_lock(|state| {

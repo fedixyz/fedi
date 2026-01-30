@@ -199,7 +199,7 @@ impl BridgeOnboarding {
         let remaining = approvals_required.saturating_sub(num_approvals);
 
         // Save progress to DB
-        self.social_recovery_start_or_update(recovery_client.state().clone())
+        self.social_recovery_update(recovery_client.state().clone())
             .await?;
         let result = SocialRecoveryEvent {
             approvals,

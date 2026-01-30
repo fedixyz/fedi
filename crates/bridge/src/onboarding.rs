@@ -91,6 +91,17 @@ impl BridgeOnboarding {
         state.social_recovery_start_or_update(social_state).await
     }
 
+    pub async fn social_recovery_update(
+        &self,
+        social_state: SocialRecoveryState,
+    ) -> anyhow::Result<()> {
+        let state = self.state.lock().await;
+        let Some(state) = state.as_ref() else {
+            bail!("already completed onboarding");
+        };
+        state.social_recovery_update(social_state).await
+    }
+
     pub async fn social_recovery_cancel(&self) -> anyhow::Result<()> {
         let state = self.state.lock().await;
         let Some(state) = state.as_ref() else {
