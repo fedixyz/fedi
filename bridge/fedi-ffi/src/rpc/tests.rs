@@ -21,7 +21,7 @@ use fedimint_core::db::IDatabaseTransactionOpsCore;
 use fedimint_core::encoding::Encodable;
 use fedimint_core::task::sleep_in_test;
 use fedimint_core::util::backoff_util::aggressive_backoff;
-use fedimint_core::util::{retry, BoxFuture};
+use fedimint_core::util::{retry, BoxFuture, FmtCompact as _, FmtCompactAnyhow as _};
 use fedimint_core::Amount;
 use fedimint_logging::TracingSetup;
 use nostr::nips::nip44;
@@ -163,7 +163,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
     macro_rules! tests_array {
         ($($test_name:expr),* $(,)?) => {
             [$(
-                (stringify!($test_name), Box::pin($test_name(dev_fed.clone())) as BoxFuture<_>)
+                (stringify!($test_name), Box::pin($test_name(dev_fed.clone())) as BoxFuture<anyhow::Result<()>>)
             ),*]
         };
     }
@@ -246,18 +246,26 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
     while let Some(res) = tests_set.join_next_with_id().await {
         match res {
             Err(e) => {
-                warn!("test {} failed: {}", &tests_names[&e.id()], e);
+                warn!("test {} failed: {}", &tests_names[&e.id()], e.fmt_compact());
                 // goal: cancel background tasks before returning and ending tokio runtime
                 // so devfed only gets dropped while tokio runtime is alive
                 tests_set.shutdown().await;
-                bail!("test {} failed: {}", &tests_names[&e.id()], e);
+                bail!("test {} failed: {}", &tests_names[&e.id()], e.fmt_compact());
             }
             Ok((id, Err(e))) => {
-                warn!("test {} failed: {}", &tests_names[&id], e);
+                warn!(
+                    "test {} failed: {}",
+                    &tests_names[&id],
+                    e.fmt_compact_anyhow()
+                );
                 // goal: cancel background tasks before returning and ending tokio runtime
                 // so devfed only gets dropped while tokio runtime is alive
                 tests_set.shutdown().await;
-                bail!("test {} failed: {}", &tests_names[&id], e);
+                bail!(
+                    "test {} failed: {}",
+                    &tests_names[&id],
+                    e.fmt_compact_anyhow()
+                );
             }
             Ok((id, Ok(_))) => {
                 info!("test {} OK", &tests_names[&id]);
