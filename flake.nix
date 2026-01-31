@@ -341,6 +341,7 @@
               ++ [
                 fedimint-pkgs.packages.${system}.gateway-pkgs
                 fedimint-pkgs.packages.${system}.fedimint-recurringd
+                fedimint-pkgs.packages.${system}.fedimint-recurringdv2
                 pkgs.fs-dir-cache
                 pkgs.cargo-nextest
                 pkgs.cargo-audit
@@ -466,6 +467,7 @@
           gatewayd = fedimint-pkgs.packages.${system}.gatewayd;
           gateway-cli = fedimint-pkgs.packages.${system}.gateway-cli;
           fedimint-recurringd = fedimint-pkgs.packages.${system}.fedimint-recurringd;
+          fedimint-recurringdv2 = fedimint-pkgs.packages.${system}.fedimint-recurringdv2;
           fedimint-dbtool = flakeboxLib.pickBinary {
             bin = "fedimint-dbtool";
             pkg = fedimint-pkgs.packages.${system}.fedimint-pkgs;

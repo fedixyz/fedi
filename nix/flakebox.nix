@@ -195,6 +195,7 @@ in
         pkgs.esplora-electrs
         fedimint-pkgs.packages.${system}.gateway-pkgs
         fedimint-pkgs.packages.${system}.fedimint-recurringd
+        fedimint-pkgs.packages.${system}.fedimint-recurringdv2
         (pkgs.matrix-synapse.override { extras = [ ]; })
         pkgs.nostr-rs-relay
         # helpers
