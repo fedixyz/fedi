@@ -271,8 +271,10 @@ impl ServerModule for FediSocial {
                 "backup",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: SignedBackupRequest| -> () {
-                        module
-                            .handle_backup(&mut context.db().begin_transaction_nc().await, request).await?;
+                        let db = context.db();
+                        let mut dbtx = db.begin_transaction().await;
+                        module.handle_backup(&mut dbtx.to_ref_nc(), request).await?;
+                        dbtx.commit_tx().await;
                         Ok(())
                 }
             },
@@ -281,8 +283,10 @@ impl ServerModule for FediSocial {
                 "recover",
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, request: SignedRecoveryRequest| -> () {
-                        module
-                            .handle_recover(&mut context.db().begin_transaction_nc().await, request).await?;
+                        let db = context.db();
+                        let mut dbtx = db.begin_transaction().await;
+                        module.handle_recover(&mut dbtx.to_ref_nc(), request).await?;
+                        dbtx.commit_tx().await;
                         Ok(())
                 }
             },
@@ -302,8 +306,10 @@ impl ServerModule for FediSocial {
                 ApiVersion::new(0, 0),
                 async |module: &FediSocial, context, req: RecoveryId| -> () {
                     check_auth(context)?;
-                    module
-                        .handle_approve_recovery(&mut context.db().begin_transaction_nc().await, req).await?;
+                    let db = context.db();
+                    let mut dbtx = db.begin_transaction().await;
+                    module.handle_approve_recovery(&mut dbtx.to_ref_nc(), req).await?;
+                    dbtx.commit_tx().await;
                     Ok(())
                 }
             },

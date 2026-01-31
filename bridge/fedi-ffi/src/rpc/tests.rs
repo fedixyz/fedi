@@ -2366,8 +2366,9 @@ async fn test_fee_remittance_on_startup(dev_fed: DevFed) -> anyhow::Result<()> {
     td.shutdown().await?;
 
     // Mock fee remittance endpoint
-    // some of amount is gateway fees
-    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(102_691).await?;
+    // On restart, gateway cache may be empty so we use the full outstanding fee
+    // amount (no gateway fees subtracted)
+    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(105_000).await?;
     let mut mock_fedi_api = MockFediApi::default();
     mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
     td.with_fedi_api(mock_fedi_api.into());
@@ -2395,8 +2396,9 @@ async fn test_fee_remittance_post_successful_tx(dev_fed: DevFed) -> anyhow::Resu
     }
 
     // Mock fee remittance endpoint
-    // some of amount is gateway fees
-    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(102_691).await?;
+    // Gateway cache may be empty so we use the full outstanding fee amount
+    // (no gateway fees subtracted)
+    let fedi_fee_invoice = dev_fed.gw_ldk.create_invoice(105_000).await?;
     let mut mock_fedi_api = MockFediApi::default();
     mock_fedi_api.set_fedi_fee_invoice(fedi_fee_invoice.clone());
     let mut td = TestDevice::new().await?;
