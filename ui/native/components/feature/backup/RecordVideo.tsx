@@ -135,11 +135,11 @@ const RecordVideo = () => {
                         )}
                     </View>
                 </View>
-                <Text style={{ color: theme.colors.darkGrey }}>
+                <Text center style={{ color: theme.colors.darkGrey }}>
                     {t('feature.backup.record-video-tip')}
                 </Text>
 
-                <Text style={{ color: theme.colors.darkGrey }}>
+                <Text center style={{ color: theme.colors.darkGrey }}>
                     {t('feature.backup.record-video-prompt')}
                 </Text>
 
