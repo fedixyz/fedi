@@ -1,9 +1,9 @@
+import { saveDocuments } from '@react-native-documents/picker'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Image, StyleSheet } from 'react-native'
-import Share from 'react-native-share'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
@@ -45,18 +45,25 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
             const recoveryFilePath = await appDispatch(
                 locateRecoveryFile(fedimint),
             ).unwrap()
-            await Share.open({
-                title: 'Your Fedi Backup File',
-                // FIXME: this needs file:// prefix ... should do this with a util?
-                url: prefixFileUri(recoveryFilePath),
+
+            if (!recoveryFilePath) {
+                log.error('No recovery file found')
+                return
+            }
+
+            await saveDocuments({
+                fileName: 'backup.fedi',
+                sourceUris: [prefixFileUri(recoveryFilePath)],
             })
+
             setBackupsCompleted(
                 Math.min(BACKUPS_REQUIRED, backupsCompleted + 1),
             )
         } catch (error) {
             log.error('createBackup', error)
+        } finally {
+            setIsCreatingBackup(false)
         }
-        setIsCreatingBackup(false)
     }
 
     const style = styles(theme)
