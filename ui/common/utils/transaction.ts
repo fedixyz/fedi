@@ -195,6 +195,35 @@ export const makeTxnDetailTitleText = (
     }
 }
 
+const makeTxnSign = (txn: TransactionListEntry, flipSign: boolean): string => {
+    const direction = getTxnDirection(txn)
+    const isTransfer =
+        txn.kind === 'sPV2TransferIn' || txn.kind === 'sPV2TransferOut'
+    const isPlus = !(flipSign && !isTransfer)
+        ? direction === 'receive'
+        : direction === 'send'
+    let s = direction ? (isPlus ? `+` : `-`) : ''
+
+    // Adjust for special cases
+    if (
+        txn.kind === 'onchainDeposit' &&
+        txn.state?.type === 'waitingForTransaction'
+    ) {
+        s = `~`
+    }
+    // LN pay and receive states can be canceled and should not show a sign
+    if (
+        (txn.kind === 'lnPay' ||
+            txn.kind === 'lnReceive' ||
+            txn.kind === 'lnRecurringdReceive') &&
+        txn.state?.type === 'canceled'
+    ) {
+        s = ''
+    }
+
+    return s
+}
+
 export const makeTxnAmountText = (
     txn: TransactionListEntry,
     txnDisplay: 'sats' | 'fiat',
@@ -217,45 +246,38 @@ export const makeTxnAmountText = (
     ) => string,
 ): string => {
     const { amount } = txn
-    const direction = getTxnDirection(txn)
-    const isTransfer =
-        txn.kind === 'sPV2TransferIn' || txn.kind === 'sPV2TransferOut'
+    const { formattedSats } = makeFormattedAmountsFromMSats(amount, 'end')
+    const [amt, satsSymbol] = formattedSats.split(' ')
+    const sign = makeTxnSign(txn, flipSign)
+    let formattedAmount: string = amt
+    let currency = txnDisplay === 'fiat' ? preferredCurrency : satsSymbol
 
-    // Don't flip the sign for transfers
-    const isPlus = !(flipSign && !isTransfer)
-        ? direction === 'receive'
-        : direction === 'send'
-    let sign = direction ? (isPlus ? `+` : `-`) : ''
-    let formattedAmount: string
-    let currency = preferredCurrency
+    if (
+        txn.kind === 'onchainDeposit' &&
+        txn.state?.type === 'waitingForTransaction'
+    ) {
+        formattedAmount = ''
+    }
 
-    // If fiat amounts should be shown and historical info is present, use it:
-    if (txnDisplay === 'fiat' && txn.txDateFiatInfo) {
-        const sats = amountUtils.msatToSat(txn.amount)
-        // Use the historical exchange rate from txDateFiatInfo:
-        formattedAmount = convertSatsToFormattedFiat(
-            sats,
-            'none',
-            txn.txDateFiatInfo,
-        ).split(' ')[0]
-        currency = txn.txDateFiatInfo.fiatCode
-    } else {
-        // Fallback: use the default conversion based on MSats
-        const { formattedPrimaryAmount } = makeFormattedAmountsFromMSats(
-            amount,
-            'none',
-        )
-        // TODO+TEST: `txnDisplay` isn't changing the transaction display type correctly
-        // Instead, it is controlled by the `environment.transactionDisplayType` in redux
-        // This should be `formattedSats` instead
-        formattedAmount = formattedPrimaryAmount
+    if (txnDisplay === 'fiat') {
+        // If fiat amounts should be shown and historical info is present, use it:
+        if (txn.txDateFiatInfo) {
+            const sats = amountUtils.msatToSat(txn.amount)
+            // Use the historical exchange rate from txDateFiatInfo:
+            formattedAmount = convertSatsToFormattedFiat(
+                sats,
+                'none',
+                txn.txDateFiatInfo,
+            )
+            currency = txn.txDateFiatInfo.fiatCode
+        } else {
+            const { formattedFiat } = makeFormattedAmountsFromMSats(
+                amount,
+                'none',
+            )
+            formattedAmount = formattedFiat
 
-        if (txnDisplay === 'fiat') {
-            if (
-                txn.kind === 'spWithdraw' &&
-                txn.state &&
-                'estimated_withdrawal_cents' in txn.state
-            ) {
+            if (txn.kind === 'spWithdraw' && txn.state) {
                 const estimatedWithdrawalCents = Number(
                     txn.state.estimated_withdrawal_cents,
                 ) as UsdCents
@@ -265,8 +287,8 @@ export const makeTxnAmountText = (
                 )
             } else if (
                 txn.kind === 'sPV2Withdrawal' &&
-                txn.state &&
-                'fiat_amount' in txn.state
+                (txn.state.type === 'pendingWithdrawal' ||
+                    txn.state.type === 'completedWithdrawal')
             ) {
                 // TODO: validate this unit is correct
                 const fiatAmount = Number(txn.state.fiat_amount) as UsdCents
@@ -276,8 +298,7 @@ export const makeTxnAmountText = (
                 )
             } else if (
                 txn.kind === 'spDeposit' &&
-                txn.state &&
-                'initial_amount_cents' in txn.state
+                txn.state.type === 'completeDeposit'
             ) {
                 const initialAmountCents = Number(
                     txn.state.initial_amount_cents,
@@ -288,8 +309,8 @@ export const makeTxnAmountText = (
                 )
             } else if (
                 txn.kind === 'sPV2Deposit' &&
-                txn.state &&
-                'fiat_amount' in txn.state
+                (txn.state.type === 'pendingDeposit' ||
+                    txn.state.type === 'completedDeposit')
             ) {
                 // TODO: validate this unit is correct
                 const fiatAmount = Number(txn.state.fiat_amount) as UsdCents
@@ -300,8 +321,7 @@ export const makeTxnAmountText = (
             } else if (
                 (txn.kind === 'sPV2TransferIn' ||
                     txn.kind === 'sPV2TransferOut') &&
-                txn.state &&
-                'fiat_amount' in txn.state
+                txn.state.type === 'completedTransfer'
             ) {
                 const fiatAmount = Number(txn.state.fiat_amount) as UsdCents
                 formattedAmount = convertCentsToFormattedFiat(
@@ -317,17 +337,7 @@ export const makeTxnAmountText = (
         txn.kind === 'onchainDeposit' &&
         txn.state?.type === 'waitingForTransaction'
     ) {
-        sign = `~`
         formattedAmount = ''
-    }
-    // LN pay and receive states can be canceled and should not show a sign
-    if (
-        (txn.kind === 'lnPay' ||
-            txn.kind === 'lnReceive' ||
-            txn.kind === 'lnRecurringdReceive') &&
-        txn.state?.type === 'canceled'
-    ) {
-        sign = ''
     }
 
     return `${sign}${formattedAmount}${includeCurrency ? ` ${currency}` : ''}`

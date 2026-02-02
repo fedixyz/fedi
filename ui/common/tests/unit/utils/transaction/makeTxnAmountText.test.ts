@@ -106,8 +106,7 @@ describe('makeTxnAmountText', () => {
             convertSatsToFormattedFiat,
         )
 
-        // TODO:TEST: this should NOT be the case
-        expect(amountSats).toBe('-10.00')
+        expect(amountSats).toBe('-10,000')
         expect(amountFiat).toBe('-10.00')
     })
 
@@ -164,9 +163,20 @@ describe('makeTxnAmountText', () => {
             convertCentsToFormattedFiat,
             convertSatsToFormattedFiat,
         )
+        const satsWithCurrency = makeTxnAmountText(
+            txn,
+            'sats',
+            false,
+            true,
+            'USD',
+            makeFormattedAmountsFromMSats,
+            convertCentsToFormattedFiat,
+            convertSatsToFormattedFiat,
+        )
 
         expect(withCurrency).toBe('-10.00 USD')
         expect(withoutCurrency).toBe('-10.00')
+        expect(satsWithCurrency).toBe('-10,000 SATS')
     })
 
     it("should display the amount in the user's preferred currency", () => {
