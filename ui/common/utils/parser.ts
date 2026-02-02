@@ -291,8 +291,18 @@ async function parseLnurl(
             lnurlParamPromise = getLnurlParams(url)
         }
     } else if (isWebsiteUrl) {
-        // Use raw and not lnRaw for http(s) to keep original casing.
-        lnurlParamPromise = getLnurlParams(raw)
+        // if we are dealing with a website URL, we should preserve casing for URL params
+        // but lowercase the URL itself to avoid a a bug in js-lnurl that
+        // does not handle uppercase URLs (HTTPS:// fails but https:// works)
+        try {
+            const url = new URL(raw)
+            // Lowercase origin and hostname, keep pathname and search as-is
+            const normalizedUrl = `${url.origin.toLowerCase()}${url.pathname}${url.search}${url.hash}`
+            lnurlParamPromise = getLnurlParams(normalizedUrl)
+        } catch {
+            // If URL parsing fails, fall back to just passing the raw URL
+            lnurlParamPromise = getLnurlParams(raw)
+        }
     }
 
     // If we didn't detect an LNURL but it was a valid website URL, return that.
