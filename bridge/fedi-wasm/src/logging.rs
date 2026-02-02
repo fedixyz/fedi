@@ -10,7 +10,7 @@ use web_sys::{FileSystemReadWriteOptions, FileSystemSyncAccessHandle};
 
 /// when the log file size reached 2 * KEEP_SIZE, we copy out the last
 /// KEEP_SIZE bytes and truncate it.
-const KEEP_SIZE: u64 = 5 * 1024 * 1024; // 5MB
+const KEEP_SIZE: u64 = 10 * 1024 * 1024; // 10MB
 
 fn set_panic_hook() {
     std::panic::set_hook(Box::new(move |info| {
