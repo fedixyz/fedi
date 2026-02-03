@@ -9,7 +9,7 @@ use matrix::Matrix;
 use multispend::multispend_matrix::MultispendMatrix;
 use multispend::services::MultispendServices;
 use rpc_types::error::RpcError;
-use rpc_types::matrix::MatrixInitializeStatus;
+use rpc_types::matrix::RpcMatrixInitializeStatus;
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::MATRIX_CHILD_ID;
 use sp_transfer::services::SptServices;
@@ -18,7 +18,7 @@ use tokio::sync::{OnceCell, watch};
 
 pub struct BgMatrix {
     initialized: OnceCell<(Arc<Matrix>, Arc<MultispendMatrix>, Arc<SpTransfersMatrix>)>,
-    status: watch::Sender<MatrixInitializeStatus>,
+    status: watch::Sender<RpcMatrixInitializeStatus>,
 }
 
 impl BgMatrix {
@@ -31,7 +31,7 @@ impl BgMatrix {
     ) -> Arc<Self> {
         let bg_matrix = Arc::new(Self {
             initialized: OnceCell::new(),
-            status: watch::Sender::new(MatrixInitializeStatus::Starting),
+            status: watch::Sender::new(RpcMatrixInitializeStatus::Starting),
         });
 
         #[cfg(not(test))] // don't start matrix in tests
@@ -55,7 +55,7 @@ impl BgMatrix {
         bg_matrix
     }
 
-    pub fn subscribe_status(&self) -> impl Stream<Item = MatrixInitializeStatus> + use<> {
+    pub fn subscribe_status(&self) -> impl Stream<Item = RpcMatrixInitializeStatus> + use<> {
         tokio_stream::wrappers::WatchStream::new(self.status.subscribe())
     }
 
@@ -100,10 +100,10 @@ impl BgMatrix {
                         .is_ok(),
                     "matrix initialize is only called once"
                 );
-                self.status.send_replace(MatrixInitializeStatus::Success);
+                self.status.send_replace(RpcMatrixInitializeStatus::Success);
             }
             Err(err) => {
-                self.status.send_replace(MatrixInitializeStatus::Error {
+                self.status.send_replace(RpcMatrixInitializeStatus::Error {
                     error: RpcError::from_anyhow(&err),
                 });
             }
@@ -118,7 +118,7 @@ impl BgMatrix {
 
         let mut status_rx = self.status.subscribe();
         status_rx
-            .wait_for(|status| matches!(status, MatrixInitializeStatus::Success))
+            .wait_for(|status| matches!(status, RpcMatrixInitializeStatus::Success))
             .await
             .expect("channel must not close because self holds the sender");
 

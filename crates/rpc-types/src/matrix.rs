@@ -91,7 +91,7 @@ impl RpcComposerDraft {
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 #[ts(export)]
-pub enum MatrixInitializeStatus {
+pub enum RpcMatrixInitializeStatus {
     Starting,
     LoggingIn,
     Success,

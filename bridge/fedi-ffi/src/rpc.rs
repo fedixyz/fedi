@@ -44,7 +44,7 @@ use rpc_types::communities::RpcCommunity;
 use rpc_types::error::{ErrorCode, RpcError};
 use rpc_types::event::{Event, EventSink, PanicEvent, SocialRecoveryEvent, TypedEventExt};
 use rpc_types::matrix::{
-    MatrixInitializeStatus, RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession,
+    RpcBackPaginationStatus, RpcComposerDraft, RpcMatrixAccountSession, RpcMatrixInitializeStatus,
     RpcMatrixUploadResult, RpcMatrixUserDirectorySearchResponse, RpcPublicRoomInfo, RpcRoomId,
     RpcRoomMember, RpcRoomNotificationMode, RpcSerializedRoomInfo, RpcSyncIndicator,
     RpcTimelineEventItemId, RpcTimelineItem, RpcUserId,
@@ -1237,7 +1237,7 @@ async fn dumpDb(bridge: &BridgeFull, federation_id: String) -> anyhow::Result<Pa
 #[macro_rules_derive(rpc_method!)]
 async fn matrixInitializeStatus(
     bridge: &Bridge,
-    stream_id: RpcStreamId<MatrixInitializeStatus>,
+    stream_id: RpcStreamId<RpcMatrixInitializeStatus>,
 ) -> anyhow::Result<()> {
     let runtime: Arc<Runtime> = bridge.try_get()?;
     let bg_matrix: &BgMatrix = bridge.try_get()?;

@@ -122,7 +122,7 @@ impl Matrix {
         matrix_secret: &DerivableSecret,
         user_name: &str,
         home_server: String,
-        status_sender: &watch::Sender<MatrixInitializeStatus>,
+        status_sender: &watch::Sender<RpcMatrixInitializeStatus>,
     ) -> Result<Arc<Self>> {
         let matrix_session = runtime
             .app_state
@@ -135,7 +135,7 @@ impl Matrix {
         if let Some(session) = matrix_session {
             client.restore_session(session).await?;
         } else {
-            status_sender.send_replace(MatrixInitializeStatus::LoggingIn);
+            status_sender.send_replace(RpcMatrixInitializeStatus::LoggingIn);
             Self::login_or_register(
                 &client,
                 user_name,

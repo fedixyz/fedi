@@ -97,7 +97,8 @@ export type ErrorCode =
   | { federationPendingRejoinFromScratch: string }
   | "invalidMsEvent"
   | "recurringdMetaNotFound"
-  | "unknownFederation";
+  | "unknownFederation"
+  | "offlineExactEcashFailed";
 
 export type Event =
   | { transaction: TransactionEvent }
@@ -265,12 +266,6 @@ export type GuardianitoFeatureConfig = { api_base_url: string };
 export type LogEvent = { log: string };
 
 export type MatrixFeatureConfig = { home_server: string };
-
-export type MatrixInitializeStatus =
-  | { type: "starting" }
-  | { type: "loggingIn" }
-  | { type: "success" }
-  | { type: "error"; error: RpcError };
 
 /**
  * Collected details for a given event id.
@@ -662,6 +657,12 @@ export type RpcMatrixAccountSession = {
   avatarUrl: string | null;
 };
 
+export type RpcMatrixInitializeStatus =
+  | { type: "starting" }
+  | { type: "loggingIn" }
+  | { type: "success" }
+  | { type: "error"; error: RpcError };
+
 export type RpcMatrixMembership =
   | "ban"
   | "invite"
@@ -791,6 +792,7 @@ export type RpcMethods = {
   nostrCreateCommunity: [nostrCreateCommunity, RpcCommunity];
   nostrListOurCommunities: [nostrListOurCommunities, Array<RpcCommunity>];
   nostrEditCommunity: [nostrEditCommunity, null];
+  nostrDeleteCommunity: [nostrDeleteCommunity, null];
   stabilityPoolAccountInfo: [
     stabilityPoolAccountInfo,
     RpcStabilityPoolAccountInfo,
@@ -1559,6 +1561,8 @@ export type SocialRecoveryEvent = {
 
 export type SocialRecoveryQr = { recoveryId: RpcRecoveryId };
 
+export type SpMatrixTransferId = { room_id: RpcRoomId; event_id: RpcEventId };
+
 export type SpTransferUiFeatureConfig = { mode: SpTransferUiMode };
 
 export type SpTransferUiMode = "QrCode" | "Chat";
@@ -1891,7 +1895,7 @@ export type matrixGetMediaPreview = { url: string };
 export type matrixIgnoreUser = { userId: RpcUserId };
 
 export type matrixInitializeStatus = {
-  streamId: RpcStreamId<MatrixInitializeStatus>;
+  streamId: RpcStreamId<RpcMatrixInitializeStatus>;
 };
 
 export type matrixListIgnoredUsers = {};
@@ -2052,7 +2056,8 @@ export type matrixSetPusher = { pusher: RpcPusher };
 
 export type matrixSpTransferObserveState = {
   streamId: RpcStreamId<RpcSpTransferState>;
-  pendingPaymentId: RpcEventId;
+  roomId: RpcRoomId;
+  eventId: RpcEventId;
 };
 
 export type matrixSpTransferSend = {
@@ -2112,6 +2117,8 @@ export type nostrCreateCommunity = { communityJsonStr: string };
 export type nostrDecrypt = { pubkey: string; ciphertext: string };
 
 export type nostrDecrypt04 = { pubkey: string; ciphertext: string };
+
+export type nostrDeleteCommunity = { communityHexUuid: string };
 
 export type nostrEditCommunity = {
   communityHexUuid: string;
