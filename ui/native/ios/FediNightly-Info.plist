@@ -20,6 +20,8 @@
 	<string>26.1.1</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
   <!-- Support .fedi file type -->
   <key>UTExportedTypeDeclarations</key>
 	<array>
@@ -50,6 +52,12 @@
 			<array>
 				<string>$(PRODUCT_BUNDLE_IDENTIFIER).fedi</string>
 			</array>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>fedi</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
 		</dict>
 	</array>
 	<key>CFBundleURLTypes</key>
