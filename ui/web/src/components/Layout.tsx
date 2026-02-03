@@ -75,7 +75,7 @@ const SelectedCommunityWrapper = styled('div', {
 })
 
 type HeaderProps = {
-    back?: string | boolean
+    back?: string | boolean | (() => void)
     showCloseButton?: boolean
     centered?: boolean
     rightComponent?: React.ReactElement
@@ -99,12 +99,12 @@ export function Header({
                         <Icon
                             icon={ChevronLeft}
                             size="sm"
-                            onClick={
-                                // provide string to specify next route on back
-                                // or provide boolean to call router history back
-                                typeof back === 'string'
-                                    ? () => router.push(back)
-                                    : () => router.back()
+                            onClick={() =>
+                                typeof back === 'function'
+                                    ? back()
+                                    : typeof back === 'string'
+                                      ? router.push(back)
+                                      : router.back()
                             }
                         />
                     </LeftComponentWrapper>

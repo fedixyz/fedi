@@ -1,5 +1,6 @@
 import React from 'react'
 
+import { CompleteSocialRecovery } from './CompleteSocialRecovery'
 import { JoinFederation } from './JoinFederation'
 import { OnboardingCommunities } from './OnboardingCommunities'
 import { OnboardingHome } from './OnboardingHome'
@@ -23,6 +24,8 @@ export const Onboarding: React.FC<Props> = ({ step }) => {
         content = <PersonalRecovery />
     } else if (step === 'recover/social') {
         content = <SocialRecovery />
+    } else if (step === 'recover/social/complete') {
+        content = <CompleteSocialRecovery />
     } else if (step === 'recover/wallet-transfer') {
         content = <WalletTransfer />
     } else if (step === 'recover/select-device') {

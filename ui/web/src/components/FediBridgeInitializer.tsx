@@ -23,6 +23,11 @@ import {
 import { formatErrorMessage } from '@fedi/common/utils/format'
 import { makeLog } from '@fedi/common/utils/log'
 
+import {
+    onboardingRecoverRoute,
+    onboardingRecoverSocialRoute,
+    onboardingRecoverWalletTransferRoute,
+} from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { fedimint, initializeBridge } from '../lib/bridge'
 import { getAppFlavor } from '../lib/bridge/worker'
@@ -165,15 +170,19 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     // seed words but quit the app before completing device index selection
     if (
         deviceIndexRequired &&
-        asPath !== '/onboarding/recover/wallet-transfer' &&
+        asPath !== onboardingRecoverWalletTransferRoute &&
         !asPath.includes('recover')
     ) {
-        return <Redirect path="/onboarding/recover/wallet-transfer" />
+        return <Redirect path={onboardingRecoverWalletTransferRoute} />
     }
 
     // If mid social recovery, force them to stay on the page
-    if (socialRecoveryId && asPath !== '/onboarding/recover/social') {
-        return <Redirect path="/onboarding/recover/social" />
+    if (
+        socialRecoveryId &&
+        pathname !== '/' &&
+        !asPath.includes(onboardingRecoverRoute)
+    ) {
+        return <Redirect path={onboardingRecoverSocialRoute} />
     }
 
     if (

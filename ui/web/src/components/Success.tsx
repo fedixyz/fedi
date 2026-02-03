@@ -2,11 +2,12 @@ import React from 'react'
 
 import CheckIcon from '@fedi/common/assets/svgs/check.svg'
 
-import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import { styled, theme } from '../styles'
 import { Button } from './Button'
+import { Column } from './Flex'
 import { Icon } from './Icon'
+import { Text } from './Text'
 
 type Props = {
     title: string
@@ -22,24 +23,26 @@ const Success: React.FC<Props> = ({
     onClick,
 }) => {
     return (
-        <ContentBlock css={{ holoGradient: '400' }}>
-            <Layout.Root>
-                <Layout.Content centered>
-                    <Content>
-                        <Zone>
-                            <Icon size="md" icon={CheckIcon} />
-                            <Title>{title}</Title>
-                            <Description>{description}</Description>
-                        </Zone>
-                    </Content>
-                </Layout.Content>
-                <Layout.Actions>
-                    <Button width="full" onClick={onClick}>
-                        {buttonText}
-                    </Button>
-                </Layout.Actions>
-            </Layout.Root>
-        </ContentBlock>
+        <Layout.Root>
+            <Layout.Content centered>
+                <Content>
+                    <Circle align="center" gap="md">
+                        <Icon size="md" icon={CheckIcon} />
+                        <Text weight="bold">{title}</Text>
+                        <Text
+                            variant="caption"
+                            css={{ color: theme.colors.darkGrey }}>
+                            {description}
+                        </Text>
+                    </Circle>
+                </Content>
+            </Layout.Content>
+            <Layout.Actions>
+                <Button width="full" onClick={onClick}>
+                    {buttonText}
+                </Button>
+            </Layout.Actions>
+        </Layout.Root>
     )
 }
 
@@ -50,9 +53,10 @@ const Content = styled('div', {
     width: '100%',
 })
 
-const Zone = styled('div', {
+const Circle = styled(Column, {
     alignItems: 'center',
     backgroundColor: theme.colors.white,
+    border: `1px solid ${theme.colors.lightGrey}`,
     borderRadius: '50%',
     display: 'flex',
     flexDirection: 'column',
@@ -60,14 +64,6 @@ const Zone = styled('div', {
     height: '300px',
     justifyContent: 'center',
     width: '300px',
-})
-
-const Title = styled('h4', {
-    fontSize: '16px',
-})
-
-const Description = styled('p', {
-    color: theme.colors.darkGrey,
 })
 
 export default Success

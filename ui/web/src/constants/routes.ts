@@ -21,6 +21,11 @@ export const onboardingCommunitiesRoute = `${onboardingRoute}/communities`
 export const shareLogsRoute = '/share-logs'
 export const onboardingJoinRoute = (inviteCode: string) =>
     `${onboardingRoute}/join?id=${inviteCode}`
+export const onboardingRecoverRoute = `${onboardingRoute}/recover`
+export const onboardingRecoverSelectDeviceRoute = `${onboardingRoute}/recover/select-device`
+export const onboardingRecoverWalletTransferRoute = `${onboardingRoute}/recover/wallet-transfer`
+export const onboardingRecoverSocialRoute = `${onboardingRoute}/recover/social`
+export const onboardingRecoverSocialCompleteRoute = `${onboardingRoute}/recover/social/complete`
 
 // Settings
 export const settingsCurrencyRoute = `${settingsRoute}/currency`
