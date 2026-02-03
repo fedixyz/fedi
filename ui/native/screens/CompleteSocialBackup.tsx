@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, StyleSheet } from 'react-native'
+import { Image, Platform, StyleSheet } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
@@ -51,9 +51,14 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 return
             }
 
+            const sourceUri =
+                Platform.OS === 'android'
+                    ? recoveryFilePath
+                    : prefixFileUri(recoveryFilePath)
+
             await saveDocuments({
                 fileName: 'backup.fedi',
-                sourceUris: [prefixFileUri(recoveryFilePath)],
+                sourceUris: [sourceUri],
             })
 
             setBackupsCompleted(
