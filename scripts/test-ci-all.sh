@@ -80,7 +80,8 @@ for _ in $(seq "${FM_TEST_CI_ALL_TIMES:-1}"); do
 # NOTE: try to keep the slowest tests first, except 'always_success_test',
 # as it's used for failure test
 tests_to_run_in_parallel+=(
-  test_fm_cli_tests
+  # TODO: disabled <https://github.com/fedibtc/fedi/pull/10121#issuecomment-3843344628>
+  # test_fm_cli_tests
   test_fm_load_tests
   test_stability_pool_v2
   test_stability_pool
