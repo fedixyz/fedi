@@ -3,12 +3,12 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Image, StyleSheet } from 'react-native'
+import RNFS from 'react-native-fs'
 import Share from 'react-native-share'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
-import { prefixFileUri } from '@fedi/common/utils/media'
 
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
@@ -46,6 +46,9 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 locateRecoveryFile(fedimint),
             ).unwrap()
 
+            const recoveryFileBase64 = RNFS.readFile(recoveryFilePath, 'base64')
+            const base64Uri = `data:application/octet-stream;base64,${recoveryFileBase64}`
+
             if (!recoveryFilePath) {
                 log.error('No recovery file found')
                 return
@@ -53,7 +56,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
             await Share.open({
                 title: 'Fedi Backup File',
-                url: prefixFileUri(recoveryFilePath),
+                url: base64Uri,
                 type: 'application/octet-stream',
                 filename: 'backup.fedi',
             })
