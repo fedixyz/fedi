@@ -54,7 +54,6 @@ import {
     makeTxnStatusText as makeTxnStatusTextUtil,
     makeTxnTypeText as makeTxnTypeTextUtil,
     makeTxnDetailTitleText as makeTxnDetailTitleTextUtil,
-    makeStabilityTxnDetailTitleText as makeStabilityTxnDetailTitleTextUtil,
     makeMultispendTxnStatusText as makeMultispendTxnStatusTextUtil,
     makeMultispendTxnDetailItems as makeMultispendTxnDetailItemsUtil,
     makeTransactionAmountState,
@@ -239,13 +238,6 @@ export function useTxnDisplayUtils(
         [t],
     )
 
-    const makeStabilityTxnDetailTitleText = useCallback(
-        (txn: TransactionListEntry) => {
-            return makeStabilityTxnDetailTitleTextUtil(t, txn)
-        },
-        [t],
-    )
-
     return {
         preferredCurrency,
         getCurrencyText,
@@ -259,7 +251,6 @@ export function useTxnDisplayUtils(
         makeTxnTypeText,
         makeTxnStatusText,
         makeTxnDetailTitleText,
-        makeStabilityTxnDetailTitleText,
     }
 }
 

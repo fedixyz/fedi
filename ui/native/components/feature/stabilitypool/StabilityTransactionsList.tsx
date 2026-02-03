@@ -39,7 +39,7 @@ const StabilityTransactionsList = ({
         makeTxnTypeText,
         makeTxnNotesText,
         makeTxnStatusText,
-        makeStabilityTxnDetailTitleText,
+        makeTxnDetailTitleText,
     } = useTxnDisplayUtils(t, federationId, true)
 
     return (
@@ -59,7 +59,7 @@ const StabilityTransactionsList = ({
                 amountState: makeTransactionAmountState(txn),
             })}
             makeDetailProps={txn => ({
-                title: makeStabilityTxnDetailTitleText(txn),
+                title: makeTxnDetailTitleText(txn),
                 items: makeStabilityTxnDetailItems(txn),
                 amount: makeTxnAmountText(txn, true),
                 notes: makeTxnNotesText(txn),

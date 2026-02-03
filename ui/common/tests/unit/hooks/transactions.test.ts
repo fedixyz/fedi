@@ -200,9 +200,6 @@ describe('common/hooks/transactions', () => {
                 const makeTxnDetailTitleTextSpy = jest
                     .spyOn(walletUtils, 'makeTxnDetailTitleText')
                     .mockReturnValue('')
-                const makeStabilityTxnDetailTitleTextSpy = jest
-                    .spyOn(walletUtils, 'makeStabilityTxnDetailTitleText')
-                    .mockReturnValue('')
 
                 const { result } = renderHookWithState(
                     () => useTxnDisplayUtils(t, '1', true),
@@ -236,9 +233,6 @@ describe('common/hooks/transactions', () => {
 
                 result.current.makeTxnDetailTitleText(txn)
                 expect(makeTxnDetailTitleTextSpy).toHaveBeenCalled()
-
-                result.current.makeStabilityTxnDetailTitleText(txn)
-                expect(makeStabilityTxnDetailTitleTextSpy).toHaveBeenCalled()
             })
         })
     })

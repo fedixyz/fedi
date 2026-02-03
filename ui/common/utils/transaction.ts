@@ -110,7 +110,6 @@ export const makeTxnTypeText = (
     }
 }
 
-// TODO+TEST: ensure that ALL txn kinds and states are covered
 export const makeTxnDetailTitleText = (
     t: TFunction,
     txn: TransactionListEntry,
@@ -120,12 +119,15 @@ export const makeTxnDetailTitleText = (
 
     switch (txn.kind) {
         case 'lnPay':
-        case 'spDeposit':
         case 'oobSend':
         case 'onchainWithdraw':
-        case 'sPV2Deposit':
             return t('feature.send.you-sent')
-        case 'sPV2TransferIn':
+        case 'spDeposit':
+        case 'sPV2Deposit':
+            return t('feature.stabilitypool.you-deposited')
+        case 'spWithdraw':
+        case 'sPV2Withdrawal':
+            return t('feature.stabilitypool.you-withdrew')
         case 'oobReceive':
             return t('feature.receive.you-received')
         case 'lnReceive':
@@ -157,27 +159,36 @@ export const makeTxnDetailTitleText = (
                         | 'waitingForConfirmation'
                     return t('phrases.receive-pending')
             }
-        case 'spWithdraw':
-        case 'sPV2Withdrawal':
+        case 'sPV2TransferIn':
             switch (txn.state.type) {
-                case 'pendingWithdrawal':
-                    return t('phrases.receive-pending')
-                case 'completeWithdrawal':
-                case 'completedWithdrawal':
-                    return t('feature.receive.you-received')
-                case 'dataNotInCache':
-                    return t('words.pending')
+                case 'completedTransfer':
+                    switch (txn.state.kind) {
+                        case 'multispend':
+                            return t('feature.stabilitypool.you-withdrew')
+                        default:
+                            txn.state.kind satisfies 'unknown'
+                            return t('feature.receive.you-received')
+                    }
                 default:
-                    txn.state.type satisfies 'failedWithdrawal'
-                    return t('words.failed')
+                    txn.state.type satisfies 'dataNotInCache'
+                    return t('feature.receive.you-received')
             }
         case 'sPV2TransferOut':
             switch (txn.state.type) {
                 case 'completedTransfer':
-                    return t('feature.stabilitypool.you-deposited')
+                    switch (txn.state.kind) {
+                        case 'multispend':
+                            return t('feature.stabilitypool.you-deposited')
+                        default:
+                            txn.state.kind satisfies
+                                | 'unknown'
+                                | 'spTransferUi'
+                                | 'matrixSpTransfer'
+                            return t('feature.send.you-sent')
+                    }
                 default:
                     txn.state.type satisfies 'dataNotInCache'
-                    return t('words.pending')
+                    return t('feature.send.you-sent')
             }
         case 'multispend':
             switch (txn.state) {
@@ -902,31 +913,6 @@ export const makeTxnDetailItems = (
     }
 
     return items
-}
-
-// TODO+TEST: Consider using within `makeTxnDetailTitleText`?
-// Can remain as its own function but worth unifying to avoid the `words.unknown` fallback
-export const makeStabilityTxnDetailTitleText = (
-    t: TFunction,
-    // TODO+TEST: Consider using a type only including stability transactions to avoid the `words.unknown` fallback
-    txn: TransactionListEntry,
-) => {
-    if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
-        return t('feature.stabilitypool.you-deposited')
-    } else if (txn.kind === 'sPV2TransferOut') {
-        return isMultispendTxn(txn)
-            ? t('feature.stabilitypool.you-deposited')
-            : t('feature.send.you-sent')
-    }
-
-    if (txn.kind === 'sPV2Withdrawal' || txn.kind === 'spWithdraw') {
-        return t('feature.stabilitypool.you-withdrew')
-    } else if (txn.kind === 'sPV2TransferIn') {
-        return isMultispendTxn(txn)
-            ? t('feature.stabilitypool.you-withdrew')
-            : t('feature.receive.you-received')
-    }
-    return t('words.unknown')
 }
 
 // TODO+TEST: Consider merging/using this from makeTxnDetailItems as it takes the same inputs and a lot of logic seems duplicated
