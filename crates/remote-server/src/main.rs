@@ -17,6 +17,7 @@ use devimint::cli::exec_user_command;
 use devimint::cmd;
 use devimint::util::FedimintCli;
 use fediffi::rpc::{fedimint_initialize_async, fedimint_rpc_async};
+use fedimint_connectors::ConnectorRegistry;
 use fedimint_logging::TracingSetup;
 use listenfd::ListenFd;
 use redb_storage::PathBasedRedbStorage;
@@ -188,6 +189,7 @@ async fn handle_init(
     std::fs::create_dir_all(&data_dir)?;
     let bridge = fedimint_initialize_async(
         Arc::new(PathBasedRedbStorage::new(data_dir).await?),
+        ConnectorRegistry::build_from_client_env()?.bind().await?,
         event_sink,
         opts.device_identifier,
         opts.app_flavor,

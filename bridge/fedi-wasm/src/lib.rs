@@ -95,8 +95,14 @@ pub async fn fedimint_initialize_inner(
         .context("Failed to initialize storage")?;
     let storage = Arc::new(storage) as Storage;
 
+    let connectors = fedimint_connectors::ConnectorRegistry::build_from_client_defaults()
+        .bind()
+        .await
+        .context("Failed to bind connectors")?;
+
     let bridge = fediffi::rpc::fedimint_initialize_async(
         storage.clone(),
+        connectors,
         event_sink,
         init_opts.device_identifier,
         init_opts.app_flavor,

@@ -21,6 +21,7 @@ use federations::federation_v2::spv2_pay_address::Spv2PaymentAddress;
 use federations::federation_v2::FederationV2;
 use federations::Federations;
 use fedimint_client::db::ChronologicalOperationLogKey;
+use fedimint_connectors::ConnectorRegistry;
 use fedimint_core::core::OperationId;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::timing::TimeReporter;
@@ -88,6 +89,7 @@ pub enum FedimintError {
 
 pub async fn fedimint_initialize_async(
     storage: Storage,
+    connectors: ConnectorRegistry,
     event_sink: EventSink,
     device_identifier: String,
     app_flavor: RpcAppFlavor,
@@ -97,9 +99,6 @@ pub async fn fedimint_initialize_async(
         env!("FEDIMINT_BUILD_CODE_VERSION")
     );
     let _g = TimeReporter::new("fedimint_initialize").level(Level::INFO);
-    let connectors = fedimint_connectors::ConnectorRegistry::build_from_client_env()?
-        .bind()
-        .await?;
 
     let feature_catalog = Arc::new(FeatureCatalog::new(match app_flavor {
         RpcAppFlavor::Dev => RuntimeEnvironment::Dev,
