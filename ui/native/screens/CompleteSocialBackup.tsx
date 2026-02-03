@@ -55,6 +55,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 title: 'Fedi Backup File',
                 url: prefixFileUri(recoveryFilePath),
                 type: 'application/octet-stream',
+                failOnCancel: false,
             })
 
             setBackupsCompleted(

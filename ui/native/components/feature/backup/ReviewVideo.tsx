@@ -39,8 +39,8 @@ const ReviewVideo = ({ onConfirmVideo }: Props) => {
                 if (!videoFile) throw new Error('No video file found')
 
                 // Copy file to our temp directory so rust can read it
-                const filename = Math.random().toString(20)
-                const dest = `${RNFS.TemporaryDirectoryPath}/${filename}.mp4`
+                const filename = `${Math.random().toString(20)}.mp4`
+                const dest = `${RNFS.CachesDirectoryPath}/${filename}`
                 await RNFS.copyFile(videoFile.path, dest)
                 onConfirmVideo(dest)
             } catch (e) {
