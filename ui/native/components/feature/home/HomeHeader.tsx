@@ -99,7 +99,8 @@ const styles = (theme: Theme) =>
         selectedCommunityContainer: {
             borderBottomColor: theme.colors.extraLightGrey,
             borderBottomWidth: 1,
-            padding: theme.spacing.lg,
+            paddingVertical: theme.spacing.xs,
+            paddingHorizontal: theme.spacing.sm,
         },
         nightly: {
             position: 'absolute',
