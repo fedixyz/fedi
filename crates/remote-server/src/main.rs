@@ -188,7 +188,6 @@ async fn handle_init(
     std::fs::create_dir_all(&data_dir)?;
     let bridge = fedimint_initialize_async(
         Arc::new(PathBasedRedbStorage::new(data_dir).await?),
-        ConnectorRegistry::build_from_client_env()?.bind().await?,
         event_sink,
         opts.device_identifier,
         opts.app_flavor,

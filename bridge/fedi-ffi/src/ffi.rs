@@ -119,13 +119,9 @@ pub async fn fedimint_initialize_inner(
         .await
         .context("Failed to initialize storage")?;
 
-    let connectors = fedimint_connectors::ConnectorRegistry::build_from_client_env()?
-        .bind()
-        .await?;
     let mut bridge_lock = BRIDGE.lock().await;
     let bridge = match fedimint_initialize_async(
         Arc::new(storage),
-        connectors,
         event_sink,
         init_opts.device_identifier,
         init_opts.app_flavor,
