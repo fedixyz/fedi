@@ -4,6 +4,7 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Image, Platform, StyleSheet } from 'react-native'
+import RNFS from 'react-native-fs'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
@@ -29,6 +30,7 @@ export type Props = NativeStackScreenProps<
 >
 
 const BACKUPS_REQUIRED = 2
+const FEDI_FILE_NAME = 'backup.fedi'
 
 const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
@@ -51,13 +53,18 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 return
             }
 
-            const sourceUri =
-                Platform.OS === 'android'
-                    ? recoveryFilePath
-                    : prefixFileUri(recoveryFilePath)
+            let sourceUri: string
+
+            if (Platform.OS === 'android') {
+                const tempDest = `${RNFS.ExternalCachesDirectoryPath}/${FEDI_FILE_NAME}`
+                await RNFS.copyFile(recoveryFilePath, tempDest)
+                sourceUri = tempDest
+            } else {
+                sourceUri = prefixFileUri(recoveryFilePath)
+            }
 
             await saveDocuments({
-                fileName: 'backup.fedi',
+                fileName: FEDI_FILE_NAME,
                 sourceUris: [sourceUri],
             })
 
