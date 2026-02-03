@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, Platform, StyleSheet } from 'react-native'
+import { Image, StyleSheet } from 'react-native'
 import RNFS from 'react-native-fs'
 import Share from 'react-native-share'
 
@@ -46,10 +46,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 locateRecoveryFile(fedimint),
             ).unwrap()
 
-            const recoveryFileBase64 = await RNFS.readFile(
-                recoveryFilePath,
-                'base64',
-            )
+            const recoveryFileBase64 = RNFS.readFile(recoveryFilePath, 'base64')
             const base64Uri = `data:application/octet-stream;base64,${recoveryFileBase64}`
 
             if (!recoveryFilePath) {
@@ -59,7 +56,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
             await Share.open({
                 title: 'Fedi Backup File',
-                url: Platform.OS === 'ios' ? recoveryFilePath : base64Uri,
+                url: base64Uri,
                 type: 'application/octet-stream',
                 filename: 'backup.fedi',
             })
