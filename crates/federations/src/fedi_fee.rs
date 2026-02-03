@@ -8,6 +8,8 @@ use async_recursion::async_recursion;
 use bitcoin::Network;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
+use fedimint_core::util::backoff_util::custom_backoff;
+use fedimint_core::util::retry;
 use fedimint_core::{Amount, SATS_PER_BITCOIN};
 use fedimint_ln_client::OutgoingLightningPayment;
 use futures::{Stream, StreamExt};
@@ -19,7 +21,7 @@ use runtime::constants::{FEDI_FEE_SCHEDULE_REFRESH_DELAY, MILLION};
 use runtime::nightly_panic;
 use runtime::storage::state::{FediFeeSchedule, ModuleFediFeeSchedule};
 use stability_pool_client::common::FiatAmount;
-use tokio::sync::{Mutex, OwnedMutexGuard, watch};
+use tokio::sync::{Mutex, watch};
 use tokio_stream::wrappers::WatchStream;
 use tracing::{error, info, instrument};
 
@@ -390,24 +392,38 @@ impl FediFeeRemittanceService {
         }
         let spv2_balance_delta_lock = self.spv2_balance_delta_lock.clone();
         fed.spawn_cancellable("remit_fedi_fee", move |fed2| async move {
-            let _ = Self::remit_fedi_fee(
-                guard,
-                &fed2,
-                spv2_balance_delta_lock,
-                outstanding_fees,
-                module,
-                tx_direction,
-                accrued_fee_exceeds_threshold,
-            )
+            // Retry fee remittance with backoff. Gateway connection may fail
+            // transiently on startup before the gateway cache is properly populated.
+            let backoff = custom_backoff(Duration::from_secs(1), Duration::from_secs(5), Some(5));
+            let res = retry("remit_fedi_fee", backoff, || {
+                let spv2_balance_delta_lock = spv2_balance_delta_lock.clone();
+                let module = module.clone();
+                let tx_direction = tx_direction.clone();
+                let fed2 = fed2.clone();
+                async move {
+                    Self::remit_fedi_fee(
+                        &fed2,
+                        spv2_balance_delta_lock,
+                        outstanding_fees,
+                        module,
+                        tx_direction,
+                        accrued_fee_exceeds_threshold,
+                    )
+                    .await
+                }
+            })
             .await;
+            if let Err(e) = res {
+                error!(?e, "fee remittance failed after retries");
+            }
+            drop(guard); // Hold guard for entire duration to prevent concurrent tasks
         });
     }
 
-    #[instrument(skip(guard, fed), fields(federation_id = %fed.federation_id()) , err, ret)]
+    #[instrument(skip(fed), fields(federation_id = %fed.federation_id()) , err, ret)]
     #[cfg_attr(target_family = "wasm", async_recursion(?Send))]
     #[cfg_attr(not(target_family = "wasm"), async_recursion)]
     async fn remit_fedi_fee(
-        guard: OwnedMutexGuard<()>,
         fed: &FederationV2,
         spv2_balance_delta_lock: Arc<Mutex<()>>,
         outstanding_fees: Amount,
@@ -642,11 +658,8 @@ impl FediFeeRemittanceService {
                 fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
             })?;
 
-        let mutex = OwnedMutexGuard::mutex(&guard).clone();
-        drop(guard);
         // If payment fails, un-zero the oustanding fee before returning the error.
         if let Err(e) = fed.subscribe_to_ln_pay(payment_type, extra_meta).await {
-            let _guard = mutex.lock().await;
             fed.client
                 .db()
                 .autocommit(
