@@ -41,7 +41,6 @@ const ReviewVideo = ({ onConfirmVideo }: Props) => {
                 const exists = await RNFS.exists(videoFile.path)
                 if (!exists) throw new Error('Source video missing')
 
-                // Copy file to our temp directory so rust can read it
                 const filename = `${Math.random().toString(20)}.mp4`
                 const dest = `${RNFS.CachesDirectoryPath}/${filename}`
 

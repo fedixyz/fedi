@@ -2,15 +2,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, StyleSheet } from 'react-native'
+import { Image, Platform, StyleSheet } from 'react-native'
 import RNFS from 'react-native-fs'
+import { PermissionStatus, RESULTS } from 'react-native-permissions'
 import Share from 'react-native-share'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
-// import { prefixFileUri } from '@fedi/common/utils/media'
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
 import GradientView from '../components/ui/GradientView'
@@ -21,6 +21,7 @@ import {
 } from '../state/contexts/BackupRecoveryContext'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
+import { useDownloadPermission } from '../utils/hooks'
 
 const log = makeLog('CompleteSocialBackup')
 
@@ -30,6 +31,7 @@ export type Props = NativeStackScreenProps<
 >
 
 const BACKUPS_REQUIRED = 2
+const FEDI_BACKUP_FILE_NAME = 'backup.fedi'
 
 const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
@@ -38,6 +40,8 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const fedimint = useFedimint()
     const [backupsCompleted, setBackupsCompleted] = useState<number>(0)
     const { dispatch } = useBackupRecoveryContext()
+    const { requestDownloadPermission, downloadPermission } =
+        useDownloadPermission()
     const [isCreatingBackup, setIsCreatingBackup] = useState(false)
 
     const createBackup = async () => {
@@ -47,21 +51,37 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 locateRecoveryFile(fedimint),
             ).unwrap()
 
-            log.info('recoveryFilePath', recoveryFilePath)
-            log.info(
-                'recoveryFilePath exists',
-                await RNFS.exists(recoveryFilePath),
-            )
-            log.info('recoveryFilePath stat', await RNFS.stat(recoveryFilePath))
-
             if (!recoveryFilePath) {
                 log.error('No recovery file found')
                 return
             }
 
+            let pathToShare = recoveryFilePath
+
+            // Allow Android users to save the file to their device
+            // iOS will be able to share to Files app without extra permissions
+            if (Platform.OS === 'android') {
+                let permissionStatus: PermissionStatus | undefined =
+                    downloadPermission
+
+                log.info('AndroidPermissions', downloadPermission)
+
+                if (downloadPermission !== RESULTS.GRANTED)
+                    permissionStatus = await requestDownloadPermission()
+
+                if (permissionStatus === RESULTS.GRANTED) {
+                    log.info('AndroidPermissionsGranted')
+                    const dest = `${RNFS.DownloadDirectoryPath}/${FEDI_BACKUP_FILE_NAME}`
+
+                    log.info('Copying file to', dest)
+                    await RNFS.copyFile(recoveryFilePath, dest)
+                    pathToShare = dest
+                }
+            }
+
             await Share.open({
                 title: 'Fedi Backup File',
-                url: recoveryFilePath,
+                url: pathToShare,
                 type: 'application/octet-stream',
                 failOnCancel: false,
             })
