@@ -10,6 +10,7 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
+// import { prefixFileUri } from '@fedi/common/utils/media'
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
 import GradientView from '../components/ui/GradientView'
@@ -46,8 +47,12 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 locateRecoveryFile(fedimint),
             ).unwrap()
 
-            const recoveryFileBase64 = RNFS.readFile(recoveryFilePath, 'base64')
-            const base64Uri = `data:application/octet-stream;base64,${recoveryFileBase64}`
+            log.info('recoveryFilePath', recoveryFilePath)
+            log.info(
+                'recoveryFilePath exists',
+                await RNFS.exists(recoveryFilePath),
+            )
+            log.info('recoveryFilePath stat', await RNFS.stat(recoveryFilePath))
 
             if (!recoveryFilePath) {
                 log.error('No recovery file found')
@@ -56,9 +61,9 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
             await Share.open({
                 title: 'Fedi Backup File',
-                url: base64Uri,
+                url: recoveryFilePath,
                 type: 'application/octet-stream',
-                filename: 'backup.fedi',
+                failOnCancel: false,
             })
 
             setBackupsCompleted(
