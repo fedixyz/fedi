@@ -928,6 +928,7 @@ export class MatrixChatClient {
             // TODO: HACK - move this to bridge
             roomState: 'invited',
             preview: null,
+            isDirect: false,
         }
     }
 

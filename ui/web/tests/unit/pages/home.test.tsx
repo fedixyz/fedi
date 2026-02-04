@@ -37,6 +37,7 @@ const mockCommunityChat = {
     preview: null,
     isPreview: false,
     isPublic: false,
+    isDirect: false,
 } satisfies MatrixRoom
 
 describe('/pages/home', () => {

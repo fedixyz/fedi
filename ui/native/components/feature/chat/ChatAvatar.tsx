@@ -18,6 +18,7 @@ type RoomProps = BaseProps & {
         MatrixRoom,
         | 'id'
         | 'name'
+        | 'isDirect'
         | 'broadcastOnly'
         | 'avatarUrl'
         | 'directUserId'
@@ -45,7 +46,7 @@ export type ChatAvatarProps =
 const ChatAvatar: React.FC<ChatAvatarProps> = props => {
     const { theme } = useTheme()
     let id: string | undefined
-    let name: string | undefined
+    let name: string | null
     let icon: AvatarProps['icon'] | undefined
     let src: string | undefined
     let avatarProps: BaseProps
@@ -57,7 +58,7 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
         icon =
             room.name === GUARDIANITO_BOT_DISPLAY_NAME
                 ? 'FediQrLogo'
-                : room.directUserId
+                : room.isDirect
                   ? undefined
                   : room.broadcastOnly
                     ? 'SpeakerPhone'

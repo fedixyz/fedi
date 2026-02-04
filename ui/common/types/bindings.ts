@@ -1217,6 +1217,7 @@ export type RpcSerializedRoomInfo = {
   avatarUrl: string | null;
   preview: RpcTimelineItemEvent | null;
   directUserId: string | null;
+  isDirect: boolean;
   notificationCount: number;
   isMarkedUnread: boolean;
   joinedMemberCount: number;
