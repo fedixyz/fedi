@@ -2,12 +2,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, StyleSheet } from 'react-native'
+import { Image, Platform, StyleSheet } from 'react-native'
+import RNFS from 'react-native-fs'
 import Share from 'react-native-share'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useToast } from '@fedi/common/hooks/toast'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { pathJoin, prefixFileUri } from '@fedi/common/utils/media'
 
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
@@ -38,6 +41,8 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { dispatch } = useBackupRecoveryContext()
     const [isCreatingBackup, setIsCreatingBackup] = useState(false)
 
+    const toast = useToast()
+
     const createBackup = async () => {
         setIsCreatingBackup(true)
         try {
@@ -45,15 +50,38 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 locateRecoveryFile(fedimint),
             ).unwrap()
 
-            if (!recoveryFilePath) {
+            const exists = await RNFS.exists(recoveryFilePath)
+
+            if (!recoveryFilePath || !exists) {
                 log.error('No recovery file found')
                 return
             }
 
+            let shareUrl = recoveryFilePath
+
+            if (Platform.OS === 'android') {
+                const destinationPath = pathJoin(
+                    RNFS.DownloadDirectoryPath,
+                    'backup.fedi',
+                )
+                const backupContents = await RNFS.readFile(
+                    recoveryFilePath,
+                    'base64',
+                )
+                await RNFS.writeFile(destinationPath, backupContents, 'base64')
+
+                toast.show({
+                    content: t('feature.chat.saved-to-downloads'),
+                    status: 'success',
+                })
+
+                shareUrl = prefixFileUri(destinationPath)
+            }
+
             await Share.open({
                 title: 'Fedi Backup File',
-                url: recoveryFilePath,
-                type: 'application/octet-stream',
+                url: shareUrl,
+                filename: 'backup.fedi',
             })
 
             setBackupsCompleted(
