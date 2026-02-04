@@ -71,7 +71,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
                 if (permissionStatus === RESULTS.GRANTED) {
                     log.info('AndroidPermissionsGranted')
-                    const dest = `${RNFS.DownloadDirectoryPath}/${FEDI_BACKUP_FILE_NAME}`
+                    const dest = `${RNFS.ExternalDirectoryPath}/${FEDI_BACKUP_FILE_NAME}`
 
                     log.info('Copying file to', dest)
                     await RNFS.copyFile(recoveryFilePath, dest)
@@ -81,9 +81,9 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
             await Share.open({
                 title: 'Fedi Backup File',
+                filename: FEDI_BACKUP_FILE_NAME,
                 url: pathToShare,
                 type: 'application/octet-stream',
-                failOnCancel: false,
             })
 
             setBackupsCompleted(
