@@ -4,3 +4,4 @@
 !./.gitignore
 !./bridge.js
 !./index.ts
+!./fedi_wasm.d.ts

@@ -1400,7 +1400,8 @@ async fn test_spv2_with_fedi_fees(
         Ok(RpcTransactionListEntry {
             transaction: RpcTransaction {
                 kind: RpcTransactionKind::SPV2Withdrawal {
-                    state: rpc_types::RpcSPV2WithdrawalState::CompletedWithdrawal { .. }
+                    state: rpc_types::RpcSPV2WithdrawalState::CompletedWithdrawal { .. },
+                    ..
                 },
                 ..
             },

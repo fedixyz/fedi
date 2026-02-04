@@ -2920,12 +2920,17 @@ impl FederationV2 {
                 StabilityPoolMeta::Withdrawal {
                     txid, extra_meta, ..
                 } => {
+                    let typed_extra_meta =
+                        serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta).ok();
+                    let sweeper_initiated =
+                        matches!(typed_extra_meta, Some(SPv2WithdrawMetadata::Sweeper));
                     frontend_metadata =
-                        match serde_json::from_value::<SPv2WithdrawMetadata>(extra_meta) {
-                            Ok(SPv2WithdrawMetadata::StableBalance { frontend_metadata }) => {
-                                frontend_metadata
-                            }
-                            _ => None,
+                        if let Some(SPv2WithdrawMetadata::StableBalance { frontend_metadata }) =
+                            typed_extra_meta
+                        {
+                            frontend_metadata
+                        } else {
+                            None
                         };
                     let outcome = self
                         .get_client_operation_outcome(operation_id, entry, |op_id| async move {
@@ -2944,6 +2949,7 @@ impl FederationV2 {
                                 state: RpcSPV2WithdrawalState::FailedWithdrawal {
                                     error: e.to_string(),
                                 },
+                                sweeper_initiated,
                             }
                         }
                         _ => RpcTransactionKind::SPV2Withdrawal {
@@ -2970,6 +2976,7 @@ impl FederationV2 {
                                 transaction_amount = RpcAmount(Amount::ZERO);
                                 RpcSPV2WithdrawalState::DataNotInCache
                             },
+                            sweeper_initiated,
                         },
                     }
                 }

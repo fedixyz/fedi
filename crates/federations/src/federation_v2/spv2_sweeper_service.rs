@@ -48,7 +48,7 @@ impl SPv2SweeperService {
 async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> anyhow::Result<()> {
     // In order to sweep a staged seeker deposit back into e-cash, two
     // things must be true:
-    // 1. Current stability pool cycle > last cycle in which user deposited
+    // 1. Current stability pool cycle > (last cycle in which user deposited + 2)
     // 2. User has non-0 staged deposit balance
     //
     // If the above conditions are true, we withdraw all of the user's
@@ -65,7 +65,7 @@ async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> an
 
     // TODO shaurya when transfers are implemented we would also want to update
     // "last_deposit_cycle_index" for any incoming staged transfers
-    if current_cycle_index <= last_deposit_cycle_index
+    if current_cycle_index.saturating_sub(last_deposit_cycle_index) <= 2
         || sync_response.staged_balance == Amount::ZERO
     {
         return Ok(());
@@ -84,6 +84,13 @@ async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> an
         fed.spv2_force_sync();
         return subscribe_res;
     }
+
+    info!(
+        ?current_cycle_index,
+        ?last_deposit_cycle_index,
+        ?sync_response.staged_balance,
+        "Proceeding to sweep spv2 unlocked balance"
+    );
 
     let (operation_id, _) = fed
         .client

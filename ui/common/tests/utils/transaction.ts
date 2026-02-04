@@ -151,6 +151,7 @@ export function makeTestRpcTxnEntry<T extends RpcTransactionListEntry['kind']>(
             return {
                 kind,
                 state: makeTestSPV2WithdrawalState('pendingWithdrawal'),
+                sweeper_initiated: false,
                 ...baseFields,
                 ...overrides,
             }

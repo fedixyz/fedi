@@ -539,6 +539,7 @@ pub enum RpcTransactionKind {
     },
     SPV2Withdrawal {
         state: RpcSPV2WithdrawalState,
+        sweeper_initiated: bool,
     },
     SPV2TransferOut {
         state: RpcSPV2TransferOutState,
