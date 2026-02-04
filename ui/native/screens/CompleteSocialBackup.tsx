@@ -10,7 +10,7 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
-import { pathJoin, prefixFileUri } from '@fedi/common/utils/media'
+import { pathJoin } from '@fedi/common/utils/media'
 
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
@@ -22,6 +22,7 @@ import {
 } from '../state/contexts/BackupRecoveryContext'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
+import { makeRandomTempFilePath } from '../utils/media'
 
 const log = makeLog('CompleteSocialBackup')
 
@@ -68,14 +69,18 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                     recoveryFilePath,
                     'base64',
                 )
+                const { path, uri } = makeRandomTempFilePath('backup.fedi')
                 await RNFS.writeFile(destinationPath, backupContents, 'base64')
+                // Can't read from the `downloads` directory without special permissions
+                // so we write a temp file and then share that
+                await RNFS.writeFile(path, backupContents, 'base64')
 
                 toast.show({
                     content: t('feature.chat.saved-to-downloads'),
                     status: 'success',
                 })
 
-                shareUrl = prefixFileUri(destinationPath)
+                shareUrl = uri
             }
 
             await Share.open({
@@ -89,6 +94,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
             )
         } catch (error) {
             log.error('createBackup', error)
+            toast.error(t, error)
         } finally {
             setIsCreatingBackup(false)
         }
