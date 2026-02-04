@@ -1361,7 +1361,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-document-picker (10.1.7):
+  - react-native-document-picker (12.0.1):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2256,7 +2256,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNShare (11.1.0):
+  - RNShare (12.2.5):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2811,7 +2811,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: 9f9819152d22361967a6dfaaca7828af37b0ae70
   react-native-blur: b37343d4df1af48a17444156b674b26d5aec2425
   react-native-cameraroll: ac7c6a1c30d14d5c843331dd55be0c7f079be527
-  react-native-document-picker: bf13baf4005e5d881d27196cb6d282eba05f689f
+  react-native-document-picker: 91dc9f663ce3811b4edf057d569bdb1474db2efc
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
   react-native-image-picker: 42e3b160d82fb168288345db3b9a2a99aad02afe
   react-native-mmkv: 56529b171eec4456a3c475bbc6c9187c3e98618e
@@ -2868,7 +2868,7 @@ SPEC CHECKSUMS:
   RNPermissions: 73ad5d3fa40de4268d67bef5181d884e27f6386e
   RNReanimated: 6252ed80006b8f18cc161632c50d8243650ecb4f
   RNScreens: 6edb124b97753c3978b2a7c8974672c0f31bc78a
-  RNShare: 0353bdb897b03b48c7df224a9abd9eb0d8197f88
+  RNShare: af5d43ff0e60633398636414d76897ceb19218af
   RNSVG: 57b9a2e7d149f115d70848c3247f31c7010c6941
   RNVectorIcons: 3a2173c340d645b9af2dfe39801ae470a1b0a9a7
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748

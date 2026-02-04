@@ -10,6 +10,7 @@ import Share from 'react-native-share'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { prefixFileUri } from '@fedi/common/utils/media'
 
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
@@ -82,7 +83,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
             await Share.open({
                 title: 'Fedi Backup File',
                 filename: FEDI_BACKUP_FILE_NAME,
-                url: pathToShare,
+                url: prefixFileUri(pathToShare),
                 type: 'application/octet-stream',
             })
 
