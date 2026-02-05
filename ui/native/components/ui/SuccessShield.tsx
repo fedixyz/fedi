@@ -3,10 +3,10 @@ import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-    Dimensions,
     Image,
     ImageSourcePropType,
     StyleSheet,
+    useWindowDimensions,
 } from 'react-native'
 
 import { Images } from '../../assets/images'
@@ -53,6 +53,9 @@ const SuccessShield: React.FC<SuccessProps> = ({
     const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation<NavigationHook>()
+    const dimensions = useWindowDimensions()
+
+    const logoSize = Math.min(dimensions.width / 2, 300)
 
     const style = styles(theme)
 
@@ -64,7 +67,9 @@ const SuccessShield: React.FC<SuccessProps> = ({
                         <Image
                             resizeMode="contain"
                             source={Images.HoloShield}
-                            style={style.image}
+                            style={{ width: logoSize, height: logoSize }}
+                            width={logoSize}
+                            height={logoSize}
                         />
                         {message ? (
                             message
@@ -94,17 +99,10 @@ const SuccessShield: React.FC<SuccessProps> = ({
     )
 }
 
-const WINDOW_WIDTH = Dimensions.get('window').width
-const LOGO_SIZE = WINDOW_WIDTH * 0.5
-
 const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             flex: 1,
-        },
-        image: {
-            height: LOGO_SIZE,
-            width: LOGO_SIZE,
         },
         successMessage: {
             textAlign: 'center',
