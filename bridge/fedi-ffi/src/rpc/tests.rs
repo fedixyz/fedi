@@ -13,7 +13,7 @@ use assert_matches::assert_matches;
 use bridge::RuntimeExt as _;
 use devi::DevFed;
 use devimint::cmd;
-use devimint::util::{FedimintCli, LnCli};
+use devimint::util::FedimintCli;
 use federations::federation_sm::FederationState;
 use federations::federation_v2::FederationV2;
 use fedi_social_client::common::VerificationDocument;
@@ -79,28 +79,8 @@ async fn cli_generate_ecash(amount: fedimint_core::Amount) -> anyhow::Result<Str
     Ok(ecash_string)
 }
 
-async fn cli_generate_invoice(amount: &Amount) -> anyhow::Result<(Bolt11Invoice, String)> {
-    let label = format!("bridge-tests-{}", rand::random::<u128>());
-    let invoice_string = cmd!(LnCli, "invoice", amount.msats, &label, &label)
-        .out_json()
-        .await?["bolt11"]
-        .as_str()
-        .map(|s| s.to_owned())
-        .unwrap();
-    Ok((Bolt11Invoice::from_str(&invoice_string)?, label))
-}
-
 async fn cli_receive_ecash(ecash: String) -> anyhow::Result<()> {
     cmd!(FedimintCli, "reissue", ecash).run().await?;
-    Ok(())
-}
-
-async fn cln_wait_invoice(label: &str) -> anyhow::Result<()> {
-    let status = cmd!(LnCli, "waitinvoice", label).out_json().await?["status"]
-        .as_str()
-        .map(|s| s.to_owned())
-        .unwrap();
-    assert_eq!(status, "paid");
     Ok(())
 }
 
@@ -147,11 +127,6 @@ async fn bitcoin_cli_send_to_address(address: &str, amount: &str) -> anyhow::Res
     .run()
     .await?;
 
-    Ok(())
-}
-
-async fn cln_pay_invoice(invoice_string: &str) -> anyhow::Result<()> {
-    cmd!(LnCli, "pay", invoice_string).run().await?;
     Ok(())
 }
 
@@ -206,8 +181,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         multispend_tests::test_multispend_group_rejection,
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
-        // TODO: re-enable
-        // test_lightning_send_and_receive,
+        test_lightning_send_and_receive,
         test_ecash,
         test_ecash_overissue,
         test_on_chain,
@@ -395,17 +369,18 @@ async fn wait_for_federation_loading(
 }
 
 #[allow(dead_code)]
-async fn test_lightning_send_and_receive() -> anyhow::Result<()> {
+async fn test_lightning_send_and_receive(dev_fed: DevFed) -> anyhow::Result<()> {
     // Vec of tuple of (send_ppm, receive_ppm)
     let fee_ppm_values = vec![(0, 0), (10, 5), (100, 50)];
     for (send_ppm, receive_ppm) in fee_ppm_values {
-        test_lightning_send_and_receive_with_fedi_fees(send_ppm, receive_ppm).await?;
+        test_lightning_send_and_receive_with_fedi_fees(&dev_fed, send_ppm, receive_ppm).await?;
     }
 
     Ok(())
 }
 
 async fn test_lightning_send_and_receive_with_fedi_fees(
+    dev_fed: &DevFed,
     fedi_fees_send_ppm: u64,
     fedi_fees_receive_ppm: u64,
 ) -> anyhow::Result<()> {
@@ -432,7 +407,10 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
     )
     .await?;
 
-    cln_pay_invoice(&invoice_string).await?;
+    dev_fed
+        .gw_ldk
+        .pay_invoice(Bolt11Invoice::from_str(&invoice_string).expect("Invoice must be valid"))
+        .await?;
 
     // check for event of type transaction that has ln_state
     'check: loop {
@@ -467,19 +445,20 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 
     // get invoice
     let send_amount = Amount::from_sats(50);
-    let (invoice, label) = cli_generate_invoice(&send_amount).await?;
-    let invoice_string = invoice.to_string();
+    let invoice = dev_fed.gw_ldk.create_invoice(send_amount.msats).await?;
 
     // check balance
     payInvoice(
         federation.clone(),
-        invoice_string,
+        invoice.to_string(),
         FrontendMetadata::default(),
     )
     .await?;
 
-    // check that core-lightning got paid
-    cln_wait_invoice(&label).await?;
+    dev_fed
+        .gw_ldk
+        .wait_bolt11_invoice(invoice.payment_hash().consensus_encode_to_vec())
+        .await?;
 
     // TODO shaurya unsure how to account for gateway fee when verifying fedi fee
     // amount
