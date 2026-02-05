@@ -65,9 +65,7 @@ const ChatsListSearchHeader: React.FC = () => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        container: {
-            paddingTop: 0,
-        },
+        container: {},
         leftContainer: {
             flex: 0,
         },

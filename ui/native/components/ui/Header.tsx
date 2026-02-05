@@ -2,6 +2,9 @@ import { useNavigation } from '@react-navigation/native'
 import { Header as HeaderRNE, useTheme } from '@rneui/themed'
 import React, { memo } from 'react'
 import { View, ViewStyle } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+
+import { theme as fediTheme } from '@fedi/common/constants/theme'
 
 import { reset } from '../../state/navigation'
 import { NavigationHook, TabsNavigatorParamList } from '../../types/navigation'
@@ -57,6 +60,7 @@ const Header: React.FC<HeaderProps> = memo(
         closeRoute,
     }: HeaderProps) => {
         const { theme } = useTheme()
+        const insets = useSafeAreaInsets()
         const navigation = useNavigation<NavigationHook>()
 
         // This logic allows for custom UI in the left side of the Header
@@ -112,6 +116,7 @@ const Header: React.FC<HeaderProps> = memo(
         } = theme.components.Header
         const mergedContainerStyle = {
             ...defaultContainerStyle,
+            alignItems: 'flex-end',
             borderBottomColor: transparent
                 ? 'transparent'
                 : dark
@@ -120,7 +125,7 @@ const Header: React.FC<HeaderProps> = memo(
             shadowColor: transparent
                 ? 'transparent'
                 : defaultContainerStyle.shadowColor,
-            paddingTop: theme.spacing.lg,
+            height: insets.top + theme.spacing.lg + fediTheme.sizes.md,
             ...containerStyle,
         }
 
@@ -154,6 +159,7 @@ const Header: React.FC<HeaderProps> = memo(
                     ...defaultRightContainerStyle,
                     ...rightContainerStyle,
                 }}
+                edges={['left', 'right']}
             />
         )
     },

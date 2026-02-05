@@ -88,10 +88,6 @@ const styles = (theme: Theme) =>
             gap: theme.spacing.xs,
             paddingBottom: theme.spacing.md,
         },
-        contentContainer: {
-            paddingHorizontal: theme.spacing.lg,
-            paddingBottom: theme.spacing.lg,
-        },
         headerContainer: {
             justifyContent: 'center',
             paddingHorizontal: 0,

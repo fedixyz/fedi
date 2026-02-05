@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { Text, Theme, useTheme } from '@rneui/themed'
+import { Text } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
@@ -8,11 +8,10 @@ import { NavigationHook } from '../../../types/navigation'
 import Header from '../../ui/Header'
 
 const SettingsHeader: React.FC = () => {
-    const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
 
-    const style = styles(theme)
+    const style = styles()
 
     return (
         <>
@@ -34,11 +33,9 @@ const SettingsHeader: React.FC = () => {
     )
 }
 
-const styles = (theme: Theme) =>
+const styles = () =>
     StyleSheet.create({
-        container: {
-            paddingBottom: theme.spacing.lg,
-        },
+        container: {},
     })
 
 export default SettingsHeader

@@ -6,7 +6,6 @@ import { StyleSheet, View } from 'react-native'
 
 import { NavigationHook } from '../../../types/navigation'
 import { isNightly } from '../../../utils/device-info'
-import { Column } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
@@ -27,21 +26,20 @@ const FederationsHeader: React.FC = () => {
 
     return (
         <GradientView variant="sky" style={style.container}>
-            <Column gap="xs">
-                <Header
-                    transparent
-                    containerStyle={style.headerContainer}
-                    headerLeft={
-                        <Text h2 medium>
-                            {t('words.wallets')}
-                        </Text>
-                    }
-                    headerRight={
-                        <MainHeaderButtons onAddPress={openJoinCommunity} />
-                    }
-                />
-                <TotalBalance />
-            </Column>
+            <Header
+                transparent
+                containerStyle={style.headerContainer}
+                headerLeft={
+                    <Text h2 medium>
+                        {t('words.wallets')}
+                    </Text>
+                }
+                headerRight={
+                    <MainHeaderButtons onAddPress={openJoinCommunity} />
+                }
+            />
+            <TotalBalance />
+
             {/* TODO: restore this on federations screen */}
             {/* <NetworkBanner /> */}
             {showNightlyBanner && (
@@ -59,9 +57,8 @@ const styles = (theme: Theme) =>
     StyleSheet.create({
         container: {
             paddingHorizontal: theme.spacing.lg,
-            backgroundColor: 'transparent',
             display: 'flex',
-            gap: theme.spacing.md,
+            gap: theme.spacing.xs,
             paddingBottom: theme.spacing.md,
         },
         headerContainer: {
