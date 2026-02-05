@@ -22,7 +22,6 @@ import {
 } from '../state/contexts/BackupRecoveryContext'
 import { useAppDispatch } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
-import { makeRandomTempFilePath } from '../utils/media'
 
 const log = makeLog('CompleteSocialBackup')
 
@@ -31,16 +30,16 @@ export type Props = NativeStackScreenProps<
     'CompleteSocialBackup'
 >
 
-const BACKUPS_REQUIRED = 2
+const FILE_NAME = 'backup.fedi'
 
 const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
     const appDispatch = useAppDispatch()
     const fedimint = useFedimint()
-    const [backupsCompleted, setBackupsCompleted] = useState<number>(0)
     const { dispatch } = useBackupRecoveryContext()
     const [isCreatingBackup, setIsCreatingBackup] = useState(false)
+    const [hasBackedUp, setHasBackedUp] = useState(false)
 
     const toast = useToast()
 
@@ -58,40 +57,34 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 return
             }
 
-            let shareUrl = recoveryFilePath
-
+            // Share.open does not seem to work with Android
+            // so we save the file to the Downloads directory instead
             if (Platform.OS === 'android') {
                 const destinationPath = pathJoin(
                     RNFS.DownloadDirectoryPath,
-                    'backup.fedi',
+                    FILE_NAME,
                 )
+
                 const backupContents = await RNFS.readFile(
                     recoveryFilePath,
                     'base64',
                 )
-                const { path, uri } = makeRandomTempFilePath('backup.fedi')
+
                 await RNFS.writeFile(destinationPath, backupContents, 'base64')
-                // Can't read from the `downloads` directory without special permissions
-                // so we write a temp file and then share that
-                await RNFS.writeFile(path, backupContents, 'base64')
 
                 toast.show({
                     content: t('feature.chat.saved-to-downloads'),
                     status: 'success',
                 })
-
-                shareUrl = uri
+            } else {
+                await Share.open({
+                    title: 'Fedi Backup File',
+                    url: recoveryFilePath,
+                    filename: FILE_NAME,
+                })
             }
 
-            await Share.open({
-                title: 'Fedi Backup File',
-                url: shareUrl,
-                filename: 'backup.fedi',
-            })
-
-            setBackupsCompleted(
-                Math.min(BACKUPS_REQUIRED, backupsCompleted + 1),
-            )
+            setHasBackedUp(true)
         } catch (error) {
             log.error('createBackup', error)
             toast.error(t, error)
@@ -125,12 +118,12 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                     <Button
                         fullWidth
                         title={
-                            backupsCompleted === 0
+                            !hasBackedUp
                                 ? t('feature.backup.save-file')
                                 : t('words.done')
                         }
                         onPress={() => {
-                            if (backupsCompleted === 0) {
+                            if (!hasBackedUp) {
                                 createBackup()
                             } else {
                                 dispatch(completeSocialBackup())
@@ -139,17 +132,6 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                         }}
                         loading={isCreatingBackup}
                     />
-                    {backupsCompleted > 0 && (
-                        <Button
-                            fullWidth
-                            type="clear"
-                            title={t(
-                                'feature.backup.save-your-wallet-backup-file-again',
-                            )}
-                            onPress={createBackup}
-                            loading={isCreatingBackup}
-                        />
-                    )}
                 </Column>
             </Column>
         </SafeAreaContainer>
