@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use rpc_types::communities::CommunityInviteV2;
+use rpc_types::communities::{CommunityInviteV2, RpcCommunityStatus};
 use runtime::storage::state::CommunityJson;
 
 use super::*;
@@ -52,11 +52,11 @@ pub async fn test_nostr_community_workflow(_dev_fed: DevFed) -> anyhow::Result<(
     // Fetch community should also work
     let fetched_community = bridge.nostril.fetch_community(&created_invite).await?;
     assert_eq!(
-        fetched_community.name, initial_name,
+        fetched_community.json.name, initial_name,
         "community name mismatch"
     );
     assert_eq!(
-        fetched_community.meta, initial_meta,
+        fetched_community.json.meta, initial_meta,
         "community meta mismatch"
     );
 
@@ -96,10 +96,13 @@ pub async fn test_nostr_community_workflow(_dev_fed: DevFed) -> anyhow::Result<(
     // Fetch community should also work (reflect new meta)
     let fetched_community = bridge.nostril.fetch_community(&created_invite).await?;
     assert_eq!(
-        fetched_community.name, initial_name,
+        fetched_community.json.name, initial_name,
         "community name mismatch"
     );
-    assert_eq!(fetched_community.meta, new_meta, "community meta mismatch");
+    assert_eq!(
+        fetched_community.json.meta, new_meta,
+        "community meta mismatch"
+    );
 
     fedimint_core::task::sleep_in_test("waiting before community deletion", Duration::from_secs(1))
         .await;
@@ -177,13 +180,77 @@ pub async fn test_nostr_community_preview_join_leave(_dev_fed: DevFed) -> anyhow
         .get(&invite_code.to_string())
         .unwrap()
         .clone();
-    assert!(memory_community.meta.read().await.to_owned() == app_state_community.meta);
+    assert!(memory_community.info.read().await.to_owned() == app_state_community);
 
     // Leave community
     leaveCommunity(bridge, invite_code.to_string()).await?;
 
     // No joined communities
     assert!(listCommunities(bridge).await?.is_empty());
+
+    Ok(())
+}
+
+pub async fn test_nostr_community_deletion(_dev_fed: DevFed) -> anyhow::Result<()> {
+    // Creator creates community
+    let community_name = "Nostr Test Community".to_string();
+    let community_description = "Initial description".to_string();
+    let community_meta =
+        BTreeMap::from([("description".to_string(), community_description.clone())]);
+
+    let creator = TestDevice::new();
+    let bridge_creator = creator.bridge_full().await?;
+
+    let create_payload = CommunityJson {
+        name: community_name.clone(),
+        version: 2,
+        meta: community_meta.clone(),
+    };
+    nostrCreateCommunity(bridge_creator, serde_json::to_string(&create_payload)?).await?;
+    let invite_code = nostrListOurCommunities(bridge_creator)
+        .await?
+        .into_iter()
+        .next()
+        .expect("must exist")
+        .community_invite;
+
+    // Joiner joins
+    let joiner = TestDevice::new();
+    let bridge_joiner = joiner.bridge_full().await?;
+    joinCommunity(bridge_joiner, invite_code.to_string()).await?;
+    let joined_communities = listCommunities(bridge_joiner).await?;
+    let joined_community = joined_communities
+        .first()
+        .expect("joined community must exist");
+    assert!(joined_community.name == community_name);
+    assert!(joined_community.status == RpcCommunityStatus::Active);
+
+    fedimint_core::task::sleep_in_test("waiting before community deletion", Duration::from_secs(1))
+        .await;
+
+    // Creator now marks community as deleted
+    let created_invite = CommunityInviteV2::from_str(&invite_code.to_string())?;
+    nostrDeleteCommunity(bridge_creator, created_invite.community_uuid_hex).await?;
+
+    // Creator's created communities are now empty
+    let creator_communities = nostrListOurCommunities(bridge_creator).await?;
+    assert!(creator_communities.is_empty());
+
+    // Simulate BG refresh for joiner
+    bridge_joiner.on_app_foreground();
+
+    // Soon joiner's joined community should also be marked as deleted
+    loop {
+        fedimint_core::task::sleep(Duration::from_millis(100)).await;
+        let joined_communities = listCommunities(bridge_joiner).await?;
+        let joined_community = joined_communities
+            .first()
+            .expect("joined community must exist");
+        assert!(joined_community.name == community_name);
+        if joined_community.status == RpcCommunityStatus::Deleted {
+            break;
+        }
+    }
 
     Ok(())
 }

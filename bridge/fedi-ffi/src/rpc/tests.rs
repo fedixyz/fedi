@@ -209,6 +209,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         test_community_v2_migration,
         nostr_tests::test_nostr_community_workflow,
         nostr_tests::test_nostr_community_preview_join_leave,
+        nostr_tests::test_nostr_community_deletion,
         test_existing_device_identifier_v2_migration,
         test_nip44_encrypt_and_decrypt,
     ];
@@ -1899,7 +1900,7 @@ async fn test_preview_and_join_community(_dev_fed: DevFed) -> anyhow::Result<()>
         .get(&community_invite.to_string())
         .unwrap()
         .clone();
-    assert!(memory_community.meta.read().await.to_owned() == app_state_community.meta);
+    assert!(memory_community.info.read().await.to_owned() == app_state_community);
 
     Ok(())
 }
@@ -2019,9 +2020,9 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
         .get(&community_invite.to_string())
         .unwrap()
         .clone();
-    assert!(memory_community.meta.read().await.to_owned() == app_state_community.meta);
+    assert!(memory_community.info.read().await.to_owned() == app_state_community);
     assert!(
-        serde_json::to_value(memory_community.meta.read().await.to_owned()).unwrap()
+        serde_json::to_value(memory_community.info.read().await.to_owned().json).unwrap()
             == serde_json::from_str::<serde_json::Value>(COMMUNITY_JSON_0).unwrap()
     );
 
@@ -2052,17 +2053,17 @@ async fn test_community_meta_bg_refresh(_dev_fed: DevFed) -> anyhow::Result<()> 
             .get(&community_invite.to_string())
             .unwrap()
             .clone();
-        if memory_community.meta.read().await.to_owned() != app_state_community.meta {
+        if memory_community.info.read().await.to_owned() != app_state_community {
             continue;
         }
-        if serde_json::to_value(memory_community.meta.read().await.to_owned()).unwrap()
+        if serde_json::to_value(memory_community.info.read().await.to_owned().json).unwrap()
             == serde_json::from_str::<serde_json::Value>(COMMUNITY_JSON_0).unwrap()
         {
             continue;
         }
 
         assert!(
-            serde_json::to_value(memory_community.meta.read().await.to_owned()).unwrap()
+            serde_json::to_value(memory_community.info.read().await.to_owned().json).unwrap()
                 == serde_json::from_str::<serde_json::Value>(COMMUNITY_JSON_1).unwrap()
         );
         break;

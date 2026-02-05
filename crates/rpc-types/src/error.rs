@@ -60,6 +60,8 @@ pub enum ErrorCode {
     UnknownFederation,
     #[error("Exact notes unavailable offline and guardians unreachable")]
     OfflineExactEcashFailed,
+    #[error("Community marked as deleted by creator, cannot preview to join")]
+    CommunityDeleted,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, Clone)]

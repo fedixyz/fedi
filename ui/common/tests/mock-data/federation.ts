@@ -56,6 +56,7 @@ export const mockCommunity: Community = {
     meta: {
         pinned_message: 'pinned message',
     },
+    status: 'active',
 }
 
 const MOCK_FEDERATION_PREVIEW: RpcFederationPreview = {

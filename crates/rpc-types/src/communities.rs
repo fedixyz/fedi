@@ -6,6 +6,7 @@ use anyhow::bail;
 use bitcoin::bech32::{self, Bech32m};
 use ring::aead::{self, LessSafeKey};
 use runtime::constants::{COMMUNITY_INVITE_CODE_HRP, COMMUNITY_V2_INVITE_CODE_HRP};
+use runtime::storage::state::CommunityStatus;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use ts_rs::TS;
@@ -19,6 +20,24 @@ pub struct RpcCommunity {
     pub community_invite: RpcCommunityInvite,
     pub name: String,
     pub meta: BTreeMap<String, String>,
+    pub status: RpcCommunityStatus,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RpcCommunityStatus {
+    Active,
+    Deleted,
+}
+
+impl From<CommunityStatus> for RpcCommunityStatus {
+    fn from(value: CommunityStatus) -> Self {
+        match value {
+            CommunityStatus::Active => Self::Active,
+            CommunityStatus::Deleted => Self::Deleted,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, TS, PartialEq, Eq)]

@@ -12,7 +12,7 @@ use nostr_sdk::{
 };
 use rand::RngCore;
 use rpc_types::communities::{
-    CommunityInviteV2, RawChaCha20Poly1305Key, RpcCommunity, RpcCommunityInvite,
+    CommunityInviteV2, RawChaCha20Poly1305Key, RpcCommunity, RpcCommunityInvite, RpcCommunityStatus,
 };
 use rpc_types::nostril::{RpcNostrPubkey, RpcNostrSecret};
 use runtime::bridge_runtime::Runtime;
@@ -20,7 +20,7 @@ use runtime::constants::{
     NOSTR_CHILD_ID, NOSTR_COMMUNITY_CREATION_EVENT_KIND, NOSTR_COMMUNITY_STATUS_DELETED,
     NOSTR_COMMUNITY_STATUS_TAG,
 };
-use runtime::storage::state::CommunityJson;
+use runtime::storage::state::{CommunityInfo, CommunityJson, CommunityStatus};
 use tracing::{error, info, warn};
 
 pub struct Nostril {
@@ -221,7 +221,7 @@ impl Nostril {
                     event.tags.find(TagKind::custom(NOSTR_COMMUNITY_STATUS_TAG))
                     && status_tag.content() == Some(NOSTR_COMMUNITY_STATUS_DELETED)
                 {
-                    info!(?event, "Community marked deleting, skipping");
+                    info!(?event, "Community marked deleted, skipping");
                     return None;
                 }
 
@@ -251,6 +251,7 @@ impl Nostril {
                     }),
                     name: community.name,
                     meta: community.meta,
+                    status: RpcCommunityStatus::Active,
                 })
             })
             .collect())
@@ -315,7 +316,7 @@ impl Nostril {
     pub async fn fetch_community(
         &self,
         invite: &CommunityInviteV2,
-    ) -> anyhow::Result<CommunityJson> {
+    ) -> anyhow::Result<CommunityInfo> {
         let Some(client) = &self.client else {
             anyhow::bail!("nostr client feature flag is not enabled");
         };
@@ -336,7 +337,20 @@ impl Nostril {
             bail!("No community event found for the given invite code");
         };
 
-        Self::event_content_to_community_json(&first_event.content, &invite.decryption_key)
+        let status = if let Some(status_tag) = first_event
+            .tags
+            .find(TagKind::custom(NOSTR_COMMUNITY_STATUS_TAG))
+            && status_tag.content() == Some(NOSTR_COMMUNITY_STATUS_DELETED)
+        {
+            CommunityStatus::Deleted
+        } else {
+            CommunityStatus::Active
+        };
+
+        let json =
+            Self::event_content_to_community_json(&first_event.content, &invite.decryption_key)?;
+
+        Ok(CommunityInfo { json, status })
     }
 
     // Given a byte slice UUID representing a community, derives a new nostr keypair
@@ -380,6 +394,16 @@ impl Nostril {
             anyhow::bail!("nostr client feature flag is not enabled");
         };
 
+        let status = if let Some(status_tag) = custom_tags
+            .iter()
+            .find(|&t| t.kind() == TagKind::custom(NOSTR_COMMUNITY_STATUS_TAG))
+            && status_tag.content() == Some(NOSTR_COMMUNITY_STATUS_DELETED)
+        {
+            RpcCommunityStatus::Deleted
+        } else {
+            RpcCommunityStatus::Active
+        };
+
         // Regarding the event tags:
         // - d tag is community UUID to remain NIP-33 compliant whilst providing an
         // easy-way to reverse lookup the derived key upon fetching.
@@ -404,6 +428,7 @@ impl Nostril {
             }),
             name: json.name,
             meta: json.meta,
+            status,
         })
     }
 

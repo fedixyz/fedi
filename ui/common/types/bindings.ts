@@ -98,7 +98,8 @@ export type ErrorCode =
   | "invalidMsEvent"
   | "recurringdMetaNotFound"
   | "unknownFederation"
-  | "offlineExactEcashFailed";
+  | "offlineExactEcashFailed"
+  | "communityDeleted";
 
 export type Event =
   | { transaction: TransactionEvent }
@@ -437,6 +438,7 @@ export type RpcCommunity = {
   communityInvite: RpcCommunityInvite;
   name: string;
   meta: { [key in string]?: string };
+  status: RpcCommunityStatus;
 };
 
 export type RpcCommunityInvite =
@@ -448,6 +450,8 @@ export type RpcCommunityInvite =
       community_uuid_hex: string;
       decryption_key: string;
     };
+
+export type RpcCommunityStatus = "active" | "deleted";
 
 export type RpcComposerDraft = {
   plainText: string;

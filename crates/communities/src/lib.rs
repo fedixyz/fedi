@@ -18,7 +18,7 @@ use runtime::bridge_runtime::Runtime;
 use runtime::constants::{COMMUNITY_V1_TO_V2_MIGRATION_KEY, FEDI_GIFT_EXCLUDED_COMMUNITIES};
 use runtime::features::FeatureCatalog;
 use runtime::storage::AppState;
-use runtime::storage::state::{CommunityInfo, CommunityJson};
+use runtime::storage::state::{CommunityInfo, CommunityJson, CommunityStatus};
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info};
 
@@ -73,17 +73,21 @@ impl Communities {
 
     pub async fn community_preview(&self, invite_code: &str) -> anyhow::Result<RpcCommunity> {
         let community_invite = CommunityInvite::from_str(invite_code)?;
-        let (up_to_date_invite, community_json) = Community::preview(
+        let (up_to_date_invite, community_info) = Community::preview(
             &community_invite,
             self.http_client.clone(),
             self.nostril.clone(),
             self.feature_catalog.community_v2_migration.is_some(),
         )
         .await?;
+        if matches!(community_info.status, CommunityStatus::Deleted) {
+            bail!(ErrorCode::CommunityDeleted);
+        }
         Ok(RpcCommunity {
             community_invite: From::from(&up_to_date_invite),
-            name: community_json.name,
-            meta: community_json.meta,
+            name: community_info.json.name,
+            meta: community_info.json.meta,
+            status: community_info.status.into(),
         })
     }
 
@@ -96,14 +100,15 @@ impl Communities {
             self.feature_catalog.community_v2_migration.is_some(),
         )
         .await?;
-        let meta = community.meta.read().await.clone();
+        let info = community.info.read().await.clone();
         let rpc_community = RpcCommunity {
-            community_invite: From::from(&community.community_invite),
-            name: meta.name.clone(),
-            meta: meta.meta.clone(),
+            community_invite: From::from(&community.invite),
+            name: info.json.name.clone(),
+            meta: info.json.meta.clone(),
+            status: info.status.clone().into(),
         };
 
-        let up_to_date_invite_code = community.community_invite.to_string();
+        let up_to_date_invite_code = community.invite.to_string();
         {
             // Verify that community has not already been joined
             let mut communities = self.communities.lock().await;
@@ -121,10 +126,9 @@ impl Communities {
         // Write to AppState
         self.app_state
             .with_write_lock(|state| {
-                state.joined_communities.insert(
-                    up_to_date_invite_code.to_owned(),
-                    CommunityInfo { meta: meta.clone() },
-                );
+                state
+                    .joined_communities
+                    .insert(up_to_date_invite_code.to_owned(), info);
 
                 // If this is not the default Fedi community
                 if FEDI_GIFT_EXCLUDED_COMMUNITIES
@@ -173,11 +177,12 @@ impl Communities {
     pub async fn list_communities(&self) -> anyhow::Result<Vec<RpcCommunity>> {
         let communities = self.communities.lock().await.clone();
         let read_futs = communities.values().map(|community| async {
-            let meta = community.meta.read().await.clone();
+            let info = community.info.read().await.clone();
             RpcCommunity {
-                community_invite: From::from(&community.community_invite),
-                name: meta.name,
-                meta: meta.meta,
+                community_invite: From::from(&community.invite),
+                name: info.json.name,
+                meta: info.json.meta,
+                status: info.status.into(),
             }
         });
         Ok(futures::future::join_all(read_futs).await)
@@ -203,10 +208,16 @@ impl Communities {
         let refresh_futs = communities.values().map(|c| {
             let this = self.clone();
             async move {
-                let old_meta = c.meta.read().await.clone();
-                let old_invite = c.community_invite.clone();
+                let old_invite = c.invite.clone();
+                let old_info = c.info.read().await.clone();
 
-                let Ok((new_invite, new_meta)) =
+                // if community is already marked as deleted, do not even attempt to refresh it
+                if matches!(old_info.status, CommunityStatus::Deleted) {
+                    info!(%old_invite, "Community marked as deleted, not refreshing");
+                    return;
+                }
+
+                let Ok((new_invite, new_info)) =
                     Community::preview(
                         &old_invite,
                         this.http_client.clone(),
@@ -228,8 +239,8 @@ impl Communities {
                 if old_invite != new_invite {
                     let mut write_lock = this.communities.lock().await;
                     let new_community = Community {
-                        community_invite: new_invite.clone(),
-                        meta: Arc::new(new_meta.clone().into()),
+                        invite: new_invite.clone(),
+                        info: Arc::new(new_info.clone().into()),
                     };
                     write_lock.insert(new_invite.to_string(), new_community);
                     write_lock.remove(&old_invite.to_string());
@@ -240,7 +251,7 @@ impl Communities {
                         .with_write_lock(|state| {
                             state
                                 .joined_communities
-                                .insert(new_invite.to_string(), CommunityInfo { meta: new_meta.clone() });
+                                .insert(new_invite.to_string(), new_info.clone());
                             state.joined_communities.remove(&old_invite.to_string());
 
                             // If FirstCommunityInviteCodeState is Unset or NeverSet, it remains
@@ -263,20 +274,21 @@ impl Communities {
                             old_invite.to_string(),
                             RpcCommunity {
                                 community_invite: From::from(&new_invite),
-                                name: new_meta.name,
-                                meta: new_meta.meta
+                                name: new_info.json.name,
+                                meta: new_info.json.meta,
+                                status: new_info.status.into(),
                             }
                         )
                     );
-                } else if old_meta != new_meta {
-                    // Otherwise if only the meta changed, update it in memory and in AppState
-                    *c.meta.write().await = new_meta.clone();
+                } else if old_info != new_info {
+                    // Otherwise if only the json or status changed, update it in memory and in AppState
+                    *c.info.write().await = new_info.clone();
                     let _ = this
                         .app_state
                         .with_write_lock(|state| {
                             state.joined_communities.insert(
                                 old_invite.to_string(),
-                                CommunityInfo { meta: new_meta.clone() }
+                                new_info.clone(),
                             )
                         })
                         .await
@@ -289,8 +301,9 @@ impl Communities {
                         .event_sink
                         .typed_event(&Event::community_metadata_updated(RpcCommunity {
                             community_invite: From::from(&old_invite),
-                            name: new_meta.name,
-                            meta: new_meta.meta,
+                            name: new_info.json.name,
+                            meta: new_info.json.meta,
+                            status: new_info.status.into(),
                         }));
                 }
             }
@@ -304,10 +317,10 @@ impl Communities {
 /// such as chat, mods, npub-related features.
 #[derive(Clone)]
 pub struct Community {
-    pub community_invite: CommunityInvite,
-    /// Meta is an RwLock since most of the time we'll be reading it but
+    pub invite: CommunityInvite,
+    /// Info is an RwLock since most of the time we'll be reading it but
     /// occasionally we might update it if the remote data changes.
-    pub meta: Arc<RwLock<CommunityJson>>,
+    pub info: Arc<RwLock<CommunityInfo>>,
 }
 
 impl Community {
@@ -320,7 +333,7 @@ impl Community {
         http_client: reqwest::Client,
         nostril: Arc<Nostril>,
         v2_migration_enabled: bool,
-    ) -> anyhow::Result<(CommunityInvite, CommunityJson)> {
+    ) -> anyhow::Result<(CommunityInvite, CommunityInfo)> {
         // Start with a local clone for loop mutation
         let mut invite = community_invite.clone();
         loop {
@@ -355,10 +368,16 @@ impl Community {
                         );
                         continue;
                     }
-                    return Ok((invite, v1_community_json));
+                    return Ok((
+                        invite,
+                        CommunityInfo {
+                            json: v1_community_json,
+                            status: CommunityStatus::Active,
+                        },
+                    ));
                 }
                 CommunityInvite::V2(community_invite_v2) => {
-                    let v2_community_json = fedimint_core::task::timeout(
+                    let v2_fetched_community = fedimint_core::task::timeout(
                         Duration::from_secs(60),
                         fedimint_core::util::retry(
                             "fetch community meta",
@@ -368,7 +387,7 @@ impl Community {
                     )
                     .await??;
 
-                    return Ok((invite, v2_community_json));
+                    return Ok((invite, v2_fetched_community));
                 }
             }
         }
@@ -382,22 +401,25 @@ impl Community {
         nostril: Arc<Nostril>,
         v2_migration_enabled: bool,
     ) -> anyhow::Result<Self> {
-        let (up_to_date_invite, community_json) =
+        let (up_to_date_invite, community_info) =
             Self::preview(community_invite, http_client, nostril, v2_migration_enabled).await?;
-        let meta = RwLock::new(community_json).into();
+        if matches!(community_info.status, CommunityStatus::Deleted) {
+            bail!(ErrorCode::CommunityDeleted);
+        }
+        let info = RwLock::new(community_info).into();
         Ok(Community {
-            community_invite: up_to_date_invite,
-            meta,
+            invite: up_to_date_invite,
+            info,
         })
     }
 
     /// Uses the provided CommunityJson meta to construct a Community object and
     /// returns it.
     pub fn from_local_meta(invite_code: &str, info: CommunityInfo) -> anyhow::Result<Self> {
-        let community_invite = CommunityInvite::from_str(invite_code)?;
+        let invite = CommunityInvite::from_str(invite_code)?;
         Ok(Community {
-            community_invite,
-            meta: RwLock::new(info.meta).into(),
+            invite,
+            info: RwLock::new(info).into(),
         })
     }
 }

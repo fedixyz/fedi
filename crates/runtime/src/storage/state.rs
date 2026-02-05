@@ -333,7 +333,14 @@ pub struct CommunityInfo {
     /// fetched from server. We keep this in AppState so we can
     /// reload from disk on app restart, and also to be able to diff
     /// and notify the front-end in case of any updates.
-    pub meta: CommunityJson,
+    #[serde(rename = "meta")]
+    pub json: CommunityJson,
+
+    /// When the creator of the community has deleted it, the status is set to
+    /// Deleted. Deleted communities are treated as "archived". They are never
+    /// updated again, and exist locally until the user leaves it.
+    #[serde(default)]
+    pub status: CommunityStatus,
 }
 
 /// When fetching the Community's JSON file and deserializing it, we expect
@@ -346,6 +353,16 @@ pub struct CommunityJson {
     pub version: u32,
     #[serde(flatten)]
     pub meta: BTreeMap<String, String>,
+}
+
+// If a v2 community has been marked as deleted by the creator, we assign the
+// "Deleted" status to it. Otherwise, the status is always "Active" (including
+// for v1 communities).
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq)]
+pub enum CommunityStatus {
+    #[default]
+    Active,
+    Deleted,
 }
 
 // In order to display time-of-transaction fiat rate and currency, we need to
