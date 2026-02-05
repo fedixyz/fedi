@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Image, Platform, StyleSheet } from 'react-native'
 import RNFS from 'react-native-fs'
 import Share from 'react-native-share'
+import RNFetchBlob from 'rn-fetch-blob'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -64,12 +65,19 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
             // Share.open does not seem to work with Android
             // so we save the file to the Downloads directory instead
             if (Platform.OS === 'android') {
-                const destinationPath = pathJoin(
-                    RNFS.DownloadDirectoryPath,
+                const path = pathJoin(
+                    RNFetchBlob.fs.dirs.DownloadDir,
                     FILE_NAME,
                 )
+                RNFetchBlob.android.addCompleteDownload({
+                    title: 'backup.fedi',
+                    description: 'Fedi Backup File',
+                    path,
+                    showNotification: true,
+                    mime: 'application/octet-stream',
+                })
 
-                log.info('Downloading file to', destinationPath)
+                log.info('Downloading file to', path)
 
                 const backupContents = await RNFS.readFile(
                     recoveryFilePath,
@@ -80,11 +88,11 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                     'Backup Contents Base64 (first 128 chars):',
                     backupContents.slice(0, 128),
                 )
-                log.info('Writing to destination file', destinationPath)
+                log.info('Writing to destination file')
 
-                await RNFS.writeFile(destinationPath, backupContents, 'base64')
+                await RNFS.writeFile(path, backupContents, 'base64')
 
-                log.info('Wrote to destination file', destinationPath)
+                log.info('Wrote to destination file')
 
                 toast.show({
                     content: t('feature.chat.saved-to-downloads'),
