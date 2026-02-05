@@ -50,6 +50,10 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 locateRecoveryFile(fedimint),
             ).unwrap()
 
+            log.info('--- Download Social Backup File ---', recoveryFilePath)
+            log.info(`OS: ${Platform.OS}`)
+            log.info('recoveryFilePath', recoveryFilePath)
+
             const exists = await RNFS.exists(recoveryFilePath)
 
             if (!recoveryFilePath || !exists) {
@@ -65,24 +69,38 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                     FILE_NAME,
                 )
 
+                log.info('Downloading file to', destinationPath)
+
                 const backupContents = await RNFS.readFile(
                     recoveryFilePath,
                     'base64',
                 )
 
+                log.info(
+                    'Backup Contents Base64 (first 128 chars):',
+                    backupContents.slice(0, 128),
+                )
+                log.info('Writing to destination file', destinationPath)
+
                 await RNFS.writeFile(destinationPath, backupContents, 'base64')
+
+                log.info('Wrote to destination file', destinationPath)
 
                 toast.show({
                     content: t('feature.chat.saved-to-downloads'),
                     status: 'success',
                 })
             } else {
+                log.info('Opening Share Dialog')
+
                 await Share.open({
                     title: 'Fedi Backup File',
                     url: recoveryFilePath,
                     filename: FILE_NAME,
                 })
             }
+
+            log.info('--- Finish social backup download ---')
 
             setHasBackedUp(true)
         } catch (error) {
