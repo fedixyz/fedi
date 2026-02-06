@@ -4,9 +4,7 @@ import i18next from 'i18next'
 import { useAcceptForeignEcash } from '../../../../hooks/chat'
 import { useObserveMatrixRoom } from '../../../../hooks/matrix'
 import {
-    checkForReceivablePayments,
     inviteUserToMatrixRoom,
-    selectFederationBalance,
     selectLastUsedFederationId,
     selectLoadedFederations,
     selectMatrixAuth,
@@ -15,11 +13,14 @@ import {
     sendMatrixPaymentPush,
     setupStore,
 } from '../../../../redux'
+import * as matrixSlice from '../../../../redux/matrix'
 import { MatrixPaymentEvent, Sats } from '../../../../types'
 import { FedimintBridge } from '../../../../utils/fedimint'
 import { isPaymentEvent } from '../../../../utils/matrix'
 import { createIntegrationTestBuilder } from '../../../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../../../utils/render'
+
+const claimMatrixPayment = jest.spyOn(matrixSlice, 'claimMatrixPayment')
 
 describe('useCreateMatrixRoom', () => {
     const builderAlice = createIntegrationTestBuilder()
@@ -45,6 +46,8 @@ describe('useCreateMatrixRoom', () => {
         const federationId = selectLastUsedFederationId(storeAlice.getState())
         const bobAuth = selectMatrixAuth(storeBob.getState())
 
+        const paymentAmountSats = 10 as Sats
+
         act(() => {
             storeAlice.dispatch(
                 inviteUserToMatrixRoom({
@@ -67,7 +70,7 @@ describe('useCreateMatrixRoom', () => {
                     federationId,
                     roomId,
                     recipientId: bobAuth?.userId as string,
-                    amount: 10 as Sats,
+                    amount: paymentAmountSats,
                 }),
             )
         })
@@ -113,22 +116,12 @@ describe('useCreateMatrixRoom', () => {
             expect(federations).toHaveLength(1)
         })
 
-        storeBob.dispatch(
-            checkForReceivablePayments({
-                fedimint: fedimintBob,
-                roomId,
-                receivedPayments: new Set(),
-            }),
-        )
-
-        // wait for the balance to be updated
         await waitFor(() => {
-            const balance = selectFederationBalance(
-                storeBob.getState(),
-                federationId,
+            expect(claimMatrixPayment).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    event: paymentEvent,
+                }),
             )
-
-            expect(balance).toBeGreaterThanOrEqual(10_000)
         })
     })
 })
