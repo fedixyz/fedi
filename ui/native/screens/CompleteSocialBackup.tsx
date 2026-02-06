@@ -9,6 +9,7 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
+import { prefixFileUri } from '@fedi/common/utils/media'
 
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
@@ -27,8 +28,6 @@ export type Props = NativeStackScreenProps<
     RootStackParamList,
     'CompleteSocialBackup'
 >
-
-const FILE_NAME = 'backup.fedi'
 
 const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
     const { t } = useTranslation()
@@ -52,8 +51,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
             // as Android for some reason doesn't resolve the promise
             Share.open({
                 title: 'Fedi Backup File',
-                url: recoveryFilePath,
-                filename: FILE_NAME,
+                url: prefixFileUri(recoveryFilePath),
             })
 
             setHasBackedUp(true)

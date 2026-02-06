@@ -42,7 +42,7 @@ const ReviewVideo = ({ onConfirmVideo }: Props) => {
                 if (!exists) throw new Error('Source video missing')
 
                 const filename = `${Math.random().toString(20)}.mp4`
-                const dest = `${RNFS.CachesDirectoryPath}/${filename}`
+                const dest = `${RNFS.TemporaryDirectoryPath}/${filename}`
 
                 await RNFS.copyFile(videoFile.path, dest)
 
