@@ -344,161 +344,183 @@ export const makeTxnStatusText = (
     // there should always be a state, but return unknown just in case
     if (!txn.state) return t('words.unknown')
 
-    const direction = getTxnDirection(txn)
-    switch (direction) {
-        case TransactionDirection.send:
-            if (txn.kind === 'lnPay') {
-                switch (txn.state?.type) {
-                    case 'created':
-                    case 'funded':
-                    case 'awaitingChange':
-                        return t('words.pending')
-                    case 'waitingForRefund':
-                        return t('phrases.refund-pending')
-                    case 'canceled':
-                    case 'failed':
-                        return t('words.failed')
-                    case 'refunded':
-                        return t('words.refunded')
-                    case 'success':
-                    default:
-                        return t('words.sent')
-                }
-            } else if (txn.kind === 'onchainWithdraw') {
-                switch (txn.state?.type) {
-                    case 'succeeded':
-                        return t('words.sent')
-                    case 'failed':
-                        return t('words.failed')
-                    default:
-                        return t('words.pending')
-                }
-            } else if (txn.kind === 'oobSend') {
-                switch (txn.state?.type) {
-                    // TODO: created txns can still be canceled or refunded within 3 days
-                    // ... figure out how to communicate this to user
-                    case 'created':
-                    case 'success':
-                        return t('words.sent')
+    switch (txn.kind) {
+        case 'lnPay':
+            switch (txn.state.type) {
+                case 'created':
+                case 'funded':
+                case 'awaitingChange':
+                    return t('words.pending')
+                case 'waitingForRefund':
+                    return t('phrases.refund-pending')
+                case 'canceled':
+                case 'failed':
+                    return t('words.failed')
+                case 'refunded':
+                    return t('words.refunded')
+                default:
+                    txn.state.type satisfies 'success'
+                    return t('words.sent')
+            }
+        case 'onchainWithdraw':
+            switch (txn.state.type) {
+                case 'succeeded':
+                    return t('words.sent')
+                case 'failed':
+                    return t('words.failed')
+                default:
+                    txn.state.type satisfies 'created'
+                    return t('words.pending')
+            }
+        case 'oobSend':
+            // TODO: created txns can still be canceled or refunded within 3 days
+            // ... figure out how to communicate this to user
+            switch (txn.state.type) {
+                case 'refunded':
+                    return t('words.refunded')
+                case 'userCanceledSuccess':
+                    return t('words.canceled')
+                case 'userCanceledProcessing':
+                    return t('words.pending')
+                default:
                     // if a cancel fails it must have been claimed by recipient aka sent successfully
-                    case 'userCanceledFailure':
-                        return t('words.sent')
-                    case 'refunded':
-                        return t('words.refunded')
-                    case 'userCanceledSuccess':
-                        return t('words.canceled')
-                    case 'userCanceledProcessing':
-                        return t('words.pending')
-                    default:
-                        return ''
-                }
-            } else if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
-                switch (txn.state?.type) {
-                    case 'pendingDeposit':
-                        return t('words.pending')
-                    case 'completeDeposit':
-                    case 'completedDeposit':
-                        return t('words.deposit')
-                    // TODO+TEST: Cover test cases for failedDeposit and dataNotInCache
-                    default:
-                        return t('words.deposit')
-                }
-            } else if (
-                txn.kind === 'sPV2TransferOut' &&
-                isMultispendTransfer(txn)
-            ) {
-                return t('words.deposit')
-            } else {
-                return t('words.sent')
+                    txn.state.type satisfies
+                        | 'userCanceledFailure'
+                        | 'created'
+                        | 'success'
+                    return t('words.sent')
             }
-        case TransactionDirection.receive:
-            if (txn.kind === 'lnReceive') {
-                switch (txn.state?.type) {
-                    case 'created':
-                    case 'waitingForPayment':
-                    case 'funded':
-                    case 'awaitingFunds':
-                        return t('words.pending')
-                    case 'canceled':
-                        return t('words.expired')
-                    case 'claimed':
-                        return t('words.received')
-                    default:
-                        return t('words.pending')
-                }
-            } else if (txn.kind === 'lnRecurringdReceive') {
-                switch (txn.state?.type) {
-                    case 'waitingForPayment':
-                    case 'funded':
-                    case 'awaitingFunds':
-                        // TODO: fix bug in fedimint where payments get stuck
-                        // in the created state despite being settled.
-                        // case 'created':
-                        return t('words.pending')
-                    case 'canceled':
-                        return t('words.expired')
-                    // TODO+TEST: Figure out which 'bug' this is in reference to + remove?
-                    case 'created': // Remove this once bug is fixed
-                    case 'claimed':
-                        return t('words.received')
-                    default:
-                        return t('words.pending')
-                }
-            } else if (txn.kind === 'onchainDeposit') {
-                switch (txn.state?.type) {
-                    case 'waitingForTransaction':
-                        return t('phrases.address-created')
-                    case 'waitingForConfirmation':
-                    case 'confirmed':
-                        return t('words.pending')
-                    case 'claimed':
-                        return t('words.received')
-                    case 'failed':
-                        return t('words.failed')
-                    default:
-                        return t('words.pending')
-                }
-            } else if (
-                txn.kind === 'spWithdraw' ||
-                txn.kind === 'sPV2Withdrawal'
-            ) {
-                switch (txn.state?.type) {
-                    // TODO: Currently there's case where a withdrawal can get stuck in pending.
-                    // This should be alleviated by 1. using withdrawalAll when dust is left
-                    // and 2. preventing the user from submitting all failure cases OR the bridge
-                    // distinguishing between failed and dataNotInCache.
-                    case 'dataNotInCache':
-                    case 'pendingWithdrawal':
-                        return t('words.pending')
-                    // TODO+TEST: Cover test cases for failedWithdrawal
-                    default:
-                        return t('words.withdrawal')
-                }
-            } else if (txn.kind === 'oobReceive') {
-                switch (txn.state?.type) {
-                    case 'created':
-                    case 'issuing':
-                        return t('words.pending')
-                    case 'done':
-                        return t('words.complete')
-                    case 'failed':
-                        return t('words.failed')
-                    default:
-                        return ''
-                }
-                // TODO+TEST: Cover test cases for other multispend transactions
-            } else if (
-                txn.kind === 'sPV2TransferIn' &&
-                isMultispendTransfer(txn)
-            ) {
+        case 'spDeposit':
+        case 'sPV2Deposit':
+            switch (txn.state.type) {
+                case 'completeDeposit':
+                case 'completedDeposit':
+                    return t('words.deposit')
+                case 'failedDeposit':
+                    return t('words.failed')
+                default:
+                    txn.state.type satisfies 'dataNotInCache' | 'pendingDeposit'
+                    return t('words.pending')
+            }
+        case 'sPV2TransferOut':
+            switch (txn.state.type) {
+                case 'completedTransfer':
+                    switch (txn.state.kind) {
+                        case 'multispend':
+                            return t('words.deposit')
+                        case 'matrixSpTransfer':
+                        case 'spTransferUi':
+                            return t('words.sent')
+                        default:
+                            txn.state.kind satisfies 'unknown'
+                            return t('words.unknown')
+                    }
+                default:
+                    txn.state.type satisfies 'dataNotInCache'
+                    return t('words.pending')
+            }
+        case 'lnReceive':
+            switch (txn.state.type) {
+                case 'canceled':
+                    return t('words.expired')
+                case 'claimed':
+                    return t('words.received')
+                default:
+                    txn.state.type satisfies
+                        | 'created'
+                        | 'waitingForPayment'
+                        | 'funded'
+                        | 'awaitingFunds'
+                    return t('words.pending')
+            }
+        case 'lnRecurringdReceive':
+            switch (txn.state.type) {
+                case 'waitingForPayment':
+                case 'funded':
+                case 'awaitingFunds':
+                    // TODO: fix bug in fedimint where payments get stuck
+                    // in the created state despite being settled.
+                    // case 'created':
+                    return t('words.pending')
+                case 'canceled':
+                    return t('words.expired')
+                // TODO+TEST: Figure out which 'bug' this is in reference to + remove?
+                case 'created': // Remove this once bug is fixed
+                case 'claimed':
+                    return t('words.received')
+                default:
+                    return t('words.pending')
+            }
+        case 'onchainDeposit':
+            switch (txn.state.type) {
+                case 'waitingForTransaction':
+                    return t('phrases.address-created')
+                case 'claimed':
+                    return t('words.received')
+                case 'failed':
+                    return t('words.failed')
+                default:
+                    txn.state.type satisfies
+                        | 'waitingForConfirmation'
+                        | 'confirmed'
+                    return t('words.pending')
+            }
+        case 'spWithdraw':
+        case 'sPV2Withdrawal':
+            switch (txn.state.type) {
+                // TODO: Currently there's case where a withdrawal can get stuck in pending.
+                // This should be alleviated by 1. using withdrawalAll when dust is left
+                // and 2. preventing the user from submitting all failure cases OR the bridge
+                // distinguishing between failed and dataNotInCache.
+                case 'dataNotInCache':
+                case 'pendingWithdrawal':
+                    return t('words.pending')
+                case 'failedWithdrawal':
+                    return t('words.failed')
+                default:
+                    txn.state.type satisfies
+                        | 'completeWithdrawal'
+                        | 'completedWithdrawal'
+                    return t('words.withdrawal')
+            }
+        case 'oobReceive':
+            switch (txn.state.type) {
+                case 'created':
+                case 'issuing':
+                    return t('words.pending')
+                case 'done':
+                    return t('words.complete')
+                case 'failed':
+                    return t('words.failed')
+                default:
+                    return ''
+            }
+        case 'sPV2TransferIn':
+            switch (txn.state.type) {
+                case 'completedTransfer':
+                    switch (txn.state.kind) {
+                        case 'multispend':
+                            return t('words.withdrawal')
+                        default:
+                            txn.state.kind satisfies 'unknown'
+                            return t('words.unknown')
+                    }
+                default:
+                    txn.state.type satisfies 'dataNotInCache'
+                    return t('words.pending')
+            }
+        case 'multispendDeposit':
+            return t('words.deposit')
+        case 'multispendWithdrawal': {
+            const { txSubmissionStatus } = txn.state.event.withdrawalRequest
+            if (txSubmissionStatus === 'unknown') return t('words.pending')
+            else if ('accepted' in txSubmissionStatus)
                 return t('words.withdrawal')
-            } else {
-                // TODO+TEST: We should probably not fall back to a success state
-                return t('words.received')
-            }
+            return t('words.failed')
+        }
         default:
-            // TODO+TEST: we should probably not fall back to an empty string
-            return ''
+            txn satisfies never
+            return t('words.unknown')
     }
 }
 

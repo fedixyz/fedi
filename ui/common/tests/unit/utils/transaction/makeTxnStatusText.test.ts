@@ -12,6 +12,7 @@ import {
     makeTestSPV2DepositState,
     makeTestSPV2WithdrawalState,
     makeTestSPWithdrawalState,
+    makeTestMultispendWithdrawalEventData,
 } from '../../../utils/transaction'
 
 describe('makeTxnStatusText', () => {
@@ -287,23 +288,20 @@ describe('makeTxnStatusText', () => {
             const spDepositPending = makeTestTxnEntry('spDeposit', {
                 state: makeTestSPDepositState('pendingDeposit'),
             })
+            const spDepositDataNotInCache = makeTestTxnEntry('spDeposit', {
+                state: makeTestSPDepositState('dataNotInCache'),
+            })
+            const spDepositComplete = makeTestTxnEntry('spDeposit', {
+                state: makeTestSPDepositState('completeDeposit'),
+            })
 
             expect(makeTxnStatusText(t, spDepositPending)).toBe(
                 t('words.pending'),
             )
-
-            const spDepositComplete = makeTestTxnEntry('spDeposit', {
-                state: makeTestSPDepositState('completeDeposit'),
-            })
-            const spDepositDataNotInCache = makeTestTxnEntry('spDeposit', {
-                state: makeTestSPDepositState('dataNotInCache'),
-            })
-
-            expect(makeTxnStatusText(t, spDepositComplete)).toBe(
-                t('words.deposit'),
-            )
-            // TODO:TEST: This should NOT be the case
             expect(makeTxnStatusText(t, spDepositDataNotInCache)).toBe(
+                t('words.pending'),
+            )
+            expect(makeTxnStatusText(t, spDepositComplete)).toBe(
                 t('words.deposit'),
             )
         })
@@ -312,30 +310,27 @@ describe('makeTxnStatusText', () => {
             const spv2DepositPending = makeTestTxnEntry('sPV2Deposit', {
                 state: makeTestSPV2DepositState('pendingDeposit'),
             })
-
-            expect(makeTxnStatusText(t, spv2DepositPending)).toBe(
-                t('words.pending'),
-            )
-
+            const spv2DepositDataNotInCache = makeTestTxnEntry('sPV2Deposit', {
+                state: makeTestSPV2DepositState('dataNotInCache'),
+            })
             const spv2DepositComplete = makeTestTxnEntry('sPV2Deposit', {
                 state: makeTestSPV2DepositState('completedDeposit'),
             })
             const spv2DepositFailed = makeTestTxnEntry('sPV2Deposit', {
                 state: makeTestSPV2DepositState('failedDeposit'),
             })
-            const spv2DepositDataNotInCache = makeTestTxnEntry('sPV2Deposit', {
-                state: makeTestSPV2DepositState('dataNotInCache'),
-            })
 
+            expect(makeTxnStatusText(t, spv2DepositPending)).toBe(
+                t('words.pending'),
+            )
+            expect(makeTxnStatusText(t, spv2DepositDataNotInCache)).toBe(
+                t('words.pending'),
+            )
             expect(makeTxnStatusText(t, spv2DepositComplete)).toBe(
                 t('words.deposit'),
             )
-            // TODO:TEST: This should NOT be the case
             expect(makeTxnStatusText(t, spv2DepositFailed)).toBe(
-                t('words.deposit'),
-            )
-            expect(makeTxnStatusText(t, spv2DepositDataNotInCache)).toBe(
-                t('words.deposit'),
+                t('words.failed'),
             )
         })
 
@@ -381,9 +376,8 @@ describe('makeTxnStatusText', () => {
             expect(makeTxnStatusText(t, spv2WithdrawalDataNotInCache)).toBe(
                 t('words.pending'),
             )
-            // TODO:TEST: This should NOT be the case - Need to properly handle failed state
             expect(makeTxnStatusText(t, spv2WithdrawalFailed)).toBe(
-                t('words.withdrawal'),
+                t('words.failed'),
             )
         })
 
@@ -400,6 +394,46 @@ describe('makeTxnStatusText', () => {
 
             expect(makeTxnStatusText(t, spv2TransferOutPending)).toBe(
                 t('words.sent'),
+            )
+        })
+
+        it('multispendDeposit', () => {
+            const multispendDepositPending =
+                makeTestTxnEntry('multispendDeposit')
+
+            expect(makeTxnStatusText(t, multispendDepositPending)).toBe(
+                t('words.deposit'),
+            )
+        })
+
+        it('multispendWithdrawal', () => {
+            const multispendWithdrawalPending = makeTestTxnEntry(
+                'multispendWithdrawal',
+                {
+                    state: makeTestMultispendWithdrawalEventData('unknown'),
+                },
+            )
+            const multispendWithdrawalAccepted = makeTestTxnEntry(
+                'multispendWithdrawal',
+                {
+                    state: makeTestMultispendWithdrawalEventData('accepted'),
+                },
+            )
+            const multispendWithdrawalRejected = makeTestTxnEntry(
+                'multispendWithdrawal',
+                {
+                    state: makeTestMultispendWithdrawalEventData('rejected'),
+                },
+            )
+
+            expect(makeTxnStatusText(t, multispendWithdrawalPending)).toBe(
+                t('words.pending'),
+            )
+            expect(makeTxnStatusText(t, multispendWithdrawalAccepted)).toBe(
+                t('words.withdrawal'),
+            )
+            expect(makeTxnStatusText(t, multispendWithdrawalRejected)).toBe(
+                t('words.failed'),
             )
         })
     })
