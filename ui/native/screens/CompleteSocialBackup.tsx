@@ -2,16 +2,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, Platform, StyleSheet } from 'react-native'
-import RNFS from 'react-native-fs'
+import { Image, StyleSheet } from 'react-native'
 import Share from 'react-native-share'
-import RNFetchBlob from 'rn-fetch-blob'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import { locateRecoveryFile } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
-import { pathJoin } from '@fedi/common/utils/media'
 
 import { Images } from '../assets/images'
 import { Column } from '../components/ui/Flex'
@@ -51,64 +48,13 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                 locateRecoveryFile(fedimint),
             ).unwrap()
 
-            log.info('--- Download Social Backup File ---', recoveryFilePath)
-            log.info(`OS: ${Platform.OS}`)
-            log.info('recoveryFilePath', recoveryFilePath)
-
-            const exists = await RNFS.exists(recoveryFilePath)
-
-            if (!recoveryFilePath || !exists) {
-                log.error('No recovery file found')
-                return
-            }
-
-            // Share.open does not seem to work with Android
-            // so we save the file to the Downloads directory instead
-            if (Platform.OS === 'android') {
-                const path = pathJoin(
-                    RNFetchBlob.fs.dirs.DownloadDir,
-                    FILE_NAME,
-                )
-                RNFetchBlob.android.addCompleteDownload({
-                    title: 'backup.fedi',
-                    description: 'Fedi Backup File',
-                    path,
-                    showNotification: true,
-                    mime: 'application/octet-stream',
-                })
-
-                log.info('Downloading file to', path)
-
-                const backupContents = await RNFS.readFile(
-                    recoveryFilePath,
-                    'base64',
-                )
-
-                log.info(
-                    'Backup Contents Base64 (first 128 chars):',
-                    backupContents.slice(0, 128),
-                )
-                log.info('Writing to destination file')
-
-                await RNFS.writeFile(path, backupContents, 'base64')
-
-                log.info('Wrote to destination file')
-
-                toast.show({
-                    content: t('feature.chat.saved-to-downloads'),
-                    status: 'success',
-                })
-            } else {
-                log.info('Opening Share Dialog')
-
-                await Share.open({
-                    title: 'Fedi Backup File',
-                    url: recoveryFilePath,
-                    filename: FILE_NAME,
-                })
-            }
-
-            log.info('--- Finish social backup download ---')
+            // Deliberately avoid awaiting Share.open
+            // as Android for some reason doesn't resolve the promise
+            Share.open({
+                title: 'Fedi Backup File',
+                url: recoveryFilePath,
+                filename: FILE_NAME,
+            })
 
             setHasBackedUp(true)
         } catch (error) {
@@ -146,7 +92,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                         title={
                             !hasBackedUp
                                 ? t('feature.backup.save-file')
-                                : t('words.done')
+                                : t('words.continue')
                         }
                         onPress={() => {
                             if (!hasBackedUp) {
