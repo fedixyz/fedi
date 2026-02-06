@@ -64,7 +64,7 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
             log.info('Sharing file from URL', shareUrl)
 
-            Share.open({
+            await Share.open({
                 title: 'Fedi Backup File',
                 url: prefixFileUri(shareUrl),
                 type: '*/*',
