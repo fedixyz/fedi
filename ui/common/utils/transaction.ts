@@ -1189,136 +1189,137 @@ export const isMultispendTransfer = (txn: TransactionListEntry) => {
 }
 
 export function shouldShowAskFedi(txn: TransactionListEntry): boolean {
-    const direction = getTxnDirection(txn)
+    // Show the "Ask Fedi" button if the txn has no state (should not happen)
+    if (!txn.state) return true
 
-    switch (direction) {
-        /* ------------------------------------------------------------------
-         *  SEND-side flows
-         * ------------------------------------------------------------------ */
-        case TransactionDirection.send: {
-            if (txn.kind === 'lnPay') {
-                switch (txn.state?.type) {
-                    case 'created':
-                    case 'funded':
-                    case 'awaitingChange':
-                    case 'waitingForRefund':
-                    case 'canceled':
-                    case 'failed':
-                    case 'refunded':
-                        return true
-                    // TODO+TEST: Should we hide the button for if `txn.state.type` is undefined?
-                    // We should either use a whitelist of success states or just handle all states to avoid confusion
-                    default:
-                        return false
-                }
+    switch (txn.kind) {
+        case 'lnPay':
+            switch (txn.state.type) {
+                case 'success':
+                    return false
+                default:
+                    txn.state.type satisfies
+                        | 'created'
+                        | 'canceled'
+                        | 'funded'
+                        | 'waitingForRefund'
+                        | 'awaitingChange'
+                        | 'refunded'
+                        | 'failed'
+                    return true
             }
-
-            if (txn.kind === 'onchainWithdraw') {
-                switch (txn.state?.type) {
-                    case 'succeeded':
-                        return false
-                    case 'failed':
-                    default:
-                        return true
-                }
+        case 'lnReceive':
+        case 'lnRecurringdReceive':
+            switch (txn.state.type) {
+                case 'claimed':
+                    return false
+                default:
+                    txn.state.type satisfies
+                        | 'created'
+                        | 'waitingForPayment'
+                        | 'canceled'
+                        | 'funded'
+                        | 'awaitingFunds'
+                    return true
             }
-
-            if (txn.kind === 'oobSend') {
-                switch (txn.state?.type) {
-                    case 'userCanceledSuccess':
-                    case 'userCanceledProcessing':
-                    case 'refunded':
-                        return true
-                    // TODO+TEST: we shouldn't hide the button if `txn.state.type` is undefined
-                    default:
-                        return false
-                }
+        case 'onchainWithdraw':
+            switch (txn.state.type) {
+                case 'succeeded':
+                    return false
+                default:
+                    txn.state.type satisfies 'created' | 'failed'
+                    return true
             }
-
-            if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
-                switch (txn.state?.type) {
-                    case 'pendingDeposit':
-                    case 'failedDeposit':
-                        return true
-                    // TODO+TEST: Need to handle `dataNotInCache` states and show the "Ask Fedi" button for those
-                    default:
-                        return false
-                }
+        case 'onchainDeposit':
+            switch (txn.state.type) {
+                case 'claimed':
+                    return false
+                default:
+                    txn.state.type satisfies
+                        | 'waitingForConfirmation'
+                        | 'waitingForTransaction'
+                        | 'confirmed'
+                        | 'failed'
+                    return true
             }
-
+        case 'oobSend':
+            switch (txn.state?.type) {
+                case 'success':
+                case 'userCanceledFailure':
+                case 'created':
+                    return false
+                default:
+                    txn.state.type satisfies
+                        | 'refunded'
+                        | 'userCanceledProcessing'
+                        | 'userCanceledSuccess'
+                    return true
+            }
+        case 'oobReceive':
+            switch (txn.state.type) {
+                case 'done':
+                    return false
+                default:
+                    txn.state.type satisfies 'created' | 'issuing' | 'failed'
+                    return true
+            }
+        case 'spDeposit':
+            switch (txn.state.type) {
+                case 'completeDeposit':
+                    return false
+                default:
+                    txn.state.type satisfies 'pendingDeposit' | 'dataNotInCache'
+                    return true
+            }
+        case 'sPV2Deposit':
+            switch (txn.state?.type) {
+                case 'completedDeposit':
+                    return false
+                default:
+                    txn.state.type satisfies
+                        | 'pendingDeposit'
+                        | 'dataNotInCache'
+                        | 'failedDeposit'
+                    return true
+            }
+        case 'spWithdraw':
+            switch (txn.state.type) {
+                case 'completeWithdrawal':
+                    return false
+                default:
+                    txn.state.type satisfies 'pendingWithdrawal'
+                    return true
+            }
+        case 'sPV2Withdrawal':
+            switch (txn.state?.type) {
+                case 'completedWithdrawal':
+                    return false
+                default:
+                    txn.state.type satisfies
+                        | 'pendingWithdrawal'
+                        | 'dataNotInCache'
+                        | 'failedWithdrawal'
+                    return true
+            }
+        case 'sPV2TransferIn':
+        case 'sPV2TransferOut':
+            switch (txn.state.type) {
+                case 'completedTransfer':
+                    return false
+                default:
+                    txn.state.type satisfies 'dataNotInCache'
+                    return true
+            }
+        case 'multispendDeposit':
             return false
+        case 'multispendWithdrawal': {
+            const { txSubmissionStatus } = txn.state.event.withdrawalRequest
+            if (txSubmissionStatus === 'unknown') return true
+            else if ('accepted' in txSubmissionStatus) return false
+            return true
         }
-
-        /* ------------------------------------------------------------------
-         *  RECEIVE-side flows
-         * ------------------------------------------------------------------ */
-        case TransactionDirection.receive: {
-            if (txn.kind === 'lnReceive') {
-                switch (txn.state?.type) {
-                    case 'canceled':
-                    case 'waitingForPayment':
-                    case 'created':
-                    case 'funded':
-                    case 'awaitingFunds':
-                        return true
-                    default:
-                        return false
-                }
-            } else if (txn.kind === 'lnRecurringdReceive') {
-                switch (txn.state?.type) {
-                    case 'canceled':
-                    case 'waitingForPayment':
-                    case 'funded':
-                    case 'awaitingFunds':
-                        // case 'created':
-                        // TODO: fix bug in fedimint where payments get stuck
-                        // in the created state despite being settled.
-                        return true
-                    default:
-                        return false
-                }
-            }
-
-            if (txn.kind === 'onchainDeposit') {
-                switch (txn.state?.type) {
-                    case 'waitingForConfirmation':
-                    case 'waitingForTransaction':
-                    case 'confirmed':
-                    case 'failed':
-                        return true
-                    default:
-                        return false
-                }
-            }
-
-            if (txn.kind === 'spWithdraw' || txn.kind === 'sPV2Withdrawal') {
-                switch (txn.state?.type) {
-                    case 'dataNotInCache':
-                    case 'pendingWithdrawal':
-                    case 'failedWithdrawal':
-                        return true
-                    default:
-                        return false
-                }
-            }
-
-            if (txn.kind === 'oobReceive') {
-                switch (txn.state?.type) {
-                    case 'created':
-                    case 'issuing':
-                    case 'failed':
-                        return true
-                    default:
-                        return false
-                }
-            }
-
-            // Fallback – any other receive kind
-            return false
-        }
-
-        //  Unknown / unexpected direction
         default:
-            return false
+            txn satisfies never
+            return true
     }
 }

@@ -11,6 +11,7 @@ import {
     makeTestSPV2DepositState,
     makeTestSPV2WithdrawalState,
     makeTestSPWithdrawalState,
+    makeTestMultispendWithdrawalEventData,
 } from '../../../utils/transaction'
 
 describe('shouldShowAskFedi', () => {
@@ -140,9 +141,8 @@ describe('shouldShowAskFedi', () => {
         expect(shouldShowAskFedi(pendingDeposit)).toBe(true)
         expect(shouldShowAskFedi(pendingV2Deposit)).toBe(true)
         expect(shouldShowAskFedi(failedV2)).toBe(true)
-        // TODO:TEST: This should NOT be the case
-        expect(shouldShowAskFedi(notInCache)).toBe(false)
-        expect(shouldShowAskFedi(notInCacheV2)).toBe(false)
+        expect(shouldShowAskFedi(notInCache)).toBe(true)
+        expect(shouldShowAskFedi(notInCacheV2)).toBe(true)
     })
 
     it('[lightning receive] should hide the "Ask Fedi" button for a successful lightning receive', () => {
@@ -259,5 +259,27 @@ describe('shouldShowAskFedi', () => {
         expect(shouldShowAskFedi(created)).toBe(true)
         expect(shouldShowAskFedi(issuing)).toBe(true)
         expect(shouldShowAskFedi(failed)).toBe(true)
+    })
+
+    it('[multispend deposit] should hide the "Ask Fedi" button', () => {
+        const deposit = makeTestTxnEntry('multispendDeposit')
+
+        expect(shouldShowAskFedi(deposit)).toBe(false)
+    })
+
+    it('[multispend withdrawal] should show the "Ask Fedi" button for a non-successful withdrawal', () => {
+        const accepted = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('accepted'),
+        })
+        const rejected = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('rejected'),
+        })
+        const unknown = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('unknown'),
+        })
+
+        expect(shouldShowAskFedi(accepted)).toBe(false)
+        expect(shouldShowAskFedi(rejected)).toBe(true)
+        expect(shouldShowAskFedi(unknown)).toBe(true)
     })
 })
