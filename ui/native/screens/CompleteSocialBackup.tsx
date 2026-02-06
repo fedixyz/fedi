@@ -104,6 +104,17 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
                         }}
                         loading={isCreatingBackup}
                     />
+                    {hasBackedUp && (
+                        <Button
+                            fullWidth
+                            type="clear"
+                            title={t(
+                                'feature.backup.save-your-wallet-backup-file-again',
+                            )}
+                            onPress={createBackup}
+                            loading={isCreatingBackup}
+                        />
+                    )}
                 </Column>
             </Column>
         </SafeAreaContainer>
