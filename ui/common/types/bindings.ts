@@ -1228,6 +1228,10 @@ export type RpcSerializedRoomInfo = {
   isPreview: boolean;
   isPublic: boolean | null;
   roomState: RpcMatrixRoomState;
+  /**
+   * Opaque timestamp for room sorting. Higher values = more recent activity.
+   */
+  recencyStamp: number | null;
 };
 
 export type RpcSignature = string;

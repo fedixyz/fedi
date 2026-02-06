@@ -669,6 +669,9 @@ pub struct RpcSerializedRoomInfo {
     pub is_preview: bool,
     pub is_public: Option<bool>,
     pub room_state: RpcMatrixRoomState,
+    /// Opaque timestamp for room sorting. Higher values = more recent activity.
+    #[ts(type = "number | null")]
+    pub recency_stamp: Option<u64>,
 }
 
 impl RpcSerializedRoomInfo {
@@ -713,6 +716,7 @@ impl RpcSerializedRoomInfo {
                 RoomState::Knocked => RpcMatrixRoomState::Knocked,
                 RoomState::Banned => RpcMatrixRoomState::Banned,
             },
+            recency_stamp: room.recency_stamp().map(|s| s.into()),
         }
     }
 }

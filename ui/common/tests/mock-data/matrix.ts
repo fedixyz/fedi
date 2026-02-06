@@ -13,4 +13,5 @@ export const MOCK_MATRIX_ROOM: MatrixRoom = {
     isPublic: null,
     roomState: 'joined',
     isDirect: false,
+    recencyStamp: null,
 }

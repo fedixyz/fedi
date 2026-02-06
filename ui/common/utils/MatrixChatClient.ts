@@ -929,6 +929,7 @@ export class MatrixChatClient {
             roomState: 'invited',
             preview: null,
             isDirect: false,
+            recencyStamp: null,
         }
     }
 

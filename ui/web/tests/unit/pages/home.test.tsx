@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react'
 
 import { setupStore } from '@fedi/common/redux'
 import { mockCommunity } from '@fedi/common/tests/mock-data/federation'
-import { MatrixRoom } from '@fedi/common/types'
+import { MOCK_MATRIX_ROOM } from '@fedi/common/tests/mock-data/matrix'
 
 import i18n from '../../../src/localization/i18n'
 import HomePage from '../../../src/pages/home'
@@ -25,20 +25,11 @@ jest.mock('@fedi/common/hooks/currency.ts', () => ({
 }))
 
 const mockCommunityChat = {
+    ...MOCK_MATRIX_ROOM,
     id: 'chat-id',
     name: 'name',
     notificationCount: 1,
-    inviteCode: 'invite-code',
-    roomState: 'joined',
-    avatarUrl: null,
-    directUserId: null,
-    isMarkedUnread: false,
-    joinedMemberCount: 0,
-    preview: null,
-    isPreview: false,
-    isPublic: false,
-    isDirect: false,
-} satisfies MatrixRoom
+}
 
 describe('/pages/home', () => {
     let store: ReturnType<typeof setupStore>

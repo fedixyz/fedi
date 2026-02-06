@@ -2133,7 +2133,7 @@ export const selectMatrixRooms = createSelector(
     (s: CommonState) => s.matrix.roomInfo,
     (s: CommonState) => s.matrix.roomPowerLevels,
     (s: CommonState) => s.matrix.ignoredUsers,
-    (roomList, roomInfo, roomPowerLevels, ignoredUsers) => {
+    (roomList, roomInfo, roomPowerLevels, ignoredUsers): MatrixRoom[] => {
         const rooms: MatrixRoom[] = []
         for (const item of roomList) {
             if (!item.id) continue
@@ -2219,7 +2219,11 @@ export const selectMatrixChatsWithoutDefaultGroupPreviewsList = createSelector(
     selectMatrixRooms,
     (roomsList): MatrixRoom[] => {
         const joined = roomsList.filter(r => r.roomState === 'joined')
-        return orderBy(joined, room => room.preview?.timestamp ?? 0, 'desc')
+        return orderBy(
+            joined,
+            room => room.recencyStamp ?? Number.MAX_SAFE_INTEGER,
+            'desc',
+        )
     },
 )
 
@@ -2229,7 +2233,18 @@ export const selectMatrixChatsList = createSelector(
     (roomsList, defaultGroupsList): MatrixRoom[] => {
         // don't include rooms that we have not joined yet this should happen
         // automatically but we filter here anyway in case the join fails for some reason
-        const joinedRoomsList = roomsList.filter(r => r.roomState === 'joined')
+        const filteredRoomsList = roomsList.filter(
+            r => r.roomState === 'joined',
+        )
+        // Sort by most-recent activity first using recencyStamp from the SDK.
+        // recencyStamp applies uniformly to all room types (DMs, private
+        // groups, public groups). Rooms with no recencyStamp yet use
+        // MAX_SAFE_INTEGER so they float to the top of the list.
+        const joinedRoomsList = orderBy(
+            filteredRoomsList,
+            room => room.recencyStamp ?? Number.MAX_SAFE_INTEGER,
+            'desc',
+        )
 
         const chatList: MatrixRoom[] = []
         let i = 0 // joinedRoomsList index
@@ -2240,15 +2255,17 @@ export const selectMatrixChatsList = createSelector(
             const joinedRoom = joinedRoomsList[i]
             const defaultRoom = defaultGroupsList[j]
 
-            // If a joined room doesn't have a timestamp, (such as
-            // newly created rooms) always order it before the default group
-            const joinedTimestamp =
-                joinedRoom.preview?.timestamp ?? Number.MAX_SAFE_INTEGER
-            const defaultTimestamp = defaultRoom.preview?.timestamp ?? 0
+            // If a joined room doesn't have a recencyStamp yet, order it
+            // before default groups.
+            // Default groups use recencyStamp with 0 fallback so they
+            // appear below active user rooms.
+            const joinedStamp =
+                joinedRoom.recencyStamp ?? Number.MAX_SAFE_INTEGER
+            const defaultStamp = defaultRoom.recencyStamp ?? 0
 
             // insert each default room just before the first room with
-            // a newer (larger) timestamp
-            if (joinedTimestamp >= defaultTimestamp) {
+            // a newer (larger) stamp
+            if (joinedStamp >= defaultStamp) {
                 chatList.push(joinedRoom)
                 i++
             } else {
