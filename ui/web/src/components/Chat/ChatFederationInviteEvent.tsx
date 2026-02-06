@@ -10,9 +10,10 @@ import { MatrixEvent } from '@fedi/common/types'
 import { Button } from '../../components/Button'
 import { useCopy } from '../../hooks'
 import { styled, theme } from '../../styles'
+import { Dialog } from '../Dialog'
 import { FederationAvatar } from '../FederationAvatar'
 import { Column, Row } from '../Flex'
-import { JoinFederationDialog } from '../JoinFederationDialog'
+import FederationPreview from '../Onboarding/FederationPreview'
 import { Text } from '../Text'
 
 interface Props {
@@ -53,11 +54,6 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
 
     const handleOpenDialog = () => {
         setIsShowing(true)
-    }
-
-    const handleJoinFederation = async (recoverFromScratch?: boolean) => {
-        await handleJoin(recoverFromScratch)
-        setIsShowing(false)
     }
 
     // Fallback to simple display while loading or on error
@@ -134,16 +130,34 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
                     </ButtonRow>
                 </Column>
             </Wrapper>
-            <JoinFederationDialog
+            <Dialog
                 open={isShowing}
                 onOpenChange={setIsShowing}
-                preview={preview}
-                isJoining={isJoining}
-                onJoin={handleJoinFederation}
-            />
+                title={t('phrases.join-federation')}
+                type="tray"
+                disableClose={isJoining}>
+                <PreviewWrapper>
+                    {previewResult && (
+                        <FederationPreview
+                            onJoin={recoverFromScratch =>
+                                handleJoin(recoverFromScratch).then(() =>
+                                    setIsShowing(false),
+                                )
+                            }
+                            onBack={() => setIsShowing(false)}
+                            federation={previewResult.preview}
+                            isJoining={isJoining}
+                        />
+                    )}
+                </PreviewWrapper>
+            </Dialog>
         </>
     )
 }
+
+const PreviewWrapper = styled(Column, {
+    paddingTop: theme.spacing.lg,
+})
 
 const Wrapper = styled('div', {})
 
