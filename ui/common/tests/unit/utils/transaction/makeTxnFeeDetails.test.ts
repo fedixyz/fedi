@@ -8,7 +8,7 @@ import { renderHookWithState } from '../../../utils/render'
 import { createMockT } from '../../../utils/setup'
 import {
     makeTestFediFeeStatus,
-    makeTestRpcTxnEntry,
+    makeTestTxnEntry,
 } from '../../../utils/transaction'
 
 describe('makeTxnFeeDetails', () => {
@@ -40,11 +40,11 @@ describe('makeTxnFeeDetails', () => {
     })
 
     it('should display the fedi fee for success/pendingSend transactions', () => {
-        const txn = makeTestRpcTxnEntry('lnPay', {
+        const txn = makeTestTxnEntry('lnPay', {
             // For the sake of this test, the fedi fee is 10 sats
             fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
-        const txnPendingFee = makeTestRpcTxnEntry('lnPay', {
+        const txnPendingFee = makeTestTxnEntry('lnPay', {
             fediFeeStatus: makeTestFediFeeStatus('pendingSend', 10_000),
         })
 
@@ -67,7 +67,7 @@ describe('makeTxnFeeDetails', () => {
     })
 
     it('should display the lightning fee for lightning payment transactions', () => {
-        const txn = makeTestRpcTxnEntry('lnPay', {
+        const txn = makeTestTxnEntry('lnPay', {
             // For the sake of this test, the lightning fee is 20 sats
             lightning_fees: 20_000 as MSats,
         })
@@ -81,7 +81,7 @@ describe('makeTxnFeeDetails', () => {
     })
 
     it('should display the network fee for an onchain withdraw transaction', () => {
-        const txn = makeTestRpcTxnEntry('onchainWithdraw', {
+        const txn = makeTestTxnEntry('onchainWithdraw', {
             // For the sake of this test, the network fee is 30 sats
             onchain_fees: 30_000 as MSats,
         })
@@ -95,18 +95,18 @@ describe('makeTxnFeeDetails', () => {
     })
 
     it('should display the total fees for various transactions', () => {
-        const lnTxn = makeTestRpcTxnEntry('lnPay', {
+        const lnTxn = makeTestTxnEntry('lnPay', {
             // For the sake of this test, the fedi fee is 10 sats
             fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
             // For the sake of this test, the lightning fee is 20 sats
             lightning_fees: 20_000 as MSats,
         })
-        const onchainTxn = makeTestRpcTxnEntry('onchainWithdraw', {
+        const onchainTxn = makeTestTxnEntry('onchainWithdraw', {
             fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
             // For the sake of this test, the network fee is 30 sats
             onchain_fees: 30_000 as MSats,
         })
-        const oobTxn = makeTestRpcTxnEntry('oobSend', {
+        const oobTxn = makeTestTxnEntry('oobSend', {
             fediFeeStatus: makeTestFediFeeStatus('success', 50_000),
         })
 

@@ -9,7 +9,7 @@ import { selectMatrixRoomMultispendStatus } from '@fedi/common/redux'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import {
     getUserSuffix,
-    isWithdrawalRequestRejected,
+    isMultispendWithdrawalRejected,
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../../state/hooks'
@@ -32,7 +32,7 @@ const WithdrawalRequest: React.FC<{
         selectMatrixRoomMultispendStatus(s, roomId),
     )
 
-    useObserveMultispendEvent(event.id, roomId)
+    useObserveMultispendEvent(event.eventId, roomId)
 
     const {
         sender,
@@ -55,7 +55,7 @@ const WithdrawalRequest: React.FC<{
         } else if (
             status === 'failed' ||
             (multispendStatus &&
-                isWithdrawalRequestRejected(event, multispendStatus))
+                isMultispendWithdrawalRejected(event, multispendStatus))
         ) {
             color = theme.colors.red100
             text = t('words.failed')

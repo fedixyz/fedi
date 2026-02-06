@@ -10,8 +10,9 @@ import type {
     RpcMsgLikeKind,
     RpcMatrixPaymentStatus,
     RpcUserPowerLevel,
+    MultispendListedEvent,
+    MsEventData,
 } from './bindings'
-import { MultispendTransactionListEntry } from './fedimint'
 
 export enum MatrixSyncStatus {
     uninitialized = 'uninitialized',
@@ -257,15 +258,20 @@ export type MultispendFinalized = Extract<
     { status: 'finalized' }
 >
 
-export type MultispendWithdrawalEvent = Extract<
-    MultispendTransactionListEntry,
-    { state: 'withdrawal' }
->
+export type MultispendWithdrawalEvent = Omit<MultispendListedEvent, 'event'> & {
+    event: Extract<MsEventData, { withdrawalRequest: unknown }>
+}
 
-export type MultispendDepositEvent = Extract<
-    MultispendTransactionListEntry,
-    { state: 'deposit' }
->
+export type MultispendDepositEvent = Omit<MultispendListedEvent, 'event'> & {
+    event: Extract<MsEventData, { depositNotification: unknown }>
+}
+
+export type MultispendGroupInvitationEvent = Omit<
+    MultispendListedEvent,
+    'event'
+> & {
+    event: Extract<MsEventData, { groupInvitation: unknown }>
+}
 
 export type MultispendFilterOption =
     | 'all'
@@ -273,12 +279,6 @@ export type MultispendFilterOption =
     | 'approved'
     | 'rejected'
     | 'failed'
-
-// Extracts only the invitation events from the transaction list
-export type MultispendListedInvitationEvent = Extract<
-    MultispendTransactionListEntry,
-    { state: 'groupInvitation' }
->
 
 export type MultispendEventKind = MultispendEventContent['kind']
 

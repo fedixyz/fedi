@@ -3,7 +3,7 @@ import { useCallback, useContext } from 'react'
 
 import { FedimintContext } from '../components/FedimintProvider'
 import {
-    fetchMultispendTransactions,
+    fetchMultispendEvents,
     selectCurrency,
     selectEcashFeeSchedule,
     selectFederationStabilityPoolConfig,
@@ -43,7 +43,10 @@ import {
 import { FedimintBridge } from '../utils/fedimint'
 import {
     coerceMultispendTxn,
-    isWithdrawalRequestRejected,
+    isMultispendDepositEvent,
+    isMultispendFinancialEvent,
+    isMultispendWithdrawalEvent,
+    isMultispendWithdrawalRejected,
 } from '../utils/matrix'
 import {
     makeStabilityTxnDetailItems as makeStabilityTxnDetailItemsUtil,
@@ -254,6 +257,7 @@ export function useTxnDisplayUtils(
     }
 }
 
+// TODO: replace with `useTxnDisplayUtils` once MS transactions are handled by txn utils
 export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const { convertCentsToFormattedFiat } = useBtcFiatPrice()
     const selectedCurrency = useCommonSelector(selectCurrency)
@@ -276,8 +280,9 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const makeMultispendTxnStatusText = useCallback(
         (txn: MultispendTransactionListEntry) => {
             if (
-                multispendStatus &&
-                isWithdrawalRequestRejected(txn, multispendStatus)
+                !multispendStatus ||
+                (isMultispendWithdrawalEvent(txn.state) &&
+                    isMultispendWithdrawalRejected(txn.state, multispendStatus))
             )
                 return t('words.failed')
 
@@ -288,42 +293,34 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
 
     const makeMultispendTxnNotesText = useCallback(
         (txn: MultispendTransactionListEntry) => {
-            if (txn.state === 'invalid') return t('words.unknown')
-            if (txn.state === 'deposit') {
-                return txn.event.depositNotification.description
-            }
-            if (txn.state === 'withdrawal') {
-                return txn.event.withdrawalRequest.description
-            }
-            return t('words.unknown')
+            if (isMultispendDepositEvent(txn.state))
+                return txn.state.event.depositNotification.description
+
+            return txn.state.event.withdrawalRequest.description
         },
-        [t],
+        [],
     )
 
     const makeMultispendTxnAmountText = useCallback(
         (txn: MultispendTransactionListEntry, includeCurrency = false) => {
-            if (txn.state === 'invalid') {
-                return '-'
-            }
-            if (txn.state === 'deposit') {
-                const fiatAmount = txn.event.depositNotification
+            if (isMultispendDepositEvent(txn.state)) {
+                const fiatAmount = txn.state.event.depositNotification
                     .fiatAmount as UsdCents
                 return `+${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
             }
-            if (txn.state === 'withdrawal') {
-                const isRejected = multispendStatus
-                    ? isWithdrawalRequestRejected(txn, multispendStatus)
-                    : true
-                const hasFailed =
-                    txn.event.withdrawalRequest.txSubmissionStatus !==
-                        'unknown' &&
-                    'rejected' in txn.event.withdrawalRequest.txSubmissionStatus
 
-                const fiatAmount = txn.event.withdrawalRequest.request
-                    .transfer_amount as UsdCents
-                return `${isRejected || hasFailed ? '' : '-'}${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
-            }
-            return '-'
+            const isRejected = multispendStatus
+                ? isMultispendWithdrawalRejected(txn.state, multispendStatus)
+                : true
+            const hasFailed =
+                txn.state.event.withdrawalRequest.txSubmissionStatus !==
+                    'unknown' &&
+                'rejected' in
+                    txn.state.event.withdrawalRequest.txSubmissionStatus
+
+            const fiatAmount = txn.state.event.withdrawalRequest.request
+                .transfer_amount as UsdCents
+            return `${isRejected || hasFailed ? '' : '-'}${convertCentsToFormattedFiat(fiatAmount, 'none')}${includeCurrency ? ` ${preferredCurrency || SupportedCurrency.USD}` : ''}`
         },
         [convertCentsToFormattedFiat, preferredCurrency, multispendStatus],
     )
@@ -342,8 +339,9 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const makeMultispendTxnAmountStateText = useCallback(
         (txn: MultispendTransactionListEntry) => {
             if (
-                multispendStatus &&
-                isWithdrawalRequestRejected(txn, multispendStatus)
+                !multispendStatus ||
+                (isMultispendWithdrawalEvent(txn.state) &&
+                    isMultispendWithdrawalRejected(txn.state, multispendStatus))
             )
                 return 'failed'
 
@@ -367,8 +365,9 @@ export function useMultispendTxnDisplayUtils(t: TFunction, roomId: RpcRoomId) {
     const makeMultispendTxnStatusBadge = useCallback(
         (txn: MultispendTransactionListEntry) => {
             if (
-                multispendStatus &&
-                isWithdrawalRequestRejected(txn, multispendStatus)
+                !multispendStatus ||
+                (isMultispendWithdrawalEvent(txn.state) &&
+                    isMultispendWithdrawalRejected(txn.state, multispendStatus))
             )
                 return 'failed'
 
@@ -468,14 +467,16 @@ export function useExportMultispendTransactions(t: TFunction) {
                 // Fetch all transactions with high limit for full export
                 const transactions =
                     (await dispatch(
-                        fetchMultispendTransactions({
+                        fetchMultispendEvents({
                             fedimint,
                             roomId: room.id,
                             limit: 10000,
                         }),
                     ).unwrap()) || []
 
-                const coercedTxns = transactions.map(coerceMultispendTxn)
+                const coercedTxns = transactions
+                    .filter(isMultispendFinancialEvent)
+                    .map(coerceMultispendTxn)
 
                 // convert room name to filename-friendly string
                 const roomName = room.name

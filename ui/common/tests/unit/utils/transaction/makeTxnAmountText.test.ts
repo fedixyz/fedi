@@ -6,7 +6,7 @@ import { useAmountFormatter, useBtcFiatPrice } from '../../../../hooks/amount'
 import { MSats, SupportedCurrency } from '../../../../types'
 import { makeTxnAmountText } from '../../../../utils/transaction'
 import { renderHookWithState } from '../../../utils/render'
-import { makeTestRpcTxnEntry } from '../../../utils/transaction'
+import { makeTestTxnEntry } from '../../../utils/transaction'
 
 describe('makeTxnAmountText', () => {
     const store = setupStore()
@@ -53,8 +53,8 @@ describe('makeTxnAmountText', () => {
     })
 
     it('should show the correct sign for transactions of different directions', () => {
-        const lnPay = makeTestRpcTxnEntry('lnPay')
-        const lnReceive = makeTestRpcTxnEntry('lnReceive')
+        const lnPay = makeTestTxnEntry('lnPay')
+        const lnReceive = makeTestTxnEntry('lnReceive')
 
         const lnPayAmount = makeTxnAmountText(
             lnPay,
@@ -82,7 +82,7 @@ describe('makeTxnAmountText', () => {
     })
 
     it('should display an amount in sats and fiat', () => {
-        const txn = makeTestRpcTxnEntry('lnPay', {
+        const txn = makeTestTxnEntry('lnPay', {
             amount: 10000000 as MSats,
         })
         const amountSats = makeTxnAmountText(
@@ -111,7 +111,7 @@ describe('makeTxnAmountText', () => {
     })
 
     it('should flip the sign', () => {
-        const txn = makeTestRpcTxnEntry('lnPay', {
+        const txn = makeTestTxnEntry('lnPay', {
             amount: 10000000 as MSats,
         })
         const amount = makeTxnAmountText(
@@ -140,7 +140,7 @@ describe('makeTxnAmountText', () => {
     })
 
     it('should include the currency', () => {
-        const txn = makeTestRpcTxnEntry('lnPay', {
+        const txn = makeTestTxnEntry('lnPay', {
             amount: 10000000 as MSats,
         })
         const withCurrency = makeTxnAmountText(
@@ -197,7 +197,7 @@ describe('makeTxnAmountText', () => {
         convertSatsToFormattedFiat =
             btcFiatPriceResult.current.convertSatsToFormattedFiat
 
-        const txn = makeTestRpcTxnEntry('lnPay', {
+        const txn = makeTestTxnEntry('lnPay', {
             amount: 10000000 as MSats,
         })
         const amount = makeTxnAmountText(

@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next'
 
 import { MatrixMultispendEvent } from '@fedi/common/types'
 import {
-    isMultispendDepositEvent,
+    isMatrixMultispendDepositEvent,
+    isMatrixMultispendWithdrawalEvent,
     isMultispendInvitationEvent,
-    isMultispendWithdrawalRequestEvent,
 } from '@fedi/common/utils/matrix'
 
 import MultispendDepositEvent from './MultispendDepositEvent'
@@ -22,9 +22,9 @@ const ChatMultispendEvent: React.FC<Props> = ({ event }) => {
 
     if (isMultispendInvitationEvent(event)) {
         return <MultispendInvitationEvent event={event} />
-    } else if (isMultispendDepositEvent(event)) {
+    } else if (isMatrixMultispendDepositEvent(event)) {
         return <MultispendDepositEvent event={event} />
-    } else if (isMultispendWithdrawalRequestEvent(event)) {
+    } else if (isMatrixMultispendWithdrawalEvent(event)) {
         return <MultispendWithdrawalEvent event={event} />
     }
 

@@ -54,7 +54,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
     }, [fetchTransactions, t])
 
     const selectedWithdrawal = withdrawalRequests.find(
-        withdrawal => withdrawal.id === selectedWithdrawalId,
+        withdrawal => withdrawal.eventId === selectedWithdrawalId,
     )
 
     const haveIVoted = selectedWithdrawal
@@ -65,10 +65,10 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
         useCallback(
             ({ item }) => (
                 <WithdrawalRequest
-                    key={`multispend-withdrawal-request-${item.id}`}
+                    key={`multispend-withdrawal-request-${item.eventId}`}
                     roomId={roomId}
                     event={item}
-                    onSelect={() => setSelectedWithdrawalId(item.id)}
+                    onSelect={() => setSelectedWithdrawalId(item.eventId)}
                 />
             ),
             [roomId, setSelectedWithdrawalId],
@@ -106,7 +106,7 @@ const RequestList: React.FC<{ roomId: string }> = ({ roomId }) => {
                 onRefresh={fetchTransactions}
                 refreshing={isLoading}
                 keyExtractor={item =>
-                    `multispend-withdrawal-request-${item.id}`
+                    `multispend-withdrawal-request-${item.eventId}`
                 }
                 ListEmptyComponent={() => (
                     <Column center gap="md" grow style={style.emptyState}>

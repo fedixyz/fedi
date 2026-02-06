@@ -3,11 +3,10 @@ import { makeTxnDetailTitleText } from '../../../../utils/transaction'
 import { createMockT } from '../../../utils/setup'
 import {
     makeTestLnReceiveState,
-    makeTestMultispendTxnEntry,
     makeTestOnchainDepositState,
-    makeTestRpcTxnEntry,
     makeTestSPV2TransferInState,
     makeTestSPV2TransferOutState,
+    makeTestTxnEntry,
 } from '../../../utils/transaction'
 
 describe('makeTxnDetailTitleText', () => {
@@ -23,9 +22,9 @@ describe('makeTxnDetailTitleText', () => {
     })
 
     it('[lnPay, oobSend, onchainWithdraw] should return "you-sent"', () => {
-        const lnPay = makeTestRpcTxnEntry('lnPay')
-        const oobSend = makeTestRpcTxnEntry('oobSend')
-        const onchainWithdraw = makeTestRpcTxnEntry('onchainWithdraw')
+        const lnPay = makeTestTxnEntry('lnPay')
+        const oobSend = makeTestTxnEntry('oobSend')
+        const onchainWithdraw = makeTestTxnEntry('onchainWithdraw')
 
         expect(makeTxnDetailTitleText(t, lnPay)).toBe(
             t('feature.send.you-sent'),
@@ -39,40 +38,37 @@ describe('makeTxnDetailTitleText', () => {
     })
 
     it('[lnReceive, lnRecurringdReceive] should correctly determine the title based on the txn state', () => {
-        const lnReceiveClaimed = makeTestRpcTxnEntry('lnReceive', {
+        const lnReceiveClaimed = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('claimed'),
         })
-        const lnReceiveCanceled = makeTestRpcTxnEntry('lnReceive', {
+        const lnReceiveCanceled = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('canceled'),
         })
-        const lnReceiveCreated = makeTestRpcTxnEntry('lnReceive', {
+        const lnReceiveCreated = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('created'),
         })
-        const lnReceiveAwaitingFunds = makeTestRpcTxnEntry('lnReceive', {
+        const lnReceiveAwaitingFunds = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('awaitingFunds'),
         })
-        const lnReceiveWaitingForPayment = makeTestRpcTxnEntry('lnReceive', {
+        const lnReceiveWaitingForPayment = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('waitingForPayment'),
         })
-        const lnurlClaimed = makeTestRpcTxnEntry('lnRecurringdReceive', {
+        const lnurlClaimed = makeTestTxnEntry('lnRecurringdReceive', {
             state: makeTestLnReceiveState('claimed'),
         })
-        const lnurlCanceled = makeTestRpcTxnEntry('lnRecurringdReceive', {
+        const lnurlCanceled = makeTestTxnEntry('lnRecurringdReceive', {
             state: makeTestLnReceiveState('canceled'),
         })
-        const lnurlCreated = makeTestRpcTxnEntry('lnRecurringdReceive', {
+        const lnurlCreated = makeTestTxnEntry('lnRecurringdReceive', {
             state: makeTestLnReceiveState('created'),
         })
-        const lnurlWaitingForPayment = makeTestRpcTxnEntry(
-            'lnRecurringdReceive',
-            {
-                state: makeTestLnReceiveState('waitingForPayment'),
-            },
-        )
-        const lnurlFunded = makeTestRpcTxnEntry('lnRecurringdReceive', {
+        const lnurlWaitingForPayment = makeTestTxnEntry('lnRecurringdReceive', {
+            state: makeTestLnReceiveState('waitingForPayment'),
+        })
+        const lnurlFunded = makeTestTxnEntry('lnRecurringdReceive', {
             state: makeTestLnReceiveState('funded'),
         })
-        const lnurlAwaitingFunds = makeTestRpcTxnEntry('lnRecurringdReceive', {
+        const lnurlAwaitingFunds = makeTestTxnEntry('lnRecurringdReceive', {
             state: makeTestLnReceiveState('awaitingFunds'),
         })
 
@@ -112,25 +108,25 @@ describe('makeTxnDetailTitleText', () => {
     })
 
     it('[onchainDeposit] should correctly determine the title based on the txn state', () => {
-        const onchainWaitingForTransaction = makeTestRpcTxnEntry(
+        const onchainWaitingForTransaction = makeTestTxnEntry(
             'onchainDeposit',
             {
                 state: makeTestOnchainDepositState('waitingForTransaction'),
             },
         )
-        const onchainClaimed = makeTestRpcTxnEntry('onchainDeposit', {
+        const onchainClaimed = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('claimed'),
         })
-        const onchainFailed = makeTestRpcTxnEntry('onchainDeposit', {
+        const onchainFailed = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('failed'),
         })
-        const onchainWaitingForConfirmation = makeTestRpcTxnEntry(
+        const onchainWaitingForConfirmation = makeTestTxnEntry(
             'onchainDeposit',
             {
                 state: makeTestOnchainDepositState('waitingForConfirmation'),
             },
         )
-        const onchainConfirmed = makeTestRpcTxnEntry('onchainDeposit', {
+        const onchainConfirmed = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('confirmed'),
         })
 
@@ -150,10 +146,10 @@ describe('makeTxnDetailTitleText', () => {
     })
 
     it('[spDeposit/spWithdraw/sPV2Deposit/sPV2Withdrawal] should correctly determine the title based on the txn state', () => {
-        const spDeposit = makeTestRpcTxnEntry('spDeposit')
-        const spWithdraw = makeTestRpcTxnEntry('spWithdraw')
-        const sPV2Deposit = makeTestRpcTxnEntry('sPV2Deposit')
-        const sPV2Withdrawal = makeTestRpcTxnEntry('sPV2Withdrawal')
+        const spDeposit = makeTestTxnEntry('spDeposit')
+        const spWithdraw = makeTestTxnEntry('spWithdraw')
+        const sPV2Deposit = makeTestTxnEntry('sPV2Deposit')
+        const sPV2Withdrawal = makeTestTxnEntry('sPV2Withdrawal')
 
         expect(makeTxnDetailTitleText(t, spDeposit)).toBe(
             t('feature.stabilitypool.you-deposited'),
@@ -170,13 +166,13 @@ describe('makeTxnDetailTitleText', () => {
     })
 
     it('[sPV2TransferIn] should determine the title based on the txn state and kind', () => {
-        const spv2TransferInCompleted = makeTestRpcTxnEntry('sPV2TransferIn', {
+        const spv2TransferInCompleted = makeTestTxnEntry('sPV2TransferIn', {
             state: makeTestSPV2TransferInState(
                 'completedTransfer',
                 'multispend',
             ),
         })
-        const spv2TransferInCompletedUnknown = makeTestRpcTxnEntry(
+        const spv2TransferInCompletedUnknown = makeTestTxnEntry(
             'sPV2TransferIn',
             {
                 state: makeTestSPV2TransferInState(
@@ -185,7 +181,7 @@ describe('makeTxnDetailTitleText', () => {
                 ),
             },
         )
-        const spv2TransferInDataNotInCache = makeTestRpcTxnEntry(
+        const spv2TransferInDataNotInCache = makeTestTxnEntry(
             'sPV2TransferIn',
             {
                 state: makeTestSPV2TransferInState(
@@ -207,7 +203,7 @@ describe('makeTxnDetailTitleText', () => {
     })
 
     it('[spv2TransferOut] should determine the title based on the txn state and kind', () => {
-        const spv2TransferOutCompletedMultispend = makeTestRpcTxnEntry(
+        const spv2TransferOutCompletedMultispend = makeTestTxnEntry(
             'sPV2TransferOut',
             {
                 state: makeTestSPV2TransferOutState(
@@ -216,7 +212,7 @@ describe('makeTxnDetailTitleText', () => {
                 ),
             },
         )
-        const spv2TransferOutCompletedMatrixSpTransfer = makeTestRpcTxnEntry(
+        const spv2TransferOutCompletedMatrixSpTransfer = makeTestTxnEntry(
             'sPV2TransferOut',
             {
                 state: makeTestSPV2TransferOutState(
@@ -225,7 +221,7 @@ describe('makeTxnDetailTitleText', () => {
                 ),
             },
         )
-        const spv2TransferOutCompletedSpTransferUi = makeTestRpcTxnEntry(
+        const spv2TransferOutCompletedSpTransferUi = makeTestTxnEntry(
             'sPV2TransferOut',
             {
                 state: makeTestSPV2TransferOutState(
@@ -234,7 +230,7 @@ describe('makeTxnDetailTitleText', () => {
                 ),
             },
         )
-        const spv2TransferOutCompletedUnknown = makeTestRpcTxnEntry(
+        const spv2TransferOutCompletedUnknown = makeTestTxnEntry(
             'sPV2TransferOut',
             {
                 state: makeTestSPV2TransferOutState(
@@ -243,7 +239,7 @@ describe('makeTxnDetailTitleText', () => {
                 ),
             },
         )
-        const spv2TransferOutDataNotInCache = makeTestRpcTxnEntry(
+        const spv2TransferOutDataNotInCache = makeTestTxnEntry(
             'sPV2TransferOut',
             {
                 state: makeTestSPV2TransferOutState(
@@ -252,7 +248,6 @@ describe('makeTxnDetailTitleText', () => {
                 ),
             },
         )
-
         expect(
             makeTxnDetailTitleText(t, spv2TransferOutCompletedMultispend),
         ).toBe(t('feature.stabilitypool.you-deposited'))
@@ -271,23 +266,14 @@ describe('makeTxnDetailTitleText', () => {
     })
 
     it('[multispend] should determine the title based on the txn state and kind', () => {
-        const multispendDeposit = makeTestMultispendTxnEntry('deposit')
-        const multispendWithdrawal = makeTestMultispendTxnEntry('withdrawal')
-        const multispendGroupInvitation =
-            makeTestMultispendTxnEntry('groupInvitation')
-        const multispendInvalid = makeTestMultispendTxnEntry('invalid')
+        const multispendDeposit = makeTestTxnEntry('multispendDeposit')
+        const multispendWithdrawal = makeTestTxnEntry('multispendWithdrawal')
 
         expect(makeTxnDetailTitleText(t, multispendDeposit)).toBe(
             t('feature.stabilitypool.you-deposited'),
         )
         expect(makeTxnDetailTitleText(t, multispendWithdrawal)).toBe(
             t('feature.stabilitypool.you-withdrew'),
-        )
-        expect(makeTxnDetailTitleText(t, multispendGroupInvitation)).toBe(
-            t('words.unknown'),
-        )
-        expect(makeTxnDetailTitleText(t, multispendInvalid)).toBe(
-            t('words.unknown'),
         )
     })
 })

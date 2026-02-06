@@ -1,12 +1,13 @@
 import {
     CommonTxnFields,
     MSats,
-    MultispendTransactionListEntry,
+    MultispendDepositEvent,
+    MultispendWithdrawalEvent,
+    TransactionListEntry,
 } from '../../types'
 import {
     GroupInvitationWithKeys,
     MultispendDepositEventData,
-    MultispendListedEvent,
     RpcLnPayState,
     RpcLnReceiveState,
     RpcOnchainDepositState,
@@ -20,7 +21,6 @@ import {
     RpcSPV2TransferOutState,
     RpcSPV2WithdrawalState,
     RpcSPWithdrawState,
-    RpcTransactionListEntry,
     SpV2TransferInKind,
     SpV2TransferOutKind,
     WithdrawRequestWithApprovals,
@@ -45,15 +45,16 @@ export const TEST_REASON = 'test-reason'
 export const TEST_ERROR = 'test-error'
 export const TEST_SPV2_ACCOUNT_ID = 'test-spv2-account-id'
 export const TEST_NPUB = '@npub123'
+export const TEST_EVENT_ID = 'test-event-id'
 
 /**
  * Creates an RpcTransactionListEntry of kind `T`.
  * Allows you to override any field via the `overrides` parameter.
  */
-export function makeTestRpcTxnEntry<T extends RpcTransactionListEntry['kind']>(
+export function makeTestTxnEntry<T extends TransactionListEntry['kind']>(
     kind: T,
-    overrides: Partial<Extract<RpcTransactionListEntry, { kind: T }>> = {},
-): RpcTransactionListEntry {
+    overrides: Partial<Extract<TransactionListEntry, { kind: T }>> = {},
+): TransactionListEntry {
     const baseFields: CommonTxnFields = {
         createdAt: 0,
         id: TEST_TXID,
@@ -175,68 +176,22 @@ export function makeTestRpcTxnEntry<T extends RpcTransactionListEntry['kind']>(
                 ...baseFields,
                 ...overrides,
             }
-    }
-}
-
-export function makeTestMultispendTxnEntry<
-    T extends MultispendTransactionListEntry['state'],
->(
-    state: T,
-    overrides: Partial<
-        Extract<MultispendTransactionListEntry, { state: T }>
-    > = {},
-): MultispendTransactionListEntry {
-    const baseFields: CommonTxnFields & {
-        kind: 'multispend'
-        counter: MultispendListedEvent['counter']
-        time: MultispendListedEvent['time']
-    } = {
-        kind: 'multispend',
-        counter: 0,
-        time: 0,
-        createdAt: 0,
-        id: TEST_TXID,
-        amount: 0 as MSats,
-        fediFeeStatus: null,
-        txnNotes: null,
-        txDateFiatInfo: null,
-        frontendMetadata: {
-            initialNotes: null,
-            recipientMatrixId: null,
-            senderMatrixId: null,
-        },
-        outcomeTime: null,
-    }
-
-    switch (state) {
-        case 'deposit':
+        case 'multispendDeposit':
             return {
+                kind,
+                state: makeTestMultispendDepositEventData(),
+                counter: 0,
+                time: 0,
                 ...baseFields,
-                state,
-                event: { depositNotification: makeTestDepositEventData() },
                 ...overrides,
             }
-        case 'withdrawal':
+        case 'multispendWithdrawal':
             return {
+                kind,
+                state: makeTestMultispendWithdrawalEventData('accepted'),
+                counter: 0,
+                time: 0,
                 ...baseFields,
-                state,
-                event: {
-                    withdrawalRequest:
-                        makeTestMultispendWithdrawRequest('accepted'),
-                },
-                ...overrides,
-            }
-        case 'groupInvitation':
-            return {
-                ...baseFields,
-                state,
-                event: { groupInvitation: makeTestGroupInvitationWithKeys() },
-                ...overrides,
-            }
-        case 'invalid':
-            return {
-                ...baseFields,
-                state,
                 ...overrides,
             }
     }
@@ -427,7 +382,7 @@ export function makeTestDepositEventData(): MultispendDepositEventData {
     }
 }
 
-export function makeTestMultispendWithdrawRequest(
+export function makeTestWithdrawRequestWithApprovals(
     status: 'accepted' | 'rejected' | 'unknown',
 ): WithdrawRequestWithApprovals {
     let txSubmissionStatus: WithdrawTxSubmissionStatus = 'unknown'
@@ -485,5 +440,38 @@ export function makeTestFediFeeStatus(
             return { type, fedi_fee }
         case 'failedReceive':
             return { type, fedi_fee_ppm: 0 }
+    }
+}
+
+export function makeTestMultispendDepositEventData(
+    fiatAmount: number = 0,
+    description: string = '',
+): MultispendDepositEvent {
+    return {
+        event: {
+            depositNotification: {
+                user: TEST_NPUB,
+                fiatAmount,
+                txid: TEST_TXID,
+                description,
+            },
+        },
+        eventId: TEST_EVENT_ID,
+        counter: 0,
+        time: 0,
+    }
+}
+
+export function makeTestMultispendWithdrawalEventData(
+    status: 'accepted' | 'rejected' | 'unknown',
+): MultispendWithdrawalEvent {
+    return {
+        event: {
+            withdrawalRequest: makeTestWithdrawRequestWithApprovals(status),
+        },
+        // TODO: add a mock eventId
+        eventId: TEST_EVENT_ID,
+        counter: 0,
+        time: 0,
     }
 }

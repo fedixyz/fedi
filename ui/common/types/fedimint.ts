@@ -25,12 +25,10 @@ import {
     SPv2TransferEvent,
     RpcStabilityPoolConfig,
     MultispendListedEvent,
-    MultispendDepositEventData,
-    WithdrawRequestWithApprovals,
-    GroupInvitationWithKeys,
     RpcStreamUpdate,
     CommunityMigratedToV2Event,
 } from './bindings'
+import { MultispendDepositEvent, MultispendWithdrawalEvent } from './matrix'
 import { MSats, Usd, UsdCents } from './units'
 
 export type {
@@ -62,22 +60,14 @@ export type MultispendTransactionListEntry = CommonTxnFields & {
     id: string
     counter: MultispendListedEvent['counter']
     time: MultispendListedEvent['time']
-    kind: 'multispend'
 } & (
         | {
-              state: 'deposit'
-              event: { depositNotification: MultispendDepositEventData }
+              state: MultispendDepositEvent
+              kind: 'multispendDeposit'
           }
         | {
-              state: 'withdrawal'
-              event: { withdrawalRequest: WithdrawRequestWithApprovals }
-          }
-        | {
-              state: 'invalid'
-          }
-        | {
-              state: 'groupInvitation'
-              event: { groupInvitation: GroupInvitationWithKeys }
+              state: MultispendWithdrawalEvent
+              kind: 'multispendWithdrawal'
           }
     )
 
@@ -87,15 +77,9 @@ export type MultispendTransactionListEntry = CommonTxnFields & {
 // TODO: Find a way to include the `createdAt` field in all types on the bridge.
 export type Transaction = RpcTransaction
 
-type NarrowType<
-    T extends MultispendTransactionListEntry | RpcTransactionListEntry,
-> = T extends { kind: 'multispend' }
-    ? MultispendTransactionListEntry
-    : RpcTransactionListEntry
-
-export type TransactionListEntry = NarrowType<
-    MultispendTransactionListEntry | RpcTransactionListEntry
->
+export type TransactionListEntry =
+    | MultispendTransactionListEntry
+    | RpcTransactionListEntry
 
 type TestEquals<T, K> = T extends K ? (K extends T ? true : never) : never
 

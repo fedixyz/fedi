@@ -8,7 +8,7 @@ import { renderHookWithState } from '../../../utils/render'
 import { createMockT } from '../../../utils/setup'
 import {
     makeTestFediFeeStatus,
-    makeTestRpcTxnEntry,
+    makeTestTxnEntry,
     makeTestSPDepositState,
     makeTestSPV2DepositState,
 } from '../../../utils/transaction'
@@ -42,7 +42,7 @@ describe('makeStabilityTxnDetailItems', () => {
     })
 
     it('should display the fedi fee for stability transactions', () => {
-        const txn = makeTestRpcTxnEntry('sPV2Deposit', {
+        const txn = makeTestTxnEntry('sPV2Deposit', {
             // For the sake of this test, the fedi fee is 10 sats
             fediFeeStatus: makeTestFediFeeStatus('success', 10_000),
         })
@@ -56,12 +56,12 @@ describe('makeStabilityTxnDetailItems', () => {
     })
 
     it('should display the fees paid (so far) for deposits', () => {
-        const spDeposit = makeTestRpcTxnEntry('spDeposit', {
+        const spDeposit = makeTestTxnEntry('spDeposit', {
             state: makeTestSPDepositState('completeDeposit', {
                 fees_paid_so_far: 11_000 as MSats,
             }),
         })
-        const sPV2Deposit = makeTestRpcTxnEntry('sPV2Deposit', {
+        const sPV2Deposit = makeTestTxnEntry('sPV2Deposit', {
             state: makeTestSPV2DepositState('completedDeposit', {
                 fees_paid_so_far: 12_000 as MSats,
             }),
@@ -90,7 +90,7 @@ describe('makeStabilityTxnDetailItems', () => {
     })
 
     it('should display the total fees for various stability transactions', () => {
-        const txn = makeTestRpcTxnEntry('spDeposit', {
+        const txn = makeTestTxnEntry('spDeposit', {
             state: makeTestSPDepositState('completeDeposit', {
                 fees_paid_so_far: 20_000 as MSats,
             }),

@@ -2,14 +2,16 @@ import { act } from '@testing-library/react'
 
 import { useBtcFiatPrice } from '../../../../hooks/amount'
 import { fetchCurrencyPrices, setupStore } from '../../../../redux'
+import { MultispendTransactionListEntry } from '../../../../types'
 import { makeNameWithSuffix } from '../../../../utils/matrix'
 import { makeMultispendTxnDetailItems } from '../../../../utils/transaction'
 import { mockRoomMembers } from '../../../mock-data/matrix-event'
 import { renderHookWithState } from '../../../utils/render'
 import { createMockT } from '../../../utils/setup'
 import {
-    makeTestMultispendTxnEntry,
-    makeTestMultispendWithdrawRequest,
+    makeTestTxnEntry,
+    makeTestWithdrawRequestWithApprovals,
+    TEST_EVENT_ID,
     TEST_TXID,
 } from '../../../utils/transaction'
 
@@ -46,10 +48,9 @@ describe('makeMultispendTxnDetailItems', () => {
 
     it('should contain the type and time of a transaction', () => {
         const time = new Date('Jan 1, 2023').getTime()
-        const txn = makeTestMultispendTxnEntry('deposit', {
-            // TODO:TEST: Pass in time / 1000 to match other *TxnDetailItems functions
+        const txn = makeTestTxnEntry('multispendDeposit', {
             time,
-        })
+        }) as MultispendTransactionListEntry
         const items = makeMultispendTxnDetailItems(
             t,
             txn,
@@ -68,16 +69,21 @@ describe('makeMultispendTxnDetailItems', () => {
     })
 
     it('should show the depositor and amount for a deposit', () => {
-        const txn = makeTestMultispendTxnEntry('deposit', {
-            event: {
-                depositNotification: {
-                    user: mockRoomMembers[0].id,
-                    fiatAmount: 100,
-                    txid: TEST_TXID,
-                    description: '',
+        const txn = makeTestTxnEntry('multispendDeposit', {
+            state: {
+                event: {
+                    depositNotification: {
+                        user: mockRoomMembers[0].id,
+                        fiatAmount: 100,
+                        txid: TEST_TXID,
+                        description: '',
+                    },
                 },
+                eventId: TEST_EVENT_ID,
+                time: 0,
+                counter: 0,
             },
-        })
+        }) as MultispendTransactionListEntry
 
         const items = makeMultispendTxnDetailItems(
             t,
@@ -97,15 +103,20 @@ describe('makeMultispendTxnDetailItems', () => {
     })
 
     it('should show the withdrawer and amount for a withdrawal', () => {
-        const txn = makeTestMultispendTxnEntry('withdrawal', {
-            event: {
-                withdrawalRequest: {
-                    ...makeTestMultispendWithdrawRequest('accepted'),
-                    sender: mockRoomMembers[0].id,
-                    request: { transfer_amount: 100 },
+        const txn = makeTestTxnEntry('multispendWithdrawal', {
+            state: {
+                event: {
+                    withdrawalRequest: {
+                        ...makeTestWithdrawRequestWithApprovals('accepted'),
+                        sender: mockRoomMembers[0].id,
+                        request: { transfer_amount: 100 },
+                    },
                 },
+                eventId: TEST_EVENT_ID,
+                time: 0,
+                counter: 0,
             },
-        })
+        }) as MultispendTransactionListEntry
 
         const items = makeMultispendTxnDetailItems(
             t,

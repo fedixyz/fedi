@@ -9,7 +9,7 @@ import { renderHookWithState } from '../../../utils/render'
 import { createMockT } from '../../../utils/setup'
 import {
     makeTestLnPayState,
-    makeTestRpcTxnEntry,
+    makeTestTxnEntry,
     makeTestSPDepositState,
     makeTestSPWithdrawalState,
     TEST_LN_INVOICE,
@@ -59,7 +59,7 @@ describe('makeTxnDetailItems', () => {
 
     it('should contain the type, status, and time of a transaction', () => {
         const time = new Date('Jan 1, 2023').getTime()
-        const txn = makeTestRpcTxnEntry('lnPay', {
+        const txn = makeTestTxnEntry('lnPay', {
             createdAt: time / 1000,
         })
         const items = makeTxnDetailItems(
@@ -86,24 +86,24 @@ describe('makeTxnDetailItems', () => {
     })
 
     it('should contain the current value and withdrawal value of stability pool transactions', () => {
-        const spWithdraw = makeTestRpcTxnEntry('spWithdraw', {
+        const spWithdraw = makeTestTxnEntry('spWithdraw', {
             state: {
                 ...makeTestSPWithdrawalState('completeWithdrawal'),
                 estimated_withdrawal_cents: 1 as UsdCents,
             },
             amount: 100_000 as MSats,
         })
-        const spDeposit = makeTestRpcTxnEntry('spDeposit', {
+        const spDeposit = makeTestTxnEntry('spDeposit', {
             state: {
                 ...makeTestSPDepositState('completeDeposit'),
                 initial_amount_cents: 1 as UsdCents,
             } as Extract<RpcSPDepositState, { type: 'completeDeposit' }>,
             amount: 100_000 as MSats,
         })
-        const spv2Withdraw = makeTestRpcTxnEntry('sPV2Withdrawal', {
+        const spv2Withdraw = makeTestTxnEntry('sPV2Withdrawal', {
             amount: 100_000 as MSats,
         })
-        const sPV2Deposit = makeTestRpcTxnEntry(
+        const sPV2Deposit = makeTestTxnEntry(
             'sPV2Deposit',
 
             {
@@ -189,8 +189,8 @@ describe('makeTxnDetailItems', () => {
     })
 
     it('should contain an item with the lightning invoice for lightning transactions', () => {
-        const lnPay = makeTestRpcTxnEntry('lnPay')
-        const lnReceive = makeTestRpcTxnEntry('lnReceive')
+        const lnPay = makeTestTxnEntry('lnPay')
+        const lnReceive = makeTestTxnEntry('lnReceive')
 
         const lnPayItems = makeTxnDetailItems(
             t,
@@ -226,7 +226,7 @@ describe('makeTxnDetailItems', () => {
     })
 
     it('should show the preimage for successful lightning payments', () => {
-        const lnPay = makeTestRpcTxnEntry('lnPay', {
+        const lnPay = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('success'),
         })
 
@@ -249,8 +249,8 @@ describe('makeTxnDetailItems', () => {
     })
 
     it('should contain an item with the onchain address for onchain transactions', () => {
-        const onchainWithdraw = makeTestRpcTxnEntry('onchainWithdraw')
-        const onchainDeposit = makeTestRpcTxnEntry('onchainDeposit')
+        const onchainWithdraw = makeTestTxnEntry('onchainWithdraw')
+        const onchainDeposit = makeTestTxnEntry('onchainDeposit')
 
         const onchainWithdrawItems = makeTxnDetailItems(
             t,

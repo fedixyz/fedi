@@ -16,7 +16,11 @@ import {
 import { AmountSymbolPosition, FormattedAmounts } from '../types/amount'
 import { RpcTransactionListEntry } from '../types/bindings'
 import amountUtils, { FIAT_MAX_DECIMAL_PLACES } from './AmountUtils'
-import { findUserDisplayName } from './matrix'
+import {
+    findUserDisplayName,
+    isMultispendDepositEvent,
+    isMultispendWithdrawalEvent,
+} from './matrix'
 import {
     getTxnDirection,
     makeMultispendTxnStatusText,
@@ -162,9 +166,9 @@ export function makeMultispendTransactionHistoryCSV(
         {
             name: 'Type',
             getValue: tx =>
-                tx.state === 'withdrawal'
+                isMultispendWithdrawalEvent(tx.state)
                     ? t('phrases.multispend-withdrawal')
-                    : tx.state === 'deposit'
+                    : isMultispendDepositEvent(tx.state)
                       ? t('phrases.multispend-deposit')
                       : t('words.unknown'),
         },
@@ -177,12 +181,12 @@ export function makeMultispendTransactionHistoryCSV(
             name: 'Amount (USD)',
             getValue: tx => {
                 let amountCents: UsdCents | undefined
-                if (tx.state === 'deposit') {
-                    amountCents = tx.event.depositNotification
+                if (isMultispendDepositEvent(tx.state)) {
+                    amountCents = tx.state.event.depositNotification
                         .fiatAmount as UsdCents
                 }
-                if (tx.state === 'withdrawal') {
-                    amountCents = tx.event.withdrawalRequest.request
+                if (isMultispendWithdrawalEvent(tx.state)) {
+                    amountCents = tx.state.event.withdrawalRequest.request
                         .transfer_amount as UsdCents
                 }
                 return amountCents
@@ -203,13 +207,13 @@ export function makeMultispendTransactionHistoryCSV(
                       name: `Amount (${preferredCurrency})`,
                       getValue: (tx: MultispendTransactionListEntry) => {
                           let amountCents: UsdCents | undefined
-                          if (tx.state === 'deposit') {
-                              amountCents = tx.event.depositNotification
+                          if (isMultispendDepositEvent(tx.state)) {
+                              amountCents = tx.state.event.depositNotification
                                   .fiatAmount as UsdCents
                           }
-                          if (tx.state === 'withdrawal') {
-                              amountCents = tx.event.withdrawalRequest.request
-                                  .transfer_amount as UsdCents
+                          if (isMultispendWithdrawalEvent(tx.state)) {
+                              amountCents = tx.state.event.withdrawalRequest
+                                  .request.transfer_amount as UsdCents
                           }
                           // conversion function should already have the correct rate + currency code
                           return amountCents
@@ -222,11 +226,11 @@ export function makeMultispendTransactionHistoryCSV(
         {
             name: 'Description',
             getValue: tx => {
-                if (tx.state === 'deposit') {
-                    return tx.event.depositNotification.description || ''
+                if (isMultispendDepositEvent(tx.state)) {
+                    return tx.state.event.depositNotification.description || ''
                 }
-                if (tx.state === 'withdrawal') {
-                    return tx.event.withdrawalRequest.description || ''
+                if (isMultispendWithdrawalEvent(tx.state)) {
+                    return tx.state.event.withdrawalRequest.description || ''
                 }
                 return ''
             },
@@ -235,11 +239,11 @@ export function makeMultispendTransactionHistoryCSV(
             name: 'Depositor / Withdrawer',
             getValue: tx => {
                 let userId: MatrixUser['id'] | undefined
-                if (tx.state === 'deposit') {
-                    userId = tx.event.depositNotification.user
+                if (isMultispendDepositEvent(tx.state)) {
+                    userId = tx.state.event.depositNotification.user
                 }
-                if (tx.state === 'withdrawal') {
-                    userId = tx.event.withdrawalRequest.sender
+                if (isMultispendWithdrawalEvent(tx.state)) {
+                    userId = tx.state.event.withdrawalRequest.sender
                 }
                 return userId
                     ? findUserDisplayName(userId, roomMembers || [])

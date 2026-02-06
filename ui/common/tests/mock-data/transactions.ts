@@ -1,8 +1,4 @@
-import {
-    MSats,
-    MultispendTransactionListEntry,
-    TransactionListEntry,
-} from '@fedi/common/types'
+import { MSats, TransactionListEntry } from '@fedi/common/types'
 import {
     RpcTransaction,
     RpcLnReceiveState,
@@ -27,23 +23,6 @@ const MOCK_TRANSACTION: RpcTransaction = {
     state: { type: 'claimed' } as RpcLnReceiveState,
 }
 
-// Can be added to if someone needs missing fields
-const MOCK_MULTISPEND_TRANSACTION: Partial<MultispendTransactionListEntry> = {
-    id: 'txn1',
-    amount: 100000 as MSats,
-    kind: 'multispend',
-    state: 'deposit',
-    time: 1677721600,
-    event: {
-        depositNotification: {
-            user: 'user1',
-            fiatAmount: 100,
-            txid: 'txid1',
-            description: 'description1',
-        },
-    },
-}
-
 export const createMockTransaction = (
     overrides: any = {},
 ): TransactionListEntry => {
@@ -62,15 +41,6 @@ export const createMockTransactionListEntry = (
     return {
         createdAt,
         ...MOCK_TRANSACTION,
-        ...overrides,
-    }
-}
-
-export const createMockMultispendTransaction = (
-    overrides: any = {},
-): MultispendTransactionListEntry => {
-    return {
-        ...MOCK_MULTISPEND_TRANSACTION,
         ...overrides,
     }
 }

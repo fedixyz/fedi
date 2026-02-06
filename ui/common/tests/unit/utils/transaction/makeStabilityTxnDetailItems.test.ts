@@ -6,7 +6,7 @@ import { MSats } from '../../../../types'
 import { makeStabilityTxnDetailItems } from '../../../../utils/transaction'
 import { renderHookWithState } from '../../../utils/render'
 import { createMockT } from '../../../utils/setup'
-import { makeTestRpcTxnEntry } from '../../../utils/transaction'
+import { makeTestTxnEntry } from '../../../utils/transaction'
 
 describe('makeStabilityTxnDetailItems', () => {
     const t = createMockT()
@@ -41,7 +41,7 @@ describe('makeStabilityTxnDetailItems', () => {
 
     it('should contain the time and status of a stability pool transaction', () => {
         const time = new Date('Jan 1, 2023').getTime()
-        const txn = makeTestRpcTxnEntry('spDeposit', {
+        const txn = makeTestTxnEntry('spDeposit', {
             createdAt: time / 1000,
         })
         const items = makeStabilityTxnDetailItems(
@@ -61,22 +61,22 @@ describe('makeStabilityTxnDetailItems', () => {
     })
 
     it('should show transaction amount for transactions with a non-zero amount', () => {
-        const spDeposit = makeTestRpcTxnEntry('spDeposit', {
+        const spDeposit = makeTestTxnEntry('spDeposit', {
             amount: 100_000 as MSats,
         })
-        const sPV2Deposit = makeTestRpcTxnEntry('sPV2Deposit', {
+        const sPV2Deposit = makeTestTxnEntry('sPV2Deposit', {
             amount: 200_000 as MSats,
         })
-        const sPV2TransferIn = makeTestRpcTxnEntry('sPV2TransferIn', {
+        const sPV2TransferIn = makeTestTxnEntry('sPV2TransferIn', {
             amount: 300_000 as MSats,
         })
-        const spWithdraw = makeTestRpcTxnEntry('spWithdraw', {
+        const spWithdraw = makeTestTxnEntry('spWithdraw', {
             amount: 400_000 as MSats,
         })
-        const sPV2Withdrawal = makeTestRpcTxnEntry('sPV2Withdrawal', {
+        const sPV2Withdrawal = makeTestTxnEntry('sPV2Withdrawal', {
             amount: 500_000 as MSats,
         })
-        const sPV2TransferOut = makeTestRpcTxnEntry('sPV2TransferOut', {
+        const sPV2TransferOut = makeTestTxnEntry('sPV2TransferOut', {
             amount: 600_000 as MSats,
         })
 

@@ -8,8 +8,8 @@ import {
     selectMatrixAuth,
     selectMyMultispendRole,
     selectLoadedFederations,
-    selectRoomMultispendFinancialTransactions,
-    fetchMultispendTransactions,
+    selectRoomMultispendFinancialEvents,
+    fetchMultispendEvents,
     selectCurrency,
     selectMatrixRoomMembers,
     selectMultispendInvitationEvent,
@@ -22,16 +22,17 @@ import {
     MultispendWithdrawalEvent,
     UsdCents,
     MultispendRole,
-    MultispendListedInvitationEvent,
     MatrixMultispendEvent,
+    MultispendGroupInvitationEvent,
 } from '../types'
 import { RpcMultispendGroupStatus, RpcRoomId } from '../types/bindings'
 import {
     getMultispendInvite,
     isMultispendWithdrawalEvent,
     isWithdrawalRequestApproved,
-    isWithdrawalRequestRejected,
+    isMultispendWithdrawalRejected,
     makeMultispendWalletHeader,
+    coerceMultispendTxn,
 } from '../utils/matrix'
 import { useBtcFiatPrice } from './amount'
 import { useFedimint } from './fedimint'
@@ -264,25 +265,30 @@ export function useMultispendTransactions(t: TFunction, roomId: RpcRoomId) {
     const toast = useToast()
     const fedimint = useFedimint()
     const dispatch = useCommonDispatch()
-    const transactions = useCommonSelector(s =>
-        selectRoomMultispendFinancialTransactions(s, roomId),
+    const events = useCommonSelector(s =>
+        selectRoomMultispendFinancialEvents(s, roomId),
     )
     const fetchTransactions = useCallback(
         async (
             args?: Pick<
-                Parameters<typeof fetchMultispendTransactions>[0],
+                Parameters<typeof fetchMultispendEvents>[0],
                 'limit' | 'more' | 'refresh'
             >,
         ) => {
             try {
                 await dispatch(
-                    fetchMultispendTransactions({ fedimint, roomId, ...args }),
+                    fetchMultispendEvents({ fedimint, roomId, ...args }),
                 ).unwrap()
             } catch (e) {
                 toast.error(t, e)
             }
         },
         [dispatch, roomId, t, toast, fedimint],
+    )
+
+    const transactions = useMemo(
+        () => events.map(coerceMultispendTxn),
+        [events],
     )
 
     return {
@@ -308,7 +314,7 @@ export function useMultispendWithdrawUtils(roomId: RpcRoomId) {
 
             if (isWithdrawalRequestApproved(event, multispendStatus))
                 return 'approved'
-            if (isWithdrawalRequestRejected(event, multispendStatus))
+            if (isMultispendWithdrawalRejected(event, multispendStatus))
                 return 'rejected'
 
             return 'pending'
@@ -341,7 +347,9 @@ export function useMultispendWithdrawalRequests({
     const multispendStatus = useCommonSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
     )
-    const { transactions } = useMultispendTransactions(t, roomId)
+    const events = useCommonSelector(s =>
+        selectRoomMultispendFinancialEvents(s, roomId),
+    )
     const { getWithdrawalStatus } = useMultispendWithdrawUtils(roomId)
     const matrixAuth = useCommonSelector(selectMatrixAuth)
     const roomMembers = useCommonSelector(s =>
@@ -353,9 +361,7 @@ export function useMultispendWithdrawalRequests({
     const canVoteOnWithdrawals =
         myMultispendRole === 'voter' || myMultispendRole === 'proposer'
 
-    const withdrawalRequests = transactions.filter(
-        (txn): txn is MultispendWithdrawalEvent => txn.state === 'withdrawal',
-    )
+    const withdrawalRequests = events.filter(isMultispendWithdrawalEvent)
 
     const getFormattedWithdrawalStatus = useCallback(
         (event: MultispendWithdrawalEvent) => {
@@ -544,7 +550,7 @@ export function useMultispendWithdrawalRequests({
 
 const extractInvitationData = (
     event: MatrixMultispendEvent<'groupInvitation'>,
-    invitation: MultispendListedInvitationEvent | undefined,
+    invitation: MultispendGroupInvitationEvent | undefined,
     roomStatus: RpcMultispendGroupStatus | undefined,
     myId: string | undefined,
 ) => {
@@ -566,9 +572,9 @@ const extractInvitationData = (
         return {
             proposer: invitation.event.groupInvitation.proposer,
             status:
-                activeInvitationId === invitation.id
+                activeInvitationId === invitation.eventId
                     ? ('activeInvitation' as const)
-                    : finalizedInvitationId === invitation.id
+                    : finalizedInvitationId === invitation.eventId
                       ? ('finalized' as const)
                       : ('inactive' as const),
             role:

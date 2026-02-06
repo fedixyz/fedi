@@ -6,7 +6,7 @@ import {
     makeTestOnchainWithdrawState,
     makeTestOOBReissueState,
     makeTestOOBSpendState,
-    makeTestRpcTxnEntry,
+    makeTestTxnEntry,
     makeTestSPDepositState,
     makeTestSPV2DepositState,
     makeTestSPV2WithdrawalState,
@@ -15,7 +15,7 @@ import {
 
 describe('shouldShowAskFedi', () => {
     it('[lightning payment] should hide the "Ask Fedi" button for a successful lightning transaction', () => {
-        const lnPay = makeTestRpcTxnEntry('lnPay', {
+        const lnPay = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('success'),
         })
 
@@ -23,25 +23,25 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[lightning send] should show the "Ask Fedi" button for a non-successful lightning transaction', () => {
-        const created = makeTestRpcTxnEntry('lnPay', {
+        const created = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('created'),
         })
-        const funded = makeTestRpcTxnEntry('lnPay', {
+        const funded = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('funded'),
         })
-        const awaitingChange = makeTestRpcTxnEntry('lnPay', {
+        const awaitingChange = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('awaitingChange'),
         })
-        const waitingForRefund = makeTestRpcTxnEntry('lnPay', {
+        const waitingForRefund = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('waitingForRefund'),
         })
-        const refunded = makeTestRpcTxnEntry('lnPay', {
+        const refunded = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('refunded'),
         })
-        const failed = makeTestRpcTxnEntry('lnPay', {
+        const failed = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('failed'),
         })
-        const cancelled = makeTestRpcTxnEntry('lnPay', {
+        const cancelled = makeTestTxnEntry('lnPay', {
             state: makeTestLnPayState('canceled'),
         })
 
@@ -55,7 +55,7 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[onchain withdraw] should hide the "Ask Fedi" button for a successful onchain withdrawal', () => {
-        const onchainWithdraw = makeTestRpcTxnEntry('onchainWithdraw', {
+        const onchainWithdraw = makeTestTxnEntry('onchainWithdraw', {
             state: makeTestOnchainWithdrawState('succeeded'),
         })
 
@@ -63,10 +63,10 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[onchain withdraw] should show the "Ask Fedi" button for a non-successful onchain withdrawal', () => {
-        const created = makeTestRpcTxnEntry('onchainWithdraw', {
+        const created = makeTestTxnEntry('onchainWithdraw', {
             state: makeTestOnchainWithdrawState('created'),
         })
-        const failed = makeTestRpcTxnEntry('onchainWithdraw', {
+        const failed = makeTestTxnEntry('onchainWithdraw', {
             state: makeTestOnchainWithdrawState('failed'),
         })
 
@@ -75,13 +75,13 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[ecash send] should hide the "Ask Fedi" button for a successful ecash send', () => {
-        const success = makeTestRpcTxnEntry('oobSend', {
+        const success = makeTestTxnEntry('oobSend', {
             state: makeTestOOBSpendState('success'),
         })
-        const userCanceledFailure = makeTestRpcTxnEntry('oobSend', {
+        const userCanceledFailure = makeTestTxnEntry('oobSend', {
             state: makeTestOOBSpendState('userCanceledFailure'),
         })
-        const created = makeTestRpcTxnEntry('oobSend', {
+        const created = makeTestTxnEntry('oobSend', {
             state: makeTestOOBSpendState('created'),
         })
 
@@ -93,13 +93,13 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[ecash send] should show the "Ask Fedi" button for a non-successful ecash send', () => {
-        const userCanceledSuccess = makeTestRpcTxnEntry('oobSend', {
+        const userCanceledSuccess = makeTestTxnEntry('oobSend', {
             state: makeTestOOBSpendState('userCanceledSuccess'),
         })
-        const userCanceledProcessing = makeTestRpcTxnEntry('oobSend', {
+        const userCanceledProcessing = makeTestTxnEntry('oobSend', {
             state: makeTestOOBSpendState('userCanceledProcessing'),
         })
-        const refunded = makeTestRpcTxnEntry('oobSend', {
+        const refunded = makeTestTxnEntry('oobSend', {
             state: makeTestOOBSpendState('refunded'),
         })
 
@@ -109,10 +109,10 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[stabilitypool deposit] should hide the "Ask Fedi" button for a successful stabilitypool deposit', () => {
-        const spDeposit = makeTestRpcTxnEntry('spDeposit', {
+        const spDeposit = makeTestTxnEntry('spDeposit', {
             state: makeTestSPDepositState('completeDeposit'),
         })
-        const sPV2Deposit = makeTestRpcTxnEntry('sPV2Deposit', {
+        const sPV2Deposit = makeTestTxnEntry('sPV2Deposit', {
             state: makeTestSPV2DepositState('completedDeposit'),
         })
 
@@ -121,19 +121,19 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[stabilitypool deposit] should show the "Ask Fedi" button for a non-successful stabilitypool deposit', () => {
-        const pendingDeposit = makeTestRpcTxnEntry('spDeposit', {
+        const pendingDeposit = makeTestTxnEntry('spDeposit', {
             state: makeTestSPDepositState('pendingDeposit'),
         })
-        const pendingV2Deposit = makeTestRpcTxnEntry('sPV2Deposit', {
+        const pendingV2Deposit = makeTestTxnEntry('sPV2Deposit', {
             state: makeTestSPV2DepositState('pendingDeposit'),
         })
-        const failedV2 = makeTestRpcTxnEntry('sPV2Deposit', {
+        const failedV2 = makeTestTxnEntry('sPV2Deposit', {
             state: makeTestSPV2DepositState('failedDeposit'),
         })
-        const notInCacheV2 = makeTestRpcTxnEntry('sPV2Deposit', {
+        const notInCacheV2 = makeTestTxnEntry('sPV2Deposit', {
             state: makeTestSPV2DepositState('dataNotInCache'),
         })
-        const notInCache = makeTestRpcTxnEntry('spDeposit', {
+        const notInCache = makeTestTxnEntry('spDeposit', {
             state: makeTestSPDepositState('dataNotInCache'),
         })
 
@@ -146,7 +146,7 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[lightning receive] should hide the "Ask Fedi" button for a successful lightning receive', () => {
-        const lnReceive = makeTestRpcTxnEntry('lnReceive', {
+        const lnReceive = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('claimed'),
         })
 
@@ -154,19 +154,19 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[lightning receive] should show the "Ask Fedi" button for a non-successful lightning receive', () => {
-        const created = makeTestRpcTxnEntry('lnReceive', {
+        const created = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('created'),
         })
-        const waitingForPayment = makeTestRpcTxnEntry('lnReceive', {
+        const waitingForPayment = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('waitingForPayment'),
         })
-        const funded = makeTestRpcTxnEntry('lnReceive', {
+        const funded = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('funded'),
         })
-        const awaitingFunds = makeTestRpcTxnEntry('lnReceive', {
+        const awaitingFunds = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('awaitingFunds'),
         })
-        const cancelled = makeTestRpcTxnEntry('lnReceive', {
+        const cancelled = makeTestTxnEntry('lnReceive', {
             state: makeTestLnReceiveState('canceled'),
         })
 
@@ -178,7 +178,7 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[onchain deposit] should hide the "Ask Fedi" button for a successful onchain deposit', () => {
-        const onchainDeposit = makeTestRpcTxnEntry('onchainDeposit', {
+        const onchainDeposit = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('claimed'),
         })
 
@@ -186,16 +186,16 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[onchain deposit] should show the "Ask Fedi" button for a non-successful onchain deposit', () => {
-        const waitingForConfirmation = makeTestRpcTxnEntry('onchainDeposit', {
+        const waitingForConfirmation = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('waitingForConfirmation'),
         })
-        const waitingForTransaction = makeTestRpcTxnEntry('onchainDeposit', {
+        const waitingForTransaction = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('waitingForTransaction'),
         })
-        const confirmed = makeTestRpcTxnEntry('onchainDeposit', {
+        const confirmed = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('confirmed'),
         })
-        const failed = makeTestRpcTxnEntry('onchainDeposit', {
+        const failed = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('failed'),
         })
 
@@ -206,10 +206,10 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[stabilitypool withdrawal] should hide the "Ask Fedi" button for a successful stabilitypool withdrawal', () => {
-        const spWithdraw = makeTestRpcTxnEntry('spWithdraw', {
+        const spWithdraw = makeTestTxnEntry('spWithdraw', {
             state: makeTestSPWithdrawalState('completeWithdrawal'),
         })
-        const sPV2Withdrawal = makeTestRpcTxnEntry('sPV2Withdrawal', {
+        const sPV2Withdrawal = makeTestTxnEntry('sPV2Withdrawal', {
             state: makeTestSPV2WithdrawalState('completedWithdrawal'),
         })
 
@@ -218,16 +218,16 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[stabilitypool withdrawal] should show the "Ask Fedi" button for a non-successful stabilitypool withdrawal', () => {
-        const pendingWithdrawal = makeTestRpcTxnEntry('spWithdraw', {
+        const pendingWithdrawal = makeTestTxnEntry('spWithdraw', {
             state: makeTestSPWithdrawalState('pendingWithdrawal'),
         })
-        const pendingV2Withdrawal = makeTestRpcTxnEntry('sPV2Withdrawal', {
+        const pendingV2Withdrawal = makeTestTxnEntry('sPV2Withdrawal', {
             state: makeTestSPV2WithdrawalState('pendingWithdrawal'),
         })
-        const failedV2 = makeTestRpcTxnEntry('sPV2Withdrawal', {
+        const failedV2 = makeTestTxnEntry('sPV2Withdrawal', {
             state: makeTestSPV2WithdrawalState('failedWithdrawal'),
         })
-        const notInCacheV2 = makeTestRpcTxnEntry('sPV2Withdrawal', {
+        const notInCacheV2 = makeTestTxnEntry('sPV2Withdrawal', {
             state: makeTestSPV2WithdrawalState('dataNotInCache'),
         })
 
@@ -238,7 +238,7 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[ecash receive] should hide the "Ask Fedi" button for a successful ecash receive', () => {
-        const oobReceive = makeTestRpcTxnEntry('oobReceive', {
+        const oobReceive = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('done'),
         })
 
@@ -246,13 +246,13 @@ describe('shouldShowAskFedi', () => {
     })
 
     it('[ecash receive] should show the "Ask Fedi" button for a non-successful ecash receive', () => {
-        const created = makeTestRpcTxnEntry('oobReceive', {
+        const created = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('created'),
         })
-        const issuing = makeTestRpcTxnEntry('oobReceive', {
+        const issuing = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('issuing'),
         })
-        const failed = makeTestRpcTxnEntry('oobReceive', {
+        const failed = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('failed'),
         })
 

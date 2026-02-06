@@ -1,13 +1,14 @@
 import {
     MultispendActiveInvitation,
     MultispendFinalized,
+    MultispendTransactionListEntry,
 } from '../../../../types'
 import { makeMultispendTxnStatusText } from '../../../../utils/transaction'
 import { createMockT } from '../../../utils/setup'
 import {
     makeTestGroupInvitationWithKeys,
-    makeTestMultispendTxnEntry,
-    makeTestMultispendWithdrawRequest,
+    makeTestMultispendWithdrawalEventData,
+    makeTestTxnEntry,
 } from '../../../utils/transaction'
 
 const multispendFinalizedStatus: MultispendFinalized = {
@@ -26,24 +27,18 @@ describe('makeMultispendTxnStatusText', () => {
     const t = createMockT()
 
     it('should display the correct status for a multispend transaction', () => {
-        const deposit = makeTestMultispendTxnEntry('deposit')
-        const withdrawalPending = makeTestMultispendTxnEntry('withdrawal', {
-            event: {
-                withdrawalRequest: makeTestMultispendWithdrawRequest('unknown'),
-            },
-        })
-        const withdrawalAccepted = makeTestMultispendTxnEntry('withdrawal', {
-            event: {
-                withdrawalRequest:
-                    makeTestMultispendWithdrawRequest('accepted'),
-            },
-        })
-        const withdrawalRejected = makeTestMultispendTxnEntry('withdrawal', {
-            event: {
-                withdrawalRequest:
-                    makeTestMultispendWithdrawRequest('rejected'),
-            },
-        })
+        const deposit = makeTestTxnEntry(
+            'multispendDeposit',
+        ) as MultispendTransactionListEntry
+        const withdrawalPending = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('unknown'),
+        }) as MultispendTransactionListEntry
+        const withdrawalAccepted = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('accepted'),
+        }) as MultispendTransactionListEntry
+        const withdrawalRejected = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('rejected'),
+        }) as MultispendTransactionListEntry
 
         expect(
             makeMultispendTxnStatusText(t, deposit, multispendFinalizedStatus),
@@ -72,24 +67,18 @@ describe('makeMultispendTxnStatusText', () => {
     })
 
     it('should display "complete" for completed txns instead of "withdrawal"/"deposit" if csvExport is enabled', () => {
-        const deposit = makeTestMultispendTxnEntry('deposit')
-        const withdrawalPending = makeTestMultispendTxnEntry('withdrawal', {
-            event: {
-                withdrawalRequest: makeTestMultispendWithdrawRequest('unknown'),
-            },
-        })
-        const withdrawalAccepted = makeTestMultispendTxnEntry('withdrawal', {
-            event: {
-                withdrawalRequest:
-                    makeTestMultispendWithdrawRequest('accepted'),
-            },
-        })
-        const withdrawalRejected = makeTestMultispendTxnEntry('withdrawal', {
-            event: {
-                withdrawalRequest:
-                    makeTestMultispendWithdrawRequest('rejected'),
-            },
-        })
+        const deposit = makeTestTxnEntry(
+            'multispendDeposit',
+        ) as MultispendTransactionListEntry
+        const withdrawalPending = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('unknown'),
+        }) as MultispendTransactionListEntry
+        const withdrawalAccepted = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('accepted'),
+        }) as MultispendTransactionListEntry
+        const withdrawalRejected = makeTestTxnEntry('multispendWithdrawal', {
+            state: makeTestMultispendWithdrawalEventData('rejected'),
+        }) as MultispendTransactionListEntry
 
         expect(
             makeMultispendTxnStatusText(
@@ -126,7 +115,9 @@ describe('makeMultispendTxnStatusText', () => {
     })
 
     it('should return "unknown" for a non-finalized multispend status', () => {
-        const txn = makeTestMultispendTxnEntry('deposit')
+        const txn = makeTestTxnEntry(
+            'multispendDeposit',
+        ) as MultispendTransactionListEntry
         const statusText = makeMultispendTxnStatusText(
             t,
             txn,

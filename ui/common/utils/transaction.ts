@@ -23,7 +23,9 @@ import dateUtils from './DateUtils'
 import { getCurrencyCode } from './currency'
 import {
     getMultispendInvite,
-    isWithdrawalRequestRejected,
+    isMultispendDepositEvent,
+    isMultispendWithdrawalEvent,
+    isMultispendWithdrawalRejected,
     makeNameWithSuffix,
 } from './matrix'
 
@@ -35,7 +37,9 @@ export interface DetailItem {
     copiedMessage?: string
 }
 
-export const getTxnDirection = (txn: TransactionListEntry): string => {
+export const getTxnDirection = (
+    txn: TransactionListEntry,
+): TransactionDirection => {
     switch (txn.kind) {
         case 'lnPay':
         case 'onchainWithdraw':
@@ -43,17 +47,8 @@ export const getTxnDirection = (txn: TransactionListEntry): string => {
         case 'spDeposit':
         case 'sPV2Deposit':
         case 'sPV2TransferOut':
+        case 'multispendWithdrawal':
             return TransactionDirection.send
-        case 'multispend':
-            switch (txn.state) {
-                case 'deposit':
-                    return TransactionDirection.receive
-                case 'withdrawal':
-                    return TransactionDirection.send
-                default:
-                    txn.state satisfies 'groupInvitation' | 'invalid'
-                    return ''
-            }
         default:
             txn.kind satisfies
                 | 'lnReceive'
@@ -63,6 +58,7 @@ export const getTxnDirection = (txn: TransactionListEntry): string => {
                 | 'spWithdraw'
                 | 'sPV2Withdrawal'
                 | 'sPV2TransferIn'
+                | 'multispendDeposit'
             return TransactionDirection.receive
     }
 }
@@ -87,26 +83,19 @@ export const makeTxnTypeText = (
             return t('feature.stabilitypool.stable-balance')
         case 'sPV2TransferIn':
         case 'sPV2TransferOut':
-            // TODO+TEST: `isMultispendTxn` incorrectly casts transaction types
-            // This should be removed later
-            return isMultispendTxn(txn)
+            return isMultispendTransfer(txn)
                 ? t('words.multispend')
                 : t('feature.stabilitypool.stable-balance')
         case 'oobSend':
         case 'oobReceive':
             return t('words.ecash')
-        case 'multispend': {
-            switch (txn.state) {
-                case 'deposit':
-                    return t('words.deposit')
-                case 'withdrawal':
-                    return t('words.withdrawal')
-                default:
-                    // `groupInvitation` and `invalid` are not transaction types
-                    txn.state satisfies 'groupInvitation' | 'invalid'
-                    return t('words.unknown')
-            }
-        }
+        case 'multispendDeposit':
+            return t('words.deposit')
+        case 'multispendWithdrawal':
+            return t('words.withdrawal')
+        default:
+            txn satisfies never
+            return t('words.unknown')
     }
 }
 
@@ -190,16 +179,10 @@ export const makeTxnDetailTitleText = (
                     txn.state.type satisfies 'dataNotInCache'
                     return t('feature.send.you-sent')
             }
-        case 'multispend':
-            switch (txn.state) {
-                case 'deposit':
-                    return t('feature.stabilitypool.you-deposited')
-                case 'withdrawal':
-                    return t('feature.stabilitypool.you-withdrew')
-                default:
-                    txn.state satisfies 'groupInvitation' | 'invalid'
-                    return t('words.unknown')
-            }
+        case 'multispendDeposit':
+            return t('feature.stabilitypool.you-deposited')
+        case 'multispendWithdrawal':
+            return t('feature.stabilitypool.you-withdrew')
         default:
             txn satisfies never
             return t('words.unknown')
@@ -420,7 +403,10 @@ export const makeTxnStatusText = (
                     default:
                         return t('words.deposit')
                 }
-            } else if (txn.kind === 'sPV2TransferOut' && isMultispendTxn(txn)) {
+            } else if (
+                txn.kind === 'sPV2TransferOut' &&
+                isMultispendTransfer(txn)
+            ) {
                 return t('words.deposit')
             } else {
                 return t('words.sent')
@@ -501,7 +487,10 @@ export const makeTxnStatusText = (
                         return ''
                 }
                 // TODO+TEST: Cover test cases for other multispend transactions
-            } else if (txn.kind === 'sPV2TransferIn' && isMultispendTxn(txn)) {
+            } else if (
+                txn.kind === 'sPV2TransferIn' &&
+                isMultispendTransfer(txn)
+            ) {
                 return t('words.withdrawal')
             } else {
                 // TODO+TEST: We should probably not fall back to a success state
@@ -680,13 +669,15 @@ export const makeTxnStatusBadge = (
             badge = 'incoming'
     }
 
-    if (txn.kind === 'multispend') {
-        if (txn.state === 'invalid') return 'failed'
-
-        if ('depositNotification' in txn.event) {
+    if (
+        txn.kind === 'multispendDeposit' ||
+        txn.kind === 'multispendWithdrawal'
+    ) {
+        if (isMultispendDepositEvent(txn.state)) {
             badge = 'incoming'
-        } else if ('withdrawalRequest' in txn.event) {
-            const txStatus = txn.event.withdrawalRequest.txSubmissionStatus
+        } else if (isMultispendWithdrawalEvent(txn.state)) {
+            const txStatus =
+                txn.state.event.withdrawalRequest.txSubmissionStatus
             if (txStatus === 'unknown') {
                 badge = 'pending'
             } else if ('accepted' in txStatus) {
@@ -915,6 +906,31 @@ export const makeTxnDetailItems = (
     return items
 }
 
+// TODO+TEST: Consider using within `makeTxnDetailTitleText`?
+// Can remain as its own function but worth unifying to avoid the `words.unknown` fallback
+export const makeStabilityTxnDetailTitleText = (
+    t: TFunction,
+    // TODO+TEST: Consider using a type only including stability transactions to avoid the `words.unknown` fallback
+    txn: TransactionListEntry,
+) => {
+    if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
+        return t('feature.stabilitypool.you-deposited')
+    } else if (txn.kind === 'sPV2TransferOut') {
+        return isMultispendTransfer(txn)
+            ? t('feature.stabilitypool.you-deposited')
+            : t('feature.send.you-sent')
+    }
+
+    if (txn.kind === 'sPV2Withdrawal' || txn.kind === 'spWithdraw') {
+        return t('feature.stabilitypool.you-withdrew')
+    } else if (txn.kind === 'sPV2TransferIn') {
+        return isMultispendTransfer(txn)
+            ? t('feature.stabilitypool.you-withdrew')
+            : t('feature.receive.you-received')
+    }
+    return t('words.unknown')
+}
+
 // TODO+TEST: Consider merging/using this from makeTxnDetailItems as it takes the same inputs and a lot of logic seems duplicated
 export const makeStabilityTxnDetailItems = (
     t: TFunction,
@@ -933,7 +949,7 @@ export const makeStabilityTxnDetailItems = (
             })
             // treat only multispend transfers as deposits.
         } else if (txn.kind === 'sPV2TransferIn') {
-            if (isMultispendTxn(txn)) {
+            if (isMultispendTransfer(txn)) {
                 items.push({
                     label: t('feature.stabilitypool.deposit-amount'),
                     value: formattedSats,
@@ -950,7 +966,7 @@ export const makeStabilityTxnDetailItems = (
                 value: formattedSats,
             })
         } else if (txn.kind === 'sPV2TransferOut') {
-            if (isMultispendTxn(txn)) {
+            if (isMultispendTransfer(txn)) {
                 items.push({
                     label: t('feature.stabilitypool.withdrawal-amount'),
                     value: formattedSats,
@@ -1045,18 +1061,17 @@ export const makeMultispendTxnStatusText = (
     if (
         // there should always be a state, but return unknown just in case
         !txn.state ||
-        txn.state === 'invalid' ||
-        // group should always be finalized at this point
         !multispendStatus ||
+        // group should always be finalized at this point
         multispendStatus.status !== 'finalized'
     )
         return t('words.unknown')
 
     // TODO+TEST: Perhaps using `is Type` assertion functions would be better than `in txn.event`
-    if ('depositNotification' in txn.event)
+    if (isMultispendDepositEvent(txn.state))
         return csvExport ? t('words.complete') : t('words.deposit')
-    if ('withdrawalRequest' in txn.event) {
-        const txStatus = txn.event.withdrawalRequest.txSubmissionStatus
+    if (isMultispendWithdrawalEvent(txn.state)) {
+        const txStatus = txn.state.event.withdrawalRequest.txSubmissionStatus
 
         if (txStatus === 'unknown') return t('words.pending')
         if ('accepted' in txStatus)
@@ -1068,7 +1083,7 @@ export const makeMultispendTxnStatusText = (
         // finalized multispends should always have an invitation
         if (!invitation) return t('words.unknown')
 
-        if (isWithdrawalRequestRejected(txn, multispendStatus))
+        if (isMultispendWithdrawalRejected(txn.state, multispendStatus))
             return t('words.failed')
 
         return t('words.pending')
@@ -1098,8 +1113,8 @@ export const makeMultispendTxnDetailItems = (
         ),
     })
 
-    if (txn.state === 'deposit') {
-        const deposit = txn.event.depositNotification
+    if (isMultispendDepositEvent(txn.state)) {
+        const deposit = txn.state.event.depositNotification
         const matchingMember = roomMembers.find(m => m.id === deposit.user)
         if (matchingMember?.displayName) {
             items.push({
@@ -1117,8 +1132,8 @@ export const makeMultispendTxnDetailItems = (
         }
     }
 
-    if (txn.state === 'withdrawal') {
-        const withdrawalRequest = txn.event.withdrawalRequest
+    if (isMultispendWithdrawalEvent(txn.state)) {
+        const withdrawalRequest = txn.state.event.withdrawalRequest
         const matchingMember = roomMembers.find(
             m => m.id === withdrawalRequest.sender,
         )
@@ -1163,16 +1178,10 @@ export const coerceTxn = (txn: RpcTransaction): TransactionListEntry => {
     }
 }
 
-// Helper to distinguish multispend spv2 transfers from non-multispend transfers
-// TODO+TEST: Transactions of kind "sPV2TransferOut" and "sPV2TransferIn" are absolutely NOT assignable to MultispendTransactionListEntry
-// Additionally, this util function doesn't even properly work for `MultispendTransactionListEntry`s!
-export const isMultispendTxn = (
-    txn: TransactionListEntry,
-): txn is MultispendTransactionListEntry => {
+export const isMultispendTransfer = (txn: TransactionListEntry) => {
     return (
-        // `Extract<TransactionListEntry, { kind: 'sPV2TransferOut' | 'sPV2TransferIn' }>` is not assignable to `Extract<TransactionListEntry, { kind: 'multispend' }>` and should not be treated as such
         (txn.kind === 'sPV2TransferOut' || txn.kind === 'sPV2TransferIn') &&
-        'kind' in txn.state &&
+        txn.state.type === 'completedTransfer' &&
         txn.state.kind === 'multispend'
     )
 }

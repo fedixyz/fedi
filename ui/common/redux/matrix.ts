@@ -48,7 +48,6 @@ import {
     MultispendActiveInvitation,
     MultispendFinalized,
     MultispendRole,
-    MultispendTransactionListEntry,
     Sats,
     SelectableMessageKind,
     UsdCents,
@@ -77,7 +76,6 @@ import {
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
-    coerceMultispendTxn,
     filterMultispendEvents,
     consolidatePaymentEvents,
     doesEventContentMatchPreviewMedia,
@@ -93,7 +91,7 @@ import {
     matrixIdToUsername,
     mxcUrlToHttpUrl,
     shouldShowUnreadIndicator,
-    isMultispendFinancialTransaction,
+    isMultispendFinancialEvent,
     prepareMentionsDataPayload,
     hasMentions,
     isTextEvent,
@@ -147,9 +145,9 @@ const initialState = {
     // should be the union of all possible event types.
     //
     // e.g. type MultispendEvent = MultispendTransaction | MultispendInvitationEvent
-    roomMultispendTransactions: {} as Record<
+    roomMultispendEvents: {} as Record<
         MatrixRoom['id'],
-        MultispendTransactionListEntry[] | undefined
+        MultispendListedEvent[] | undefined
     >,
     users: {} as Record<MatrixUser['id'], MatrixUser | undefined>,
     ignoredUsers: [] as MatrixUser['id'][],
@@ -176,27 +174,27 @@ const initialState = {
 export type MatrixState = typeof initialState
 
 /**
- * Given a list of new transactions and optionally the old ones, return a
+ * Given a list of new events and optionally the old ones, return a
  * combined list that has been sorted and deduplicated.
  *
  * TODO: only modify updated fields for existing transactions
  */
-const updateMultispendTransactions = (
-    newTransactions: MultispendTransactionListEntry[],
-    oldTransactions: MultispendTransactionListEntry[] = [],
+const updateMultispendEvents = (
+    newTransactions: MultispendListedEvent[],
+    oldTransactions: MultispendListedEvent[] = [],
 ) => {
     // Use a Map for O(1) lookups during deduplication
     // The Map preserves insertion order, with newer transactions added first
-    const transactionMap = new Map<string, MultispendTransactionListEntry>()
+    const transactionMap = new Map<string, MultispendListedEvent>()
 
-    for (const tx of newTransactions) {
-        transactionMap.set(tx.id, tx)
+    for (const ev of newTransactions) {
+        transactionMap.set(ev.eventId, ev)
     }
 
     // Add old transactions only if they don't already exist in the map
-    for (const tx of oldTransactions) {
-        if (!transactionMap.has(tx.id)) {
-            transactionMap.set(tx.id, tx)
+    for (const ev of oldTransactions) {
+        if (!transactionMap.has(ev.eventId)) {
+            transactionMap.set(ev.eventId, ev)
         }
     }
 
@@ -341,27 +339,23 @@ export const matrixSlice = createSlice({
             state,
             action: PayloadAction<{
                 roomId: MatrixRoom['id']
-                transactions: MultispendListedEvent[]
+                events: MultispendListedEvent[]
             }>,
         ) {
-            const { roomId, transactions } = action.payload
-            state.roomMultispendTransactions[roomId] =
-                transactions.map(coerceMultispendTxn)
+            const { roomId, events: transactions } = action.payload
+            state.roomMultispendEvents[roomId] = transactions
         },
         updateMatrixRoomMultispendTxns(
             state,
             action: PayloadAction<{
                 roomId: MatrixRoom['id']
-                transactions: MultispendListedEvent[]
+                events: MultispendListedEvent[]
             }>,
         ) {
-            const { roomId, transactions } = action.payload
-            const currentTxns = state.roomMultispendTransactions[roomId] || []
-            const updatedTxns = updateMultispendTransactions(
-                transactions.map(coerceMultispendTxn),
-                currentTxns,
-            )
-            state.roomMultispendTransactions[roomId] = updatedTxns
+            const { roomId, events } = action.payload
+            const currentTxns = state.roomMultispendEvents[roomId] || []
+            const updatedTxns = updateMultispendEvents(events, currentTxns)
+            state.roomMultispendEvents[roomId] = updatedTxns
         },
         updateMatrixRoomMultispendEvent(
             state,
@@ -372,27 +366,27 @@ export const matrixSlice = createSlice({
             }>,
         ) {
             const existingRoomEvents =
-                state.roomMultispendTransactions[action.payload.roomId]
+                state.roomMultispendEvents[action.payload.roomId]
 
             if (!existingRoomEvents) {
-                state.roomMultispendTransactions[action.payload.roomId] = [
-                    coerceMultispendTxn({
+                state.roomMultispendEvents[action.payload.roomId] = [
+                    {
                         eventId: action.payload.eventId,
                         event: action.payload.update,
                         // TODO: Remove this once we change the type of roomMultispendTransactions
                         counter: 0,
                         time: 0,
-                    }),
+                    },
                 ]
             } else {
-                state.roomMultispendTransactions[action.payload.roomId] =
+                state.roomMultispendEvents[action.payload.roomId] =
                     existingRoomEvents.map(evt =>
-                        evt.id === action.payload.eventId
-                            ? coerceMultispendTxn({
+                        evt.eventId === action.payload.eventId
+                            ? {
                                   ...evt,
                                   event: action.payload.update,
                                   eventId: action.payload.eventId,
-                              })
+                              }
                             : evt,
                     )
             }
@@ -837,7 +831,7 @@ export const startMatrixClient = createAsyncThunk<
             dispatch(
                 updateMatrixRoomMultispendTxns({
                     roomId: ev.roomId,
-                    transactions: ev.transactions,
+                    events: ev.transactions,
                 }),
             )
         }
@@ -1881,7 +1875,7 @@ export const unignoreUser = createAsyncThunk<
     return false
 })
 
-export const fetchMultispendTransactions = createAsyncThunk<
+export const fetchMultispendEvents = createAsyncThunk<
     Promise<MultispendListedEvent[] | undefined>,
     {
         fedimint: FedimintBridge
@@ -1892,7 +1886,7 @@ export const fetchMultispendTransactions = createAsyncThunk<
     },
     { state: CommonState }
 >(
-    'matrix/fetchMultispendTransactions',
+    'matrix/fetchMultispendEvents',
     async (
         { fedimint, roomId, refresh = false, limit = 100, more = false },
         { getState },
@@ -1900,10 +1894,7 @@ export const fetchMultispendTransactions = createAsyncThunk<
         const state = getState()
         const client = fedimint.getMatrixClient()
         if (refresh) {
-            const txns = selectRoomMultispendFinancialTransactions(
-                state,
-                roomId,
-            )
+            const txns = selectRoomMultispendFinancialEvents(state, roomId)
             // when refreshing:
             // - always use startAfter: null for fresh results. use { more: true } for pagination
             // - limit should be at least 100 or the # of fetched txns (if we have already paginated)
@@ -2678,22 +2669,20 @@ export const selectMatrixRoomMultispendAccountInfo = (
     return s.matrix.roomMultispendAccountInfo[roomId]
 }
 
-export const selectMatrixRoomMultispendTransactions = (
+export const selectMatrixRoomMultispendEvents = (
     s: CommonState,
     roomId: string,
 ) => {
-    return s.matrix.roomMultispendTransactions[roomId] || []
+    return s.matrix.roomMultispendEvents[roomId] || []
 }
 
-export const selectRoomMultispendFinancialTransactions = createSelector(
-    selectMatrixRoomMultispendTransactions,
-    transactions => {
-        return transactions.filter(isMultispendFinancialTransaction)
-    },
+export const selectRoomMultispendFinancialEvents = createSelector(
+    selectMatrixRoomMultispendEvents,
+    transactions => transactions.filter(isMultispendFinancialEvent),
 )
 
 export const selectLatestMultispendTxnInRoom = createSelector(
-    selectRoomMultispendFinancialTransactions,
+    selectRoomMultispendFinancialEvents,
     transactions => {
         // unintuitively, the latest txn is the one with the lowest counter
         const latestTxn = transactions.reduce((latest, current) => {
@@ -2739,7 +2728,7 @@ export const selectMultispendBalanceSats = createSelector(
 )
 
 export const selectMatrixRoomMultispendWithdrawalRequests = createSelector(
-    selectRoomMultispendFinancialTransactions,
+    selectRoomMultispendFinancialEvents,
     events => {
         return events.filter(isMultispendWithdrawalEvent)
     },
@@ -2750,23 +2739,23 @@ export const selectMatrixRoomMultispendEvent = (
     roomId: string,
     eventId: string,
 ) => {
-    if (!s.matrix.roomMultispendTransactions[roomId]) return null
+    if (!s.matrix.roomMultispendEvents[roomId]) return null
     return (
-        s.matrix.roomMultispendTransactions[roomId].find(
-            e => e.id === eventId,
+        s.matrix.roomMultispendEvents[roomId].find(
+            e => e.eventId === eventId,
         ) ?? null
     )
 }
 
 export const selectMultispendInvitationEvents = createSelector(
-    selectMatrixRoomMultispendTransactions,
+    selectMatrixRoomMultispendEvents,
     events => events.filter(isMultispendInvitation),
 )
 
 export const selectMultispendInvitationEvent = createSelector(
     selectMultispendInvitationEvents,
     (_: CommonState, _roomId: string, eventId: string) => eventId,
-    (events, eventId) => events.find(e => e.id === eventId) ?? undefined,
+    (events, eventId) => events.find(e => e.eventId === eventId) ?? undefined,
 )
 
 export const selectChatReplyingToMessage = (s: CommonState) =>

@@ -6,16 +6,20 @@ import {
 import { setupStore, setFederations } from '@fedi/common/redux'
 import { setMatrixRoomMultispendStatus } from '@fedi/common/redux/matrix'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
-import { TransactionListEntry } from '@fedi/common/types'
+import {
+    MultispendTransactionListEntry,
+    TransactionListEntry,
+} from '@fedi/common/types'
 import { RpcMultispendGroupStatus } from '@fedi/common/types/bindings'
 
 import * as walletUtils from '../../../utils/transaction'
-import {
-    createMockTransaction,
-    createMockMultispendTransaction,
-} from '../../mock-data/transactions'
+import { createMockTransaction } from '../../mock-data/transactions'
 import { renderHookWithState } from '../../utils/render'
 import { createMockT } from '../../utils/setup'
+import {
+    makeTestMultispendDepositEventData,
+    makeTestTxnEntry,
+} from '../../utils/transaction'
 
 const mockDispatch = jest.fn()
 jest.mock('@fedi/common/hooks/redux', () => ({
@@ -60,7 +64,10 @@ describe('common/hooks/transactions', () => {
                 federationId: 'federationId',
             },
         }
-        const txn = createMockMultispendTransaction()
+        const txn = makeTestTxnEntry('multispendDeposit', {
+            state: makeTestMultispendDepositEventData(100, 'description1'),
+            time: 1677721600,
+        }) as MultispendTransactionListEntry
 
         beforeEach(() => {
             store.dispatch(
