@@ -527,194 +527,174 @@ export const makeTxnStatusText = (
 export const makeTxnStatusBadge = (
     txn: TransactionListEntry,
 ): TransactionStatusBadge => {
-    let badge: TransactionStatusBadge
+    if (!txn.state) return 'failed'
 
-    const direction = getTxnDirection(txn)
-    switch (direction) {
-        case TransactionDirection.send:
-            badge = 'outgoing'
-            if (txn.kind === 'lnPay') {
-                switch (txn.state?.type) {
-                    case 'created':
-                    case 'funded':
-                    case 'awaitingChange':
-                    case 'waitingForRefund':
-                        badge = 'pending'
-                        break
-                    case 'canceled':
-                    case 'refunded':
-                    case 'failed':
-                        badge = 'failed'
-                        break
-                    case 'success':
-                    default:
-                        badge = 'outgoing'
-                        break
-                }
-            } else if (txn.kind === 'onchainWithdraw') {
-                switch (txn.state?.type) {
-                    case 'failed':
-                        badge = 'failed'
-                        break
-                    default:
-                        badge = 'outgoing'
-                        break
-                }
-            } else if (txn.kind === 'oobSend') {
-                switch (txn.state?.type) {
-                    case 'created':
-                    case 'userCanceledFailure':
-                    case 'success':
-                        badge = 'outgoing'
-                        break
-                    case 'userCanceledSuccess':
-                        badge = 'failed'
-                        break
-                    case 'refunded':
-                        badge = 'failed'
-                        break
-                    case 'userCanceledProcessing':
-                        badge = 'pending'
-                        break
-                    default:
-                        break
-                }
-            } else if (txn.kind === 'spDeposit' || txn.kind === 'sPV2Deposit') {
-                switch (txn.state?.type) {
-                    case 'pendingDeposit':
-                        badge = 'pending'
-                        break
-                    case 'completeDeposit':
-                    case 'completedDeposit':
-                        badge = 'outgoing'
-                        break
-                    // TODO+TEST: Handle `failedDeposit` state
-                    default:
-                        break
-                }
-            } else if (txn.kind === 'sPV2TransferOut') {
-                // TODO+TEST: Handle `dataNotInCache` state and different kinds (sp transfer ui, multispend, etc)
-                badge = 'outgoing'
-                break
+    switch (txn.kind) {
+        case 'lnPay':
+            switch (txn.state.type) {
+                case 'created':
+                case 'funded':
+                case 'awaitingChange':
+                case 'waitingForRefund':
+                    return 'pending'
+                case 'canceled':
+                    return 'expired'
+                case 'refunded':
+                case 'failed':
+                    return 'failed'
+                default:
+                    txn.state.type satisfies 'success'
+                    return 'outgoing'
             }
-            break
-        case TransactionDirection.receive:
-            badge = 'incoming'
-            if (txn.kind === 'lnReceive') {
-                switch (txn.state?.type) {
-                    case 'claimed':
-                        badge = 'incoming'
-                        break
-                    case 'canceled':
-                        badge = 'expired'
-                        break
-                    case 'created':
-                    case 'waitingForPayment':
-                    case 'funded':
-                    case 'awaitingFunds':
-                    default:
-                        badge = 'pending'
-                        break
-                }
-            } else if (txn.kind === 'lnRecurringdReceive') {
-                switch (txn.state?.type) {
-                    case 'claimed':
-                    case 'created': // Remove this once bug is fixed
-                        // TODO+TEST: Identify what "bug" refers to and set to "pending" if the bug is fixed
-                        badge = 'incoming'
-                        break
-                    case 'canceled':
-                        badge = 'expired'
-                        break
+        case 'onchainWithdraw':
+            switch (txn.state.type) {
+                case 'created':
+                    return 'pending'
+                case 'failed':
+                    return 'failed'
+                default:
+                    txn.state.type satisfies 'succeeded'
+                    return 'outgoing'
+            }
+        case 'oobSend':
+            switch (txn.state.type) {
+                case 'created':
+                case 'userCanceledFailure':
+                case 'success':
+                    return 'outgoing'
+                case 'userCanceledSuccess':
+                case 'refunded':
+                    return 'failed'
+                default:
+                    txn.state.type satisfies 'userCanceledProcessing'
+                    return 'pending'
+            }
+        case 'spDeposit':
+        case 'sPV2Deposit':
+            switch (txn.state.type) {
+                case 'pendingDeposit':
+                case 'dataNotInCache':
+                    return 'pending'
+                case 'completeDeposit':
+                case 'completedDeposit':
+                    return 'outgoing'
+                default:
+                    txn.state.type satisfies 'failedDeposit'
+                    return 'failed'
+            }
+        case 'sPV2TransferOut':
+            switch (txn.state.type) {
+                case 'completedTransfer':
+                    switch (txn.state.kind) {
+                        case 'unknown':
+                            return 'failed'
+                        default:
+                            txn.state.kind satisfies
+                                | 'multispend'
+                                | 'matrixSpTransfer'
+                                | 'spTransferUi'
+                            return 'outgoing'
+                    }
+                default:
+                    txn.state.type satisfies 'dataNotInCache'
+                    return 'pending'
+            }
+        case 'lnReceive':
+            switch (txn.state.type) {
+                case 'claimed':
+                    return 'incoming'
+                case 'canceled':
+                    return 'expired'
+                default:
+                    txn.state.type satisfies
+                        | 'created'
+                        | 'waitingForPayment'
+                        | 'funded'
+                        | 'awaitingFunds'
+                    return 'pending'
+            }
+        case 'lnRecurringdReceive':
+            switch (txn.state?.type) {
+                case 'claimed':
+                case 'created': // Remove this once bug is fixed
+                    // TODO+TEST: Identify what "bug" refers to and set to "pending" if the bug is fixed
+                    return 'incoming'
+                case 'canceled':
+                    return 'expired'
+                default:
                     // TODO: fix bug in fedimint where payments get stuck
                     // in the created state despite being settled.
-                    // case 'created':
-                    case 'waitingForPayment':
-                    case 'funded':
-                    case 'awaitingFunds':
-                    default:
-                        badge = 'pending'
-                        break
-                }
-            } else if (txn.kind === 'onchainDeposit') {
-                switch (txn.state?.type) {
-                    case 'claimed':
-                        badge = 'incoming'
-                        break
-                    case 'failed':
-                        badge = 'failed'
-                        break
-                    case 'waitingForTransaction':
-                    case 'waitingForConfirmation':
-                    case 'confirmed':
-                    default:
-                        badge = 'pending'
-                        break
-                }
-            } else if (
-                txn.kind === 'spWithdraw' ||
-                txn.kind === 'sPV2Withdrawal'
-            ) {
-                switch (txn.state?.type) {
-                    case 'completeWithdrawal':
-                    case 'completedWithdrawal':
-                        badge = 'incoming'
-                        break
-                    // TODO+TEST: Handle `failedWithdrawal` state
-                    case 'pendingWithdrawal':
-                    default:
-                        badge = 'pending'
-                        break
-                }
-            } else if (txn.kind === 'sPV2TransferIn') {
-                badge = 'incoming'
-                break
-            } else if (txn.kind === 'oobReceive') {
-                switch (txn.state?.type) {
-                    case 'done':
-                        badge = 'incoming'
-                        break
-                    case 'failed':
-                        badge = 'failed'
-                        break
-                    case 'created':
-                    case 'issuing':
-                    default:
-                        badge = 'pending'
-                        break
-                }
-            } else {
-                badge = 'incoming'
+                    // | 'created'
+                    txn.state.type satisfies
+                        | 'waitingForPayment'
+                        | 'funded'
+                        | 'awaitingFunds'
+                    return 'pending'
             }
-            break
-        default:
-            badge = 'incoming'
-    }
-
-    if (
-        txn.kind === 'multispendDeposit' ||
-        txn.kind === 'multispendWithdrawal'
-    ) {
-        if (isMultispendDepositEvent(txn.state)) {
-            badge = 'incoming'
-        } else if (isMultispendWithdrawalEvent(txn.state)) {
-            const txStatus =
-                txn.state.event.withdrawalRequest.txSubmissionStatus
-            if (txStatus === 'unknown') {
-                badge = 'pending'
-            } else if ('accepted' in txStatus) {
-                badge = 'outgoing'
-            } else if ('rejected' in txStatus) {
-                badge = 'failed'
-            } else {
-                badge = 'pending'
+        case 'onchainDeposit':
+            switch (txn.state?.type) {
+                case 'claimed':
+                    return 'incoming'
+                case 'failed':
+                    return 'failed'
+                default:
+                    txn.state.type satisfies
+                        | 'waitingForTransaction'
+                        | 'waitingForConfirmation'
+                        | 'confirmed'
+                    return 'pending'
             }
-        } else {
-            badge = 'pending'
+        case 'spWithdraw':
+        case 'sPV2Withdrawal':
+            switch (txn.state.type) {
+                case 'completeWithdrawal':
+                case 'completedWithdrawal':
+                    return 'incoming'
+                case 'failedWithdrawal':
+                    return 'failed'
+                default:
+                    txn.state.type satisfies
+                        | 'pendingWithdrawal'
+                        | 'dataNotInCache'
+                    return 'pending'
+            }
+        case 'sPV2TransferIn':
+            switch (txn.state.type) {
+                case 'completedTransfer':
+                    switch (txn.state.kind) {
+                        case 'multispend':
+                            return 'incoming'
+                        default:
+                            txn.state.kind satisfies 'unknown'
+                            return 'failed'
+                    }
+                default:
+                    txn.state.type satisfies 'dataNotInCache'
+                    return 'pending'
+            }
+        case 'oobReceive':
+            switch (txn.state.type) {
+                case 'done':
+                    return 'incoming'
+                case 'failed':
+                    return 'failed'
+                default:
+                    txn.state.type satisfies 'created' | 'issuing'
+                    return 'pending'
+            }
+        case 'multispendDeposit':
+            return 'incoming'
+        case 'multispendWithdrawal': {
+            const { txSubmissionStatus } = txn.state.event.withdrawalRequest
+            if (txSubmissionStatus === 'unknown') return 'pending'
+            else if ('accepted' in txSubmissionStatus) return 'outgoing'
+            else if ('rejected' in txSubmissionStatus) return 'failed'
+            else return 'pending'
         }
+        default:
+            txn satisfies never
+            return 'failed'
     }
-
-    return badge
 }
 
 export const makeTxnFeeDetails = (
