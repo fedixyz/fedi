@@ -12,6 +12,7 @@ import { styled } from '../../styles'
 import { Button } from '../Button'
 import { CircularLoader } from '../CircularLoader'
 import { Icon } from '../Icon'
+import { ReceiveForeignEcashOverlay } from './ReceiveForeignEcashOverlay'
 
 interface Props {
     event: MatrixPaymentEvent
@@ -29,6 +30,9 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
         isLoadingTransaction,
         isSentByMe,
         transaction,
+        isHandlingForeignEcash,
+        handleRejectRequest,
+        setIsHandlingForeignEcash,
     } = useMatrixPaymentEvent({
         event,
         t,
@@ -44,6 +48,7 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
                 toast.error(t, error, 'errors.unknown-error')
             }
         },
+        onPayWithForeignEcash: () => {},
     })
 
     const hasExtra = statusText || statusIcon || buttons.length > 0
@@ -95,6 +100,12 @@ export const ChatPaymentEvent: React.FC<Props> = ({ event }) => {
                     )}
                 </>
             )}
+            <ReceiveForeignEcashOverlay
+                paymentEvent={event}
+                open={isHandlingForeignEcash}
+                onOpenChange={setIsHandlingForeignEcash}
+                onRejected={handleRejectRequest}
+            />
         </>
     )
 }

@@ -1,16 +1,10 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
 
-import { useFederationPreview } from '@fedi/common/hooks/federation'
-import { useFedimint } from '@fedi/common/hooks/fedimint'
-import { useMatrixPaymentEvent } from '@fedi/common/hooks/matrix'
-import { useToast } from '@fedi/common/hooks/toast'
-import { parseEcash } from '@fedi/common/redux'
-import { makeLog } from '@fedi/common/utils/log'
+import { useAcceptForeignEcash } from '@fedi/common/hooks/chat'
 
-import { useAppDispatch } from '../../../state/hooks'
 import { MatrixPaymentEvent } from '../../../types'
 import CustomOverlay from '../../ui/CustomOverlay'
 import { Column } from '../../ui/Flex'
@@ -25,8 +19,6 @@ interface Props {
     onRejected: () => void
 }
 
-const log = makeLog('ReceiveForeignEcashOverlay')
-
 const ReceiveForeignEcashOverlay: React.FC<Props> = ({
     paymentEvent,
     show,
@@ -34,60 +26,19 @@ const ReceiveForeignEcashOverlay: React.FC<Props> = ({
     onRejected,
 }) => {
     const { t } = useTranslation()
-    const toast = useToast()
-    const fedimint = useFedimint()
     const { theme } = useTheme()
-    const [showFederationPreview, setShowFederationPreview] =
-        useState<boolean>(false)
-    const [hideOtherMethods, setHideOtherMethods] = useState<boolean>(true)
-    const [inviteCode, setInviteCode] = useState<string | null>(null)
-    const style = styles(theme)
-    const dispatch = useAppDispatch()
-
-    const {
-        federationInviteCode,
-        // paymentSender
-    } = useMatrixPaymentEvent({
-        event: paymentEvent,
-        t,
-        onError: _ => toast.error(t, 'errors.chat-payment-failed'),
-    })
     const {
         isJoining,
         isFetchingPreview,
         federationPreview,
-        handleCode,
         handleJoin,
-    } = useFederationPreview(t, federationInviteCode || '')
+        showFederationPreview,
+        setShowFederationPreview,
+        hideOtherMethods,
+        setHideOtherMethods,
+    } = useAcceptForeignEcash(t, paymentEvent)
 
-    useEffect(() => {
-        if (!paymentEvent.content.ecash) return
-
-        dispatch(
-            parseEcash({
-                fedimint,
-                ecash: paymentEvent.content.ecash,
-            }),
-        )
-            .unwrap()
-            .then(parsed => {
-                if (parsed.federation_type === 'joined') {
-                    log.error('federation should not be joined')
-                    return
-                }
-
-                setInviteCode(
-                    parsed.federation_invite || federationInviteCode || '',
-                )
-            })
-    }, [paymentEvent.content.ecash, federationInviteCode, dispatch, fedimint])
-
-    useEffect(() => {
-        if (!inviteCode) return
-        // skip handling the code if we already have a preview
-        if (federationPreview) return
-        handleCode(inviteCode)
-    }, [federationPreview, inviteCode, handleCode])
+    const style = styles(theme)
 
     const renderOverlayContents = () => {
         if (isFetchingPreview) return <ActivityIndicator />
