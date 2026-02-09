@@ -42,10 +42,8 @@ const StartSocialBackup: React.FC<Props> = ({ navigation, route }: Props) => {
     }
 
     const requestPermissions = async () => {
-        await Promise.all([
-            requestCameraPermission(),
-            requestMicrophonePermission(),
-        ])
+        await requestCameraPermission()
+        await requestMicrophonePermission()
     }
 
     return (
