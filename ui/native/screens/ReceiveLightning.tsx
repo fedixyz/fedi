@@ -3,13 +3,7 @@ import { Text, useTheme } from '@rneui/themed'
 import { Theme } from '@rneui/themed/dist/config'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    ActivityIndicator,
-    Keyboard,
-    ScrollView,
-    StyleSheet,
-    View,
-} from 'react-native'
+import { ActivityIndicator, Keyboard, StyleSheet, View } from 'react-native'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useIsOnchainDepositSupported } from '@fedi/common/hooks/federation'
@@ -249,38 +243,36 @@ const ReceiveLightning: React.FC<Props> = ({ navigation, route }: Props) => {
                     </Column>
                 )}
                 {activeTab === 'lightning' && (
-                    <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-                        <AmountScreen
-                            showBalance={true}
-                            federationId={federationId}
-                            amount={amount}
-                            onChangeAmount={onChangeAmount}
-                            minimumAmount={minimumAmount}
-                            maximumAmount={maximumAmount}
-                            submitAttempts={submitAttempts}
-                            isSubmitting={isInvoiceLoading}
-                            readOnly={Boolean(exactAmount)}
-                            verb={t('words.request')}
-                            buttons={[
-                                {
-                                    title: `${t('words.request')}${
-                                        amount
-                                            ? ` ${amountUtils.formatSats(amount)} `
-                                            : ' '
-                                    }${t('words.sats').toUpperCase()}`,
-                                    onPress: handleSubmit,
-                                    disabled: isInvoiceLoading,
-                                    loading: isInvoiceLoading,
-                                    containerStyle: {
-                                        width: '100%',
-                                    },
+                    <AmountScreen
+                        showBalance={true}
+                        federationId={federationId}
+                        amount={amount}
+                        onChangeAmount={onChangeAmount}
+                        minimumAmount={minimumAmount}
+                        maximumAmount={maximumAmount}
+                        submitAttempts={submitAttempts}
+                        isSubmitting={isInvoiceLoading}
+                        readOnly={Boolean(exactAmount)}
+                        verb={t('words.request')}
+                        buttons={[
+                            {
+                                title: `${t('words.request')}${
+                                    amount
+                                        ? ` ${amountUtils.formatSats(amount)} `
+                                        : ' '
+                                }${t('words.sats').toUpperCase()}`,
+                                onPress: handleSubmit,
+                                disabled: isInvoiceLoading,
+                                loading: isInvoiceLoading,
+                                containerStyle: {
+                                    width: '100%',
                                 },
-                            ]}
-                            isIndependent={false}
-                            notes={notes}
-                            setNotes={setNotes}
-                        />
-                    </ScrollView>
+                            },
+                        ]}
+                        isIndependent={false}
+                        notes={notes}
+                        setNotes={setNotes}
+                    />
                 )}
             </SafeAreaContainer>
         </SafeScrollArea>
