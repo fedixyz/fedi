@@ -2,8 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, Platform, StyleSheet } from 'react-native'
-import RNFS from 'react-native-fs'
+import { Image, StyleSheet } from 'react-native'
 import Share from 'react-native-share'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
@@ -50,24 +49,25 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
             log.info('Located recovery file', recoveryFilePath)
 
-            let shareUrl = recoveryFilePath
+            // let shareUrl = recoveryFilePath
 
             // Due to permission issues on Android we need to
             // copy the file to the external cache directory first
-            if (Platform.OS === 'android') {
-                log.info('Android started...')
-                const dest = `${RNFS.ExternalCachesDirectoryPath}/backup.fedi`
-                await RNFS.copyFile(recoveryFilePath, dest)
-                shareUrl = dest
-                log.info('Android finished...')
-            }
+            // if (Platform.OS === 'android') {
+            //     log.info('Android started...')
+            //     const dest = `${RNFS.ExternalCachesDirectoryPath}/backup.fedi`
+            //     await RNFS.copyFile(recoveryFilePath, dest)
+            //     shareUrl = dest
+            //     log.info('Android finished...')
+            // }
 
-            log.info('Sharing file from URL', shareUrl)
+            log.info('Sharing file from URL', recoveryFilePath)
 
             await Share.open({
                 title: 'Fedi Backup File',
-                url: prefixFileUri(shareUrl),
+                url: prefixFileUri(recoveryFilePath),
                 type: '*/*',
+                failOnCancel: false,
             })
 
             setHasBackedUp(true)

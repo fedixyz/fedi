@@ -909,27 +909,21 @@ export const MainNavigator = () => {
                                 name="SocialBackupProcessing"
                                 component={SocialBackupProcessing}
                                 options={() => ({
-                                    header: () => (
-                                        <SocialBackupHeader backButton />
-                                    ),
+                                    header: () => <SocialBackupHeader />,
                                 })}
                             />
                             <Stack.Screen
                                 name="SocialBackupCloudUpload"
                                 component={SocialBackupCloudUpload}
                                 options={() => ({
-                                    header: () => (
-                                        <SocialBackupHeader backButton />
-                                    ),
+                                    header: () => <SocialBackupHeader />,
                                 })}
                             />
                             <Stack.Screen
                                 name="CompleteSocialBackup"
                                 component={CompleteSocialBackup}
                                 options={() => ({
-                                    header: () => (
-                                        <SocialBackupHeader backButton />
-                                    ),
+                                    header: () => <SocialBackupHeader />,
                                 })}
                             />
                             <Stack.Screen
