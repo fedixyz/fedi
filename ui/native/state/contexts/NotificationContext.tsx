@@ -68,19 +68,17 @@ export const NotificationContextProvider: React.FC<{
     // Prompt for permissions once the user has at least one chats
     useEffect(() => {
         if (chatList.length >= 1 && notificationsPermission !== 'granted') {
-            ;(async () => {
-                const { status } = await requestNotifications([
-                    'alert',
-                    'sound',
-                    'badge',
-                ])
+            requestNotifications(['alert', 'sound', 'badge']).then(
+                ({ status }) => {
+                    if (status === 'blocked') return
 
-                if (status !== 'granted') {
-                    Linking.openSettings()
-                }
+                    if (status !== 'granted') {
+                        Linking.openSettings()
+                    }
 
-                triggerPushNotificationSetup()
-            })()
+                    triggerPushNotificationSetup()
+                },
+            )
         }
     }, [chatList.length, notificationsPermission, triggerPushNotificationSetup])
 
