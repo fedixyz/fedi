@@ -1,10 +1,11 @@
 pub mod client;
 pub mod db;
 mod dev;
+mod lnurl_receives_service;
 mod meta;
 
 use std::any::Any;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::future::Future;
 use std::ops::Not as _;
@@ -15,7 +16,6 @@ use std::time::Duration;
 
 use ::serde::{Deserialize, Serialize};
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use async_recursion::async_recursion;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hex::DisplayHex;
 use bitcoin::secp256k1::{self, PublicKey, schnorr};
@@ -83,6 +83,7 @@ use fedimint_wallet_client::{
 };
 use futures::{FutureExt, Stream, StreamExt};
 use lightning_invoice::{Bolt11Invoice, RoutingFees};
+use lnurl_receives_service::LnurlReceivesService;
 use meta::{LegacyMetaSourceWithExternalUrl, MetaEntries};
 use rand::Rng;
 use rpc_types::error::ErrorCode;
@@ -260,10 +261,7 @@ pub struct FederationV2 {
     pub spv2_history_service: OnceCell<StabilityPoolHistoryService>,
     pub spv2_sweeper_service: OnceCell<SPv2SweeperService>,
     pub multispend_services: Arc<dyn MultispendNotifications>,
-    // In-memory set of LNURL recurring receives that have currently been actively subscribed to.
-    // Used to ensure that multiple calls to list_transactions doesn't trigger multiple
-    // subscriptions for the same operation.
-    pub lnurl_subbed_op_ids: Mutex<HashSet<OperationId>>,
+    pub lnurl_receives_service: OnceCell<LnurlReceivesService>,
     /// Cache for guardian status to prevent spamming servers
     #[allow(clippy::type_complexity)]
     pub guardian_status_cache:
@@ -334,7 +332,7 @@ impl FederationV2 {
             spv2_sync_service: Default::default(),
             spv2_history_service: Default::default(),
             spv2_sweeper_service: Default::default(),
-            lnurl_subbed_op_ids: Default::default(),
+            lnurl_receives_service: Default::default(),
             guardian_status_cache: Mutex::new(None),
         });
         if !recovering {
@@ -452,6 +450,14 @@ impl FederationV2 {
             {
                 error!("stability pool sweeper service already initialized");
             }
+        }
+
+        if self
+            .lnurl_receives_service
+            .set(LnurlReceivesService::new(self))
+            .is_err()
+        {
+            error!("lnurl receives service already initialized");
         }
     }
 
@@ -1105,40 +1111,6 @@ impl FederationV2 {
         Ok(())
     }
 
-    #[cfg_attr(target_family = "wasm", async_recursion(?Send))]
-    #[cfg_attr(not(target_family = "wasm"), async_recursion)]
-    pub async fn subscribe_recurring_payment_receive(
-        &self,
-        operation_id: OperationId,
-    ) -> Result<()> {
-        self.spawn_cancellable("subscribe invoice", move |fed| async move {
-            let Ok(ln) = fed.client.ln() else {
-                error!("Lightning module not found!");
-                return;
-            };
-            let Ok(updates) = ln.subscribe_ln_recurring_receive(operation_id).await else {
-                error!("Lightning operation with ID {:?} not found!", operation_id);
-                return;
-            };
-            let mut updates = updates.into_stream();
-            while let Some(update) = updates.next().await {
-                info!("Update: {:?}", update);
-                fed.update_operation_state(operation_id, update.clone())
-                    .await;
-                match update {
-                    LnReceiveState::Claimed => {
-                        fed.send_transaction_event(operation_id).await;
-                    }
-                    LnReceiveState::Canceled { .. } => {
-                        fed.send_transaction_event(operation_id).await;
-                    }
-                    _ => {}
-                }
-            }
-        });
-        Ok(())
-    }
-
     /// Decodes the given lightning invoice (as String) into an RpcInvoice
     /// whilst attaching federation-specific fee details to the response
     pub async fn decode_invoice(&self, invoice: String) -> Result<RpcInvoice> {
@@ -1499,16 +1471,8 @@ impl FederationV2 {
                     variant: LightningOperationMetaVariant::RecurringPaymentReceive { .. },
                     ..
                 } => {
-                    self.spawn_cancellable(
-                        "subscribe_to_recurring_payment_receive",
-                        move |fed| async move {
-                            if let Err(e) =
-                                fed.subscribe_recurring_payment_receive(operation_id).await
-                            {
-                                warn!("subscribe_to_ln_receive error: {e:?}")
-                            }
-                        },
-                    );
+                    // Recurring receives are handled by the
+                    // lnurl_receive_service
                 }
                 #[allow(deprecated)]
                 LightningOperationMeta {
@@ -2494,6 +2458,8 @@ impl FederationV2 {
         }
     }
 
+    // Initiates new subscription to operation updates/outcome if no cached outcome
+    // found
     pub async fn get_client_operation_outcome<O, F, Fut>(
         &self,
         operation_id: OperationId,
@@ -2521,6 +2487,27 @@ impl FederationV2 {
             Ok(UpdateStreamOrOutcome::UpdateStream(mut stream)) => Ok(stream.next().await),
             Err(e) => Err(e),
         }
+    }
+
+    // Returns None if no cached outcome found
+    async fn get_client_operation_outcome_cached<O>(
+        &self,
+        operation_id: OperationId,
+        log_entry: OperationLogEntry,
+    ) -> anyhow::Result<Option<O>>
+    where
+        O: Clone + DeserializeOwned + 'static,
+    {
+        // Return client's cached outcome if we find it
+        if let Some(outcome) = log_entry.try_outcome::<O>()? {
+            return Ok(Some(outcome));
+        }
+        // Return our cached outcome if we find it
+        if let Some(outcome) = self.get_operation_state::<O>(&operation_id).await? {
+            return Ok(Some(outcome));
+        }
+
+        Ok(None)
     }
 
     /// Return all transactions via operation log
@@ -2739,37 +2726,11 @@ impl FederationV2 {
                     }
                     LightningOperationMetaVariant::RecurringPaymentReceive(payment) => {
                         let state = self
-                            .get_client_operation_outcome(operation_id, entry, |op_id| async move {
-                                self.client
-                                    .ln()?
-                                    .subscribe_ln_recurring_receive(op_id)
-                                    .await
-                            })
-                            .await?;
-                        // If the state is "Created" or "WaitingForPayment", we need to subscribe in
-                        // the background so that we can send an update to the front-end when the
-                        // state advances.
-                        let mut lnurl_subbed_op_ids = self.lnurl_subbed_op_ids.lock().await;
-                        if matches!(
-                            state,
-                            Some(
-                                LnReceiveState::Created | LnReceiveState::WaitingForPayment { .. }
+                            .get_client_operation_outcome_cached::<LnReceiveState>(
+                                operation_id,
+                                entry,
                             )
-                        ) && !lnurl_subbed_op_ids.contains(&operation_id)
-                        {
-                            lnurl_subbed_op_ids.insert(operation_id);
-                            self.spawn_cancellable(
-                                "subscribe_to_recurring_payment_receive",
-                                move |fed| async move {
-                                    if let Err(e) =
-                                        fed.subscribe_recurring_payment_receive(operation_id).await
-                                    {
-                                        warn!("subscribe_to_ln_receive error: {e:?}")
-                                    }
-                                    fed.lnurl_subbed_op_ids.lock().await.remove(&operation_id);
-                                },
-                            );
-                        }
+                            .await?;
                         transaction_amount = RpcAmount(Amount {
                             msats: payment.invoice.amount_milli_satoshis().unwrap(),
                         });

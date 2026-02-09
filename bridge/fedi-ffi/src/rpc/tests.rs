@@ -182,6 +182,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
         test_lightning_send_and_receive,
+        test_lnurl_receive,
         test_ecash,
         test_ecash_overissue,
         test_on_chain,
@@ -463,6 +464,51 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 
     // TODO shaurya unsure how to account for gateway fee when verifying fedi fee
     // amount
+    Ok(())
+}
+
+async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
+    let td = TestDevice::new();
+    let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+    let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
+
+    // Use static method to get invoice from LNURL
+    let receive_amount = fedimint_core::Amount::from_sats(100);
+    let invoice = fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
+
+    // Pay invoice using gateway's node
+    dev_fed.gw_ldk.pay_invoice(invoice).await?;
+
+    // check for event of type transaction that has ln_state
+    'check: loop {
+        let events = td.event_sink().events();
+        for (_, ev_body) in events
+            .iter()
+            .rev()
+            .filter(|(kind, _)| kind == "transaction")
+        {
+            let ev_body = serde_json::from_str::<TransactionEvent>(ev_body).unwrap();
+            let transaction = ev_body.transaction;
+            info!(?transaction);
+            if matches!(
+                transaction.kind,
+                RpcTransactionKind::LnRecurringdReceive {
+                    state: Some(RpcLnReceiveState::Claimed),
+                    ..
+                }
+            ) {
+                break 'check;
+            }
+        }
+
+        fedimint_core::task::sleep_in_test(
+            "waiting for external lnurl recv",
+            Duration::from_millis(100),
+        )
+        .await;
+    }
+
+    assert_eq!(receive_amount, federation.get_balance().await);
     Ok(())
 }
 

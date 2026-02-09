@@ -3102,6 +3102,7 @@ dependencies = [
  "fedimint-client",
  "fedimint-core",
  "fedimint-derive-secret",
+ "fedimint-ln-client",
  "fedimint-ln-common",
  "fedimint-logging",
  "fedimint-mint-client",
