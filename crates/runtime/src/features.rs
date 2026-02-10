@@ -106,6 +106,9 @@ pub struct FeatureCatalog {
 
     /// Allows users to rearrange the order of mini apps on the Mods screen.
     pub rearrange_miniapps: Option<RearrangeMiniappsFeatureConfig>,
+
+    /// Config for detecting and processing incoming LNURL receives
+    pub lnurl_receives: Option<LnurlReceivesFeatureConfig>,
 }
 
 #[derive(Debug, Clone, TS, Serialize)]
@@ -184,6 +187,15 @@ pub struct CommunityV2MigrationFeatureConfig {}
 #[ts(export)]
 pub struct RearrangeMiniappsFeatureConfig {}
 
+#[derive(Debug, Clone, TS, Serialize)]
+#[ts(export)]
+pub struct LnurlReceivesFeatureConfig {
+    /// How long to wait between re-checking with fedimint client whether there
+    /// are any new incoming LNURL invoices
+    #[ts(type = "number")]
+    pub bg_service_polling_delay_secs: u32,
+}
+
 impl FeatureCatalog {
     pub fn new(runtime_env: RuntimeEnvironment) -> Self {
         match runtime_env {
@@ -226,6 +238,9 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            lnurl_receives: Some(LnurlReceivesFeatureConfig {
+                bg_service_polling_delay_secs: 2,
+            }),
         }
     }
 
@@ -267,6 +282,9 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            lnurl_receives: Some(LnurlReceivesFeatureConfig {
+                bg_service_polling_delay_secs: 2,
+            }),
         }
     }
 
@@ -300,6 +318,9 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            lnurl_receives: Some(LnurlReceivesFeatureConfig {
+                bg_service_polling_delay_secs: 30,
+            }),
         }
     }
 
@@ -336,6 +357,9 @@ impl FeatureCatalog {
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
+            lnurl_receives: Some(LnurlReceivesFeatureConfig {
+                bg_service_polling_delay_secs: 30,
+            }),
         }
     }
 }

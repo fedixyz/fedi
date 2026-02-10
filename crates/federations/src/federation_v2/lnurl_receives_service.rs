@@ -25,10 +25,20 @@ impl LnurlReceivesService {
             // subscribed to. Used to ensure that we don't subscribe to the same receive
             // multiple times.
             let lnurl_subbed_op_ids: Arc<Mutex<HashSet<OperationId>>> = Default::default();
+            let sleep_duration = Duration::from_secs(
+                fed.runtime
+                    .feature_catalog
+                    .lnurl_receives
+                    .as_ref()
+                    .map(|c| c.bg_service_polling_delay_secs)
+                    .unwrap_or(30) as u64,
+            );
             loop {
+                info!("lnurl service loop");
+
                 // Sleep in the beginning so that gateway service, meta service, etc. (other
                 // services) have time to initialize
-                fedimint_core::task::sleep(Duration::from_secs(30)).await;
+                fedimint_core::task::sleep(sleep_duration).await;
 
                 // Only proceed if lnurl has already been generated
                 let Some(recurringd_api) = fed.get_recurringd_api().await else {
@@ -47,6 +57,8 @@ impl LnurlReceivesService {
                     continue;
                 };
 
+                info!("found some lnurl invoices, checking their statuses");
+
                 'inner: for (_, operation_id) in invoices {
                     let Some(operation) =
                         fed.client.operation_log().get_operation(operation_id).await
@@ -60,6 +72,7 @@ impl LnurlReceivesService {
 
                     // Ignore operations that already have outcomes
                     if operation.outcome::<serde_json::Value>().is_some() {
+                        info!(?operation_id, "operation already had outcome, not subbing");
                         continue 'inner;
                     }
 
@@ -68,6 +81,7 @@ impl LnurlReceivesService {
                     {
                         let mut subbed_op_ids = lnurl_subbed_op_ids.lock().await;
                         if subbed_op_ids.contains(&operation_id) {
+                            info!(?operation_id, "operation already has ongoing sub");
                             continue 'inner;
                         }
 
@@ -80,6 +94,7 @@ impl LnurlReceivesService {
                             operation_id.fmt_short()
                         ),
                         move |fed| async move {
+                            info!(?operation_id, "subbing to operation");
                             if let Err(e) =
                                 subscribe_recurring_payment_receive(fed, operation_id).await
                             {

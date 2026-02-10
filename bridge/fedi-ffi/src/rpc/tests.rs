@@ -468,47 +468,111 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 }
 
 async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
-    let td = TestDevice::new();
-    let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
-    let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
+    // Try to pay same user 10x via lnurl
+    {
+        let td = TestDevice::new();
+        let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+        let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
 
-    // Use static method to get invoice from LNURL
-    let receive_amount = fedimint_core::Amount::from_sats(100);
-    let invoice = fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
+        for count in 1..=10 {
+            let prev_balance = federation.get_balance().await;
 
-    // Pay invoice using gateway's node
-    dev_fed.gw_ldk.pay_invoice(invoice).await?;
+            // Use static method to get invoice from LNURL
+            let receive_amount = fedimint_core::Amount::from_sats(count * 100);
+            let invoice =
+                fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
 
-    // check for event of type transaction that has ln_state
-    'check: loop {
-        let events = td.event_sink().events();
-        for (_, ev_body) in events
-            .iter()
-            .rev()
-            .filter(|(kind, _)| kind == "transaction")
-        {
-            let ev_body = serde_json::from_str::<TransactionEvent>(ev_body).unwrap();
-            let transaction = ev_body.transaction;
-            info!(?transaction);
-            if matches!(
-                transaction.kind,
-                RpcTransactionKind::LnRecurringdReceive {
-                    state: Some(RpcLnReceiveState::Claimed),
-                    ..
+            // Pay invoice using gateway's node
+            dev_fed.gw_ldk.pay_invoice(invoice).await?;
+
+            // check for event of type transaction that has ln_state
+            'check: loop {
+                let events = td.event_sink().events();
+                for (_, ev_body) in events
+                    .iter()
+                    .rev()
+                    .filter(|(kind, _)| kind == "transaction")
+                {
+                    let ev_body = serde_json::from_str::<TransactionEvent>(ev_body).unwrap();
+                    let transaction = ev_body.transaction;
+                    if matches!(
+                        transaction.kind,
+                        RpcTransactionKind::LnRecurringdReceive {
+                            state: Some(RpcLnReceiveState::Claimed),
+                            ..
+                        }
+                    ) && transaction.amount.0.msats == count * 100 * 1000
+                    {
+                        break 'check;
+                    }
                 }
-            ) {
-                break 'check;
-            }
-        }
 
-        fedimint_core::task::sleep_in_test(
-            "waiting for external lnurl recv",
-            Duration::from_millis(100),
-        )
-        .await;
+                fedimint_core::task::sleep_in_test(
+                    "waiting for external lnurl recv",
+                    Duration::from_millis(1000),
+                )
+                .await;
+            }
+
+            assert_eq!(
+                receive_amount,
+                federation.get_balance().await.saturating_sub(prev_balance),
+            );
+        }
     }
 
-    assert_eq!(receive_amount, federation.get_balance().await);
+    // Try to pay 10 different users back-to-back with lnurl
+    {
+        for _count in 1..=10 {
+            let td = TestDevice::new();
+            let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
+            let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
+
+            let prev_balance = federation.get_balance().await;
+
+            // Use static method to get invoice from LNURL
+            let receive_amount = fedimint_core::Amount::from_sats(100);
+            let invoice =
+                fedimint_ln_client::get_invoice(&td_lnurl, Some(receive_amount), None).await?;
+
+            // Pay invoice using gateway's node
+            dev_fed.gw_ldk.pay_invoice(invoice).await?;
+
+            // check for event of type transaction that has ln_state
+            'check: loop {
+                let events = td.event_sink().events();
+                for (_, ev_body) in events
+                    .iter()
+                    .rev()
+                    .filter(|(kind, _)| kind == "transaction")
+                {
+                    let ev_body = serde_json::from_str::<TransactionEvent>(ev_body).unwrap();
+                    let transaction = ev_body.transaction;
+                    if matches!(
+                        transaction.kind,
+                        RpcTransactionKind::LnRecurringdReceive {
+                            state: Some(RpcLnReceiveState::Claimed),
+                            ..
+                        }
+                    ) {
+                        break 'check;
+                    }
+                }
+
+                fedimint_core::task::sleep_in_test(
+                    "waiting for external lnurl recv",
+                    Duration::from_millis(1000),
+                )
+                .await;
+            }
+
+            assert_eq!(
+                receive_amount,
+                federation.get_balance().await.saturating_sub(prev_balance),
+            );
+        }
+    }
+
     Ok(())
 }
 
