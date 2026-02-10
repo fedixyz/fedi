@@ -687,6 +687,7 @@
             "leave-federation-withdraw-pending-stable-first": "Your {{currency}} withdrawal is still processing. Please try again in 10 minutes.",
             "leave-federation-withdraw-stable-first": "You must withdraw your entire {{currency}} balance before leaving.",
             "new-members-disabled": "You cannot join this federation.",
+            "no-federations": "No Federations",
             "paste-federation-code": "Paste federation code",
             "please-reconnect": "Please reconnect to the internet to refresh the federation status.",
             "recover-from-scratch": "Recover from scratch",

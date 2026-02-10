@@ -1,8 +1,8 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import { useFocusEffect } from '@react-navigation/native'
-import { useTheme, type Theme } from '@rneui/themed'
-import React, { useCallback, useState } from 'react'
-import { InteractionManager, ScrollView, StyleSheet, View } from 'react-native'
+import { Button, Text, useTheme, type Theme } from '@rneui/themed'
+import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ScrollView, StyleSheet, View } from 'react-native'
 
 import {
     selectLoadedFederations,
@@ -26,6 +26,7 @@ export type Props = BottomTabScreenProps<
 
 const Federations: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
+    const { t } = useTranslation()
 
     const [expandedWalletId, setExpandedWalletId] = useState<string | null>(
         null,
@@ -37,21 +38,24 @@ const Federations: React.FC<Props> = ({ navigation }) => {
 
     const style = styles(theme)
 
-    // make sure we have at least 1 federation, if not push to JoinFederation screen
-    useFocusEffect(
-        useCallback(() => {
-            const task = InteractionManager.runAfterInteractions(() => {
-                if (loadedFederations.length === 0) {
-                    navigation.dispatch(resetToJoinFederation)
-                }
-            })
-
-            return () => task.cancel()
-        }, [loadedFederations.length, navigation]),
-    )
-
     if (loadedFederations.length === 0) {
-        return null
+        return (
+            <Column grow center style={style.empty} gap="md">
+                <Column
+                    align="center"
+                    gap="md"
+                    fullWidth
+                    style={style.emptyContainer}>
+                    <Text bold>{t('feature.federations.no-federations')}</Text>
+                    <Text caption>{t('feature.wallet.join-federation')}</Text>
+                </Column>
+                <Button
+                    onPress={() => navigation.dispatch(resetToJoinFederation())}
+                    fullWidth>
+                    {t('phrases.join-a-federation')}
+                </Button>
+            </Column>
+        )
     }
 
     return (
@@ -99,6 +103,17 @@ const styles = (theme: Theme) =>
             width: '100%',
             backgroundColor: theme.colors.dividerGrey,
             marginVertical: theme.spacing.xl,
+        },
+        empty: {
+            paddingHorizontal: theme.spacing.lg,
+        },
+        emptyContainer: {
+            paddingHorizontal: theme.spacing.lg,
+            paddingVertical: theme.spacing.md,
+            borderColor: theme.colors.lightGrey,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderStyle: 'dashed',
         },
     })
 
