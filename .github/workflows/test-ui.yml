@@ -16,7 +16,7 @@ jobs:
             HAS_UI_CHANGES: ${{ steps.check-ui-changes.outputs.HAS_UI_CHANGES }}
         steps:
             - name: Check out code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   fetch-depth: 20
             - name: Check for changes inside 'ui/**'
@@ -43,7 +43,7 @@ jobs:
         runs-on: [self-hosted, linux]
         steps:
             - name: Checkout repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - uses: cachix/install-nix-action@v30
               with:
