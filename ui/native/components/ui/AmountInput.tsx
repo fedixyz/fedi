@@ -231,7 +231,17 @@ const AmountInput: React.FC<Props> = ({
                         error
                     )}
                 </Column>
-                {content && <Column fullWidth>{content}</Column>}
+                {/**
+                 * This Content prop used to be used to pass in error messages.
+                 * Now we have a specific prop for that purpose, but some callers still use it.
+                 * TODO: update callers that uses "content" to not do this...
+                 * we should remove "content" all together in favor of the more specific props
+                 */}
+                {content && (
+                    <Column fullWidth style={style.contentMaxHeight}>
+                        {content}
+                    </Column>
+                )}
                 {setNotes && (
                     <View style={style.notesContainer}>
                         <NotesInput
@@ -288,6 +298,10 @@ const styles = (theme: Theme, width: number) =>
         },
         error: {
             color: theme.colors.red,
+        },
+        contentMaxHeight: {
+            maxHeight: 60,
+            paddingHorizontal: theme.spacing.lg,
         },
         errorSuggestion: {
             color: theme.colors.red,
