@@ -79,17 +79,14 @@ export const useDebouncePress = (onPress: () => void, delay = 200) => {
  *
  * @see MessageInput for usage example preventing duplicate message sends
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useAsyncCallback<T extends (...args: any[]) => Promise<any>>(
-    callback: T,
-    deps: DependencyList = [],
-): [T, boolean] {
+export function useAsyncCallback<
+    T extends (...args: never[]) => Promise<unknown>,
+>(callback: T, deps: DependencyList = []): [T, boolean] {
     const isExecutingRef = useRef(false)
     const [isLoading, setIsLoading] = useState(false)
 
     const wrappedCallback = useCallback(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (async (...args: any[]) => {
+        (async (...args: Parameters<T>) => {
             // Check synchronous ref FIRST - prevents race condition
             if (isExecutingRef.current) return
 
