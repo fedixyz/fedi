@@ -160,6 +160,7 @@ const RecordVideo = () => {
                 </Text>
 
                 <Pressable
+                    testID="record-btn"
                     style={[
                         styles(theme).recordButton,
                         isRecording

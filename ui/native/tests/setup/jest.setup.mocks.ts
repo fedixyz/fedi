@@ -107,10 +107,12 @@ jest.mock('@react-native-community/netinfo', () => ({
 jest.mock('react-native-fs', () => ({
     readFile: jest.fn(),
     writeFile: jest.fn(),
+    copyFile: jest.fn(),
     unlink: jest.fn(),
     exists: jest.fn(() => Promise.resolve(true)),
     mkdir: jest.fn(),
     DocumentDirectoryPath: '/mock/documents',
+    TemporaryDirectoryPath: '/tmp',
 }))
 
 jest.mock('react-native-localize', () => ({
@@ -392,18 +394,6 @@ jest.mock('@react-native-clipboard/clipboard', () => ({
     setString: jest.fn(),
 }))
 
-jest.mock('react-native-vision-camera', () => ({
-    Camera: jest.requireActual('react-native').View,
-    useCodeScanner: jest.fn(() => ({
-        scan: jest.fn(),
-    })),
-    useCameraDevice: jest.fn(() => ({
-        id: 'back',
-        name: 'Back Camera',
-        position: 'back',
-    })),
-}))
-
 jest.mock('@react-native-camera-roll/camera-roll', () => ({
     CameraRoll: {
         saveAsset: jest.fn().mockResolvedValue(undefined),
@@ -419,3 +409,48 @@ jest.mock('react-native-image-picker', () => ({
 jest.mock('react-native-share', () => ({
     open: jest.fn().mockResolvedValue(undefined),
 }))
+
+jest.mock('react-native-vision-camera', () => {
+    const { View } = jest.requireActual('react-native')
+
+    return {
+        __esModule: true,
+        Camera: View,
+        useCodeScanner: jest.fn(() => ({ scan: jest.fn() })),
+        useCameraDevice: jest.fn(() => ({
+            id: 'back',
+            name: 'Back Camera',
+            position: 'back',
+            formats: [
+                {
+                    video: true,
+                    photo: true,
+                    fps: [30],
+                    width: 1920,
+                    height: 1080,
+                },
+                {
+                    video: true,
+                    photo: false,
+                    fps: [60],
+                    width: 1280,
+                    height: 720,
+                },
+            ],
+        })),
+    }
+})
+
+jest.mock('react-native-video', () => {
+    const React = jest.requireActual('react')
+    const { View } = jest.requireActual('react-native')
+
+    const MockVideo = React.forwardRef((props: any, ref: any) =>
+        React.createElement(View, { ...props, ref }),
+    )
+
+    return {
+        __esModule: true,
+        default: MockVideo,
+    }
+})

@@ -49,20 +49,6 @@ const CompleteSocialBackup: React.FC<Props> = ({ navigation }: Props) => {
 
             log.info('Located recovery file', recoveryFilePath)
 
-            // let shareUrl = recoveryFilePath
-
-            // Due to permission issues on Android we need to
-            // copy the file to the external cache directory first
-            // if (Platform.OS === 'android') {
-            //     log.info('Android started...')
-            //     const dest = `${RNFS.ExternalCachesDirectoryPath}/backup.fedi`
-            //     await RNFS.copyFile(recoveryFilePath, dest)
-            //     shareUrl = dest
-            //     log.info('Android finished...')
-            // }
-
-            log.info('Sharing file from URL', recoveryFilePath)
-
             await Share.open({
                 title: 'Fedi Backup File',
                 url: prefixFileUri(recoveryFilePath),

@@ -81,7 +81,7 @@ const StartSocialBackup: React.FC<Props> = ({ navigation, route }: Props) => {
                             </Text>
                             <Button
                                 fullWidth
-                                title="Open Settings"
+                                title={t('phrases.open-settings')}
                                 onPress={Linking.openSettings}
                             />
                         </>
