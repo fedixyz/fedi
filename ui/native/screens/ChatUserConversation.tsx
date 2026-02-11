@@ -64,7 +64,10 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
             attachments?: Array<InputAttachment | InputMedia>,
             repliedEventId?: string,
         ) => {
-            setIsSending(true)
+            setIsSending(prev => {
+                if (prev) return prev
+                return true
+            })
             try {
                 await dispatch(
                     sendMatrixDirectMessage({

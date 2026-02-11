@@ -360,6 +360,21 @@ jest.mock('@react-native-documents/picker', () => ({
     DocumentPickerResponse: {},
     pick: jest.fn(),
     keepLocalCopy: jest.fn(),
+    types: {
+        allFiles: '*/*',
+        images: 'image/*',
+        plainText: 'text/plain',
+        audio: 'audio/*',
+        pdf: 'application/pdf',
+        zip: 'application/zip',
+        csv: 'text/csv',
+        doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        xls: 'application/vnd.ms-excel',
+        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ppt: 'application/vnd.ms-powerpoint',
+        pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    },
 }))
 
 jest.mock('react-native-gesture-handler', () => ({
@@ -387,4 +402,20 @@ jest.mock('react-native-vision-camera', () => ({
         name: 'Back Camera',
         position: 'back',
     })),
+}))
+
+jest.mock('@react-native-camera-roll/camera-roll', () => ({
+    CameraRoll: {
+        saveAsset: jest.fn().mockResolvedValue(undefined),
+        getPhotos: jest.fn().mockResolvedValue({ edges: [] }),
+    },
+}))
+
+jest.mock('react-native-image-picker', () => ({
+    launchCamera: jest.fn().mockResolvedValue({ assets: [] }),
+    launchImageLibrary: jest.fn().mockResolvedValue({ assets: [] }),
+}))
+
+jest.mock('react-native-share', () => ({
+    open: jest.fn().mockResolvedValue(undefined),
 }))

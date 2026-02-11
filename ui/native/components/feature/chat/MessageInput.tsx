@@ -23,6 +23,7 @@ import { useMessageInputState } from '@fedi/common/hooks/chat'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useMentionInput } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
+import { useAsyncCallback } from '@fedi/common/hooks/util'
 import {
     selectIsDefaultGroup,
     selectMatrixRoom,
@@ -107,7 +108,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const { isVisible: kbVisible, height: kbHeight } = useKeyboard()
     const [isFocused, setIsFocused] = useState(false)
-    const [isSendingMessage, setIsSendingMessage] = useState(false)
     const [selection, setSelection] = useState<{ start: number; end: number }>({
         start: 0,
         end: 0,
@@ -211,15 +211,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
         // Matches three or more whitespace characters, including newlines, tabs, etc
         .replace(/\s{3,}/g, match => match.slice(0, 2))
 
-    const handleSend = useCallback(async () => {
-        if (
-            (!trimmedMessageText && !attachments.hasAttachments) ||
-            isSending ||
-            isSendingMessage
-        )
+    const [handleSend, isSendingMessage] = useAsyncCallback(async () => {
+        if ((!trimmedMessageText && !attachments.hasAttachments) || isSending)
             return
-
-        setIsSendingMessage(true)
 
         try {
             await onMessageSubmitted(
@@ -237,8 +231,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
             }
         } catch (e) {
             toast.error(t, e, 'errors.chat-unavailable')
-        } finally {
-            setIsSendingMessage(false)
         }
     }, [
         attachments,
@@ -249,7 +241,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
         dispatch,
         toast,
         t,
-        isSendingMessage,
         resetMessageText,
     ])
 
@@ -367,6 +358,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         { minHeight: inputHeight },
                     ]}>
                     <Input
+                        testID="MessageInput-TextInput"
                         disableFullscreenUI
                         textBreakStrategy="simple"
                         onChangeText={value => setMessageText(value)}
@@ -406,6 +398,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
                 {!isReadOnly && !existingRoom && (
                     <Pressable
+                        testID="MessageInput-SendButton"
                         style={style.sendButton}
                         onPress={handleSend}
                         hitSlop={10}
@@ -506,6 +499,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                 </View>
                             ) : (
                                 <Pressable
+                                    testID="MessageInput-SendButton"
                                     style={style.sendButton}
                                     onPress={handleSend}
                                     hitSlop={15}

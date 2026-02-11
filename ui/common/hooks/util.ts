@@ -1,6 +1,7 @@
 import {
     DependencyList,
     EffectCallback,
+    useCallback,
     useEffect,
     useRef,
     useState,
@@ -50,4 +51,63 @@ export const useDebouncePress = (onPress: () => void, delay = 200) => {
             }, delay)
         }
     }
+}
+
+/**
+ * Wraps an async callback to prevent concurrent executions using a synchronous ref guard.
+ *
+ * This hook solves a common React race condition: when a user rapidly triggers an async
+ * action (e.g., button taps), React state updates are asynchronous, so multiple calls
+ * can all see `loading=false` before React re-renders. This leads to duplicate operations.
+ *
+ * The hook uses `useRef` to provide a synchronous guard that updates immediately,
+ * preventing subsequent calls from executing until the first completes.
+ *
+ * @example
+ * ```typescript
+ * const [handleSubmit, isSubmitting] = useAsyncCallback(async (data: FormData) => {
+ *     await submitToServer(data)
+ *     navigation.navigate('Success')
+ * }, [navigation])
+ *
+ * return <Button onPress={() => handleSubmit(formData)} disabled={isSubmitting} />
+ * ```
+ *
+ * @param callback - The async function to wrap with concurrency protection
+ * @param deps - Dependency array for the callback (like useCallback)
+ * @returns A tuple of [wrappedCallback, isLoading]
+ *
+ * @see MessageInput for usage example preventing duplicate message sends
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function useAsyncCallback<T extends (...args: any[]) => Promise<any>>(
+    callback: T,
+    deps: DependencyList = [],
+): [T, boolean] {
+    const isExecutingRef = useRef(false)
+    const [isLoading, setIsLoading] = useState(false)
+
+    const wrappedCallback = useCallback(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (async (...args: any[]) => {
+            // Check synchronous ref FIRST - prevents race condition
+            if (isExecutingRef.current) return
+
+            // Set BOTH ref and state immediately
+            isExecutingRef.current = true
+            setIsLoading(true)
+
+            try {
+                return await callback(...args)
+            } finally {
+                // Always reset, even if callback throws
+                isExecutingRef.current = false
+                setIsLoading(false)
+            }
+        }) as T,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        deps,
+    )
+
+    return [wrappedCallback, isLoading]
 }

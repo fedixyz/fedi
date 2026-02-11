@@ -114,6 +114,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
             <MessageInput
                 onMessageSubmitted={handleSend}
                 id={roomId || directUserId || ''}
+                isSending={isSending}
                 isPublic={room?.isPublic ?? false}
                 onHeightChanged={setMessageInputHeight}
                 onReplyBarHeightChanged={setReplyBarHeight}
@@ -124,6 +125,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         handleSend,
         roomId,
         directUserId,
+        isSending,
         room?.isPublic,
         setMessageInputHeight,
         setReplyBarHeight,
