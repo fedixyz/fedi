@@ -304,6 +304,16 @@ impl AppState {
         self.with_write_lock(|state| state.internal_bridge_export = enabled)
             .await
     }
+
+    pub async fn is_device_index_conflict(&self) -> bool {
+        self.with_read_lock(|state| state.device_index_conflict)
+            .await
+    }
+
+    pub async fn set_device_index_conflict(&self, value: bool) -> anyhow::Result<()> {
+        self.with_write_lock(|state| state.device_index_conflict = value)
+            .await
+    }
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -476,6 +486,7 @@ impl AppStateOnboarding {
                     encrypted_device_identifier_v2: encrypted_device_identifier.clone(),
                     matrix_session: None,
                     internal_bridge_export: false,
+                    device_index_conflict: false,
                     onboarding_method: Some(onboarding_method),
                     first_comm_invite_code: FirstCommunityInviteCodeState::NeverSet,
                     guardian_password_map: BTreeMap::new(),

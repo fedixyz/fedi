@@ -142,6 +142,7 @@ pub async fn register_device_with_backoff(
                     Err(RegisterDeviceError::AnotherDeviceOwnsIndex(error)) => {
                         error!(%error, "unexpected device registration conflict");
                         if emit_event_on_conflict {
+                            let _ = app_state.set_device_index_conflict(true).await;
                             event_sink.typed_event(&Event::device_registration(
                                 rpc_types::event::DeviceRegistrationState::Conflict,
                             ));

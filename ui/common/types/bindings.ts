@@ -33,7 +33,8 @@ export type BalanceEvent = {
 
 export type BridgeOffboardingReason =
   | { type: "deviceIdentifierMismatch" }
-  | { type: "internalBridgeExport" };
+  | { type: "internalBridgeExport" }
+  | { type: "deviceIndexConflict" };
 
 /**
  * Notify front-end that a particular community's metadata has updated

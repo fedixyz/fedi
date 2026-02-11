@@ -53,6 +53,7 @@ pub enum BridgeOffboardingReason {
         new: DeviceIdentifier,
     },
     InternalBridgeExport,
+    DeviceIndexConflict,
 }
 
 impl Display for BridgeOffboardingReason {
@@ -63,6 +64,7 @@ impl Display for BridgeOffboardingReason {
                 "Expected device ID {existing} but received {new}. Likely app has been cloned on a new device."
             ),
             Self::InternalBridgeExport => write!(f, "Bridge is ready for export"),
+            Self::DeviceIndexConflict => write!(f, "Device index conflict detected"),
         }
     }
 }
@@ -89,6 +91,12 @@ impl BridgeFull {
         if runtime.app_state.is_internal_bridge_export().await {
             error!("Bridge is ready for export");
             return Err(BridgeOffboardingReason::InternalBridgeExport);
+        }
+
+        // Check if a device index conflict was previously detected
+        if runtime.app_state.is_device_index_conflict().await {
+            error!("Device index conflict previously detected");
+            return Err(BridgeOffboardingReason::DeviceIndexConflict);
         }
 
         let device_registration_service = DeviceRegistrationService::new(runtime.clone()).await;

@@ -99,6 +99,12 @@ pub struct AppStateJsonOnboarded {
     #[serde(default)]
     pub internal_bridge_export: bool,
 
+    /// Flag indicating a device index conflict was detected (another device
+    /// took over this device's index). Persisted so the next launch goes
+    /// straight to offboarding.
+    #[serde(default)]
+    pub device_index_conflict: bool,
+
     /// Tracks how the user completed onboarding. None for users who onboarded
     /// before this field was added.
     #[serde(default)]
@@ -422,6 +428,7 @@ impl AppStateJson {
                     device_index,
                     social_recovery_state,
                     internal_bridge_export: false,
+                    device_index_conflict: false,
                     onboarding_method: None,
                     first_comm_invite_code: FirstCommunityInviteCodeState::NeverSet,
                     guardian_password_map: BTreeMap::new(),

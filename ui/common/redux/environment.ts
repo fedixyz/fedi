@@ -9,6 +9,7 @@ import {
     initializeDeviceRegistration,
     refreshCommunities,
     refreshFederations,
+    setShouldLockDevice,
     setShouldMigrateSeed,
     setSurveyTimestamp,
     startMatrixClient,
@@ -275,6 +276,9 @@ export const refreshOnboardingStatus = createAsyncThunk<
             case 'internalBridgeExport':
                 // Bridge is ready for export, show migration screen
                 dispatch(setShouldMigrateSeed(true))
+                break
+            case 'deviceIndexConflict':
+                dispatch(setShouldLockDevice(true))
                 break
             default:
         }
