@@ -43,9 +43,10 @@ export function useBalance(t: TFunction, federationId: string) {
     const {
         formattedFiat,
         formattedSats,
+        formattedBitcoinAmount,
         formattedPrimaryAmount,
         formattedSecondaryAmount,
-    } = makeFormattedAmountsFromMSats(balance)
+    } = makeFormattedAmountsFromMSats(balance, 'end', true)
 
     const formattedBalance = `${formattedPrimaryAmount} (${formattedSecondaryAmount})`
 
@@ -53,6 +54,7 @@ export function useBalance(t: TFunction, federationId: string) {
         satsBalance: amountUtils.msatToSat(balance),
         formattedBalanceFiat: formattedFiat,
         formattedBalanceSats: formattedSats,
+        formattedBalanceBitcoin: formattedBitcoinAmount,
         formattedBalance,
         formattedBalanceText: `${t('words.balance')}: ${formattedBalance}`,
     }

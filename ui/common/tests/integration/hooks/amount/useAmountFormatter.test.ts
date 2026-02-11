@@ -207,12 +207,41 @@ describe('useAmountFormatter hook', () => {
         expect(msatAmounts).toEqual(formattedAmounts)
         expect(formattedAmounts.formattedSats).toEqual('2,100 SATS')
         expect(formattedAmounts.formattedFiat).toEqual('2.10 USD')
+        expect(formattedAmounts.formattedBitcoinAmount).toEqual('2,100 SATS')
         // formatBtc is fixed to 2 decimal places for some reason
         // TODO: investigate if this is by design or if it should be fixed
         expect(formattedAmounts.formattedBtc).toEqual('0.00 BTC')
         expect(formattedAmounts.formattedUsd).toEqual('2.10 USD')
         expect(formattedAmounts.formattedPrimaryAmount).toEqual('2.10 USD')
         expect(formattedAmounts.formattedSecondaryAmount).toEqual('2,100 SATS')
+    })
+
+    it('should format an amount in BTC when the threshold of >1M sats is met', () => {
+        const { store, bridge } = context
+        store.dispatch({
+            type: fetchCurrencyPrices.fulfilled.type,
+            payload: { btcUsdRate: 100000 },
+        })
+
+        const { result } = renderHookWithBridge(
+            () => useAmountFormatter(),
+            store,
+            bridge.fedimint,
+        )
+        const { makeFormattedAmountsFromSats } = result.current
+        const amount: Sats = 2100000 as Sats
+        const formattedAmounts = makeFormattedAmountsFromSats(
+            amount,
+            'end',
+            true,
+        )
+
+        expect(formattedAmounts.formattedSats).toEqual('2,100,000 SATS')
+        expect(formattedAmounts.formattedFiat).toEqual('2,100.00 USD')
+        expect(formattedAmounts.formattedBtc).toEqual('0.02 BTC')
+        expect(formattedAmounts.formattedUsd).toEqual('2,100.00 USD')
+        expect(formattedAmounts.formattedPrimaryAmount).toEqual('2,100.00 USD')
+        expect(formattedAmounts.formattedSecondaryAmount).toEqual('0.02 BTC')
     })
 
     it('should convert and format an amount in Cents', () => {

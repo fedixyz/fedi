@@ -82,7 +82,11 @@ const SelectFederationListItem: React.FC<{
     })
 
     const { formattedPrimaryAmount, formattedSecondaryAmount } =
-        makeFormattedAmountsFromMSats(federation.balance || (0 as MSats))
+        makeFormattedAmountsFromMSats(
+            federation.balance || (0 as MSats),
+            'end',
+            true,
+        )
 
     const { theme } = useTheme()
 

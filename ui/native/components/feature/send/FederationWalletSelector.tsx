@@ -1,18 +1,17 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
-import { useAmountFormatter } from '@fedi/common/hooks/amount'
-import { useCommonSelector } from '@fedi/common/hooks/redux'
+import { useBalance } from '@fedi/common/hooks/amount'
 import {
     selectPaymentFederation,
     selectLoadedFederations,
     setPayFromFederationId,
-    selectCurrency,
 } from '@fedi/common/redux'
 
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
-import { LoadedFederation, MSats } from '../../../types'
+import { LoadedFederation } from '../../../types'
 import { Column } from '../../ui/Flex'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -23,6 +22,7 @@ const FederationWalletSelector: React.FC<{
     fullWidth?: boolean
     showBalance?: boolean
 }> = ({ readonly = false, fullWidth = false, showBalance = true }) => {
+    const { t } = useTranslation()
     const { theme } = useTheme()
     const dispatch = useAppDispatch()
     const [opened, setOpened] = useState<boolean>(false)
@@ -30,21 +30,7 @@ const FederationWalletSelector: React.FC<{
     const paymentFederation = useAppSelector(selectPaymentFederation)
     const federations = useAppSelector(selectLoadedFederations)
 
-    const selectedCurrency = useCommonSelector(s =>
-        selectCurrency(s, paymentFederation?.id),
-    )
-
-    const { makeFormattedAmountsFromMSats } = useAmountFormatter({
-        currency: selectedCurrency,
-        federationId: paymentFederation?.id,
-    })
-
-    const {
-        formattedPrimaryAmount: primaryAmountToSendFrom,
-        formattedSecondaryAmount: secondaryAmountToSendFrom,
-    } = makeFormattedAmountsFromMSats(
-        paymentFederation?.balance || (0 as MSats),
-    )
+    const { formattedBalance } = useBalance(t, paymentFederation?.id || '')
 
     const handleFederationSelected = useCallback(
         (fed: LoadedFederation) => {
@@ -75,7 +61,7 @@ const FederationWalletSelector: React.FC<{
                             medium
                             caption
                             numberOfLines={1}>
-                            {`${primaryAmountToSendFrom} (${secondaryAmountToSendFrom})`}
+                            {formattedBalance}
                         </Text>
                     )}
                 </Column>

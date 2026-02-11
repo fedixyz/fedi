@@ -57,6 +57,7 @@ export const useAmountFormatter = (options?: {
         (
             amount: Sats,
             symbolPosition: AmountSymbolPosition = 'end',
+            useBtcThreshold: boolean = false,
         ): FormattedAmounts => {
             const formattedFiat = convertSatsToFormattedFiat(
                 amount,
@@ -77,18 +78,25 @@ export const useAmountFormatter = (options?: {
                     ? amountUtils.formatBtc(amountBtc)
                     : `${amountUtils.formatBtc(amountBtc)} BTC`
 
+            // optional formatting to use BTC over sats if amount is greater than 1M sats
+            const formattedBitcoinAmount =
+                useBtcThreshold && amount >= 1_000_000
+                    ? formattedBtc
+                    : formattedSats
+
             return {
                 formattedFiat,
                 formattedSats,
                 formattedBtc,
                 formattedUsd,
+                formattedBitcoinAmount,
                 formattedPrimaryAmount:
                     transactionDisplayType === 'fiat'
                         ? formattedFiat
-                        : formattedSats,
+                        : formattedBitcoinAmount,
                 formattedSecondaryAmount:
                     transactionDisplayType === 'fiat'
-                        ? formattedSats
+                        ? formattedBitcoinAmount
                         : formattedFiat,
             }
         },
@@ -135,9 +143,14 @@ export const useAmountFormatter = (options?: {
         (
             amount: MSats,
             symbolPosition: AmountSymbolPosition = 'end',
+            useBtcThreshold: boolean = false,
         ): FormattedAmounts => {
             const sats = amountUtils.msatToSat(amount)
-            return makeFormattedAmountsFromSats(sats, symbolPosition)
+            return makeFormattedAmountsFromSats(
+                sats,
+                symbolPosition,
+                useBtcThreshold,
+            )
         },
         [makeFormattedAmountsFromSats],
     )

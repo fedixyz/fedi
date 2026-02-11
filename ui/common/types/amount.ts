@@ -15,6 +15,7 @@ export type FormattedAmounts = {
     formattedSats: string
     formattedBtc?: string
     formattedUsd: string
+    formattedBitcoinAmount?: string
     formattedPrimaryAmount: string
     formattedSecondaryAmount: string
 }

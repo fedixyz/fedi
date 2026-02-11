@@ -33,8 +33,8 @@ export function useTotalBalance() {
         currency: currencyToUse,
     })
     const combinedMsats = (totalBalanceMsats + totalStableBalanceMsats) as MSats
-    const { formattedBtc, formattedSats, formattedFiat } =
-        makeFormattedAmountsFromMSats(combinedMsats)
+    const { formattedBitcoinAmount, formattedSats, formattedFiat } =
+        makeFormattedAmountsFromMSats(combinedMsats, 'end', true)
 
     const changeDisplayCurrency = () => {
         // if the user has an override currency, tapping total balance does nothing
@@ -50,9 +50,7 @@ export function useTotalBalance() {
             ? formattedFiat
             : showFiatTotalBalance
               ? formattedFiat
-              : totalBalanceMsats > 1_000_000_000 // if over 1M sats, show BTC unit instead
-                ? formattedBtc
-                : formattedSats,
+              : formattedBitcoinAmount,
         shouldHideTotalBalance: loadedFederations.length === 0,
         changeDisplayCurrency,
     }

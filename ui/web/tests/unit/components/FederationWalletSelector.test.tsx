@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import {
+    fetchCurrencyPrices,
     setFederations,
     setLastUsedFederationId,
     setupStore,
@@ -15,17 +16,7 @@ import {
 import { FederationWalletSelector } from '../../../src/components/FederationWalletSelector'
 import { renderWithProviders } from '../../utils/render'
 
-jest.mock('@fedi/common/hooks/amount', () => ({
-    ...jest.requireActual('@fedi/common/hooks/amount'),
-    useAmountFormatter: () => ({
-        makeFormattedAmountsFromMSats: () => ({
-            formattedPrimaryAmount: '2.00 USD',
-            formattedSecondaryAmount: '2,000 SATS',
-        }),
-    }),
-}))
-
-describe('/components/PaymentFederationSelector', () => {
+describe('/components/FederationWalletSelector', () => {
     let store: ReturnType<typeof setupStore>
 
     beforeAll(() => {
@@ -36,6 +27,12 @@ describe('/components/PaymentFederationSelector', () => {
         it('should render name and balance of federation', async () => {
             store.dispatch(setFederations([mockFederation1]))
             store.dispatch(setLastUsedFederationId('1'))
+            store.dispatch({
+                type: fetchCurrencyPrices.fulfilled.type,
+                payload: {
+                    btcUsdRate: 100000,
+                },
+            })
             renderWithProviders(<FederationWalletSelector />, {
                 store,
             })
