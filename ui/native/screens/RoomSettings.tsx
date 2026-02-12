@@ -58,6 +58,9 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     const isAdmin =
         myPowerLevel &&
         isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Admin)
+    const isModerator =
+        myPowerLevel &&
+        isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Moderator)
     const { shouldBlockLeaveRoom } = useMultispendDisplayUtils(t, roomId)
     const multispendStatus = useAppSelector(s =>
         selectMatrixRoomMultispendStatus(s, roomId),
@@ -251,7 +254,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
                     icon: 'Room',
                     label: t('feature.chat.invite-to-group'),
                     onPress: handleInviteMember,
-                    disabled: !isAdmin,
+                    disabled: !isAdmin && !isModerator,
                 },
                 {
                     icon: 'LeaveRoom',
@@ -334,6 +337,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
         handleViewMembers,
         launchZendesk,
         isAdmin,
+        isModerator,
         isDefaultGroup,
         isGroupChat,
         isTogglingBroadcastOnly,

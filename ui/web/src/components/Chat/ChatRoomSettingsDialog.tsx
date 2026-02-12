@@ -56,6 +56,9 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
     const isAdmin =
         myPowerLevel &&
         isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Admin)
+    const isModerator =
+        myPowerLevel &&
+        isPowerLevelGreaterOrEqual(myPowerLevel, MatrixPowerLevel.Moderator)
     const isDefaultGroup = useAppSelector(s =>
         selectIsDefaultGroup(s, room?.id || ''),
     )
@@ -137,7 +140,7 @@ export const ChatRoomSettingsDialog: React.FC<Props> = ({
                         label: t('feature.chat.invite-to-group'),
                         icon: RoomIcon,
                         onClick: () => setPage('invite'),
-                        disabled: !isAdmin,
+                        disabled: !isAdmin && !isModerator,
                     },
                     {
                         label: t('feature.chat.leave-group'),
