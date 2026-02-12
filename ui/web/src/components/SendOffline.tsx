@@ -178,12 +178,12 @@ export const SendOffline: React.FC<Props> = ({
 }
 
 const AmountContainer = styled('div', {
+    alignItems: 'center',
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    padding: '32px 0',
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingBottom: theme.spacing.lg,
     width: '100%',
 })
 

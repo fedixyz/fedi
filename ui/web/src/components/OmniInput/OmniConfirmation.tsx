@@ -2,6 +2,7 @@ import { useRouter } from 'next/router'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import BitcoinIcon from '@fedi/common/assets/svgs/bitcoin.svg'
 import BoltIcon from '@fedi/common/assets/svgs/bolt.svg'
 import CashIcon from '@fedi/common/assets/svgs/cash.svg'
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
@@ -203,9 +204,11 @@ export const OmniConfirmation: React.FC<Props> = ({
             case ParserDataType.Bip21:
             case ParserDataType.BitcoinAddress:
                 return {
-                    icon: ScanSadIcon,
-                    text: t('feature.omni.unsupported-on-chain'),
+                    icon: BitcoinIcon,
+                    text: t('feature.omni.confirm-onchain-pay'),
+                    continueOnClick: () => pushWithState('/send', parsedData),
                 }
+
             case ParserDataType.Unknown:
                 return {
                     icon: ScanSadIcon,

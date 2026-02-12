@@ -1,6 +1,7 @@
 import React from 'react'
 
 import CheckIcon from '@fedi/common/assets/svgs/check.svg'
+import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 
 import * as Layout from '../components/Layout'
 import { styled, theme } from '../styles'
@@ -14,6 +15,7 @@ type Props = {
     description?: string
     buttonText: string
     onClick(): void
+    type?: 'success' | 'error'
 }
 
 const Success: React.FC<Props> = ({
@@ -21,13 +23,17 @@ const Success: React.FC<Props> = ({
     description,
     buttonText,
     onClick,
+    type = 'success',
 }) => {
     return (
         <Layout.Root>
             <Layout.Content centered>
                 <Content>
                     <Circle align="center" gap="md">
-                        <Icon size="md" icon={CheckIcon} />
+                        <Icon
+                            size="md"
+                            icon={type === 'success' ? CheckIcon : CloseIcon}
+                        />
                         <Text weight="bold">{title}</Text>
                         <Text
                             variant="caption"

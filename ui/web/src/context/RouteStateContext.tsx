@@ -29,6 +29,8 @@ import React, {
 } from 'react'
 
 import {
+    ParsedBip21,
+    ParsedBitcoinAddress,
     ParsedBolt11,
     ParsedCashuEcash,
     ParsedFederationInvite,
@@ -37,7 +39,12 @@ import {
 } from '@fedi/common/types'
 
 interface RouteStateByPath {
-    '/send': ParsedLnurlPay | ParsedBolt11 | ParsedCashuEcash
+    '/send':
+        | ParsedLnurlPay
+        | ParsedBolt11
+        | ParsedCashuEcash
+        | ParsedBitcoinAddress
+        | ParsedBip21
     '/request': ParsedLnurlWithdraw
     '/onboarding/join': ParsedFederationInvite
 }
