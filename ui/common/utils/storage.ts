@@ -25,7 +25,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 40,
+        version: 41,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -66,7 +66,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         sessionCount: state.environment.sessionCount,
         hasSeenAnalyticsConsentModal:
             state.analytics.hasSeenAnalyticsConsentModal,
-        showFiatTotalBalance: state.currency.showFiatTotalBalance,
+        balanceDisplay: state.currency.balanceDisplay,
     }
 
     return transformedState
@@ -109,7 +109,7 @@ export function hasStorageStateChanged(
         ['currency', 'overrideCurrency'],
         ['currency', 'customFederationCurrencies'],
         ['currency', 'prices'],
-        ['currency', 'showFiatTotalBalance'],
+        ['currency', 'balanceDisplay'],
         ['federation', 'recentlyUsedFederationIds'],
         ['federation', 'lastSelectedCommunityId'],
         ['federation', 'authenticatedGuardian'],
@@ -776,6 +776,16 @@ async function migrateStoredState(
             ...migrationState,
             version: 40,
             miniAppOrder: [],
+        }
+    }
+
+    if (migrationState.version === 40) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { showFiatTotalBalance, ...rest } = migrationState
+        migrationState = {
+            ...rest,
+            version: 41,
+            balanceDisplay: 'sats',
         }
     }
 

@@ -34,6 +34,8 @@ const Container = styled(Row, {
     background: theme.colors.secondary,
     border: `1px solid ${theme.colors.extraLightGrey}`,
     borderRadius: 11,
+    cursor: 'pointer',
     height: 22,
     padding: theme.spacing.sm,
+    userSelect: 'none',
 })

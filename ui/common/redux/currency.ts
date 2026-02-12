@@ -18,13 +18,15 @@ import { loadFromStorage } from './storage'
 
 const log = makeLog('redux/currency')
 
+export type BalanceDisplayType = 'sats' | 'fiat' | 'hidden'
+
 /*** Initial State ***/
 
 const initialState = {
     btcUsdRate: 0 as number,
     fiatUsdRates: {} as Record<string, number | undefined>,
     overrideCurrency: null as SelectableCurrency | null,
-    showFiatTotalBalance: false as boolean,
+    balanceDisplay: 'sats' as BalanceDisplayType,
     currencyLocale: undefined as string | undefined,
     customFederationCurrencies: {} as Record<string, SelectableCurrency>,
 }
@@ -43,8 +45,8 @@ export const currencySlice = createSlice({
         ) {
             state.overrideCurrency = action.payload
         },
-        changeShowFiatTotalBalance(state, action: PayloadAction<boolean>) {
-            state.showFiatTotalBalance = action.payload
+        setBalanceDisplay(state, action: PayloadAction<BalanceDisplayType>) {
+            state.balanceDisplay = action.payload
         },
         setCurrencyLocale(state, action: PayloadAction<string>) {
             state.currencyLocale = action.payload
@@ -81,7 +83,7 @@ export const currencySlice = createSlice({
             state.fiatUsdRates = action.payload.fiatUsdRates
             state.customFederationCurrencies =
                 action.payload.customFederationCurrencies
-            state.showFiatTotalBalance = action.payload.showFiatTotalBalance
+            state.balanceDisplay = action.payload.balanceDisplay
         })
     },
 })
@@ -90,10 +92,10 @@ export const currencySlice = createSlice({
 
 export const {
     changeOverrideCurrency,
-    changeShowFiatTotalBalance,
     setCurrencyLocale,
     resetCurrencyState,
     setFederationCurrency,
+    setBalanceDisplay,
 } = currencySlice.actions
 
 /*** Async thunk actions ***/
@@ -266,8 +268,8 @@ export const selectCurrencyLocale = (s: CommonState) =>
 export const selectOverrideCurrency = (s: CommonState) =>
     s.currency.overrideCurrency
 
-export const selectShowFiatTotalBalance = (s: CommonState) =>
-    s.currency.showFiatTotalBalance
+export const selectBalanceDisplay = (s: CommonState) =>
+    s.currency.balanceDisplay
 
 export const selectCurrency = (
     s: CommonState,

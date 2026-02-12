@@ -360,6 +360,12 @@ export interface StoredStateV40 extends Omit<StoredStateV39, 'version'> {
     miniAppOrder: FediMod['id'][]
 }
 
+export interface StoredStateV41
+    extends Omit<StoredStateV40, 'version' | 'showFiatTotalBalance'> {
+    version: 41
+    balanceDisplay: 'sats' | 'fiat' | 'hidden'
+}
+
 /**
  * Consolidated type for older storage versions (0-24).
  * These are grouped together to reduce union type computation that slows down TSC performance.
@@ -416,9 +422,10 @@ export type AnyStoredState =
     | StoredStateV38
     | StoredStateV39
     | StoredStateV40
+    | StoredStateV41
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV40
+export type LatestStoredState = StoredStateV41
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>
