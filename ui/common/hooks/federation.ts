@@ -657,6 +657,8 @@ export function useFederationInviteCode(t: TFunction, inviteCode: string) {
     } | null>(null)
 
     useEffect(() => {
+        // Don't try to preview the invite code if it's empty
+        if (!inviteCode) return
         if (checkedRef.current) return
         checkedRef.current = true
         setIsChecking(true)
