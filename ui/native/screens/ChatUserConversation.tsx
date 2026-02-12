@@ -5,8 +5,10 @@ import { ActivityIndicator } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
+    fetchMatrixProfile,
     selectMatrixAuth,
     selectMatrixDirectMessageRoom,
+    selectMatrixUser,
     sendMatrixDirectMessage,
 } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
@@ -42,6 +44,13 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
 
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
+
+    // Fetch the user's profile so the header can display their name/avatar
+    const user = useAppSelector(s => selectMatrixUser(s, userId))
+    useEffect(() => {
+        if (user) return
+        dispatch(fetchMatrixProfile({ fedimint, userId }))
+    }, [userId, user, dispatch, fedimint])
 
     // If this is a chat with ourselves, redirect to main chat screen
     const navigationReplace = navigation.replace

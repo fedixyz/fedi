@@ -471,9 +471,29 @@ export class MatrixChatClient {
             .then(this.serializeUserDirectorySearchResponse)
     }
 
-    async fetchMatrixProfile(userId: MatrixUser['id']) {
-        // TODO: Add narrower types to matrixUserProfile RPC
-        return await this.fedimint.matrixUserProfile({ userId })
+    async fetchMatrixProfile(userId: MatrixUser['id']): Promise<MatrixUser> {
+        // TODO: narrow return type of matrixUserProfile RPC
+        const { data } = await this.fedimint.matrixUserProfile({ userId })
+
+        const displayname =
+            data && typeof data === 'object' && !Array.isArray(data)
+                ? (data as Record<string, unknown>).displayname
+                : undefined
+        const avatarUrl =
+            data && typeof data === 'object' && !Array.isArray(data)
+                ? (data as Record<string, unknown>).avatar_url
+                : undefined
+
+        return {
+            id: userId,
+            displayName: this.ensureDisplayName(
+                typeof displayname === 'string' ? displayname : null,
+            ),
+            avatarUrl:
+                typeof avatarUrl === 'string'
+                    ? mxcUrlToHttpUrl(avatarUrl, 200, 200, 'crop')
+                    : undefined,
+        }
     }
 
     async setDisplayName(displayName: string) {

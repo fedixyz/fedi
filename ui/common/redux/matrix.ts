@@ -555,6 +555,10 @@ export const matrixSlice = createSlice({
             }
         })
 
+        builder.addCase(fetchMatrixProfile.fulfilled, (state, action) => {
+            state.users = upsertRecordEntity(state.users, action.payload)
+        })
+
         builder.addCase(
             configureMatrixPushNotifications.fulfilled,
             (state, action) => {
@@ -1745,11 +1749,16 @@ export const searchMatrixUsers = createAsyncThunk<
 })
 
 export const fetchMatrixProfile = createAsyncThunk<
-    JSONObject,
+    MatrixUser,
     { fedimint: FedimintBridge; userId: string }
 >('matrix/fetchMatrixProfile', async ({ fedimint, userId }) => {
-    const client = fedimint.getMatrixClient()
-    return client.fetchMatrixProfile(userId)
+    try {
+        const client = fedimint.getMatrixClient()
+        return await client.fetchMatrixProfile(userId)
+    } catch (err) {
+        log.warn('fetchMatrixProfile failed', userId, err)
+        throw err
+    }
 })
 
 export const getMatrixRoomPreview = createAsyncThunk<

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+    fetchMatrixProfile,
     selectMatrixAuth,
     selectMatrixDirectMessageRoom,
     sendMatrixDirectMessage,
@@ -35,6 +36,12 @@ export const ChatUserConversation: React.FC<Props> = ({ userId }) => {
         (query?.displayName
             ? decodeURIComponent(String(query?.displayName))
             : t('words.unknown'))
+
+    // Fetch the user's profile so we can display their name/avatar
+    useEffect(() => {
+        if (user) return
+        dispatch(fetchMatrixProfile({ fedimint, userId }))
+    }, [userId, user, dispatch])
 
     // If this is a chat with ourselves, redirect to main chat screen
     useEffect(() => {
