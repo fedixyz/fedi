@@ -60,7 +60,7 @@ const DefaultChatTile = ({
                             small
                             style={style.subtitle}
                             numberOfLines={1}
-                            adjustsFontSizeToFit
+                            ellipsizeMode="tail"
                             medium>
                             {text}
                         </Text>
