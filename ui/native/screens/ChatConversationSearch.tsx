@@ -13,6 +13,7 @@ import { SendableMatrixEvent } from '@fedi/common/types'
 
 import ChatMessageTile from '../components/feature/chat/ChatMessageTile'
 import { Column } from '../components/ui/Flex'
+import KeyboardAwareWrapper from '../components/ui/KeyboardAwareWrapper'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector } from '../state/hooks'
 import type { RootStackParamList } from '../types/navigation'
@@ -128,27 +129,29 @@ const ChatConversationSearch: React.FC<Props> = ({
 
     return (
         <SafeAreaView style={style.container} edges={['bottom']}>
-            <Column style={style.resultsContainer}>
-                <FlatList
-                    data={searchResults as SendableMatrixEvent[]}
-                    renderItem={renderMessage}
-                    keyExtractor={item => `${item.id}`}
-                    contentContainerStyle={style.listContent}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={renderEmptyState}
-                    ListFooterComponent={renderFooter}
-                />
-                {isSearching && searchResults.length === 0 && (
-                    <Column
-                        align="center"
-                        justify="center"
-                        style={style.loadingState}>
-                        <Text medium style={style.loadingText}>
-                            {`${t('words.searching')}...`}
-                        </Text>
-                    </Column>
-                )}
-            </Column>
+            <KeyboardAwareWrapper dismissableArea={false}>
+                <Column grow fullWidth>
+                    <FlatList
+                        data={searchResults as SendableMatrixEvent[]}
+                        renderItem={renderMessage}
+                        keyExtractor={item => `${item.id}`}
+                        contentContainerStyle={style.listContent}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={renderEmptyState}
+                        ListFooterComponent={renderFooter}
+                    />
+                    {isSearching && searchResults.length === 0 && (
+                        <Column
+                            align="center"
+                            justify="center"
+                            style={style.loadingState}>
+                            <Text medium style={style.loadingText}>
+                                {`${t('words.searching')}...`}
+                            </Text>
+                        </Column>
+                    )}
+                </Column>
+            </KeyboardAwareWrapper>
         </SafeAreaView>
     )
 }
@@ -162,9 +165,6 @@ const styles = (theme: Theme) =>
             color: theme.colors.darkGrey,
             paddingVertical: theme.spacing.sm,
             paddingHorizontal: theme.spacing.lg,
-        },
-        resultsContainer: {
-            flex: 1,
         },
         listContent: {
             paddingHorizontal: theme.spacing.xs,
