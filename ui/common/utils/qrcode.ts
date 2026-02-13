@@ -91,7 +91,7 @@ export function renderStyledQrSvg(
             xmlns="http://www.w3.org/2000/svg"
         >
             <defs>
-                <g id="qr-${randomId}" style="color: inherit">${qrSvg}</g>
+                <g id="qr-${randomId}" style="color: black">${qrSvg}</g>
             </defs>
             <g>
                 <use
