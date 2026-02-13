@@ -57,7 +57,7 @@ const ChatsList: React.FC = () => {
         (chat: MatrixRoom) => {
             navigation.navigate('ChatRoomConversation', {
                 roomId: chat.id,
-                chatType: chat.directUserId ? ChatType.direct : ChatType.group,
+                chatType: chat.isDirect ? ChatType.direct : ChatType.group,
             })
         },
         [navigation],

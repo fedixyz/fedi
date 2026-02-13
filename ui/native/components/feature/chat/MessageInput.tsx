@@ -91,6 +91,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, id))
     const isGuardianitoRoom =
         existingRoom?.name === GUARDIANITO_BOT_DISPLAY_NAME
+    const isDirectChat = existingRoom?.isDirect
     const repliedEvent = useAppSelector(s =>
         selectReplyingToMessageEventForRoom(s, id),
     )
@@ -117,8 +118,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         [existingRoom],
     )
     const mentionEnabled = useMemo(
-        () => !(!!directUserId || (!existingRoom && !isPublic)),
-        [directUserId, existingRoom, isPublic],
+        () => !(!!isDirectChat || (!existingRoom && !isPublic)),
+        [isDirectChat, existingRoom, isPublic],
     )
 
     // Build candidates for the mention hook, injecting "self" if missing so we can self-mention by display name.
@@ -430,7 +431,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                          * - Polls are not available in broadcast rooms
                          * */}
                         {!isReadOnly &&
-                            !directUserId &&
+                            !isDirectChat &&
                             !isDefaultGroup &&
                             !existingRoom.broadcastOnly && (
                                 <Pressable

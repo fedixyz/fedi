@@ -54,6 +54,7 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     useObserveMatrixRoom(roomId)
 
     const directUserId = room?.directUserId
+    const isDirectChat = room?.isDirect
 
     // If we don't have info about this member, attempt to fetch a pubkey for them
     useEffect(() => {
@@ -160,7 +161,7 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     return (
         <>
             <ChatConversation
-                type={directUserId ? ChatType.direct : ChatType.group}
+                type={isDirectChat ? ChatType.direct : ChatType.group}
                 id={room?.id || ''}
                 isPublic={room?.isPublic ?? false}
                 name={room?.name || ''}
@@ -168,7 +169,7 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
                 onSendMessage={handleSend}
                 onWalletClick={() => setIsPaymentOpen(true)}
                 headerActions={
-                    directUserId ? undefined : (
+                    isDirectChat ? undefined : (
                         <Icon
                             icon={CogIcon}
                             size={26}

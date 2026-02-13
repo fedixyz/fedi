@@ -342,10 +342,10 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
             //
             // TODO: remove when background ecash redemption
             // is moved to the bridge
-            if (room?.directUserId) return
+            if (room?.isDirect) return
             dispatch(unobserveMatrixRoom({ fedimint, roomId }))
         }
-    }, [matrixStarted, roomId, dispatch, room?.directUserId, fedimint])
+    }, [matrixStarted, roomId, dispatch, room?.isDirect, fedimint])
 
     useEffect(() => {
         if (!matrixStarted || !latestEventId) return
@@ -467,7 +467,7 @@ export function useMatrixPaymentEvent({
     )
     const federationInviteCode = event.content.inviteCode
     const isDm = useCommonSelector(
-        s => !!selectMatrixRoom(s, event.roomId)?.directUserId,
+        s => !!selectMatrixRoom(s, event.roomId)?.isDirect,
     )
     const federationId = event.content.federationId
     const selectedCurrency = useCommonSelector(s =>

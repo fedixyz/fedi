@@ -2491,8 +2491,8 @@ export const selectMatrixContactsList = createSelector(
         const directChatUsers: MatrixRoomMember[] = []
         for (const room of rooms) {
             // Only grab users from direct chats
+            if (!room.isDirect) continue
             const { directUserId } = room
-            if (!directUserId) continue
             if (directChatUsers.some(u => u.id === directUserId)) continue
             const user = roomMembers[room.id]?.find(m => m.id === directUserId)
             if (!user) continue
@@ -2515,7 +2515,7 @@ export const selectRecentMatrixRoomMembers = createSelector(
         for (const room of rooms) {
             // Only grab users from direct chats
             const { directUserId } = room
-            if (!directUserId) continue
+            if (!room.isDirect) continue
             if (recentUsers.some(u => u.id === directUserId)) continue
             const user = roomMembers[room.id]?.find(m => m.id === directUserId)
             if (!user) continue

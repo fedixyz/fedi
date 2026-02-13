@@ -22,7 +22,7 @@ export const ChatSettingsAvatar: React.FC<Props> = ({ room }) => {
     const style = styles(theme)
 
     const handleAvatarPress = () => {
-        if (room && room.directUserId && room.avatarUrl) {
+        if (room && room.isDirect && room.avatarUrl) {
             navigation.navigate('ChatImageViewer', {
                 uri: mxcHttpUrlToDownloadUrl(room.avatarUrl),
                 downloadable: false,

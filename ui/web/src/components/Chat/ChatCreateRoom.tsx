@@ -47,6 +47,7 @@ export const ChatCreateRoom: React.FC = () => {
                         broadcastOnly: broadcastOnly,
                         avatarUrl: null,
                         directUserId: null,
+                        isDirect: false,
                     }}
                 />
                 <Input

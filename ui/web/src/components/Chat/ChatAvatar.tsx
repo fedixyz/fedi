@@ -14,7 +14,12 @@ type BaseProps = Omit<AvatarProps, 'id' | 'name' | 'icon'>
 type RoomProps = BaseProps & {
     room: Pick<
         MatrixRoom,
-        'id' | 'name' | 'broadcastOnly' | 'avatarUrl' | 'directUserId'
+        | 'id'
+        | 'name'
+        | 'broadcastOnly'
+        | 'avatarUrl'
+        | 'directUserId'
+        | 'isDirect'
     >
 }
 type UserProps = BaseProps & {
@@ -37,7 +42,7 @@ export const ChatAvatar: React.FC<Props> = props => {
         icon =
             room.name === GUARDIANITO_BOT_DISPLAY_NAME
                 ? FediQrLogo
-                : room.directUserId
+                : room.isDirect
                   ? undefined
                   : room.broadcastOnly
                     ? SpeakerphoneIcon

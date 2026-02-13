@@ -759,7 +759,7 @@ export class MatrixChatClient {
                     // If it's a DM:
                     // - fetch the member since it's small and we use recent DM users.
                     // - HACK: observe all DMs to claim ecash in the background.
-                    if (serializedRoom.directUserId) {
+                    if (serializedRoom.isDirect) {
                         // TODO: remove this when members list is observable
                         this.observeRoomMembers(roomId).catch(err => {
                             log.warn(
