@@ -198,7 +198,7 @@ pub async fn test_nostr_community_deletion(_dev_fed: DevFed) -> anyhow::Result<(
     let community_meta =
         BTreeMap::from([("description".to_string(), community_description.clone())]);
 
-    let creator = TestDevice::new();
+    let creator = TestDevice::new().await?;
     let bridge_creator = creator.bridge_full().await?;
 
     let create_payload = CommunityJson {
@@ -215,7 +215,7 @@ pub async fn test_nostr_community_deletion(_dev_fed: DevFed) -> anyhow::Result<(
         .community_invite;
 
     // Joiner joins
-    let joiner = TestDevice::new();
+    let joiner = TestDevice::new().await?;
     let bridge_joiner = joiner.bridge_full().await?;
     joinCommunity(bridge_joiner, invite_code.to_string()).await?;
     let joined_communities = listCommunities(bridge_joiner).await?;

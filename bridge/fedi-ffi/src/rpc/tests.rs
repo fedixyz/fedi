@@ -478,7 +478,7 @@ async fn test_lightning_send_and_receive_with_fedi_fees(
 async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
     // Try to pay same user 10x via lnurl
     {
-        let td = TestDevice::new();
+        let td = TestDevice::new().await?;
         let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
         let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
 
@@ -532,7 +532,7 @@ async fn test_lnurl_receive(dev_fed: DevFed) -> anyhow::Result<()> {
     // Try to pay 10 different users back-to-back with lnurl
     {
         for _count in 1..=10 {
-            let td = TestDevice::new();
+            let td = TestDevice::new().await?;
             let (_bridge, federation) = (td.bridge_full().await?, td.join_default_fed().await?);
             let td_lnurl = getRecurringdLnurl(federation.clone()).await?;
 
