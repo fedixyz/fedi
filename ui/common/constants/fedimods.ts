@@ -39,7 +39,7 @@ export const DEFAULT_FEDIMODS: FediMod[] = [
     },
 ]
 
-export const CATALOG_URL_PROD = 'https://fedi-catalog.vercel.app'
+export const CATALOG_URL_PROD = 'https://catalog.fedi.xyz'
 export const CATALOG_URL_STAGING = 'https://fedi-catalog-staging.vercel.app'
 export const CATALOG_URL =
     isNightly() || isDev() ? CATALOG_URL_STAGING : CATALOG_URL_PROD
