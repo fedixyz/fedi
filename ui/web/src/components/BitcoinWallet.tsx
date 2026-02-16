@@ -44,7 +44,7 @@ export const BitcoinWallet: React.FC<Props> = ({
 
     const handleOnReceiveClick = (federationId: string) => {
         dispatch(setPayFromFederationId(federationId))
-        push(`${requestRoute}#id=${federationId}`)
+        push(requestRoute)
     }
 
     const handleOnSendClick = (federationId: string) => {

@@ -11,7 +11,7 @@ import {
 import { MSats, SupportedCurrency } from '@fedi/common/types'
 import { BridgeError } from '@fedi/common/utils/errors'
 
-import { SendOffline } from '../../../src/components/SendOffline'
+import { SendOffline } from '../../../src/components/Send/SendOffline'
 import i18n from '../../../src/localization/i18n'
 import { AppState } from '../../../src/state/store'
 import { renderWithProviders } from '../../utils/render'

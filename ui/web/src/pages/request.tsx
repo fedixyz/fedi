@@ -1,4 +1,3 @@
-import FederationsPage from './federations'
+import Request from '../components/Request'
 
-// Request is shown as a modal on the federations page
-export default FederationsPage
+export default Request

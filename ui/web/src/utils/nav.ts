@@ -21,11 +21,18 @@ export const shouldHideNavigation = (pathname: string) => {
     // If chat/* then hide
     if (path.includes(`${routes.chatRoute}/`)) return true
 
+    // If federations/* then hide
+    if (path.includes(`${routes.federationsRoute}/`)) return true
+
+    // If communities/* then hide
+    if (path.includes(`${routes.communitiesRoute}/`)) return true
+
     if (path === routes.shareLogsRoute) return true
 
     if (path === routes.transactionsRoute) return true
 
     if (path === routes.sendRoute) return true
+    if (path === routes.requestRoute) return true
 
     return false
 }

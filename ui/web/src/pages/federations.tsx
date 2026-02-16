@@ -12,7 +12,6 @@ import { ContentBlock } from '../components/ContentBlock'
 import FeaturedFederation from '../components/FeaturedFederation'
 import FederationTile from '../components/FederationTile'
 import * as Layout from '../components/Layout'
-import { RequestPaymentDialog } from '../components/RequestPaymentDialog'
 import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
 
@@ -63,13 +62,6 @@ function FederationsPage() {
                     </FederationsListWrapper>
                 </Layout.Content>
             </Layout.Root>
-
-            {router.pathname === '/request' && (
-                <RequestPaymentDialog
-                    open={true}
-                    onOpenChange={() => router.push('/federations')}
-                />
-            )}
         </ContentBlock>
     )
 }
