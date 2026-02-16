@@ -2502,6 +2502,12 @@ export const selectMatrixContactsList = createSelector(
     },
 )
 
+export const selectMatrixContactById = createSelector(
+    selectMatrixContactsList,
+    (_: CommonState, userId: MatrixUser['id']) => userId,
+    (contacts, userId) => contacts.find(c => c.id === userId),
+)
+
 /**
  * Returns users who we have DM'd with most recently. Optionally
  * takes in an argument of the number to return, defaults to 4.

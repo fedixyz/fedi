@@ -3,6 +3,7 @@ import { ResultAsync } from 'neverthrow'
 import type {
     FedimintBridgeEventMap,
     MSats,
+    MatrixRoom,
     Sats,
     UsdCents,
     bindings,
@@ -187,6 +188,19 @@ export class FedimintBridge {
                 recipientMatrixId: null,
                 senderMatrixId: null,
             },
+        })
+    }
+
+    async matrixSpTransferSend(
+        amount: UsdCents,
+        roomId: MatrixRoom['id'],
+        federationId: string,
+    ) {
+        return this.rpcTyped('matrixSpTransferSend', {
+            amount,
+            roomId,
+            federationId,
+            federationInvite: null,
         })
     }
 

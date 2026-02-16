@@ -40,6 +40,10 @@ export type AvatarProps = {
     containerStyle?: StyleProp<ViewStyle>
     maxFontSizeMultiplier?: number
     isBlocked?: boolean
+    overrideIconDetails?: {
+        size?: number
+        color?: string
+    }
 }
 
 const Avatar: React.FC<AvatarProps> = ({
@@ -51,6 +55,7 @@ const Avatar: React.FC<AvatarProps> = ({
     containerStyle,
     maxFontSizeMultiplier,
     isBlocked,
+    overrideIconDetails,
 }: AvatarProps) => {
     const { theme } = useTheme()
     const [bgColor, textColor] = getIdentityColors(id)
@@ -106,15 +111,17 @@ const Avatar: React.FC<AvatarProps> = ({
             ) : icon ? (
                 <SvgImage
                     name={icon}
-                    size={svgImageSizeMapping[size]}
-                    color={textColor}
+                    size={
+                        overrideIconDetails?.size ?? svgImageSizeMapping[size]
+                    }
+                    color={overrideIconDetails?.color ?? textColor}
                 />
             ) : (
                 <Text
                     adjustsFontSizeToFit
                     maxFontSizeMultiplier={multiplier}
                     bold
-                    tiny={size === AvatarSize.sm}
+                    tiny={size === AvatarSize.sm || size === AvatarSize.xs}
                     h2={size === AvatarSize.lg}
                     style={mergedTextStyle}>
                     {name ? stringUtils.getInitialsFromName(name) : ''}

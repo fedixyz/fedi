@@ -10,7 +10,7 @@ import {
 } from '@fedi/common/types'
 import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 
-import Avatar, { AvatarProps } from '../../ui/Avatar'
+import Avatar, { AvatarProps, AvatarSize } from '../../ui/Avatar'
 
 type BaseProps = Omit<AvatarProps, 'id' | 'name' | 'icon'>
 type RoomProps = BaseProps & {
@@ -41,7 +41,7 @@ export const matrixAuthToAvatarProps = (
 
 export type ChatAvatarProps =
     | RoomProps
-    | (UserProps & { maxFontSizeMultiplier?: number })
+    | (UserProps & { maxFontSizeMultiplier?: number; size?: AvatarSize })
 
 const ChatAvatar: React.FC<ChatAvatarProps> = props => {
     const { theme } = useTheme()
@@ -82,12 +82,15 @@ const ChatAvatar: React.FC<ChatAvatarProps> = props => {
         avatarProps = rest
     }
 
+    const size = avatarProps.size || AvatarSize.sm
+
     const maxFontSizeMultiplier =
         props.maxFontSizeMultiplier ||
         theme.multipliers.defaultMaxFontMultiplier
 
     return (
         <Avatar
+            size={size}
             id={id || ''}
             name={name || '?'}
             icon={icon}

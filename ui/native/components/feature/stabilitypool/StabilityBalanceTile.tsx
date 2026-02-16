@@ -7,7 +7,7 @@ import { useBalance } from '@fedi/common/hooks/amount'
 import { Federation, LoadedFederation } from '@fedi/common/types'
 
 import { useStabilityPool } from '../../../state/hooks'
-import { Column, Row } from '../../ui/Flex'
+import { Row, Column } from '../../ui/Flex'
 import { ImageBadge } from '../../ui/ImageBadge'
 import SvgImage, { SvgImageSize } from '../../ui/SvgImage'
 import { FederationLogo } from '../federations/FederationLogo'

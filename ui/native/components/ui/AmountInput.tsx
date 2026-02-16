@@ -222,7 +222,7 @@ const AmountInput: React.FC<Props> = ({
                         )}
                     </Pressable>
                 )}
-                <Column center fullWidth>
+                <Column center fullWidth style={style.errorContainer}>
                     {customError ? (
                         <Text style={style.error} caption>
                             {customError}
@@ -315,6 +315,9 @@ const styles = (theme: Theme, width: number) =>
         },
         notesContainer: {
             width: '100%',
+        },
+        errorContainer: {
+            minHeight: theme.sizes.sm,
         },
     })
 

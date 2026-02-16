@@ -20,6 +20,7 @@ import {
     Federation,
     Community,
     Spv2ParsedPaymentAddress,
+    MatrixUser,
 } from '@fedi/common/types'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
@@ -202,7 +203,7 @@ export type RootStackParamList = {
     StabilityConfirmTransfer: {
         amount: UsdCents
         federationId: Federation['id']
-        recipient: Spv2ParsedPaymentAddress
+        recipient: Spv2ParsedPaymentAddress | { matrixUserId: MatrixUser['id'] }
         notes?: string
     }
     StabilityConfirmWithdraw: {

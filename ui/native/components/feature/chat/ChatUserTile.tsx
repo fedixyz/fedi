@@ -23,6 +23,7 @@ type UserItemProps = {
     // Pass a name to the chat avatar OTHER
     // than user.displayName
     overrideAvatarName?: string
+    overrideAvatar?: React.ReactNode
 }
 
 const ChatUserTile: React.FC<UserItemProps> = ({
@@ -34,6 +35,7 @@ const ChatUserTile: React.FC<UserItemProps> = ({
     showSuffix = false,
     showAdmin = false,
     overrideAvatarName,
+    overrideAvatar,
     containerStyle,
 }: UserItemProps) => {
     const { theme } = useTheme()
@@ -55,11 +57,15 @@ const ChatUserTile: React.FC<UserItemProps> = ({
             onPress={disabled ? undefined : () => selectUser(user.id)}
             onLongPress={disabled ? undefined : () => selectUser(user.id)}>
             <Row grow align="center" fullWidth>
-                <ChatAvatar
-                    containerStyle={[style.avatar]}
-                    user={avatarUser}
-                    size={AvatarSize.md}
-                />
+                {overrideAvatar ? (
+                    overrideAvatar
+                ) : (
+                    <ChatAvatar
+                        containerStyle={[style.avatar]}
+                        user={avatarUser}
+                        size={AvatarSize.md}
+                    />
+                )}
                 {showAdmin && (
                     <SvgImage
                         size={15}

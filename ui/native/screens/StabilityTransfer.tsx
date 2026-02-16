@@ -8,10 +8,11 @@ import { ActivityIndicator, Keyboard, StyleSheet } from 'react-native'
 import { useWithdrawForm } from '@fedi/common/hooks/amount'
 // import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
 import { useSpv2OurPaymentAddress } from '@fedi/common/hooks/stabilitypool'
+import { selectFeatureFlag } from '@fedi/common/redux'
 import { selectLoadedFederation } from '@fedi/common/redux/federation'
 
 import ReceiveQr from '../components/feature/receive/ReceiveQr'
-// import RecipientSelector from '../components/feature/stabilitypool/RecipientSelector'
+import RecipientSelector from '../components/feature/stabilitypool/RecipientSelector'
 import StabilityBalanceTile from '../components/feature/stabilitypool/StabilityBalanceTile'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import { Column, Row } from '../components/ui/Flex'
@@ -52,6 +53,9 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
     const federation = useAppSelector(s =>
         selectLoadedFederation(s, federationId),
     )
+    const spTransferFlag = useAppSelector(s =>
+        selectFeatureFlag(s, 'sp_transfer_ui'),
+    )
     const navigation = useNavigation()
     const { t } = useTranslation()
     const [transferMode, setTransferMode] = useState<TransferMode>('send')
@@ -76,8 +80,7 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
             : amount >= minimumAmount) && amount <= maximumAmount
 
     const handleSubmit = () => {
-        // if (!receiver && !lockedRecipient) return
-        if (!lockedRecipient) return
+        if (!receiver && !lockedRecipient) return
         setSubmitAttempts(attempts => attempts + 1)
         if (!isValidAmount) return
 
@@ -88,21 +91,14 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
                 federationId,
                 notes,
             })
-            // } else if (receiver && receiver.isSelf) {
-            //     // Handle as withdraw when sending to self
-            //     navigation.navigate('StabilityConfirmWithdraw', {
-            //         amountSats: amount,
-            //         amountCents: inputAmountCents,
-            //         federationId,
-            //     })
-            // } else if (receiver) {
-            //     // Handle as transfer when sending to other user
-            //     navigation.navigate('StabilityConfirmTransfer', {
-            //         recipient: { matrixUserId: receiver.id },
-            //         amount: inputAmountCents,
-            //         federationId,
-            //         notes,
-            //     })
+        } else if (receiver) {
+            // Handle as transfer when sending to other user
+            navigation.navigate('StabilityConfirmTransfer', {
+                recipient: { matrixUserId: receiver.id },
+                amount: inputAmountCents,
+                federationId,
+                notes,
+            })
         }
         Keyboard.dismiss()
     }
@@ -110,7 +106,7 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
     useSyncCurrencyRatesOnFocus(federationId)
 
     const [notes, setNotes] = useState('')
-    // const [receiver, setReceiver] = useState<ReceiverType | null>(null)
+    const [receiver, setReceiver] = useState<ReceiverType | null>(null)
 
     const { theme } = useTheme()
     const style = styles(theme)
@@ -181,14 +177,16 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
                     </Row>
                 </Column>
             }
-            // content={
-            //     !lockedRecipient ? (
-            //         <RecipientSelector
-            //             receiver={receiver}
-            //             setReceiver={setReceiver}
-            //         />
-            //     ) : null
-            // }
+            content={
+                // Don't show recipient selector after scanning a spv2 payment address
+                // Only show if sp_transfer_ui feature flag is set to Chat mode
+                !lockedRecipient && spTransferFlag?.mode === 'Chat' ? (
+                    <RecipientSelector
+                        receiver={receiver}
+                        setReceiver={setReceiver}
+                    />
+                ) : null
+            }
             federationId={federationId}
             amount={amount}
             onChangeAmount={onChangeAmount}
@@ -200,14 +198,9 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
             verb={t('words.transfer')}
             buttons={[
                 {
-                    title: t('words.transfer'),
-                    // title: receiver?.isSelf
-                    // ? t('words.confirm')
-                    // : t('words.transfer'),
+                    title: t('words.continue'),
                     onPress: handleSubmit,
-                    disabled:
-                        // amount === 0 || (!receiver && !lockedRecipient),
-                        amount === 0 || !lockedRecipient,
+                    disabled: amount === 0 || (!receiver && !lockedRecipient),
                 },
             ]}
             notes={notes}

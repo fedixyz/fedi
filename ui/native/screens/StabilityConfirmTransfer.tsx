@@ -11,17 +11,23 @@ import { useToast } from '@fedi/common/hooks/toast'
 import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import {
     selectLoadedFederation,
+    selectMatrixContactById,
     transferStableBalance,
+    transferStableBalanceMatrix,
 } from '@fedi/common/redux'
+import { SupportedCurrency } from '@fedi/common/types'
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
+import ChatAvatar from '../components/feature/chat/ChatAvatar'
 import FeeOverlay from '../components/feature/send/FeeOverlay'
 import SendAmounts from '../components/feature/send/SendAmounts'
 import SendPreviewDetails from '../components/feature/send/SendPreviewDetails'
-import StabilityBalanceTile from '../components/feature/stabilitypool/StabilityBalanceTile'
 import StabilityWalletTitle from '../components/feature/stabilitypool/StabilityWalletTitle'
-import { Column } from '../components/ui/Flex'
+import { AvatarSize } from '../components/ui/Avatar'
+import { Column, Row } from '../components/ui/Flex'
+import NotesInput from '../components/ui/NotesInput'
+import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { resetAfterSendSuccess } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
@@ -38,9 +44,23 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
-    const { amount, federationId, recipient } = route.params
+    const {
+        amount,
+        federationId,
+        recipient,
+        notes: initialNotes,
+    } = route.params
+    // TODO: Figure out a good way to maintain continuity of notes across both
+    // screens. Currently, if you update the notes here then hit back, the "updated"
+    // notes will not be persisted.
+    const [notes, setNotes] = useState<string>(initialNotes ?? '')
     const federation = useAppSelector(s =>
         selectLoadedFederation(s, federationId),
+    )
+    const recipientContact = useAppSelector(s =>
+        'matrixUserId' in recipient
+            ? selectMatrixContactById(s, recipient.matrixUserId)
+            : null,
     )
     const [showFeeBreakdown, setShowFeeBreakdown] = useState<boolean>(false)
     const { feeBreakdownTitle, makeSPTransferFeeContent } = useFeeDisplayUtils(
@@ -55,12 +75,33 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
         federationId,
     )
 
-    const formattedFiat = convertCentsToFormattedFiat(amount, 'end')
+    const formattedFiat = convertCentsToFormattedFiat(amount, 'none')
+    const formattedFiatCode = convertCentsToFormattedFiat(amount, 'end')
 
     const handleSubmit = async () => {
         try {
             setProcessingTransfer(true)
-            if ('accountId' in recipient) {
+            if ('matrixUserId' in recipient) {
+                await dispatch(
+                    transferStableBalanceMatrix({
+                        fedimint,
+                        amount,
+                        recipientMatrixId: recipient.matrixUserId,
+                        federationId,
+                    }),
+                )
+                // TODO: Kick them to the chat screens for confirmation/etc.
+                // This just shows the confirmation screen always.
+                setProcessingTransfer(false)
+                navigation.dispatch(
+                    resetAfterSendSuccess({
+                        title: t('feature.send.transferred'),
+                        description: t('feature.send.transferred-description'),
+                        formattedAmount: formattedFiat,
+                        federationId,
+                    }),
+                )
+            } else {
                 await dispatch(
                     transferStableBalance({
                         fedimint,
@@ -93,15 +134,43 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
             style={style.container}
             edges={{ left: 'additive', right: 'additive', bottom: 'maximum' }}>
             {federation ? (
-                <StabilityBalanceTile federation={federation} badgeLogo="usd" />
+                <View style={style.conversionIndicator}>
+                    <SvgImage
+                        name="UsdCircleFilled"
+                        size={SvgImageSize.sm}
+                        color={theme.colors.mint}
+                    />
+                    <SvgImage name="ArrowRight" size={SvgImageSize.sm} />
+                    <SvgImage
+                        name="UsdCircleFilled"
+                        size={SvgImageSize.sm}
+                        color={theme.colors.mint}
+                    />
+                </View>
             ) : (
                 <ActivityIndicator />
             )}
             <Column align="center" style={style.amountContainer}>
-                <StabilityWalletTitle bolder federationId={federationId} />
                 <SendAmounts
                     showBalance={false}
-                    formattedPrimaryAmount={formattedFiat}
+                    formattedPrimaryAmount={
+                        <Row justify="start" align="end" gap="sm">
+                            <Text h1 medium numberOfLines={1}>
+                                {formattedFiat}
+                            </Text>
+                            <Text
+                                numberOfLines={1}
+                                medium
+                                style={style.currencyCode}>
+                                {SupportedCurrency.USD}
+                            </Text>
+                        </Row>
+                    }
+                />
+                <NotesInput
+                    label={t('words.edit')}
+                    notes={notes}
+                    setNotes={setNotes}
                 />
             </Column>
             <SendPreviewDetails
@@ -118,7 +187,17 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                     />
                 }
                 receiverText={
-                    'address' in recipient ? (
+                    recipientContact ? (
+                        <View style={style.sendFrom}>
+                            <ChatAvatar
+                                user={recipientContact}
+                                size={AvatarSize.xs}
+                            />
+                            <Text caption color={theme.colors.primary} medium>
+                                {recipientContact.displayName}
+                            </Text>
+                        </View>
+                    ) : 'address' in recipient ? (
                         <View style={style.sendFrom}>
                             <Text caption color={theme.colors.primary} medium>
                                 {stringUtils.truncateMiddleOfString(
@@ -129,6 +208,9 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                         </View>
                     ) : null
                 }
+                formattedTotalAmount={formattedFiatCode}
+                formattedAmount={formattedFiatCode}
+                showTotalFee={true}
             />
             <FeeOverlay
                 show={showFeeBreakdown}
@@ -145,12 +227,15 @@ const styles = (theme: Theme) =>
         container: {
             flexDirection: 'column',
             flex: 1,
+            alignItems: 'center',
             padding: theme.spacing.lg,
         },
         amountContainer: {
             // The buttons in the SendPreviewDetails also have a marginTop
             // so this centers the amounts
             marginTop: 'auto',
+            gap: theme.spacing.lg,
+            paddingHorizontal: theme.spacing.lg,
         },
         buttonsGroup: {
             width: '100%',

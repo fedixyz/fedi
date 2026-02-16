@@ -94,23 +94,28 @@ const MultispendWithdraw: React.FC<Props> = ({ route }: Props) => {
             lockToFiat
             verb={t('words.withdraw')}
             content={
-                <View style={style.stabilityBalanceWidget}>
-                    {matchingFederation?.init_state === 'ready' && (
-                        <View style={{ flexShrink: 0 }}>
-                            <Avatar id={roomId} icon="SocialPeople" />
-                        </View>
-                    )}
-                    <Column gap="xs">
-                        <Text bold caption>
-                            {matrixRoom?.name}
-                        </Text>
-                        <Row align="center" gap="sm">
-                            <Text medium caption color={theme.colors.darkGrey}>
-                                {`${formattedMultispendBalance} ${selectedFiatCurrency}`}
+                <Column>
+                    <View style={style.stabilityBalanceWidget}>
+                        {matchingFederation?.init_state === 'ready' && (
+                            <View style={{ flexShrink: 0 }}>
+                                <Avatar id={roomId} icon="SocialPeople" />
+                            </View>
+                        )}
+                        <Column gap="xs">
+                            <Text bold caption>
+                                {matrixRoom?.name}
                             </Text>
-                        </Row>
-                    </Column>
-                </View>
+                            <Row align="center" gap="sm">
+                                <Text
+                                    medium
+                                    caption
+                                    color={theme.colors.darkGrey}>
+                                    {`${formattedMultispendBalance} ${selectedFiatCurrency}`}
+                                </Text>
+                            </Row>
+                        </Column>
+                    </View>
+                </Column>
             }
             notes={notes}
             setNotes={setNotes}

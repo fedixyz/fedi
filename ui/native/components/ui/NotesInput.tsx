@@ -44,12 +44,12 @@ export default function NotesInput({
                     fullWidth
                     style={style.content}>
                     <Row grow align="center" justify="between">
-                        <Text small bold color={theme.colors.night}>
+                        <Text small medium color={theme.colors.night}>
                             {label ?? t('words.notes')}
                         </Text>
                         <Row align="center" gap="xs">
                             <SvgImage name="EditPaper" size={SvgImageSize.sm} />
-                            <Text small>
+                            <Text caption>
                                 {notes ? t('words.edit') : t('words.add')}
                             </Text>
                         </Row>
@@ -84,7 +84,7 @@ const styles = (theme: Theme) =>
             display: 'flex',
             flexDirection: 'row',
             justifyContent: 'center',
-            paddingHorizontal: theme.spacing.lg,
+            paddingHorizontal: theme.spacing.md,
             paddingVertical: theme.spacing.md,
             borderWidth: 1,
             borderRadius: theme.borders.defaultRadius,

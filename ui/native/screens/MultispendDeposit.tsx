@@ -14,7 +14,7 @@ import {
 import { FederationLogo } from '../components/feature/federations/FederationLogo'
 import { AmountScreen } from '../components/ui/AmountScreen'
 import CustomOverlay from '../components/ui/CustomOverlay'
-import { Row, Column } from '../components/ui/Flex'
+import { Column, Row } from '../components/ui/Flex'
 import SvgImage from '../components/ui/SvgImage'
 import { useAppSelector, useStabilityPool } from '../state/hooks'
 import { resetToWallets } from '../state/navigation'
@@ -99,80 +99,82 @@ const MultispendDeposit: React.FC<Props> = ({ route }: Props) => {
                 lockToFiat
                 verb={t('words.deposit')}
                 content={
-                    <View style={style.stabilityBalanceWidget}>
-                        {matchingFederation?.init_state === 'ready' && (
-                            <View style={{ flexShrink: 0 }}>
-                                <FederationLogo
-                                    federation={matchingFederation}
-                                    size={36}
-                                />
-                            </View>
-                        )}
-                        <Column gap="xs">
-                            <Text
-                                bold
-                                caption
-                                maxFontSizeMultiplier={1.5}
-                                numberOfLines={1}>
-                                {
-                                    multispendStatus.finalized_group.invitation
-                                        .federationName
-                                }
-                            </Text>
-                            <Row align="center" gap="sm">
+                    <Column>
+                        <View style={style.stabilityBalanceWidget}>
+                            {matchingFederation.init_state === 'ready' && (
+                                <View style={{ flexShrink: 0 }}>
+                                    <FederationLogo
+                                        federation={matchingFederation}
+                                        size={36}
+                                    />
+                                </View>
+                            )}
+                            <Column gap="xs">
                                 <Text
-                                    medium
+                                    bold
                                     caption
                                     maxFontSizeMultiplier={1.5}
-                                    numberOfLines={1}
-                                    color={theme.colors.darkGrey}>
-                                    {formattedStableBalance}
-                                </Text>
-                                <Tooltip
-                                    visible={infoTooltip}
-                                    onOpen={() => setInfoTooltip(true)}
-                                    onClose={() => setInfoTooltip(false)}
-                                    popover={
-                                        <View style={style.tooltipContent}>
-                                            <Text
-                                                caption
-                                                maxFontSizeMultiplier={1}
-                                                style={style.tooltipText}>
-                                                <Trans
-                                                    i18nKey="feature.multispend.stable-balance-info"
-                                                    t={t}
-                                                    components={{
-                                                        boldlink: (
-                                                            <StableBalanceLink
-                                                                onPress={() => {
-                                                                    setInfoTooltip(
-                                                                        false,
-                                                                    )
-                                                                    navigation.dispatch(
-                                                                        resetToWallets(),
-                                                                    )
-                                                                }}
-                                                            />
-                                                        ),
-                                                    }}
-                                                />
-                                            </Text>
-                                        </View>
+                                    numberOfLines={1}>
+                                    {
+                                        multispendStatus.finalized_group
+                                            .invitation.federationName
                                     }
-                                    closeOnlyOnBackdropPress
-                                    withOverlay
-                                    overlayColor={theme.colors.overlay}
-                                    // This size handles 2-3 lines of text
-                                    // which covers all languages, assuming
-                                    // scaling is disabled via maxFontSizeMultiplier
-                                    width={200}
-                                    height={75}
-                                    backgroundColor={theme.colors.blue100}>
-                                    <SvgImage name="Info" size={12} />
-                                </Tooltip>
-                            </Row>
-                        </Column>
-                    </View>
+                                </Text>
+                                <Row align="center" gap="sm">
+                                    <Text
+                                        medium
+                                        caption
+                                        maxFontSizeMultiplier={1.5}
+                                        numberOfLines={1}
+                                        color={theme.colors.darkGrey}>
+                                        {formattedStableBalance}
+                                    </Text>
+                                    <Tooltip
+                                        visible={infoTooltip}
+                                        onOpen={() => setInfoTooltip(true)}
+                                        onClose={() => setInfoTooltip(false)}
+                                        popover={
+                                            <View style={style.tooltipContent}>
+                                                <Text
+                                                    caption
+                                                    maxFontSizeMultiplier={1}
+                                                    style={style.tooltipText}>
+                                                    <Trans
+                                                        i18nKey="feature.multispend.stable-balance-info"
+                                                        t={t}
+                                                        components={{
+                                                            boldlink: (
+                                                                <StableBalanceLink
+                                                                    onPress={() => {
+                                                                        setInfoTooltip(
+                                                                            false,
+                                                                        )
+                                                                        navigation.dispatch(
+                                                                            resetToWallets(),
+                                                                        )
+                                                                    }}
+                                                                />
+                                                            ),
+                                                        }}
+                                                    />
+                                                </Text>
+                                            </View>
+                                        }
+                                        closeOnlyOnBackdropPress
+                                        withOverlay
+                                        overlayColor={theme.colors.overlay}
+                                        // This size handles 2-3 lines of text
+                                        // which covers all languages, assuming
+                                        // scaling is disabled via maxFontSizeMultiplier
+                                        width={200}
+                                        height={75}
+                                        backgroundColor={theme.colors.blue100}>
+                                        <SvgImage name="Info" size={12} />
+                                    </Tooltip>
+                                </Row>
+                            </Column>
+                        </View>
+                    </Column>
                 }
                 notes={notes}
                 setNotes={setNotes}
@@ -250,6 +252,8 @@ export const styles = (theme: Theme) =>
             alignSelf: 'center',
             borderRadius: 12,
             minWidth: 200,
+            maxHeight: 60,
+            paddingHorizontal: theme.spacing.lg,
             height: '100%',
         },
         stableBalanceLink: {

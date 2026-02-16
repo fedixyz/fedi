@@ -19,9 +19,11 @@ import {
     selectStabilityPoolFeeSchedule,
     selectLoadedFederations,
     selectFeatureFlags,
+    selectMatrixDirectMessageRoom,
 } from '.'
 import {
     Federation,
+    MatrixUser,
     MSats,
     ReceiveEcashResult,
     Sats,
@@ -642,6 +644,41 @@ export const transferStableBalance = createAsyncThunk<
     'wallet/transferStableBalance',
     async ({ fedimint, amount, accountId, federationId, notes }) => {
         return fedimint.spv2Transfer(amount, accountId, federationId, notes)
+    },
+)
+
+export const transferStableBalanceMatrix = createAsyncThunk<
+    Promise<RpcEventId>,
+    {
+        fedimint: FedimintBridge
+        amount: UsdCents
+        recipientMatrixId: MatrixUser['id']
+        federationId: Federation['id']
+    },
+    { state: CommonState }
+>(
+    'wallet/transferStableBalanceMatrix',
+    async (
+        { fedimint, amount, recipientMatrixId, federationId },
+        { getState },
+    ) => {
+        const state = getState()
+        const stabilityVersion = selectStabilityPoolVersion(state, federationId)
+        if (stabilityVersion !== 2) {
+            // Federation must be SPV2 to transfer stable balance
+            throw new Error('Federation is not SPV2') // TODO: better error
+        }
+        const roomId = selectMatrixDirectMessageRoom(
+            state,
+            recipientMatrixId,
+        )?.id
+        if (!roomId) throw new Error('Recipient room not found') // TODO: better error
+        const eventId = await fedimint.matrixSpTransferSend(
+            amount,
+            roomId,
+            federationId,
+        )
+        return eventId
     },
 )
 
