@@ -95,6 +95,7 @@ const CompleteRecoveryAssist: React.FC<Props> = ({
                     <View style={style.videoContainer}>
                         <View style={style.videoWrapper}>
                             <Video
+                                testID="video-container"
                                 ref={videoRef}
                                 source={{ uri: prefixFileUri(videoPath) }} // Can be a URL or a local file.
                                 style={[
