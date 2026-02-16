@@ -1,5 +1,5 @@
 import { RouteProp, useRoute } from '@react-navigation/native'
-import { Input, Theme, useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
@@ -10,6 +10,7 @@ import { RootStackParamList } from '../../../types/navigation'
 import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
 import SvgImage from '../../ui/SvgImage'
+import SearchBar from './SearchBar'
 
 type ChatListSearchRouteProp = RouteProp<RootStackParamList, 'ChatsListSearch'>
 
@@ -34,10 +35,11 @@ const ChatsListSearchHeader: React.FC = () => {
             centerContainerStyle={style.centerContainer}
             headerCenter={
                 <View>
-                    <Input
-                        containerStyle={style.inputContainerOuter}
-                        inputContainerStyle={style.inputContainerInner}
-                        style={style.input}
+                    <SearchBar
+                        placeholder={t('feature.chat.search-chats-placeholder')}
+                        query={query}
+                        setQuery={setQuery}
+                        clearSearch={handleClearSearch}
                         leftIcon={<SvgImage name="Search" size={20} />}
                         rightIcon={
                             query.length > 0 && (
@@ -48,14 +50,6 @@ const ChatsListSearchHeader: React.FC = () => {
                                 />
                             )
                         }
-                        value={query}
-                        placeholder={t(
-                            'feature.chat.search-chats-placeholder',
-                            'Search chats...',
-                        )}
-                        onChangeText={setQuery}
-                        autoCapitalize="none"
-                        autoFocus
                     />
                 </View>
             }
@@ -73,26 +67,6 @@ const styles = (theme: Theme) =>
             flexGrow: 1,
             marginLeft: theme.spacing.md,
             maxWidth: '85%',
-        },
-        inputContainerOuter: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            borderWidth: 1.5,
-            borderRadius: 8,
-            paddingVertical: 0,
-            marginVertical: 0,
-            height: 36,
-        },
-        inputContainerInner: {
-            height: '100%',
-            width: '100%',
-            borderBottomWidth: 0,
-        },
-        input: {
-            height: '100%',
-            width: '100%',
-            marginTop: theme.spacing.xs,
-            fontSize: 14,
         },
     })
 
