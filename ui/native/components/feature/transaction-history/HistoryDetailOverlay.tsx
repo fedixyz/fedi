@@ -47,7 +47,7 @@ const HistoryDetailOverlay: React.FC<HistoryDetailOverlayProps> = ({
 
         if (show) setScope('overlay')
         else reset()
-        return reset()
+        return () => reset()
     }, [show, setScope])
 
     const content = useMemo(() => {
