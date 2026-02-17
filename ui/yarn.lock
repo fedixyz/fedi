@@ -14093,10 +14093,10 @@ react-native-screens@4.13.1:
     react-native-is-edge-to-edge "^1.2.1"
     warn-once "^0.1.0"
 
-react-native-share@^12.2.5:
-  version "12.2.5"
-  resolved "https://registry.yarnpkg.com/react-native-share/-/react-native-share-12.2.5.tgz#a793f8d7c337b2e8ee123630676b69c531c5addd"
-  integrity sha512-2uwd/PdlUyvpsSBfL7OMiL4sD0Ja51wu5m62JSIXjrtlF+uSTUOGsMrE49ncIRYziqAfYUeI195WwhpvqXB0ww==
+react-native-share@^11.0.4:
+  version "11.1.0"
+  resolved "https://registry.yarnpkg.com/react-native-share/-/react-native-share-11.1.0.tgz#cd24b1f2de0bb701aa7e1a4ff81e68308f0a42b2"
+  integrity sha512-kcpBR90d5//xc8H84HnX6YFeOk4A34mtHz4UEpb7Twbu049KafJwsp4KVVr/SrJwy8W0/Rbe880En9Hq0REamw==
 
 react-native-size-matters@^0.4.0:
   version "0.4.2"
