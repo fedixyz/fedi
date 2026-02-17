@@ -81,10 +81,7 @@ const ChevronIcon = styled('div', {
 })
 
 const MenuContent = styled('div', {
-    paddingTop: 0,
-    paddingBottom: 16,
-    paddingLeft: 16,
-    paddingRight: 16,
+    padding: '0 16px',
 })
 
 export const MenuItemInfo = styled('div', {

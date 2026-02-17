@@ -24,6 +24,7 @@ import { ContentBlock } from '../../components/ContentBlock'
 import { CopyInput } from '../../components/CopyInput'
 import { FederationInviteDialog } from '../../components/FederationInviteDialog'
 import { FederationMenu } from '../../components/FederationMenu'
+import { Column } from '../../components/Flex'
 import * as Layout from '../../components/Layout'
 import { MobileAppDownloadBanner } from '../../components/MobileAppDownloadBanner'
 import { QRCode } from '../../components/QRCode'
@@ -147,7 +148,7 @@ function AdminPage() {
                     <Layout.Title>{t('words.account')}</Layout.Title>
                 </Layout.Header>
                 <Layout.Content>
-                    <div>
+                    <Column>
                         {matrixAuth ? (
                             <Content>
                                 <QRContainer>
@@ -176,7 +177,7 @@ function AdminPage() {
 
                         {/* Federations Section */}
                         {sortedFederations.length > 0 && (
-                            <div>
+                            <Column>
                                 <Text css={{ marginBottom: 16 }}>
                                     {t('words.federations')}
                                 </Text>
@@ -192,12 +193,12 @@ function AdminPage() {
                                         }
                                     />
                                 ))}
-                            </div>
+                            </Column>
                         )}
 
                         {/* Communities Section */}
                         {sortedCommunities.length > 0 && (
-                            <div>
+                            <Column>
                                 <Text css={{ marginBottom: 16 }}>
                                     {t('words.communities')}
                                 </Text>
@@ -211,11 +212,11 @@ function AdminPage() {
                                         }
                                     />
                                 ))}
-                            </div>
+                            </Column>
                         )}
 
                         <VersionContainer />
-                    </div>
+                    </Column>
                 </Layout.Content>
             </Layout.Root>
 
@@ -264,7 +265,6 @@ const Content = styled('div', {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    paddingTop: 16,
     gap: 16,
 })
 
