@@ -223,16 +223,44 @@ impl SpTransfersMatrix {
             } else {
                 match this.services.provider.spv2_wait_for_user_operation_history_item(&federation_id.0, sent_hint_txid.0).await {
                     Ok(history_item) => {
-                        let is_valid = match &history_item.kind {
-                            UserOperationHistoryItemKind::TransferIn { meta, .. } => {
-                                history_item.fiat_amount == FiatAmount(transfer.amount.0)
-                                    && Spv2TransferTxMeta::decode(meta).is_ok_and(|m| {
-                                        m.is_for_sp_transfer_matrix_pending_start_event_id(&transfer_id.event_id)
-                                    })
+                        let check_valid = || {
+                            let meta = match &history_item.kind {
+                                UserOperationHistoryItemKind::TransferIn { meta, .. } => meta,
+                                _ => {
+                                    warn!(?history_item.kind, "invalid operation kind in sp-transfer");
+                                    return false;
+                                }
+                            };
+                            let expected_amount = FiatAmount(transfer.amount.0)
+                                .to_btc_amount(history_item.cycle.start_price)
+                                .ok();
+                            let amount_matches = expected_amount
+                                .as_ref()
+                                .is_some_and(|expected| *expected == history_item.amount);
+                            if !amount_matches {
+                                warn!(
+                                    fiat_amount = transfer.amount.0,
+                                    expected_amount = ?expected_amount,
+                                    actual_amount = ?history_item.amount,
+                                    price_per_btc = history_item.cycle.start_price.0,
+                                    "amount mismatch in sp-transfer event"
+                                );
+                                return false;
                             }
-                            _ => false,
+                            let Ok(meta) = Spv2TransferTxMeta::decode(meta) else {
+                                warn!("failed to decode meta for sp-transfer");
+                                return false;
+                            };
+                            if !meta.is_for_sp_transfer_matrix_pending_start_event_id(&transfer_id.event_id) {
+                                warn!("replay attack against sp-transfer");
+                                return false;
+                            }
+
+                            true
+
                         };
-                        if is_valid {
+
+                        if check_valid() {
                             yield make_rpc_transfer_state(RpcSpTransferStatus::Complete);
                         } else {
                             // no sending the correct amount is considered cheating and you move to failed state
