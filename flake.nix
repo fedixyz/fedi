@@ -35,6 +35,11 @@
       url = "github:fedibtc/android-nixpkgs?rev=f89ea2d6f9dbc4014c6a0d189ffe94d445bfbd25"; # stable
       # inputs.nixpkgs.follows = "fedimint-pkgs/nixpkgs";
     };
+
+    andy = {
+      url = "github:maan2003/andy/prebuilt";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -48,6 +53,7 @@
       cargo-deluxe,
       android-nixpkgs,
       flakebox,
+      andy,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -379,6 +385,7 @@
 
                 pkgs.android-tools
                 androidSdk
+                andy.packages.${system}.default
               ]
               ++ lib.optionals pkgs.stdenv.isDarwin [
                 # add some darwin pkgs if on macos
@@ -392,6 +399,7 @@
             buildInputs = craneMultiBuild.commonArgs.buildInputs ++ [ pkgs.openssl ];
 
             FEDI_CROSS_DEV_SHELL = "1";
+            ANDY_PACKAGE = "com.fedi";
             shellHook = ''
               # Use old ESLINT config format until we upgrade to v9+
               export ESLINT_USE_FLAT_CONFIG=false

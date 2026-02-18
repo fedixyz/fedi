@@ -161,6 +161,27 @@
         "type": "github"
       }
     },
+    "andy": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1771234717,
+        "narHash": "sha256-x1f/w027po/91tMzb3a+Abytrrvm6AopPl6kCY07W/M=",
+        "owner": "maan2003",
+        "repo": "andy",
+        "rev": "1945c9d4a469532ccd32ec343a4b85c402bd5ad5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "maan2003",
+        "ref": "prebuilt",
+        "repo": "andy",
+        "type": "github"
+      }
+    },
     "bundlers": {
       "inputs": {
         "nix-bundle": "nix-bundle",
@@ -1336,6 +1357,7 @@
     "root": {
       "inputs": {
         "android-nixpkgs": "android-nixpkgs",
+        "andy": "andy",
         "cargo-deluxe": "cargo-deluxe",
         "fedimint-pkgs": "fedimint-pkgs",
         "fenix": "fenix_4",
