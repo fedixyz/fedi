@@ -66,6 +66,7 @@ import {
     RpcRoomId,
     RpcRoomNotificationMode,
     RpcSPv2SyncResponse,
+    RpcSpTransferState,
     RpcTimelineEventItemId,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
@@ -97,6 +98,7 @@ import {
     isTextEvent,
     isPowerLevelGreaterOrEqual,
     getReclaimablePaymentEvents,
+    filterVirtualSpTransferEvents,
 } from '../utils/matrix'
 import { isBolt11 } from '../utils/parser'
 import { upsertListItem, upsertRecordEntity } from '../utils/redux'
@@ -148,6 +150,11 @@ const initialState = {
     roomMultispendEvents: {} as Record<
         MatrixRoom['id'],
         MultispendListedEvent[] | undefined
+    >,
+    // SpTransfer states keyed by roomId then eventId
+    spTransferStates: {} as Record<
+        MatrixRoom['id'],
+        Record<string, RpcSpTransferState> | undefined
     >,
     users: {} as Record<MatrixUser['id'], MatrixUser | undefined>,
     ignoredUsers: [] as MatrixUser['id'][],
@@ -390,6 +397,20 @@ export const matrixSlice = createSlice({
                             : evt,
                     )
             }
+        },
+        setSpTransferState(
+            state,
+            action: PayloadAction<{
+                roomId: MatrixRoom['id']
+                eventId: string
+                transferState: RpcSpTransferState
+            }>,
+        ) {
+            const { roomId, eventId, transferState } = action.payload
+            if (!state.spTransferStates[roomId]) {
+                state.spTransferStates[roomId] = {}
+            }
+            state.spTransferStates[roomId][eventId] = transferState
         },
         addMatrixError(state, action: PayloadAction<MatrixError>) {
             state.errors = [...state.errors, action.payload]
@@ -679,6 +700,7 @@ export const {
     addPreviewMedia,
     matchAndHidePreviewMedia,
     updateMatrixRoomMultispendEvent,
+    setSpTransferState,
     setChatReplyingToMessage,
     clearChatReplyingToMessage,
     addTempMediaUriEntry,
@@ -750,6 +772,22 @@ export const unobserveMultispendEvent = createAsyncThunk<
 >('matrix/unobserveMultispendEvent', async ({ fedimint, roomId, eventId }) => {
     const client = fedimint.getMatrixClient()
     return client.unobserveMultispendEvent(roomId, eventId)
+})
+
+export const observeSpTransferState = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; eventId: string }
+>('matrix/observeSpTransferState', async ({ fedimint, roomId, eventId }) => {
+    const client = fedimint.getMatrixClient()
+    return client.observeSpTransferState(roomId, eventId)
+})
+
+export const unobserveSpTransferState = createAsyncThunk<
+    void,
+    { fedimint: FedimintBridge; roomId: MatrixRoom['id']; eventId: string }
+>('matrix/unobserveSpTransferState', async ({ fedimint, roomId, eventId }) => {
+    const client = fedimint.getMatrixClient()
+    return client.unobserveSpTransferState(roomId, eventId)
 })
 
 export const startMatrixClient = createAsyncThunk<
@@ -839,6 +877,9 @@ export const startMatrixClient = createAsyncThunk<
                 }),
             )
         }
+    })
+    client.on('spTransferStateUpdate', ({ roomId, eventId, state }) => {
+        dispatch(setSpTransferState({ roomId, eventId, transferState: state }))
     })
 
     client.on('ignoredUsers', ev => dispatch(setMatrixIgnoredUsers(ev)))
@@ -2390,7 +2431,8 @@ export const selectMatrixRoomEvents = createSelector(
             return item !== null
         })
 
-        const filteredEvents = filterMultispendEvents(allEvents)
+        const filteredMsEvents = filterMultispendEvents(allEvents)
+        const filteredEvents = filterVirtualSpTransferEvents(filteredMsEvents)
 
         const events = consolidatePaymentEvents(filteredEvents)
 
@@ -2682,6 +2724,14 @@ export const selectMatrixRoomMultispendAccountInfo = (
     roomId: string,
 ) => {
     return s.matrix.roomMultispendAccountInfo[roomId]
+}
+
+export const selectSpTransferState = (
+    s: CommonState,
+    roomId: string,
+    eventId: string,
+) => {
+    return s.matrix.spTransferStates[roomId]?.[eventId] ?? null
 }
 
 export const selectMatrixRoomMultispendEvents = (

@@ -38,6 +38,7 @@ import {
     RpcRoomNotificationMode,
     RpcSerializedRoomInfo,
     RpcSPv2SyncResponse,
+    RpcSpTransferState,
     RpcTimelineItem,
 } from '../types/bindings'
 import {
@@ -107,6 +108,11 @@ interface MatrixChatClientEventMap {
         roomId: MatrixRoom['id']
         transactions: MultispendListedEvent[]
     }
+    spTransferStateUpdate: {
+        roomId: MatrixRoom['id']
+        eventId: string
+        state: RpcSpTransferState
+    }
     user: MatrixUser
     error: MatrixError
     auth: MatrixAuth
@@ -141,6 +147,10 @@ export class MatrixChatClient {
     private multispendAccountUnsubscribeMap: Record<
         MatrixRoom['id'],
         UnsubscribeFn | undefined
+    > = {}
+    private spTransferStateUnsubscribeMap: Record<
+        MatrixRoom['id'],
+        Record<string, UnsubscribeFn | undefined>
     > = {}
     private roomListUnsubscribe: UnsubscribeFn | undefined = undefined
     private syncStatusUnsubscribe: UnsubscribeFn | undefined = undefined
@@ -844,6 +854,42 @@ export class MatrixChatClient {
 
             this.multispendEventUnsubscribeMap[roomId] = {
                 ...(this.multispendEventUnsubscribeMap[roomId] || {}),
+                [eventId]: undefined,
+            }
+        }
+    }
+
+    public async observeSpTransferState(roomId: string, eventId: string) {
+        if (this.spTransferStateUnsubscribeMap[roomId]?.[eventId] !== undefined)
+            return
+
+        const unsubscribe = this.fedimint.matrixSpTransferObserveState({
+            roomId,
+            eventId,
+            callback: state => {
+                this.emit('spTransferStateUpdate', {
+                    roomId,
+                    eventId,
+                    state,
+                })
+            },
+        })
+
+        this.spTransferStateUnsubscribeMap[roomId] = {
+            ...(this.spTransferStateUnsubscribeMap[roomId] || {}),
+            [eventId]: unsubscribe,
+        }
+    }
+
+    public async unobserveSpTransferState(roomId: string, eventId: string) {
+        const spTransferStateUnsubscribe =
+            this.spTransferStateUnsubscribeMap[roomId]?.[eventId]
+
+        if (spTransferStateUnsubscribe !== undefined) {
+            spTransferStateUnsubscribe()
+
+            this.spTransferStateUnsubscribeMap[roomId] = {
+                ...(this.spTransferStateUnsubscribeMap[roomId] || {}),
                 [eventId]: undefined,
             }
         }

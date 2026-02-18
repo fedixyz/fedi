@@ -33,6 +33,8 @@ import {
     unobserveMultispendEvent,
     observeMultispendAccountInfo,
     unobserveMultispendAccountInfo,
+    observeSpTransferState,
+    unobserveSpTransferState,
     checkBolt11PaymentResult,
     sendMatrixFormResponse,
     createMatrixRoom,
@@ -896,6 +898,22 @@ export function useObserveMultispendEvent(
 
         return () => {
             dispatch(unobserveMultispendEvent({ roomId, eventId, fedimint }))
+        }
+    }, [dispatch, roomId, eventId, fedimint])
+}
+
+export function useObserveSpTransferState(
+    roomId: MatrixRoom['id'],
+    eventId: string,
+) {
+    const dispatch = useCommonDispatch()
+    const fedimint = useFedimint()
+
+    useEffect(() => {
+        dispatch(observeSpTransferState({ roomId, eventId, fedimint }))
+
+        return () => {
+            dispatch(unobserveSpTransferState({ roomId, eventId, fedimint }))
         }
     }, [dispatch, roomId, eventId, fedimint])
 }

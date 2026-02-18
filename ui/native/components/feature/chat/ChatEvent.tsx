@@ -22,11 +22,13 @@ import {
     isPreviewMediaEvent,
     isTextEvent,
     isVideoEvent,
+    isSpTransferEvent,
 } from '@fedi/common/utils/matrix'
 
 import { useAppSelector } from '../../../state/hooks'
 import { Row, Column } from '../../ui/Flex'
 import ChatMultispendEvent from '../multispend/chat-events/ChatMultispendEvent'
+import ChatSpTransferEvent from '../stabilitypool/chat-events/ChatSpTransferEvent'
 import ChatBolt11PaymentEvent from './ChatBolt11PaymentEvent'
 import ChatCommunityInviteEvent from './ChatCommunityInviteEvent'
 import ChatDeletedEvent from './ChatDeletedEvent'
@@ -159,6 +161,8 @@ const ChatEvent: React.FC<Props> = ({
                                 <ChatCommunityInviteEvent event={event} />
                             ) : isMultispendEvent(event) ? (
                                 <ChatMultispendEvent event={event} />
+                            ) : isSpTransferEvent(event) ? (
+                                <ChatSpTransferEvent event={event} />
                             ) : null}
                         </View>
 

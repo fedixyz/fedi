@@ -52,6 +52,8 @@ export const PaymentEventStatus = ({
             <SvgImage {...iconProps} name={'Error'} />
         ) : statusIcon === 'loading' ? (
             <HoloLoader size={4} />
+        ) : statusIcon === 'clock' ? (
+            <SvgImage {...iconProps} name={'Clock'} />
         ) : null
 
     return (

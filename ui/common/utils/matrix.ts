@@ -167,6 +167,13 @@ export const filterMultispendEvents = (events: MatrixEvent[]) => {
     )
 }
 
+// only filters spTransfer events that shouldn't be rendered
+export const filterVirtualSpTransferEvents = (events: MatrixEvent[]) => {
+    return events.filter(
+        event => !(isSpTransferEvent(event) && !event.content.shouldRender),
+    )
+}
+
 export const matrixUrlMetadataSchema = z.object({
     'matrix:image:size': z.number().nullish(),
     'og:description': z.string().nullish(),
@@ -397,6 +404,11 @@ export function isBolt11PaymentEvent(
         (isPaymentEvent(event) && !!event.content.bolt11) ||
         (isTextEvent(event) && isBolt11(event.content.body))
     )
+}
+export function isSpTransferEvent(
+    event: MatrixEvent,
+): event is MatrixEvent<'spTransfer'> {
+    return event.content.msgtype === 'spTransfer'
 }
 
 export function getReceivablePaymentEvents(

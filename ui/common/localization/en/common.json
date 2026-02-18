@@ -1335,6 +1335,8 @@
             "seconds": "{{seconds}} seconds",
             "select-receiver": "Select receiver",
             "stable-balance": "Stable Balance",
+            "transfer-event-received": "Receive Stable Balance <bold>{{amount}}</bold> from {{federation}}.",
+            "transfer-event-sent": "Send Stable Balance <bold>{{amount}}</bold> from {{federation}}.",
             "transfer-amount": "Transfer amount",
             "transfer-money": "Transfer Money",
             "usd-amount": "USD amount",

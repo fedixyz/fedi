@@ -20,6 +20,7 @@ import {
     selectLoadedFederations,
     selectFeatureFlags,
     selectMatrixDirectMessageRoom,
+    selectLoadedFederation,
 } from '.'
 import {
     Federation,
@@ -43,6 +44,7 @@ import {
 } from '../types/bindings'
 import { StabilityPoolState } from '../types/wallet'
 import amountUtils from '../utils/AmountUtils'
+import { shouldShowInviteCode } from '../utils/FederationUtils'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
 import {
@@ -673,10 +675,20 @@ export const transferStableBalanceMatrix = createAsyncThunk<
             recipientMatrixId,
         )?.id
         if (!roomId) throw new Error('Recipient room not found') // TODO: better error
+        const federation = selectLoadedFederation(state, federationId)
+        if (!federation) throw new Error('Federation not found')
+
+        const includeInvite = shouldShowInviteCode(federation.meta)
+
+        const federationInvite = includeInvite
+            ? federation.inviteCode
+            : undefined
+
         const eventId = await fedimint.matrixSpTransferSend(
             amount,
             roomId,
             federationId,
+            federationInvite,
         )
         return eventId
     },

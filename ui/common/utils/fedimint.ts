@@ -195,13 +195,20 @@ export class FedimintBridge {
         amount: UsdCents,
         roomId: MatrixRoom['id'],
         federationId: string,
+        federationInvite?: string,
     ) {
         return this.rpcTyped('matrixSpTransferSend', {
             amount,
             roomId,
             federationId,
-            federationInvite: null,
+            federationInvite: federationInvite || null,
         })
+    }
+
+    matrixSpTransferObserveState(
+        args: StreamRpcArgs<'matrixSpTransferObserveState'>,
+    ): UnsubscribeFn {
+        return this.rpcStream('matrixSpTransferObserveState', args)
     }
 
     async spv2AccountInfo(federationId: string) {
