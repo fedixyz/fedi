@@ -52,7 +52,7 @@ const BitcoinWallet: React.FC<Props> = ({
             })
         } else {
             dispatch(setPayFromFederationId(federation.id))
-            navigation.navigate('ReceiveLightning', {
+            navigation.navigate('ReceiveBitcoin', {
                 federationId: federation.id,
             })
         }

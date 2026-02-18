@@ -1,48 +1,40 @@
 import Clipboard from '@react-native-clipboard/clipboard'
-import { Button, Card, Text, Theme, useTheme } from '@rneui/themed'
+import { Button, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dimensions, Share, StyleSheet, View } from 'react-native'
+import {
+    ActivityIndicator,
+    ScrollView,
+    Share,
+    StyleSheet,
+    View,
+} from 'react-native'
 
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectLoadedFederation } from '@fedi/common/redux'
 import stringUtils from '@fedi/common/utils/StringUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { useAppSelector } from '../../../state/hooks'
-import { BitcoinOrLightning, BtcLnUri, Federation } from '../../../types'
+import { BtcLnUri } from '../../../types'
 import { Row, Column } from '../../ui/Flex'
-import NotesInput from '../../ui/NotesInput'
 import QRCode from '../../ui/QRCode'
-import { FederationLogo } from '../federations/FederationLogo'
-import OnchainDepositInfo from './OnchainDepositInfo'
 
 const log = makeLog('ReceiveQr')
 
 export type ReceiveQrProps = {
     uri: BtcLnUri | { fullString: string; body: string }
-    type?: BitcoinOrLightning
-    title?: React.ReactNode
-    federationId?: Federation['id']
-    onSaveNotes?: (notes: string) => void
+    isLoading?: boolean
+    children?: React.ReactNode
 }
-
-const QR_CODE_SIZE = Dimensions.get('window').width * 0.7
 
 const ReceiveQr: React.FC<ReceiveQrProps> = ({
     uri,
-    type,
-    title,
-    federationId = '',
-    onSaveNotes,
+    children,
+    isLoading = false,
 }: ReceiveQrProps) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const toast = useToast()
-    const [notes, setNotes] = useState('')
-    const federation = useAppSelector(s =>
-        selectLoadedFederation(s, federationId),
-    )
+    const [qrAbsoluteSize, setAbsoluteQrSize] = useState<number>(0)
 
     const copyToClipboard = () => {
         if (!uri.body) return
@@ -74,101 +66,81 @@ const ReceiveQr: React.FC<ReceiveQrProps> = ({
     const style = styles(theme)
 
     return (
-        <Column grow justify="between" gap="xl">
-            <Column grow center gap="lg" style={style.content}>
-                {title ? <>{title}</> : null}
-                <Card containerStyle={style.qrCard}>
-                    {uri.fullString && (
-                        <Column center>
-                            <QRCode
-                                value={uri.fullString}
-                                size={QR_CODE_SIZE}
-                            />
-                        </Column>
-                    )}
-
-                    <Column align="center" style={style.uriContainer}>
-                        <Text style={style.uri} numberOfLines={1} small>
-                            {stringUtils.truncateMiddleOfString(uri.body, 6)}
-                        </Text>
+        <Column grow gap="lg" fullWidth>
+            <ScrollView
+                style={style.contentScroll}
+                contentContainerStyle={style.contentScrollContainer}>
+                <Column fullWidth gap="md" align="center" style={style.qrCard}>
+                    <Column fullWidth style={style.qrContainer}>
+                        <View
+                            style={style.qrWrapper}
+                            onLayout={e =>
+                                setAbsoluteQrSize(e.nativeEvent.layout.width)
+                            }>
+                            {isLoading ? (
+                                <ActivityIndicator />
+                            ) : (
+                                <QRCode
+                                    value={uri.body}
+                                    size={qrAbsoluteSize}
+                                />
+                            )}
+                        </View>
                     </Column>
-                </Card>
-                {type === BitcoinOrLightning.bitcoin && (
-                    <NotesInput
-                        notes={notes}
-                        setNotes={setNotes}
-                        onSave={() => onSaveNotes?.(notes)}
-                    />
-                )}
-                {type === BitcoinOrLightning.bitcoin && federationId && (
-                    <OnchainDepositInfo federationId={federationId} />
-                )}
-            </Column>
-            <View>
-                {type === BitcoinOrLightning.lnurl && federation && (
-                    <View style={style.detailItem}>
-                        <Text caption bold color={theme.colors.night}>{`${t(
-                            'feature.receive.receive-to',
-                        )}`}</Text>
-                        <Row align="center" gap="xs">
-                            <FederationLogo federation={federation} size={24} />
-
-                            <Text
-                                caption
-                                medium
-                                numberOfLines={1}
-                                color={theme.colors.night}>
-                                {federation?.name || ''}
-                            </Text>
-                        </Row>
-                    </View>
-                )}
-                <Row justify="between" fullWidth>
-                    <Button
-                        title={t('words.share')}
-                        onPress={openShareDialog}
-                        containerStyle={style.button}
-                    />
-                    <Button
-                        title={t('words.copy')}
-                        onPress={copyToClipboard}
-                        containerStyle={style.button}
-                    />
-                </Row>
-            </View>
+                    <Text caption>
+                        {stringUtils.truncateMiddleOfString(uri.body, 6)}
+                    </Text>
+                </Column>
+                {children}
+            </ScrollView>
+            <Row
+                align="center"
+                justify="between"
+                gap="lg"
+                fullWidth
+                style={style.buttons}>
+                <Button
+                    title={t('words.share')}
+                    onPress={openShareDialog}
+                    containerStyle={{ flex: 1 }}
+                />
+                <Button
+                    title={t('words.copy')}
+                    onPress={copyToClipboard}
+                    containerStyle={{ flex: 1 }}
+                />
+            </Row>
         </Column>
     )
 }
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
-        content: {
-            paddingHorizontal: theme.spacing.lg,
+        contentScrollContainer: {
+            gap: theme.spacing.lg,
+            paddingHorizontal: theme.spacing.xl,
         },
-        button: {
-            width: '48%',
+        buttons: {
+            paddingHorizontal: theme.spacing.xl,
         },
-        uri: {
-            lineHeight: 18,
-        },
-        uriContainer: {
-            paddingTop: theme.spacing.md,
+        contentScroll: {
+            flex: 1,
         },
         qrCard: {
-            display: 'flex',
-            borderRadius: 15,
-            width: '100%',
-            paddingHorizontal: theme.spacing.xl,
-            paddingTop: theme.spacing.xl,
-            paddingBottom: theme.spacing.xs,
+            borderRadius: 16,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: theme.colors.lightGrey,
         },
-        detailItem: {
-            marginBottom: theme.spacing.xl,
-            width: '100%',
-            flexDirection: 'row',
+        qrContainer: {
+            aspectRatio: 1,
+            position: 'relative',
+        },
+        qrWrapper: {
+            position: 'absolute',
+            inset: 0,
             alignItems: 'center',
-            justifyContent: 'space-between',
-            height: 52,
+            justifyContent: 'center',
         },
     })
 

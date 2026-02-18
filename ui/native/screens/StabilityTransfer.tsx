@@ -134,7 +134,7 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
 
     if (transferMode === 'receive') {
         return (
-            <SafeAreaContainer style={style.container} edges="notop">
+            <SafeAreaContainer style={style.container} edges="bottom">
                 <Column fullWidth style={style.subHeader}>
                     {headerContent}
                     <Column center fullWidth style={style.paymentInfoContainer}>
@@ -154,7 +154,6 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
                             fullString: ourPaymentAddress,
                             body: ourPaymentAddress,
                         }}
-                        federationId={federationId}
                     />
                 ) : null}
             </SafeAreaContainer>
@@ -218,6 +217,7 @@ const styles = (theme: Theme) =>
         },
         subHeader: {
             paddingTop: theme.spacing.lg,
+            paddingHorizontal: theme.spacing.xl,
             gap: theme.spacing.md,
         },
         subHeaderContainer: {

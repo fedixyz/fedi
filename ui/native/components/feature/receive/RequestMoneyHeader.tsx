@@ -8,10 +8,8 @@ import { NavigationHook, RootStackParamList } from '../../../types/navigation'
 import Header from '../../ui/Header'
 import { PressableIcon } from '../../ui/PressableIcon'
 
-type ReceiveLightningRouteProp = RouteProp<
-    RootStackParamList,
-    'ReceiveLightning'
->
+type ReceiveLightningRouteProp = RouteProp<RootStackParamList, 'ReceiveBitcoin'>
+
 const RequestMoneyHeader: React.FC = () => {
     const { t } = useTranslation()
     const { theme } = useTheme()

@@ -31,7 +31,7 @@ const ChatBolt11PaymentEvent: React.FC<Props> = ({ event }: Props) => {
             t,
             onError: (err: unknown) => toast.error(t, err),
             onViewBolt11: (invoice: string) => {
-                navigation.navigate('BitcoinRequest', {
+                navigation.navigate('LightningRequestQr', {
                     invoice,
                 })
             },

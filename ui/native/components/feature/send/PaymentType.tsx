@@ -13,7 +13,7 @@ export default function PaymentType({
     const { t } = useTranslation()
 
     const paymentIconMap: Record<PaymentType, SvgImageName> = {
-        onchain: 'OnChainCircle',
+        onchain: 'Network',
         lightning: 'Bolt',
         ecash: 'FediLogoIcon',
     }

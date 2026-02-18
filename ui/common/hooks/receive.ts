@@ -135,7 +135,7 @@ export const useMakeOnchainAddress = ({
     }, [])
 
     const makeOnchainAddress = useCallback(async () => {
-        if (!federationId) return
+        if (!federationId) return null
 
         setIsAddressLoading(true)
         try {
@@ -148,6 +148,8 @@ export const useMakeOnchainAddress = ({
 
             // Fetches transactionId of new address, in case the user updates notes
             await fetchTransactions()
+
+            return newAddress
         } catch (e) {
             log.error('error generating address', e)
             throw e
