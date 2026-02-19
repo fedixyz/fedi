@@ -2276,6 +2276,18 @@ async fn matrixSpTransferObserveState(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn matrixDenySpTransferFederationInvite(
+    bg_matrix: &BgMatrix,
+    room_id: RpcRoomId,
+    event_id: RpcEventId,
+) -> anyhow::Result<()> {
+    let spt_matrix = bg_matrix.wait_spt().await;
+    spt_matrix
+        .deny_federation_invite(&SpMatrixTransferId { room_id, event_id })
+        .await
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn matrixMultispendEventData(
     bg_matrix: &BgMatrix,
     room_id: RpcRoomId,
@@ -2527,6 +2539,7 @@ rpc_methods!(RpcMethods {
     // SP Transfer
     matrixSpTransferSend,
     matrixSpTransferObserveState,
+    matrixDenySpTransferFederationInvite,
     // multispend
     matrixSubscribeMultispendGroup,
     matrixSubscribeMultispendAccountInfo,

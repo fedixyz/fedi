@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{Context as _, bail};
 use async_stream::stream;
@@ -26,7 +27,7 @@ use tracing::warn;
 
 use crate::SP_TRANSFER_MSGTYPE;
 use crate::db::{
-    KnownReceiverAccountIdKey, PendingReceiverAccountIdEventKey,
+    FederationInviteDeniedKey, KnownReceiverAccountIdKey, PendingReceiverAccountIdEventKey,
     SenderAwaitingAccountAnnounceEventKey, SpTransferStatus, TransferEventKey, TransferEventValue,
     TransferFailedKey, TransferSentHintKey,
 };
@@ -114,6 +115,7 @@ impl SpTransfersMatrix {
                                 &event_id,
                                 is_sender,
                                 sender_user.clone(),
+                                m.origin_server_ts,
                                 event,
                             )
                             .await;
@@ -156,6 +158,21 @@ impl SpTransfersMatrix {
         Ok(RpcEventId(event_id.to_string()))
     }
 
+    pub async fn deny_federation_invite(
+        &self,
+        transfer_id: &SpMatrixTransferId,
+    ) -> anyhow::Result<()> {
+        let room_id = transfer_id.room_id.clone().into_typed()?;
+        self.send_spt_event(
+            &room_id,
+            RpcSpTransferEvent::FederationInviteDenied {
+                pending_transfer_id: transfer_id.event_id.clone(),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
     /// Subscribe to transfer state changes for a pending transfer.
     pub fn subscribe_transfer_state(
         self: &Arc<Self>,
@@ -194,7 +211,7 @@ impl SpTransfersMatrix {
             let sent_hint_txid = loop {
                 let notify = this.event_notify.notified();
                 let mut dbtx = spt_db.begin_transaction_nc().await;
-                let status = crate::db::resolve_status_db(&mut dbtx, &transfer_id).await;
+                let status = crate::db::resolve_status_db(&mut dbtx, &transfer_id, &transfer, &this.runtime).await;
                 match status {
                     SpTransferStatus::Pending => {
                         // only yield pending once
@@ -205,6 +222,16 @@ impl SpTransfersMatrix {
                     }
                     SpTransferStatus::Failed => {
                         yield make_rpc_transfer_state(RpcSpTransferStatus::Failed);
+                        // terminal state end
+                        return;
+                    }
+                    SpTransferStatus::FederationInviteDenied => {
+                        yield make_rpc_transfer_state(RpcSpTransferStatus::FederationInviteDenied);
+                        // terminal state end
+                        return;
+                    }
+                    SpTransferStatus::Expired => {
+                        yield make_rpc_transfer_state(RpcSpTransferStatus::Expired);
                         // terminal state end
                         return;
                     }
@@ -279,6 +306,7 @@ impl SpTransfersMatrix {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn handle_event(
         &self,
         dbtx: &mut DatabaseTransaction<'_>,
@@ -286,6 +314,7 @@ impl SpTransfersMatrix {
         event_id: &RpcEventId,
         is_sender: bool,
         sender_user: RpcUserId,
+        origin_server_ts: matrix_sdk::ruma::MilliSecondsSinceUnixEpoch,
         event: RpcSpTransferEvent,
     ) {
         match event {
@@ -307,6 +336,8 @@ impl SpTransfersMatrix {
                         sent_by: sender_user,
                         federation_invite,
                         nonce,
+                        created_at: UNIX_EPOCH
+                            + Duration::from_millis(origin_server_ts.get().into()),
                     },
                 )
                 .await;
@@ -349,6 +380,16 @@ impl SpTransfersMatrix {
                     event_id: pending_transfer_id,
                 };
                 dbtx.insert_entry(&TransferFailedKey(transfer_id), &())
+                    .await;
+            }
+            RpcSpTransferEvent::FederationInviteDenied {
+                pending_transfer_id,
+            } => {
+                let transfer_id = SpMatrixTransferId {
+                    room_id: RpcRoomId(room_id.to_string()),
+                    event_id: pending_transfer_id,
+                };
+                dbtx.insert_entry(&FederationInviteDeniedKey(transfer_id), &())
                     .await;
             }
             RpcSpTransferEvent::AnnounceAccount {

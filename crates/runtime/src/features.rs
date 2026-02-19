@@ -113,7 +113,11 @@ pub struct FeatureCatalog {
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
-pub struct SpTransfersMatrixFeatureConfig {}
+pub struct SpTransfersMatrixFeatureConfig {
+    /// How long (in seconds) before a pending SP transfer expires.
+    #[ts(type = "number")]
+    pub transfer_expiry_secs: u32,
+}
 
 #[derive(Debug, Clone, TS, Serialize)]
 #[ts(export)]
@@ -232,7 +236,9 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
-            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {}),
+            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
+                transfer_expiry_secs: 2 * 60, // 2 minutes
+            }),
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
             }),
@@ -276,7 +282,9 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
-            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {}),
+            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
+                transfer_expiry_secs: 2 * 60, // 2 minutes
+            }),
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
             }),
@@ -312,7 +320,9 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 300, // 5 minutes for testing
             },
-            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {}),
+            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
+                transfer_expiry_secs: 2 * 60, // 2 minutes
+            }),
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
                 mode: SpTransferUiMode::Chat,
             }),

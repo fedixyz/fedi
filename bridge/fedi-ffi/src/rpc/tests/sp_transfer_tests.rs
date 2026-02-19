@@ -119,7 +119,10 @@ pub async fn test_end_to_end(_dev_fed: DevFed) -> anyhow::Result<()> {
         let state = state_stream.next().await.context("stream ended early")?;
         match state.status {
             RpcSpTransferStatus::Pending => continue,
-            RpcSpTransferStatus::Complete | RpcSpTransferStatus::Failed => break state,
+            RpcSpTransferStatus::Complete
+            | RpcSpTransferStatus::Failed
+            | RpcSpTransferStatus::FederationInviteDenied
+            | RpcSpTransferStatus::Expired => break state,
         }
     };
 
@@ -249,7 +252,10 @@ pub async fn test_receiver_joins_federation_later(_dev_fed: DevFed) -> anyhow::R
         let state = state_stream.next().await.context("stream ended early")?;
         match state.status {
             RpcSpTransferStatus::Pending => continue,
-            RpcSpTransferStatus::Complete | RpcSpTransferStatus::Failed => break state,
+            RpcSpTransferStatus::Complete
+            | RpcSpTransferStatus::Failed
+            | RpcSpTransferStatus::FederationInviteDenied
+            | RpcSpTransferStatus::Expired => break state,
         }
     };
 

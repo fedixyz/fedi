@@ -89,7 +89,9 @@ impl SptAccountIdResponder {
             .context("pending without transfer details, db corrupt")?;
 
         // already done
-        if resolve_status_db(dbtx, transfer_id).await != SpTransferStatus::Pending {
+        if resolve_status_db(dbtx, transfer_id, &transfer, &self.runtime).await
+            != SpTransferStatus::Pending
+        {
             dbtx.remove_entry(&PendingReceiverAccountIdEventKey(transfer_id.clone()))
                 .await;
             return Ok(());

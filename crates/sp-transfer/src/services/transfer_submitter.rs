@@ -78,7 +78,9 @@ impl SptTransferSubmitter {
         // only possible on
         // - a recovering device (we are reprocessing already complete transfer)
         // - duplicate calls to event handler - which is possible
-        if resolve_status_db(dbtx, &transfer_id).await != SpTransferStatus::Pending {
+        if resolve_status_db(dbtx, &transfer_id, &transfer, &self.runtime).await
+            != SpTransferStatus::Pending
+        {
             dbtx.remove_entry(&SenderAwaitingAccountAnnounceEventKey(transfer_id.clone()))
                 .await;
             return Ok(());
