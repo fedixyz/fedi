@@ -1,17 +1,17 @@
 import Clipboard from '@react-native-clipboard/clipboard'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
-import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useDeleteMessage } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
-    selectMatrixAuth,
     selectSelectedChatMessage,
     setMessageToEdit,
     setSelectedChatMessage,
     setChatReplyingToMessage,
+    selectMatrixAuth,
 } from '@fedi/common/redux'
 import {
     isFileEvent,
@@ -32,11 +32,8 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
     // Defaults to true so we don't default to loading chat events with media
     isPublic = true,
 }) => {
-    const [deleteMessage, setDeleteMessage] = useState(false)
-    const [isDeleting, setIsDeleting] = useState(false)
     const selectedMessage = useAppSelector(selectSelectedChatMessage)
     const dispatch = useAppDispatch()
-    const fedimint = useFedimint()
     const { t } = useTranslation()
     const { theme } = useTheme()
     const toast = useToast()
@@ -61,26 +58,19 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         dispatch(setSelectedChatMessage(null))
     }, [dispatch])
 
-    const confirmDeleteMessage = useCallback(async () => {
-        if (!selectedMessage || !selectedMessage.id) return
-
-        setIsDeleting(true)
-
-        try {
-            const event = selectedMessage.id
-            await fedimint.matrixDeleteMessage(
-                selectedMessage.roomId,
-                event,
-                null,
-            )
-
-            closeOverlay()
-        } catch (e) {
-            toast.error(t, e, 'errors.unknown-error')
-        } finally {
-            setIsDeleting(false)
-        }
-    }, [t, toast, closeOverlay, selectedMessage, fedimint])
+    const {
+        canDelete,
+        isDeleting,
+        showDeleteConfirm,
+        setShowDeleteConfirm,
+        confirmDeleteMessage,
+    } = useDeleteMessage({
+        t,
+        roomId: selectedMessage?.roomId ?? '',
+        senderId: selectedMessage?.sender ?? '',
+        eventId: selectedMessage?.id,
+        onSuccess: closeOverlay,
+    })
 
     const handleCopy = useCallback(() => {
         if (!selectedMessage || selectedMessage.content.msgtype !== 'm.text')
@@ -122,10 +112,6 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
         closeOverlay()
     }, [dispatch, closeOverlay, selectedMessage])
 
-    useEffect(() => {
-        setDeleteMessage(false)
-    }, [selectedMessage])
-
     const style = styles(theme)
 
     const canReply =
@@ -143,7 +129,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
             show={!!selectedMessage}
             contents={{
                 body:
-                    deleteMessage && selectedMessage ? (
+                    showDeleteConfirm && selectedMessage ? (
                         <Column
                             align="center"
                             gap="xl"
@@ -212,9 +198,9 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                                     <Text bold>{t('words.download')}</Text>
                                 </Pressable>
                             )}
-                            {isMe && (
+                            {canDelete && (
                                 <Pressable
-                                    onPress={() => setDeleteMessage(true)}
+                                    onPress={() => setShowDeleteConfirm(true)}
                                     containerStyle={style.action}>
                                     <SvgImage
                                         color={theme.colors.red}
@@ -227,7 +213,7 @@ const SelectedMessageOverlay: React.FC<{ isPublic?: boolean }> = ({
                             )}
                         </Column>
                     ),
-                buttons: deleteMessage
+                buttons: showDeleteConfirm
                     ? [
                           {
                               text: t('words.cancel'),

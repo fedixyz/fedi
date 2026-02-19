@@ -43,11 +43,14 @@ import {
     setChatTimelineSearchQuery,
     selectChatDrafts,
     selectCurrency,
+    selectMatrixRoomPowerLevels,
+    selectMatrixRoomSelfPowerLevel,
 } from '../redux'
 import {
     MatrixEvent,
     MatrixFormEvent,
     MatrixPaymentEvent,
+    MatrixPowerLevel,
     MatrixRoom,
     MatrixRoomMember,
     MatrixUser,
@@ -59,6 +62,7 @@ import {
     RpcFederationId,
     RpcFormOption,
     RpcOperationId,
+    RpcTimelineEventItemId,
     RpcTransaction,
 } from '../types/bindings'
 import amountUtils from '../utils/AmountUtils'
@@ -75,6 +79,7 @@ import {
     matrixUrlMetadataSchema,
     getLocalizedTextWithFallback,
     stripReplyFromBody,
+    isPowerLevelGreaterOrEqual,
     isTextEvent,
     shouldShowUnreadIndicator,
     getRoomPreviewText,
@@ -1357,4 +1362,75 @@ export function useReplies(
     )
 
     return { senderName, bodySnippet }
+}
+
+/**
+ * Hook that encapsulates message deletion logic including permission checks.
+ * Determines whether the current user can delete a given message based on
+ * power levels, and provides the deletion handler with loading/error state.
+ *
+ * When `eventId` is provided, the hook also manages the delete confirmation
+ * flow (`showDeleteConfirm`, `requestDelete`, `confirmDelete`, `cancelDelete`).
+ * The confirmation resets automatically when `eventId` changes.
+ */
+export function useDeleteMessage({
+    t,
+    roomId,
+    senderId,
+    eventId,
+    onSuccess,
+}: {
+    t: TFunction
+    roomId: MatrixRoom['id']
+    senderId: string
+    eventId?: RpcTimelineEventItemId | null
+    onSuccess?: () => void
+}) {
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+    const fedimint = useFedimint()
+    const toast = useToast()
+    const matrixAuth = useCommonSelector(selectMatrixAuth)
+    const selfPowerLevel = useCommonSelector(s =>
+        selectMatrixRoomSelfPowerLevel(s, roomId),
+    )
+    const roomPowerLevels = useCommonSelector(s =>
+        selectMatrixRoomPowerLevels(s, roomId),
+    )
+
+    // you can delete your own messages, or others messages if you are a moderator or admin
+    // if rooms are configured with the redact power level we should respect it
+    // otherwise fallback to Moderator as minimum power level for deleting others' messages
+    const sentByMe = senderId === matrixAuth?.userId
+    const redactLevel = roomPowerLevels?.redact ?? MatrixPowerLevel.Moderator
+    const canDelete =
+        sentByMe ||
+        (!!selfPowerLevel &&
+            isPowerLevelGreaterOrEqual(selfPowerLevel, redactLevel))
+
+    // Reset confirmation when the target message changes
+    useEffect(() => {
+        setShowDeleteConfirm(false)
+    }, [eventId])
+
+    const confirmDeleteMessage = useCallback(async () => {
+        if (!roomId || !eventId) return
+        setIsDeleting(true)
+        try {
+            await fedimint.matrixDeleteMessage(roomId, eventId, null)
+            onSuccess && onSuccess()
+        } catch (e) {
+            toast.error(t, e, 'errors.unknown-error')
+        } finally {
+            setIsDeleting(false)
+        }
+    }, [roomId, eventId, fedimint, t, toast, onSuccess])
+
+    return {
+        canDelete,
+        isDeleting,
+        showDeleteConfirm,
+        setShowDeleteConfirm,
+        confirmDeleteMessage,
+    }
 }
