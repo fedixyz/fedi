@@ -486,7 +486,7 @@ const ActionsWrapper = styled('div', {
 
     '@standalone': {
         '@sm': {
-            paddingBottom: 'env(safe-area-inset-bottom, 16px)',
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
         },
     },
 })
