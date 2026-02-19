@@ -154,9 +154,8 @@ export function useIFrameListener(
                 /* window.webln */
                 case InjectionMessageType.webln_sendPayment: {
                     try {
-                        const invoice = await fedimint.decodeInvoice(
+                        const invoice = await fedimint.parseInvoice(
                             payload as string,
-                            paymentFederation?.id || null,
                         )
                         dispatch(setInvoiceToPay(invoice))
                         setOverlayId(InjectionMessageType.webln_sendPayment)

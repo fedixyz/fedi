@@ -314,7 +314,6 @@ const FediModBrowser: React.FC<Props> = () => {
                         // these fake fields will get overwritten when we decode the invoice
                         paymentHash: '',
                         amount: 0 as MSats,
-                        fee: null,
                         description: '',
                     }
                 } else {

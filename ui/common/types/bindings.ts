@@ -610,7 +610,6 @@ export type RpcInitOpts = {
 export type RpcInvoice = {
   paymentHash: string;
   amount: RpcAmount;
-  fee: RpcFeeDetails | null;
   description: string;
   invoice: string;
 };
@@ -738,7 +737,8 @@ export type RpcMethods = {
     Array<string>,
   ];
   generateInvoice: [generateInvoice, string];
-  decodeInvoice: [decodeInvoice, RpcInvoice];
+  parseInvoice: [parseInvoice, RpcInvoice];
+  estimateLnFees: [estimateLnFees, RpcFeeDetails];
   payInvoice: [payInvoice, RpcPayInvoiceResponse];
   getPrevPayInvoiceResult: [getPrevPayInvoiceResult, RpcPrevPayInvoiceResult];
   listGateways: [listGateways, Array<RpcLightningGateway>];
@@ -1776,12 +1776,9 @@ export type completeOnboardingNewSeed = {};
 
 export type completeSocialRecovery = {};
 
-export type decodeInvoice = {
-  federationId: RpcFederationId | null;
-  invoice: string;
-};
-
 export type dumpDb = { federationId: string };
+
+export type estimateLnFees = { federationId: RpcFederationId; invoice: string };
 
 export type evilSpamAddress = { federationId: RpcFederationId };
 
@@ -2168,6 +2165,8 @@ export type onboardTransferExistingDeviceRegistration = { index: number };
 export type parseEcash = { ecash: string };
 
 export type parseInviteCode = { inviteCode: string };
+
+export type parseInvoice = { invoice: string };
 
 export type payAddress = {
   federationId: RpcFederationId;

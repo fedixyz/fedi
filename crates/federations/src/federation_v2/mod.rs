@@ -92,13 +92,13 @@ use rpc_types::{
     BaseMetadata, EcashReceiveMetadata, EcashSendMetadata, FrontendMetadata, GuardianStatus,
     JsonValue, LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
-    RpcGenerateEcashResponse, RpcInvoice, RpcJsonClientConfig, RpcLightningGateway,
-    RpcOperationFediFeeStatus, RpcOperationId, RpcPayInvoiceResponse, RpcPeerId,
-    RpcPrevPayInvoiceResult, RpcPublicKey, RpcReturningMemberStatus, RpcSPDepositState,
-    RpcSPV2DepositState, RpcSPV2TransferInState, RpcSPV2TransferOutState, RpcSPV2WithdrawalState,
-    RpcSPWithdrawState, RpcSPv2CachedSyncResponse, RpcTransaction, RpcTransactionDirection,
-    RpcTransactionKind, RpcTransactionListEntry, SPv2DepositMetadata, SPv2TransferMetadata,
-    SPv2WithdrawMetadata, SpMatrixTransferId, SpV2TransferInKind, SpV2TransferOutKind,
+    RpcGenerateEcashResponse, RpcJsonClientConfig, RpcLightningGateway, RpcOperationFediFeeStatus,
+    RpcOperationId, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
+    RpcReturningMemberStatus, RpcSPDepositState, RpcSPV2DepositState, RpcSPV2TransferInState,
+    RpcSPV2TransferOutState, RpcSPV2WithdrawalState, RpcSPWithdrawState, RpcSPv2CachedSyncResponse,
+    RpcTransaction, RpcTransactionDirection, RpcTransactionKind, RpcTransactionListEntry,
+    SPv2DepositMetadata, SPv2TransferMetadata, SPv2WithdrawMetadata, SpMatrixTransferId,
+    SpV2TransferInKind, SpV2TransferOutKind,
 };
 use runtime::bridge_runtime::Runtime;
 use runtime::constants::{
@@ -996,7 +996,7 @@ impl FederationV2 {
         description: String,
         expiry_time: Option<u64>,
         frontend_meta: FrontendMetadata,
-    ) -> Result<RpcInvoice> {
+    ) -> Result<Bolt11Invoice> {
         // some apps have issues paying invoices that are in msats
         // so round up amount to nearest sat
         let amount = Amount::from_sats(amount.0.msats.div_ceil(1000));
@@ -1029,17 +1029,7 @@ impl FederationV2 {
         self.subscribe_invoice(operation_id, invoice.clone())
             .await?;
 
-        let invoice: RpcInvoice = invoice.try_into()?;
-        Ok(RpcInvoice {
-            fee: Some(RpcFeeDetails {
-                fedi_fee: RpcAmount(Amount::from_msats(
-                    (invoice.amount.0.msats * fedi_fee_ppm).div_ceil(MILLION),
-                )),
-                network_fee: RpcAmount(Amount::ZERO),
-                federation_fee: RpcAmount(Amount::ZERO),
-            }),
-            ..invoice
-        })
+        Ok(invoice)
     }
 
     fn subscribe_deposit(&self, operation_id: OperationId) {
@@ -1139,12 +1129,13 @@ impl FederationV2 {
         Ok(())
     }
 
-    /// Decodes the given lightning invoice (as String) into an RpcInvoice
-    /// whilst attaching federation-specific fee details to the response
-    pub async fn decode_invoice(&self, invoice: String) -> Result<RpcInvoice> {
-        let invoice: Bolt11Invoice = invoice.trim().parse().context(ErrorCode::InvalidInvoice)?;
-        let rpc_invoice: RpcInvoice = invoice.clone().try_into()?;
-        let amount = rpc_invoice.amount.0;
+    /// Estimates fees for paying a lightning invoice in this federation
+    pub async fn estimate_ln_fees(&self, invoice: &Bolt11Invoice) -> Result<RpcFeeDetails> {
+        let amount = Amount::from_msats(
+            invoice
+                .amount_milli_satoshis()
+                .ok_or(anyhow!("Invoice missing amount"))?,
+        );
 
         // Fedi app fee applies regardless of internal/external payment
         let fedi_fee_ppm = self
@@ -1162,7 +1153,7 @@ impl FederationV2 {
         // is within the current federation so that we know to show a 0 gateway fee.
         let mut is_internal_payment = false;
         if let Ok(markers) = self.client.get_internal_payment_markers() {
-            is_internal_payment = invoice_has_internal_payment_markers(&invoice, markers);
+            is_internal_payment = invoice_has_internal_payment_markers(invoice, markers);
             if !is_internal_payment {
                 let gateways = self
                     .client
@@ -1172,7 +1163,7 @@ impl FederationV2 {
                     .into_iter()
                     .map(|g| g.info)
                     .collect::<Vec<_>>();
-                is_internal_payment = invoice_routes_back_to_federation(&invoice, gateways);
+                is_internal_payment = invoice_routes_back_to_federation(invoice, gateways);
             }
         }
 
@@ -1188,13 +1179,11 @@ impl FederationV2 {
             RpcAmount(gateway_fees.to_amount(&amount))
         };
 
-        let fee = Some(RpcFeeDetails {
+        Ok(RpcFeeDetails {
             fedi_fee: RpcAmount(Amount::from_msats(fedi_fee)),
             network_fee,
             federation_fee: RpcAmount(Amount::ZERO),
-        });
-
-        Ok(RpcInvoice { fee, ..rpc_invoice })
+        })
     }
 
     /// Pay lightning invoice

@@ -364,7 +364,7 @@ async fn generateInvoice(
     expiry: Option<u32>,
     frontend_metadata: FrontendMetadata,
 ) -> anyhow::Result<String> {
-    let rpc_invoice = federation
+    let invoice = federation
         .generate_invoice(
             amount,
             description,
@@ -372,25 +372,23 @@ async fn generateInvoice(
             frontend_metadata,
         )
         .await?;
-    Ok(rpc_invoice.invoice)
+    Ok(invoice.to_string())
 }
 
 #[macro_rules_derive(rpc_method!)]
-// FIXME: make this argument RpcInvoice?
-async fn decodeInvoice(
-    federations: &Federations,
-    federation_id: Option<RpcFederationId>,
+async fn parseInvoice(_runtime: Arc<Runtime>, invoice: String) -> anyhow::Result<RpcInvoice> {
+    let invoice: Bolt11Invoice = invoice.trim().parse().context(ErrorCode::InvalidInvoice)?;
+    let bridge_invoice = RpcInvoice::try_from(invoice)?;
+    Ok(bridge_invoice)
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn estimateLnFees(
+    federation: Arc<FederationV2>,
     invoice: String,
-) -> anyhow::Result<RpcInvoice> {
-    // TODO: validate the invoice (same network, haven't already paid, etc)
-    if let Some(federation_id) = federation_id {
-        let federation = federations.get_federation(&federation_id.0)?;
-        federation.decode_invoice(invoice).await
-    } else {
-        let invoice: Bolt11Invoice = invoice.trim().parse().context(ErrorCode::InvalidInvoice)?;
-        let bridge_invoice = RpcInvoice::try_from(invoice)?;
-        Ok(bridge_invoice)
-    }
+) -> anyhow::Result<RpcFeeDetails> {
+    let invoice: Bolt11Invoice = invoice.trim().parse().context(ErrorCode::InvalidInvoice)?;
+    federation.estimate_ln_fees(&invoice).await
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -2371,7 +2369,8 @@ rpc_methods!(RpcMethods {
     listFederationsPendingRejoinFromScratch,
     // Lightning
     generateInvoice,
-    decodeInvoice,
+    parseInvoice,
+    estimateLnFees,
     payInvoice,
     getPrevPayInvoiceResult,
     listGateways,

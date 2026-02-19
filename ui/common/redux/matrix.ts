@@ -1214,7 +1214,7 @@ export const sendMatrixMessage = createAsyncThunk<
         if (options.interceptBolt11) {
             try {
                 if (isBolt11(body)) {
-                    const decoded = await fedimint.decodeInvoice(body)
+                    const decoded = await fedimint.parseInvoice(body)
                     log.info(
                         'Intercepted a Bolt 11 invoice in m.text msgtype, sending as xyz.fedi.payment msgtype instead',
                     )

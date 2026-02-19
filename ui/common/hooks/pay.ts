@@ -165,7 +165,10 @@ export function useOmniPaymentState(
                 // reset fee details since it will change when switching federations
                 setFeeDetails(undefined)
                 if (input.type === ParserDataType.Bolt11 && federationId) {
-                    const decoded = await fedimint.decodeInvoice(
+                    const decoded = await fedimint.parseInvoice(
+                        input.data.invoice,
+                    )
+                    const fee = await fedimint.estimateLnFees(
                         input.data.invoice,
                         federationId,
                     )
@@ -173,8 +176,8 @@ export function useOmniPaymentState(
                         setInputAmount(amountUtils.msatToSat(decoded.amount))
                     }
                     setInvoice(decoded)
-                    if (decoded.fee) {
-                        setFeeDetails(decoded.fee)
+                    if (fee) {
+                        setFeeDetails(fee)
                     }
                 } else if (input.type === ParserDataType.LnurlPay) {
                     if (input.data.minSendable) {

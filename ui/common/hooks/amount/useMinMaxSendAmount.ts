@@ -4,6 +4,7 @@ import { selectFederationBalance, selectPaymentFederation } from '../../redux'
 import { Federation, MSats, Sats } from '../../types'
 import amountUtils from '../../utils/AmountUtils'
 import { useCommonSelector } from '../redux'
+import { useLightningInvoiceAmount } from './useLightningInvoiceAmount'
 import { useMaxEcashAmount } from './useMaxEcashAmount'
 import { useMaxOnchainAmount } from './useMaxOnchainAmount'
 import { SendAmountArgs } from './useSendForm'
@@ -31,19 +32,33 @@ export function useMinMaxSendAmount({
         selectFederationBalance(s, federationIdToUse),
     )
 
-    const invoiceAmount = invoice?.amount
-    const { minSendable, maxSendable } = lnurlPayment || {}
-
     const maxAmountOnchain = useMaxOnchainAmount(btcAddress, federationIdToUse)
     const maxAmountEcash = useMaxEcashAmount(ecashRequest, federationIdToUse)
+    const exactAmountLightning = useLightningInvoiceAmount(
+        invoice,
+        federationIdToUse,
+    )
+
+    let minSendable: MSats | undefined
+    let maxSendable: MSats | undefined
+
+    if (lnurlPayment) {
+        minSendable = lnurlPayment.minSendable
+        maxSendable = lnurlPayment.maxSendable
+    }
+
+    if (exactAmountLightning) {
+        minSendable = exactAmountLightning
+        maxSendable = exactAmountLightning
+    }
 
     return useMemo(() => {
         if (balance < 1000)
             return {
                 // If balance is less than 1000 msat, set the minimum to invoiceAmount, if not undefined
                 // Otherwise, set minimum to 1 sat
-                minimumAmount: invoiceAmount
-                    ? amountUtils.msatToSat(invoiceAmount)
+                minimumAmount: invoice?.amount
+                    ? amountUtils.msatToSat(invoice?.amount)
                     : (1 as Sats),
                 maximumAmount: 0 as Sats,
             }
@@ -53,21 +68,11 @@ export function useMinMaxSendAmount({
 
         if (cashuMeltSummary) {
             minimumAmount = amountUtils.msatToSat(cashuMeltSummary.totalAmount)
-        } else if (invoiceAmount) {
-            minimumAmount = amountUtils.msatToSat(invoiceAmount)
-
-            if (invoice.fee) {
-                const totalFees = (invoice.fee.federationFee +
-                    invoice.fee.networkFee +
-                    invoice.fee.fediFee) as MSats
-                maximumAmount = amountUtils.msatToSat(
-                    (balance - totalFees) as MSats,
-                ) as Sats
-            }
         } else {
             if (minSendable) {
                 minimumAmount = amountUtils.msatToSat(minSendable)
             }
+
             if (maxSendable) {
                 maximumAmount = Math.min(
                     amountUtils.msatToSat(maxSendable),
@@ -90,12 +95,11 @@ export function useMinMaxSendAmount({
     }, [
         balance,
         cashuMeltSummary,
-        invoiceAmount,
+        invoice,
         minSendable,
         maxSendable,
         maxAmountOnchain,
         maxAmountEcash,
-        invoice,
         btcAddress,
         ecashRequest,
     ])

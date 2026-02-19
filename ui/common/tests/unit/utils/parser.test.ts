@@ -4,7 +4,6 @@ import { rest } from 'msw'
 import { setupServer } from 'msw/node'
 
 import { Invoice, MSats } from '../../../types'
-import { RpcAmount } from '../../../types/bindings'
 import { ParserDataType } from '../../../types/parser'
 import { FedimintBridge } from '../../../utils/fedimint'
 import { parseUserInput } from '../../../utils/parser'
@@ -19,11 +18,6 @@ const simpleBolt11Invoice: Invoice = {
     amount: 100000 as MSats,
     description: '',
     invoice: simpleBolt11,
-    fee: {
-        fediFee: 0 as RpcAmount,
-        networkFee: 0 as RpcAmount,
-        federationFee: 0 as RpcAmount,
-    },
 }
 const simpleBolt11Data = {
     bolt11: simpleBolt11,
@@ -42,11 +36,6 @@ const complexBolt11Invoice: Invoice = {
     amount: 2000000 as MSats,
     description: 'fiatjaf: money',
     invoice: complexBolt11,
-    fee: {
-        fediFee: 0 as RpcAmount,
-        networkFee: 0 as RpcAmount,
-        federationFee: 0 as RpcAmount,
-    },
 }
 const complexBolt11Data = {
     bolt11: complexBolt11,
@@ -378,7 +367,7 @@ describe('parseUserInput', () => {
     // --- Run the tests ---
 
     const fedimint = {
-        decodeInvoice: async (invoice: string) => {
+        parseInvoice: async (invoice: string) => {
             if (invoice === simpleBolt11) {
                 return simpleBolt11Invoice
             }

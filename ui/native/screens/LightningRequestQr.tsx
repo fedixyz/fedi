@@ -57,7 +57,7 @@ const LightningRequestQr: React.FC<Props> = ({ route, navigation }: Props) => {
 
     useEffect(() => {
         fedimint
-            .decodeInvoice(invoice)
+            .parseInvoice(invoice)
             .then(setDecoded)
             .finally(() => setIsDecodingInvoice(false))
     }, [invoice, fedimint])

@@ -295,7 +295,6 @@ pub enum RpcEcashInfo {
 pub struct RpcInvoice {
     pub payment_hash: String,
     pub amount: RpcAmount,
-    pub fee: Option<RpcFeeDetails>,
     pub description: String,
     pub invoice: String,
 }
@@ -319,7 +318,6 @@ impl TryFrom<lightning_invoice::Bolt11Invoice> for RpcInvoice {
 
         Ok(RpcInvoice {
             amount: RpcAmount(amount),
-            fee: None,
             description,
             invoice: invoice.to_string(),
             payment_hash: invoice.payment_hash().to_string(),

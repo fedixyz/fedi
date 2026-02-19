@@ -11,10 +11,9 @@ import { renderHookWithProviders } from '../../utils/render'
 jest.mock('@fedi/common/hooks/fedimint', () => ({
     ...jest.requireActual('@fedi/common/hooks/fedimint'),
     useFedimint: () => ({
-        decodeInvoice: () => ({
+        parseInvoice: () => ({
             paymentHash: 'hash',
             amount: 100000,
-            fee: 0,
             description: 'desc',
             invoice: '12345',
         }),
@@ -161,7 +160,6 @@ describe('/hooks/browser', () => {
                     payload: {
                         paymentHash: 'hash',
                         amount: 100000,
-                        fee: 0,
                         description: 'desc',
                         invoice: '12345',
                     },
