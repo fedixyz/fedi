@@ -27,3 +27,10 @@ export interface NavigationAction {
     screen: string
     params?: NavigationParams
 }
+
+export enum HomeNavigationTab {
+    Home = 'home',
+    Chat = 'chat',
+    MiniApps = 'miniapps',
+    Wallets = 'wallets',
+}

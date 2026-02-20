@@ -4,6 +4,7 @@ import omit from 'lodash/omit'
 import { CommonState } from '../redux'
 import { ModVisibility } from '../redux/mod'
 import { Chat, StoredStateV10, StoredStateV14 } from '../types'
+import { HomeNavigationTab } from '../types/linking'
 import {
     AnyStoredState,
     LatestStoredState,
@@ -25,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 41,
+        version: 42,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -67,6 +68,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         hasSeenAnalyticsConsentModal:
             state.analytics.hasSeenAnalyticsConsentModal,
         balanceDisplay: state.currency.balanceDisplay,
+        lastUsedTab: state.environment.lastUsedTab,
     }
 
     return transformedState
@@ -106,6 +108,7 @@ export function hasStorageStateChanged(
         ['environment', 'transactionDisplayType'],
         ['environment', 'deviceId'],
         ['environment', 'sessionCount'],
+        ['environment', 'lastUsedTab'],
         ['currency', 'overrideCurrency'],
         ['currency', 'customFederationCurrencies'],
         ['currency', 'prices'],
@@ -786,6 +789,14 @@ async function migrateStoredState(
             ...rest,
             version: 41,
             balanceDisplay: 'sats',
+        }
+    }
+
+    if (migrationState.version === 41) {
+        migrationState = {
+            ...migrationState,
+            version: 42,
+            lastUsedTab: HomeNavigationTab.Home,
         }
     }
 

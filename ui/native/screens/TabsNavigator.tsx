@@ -17,9 +17,11 @@ import { useFedimint } from '@fedi/common/hooks/fedimint'
 import {
     refreshCommunities,
     refreshFederations,
+    selectLastUsedTab,
     selectMatrixHasNotifications,
 } from '@fedi/common/redux'
 import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
+import { HomeNavigationTab } from '@fedi/common/types/linking'
 
 import ChatHeader from '../components/feature/chat/ChatHeader'
 import FederationsHeader from '../components/feature/federations/FederationsHeader'
@@ -53,11 +55,23 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     // const hasUnseenMessages = useAppSelector(selectHasUnseenMessages)
     const hasUnreadMessages = useAppSelector(selectMatrixHasNotifications)
     const zendeskMsgCount = useAppSelector(selectZendeskUnreadMessageCount)
+    const lastUsedTab = useAppSelector(selectLastUsedTab)
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const appStateRef = useRef<AppStateStatus>(
         AppState.currentState,
     ) as MutableRefObject<AppStateStatus>
+
+    const tabToSceenMap: Record<
+        HomeNavigationTab,
+        keyof TabsNavigatorParamList
+    > = {
+        [HomeNavigationTab.Home]: 'Home',
+        [HomeNavigationTab.Chat]: 'Chat',
+        [HomeNavigationTab.MiniApps]: 'Mods',
+        [HomeNavigationTab.Wallets]: 'Federations',
+    }
+
     const { fontScale } = useWindowDimensions()
 
     // This logic is needed refresh federation metadata
@@ -89,7 +103,11 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
     return (
         <>
             <Tab.Navigator
-                initialRouteName={route.params?.initialRouteName || 'Home'}
+                initialRouteName={
+                    route.params?.initialRouteName ??
+                    tabToSceenMap[lastUsedTab] ??
+                    'Home'
+                }
                 id={TABS_NAVIGATOR_ID}
                 screenOptions={({ route: screenRoute }) => ({
                     freezeOnBlur: true,

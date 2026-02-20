@@ -13,6 +13,7 @@ import {
     SelectableCurrency,
     SupportedCurrency,
 } from './fedimint'
+import { HomeNavigationTab } from './linking'
 
 export interface StoredStateV0 {
     version: 0 // Not a real version, just implemented for demonstrative purposes
@@ -366,6 +367,11 @@ export interface StoredStateV41
     balanceDisplay: 'sats' | 'fiat' | 'hidden'
 }
 
+export interface StoredStateV42 extends Omit<StoredStateV41, 'version'> {
+    version: 42
+    lastUsedTab: HomeNavigationTab
+}
+
 /**
  * Consolidated type for older storage versions (0-24).
  * These are grouped together to reduce union type computation that slows down TSC performance.
@@ -423,9 +429,10 @@ export type AnyStoredState =
     | StoredStateV39
     | StoredStateV40
     | StoredStateV41
+    | StoredStateV42
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV41
+export type LatestStoredState = StoredStateV42
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

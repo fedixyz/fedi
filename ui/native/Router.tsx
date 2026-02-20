@@ -8,7 +8,12 @@ import { StyleSheet, View, Linking } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectOnboardingCompleted, setRedirectTo } from '@fedi/common/redux'
+import {
+    selectOnboardingCompleted,
+    setLastUsedTab,
+    setRedirectTo,
+} from '@fedi/common/redux'
+import { HomeNavigationTab } from '@fedi/common/types/linking'
 import { isUniversalLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
@@ -130,6 +135,22 @@ const Router = () => {
 
         if (previousRoute === currentRoute?.name) return
 
+        // Preserve last-used tab
+        switch (currentRoute?.name) {
+            case 'Home':
+                dispatch(setLastUsedTab(HomeNavigationTab.Home))
+                break
+            case 'Chat':
+                dispatch(setLastUsedTab(HomeNavigationTab.Chat))
+                break
+            case 'Mods':
+                dispatch(setLastUsedTab(HomeNavigationTab.MiniApps))
+                break
+            case 'Federations':
+                dispatch(setLastUsedTab(HomeNavigationTab.Wallets))
+                break
+        }
+
         let paramsToLog = currentRoute?.params
 
         if (currentRoute?.params && 'ecash' in currentRoute.params) {
@@ -146,7 +167,7 @@ const Router = () => {
                 params: paramsToLog,
             },
         )
-    }, [navigation, toast])
+    }, [navigation, toast, dispatch])
 
     // If a nonce reuse check fails
     // Notify the user by directing them to the RecoveryFromNonceReuse screen

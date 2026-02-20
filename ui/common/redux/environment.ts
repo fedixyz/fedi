@@ -22,6 +22,7 @@ import {
     RpcAppFlavor,
 } from '../types/bindings'
 import { FediModCacheMode } from '../types/fediInternal'
+import { HomeNavigationTab } from '../types/linking'
 import { I18nLanguage } from '../types/localization'
 import { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
@@ -56,6 +57,7 @@ const initialState = {
     sessionCount: 0,
     redirectTo: null as string | null,
     eventListenersReady: false,
+    lastUsedTab: HomeNavigationTab.Home,
 }
 
 export type EnvironmentState = typeof initialState
@@ -150,6 +152,9 @@ export const environmentSlice = createSlice({
         setEventListenersReady(state, action: PayloadAction<boolean>) {
             state.eventListenersReady = action.payload
         },
+        setLastUsedTab(state, action: PayloadAction<HomeNavigationTab>) {
+            state.lastUsedTab = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(changeLanguage.fulfilled, (state, action) => {
@@ -182,6 +187,9 @@ export const environmentSlice = createSlice({
             if (action.payload.sessionCount !== undefined) {
                 state.sessionCount = action.payload.sessionCount + 1
             }
+            if (action.payload.lastUsedTab !== undefined) {
+                state.lastUsedTab = action.payload.lastUsedTab
+            }
         })
     },
 })
@@ -212,6 +220,7 @@ export const {
     setAppFlavor,
     setRedirectTo,
     setEventListenersReady,
+    setLastUsedTab,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -456,3 +465,5 @@ export const selectRedirectTo = (s: CommonState) => s.environment.redirectTo
 
 export const selectEventListenersReady = (s: CommonState) =>
     s.environment.eventListenersReady
+
+export const selectLastUsedTab = (s: CommonState) => s.environment.lastUsedTab
