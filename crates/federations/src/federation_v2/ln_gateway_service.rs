@@ -91,12 +91,22 @@ impl LnGatewayService {
         client: &Client,
         gateways: Vec<LightningGatewayAnnouncement>,
     ) -> Vec<LightningGatewayAnnouncement> {
-        Self::maybe_filter_vetted_gateways(client, gateways)
-            .await
+        let gws: Vec<LightningGatewayAnnouncement> =
+            Self::maybe_filter_vetted_gateways(client, gateways)
+                .await
+                .into_iter()
+                // filter out all gateways are about to expire
+                .filter(|g| ABOUT_TO_EXPIRE_DURATION < g.ttl)
+                .collect();
+
+        // In bridge tests don't use iroh gateways
+        #[cfg(feature = "test-support")]
+        let gws = gws
             .into_iter()
-            // filter out all gateways are about to expire
-            .filter(|g| ABOUT_TO_EXPIRE_DURATION < g.ttl)
-            .collect()
+            .filter(|g| g.info.api.scheme() != "iroh")
+            .collect();
+
+        gws
     }
 
     pub async fn select_gateway(

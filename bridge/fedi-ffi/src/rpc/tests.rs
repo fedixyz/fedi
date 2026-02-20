@@ -1382,6 +1382,16 @@ async fn test_stability_pool_with_fedi_fees(
     Ok(())
 }
 
+async fn spv2_force_sync(federation: &Arc<FederationV2>) {
+    federation
+        .spv2_sync_service
+        .get()
+        .expect("Sync service must be initialized")
+        .update_once()
+        .await
+        .expect("Sync service update mustn't fail");
+}
+
 async fn test_spv2(_dev_fed: DevFed) -> anyhow::Result<()> {
     if should_skip_test_using_stock_fedimintd() {
         return Ok(());
@@ -1455,6 +1465,8 @@ async fn test_spv2_with_fedi_fees(
             .expect("Can't fail"),
         federation.get_balance().await,
     );
+
+    spv2_force_sync(federation).await;
     let RpcSPv2CachedSyncResponse { sync_response, .. } =
         spv2AccountInfo(federation.clone()).await?;
     assert_eq!(sync_response.idle_balance.0, Amount::ZERO);
@@ -1532,6 +1544,8 @@ async fn test_spv2_with_fedi_fees(
             .expect("Can't fail"),
         federation.get_balance().await,
     );
+
+    spv2_force_sync(federation).await;
     let RpcSPv2CachedSyncResponse { sync_response, .. } =
         spv2AccountInfo(federation.clone()).await?;
     assert_eq!(sync_response.idle_balance.0, Amount::ZERO);
@@ -1561,7 +1575,7 @@ async fn test_spv2_with_fedi_fees(
     // fully drained and we shouldn't expect to have a lingering pending deposit
     loop {
         // Force an SPv2 sync and wait for it to complete
-        federation.spv2_force_sync();
+        spv2_force_sync(federation).await;
 
         let transactions = listTransactions(federation.clone(), None, None).await?;
         let third_last_tx = transactions.get(2).expect("must exist");
@@ -2801,7 +2815,7 @@ async fn test_stability_pool_external_transfer_in(_dev_fed: DevFed) -> anyhow::R
     fedimint_core::task::sleep(Duration::from_secs(2)).await;
 
     let updated_receiver_txs = loop {
-        federation_receiver.spv2_force_sync();
+        spv2_force_sync(federation_receiver).await;
         let updated_receiver_txs =
             listTransactions(federation_receiver.clone(), None, None).await?;
         if !updated_receiver_txs.is_empty() {
