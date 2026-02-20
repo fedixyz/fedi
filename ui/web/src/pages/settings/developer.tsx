@@ -2,15 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAmountFormatter } from '@fedi/common/hooks/amount'
+import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     clearAllMiniAppSessions,
+    listGateways,
     resetNuxSteps,
     resetSurveyCompletions,
     selectPaymentFederation,
     setSurveyTimestamp,
 } from '@fedi/common/redux'
-import { LightningGateway } from '@fedi/common/types'
+import { RpcLightningGateway, RpcPublicKey } from '@fedi/common/types/bindings'
 import {
     makeBase64CSVUri,
     makeCSVFilename,
@@ -24,14 +26,17 @@ import * as Layout from '../../components/Layout'
 import { RadioGroup } from '../../components/RadioGroup'
 import { Text } from '../../components/Text'
 import { useAppDispatch, useAppSelector } from '../../hooks'
-import { fedimint } from '../../lib/bridge'
 import { styled } from '../../styles'
 
 function DeveloperPage() {
     const { t } = useTranslation()
-    const dispatch = useAppDispatch()
     const paymentFederation = useAppSelector(selectPaymentFederation)
-    const [gateways, setGateways] = useState<LightningGateway[]>([])
+    const [gateways, setGateways] = useState<RpcLightningGateway[]>([])
+    const [overiddenGateway, setOveriddenGateway] =
+        useState<RpcPublicKey | null>(null)
+
+    const dispatch = useAppDispatch()
+    const fedimint = useFedimint()
     const toast = useToast()
 
     const federationId = paymentFederation?.id
@@ -85,14 +90,18 @@ function DeveloperPage() {
         } catch (err) {
             toast.error(t, err, 'errors.unknown-error')
         }
-    }, [toast, paymentFederation, t, makeFormattedAmountsFromMSats])
+    }, [toast, paymentFederation, t, makeFormattedAmountsFromMSats, fedimint])
 
     /* Lightning gateways */
 
     useEffect(() => {
         if (!federationId) return
-        fedimint.listGateways(federationId).then(setGateways)
-    }, [federationId])
+
+        dispatch(listGateways({ fedimint, federationId }))
+            .unwrap()
+            .then(setGateways)
+        fedimint.getGatewayOverride(federationId).then(setOveriddenGateway)
+    }, [federationId, dispatch, fedimint])
 
     const gatewayOptions = useMemo(
         () =>
@@ -103,15 +112,13 @@ function DeveloperPage() {
         [gateways],
     )
 
-    const activeGatewayPubKey = gateways.find(g => g.active)?.nodePubKey
-
     const handleSelectGateway = useCallback(
-        (nodePubKey: string) => {
+        async (nodePubKey: string) => {
             if (!federationId) return
-            fedimint.switchGateway(nodePubKey, federationId)
-            setGateways(gs =>
-                gs.map(g => ({ ...g, active: g.nodePubKey === nodePubKey })),
-            )
+            await fedimint.setGatewayOverride(nodePubKey, federationId)
+            const overridePubKey =
+                await fedimint.getGatewayOverride(federationId)
+            setOveriddenGateway(overridePubKey)
         },
         [federationId],
     )
@@ -129,7 +136,7 @@ function DeveloperPage() {
                             <Text weight="bold">Lightning gateway</Text>
                             <RadioGroup
                                 options={gatewayOptions}
-                                value={activeGatewayPubKey}
+                                value={overiddenGateway ?? undefined}
                                 onChange={handleSelectGateway}
                             />
                         </Setting>

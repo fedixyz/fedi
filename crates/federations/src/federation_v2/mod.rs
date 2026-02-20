@@ -1947,26 +1947,31 @@ impl FederationV2 {
     /// List all lightning gateways registered with the federation
     pub async fn list_gateways(&self) -> anyhow::Result<Vec<RpcLightningGateway>> {
         let gateways = self.client.ln()?.list_gateways().await;
-        let active_gw = self
-            .gateway_service()?
-            .get_active_gateway(&self.client)
-            .await;
         let bridge_gateways: Vec<RpcLightningGateway> = gateways
             .into_iter()
             .map(|gw| RpcLightningGateway {
                 api: gw.info.api.to_string(),
                 node_pub_key: RpcPublicKey(gw.info.node_pub_key),
                 gateway_id: RpcPublicKey(gw.info.gateway_id),
-                active: Some(gw.info.gateway_id) == active_gw,
             })
             .collect();
         Ok(bridge_gateways)
     }
-    /// Switch active lightning gateway
-    pub async fn switch_gateway(&self, gateway_id: &PublicKey) -> Result<()> {
+
+    /// Set gateway override for this federation. Pass None to clear the
+    /// override.
+    pub async fn set_gateway_override(&self, gateway_id: Option<&PublicKey>) -> Result<()> {
         self.gateway_service()?
-            .set_active_gateway(&self.client, gateway_id)
+            .set_gateway_override(&self.client, gateway_id)
             .await
+    }
+
+    /// Get the current gateway override for this federation.
+    pub async fn get_gateway_override(&self) -> Result<Option<PublicKey>> {
+        Ok(self
+            .gateway_service()?
+            .get_gateway_override(&self.client)
+            .await)
     }
 
     /// Receive ecash

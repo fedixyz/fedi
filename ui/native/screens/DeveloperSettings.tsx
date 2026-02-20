@@ -44,16 +44,13 @@ import {
 import { clearAnalyticsState } from '@fedi/common/redux/analytics'
 import { selectCurrency } from '@fedi/common/redux/currency'
 import { clearAllMiniAppPermissions } from '@fedi/common/redux/mod'
+import { FediModCacheMode, SupportedCurrency } from '@fedi/common/types'
 import {
-    FediModCacheMode,
-    LightningGateway,
-    SupportedCurrency,
-} from '@fedi/common/types'
-import { GuardianStatus } from '@fedi/common/types/bindings'
-import {
-    getGuardianStatuses,
-    switchGateway,
-} from '@fedi/common/utils/FederationUtils'
+    GuardianStatus,
+    RpcLightningGateway,
+    RpcPublicKey,
+} from '@fedi/common/types/bindings'
+import { getGuardianStatuses } from '@fedi/common/utils/FederationUtils'
 import { makeLog } from '@fedi/common/utils/log'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
@@ -79,8 +76,10 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     const toast = useToast()
     const [fcmToken, setFcmToken] = useState<string | null>(null)
     const [isModalVisible, setIsModalVisible] = useState(false)
-    const [isLoadingGateways, setIsLoadingGateways] = useState<boolean>(false)
-    const [gateways, setGateways] = useState<LightningGateway[]>([])
+    const [isLoadingGateways, setIsLoadingGateways] = useState<boolean>(true)
+    const [gateways, setGateways] = useState<RpcLightningGateway[]>([])
+    const [overiddenGateway, setOveriddenGateway] =
+        useState<RpcPublicKey | null>(null)
     const [outstandingFediSendFeesMap, setOutstandingFediSendFeesMap] =
         useState<FeesMap>({})
     const [outstandingFediReceiveFeesMap, setOutstandingFediReceiveFeesMap] =
@@ -198,28 +197,17 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
     }, [paymentFederation, fedimint])
 
     useEffect(() => {
-        const getGatewaysList = async () => {
-            setIsLoadingGateways(true)
-            try {
-                if (!paymentFederation?.id)
-                    throw new Error('No active federation')
-                const _gateways = await reduxDispatch(
-                    listGateways({
-                        federationId: paymentFederation?.id,
-                        fedimint,
-                    }),
-                ).unwrap()
-                setGateways(_gateways)
-            } catch (e) {
-                toast.show({
-                    content: t('errors.failed-to-fetch-gateways'),
-                    status: 'error',
-                })
-            }
-            setIsLoadingGateways(false)
-        }
+        if (!paymentFederation?.id) return
 
-        getGatewaysList()
+        reduxDispatch(
+            listGateways({ fedimint, federationId: paymentFederation.id }),
+        )
+            .unwrap()
+            .then(setGateways)
+            .finally(() => setIsLoadingGateways(false))
+        fedimint
+            .getGatewayOverride(paymentFederation.id)
+            .then(setOveriddenGateway)
     }, [toast, t, paymentFederation, reduxDispatch, fedimint])
 
     useEffect(() => {
@@ -232,25 +220,22 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             )
     }, [paymentFederation?.id, reduxDispatch, stabilityPoolSupported, fedimint])
 
-    const handleSelectGateway = async (gateway: LightningGateway) => {
+    const handleSelectGateway = async (gateway: RpcLightningGateway) => {
+        if (!paymentFederation?.id) return
+
         try {
-            if (!paymentFederation?.id) throw new Error('No active federation')
-            await switchGateway(
-                fedimint,
-                paymentFederation.id,
+            await fedimint.setGatewayOverride(
                 gateway.nodePubKey,
+                paymentFederation.id,
             )
+            setOveriddenGateway(gateway.nodePubKey)
         } catch (e) {
+            log.error('Failed to switch gateway', e)
             toast.show({
                 content: t('errors.failed-to-switch-gateways'),
                 status: 'error',
             })
         }
-        const updatedGateways = gateways.map((gw: LightningGateway) => {
-            gw.active = gateway.nodePubKey === gw.nodePubKey
-            return gw
-        })
-        setGateways(updatedGateways)
     }
 
     const handleShareStorage = async () => {
@@ -651,7 +636,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                 <FederationWalletSelector fullWidth />
                 <SettingsSection title="Change your lightning gateway">
                     {isLoadingGateways && <ActivityIndicator />}
-                    {gateways.map((gw: LightningGateway, index: number) => (
+                    {gateways.map((gw: RpcLightningGateway, index: number) => (
                         <View key={gw.nodePubKey}>
                             <CheckBox
                                 key={index}
@@ -666,7 +651,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                                         {gw.api}
                                     </Text>
                                 }
-                                checked={gw.active}
+                                checked={overiddenGateway === gw.nodePubKey}
                                 onPress={() => handleSelectGateway(gw)}
                                 containerStyle={style.checkboxContainer}
                             />

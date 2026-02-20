@@ -1080,12 +1080,7 @@ export const setSuggestedPaymentFederation = createAsyncThunk<
 )
 
 export const listGateways = createAsyncThunk<
-    {
-        nodePubKey: string
-        gatewayId: string
-        api: string
-        active: boolean
-    }[],
+    RpcLightningGateway[],
     { fedimint: FedimintBridge; federationId: string },
     { state: CommonState }
 >(

@@ -615,14 +615,18 @@ export class FedimintBridge {
         return this.rpcTyped('listGateways', { federationId })
     }
 
-    async switchGateway(
-        gatewayId: bindings.RpcPublicKey,
+    async setGatewayOverride(
+        gatewayId: bindings.RpcPublicKey | null,
         federationId: string,
     ) {
-        return this.rpcTyped('switchGateway', {
+        return this.rpcTyped('setGatewayOverride', {
             federationId,
             gatewayId,
         })
+    }
+
+    async getGatewayOverride(federationId: string) {
+        return this.rpcTyped('getGatewayOverride', { federationId })
     }
 
     async getMnemonic() {

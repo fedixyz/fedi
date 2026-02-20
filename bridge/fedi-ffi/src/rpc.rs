@@ -416,11 +416,18 @@ async fn listGateways(federation: Arc<FederationV2>) -> anyhow::Result<Vec<RpcLi
 }
 
 #[macro_rules_derive(federation_recovering_rpc_method!)]
-async fn switchGateway(
+async fn setGatewayOverride(
     federation: Arc<FederationV2>,
-    gateway_id: RpcPublicKey,
+    gateway_id: Option<RpcPublicKey>,
 ) -> anyhow::Result<()> {
-    federation.switch_gateway(&gateway_id.0).await
+    federation
+        .set_gateway_override(gateway_id.as_ref().map(|g| &g.0))
+        .await
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
+async fn getGatewayOverride(federation: Arc<FederationV2>) -> anyhow::Result<Option<RpcPublicKey>> {
+    Ok(federation.get_gateway_override().await?.map(RpcPublicKey))
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
@@ -2386,7 +2393,8 @@ rpc_methods!(RpcMethods {
     payInvoice,
     getPrevPayInvoiceResult,
     listGateways,
-    switchGateway,
+    setGatewayOverride,
+    getGatewayOverride,
     // On-Chain
     supportsSafeOnchainDeposit,
     generateAddress,

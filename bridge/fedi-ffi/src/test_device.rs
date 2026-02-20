@@ -376,7 +376,9 @@ pub async fn use_lnd_gateway(federation: &FederationV2) -> anyhow::Result<()> {
     }
     for gateway in gateways {
         if gateway.node_pub_key.0 == lnd_node_pubkey {
-            federation.switch_gateway(&gateway.gateway_id.0).await?;
+            federation
+                .set_gateway_override(Some(&gateway.gateway_id.0))
+                .await?;
             return Ok(());
         }
     }

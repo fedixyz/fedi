@@ -23,7 +23,8 @@ pub enum BridgeDbPrefix {
     TransactionNote = 0xb7,
     OutstandingFediFees = 0xb8,
     OperationFediFeeStatus = 0xb9,
-    LastActiveGateway = 0xba,
+    #[deprecated]
+    LastUsedGateway = 0xba,
 
     // Index of the stability pool cycle during which the last deposit was made. We track this so
     // we can determine when user's deposit(s) are unfilled. Any staged/pending seeks that exist
@@ -84,6 +85,9 @@ pub enum BridgeDbPrefix {
     // outstanding fee is below the threshold. However, we would still like to tell the server
     // about the additional accrued fee since last time so that TX volume can be approximated.
     LastFediFeesRemittanceTotalAccruedFees = 0xc6,
+
+    // Gateway override used by gateway selection
+    GatewayOverride = 0xc7,
 
     // Do not use anything after this key (inclusive)
     // see https://github.com/fedimint/fedimint/pull/4445
@@ -155,12 +159,12 @@ impl_db_record!(
 );
 
 #[derive(Debug, Decodable, Encodable)]
-pub struct LastActiveGatewayKey;
+pub struct GatewayOverrideKey;
 
 impl_db_record!(
-    key = LastActiveGatewayKey,
+    key = GatewayOverrideKey,
     value = secp256k1::PublicKey,
-    db_prefix = BridgeDbPrefix::LastActiveGateway,
+    db_prefix = BridgeDbPrefix::GatewayOverride,
 );
 
 #[derive(Debug, Decodable, Encodable)]

@@ -638,9 +638,9 @@ export const getGuardianStatuses = async (
 export const switchGateway = async (
     fedimint: FedimintBridge,
     federationId: string,
-    nodePubKey: string,
+    nodePubKey: string | null,
 ): Promise<void> => {
-    await fedimint.switchGateway(nodePubKey, federationId)
+    await fedimint.setGatewayOverride(nodePubKey, federationId)
 }
 
 export const getFederationStatus = async (

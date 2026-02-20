@@ -623,7 +623,6 @@ export type RpcLightningGateway = {
   nodePubKey: RpcPublicKey;
   gatewayId: RpcPublicKey;
   api: string;
-  active: boolean;
 };
 
 export type RpcLnPayState =
@@ -742,7 +741,8 @@ export type RpcMethods = {
   payInvoice: [payInvoice, RpcPayInvoiceResponse];
   getPrevPayInvoiceResult: [getPrevPayInvoiceResult, RpcPrevPayInvoiceResult];
   listGateways: [listGateways, Array<RpcLightningGateway>];
-  switchGateway: [switchGateway, null];
+  setGatewayOverride: [setGatewayOverride, null];
+  getGatewayOverride: [getGatewayOverride, RpcPublicKey | null];
   supportsSafeOnchainDeposit: [supportsSafeOnchainDeposit, boolean];
   generateAddress: [generateAddress, string];
   recheckPeginAddress: [recheckPeginAddress, null];
@@ -1822,6 +1822,8 @@ export type getAccruedPendingFediFeesPerTXType = {
 
 export type getFeatureCatalog = {};
 
+export type getGatewayOverride = { federationId: RpcFederationId };
+
 export type getGuardianPassword = {
   federationId: RpcFederationId;
   peerId: RpcPeerId;
@@ -2204,6 +2206,11 @@ export type repairWallet = { federationId: RpcFederationId };
 
 export type restoreMnemonic = { mnemonic: Array<string> };
 
+export type setGatewayOverride = {
+  federationId: RpcFederationId;
+  gatewayId: RpcPublicKey | null;
+};
+
 export type setGuardianPassword = {
   federationId: RpcFederationId;
   peerId: RpcPeerId;
@@ -2336,11 +2343,6 @@ export type streamCancel = { streamId: number };
 export type supportsRecurringdLnurl = { federationId: RpcFederationId };
 
 export type supportsSafeOnchainDeposit = { federationId: RpcFederationId };
-
-export type switchGateway = {
-  federationId: RpcFederationId;
-  gatewayId: RpcPublicKey;
-};
 
 export type updateCachedFiatFXInfo = {
   fiatCode: string;

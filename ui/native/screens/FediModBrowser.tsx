@@ -39,7 +39,6 @@ import {
     setRequestInvoiceArgs,
     refetchSiteInfo,
     selectSiteInfo,
-    listGateways,
     selectIsInternetUnreachable,
     selectFediModCacheMode,
     selectFediModCacheEnabled,
@@ -233,23 +232,13 @@ const FediModBrowser: React.FC<Props> = () => {
                 log.info('webln.getInfo')
 
                 const alias = member?.displayName || ''
-                let pubkey = ''
                 try {
                     if (!paymentFederation?.id)
                         throw new Error('No available lightning gateways')
 
-                    const gateways = await dispatch(
-                        listGateways({
-                            fedimint,
-                            federationId: paymentFederation?.id,
-                        }),
-                    ).unwrap()
-                    const gateway = gateways.find(g => g.active) || gateways[0]
-
-                    if (gateway) {
-                        pubkey = gateway.nodePubKey
-                    }
-                    return { node: { alias, pubkey } }
+                    // EXPERIMENTAL - temporarily returns an empty pubkey because we removed the concept of an 'active' gateway
+                    // See https://github.com/fedibtc/fedi/pull/10030#discussion_r2788262595
+                    return { node: { alias, pubkey: '' } }
                 } catch (err) {
                     log.warn('Failed to list gateways for webln getInfo', err)
                     throw new Error(t('errors.no-lightning-gateways'))
