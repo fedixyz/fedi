@@ -9,6 +9,8 @@ import {
     configureMatrixPushNotifications,
     selectChatDrafts,
     selectMatrixAuth,
+    selectMatrixRoomCanUploadMedia,
+    selectMatrixRoomIsReadOnly,
     selectMessageToEdit,
     selectPaymentFederation,
     sendMatrixPaymentPush,
@@ -372,12 +374,23 @@ export const useDisplayNameForm = (t: TFunction) => {
  * - Debounced draft persistence
  * - Edit mode detection and text initialization
  * - Re-sync from draft when roomId changes
+ * - Check if user has power level required to upload media
  */
 export function useMessageInputState(roomId: string) {
     const dispatch = useCommonDispatch()
     const drafts = useCommonSelector(selectChatDrafts)
     const editingMessage = useCommonSelector(selectMessageToEdit)
     const [messageText, setMessageText] = useState<string>(drafts[roomId] ?? '')
+
+    // dont show the media buttons if the room is read-only
+    const isReadOnly = useCommonSelector(s =>
+        selectMatrixRoomIsReadOnly(s, roomId),
+    )
+    // check if this user can upload media in this room
+    const canUploadMedia = useCommonSelector(s =>
+        selectMatrixRoomCanUploadMedia(s, roomId),
+    )
+    const shouldShowMediaButtons = canUploadMedia && !isReadOnly
 
     // Re-initialize from draft when room changes (but not when editing)
     useEffect(() => {
@@ -421,5 +434,6 @@ export function useMessageInputState(roomId: string) {
         editingMessage,
         isEditingMessage: !!editingMessage,
         resetMessageText,
+        shouldShowMediaButtons,
     }
 }

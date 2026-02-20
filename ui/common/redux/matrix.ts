@@ -2429,6 +2429,33 @@ export const selectMatrixRoomIsReadOnly = createSelector(
     },
 )
 
+export const selectMatrixRoomIsPublic = createSelector(
+    selectMatrixRoom,
+    room => room?.isPublic,
+)
+
+/*
+ * Check if the current user can upload media in the current room.
+ * In private rooms, any power level is allowed to upload media.
+ * In public rooms, only moderators and admins can upload media.
+ * TODO: simplify/combine this with selectMatrixRoomIsReadOnly
+ */
+export const selectMatrixRoomCanUploadMedia = createSelector(
+    selectMatrixRoomIsPublic,
+    selectMatrixRoomPowerLevels,
+    selectMatrixRoomSelfPowerLevel,
+    (isPublic, roomPowerLevels, selfPowerLevel) => {
+        if (!isPublic) return true
+        if (!roomPowerLevels) return false
+        if (!selfPowerLevel) return false
+
+        return isPowerLevelGreaterOrEqual(
+            selfPowerLevel,
+            MatrixPowerLevel.Moderator,
+        )
+    },
+)
+
 export const selectMatrixDirectMessageRoom = createSelector(
     (_: CommonState, userId: string) => userId,
     selectMatrixRooms,
