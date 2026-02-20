@@ -22,10 +22,17 @@ use crate::rpc::{self, rpc_error_json};
 
 lazy_static! {
     // Global Tokio runtime
-    pub static ref RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .expect("failed to build runtime");
+    pub static ref RUNTIME: tokio::runtime::Runtime = {
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder.enable_all();
+
+        // Limit blocking threads on 32-bit platforms to avoid thread count overflow
+        // https://github.com/tokio-rs/tracing/issues/2856
+        #[cfg(target_pointer_width = "32")]
+        builder.max_blocking_threads(64);
+
+        builder.build().expect("failed to build runtime")
+    };
     // Global bridge object used to handle RPC commands
     static ref BRIDGE: Arc<Mutex<Option<Arc<Bridge>>>> = Arc::new(Mutex::new(None));
 }
