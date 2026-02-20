@@ -418,6 +418,8 @@
             "start-social-backup-warning": "⚠️ Use this feature only if you personally know your guardians.",
             "start-social-backup-permissions-text": "Access to your camera and microphone is required to record a social backup video.",
             "record-video-hold-text": "Hold to record",
+            "record-video-press-text": "Press once to record",
+            "record-video-press-stop-text": "Press once to stop recording",
             "record-video-prompt": "Say the following sentence:",
             "record-video-sentence": "Hello Fedi, my name is <name>",
             "record-video-tip": "Make sure your face is clearly visible and well lit.",

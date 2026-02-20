@@ -1,14 +1,18 @@
 import { useRouter } from 'next/router'
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { homeRoute } from '../../constants/routes'
 import { getHashParams } from '../../utils/linking'
 import * as Layout from '../Layout'
+import Success from '../Success'
 import { SocialBackupDownload } from './SocialBackupDownload'
 import { SocialBackupIntro } from './SocialBackupIntro'
 import { SocialBackupRecord } from './SocialBackupRecord'
 import { SocialBackupUpload } from './SocialBackupUpload'
 
-export const SocialBackup: React.FC = () => {
+export function SocialBackup() {
+    const { t } = useTranslation()
     const router = useRouter()
     const params = getHashParams(router.asPath)
     const federationId = params.id
@@ -30,6 +34,7 @@ export const SocialBackup: React.FC = () => {
     } else if (step === 'record') {
         content = (
             <SocialBackupRecord
+                back={() => setStep('intro')}
                 next={blob => {
                     setVideoBlob(blob)
                     setStep('upload')
@@ -48,16 +53,21 @@ export const SocialBackup: React.FC = () => {
             />
         )
     } else if (step === 'download' && backupBlob) {
-        content = <SocialBackupDownload backupBlob={backupBlob} />
+        content = (
+            <SocialBackupDownload
+                backupBlob={backupBlob}
+                next={() => setStep('complete')}
+            />
+        )
+    } else if (step === 'complete') {
+        return (
+            <Success
+                title={t('feature.backup.successfully-backed-up')}
+                buttonText={t('words.done')}
+                onClick={() => router.push(homeRoute)}
+            />
+        )
     }
-
-    // If none of the conditions above hit, reset the component state and go back to the intro
-    const needsReset = !!content
-    useEffect(() => {
-        if (!needsReset) return
-        setStep('intro')
-        setVideoBlob(null)
-    }, [needsReset])
 
     return <Layout.Root>{content}</Layout.Root>
 }

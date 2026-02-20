@@ -15,6 +15,7 @@ import {
     shouldShowSocialRecovery,
 } from '@fedi/common/utils/FederationUtils'
 
+import { settingsBackupSocialRoute } from '../constants/routes'
 import { AccordionMenu, MenuItemInfo, MenuItemName } from './AccordionMenu'
 import { FederationAvatar } from './FederationAvatar'
 import { MenuGroup } from './SettingsMenu'
@@ -71,7 +72,7 @@ export const FederationMenu = ({
             {
                 label: t('feature.backup.social-backup'),
                 icon: SocialPeopleIcon,
-                href: `/settings/backup/social#id=${federation.id}`,
+                href: `${settingsBackupSocialRoute}#id=${federation.id}`,
                 hidden: !shouldShowSocialRecovery(federation),
             },
             {

@@ -10,7 +10,6 @@ import { makeLog } from '@fedi/common/utils/log'
 
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
-import { Checkbox } from '../Checkbox'
 import { Icon } from '../Icon'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
@@ -18,12 +17,23 @@ import { Text } from '../Text'
 const log = makeLog('SocialBackupRecord')
 
 interface Props {
+    back(): void
     next(videoBlob: Blob): void
 }
 
-const VIDEO_FORMAT = 'video/webm;codecs=vp9'
+function getSupportedVideoType() {
+    if (typeof MediaRecorder === 'undefined') return null
 
-export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
+    const types = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/mp4',
+    ]
+
+    return types.find(type => MediaRecorder.isTypeSupported(type)) || null
+}
+
+export const SocialBackupRecord: React.FC<Props> = ({ next, back }) => {
     const { t } = useTranslation()
     const tRef = useUpdatingRef(t)
     const [error, setError] = useState<string>()
@@ -32,8 +42,6 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
     const [isRecording, setIsRecording] = useState(false)
     const [videoBlob, setVideoBlob] = useState<Blob | null>(null)
     const [isPlayingVideo, setIsPlayingVideo] = useState(false)
-    const [isFaceConfirmed, setIsFaceConfirmed] = useState(false)
-    const [isVoiceConfirmed, setIsVoiceConfirmed] = useState(false)
 
     // Kill stream tracks when it changes or on unmount
     useEffect(() => {
@@ -62,22 +70,16 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
     useEffect(() => {
         if (videoBlob) return
         // First check if their browser supports recording video
-        if (
-            typeof MediaRecorder === 'undefined' ||
-            !MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ) {
+        if (!getSupportedVideoType()) {
             log.error('MediaRecorder or webm vp9 codec is not supported', {
                 MediaRecorder: typeof MediaRecorder,
-                isTypeSupported: MediaRecorder.isTypeSupported(
-                    'video/webm;codecs=vp9',
-                ),
             })
             setError(tRef.current('errors.browser-feature-not-supported'))
             return
         }
         // Then attempt to get camera access
         navigator.mediaDevices
-            .getUserMedia({ video: true })
+            .getUserMedia({ video: true, audio: true })
             .then(setStream)
             .catch(err => {
                 log.error('getUserMedia', err)
@@ -94,15 +96,20 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
     // When the user wants to record, fire up the MediaRecorder. When they don't want it, stop and save.
     useEffect(() => {
         if (!isRecording || !stream) return
+
+        const videoFormat = getSupportedVideoType()
+
+        if (!videoFormat) return
+
         const mediaRecorder = new MediaRecorder(stream, {
-            mimeType: VIDEO_FORMAT,
+            mimeType: videoFormat,
         })
         const chunks: Blob[] = []
         mediaRecorder.addEventListener('dataavailable', e => {
             chunks.push(e.data)
         })
         mediaRecorder.addEventListener('stop', () => {
-            setVideoBlob(new Blob(chunks, { type: VIDEO_FORMAT }))
+            setVideoBlob(new Blob(chunks, { type: videoFormat }))
             setIsRecording(false)
         })
         mediaRecorder.addEventListener('error', err => {
@@ -140,18 +147,18 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
         if (!videoEl) return
 
         const handleEnded = () => {
+            videoEl.muted = true
             setIsPlayingVideo(false)
             videoEl.removeEventListener('ended', handleEnded)
         }
         videoEl.addEventListener('ended', handleEnded)
+        videoEl.muted = false
         videoEl.play()
         setIsPlayingVideo(true)
     }
 
     const handleReset = () => {
         setVideoBlob(null)
-        setIsFaceConfirmed(false)
-        setIsVoiceConfirmed(false)
     }
 
     const handleSubmit = () => {
@@ -164,7 +171,12 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
 
     return (
         <>
-            <Layout.Content centered>
+            <Layout.Header back={back}>
+                <Layout.Title subheader>
+                    {t('feature.backup.social-backup')}
+                </Layout.Title>
+            </Layout.Header>
+            <Layout.Content>
                 <Content>
                     <VideoContainer isRed={isRecording || !!error}>
                         <VideoInner>
@@ -175,8 +187,11 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
                                 </Error>
                             ) : (
                                 <Video
+                                    muted
                                     ref={el => setVideoEl(el)}
-                                    isFaded={!isRecording && !videoBlob}
+                                    playsInline
+                                    webkit-playsinline="true"
+                                    controls={false}
                                 />
                             )}
                             {isShowingPlay && (
@@ -190,40 +205,21 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
                         </VideoInner>
                     </VideoContainer>
                     {isReviewing ? (
-                        <>
-                            <Text variant="h2" weight="medium">
-                                {t('feature.backup.please-review-backup-video')}
-                            </Text>
-                            <CheckboxContainer>
-                                <Checkbox
-                                    label={t(
-                                        'feature.backup.review-face-confirmation',
-                                    )}
-                                    checked={isFaceConfirmed}
-                                    onChange={setIsFaceConfirmed}
-                                />
-                                <Checkbox
-                                    label={t(
-                                        'feature.backup.review-voice-confirmation',
-                                    )}
-                                    checked={isVoiceConfirmed}
-                                    onChange={setIsVoiceConfirmed}
-                                />
-                            </CheckboxContainer>
-                        </>
+                        <Text center css={{ color: theme.colors.darkGrey }}>
+                            {t('feature.backup.confirm-video-text')}
+                        </Text>
                     ) : (
                         <>
-                            <Text weight="medium">
-                                {t('feature.backup.press-record-button')}
+                            <Text css={{ color: theme.colors.darkGrey }}>
+                                {t('feature.backup.record-video-tip')}
+                            </Text>
+                            <Text css={{ color: theme.colors.darkGrey }}>
+                                {t('feature.backup.record-video-prompt')}
                             </Text>
                             <PromptContainer>
-                                <PromptInner>
-                                    <Text weight="bold">
-                                        {t(
-                                            'feature.backup.social-backup-video-prompt',
-                                        )}
-                                    </Text>
-                                </PromptInner>
+                                <Text weight="medium" variant="caption">
+                                    {t('feature.backup.record-video-sentence')}
+                                </Text>
                             </PromptContainer>
                         </>
                     )}
@@ -233,29 +229,40 @@ export const SocialBackupRecord: React.FC<Props> = ({ next }) => {
                 {isReviewing ? (
                     <>
                         <Button
+                            variant="primary"
+                            width="full"
+                            onClick={handleSubmit}>
+                            {t('feature.backup.confirm-backup-video')}
+                        </Button>
+                        <Button
                             variant="tertiary"
                             width="full"
                             onClick={handleReset}>
                             {t('feature.backup.record-again')}
                         </Button>
-                        <Button
-                            variant="primary"
-                            width="full"
-                            disabled={!isFaceConfirmed || !isVoiceConfirmed}
-                            onClick={handleSubmit}>
-                            {t('feature.backup.confirm-backup-video')}
-                        </Button>
                     </>
                 ) : (
-                    <RecordButton
-                        isRecording={isRecording && !error}
-                        onClick={() => setIsRecording(!isRecording)}>
-                        <VisuallyHidden>
+                    <>
+                        <Text
+                            variant="small"
+                            css={{ color: theme.colors.darkGrey }}>
                             {isRecording
-                                ? t('feature.backup.stop-recording')
-                                : t('feature.backup.start-recording')}
-                        </VisuallyHidden>
-                    </RecordButton>
+                                ? t(
+                                      'feature.backup.record-video-press-stop-text',
+                                  )
+                                : t('feature.backup.record-video-press-text')}
+                        </Text>
+
+                        <RecordButton
+                            isRecording={isRecording && !error}
+                            onClick={() => setIsRecording(!isRecording)}>
+                            <VisuallyHidden>
+                                {isRecording
+                                    ? t('feature.backup.stop-recording')
+                                    : t('feature.backup.start-recording')}
+                            </VisuallyHidden>
+                        </RecordButton>
+                    </>
                 )}
             </Layout.Actions>
         </>
@@ -308,14 +315,6 @@ const Video = styled('video', {
     border: `16px solid ${theme.colors.white}`,
     background: theme.colors.extraLightGrey,
     transition: 'opacity 200ms ease',
-
-    variants: {
-        isFaded: {
-            true: {
-                opacity: 0.7,
-            },
-        },
-    },
 })
 
 const PlayButton = styled('button', {
@@ -352,16 +351,9 @@ const Error = styled('div', {
 })
 
 const PromptContainer = styled('div', {
-    minWidth: 200,
-    borderRadius: 16,
-    padding: 2,
-    fediGradient: 'sky-heavy',
-})
-
-const PromptInner = styled('div', {
-    padding: 16,
-    borderRadius: 14,
-    background: theme.colors.white,
+    borderRadius: 4,
+    padding: theme.spacing.md,
+    fediGradient: 'sky',
 })
 
 const RecordButton = styled('button', {
@@ -389,12 +381,4 @@ const RecordButton = styled('button', {
             },
         },
     },
-})
-
-const CheckboxContainer = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'flex-start',
-    textAlign: 'left',
-    gap: 16,
 })

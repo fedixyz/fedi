@@ -33,6 +33,7 @@ export const settingsEditProfileRoute = `${settingsRoute}/edit-profile`
 export const settingsLanguageRoute = `${settingsRoute}/language`
 export const settingsNostrRoute = `${settingsRoute}/nostr`
 export const settingsBackupPersonalRoute = `${settingsRoute}/backup/personal`
+export const settingsBackupSocialRoute = `${settingsRoute}/backup/social`
 
 // Chat
 export const chatUserRoute = (id: string) => `${chatRoute}/user/${id}`

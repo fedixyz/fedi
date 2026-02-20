@@ -1,11 +1,11 @@
+import Image from 'next/image'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
+import SocialRecoveryIcon from '@fedi/common/assets/images/social-recovery.png'
 
-import { styled } from '../../styles'
+import { styled, theme } from '../../styles'
 import { Button } from '../Button'
-import { Icon } from '../Icon'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
 
@@ -17,28 +17,36 @@ export const SocialBackupIntro: React.FC<Props> = ({ next }) => {
     const { t } = useTranslation()
     return (
         <>
-            <Layout.Header back="/settings">
+            <Layout.Header back>
                 <Layout.Title subheader>
-                    {t('feature.backup.file-backup')}
+                    {t('feature.backup.social-backup')}
                 </Layout.Title>
             </Layout.Header>
 
             <Layout.Content>
                 <Content>
                     <IconContainer>
-                        <Icon icon={SocialPeopleIcon} size="lg" />
+                        <Image
+                            src={SocialRecoveryIcon}
+                            alt="Social Recovery Icon"
+                            width="60"
+                            height="60"
+                        />
                     </IconContainer>
-                    <Text variant="h2" weight="medium">
+                    <Text center variant="h2" weight="bold">
                         {t('feature.backup.social-backup')}
                     </Text>
-                    <Text>
-                        {t('feature.backup.start-social-backup-instructions')}
+                    <Text center css={{ color: theme.colors.darkGrey }}>
+                        {t('feature.backup.start-social-backup-desc')}
+                    </Text>
+                    <Text center css={{ color: theme.colors.darkGrey }}>
+                        {t('feature.backup.start-social-backup-warning')}
                     </Text>
                 </Content>
             </Layout.Content>
             <Layout.Actions>
                 <Button width="full" onClick={next}>
-                    {t('words.next')}
+                    {t('words.start')}
                 </Button>
             </Layout.Actions>
         </>
@@ -53,17 +61,15 @@ const Content = styled('div', {
     alignItems: 'center',
     textAlign: 'center',
     width: '100%',
-    maxWidth: 340,
-    gap: 16,
+    gap: theme.spacing.lg,
 })
 
 const IconContainer = styled('div', {
-    display: 'flex',
-    justifyContent: 'center',
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 180,
-    aspectRatio: '1/1',
     borderRadius: '100%',
+    display: 'flex',
     fediGradient: 'sky',
+    height: 120,
+    justifyContent: 'center',
+    width: 120,
 })

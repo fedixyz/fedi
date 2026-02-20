@@ -1,25 +1,22 @@
-import { useRouter } from 'next/router'
+import Image from 'next/image'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import FediFileIcon from '@fedi/common/assets/svgs/fedi-file.svg'
-import { useToast } from '@fedi/common/hooks/toast'
+import SocialRecoveryFileIcon from '@fedi/common/assets/images/social-recovery-file.png'
 
-import { styled } from '../../styles'
+import { styled, theme } from '../../styles'
 import { Button } from '../Button'
-import { Icon } from '../Icon'
 import * as Layout from '../Layout'
 import { Text } from '../Text'
 
 interface Props {
     backupBlob: Blob
+    next(): void
 }
 
-export const SocialBackupDownload: React.FC<Props> = ({ backupBlob }) => {
+export const SocialBackupDownload: React.FC<Props> = ({ backupBlob, next }) => {
     const { t } = useTranslation()
-    const { push } = useRouter()
     const [hasSaved, setHasSaved] = useState(false)
-    const toast = useToast()
 
     const handleDownload = () => {
         const url = URL.createObjectURL(backupBlob)
@@ -33,63 +30,52 @@ export const SocialBackupDownload: React.FC<Props> = ({ backupBlob }) => {
         }, 500)
     }
 
-    const handleComplete = () => {
-        toast.show(t('feature.backup.successfully-backed-up'))
-        push('/home')
-    }
-
     return (
         <>
             <Layout.Content>
                 <Content>
                     <IconContainer>
-                        <Icon icon={FediFileIcon} size="lg" />
+                        <Image
+                            src={SocialRecoveryFileIcon}
+                            alt="Social Recovery File Icon"
+                            width="60"
+                            height="60"
+                        />
                     </IconContainer>
-                    <Text weight="bold">
-                        {t('feature.backup.save-your-wallet-backup-file')}
+                    <Text center variant="h2" weight="bold">
+                        {t('feature.backup.complete-backup-save-file')}
                     </Text>
-                    <Text>
-                        {t('feature.backup.save-your-wallet-backup-file-where')}
+                    <Text center>
+                        {t('feature.backup.complete-backup-save-file-help')}
                     </Text>
                 </Content>
             </Layout.Content>
             <Layout.Actions>
-                <Button
-                    variant={hasSaved ? 'tertiary' : 'primary'}
-                    width="full"
-                    onClick={handleDownload}>
-                    {hasSaved
-                        ? t('feature.backup.save-your-wallet-backup-file-again')
-                        : t('feature.backup.save-file')}
+                <Button width="full" onClick={hasSaved ? next : handleDownload}>
+                    {hasSaved ? t('words.done') : t('feature.backup.save-file')}
                 </Button>
-                {hasSaved && (
-                    <Button width="full" onClick={handleComplete}>
-                        {t('words.complete')}
-                    </Button>
-                )}
             </Layout.Actions>
         </>
     )
 }
 
 const Content = styled('div', {
+    alignSelf: 'center',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
     textAlign: 'center',
-    alignSelf: 'center',
-    gap: 16,
-    maxWidth: 280,
+    width: '100%',
+    gap: theme.spacing.lg,
 })
 
 const IconContainer = styled('div', {
-    display: 'flex',
-    justifyContent: 'center',
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 180,
-    aspectRatio: '1/1',
     borderRadius: '100%',
+    display: 'flex',
     fediGradient: 'sky',
+    height: 120,
+    justifyContent: 'center',
+    width: 120,
 })

@@ -96,7 +96,7 @@ export const SocialBackupUpload: React.FC<Props> = ({
                 ) : (
                     <Content>
                         <HoloLoader size={180} />
-                        <Text variant="h2" weight="medium">
+                        <Text center css={{ color: theme.colors.darkGrey }}>
                             {t('feature.backup.creating-recovery-file')}
                         </Text>
                     </Content>
