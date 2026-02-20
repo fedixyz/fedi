@@ -101,13 +101,6 @@ const ChatEvent: React.FC<Props> = ({
         })
     }
 
-    if (
-        isPublic &&
-        (isImageEvent(event) || isFileEvent(event) || isVideoEvent(event))
-    ) {
-        return null
-    }
-
     const derivedLinks = isText ? deriveUrlsFromText(event.content.body) : null
 
     const style = styles(theme)

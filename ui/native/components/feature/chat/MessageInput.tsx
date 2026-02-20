@@ -105,6 +105,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         editingMessage,
         isEditingMessage,
         resetMessageText,
+        shouldShowMediaButtons,
     } = useMessageInputState(id)
 
     const { isVisible: kbVisible, height: kbHeight } = useKeyboard()
@@ -444,8 +445,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                     <SvgImage name="Poll" />
                                 </Pressable>
                             )}
-                        {/* To prevent users from uploading unencrypted media, media uploads are not available in public chats */}
-                        {!isPublic && !isReadOnly && (
+                        {shouldShowMediaButtons && (
                             <>
                                 {attachments.isUploadingMedia ? (
                                     <ActivityIndicator size={theme.sizes.sm} />
