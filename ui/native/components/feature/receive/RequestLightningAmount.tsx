@@ -3,6 +3,7 @@ import { useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Keyboard } from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useMakeLightningRequest } from '@fedi/common/hooks/receive'
@@ -13,7 +14,6 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { reset } from '../../../state/navigation'
 import { useRecheckInternet } from '../../../utils/hooks/environment'
 import { AmountScreen } from '../../ui/AmountScreen'
-import { Column } from '../../ui/Flex'
 import PaymentType from '../send/PaymentType'
 
 export default function RequestLightningAmount({
@@ -85,7 +85,12 @@ export default function RequestLightningAmount({
     }
 
     return (
-        <Column grow style={{ paddingHorizontal: theme.spacing.xl }}>
+        <ScrollView
+            style={{
+                flex: 1,
+                paddingHorizontal: theme.spacing.xl,
+            }}
+            contentContainerStyle={{ flexGrow: 1 }}>
             <AmountScreen
                 showBalance={true}
                 federationId={federationId}
@@ -115,6 +120,6 @@ export default function RequestLightningAmount({
                 notes={memo}
                 setNotes={setMemo}
             />
-        </Column>
+        </ScrollView>
     )
 }
