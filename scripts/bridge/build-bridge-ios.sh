@@ -15,7 +15,7 @@ BRIDGE_ROOT=$REPO_ROOT/bridge
 # build Swift bindings
 cd $BRIDGE_ROOT/fedi-ffi
 # note: using '--target-dir' or otherwise this build will completely invalidate previous ones already in the ./target
-cargo run --target-dir "${CARGO_BUILD_TARGET_DIR}/pkg/ffi-bindgen/ffi-bindgen-run" --package ffi-bindgen -- generate --language swift --out-dir $BRIDGE_ROOT/fedi-swift/Sources/Fedi "$BRIDGE_ROOT/fedi-ffi/src/fedi.udl"
+cargo run --target-dir "${CARGO_BUILD_TARGET_DIR}/ffi-bindgen-run" --package ffi-bindgen -- generate --language swift --out-dir $BRIDGE_ROOT/fedi-swift/Sources/Fedi "$BRIDGE_ROOT/fedi-ffi/src/fedi.udl"
 
 cd $BRIDGE_ROOT
 
@@ -29,7 +29,7 @@ echo "Building iOS bridge for targets: ${TARGETS[*]} with profile: ${CARGO_PROFI
 
 # clean any old binaries
 # shellcheck disable=SC2046
-rm -f $(find $CARGO_BUILD_TARGET_DIR/pkg/ffi-bindgen -name libfediffi.a | grep -v '/deps/')
+rm -f $(find $CARGO_BUILD_TARGET_DIR -name libfediffi.a | grep -v '/deps/')
 
 # build binaries for each supported target
 for target in "${TARGETS[@]}"; do
@@ -54,9 +54,9 @@ cp Sources/Fedi/fediFFI.h fediFFI.xcframework/ios-arm64_x86_64-simulator/fediFFI
 echo "Copying binary files..."
 # for development, we combine both x86 and aarch64 binaries into 1
 # since x86_64-apple-ios-sim is not supported as a rustc target we just use x86_64-apple-ios
-AARCH64_SIM_BINARY_PATH=$CARGO_BUILD_TARGET_DIR/pkg/fedi-ffi/aarch64-apple-ios-sim/${CARGO_PROFILE_DIR}/libfediffi.a
-X86_BINARY_PATH=$CARGO_BUILD_TARGET_DIR/pkg/fedi-ffi/x86_64-apple-ios/${CARGO_PROFILE_DIR}/libfediffi.a
-COMBINED_BINARY_DIR=$CARGO_BUILD_TARGET_DIR/pkg/fedi-ffi/lipo-ios-arm64_x86_64-simulator/${CARGO_PROFILE_DIR}
+AARCH64_SIM_BINARY_PATH=$CARGO_BUILD_TARGET_DIR/aarch64-apple-ios-sim/${CARGO_PROFILE_DIR}/libfediffi.a
+X86_BINARY_PATH=$CARGO_BUILD_TARGET_DIR/x86_64-apple-ios/${CARGO_PROFILE_DIR}/libfediffi.a
+COMBINED_BINARY_DIR=$CARGO_BUILD_TARGET_DIR/lipo-ios-arm64_x86_64-simulator/${CARGO_PROFILE_DIR}
 COMBINED_BINARY_PATH="$COMBINED_BINARY_DIR/libfediffi.a"
 if [[ -e "$AARCH64_SIM_BINARY_PATH" && -e "$X86_BINARY_PATH" ]]; then
   echo "Combining binaries for development..."
@@ -76,7 +76,7 @@ fi
 
 # ios-arm64
 # copy the aarch64 binary if it was built
-AARCH64_BINARY_PATH=$CARGO_BUILD_TARGET_DIR/pkg/fedi-ffi/aarch64-apple-ios/${CARGO_PROFILE_DIR}/libfediffi.a
+AARCH64_BINARY_PATH=$CARGO_BUILD_TARGET_DIR/aarch64-apple-ios/${CARGO_PROFILE_DIR}/libfediffi.a
 if [ -e "$AARCH64_BINARY_PATH" ]; then
   cp $AARCH64_BINARY_PATH fediFFI.xcframework/ios-arm64/fediFFI.framework/fediFFI
 else

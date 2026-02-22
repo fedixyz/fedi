@@ -91,7 +91,7 @@ function build_android_target() {
     fi
 
     mkdir -p "$libs_out/jniLibs/$jni_name/"
-    cp "$CARGO_BUILD_ANDROID_TARGET_DIR/pkg/fedi-ffi/${target}/$CARGO_PROFILE_DIR/libfediffi.so" "$libs_out/jniLibs/$jni_name/"
+    cp "$CARGO_BUILD_ANDROID_TARGET_DIR/${target}/$CARGO_PROFILE_DIR/libfediffi.so" "$libs_out/jniLibs/$jni_name/"
   fi
 }
 export -f build_android_target
