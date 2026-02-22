@@ -460,7 +460,7 @@
             "broadcast-admin-settings": "Broadcast Admin settings",
             "broadcast-no-message": "The admins have not broadcasted a message yet. Stay tuned.",
             "broadcast-only": "Broadcast only",
-            "broadcast-only-notice": "Psst, only admins can send messages here. 🤫",
+            "broadcast-only-notice": "Psst, only admins and moderators can send messages here. 🤫",
             "change-avatar": "Change Avatar",
             "change-group-name": "Change group name",
             "change-role": "Change role",
