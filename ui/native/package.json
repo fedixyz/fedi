@@ -1,6 +1,6 @@
 {
     "name": "@fedi/native",
-    "version": "26.2.3",
+    "version": "26.2.4",
     "private": true,
     "engines": {
         "node": ">=18"
