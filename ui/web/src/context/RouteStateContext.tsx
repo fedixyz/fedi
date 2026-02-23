@@ -38,6 +38,8 @@ import {
     ParsedLnurlWithdraw,
 } from '@fedi/common/types'
 
+import { settingsCompleteRecoveryAssistRoute } from '../constants/routes'
+
 interface RouteStateByPath {
     '/send':
         | ParsedLnurlPay
@@ -47,6 +49,10 @@ interface RouteStateByPath {
         | ParsedBip21
     '/request': ParsedLnurlWithdraw
     '/onboarding/join': ParsedFederationInvite
+    [settingsCompleteRecoveryAssistRoute]: {
+        recoveryId: string
+        videoPath: string
+    }
 }
 
 type RouteStateFn = <

@@ -7,18 +7,27 @@ import BoltIcon from '@fedi/common/assets/svgs/bolt.svg'
 import CashIcon from '@fedi/common/assets/svgs/cash.svg'
 import ChatIcon from '@fedi/common/assets/svgs/chat.svg'
 import FederationIcon from '@fedi/common/assets/svgs/federation.svg'
+import FedimintIcon from '@fedi/common/assets/svgs/fedimint-logo.svg'
 import GlobeIcon from '@fedi/common/assets/svgs/globe.svg'
 import ScanSadIcon from '@fedi/common/assets/svgs/scan-sad.svg'
 import { useMatrixChatInvites } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectLastUsedFederationId } from '@fedi/common/redux'
+import {
+    selectLastUsedFederationId,
+    selectLoadedFederations,
+    setGuardianAssist,
+} from '@fedi/common/redux'
 import { AnyParsedData, ParserDataType } from '@fedi/common/types'
+import { findAuthenticatedFederation } from '@fedi/common/utils/FederationUtils'
 import { lnurlAuth } from '@fedi/common/utils/lnurl'
 import { BLOCKED_PARSER_TYPES_BEFORE_FEDERATION } from '@fedi/common/utils/parser'
 
-import { ecashRoute } from '../../constants/routes'
+import {
+    ecashRoute,
+    settingsStartRecoveryAssistRoute,
+} from '../../constants/routes'
 import { useRouteStateContext } from '../../context/RouteStateContext'
-import { useAppSelector } from '../../hooks'
+import { useAppSelector, useAppDispatch } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
 import { keyframes, styled, theme } from '../../styles'
 import { Button } from '../Button'
@@ -38,9 +47,11 @@ export const OmniConfirmation: React.FC<Props> = ({
 }) => {
     const { t } = useTranslation()
     const toast = useToast()
+    const dispatch = useAppDispatch()
     const { pushWithState } = useRouteStateContext()
     const [isLoading, setIsLoading] = useState(false)
     const lastUsedFederationId = useAppSelector(selectLastUsedFederationId)
+    const loadedFederations = useAppSelector(selectLoadedFederations)
     const { joinPublicGroup } = useMatrixChatInvites(t)
     const router = useRouter()
 
@@ -208,7 +219,57 @@ export const OmniConfirmation: React.FC<Props> = ({
                     text: t('feature.omni.confirm-onchain-pay'),
                     continueOnClick: () => pushWithState('/send', parsedData),
                 }
+            case ParserDataType.FedimintGuardian:
+                return {
+                    icon: FedimintIcon,
+                    text: t('feature.omni.confirm-fedimint-guardian'),
+                    continueOnClick: () => {
+                        const {
+                            peerId,
+                            password,
+                            name,
+                            url: nodeUrl,
+                        } = parsedData.data
 
+                        const authenticatedFederation =
+                            findAuthenticatedFederation(
+                                loadedFederations,
+                                nodeUrl,
+                            )
+
+                        if (!authenticatedFederation) {
+                            onGoBack()
+                            toast.error(
+                                t,
+                                'feature.recovery.recovery-assist-federation-not-found',
+                            )
+                            return
+                        }
+
+                        dispatch(
+                            setGuardianAssist({
+                                fedimint,
+                                federationId: authenticatedFederation.id,
+                                peerId,
+                                name,
+                                url: nodeUrl,
+                                password,
+                            }),
+                        )
+                            .then(() => {
+                                router.push(settingsStartRecoveryAssistRoute)
+                            })
+                            .catch(e => {
+                                onGoBack()
+                                toast.error(t, e)
+                            })
+                    },
+                }
+            case ParserDataType.FedimintRecovery:
+                return {
+                    icon: FedimintIcon,
+                    text: t('feature.omni.confirm-fedimint-recovery'),
+                }
             case ParserDataType.Unknown:
                 return {
                     icon: ScanSadIcon,

@@ -34,9 +34,12 @@ const Success: React.FC<Props> = ({
                             size="md"
                             icon={type === 'success' ? CheckIcon : CloseIcon}
                         />
-                        <Text weight="bold">{title}</Text>
+                        <Text weight="bold" center>
+                            {title}
+                        </Text>
                         <Text
                             variant="caption"
+                            center
                             css={{ color: theme.colors.darkGrey }}>
                             {description}
                         </Text>
@@ -69,6 +72,7 @@ const Circle = styled(Column, {
     gap: 10,
     height: '300px',
     justifyContent: 'center',
+    padding: theme.spacing.md,
     width: '300px',
 })
 

@@ -19,6 +19,8 @@ export const ecashRoute = '/ecash'
 export const onboardingRoute = '/onboarding'
 export const onboardingCommunitiesRoute = `${onboardingRoute}/communities`
 export const shareLogsRoute = '/share-logs'
+
+// Onboarding
 export const onboardingJoinRoute = (inviteCode: string) =>
     `${onboardingRoute}/join?id=${inviteCode}`
 export const onboardingRecoverRoute = `${onboardingRoute}/recover`
@@ -34,6 +36,9 @@ export const settingsLanguageRoute = `${settingsRoute}/language`
 export const settingsNostrRoute = `${settingsRoute}/nostr`
 export const settingsBackupPersonalRoute = `${settingsRoute}/backup/personal`
 export const settingsBackupSocialRoute = `${settingsRoute}/backup/social`
+export const settingsStartRecoveryAssistRoute = `${settingsRoute}/assist`
+export const settingsScanSocialRecoveryCodeRoute = `${settingsRoute}/assist/scan`
+export const settingsCompleteRecoveryAssistRoute = `${settingsRoute}/assist/complete`
 
 // Chat
 export const chatUserRoute = (id: string) => `${chatRoute}/user/${id}`

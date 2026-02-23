@@ -227,6 +227,7 @@ const Container = styled('div', {
     flexDirection: 'column',
     alignItems: 'center',
     gap: 10,
+    width: '100%',
 })
 
 const Main = styled('div', {

@@ -146,15 +146,16 @@ export const SocialBackupRecord: React.FC<Props> = ({ next, back }) => {
         ev.preventDefault()
         if (!videoEl) return
 
-        const handleEnded = () => {
-            videoEl.muted = true
-            setIsPlayingVideo(false)
-            videoEl.removeEventListener('ended', handleEnded)
-        }
-        videoEl.addEventListener('ended', handleEnded)
         videoEl.muted = false
         videoEl.play()
         setIsPlayingVideo(true)
+    }
+
+    const handleOnEnded = () => {
+        if (!videoEl) return
+
+        videoEl.muted = true
+        setIsPlayingVideo(false)
     }
 
     const handleReset = () => {
@@ -192,6 +193,7 @@ export const SocialBackupRecord: React.FC<Props> = ({ next, back }) => {
                                     playsInline
                                     webkit-playsinline="true"
                                     controls={false}
+                                    onEnded={handleOnEnded}
                                 />
                             )}
                             {isShowingPlay && (
