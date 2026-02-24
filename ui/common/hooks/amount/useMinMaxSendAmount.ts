@@ -47,8 +47,8 @@ export function useMinMaxSendAmount({
         maxSendable = lnurlPayment.maxSendable
     }
 
-    if (exactAmountLightning) {
-        minSendable = exactAmountLightning
+    if (invoice && exactAmountLightning) {
+        minSendable = invoice.amount
         maxSendable = exactAmountLightning
     }
 
