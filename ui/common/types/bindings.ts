@@ -930,6 +930,10 @@ export type RpcMethods = {
   matrixClearComposerDraft: [matrixClearComposerDraft, null];
   matrixSpTransferSend: [matrixSpTransferSend, RpcEventId];
   matrixSpTransferObserveState: [matrixSpTransferObserveState, null];
+  matrixDenySpTransferFederationInvite: [
+    matrixDenySpTransferFederationInvite,
+    null,
+  ];
   matrixSubscribeMultispendGroup: [matrixSubscribeMultispendGroup, null];
   matrixSubscribeMultispendAccountInfo: [
     matrixSubscribeMultispendAccountInfo,
@@ -1916,6 +1920,11 @@ export type matrixDeleteMessage = {
   roomId: RpcRoomId;
   eventId: RpcTimelineEventItemId;
   reason: string | null;
+};
+
+export type matrixDenySpTransferFederationInvite = {
+  roomId: RpcRoomId;
+  eventId: RpcEventId;
 };
 
 export type matrixDownloadFile = { path: string; mediaSource: RpcMediaSource };
