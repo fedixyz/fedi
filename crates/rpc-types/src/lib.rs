@@ -98,10 +98,6 @@ pub struct RpcSignature(#[ts(type = "string")] pub schnorr::Signature);
 #[ts(export)]
 pub struct RpcEventId(#[ts(type = "string")] pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, TS)]
-#[ts(export)]
-pub struct JsonValue(#[ts(type = "string")] pub serde_json::Value);
-
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -111,7 +107,7 @@ pub struct RpcFederation {
     pub network: Option<RpcBitcoinNetwork>,
     pub name: String,
     pub invite_code: String,
-    pub meta: BTreeMap<String, JsonValue>,
+    pub meta: BTreeMap<String, String>,
     pub recovering: bool,
     #[ts(type = "Record<string, {url: string, name: string}>")]
     pub nodes: BTreeMap<RpcPeerId, PeerUrl>,

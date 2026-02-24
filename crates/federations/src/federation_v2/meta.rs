@@ -9,7 +9,7 @@ use fedimint_core::config::ClientConfig;
 use fedimint_core::util::{backoff_util, retry};
 use fedimint_core::{apply, async_trait_maybe_send};
 
-pub type MetaEntries = BTreeMap<String, serde_json::Value>;
+pub type MetaEntries = BTreeMap<String, String>;
 
 /// Legacy non-meta module config source uses client config meta and
 /// meta_override_url meta field.
@@ -34,12 +34,11 @@ impl MetaSource for LegacyMetaSourceWithExternalUrl {
         fetch_kind: FetchKind,
         last_revision: Option<u64>,
     ) -> anyhow::Result<MetaValues> {
-        let config_iter = client_config.global.meta.iter().map(|(key, value)| {
-            (
-                MetaFieldKey(key.clone()),
-                MetaFieldValue(serde_json::Value::String(value.clone())),
-            )
-        });
+        let config_iter = client_config
+            .global
+            .meta
+            .iter()
+            .map(|(key, value)| (MetaFieldKey(key.clone()), MetaFieldValue(value.clone())));
         let backoff = match fetch_kind {
             // need to be fast the first time.
             FetchKind::Initial => backoff_util::aggressive_backoff(),

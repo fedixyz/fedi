@@ -201,6 +201,10 @@ export type FeatureCatalog = {
    * Allows users to rearrange the order of mini apps on the Mods screen.
    */
   rearrange_miniapps: RearrangeMiniappsFeatureConfig | null;
+  /**
+   * Config for detecting and processing incoming LNURL receives
+   */
+  lnurl_receives: LnurlReceivesFeatureConfig | null;
 };
 
 export type FediFeeConfig = {
@@ -264,6 +268,14 @@ export type GuardianStatus =
 export type GuardianitoBot = { bot_user_id: string; bot_room_id: string };
 
 export type GuardianitoFeatureConfig = { api_base_url: string };
+
+export type LnurlReceivesFeatureConfig = {
+  /**
+   * How long to wait between re-checking with fedimint client whether there
+   * are any new incoming LNURL invoices
+   */
+  bg_service_polling_delay_secs: number;
+};
 
 export type LogEvent = { log: string };
 
@@ -1249,7 +1261,9 @@ export type RpcSpTransferState = {
 export type RpcSpTransferStatus =
   | { status: "pending" }
   | { status: "complete" }
-  | { status: "failed" };
+  | { status: "failed" }
+  | { status: "federationInviteDenied" }
+  | { status: "expired" };
 
 export type RpcSpv2ParsedPaymentAddress = {
   accountId: RpcAccountId;
@@ -1591,7 +1605,12 @@ export type SpTransferUiMode = "QrCode" | "Chat";
 
 export type SpTransferVirtualEvent = { shouldRender: boolean };
 
-export type SpTransfersMatrixFeatureConfig = Record<string, never>;
+export type SpTransfersMatrixFeatureConfig = {
+  /**
+   * How long (in seconds) before a pending SP transfer expires.
+   */
+  transfer_expiry_secs: number;
+};
 
 export type SpV2TransferInKind = "multispend" | "unknown";
 

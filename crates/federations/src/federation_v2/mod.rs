@@ -90,7 +90,7 @@ use rpc_types::matrix::RpcRoomId;
 use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{
     BaseMetadata, EcashReceiveMetadata, EcashSendMetadata, FrontendMetadata, GuardianStatus,
-    JsonValue, LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
+    LightningSendMetadata, OperationFediFeeStatus, RpcAmount, RpcEventId, RpcFederation,
     RpcFederationId, RpcFederationMaybeLoading, RpcFederationPreview, RpcFeeDetails,
     RpcGenerateEcashResponse, RpcJsonClientConfig, RpcLightningGateway, RpcOperationFediFeeStatus,
     RpcOperationId, RpcPayInvoiceResponse, RpcPeerId, RpcPrevPayInvoiceResult, RpcPublicKey,
@@ -751,21 +751,7 @@ impl FederationV2 {
     }
 
     pub async fn get_cached_meta(&self) -> MetaEntries {
-        let cfg_fetcher = async {
-            self.client
-                .config()
-                .await
-                .global
-                .meta
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k,
-                        serde_json::Value::from_str(&v).unwrap_or(serde_json::Value::String(v)),
-                    )
-                })
-                .collect()
-        };
+        let cfg_fetcher = async { self.client.config().await.global.meta.into_iter().collect() };
 
         // Wait at most 2s for very first meta fetching
         match timeout(
@@ -1921,7 +1907,7 @@ impl FederationV2 {
             network,
             name,
             invite_code,
-            meta: meta.into_iter().map(|(k, v)| (k, JsonValue(v))).collect(),
+            meta,
             nodes,
             recovering: self.recovering(),
             client_config: Some(RpcJsonClientConfig {
