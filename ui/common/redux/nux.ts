@@ -15,11 +15,6 @@ const initialState = {
         hasOpenedNewChat: false,
         hasPerformedPersonalBackup: false,
         hasSeenMultispendIntro: false,
-        displayNameModal: false,
-        communityModal: false,
-        chatModal: false,
-        modsModal: false,
-        scanModal: false,
         pwaHasDismissedInstallPrompt: false, // pwa only
         hasRequestedReferrer: false,
     },

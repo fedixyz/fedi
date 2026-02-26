@@ -10,8 +10,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 
-import { useNuxStep } from '@fedi/common/hooks/nux'
-import { openMiniAppSession, selectOnboardingMethod } from '@fedi/common/redux'
+import { openMiniAppSession } from '@fedi/common/redux'
 import {
     removeCustomMod,
     selectAllVisibleMods,
@@ -24,9 +23,6 @@ import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 
 import ModsHeader from '../components/feature/fedimods/ModsHeader'
 import SortableMiniAppsGrid from '../components/feature/fedimods/SortableMiniAppsGrid'
-import FirstTimeOverlay, {
-    FirstTimeOverlayItem,
-} from '../components/feature/onboarding/FirstTimeOverlay'
 import CustomOverlay, {
     CustomOverlayContents,
 } from '../components/ui/CustomOverlay'
@@ -51,19 +47,8 @@ const Mods: React.FC = () => {
 
     const { launchZendesk } = useLaunchZendesk()
 
-    const [hasSeenMods, completeSeenMods] = useNuxStep('modsModal')
-    const onboardingMethod = useAppSelector(selectOnboardingMethod)
-
     const [modToBeRemoved, setModToBeRemoved] = useState<FediMod>()
     const [isRemovingMod, setIsRemovingMod] = useState<boolean>(false)
-
-    // if a new_seed user and it's your first time viewing the page, show overlay
-    const shouldShowFirstTimeModal =
-        !hasSeenMods && onboardingMethod !== 'restored'
-
-    const modsFirstTimeOverlayItems: FirstTimeOverlayItem[] = [
-        { icon: 'Apps', text: t('feature.fedimods.first-entry-option-1') },
-    ]
 
     const onSelectFediMod = async (shortcut: Shortcut) => {
         const fediMod = shortcut as FediMod
@@ -206,12 +191,6 @@ const Mods: React.FC = () => {
                     <Text>{t('feature.fedimods.add-mods-homescreen')}</Text>
                 </Column>
             )}
-            <FirstTimeOverlay
-                overlayItems={modsFirstTimeOverlayItems}
-                title={t('feature.fedimods.first-entry')}
-                show={shouldShowFirstTimeModal}
-                onDismiss={completeSeenMods}
-            />
             <CustomOverlay
                 show={modToBeRemoved !== undefined}
                 contents={confirmModRemoval}

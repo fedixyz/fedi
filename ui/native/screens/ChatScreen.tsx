@@ -5,18 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, StyleSheet } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { useNuxStep } from '@fedi/common/hooks/nux'
-import {
-    selectIsMatrixChatEmpty,
-    selectMatrixStatus,
-    selectOnboardingMethod,
-} from '@fedi/common/redux'
+import { selectIsMatrixChatEmpty, selectMatrixStatus } from '@fedi/common/redux'
 
 import { Images } from '../assets/images'
 import ChatsList from '../components/feature/chat/ChatsList'
-import FirstTimeOverlay, {
-    FirstTimeOverlayItem,
-} from '../components/feature/onboarding/FirstTimeOverlay'
 import { Column } from '../components/ui/Flex'
 import { useAppSelector } from '../state/hooks'
 import { MatrixSyncStatus } from '../types'
@@ -33,23 +25,12 @@ const ChatScreen: React.FC<Props> = () => {
     const { theme } = useTheme()
 
     const syncStatus = useAppSelector(selectMatrixStatus)
-    const onboardingMethod = useAppSelector(selectOnboardingMethod)
 
     const isChatEmpty = useAppSelector(selectIsMatrixChatEmpty)
 
-    const [hasSeenChat, completeSeenChat] = useNuxStep('chatModal')
-
     useDismissIosNotifications()
 
-    const chatFirstTimeOverlayItems: FirstTimeOverlayItem[] = [
-        { icon: 'SpeakerPhone', text: t('feature.chat.first-entry-option-1') },
-        { icon: 'Wallet', text: t('feature.chat.first-entry-option-2') },
-    ]
     const style = styles(theme)
-
-    // if a new_seed user and it's your first time viewing the page, show overlay
-    const shouldShowFirstTimeModal =
-        !hasSeenChat && onboardingMethod !== 'restored'
 
     if (syncStatus === MatrixSyncStatus.initialSync) {
         return (
@@ -91,13 +72,6 @@ const ChatScreen: React.FC<Props> = () => {
                     <ChatsList />
                 </ErrorBoundary>
             )}
-
-            <FirstTimeOverlay
-                overlayItems={chatFirstTimeOverlayItems}
-                title={t('feature.chat.first-entry')}
-                show={shouldShowFirstTimeModal}
-                onDismiss={completeSeenChat}
-            />
         </Column>
     )
 }

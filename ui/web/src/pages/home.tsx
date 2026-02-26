@@ -15,7 +15,6 @@ import AnalyticsConsentModal from '../components/AnalyticsConsentModal'
 import { DefaultRoomPreview } from '../components/Chat/DefaultRoomPreview'
 import CommunitiesOverlay from '../components/CommunitiesOverlay'
 import { ContentBlock } from '../components/ContentBlock'
-import { DisplayNameModal } from '../components/DisplayNameModal'
 import { FediModTiles } from '../components/FediModTiles'
 import PinnedMessage from '../components/Home/PinnedMessage'
 import { InstallBanner } from '../components/InstallBanner'
@@ -135,7 +134,6 @@ function HomePage() {
 
             <SurveyModal />
 
-            <DisplayNameModal />
             <AnalyticsConsentModal />
 
             <CommunitiesOverlay

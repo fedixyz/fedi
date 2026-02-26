@@ -3,8 +3,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useGuardianito } from '@fedi/common/hooks/federation'
-import { useNuxStep } from '@fedi/common/hooks/nux'
-import { selectFederationIds } from '@fedi/common/redux'
 import { ParserDataType } from '@fedi/common/types'
 
 import { Button } from '../../components/Button'
@@ -19,11 +17,8 @@ import { Text } from '../../components/Text'
 import {
     chatRoute,
     chatRoomRoute,
-    federationsRoute,
-    homeRoute,
     onboardingJoinRoute,
 } from '../../constants/routes'
-import { useAppSelector } from '../../hooks'
 import { keyframes, styled, theme } from '../../styles'
 import { OmniInput } from '../OmniInput'
 
@@ -37,10 +32,6 @@ const getTab = (tab: string): Tab => {
 export function OnboardingHome() {
     const { t } = useTranslation()
     const { push, query, replace } = useRouter()
-
-    const joinedFederationIds = useAppSelector(selectFederationIds)
-
-    const [hasSeenDisplayNameModal] = useNuxStep('displayNameModal')
 
     const {
         myGuardianitoBot,
@@ -56,11 +47,6 @@ export function OnboardingHome() {
         { label: t('words.join'), value: 'join' },
         { label: t('words.create'), value: 'create' },
     ]
-
-    // If a user has joined a federation, they should be taken to the federations page
-    // If they have not, they should be taken to the home page
-    const backRoute =
-        joinedFederationIds.length > 0 ? federationsRoute : homeRoute
 
     useEffect(() => {
         if (query.tab) {
@@ -133,23 +119,11 @@ export function OnboardingHome() {
         )
     } else {
         body = <PublicFederations />
-        actions = !hasSeenDisplayNameModal ? (
-            <Layout.Actions>
-                <Button
-                    width="full"
-                    variant="tertiary"
-                    onClick={() => push(backRoute)}>
-                    {t('phrases.maybe-later')}
-                </Button>
-            </Layout.Actions>
-        ) : null
     }
 
     return (
         <Layout.Root>
-            <Layout.Header
-                centered
-                back={hasSeenDisplayNameModal ? backRoute : false}>
+            <Layout.Header centered back>
                 <Layout.Title subheader>
                     {t('feature.onboarding.heading')}
                 </Layout.Title>
