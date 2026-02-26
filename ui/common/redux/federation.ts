@@ -1472,6 +1472,11 @@ export const selectDefaultChats = (s: CommonState, federationId: string) => {
     return s.federation.defaultCommunityChats[federationId] || []
 }
 
+export const selectDefaultMatrixRoom = (s: CommonState, roomId: string) =>
+    Object.values(s.federation.defaultCommunityChats)
+        .flat()
+        .find(room => room.id === roomId)
+
 export const selectMaxStableBalanceSats = createSelector(
     selectFederationMetadata,
     (metadata): Sats | undefined => {

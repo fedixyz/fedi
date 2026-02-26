@@ -47,6 +47,7 @@ import {
     selectCurrency,
     selectMatrixRoomPowerLevels,
     selectMatrixRoomSelfPowerLevel,
+    selectDefaultMatrixRoom,
 } from '../redux'
 import {
     MatrixEvent,
@@ -1303,9 +1304,16 @@ export function useMatrixRoomPreview({
     roomId: string
     t: TFunction
 }) {
-    const room = useCommonSelector(s => selectMatrixRoom(s, roomId))
-    const roomDraft = useCommonSelector(selectChatDrafts)[room?.id || '']
+    const matrixRoom = useCommonSelector(s => selectMatrixRoom(s, roomId))
+    const defaultRoom = useCommonSelector(s =>
+        selectDefaultMatrixRoom(s, roomId),
+    )
+    const roomDraft = useCommonSelector(selectChatDrafts)[matrixRoom?.id || '']
     const myId = useCommonSelector(selectMatrixAuth)?.userId
+
+    // In this case, we prefer a default room (if any)
+    // because we properly fetch the previews for them even if you haven't joined
+    const room = defaultRoom ?? matrixRoom
 
     const isPublicBroadcast = room?.isPublic && room.broadcastOnly
     const isUnread = shouldShowUnreadIndicator(
@@ -1319,7 +1327,6 @@ export function useMatrixRoomPreview({
     const isNotice =
         room?.preview?.content.msgtype === 'redacted' ||
         !room?.preview ||
-        isPublicBroadcast ||
         isUnread ||
         roomDraft ||
         isBlocked

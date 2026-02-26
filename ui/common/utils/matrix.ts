@@ -278,7 +278,7 @@ export function makeChatFromUnjoinedRoomPreview(preview: MatrixGroupPreview) {
     const chat: MatrixRoom = {
         ...info,
         preview: chatPreview,
-        // all previews are default rooms which should be broadcast only
+        // all previews are default rooms which can be either public chat rooms or public broadcast rooms
         // TODO: allow non-default, non-broadcast only previewing of rooms
         broadcastOnly: true,
     }
@@ -1512,11 +1512,6 @@ export const getRoomPreviewText = (room: MatrixRoom, t: TFunction) => {
     if (room.isBlocked) return t('feature.chat.user-is-blocked')
 
     const preview = room.preview
-
-    // HACK: public rooms don't show a preview message so you have to click into it to paginate backwards
-    // TODO: Replace with proper room previews
-    if (room.isPublic && room.broadcastOnly)
-        return t('feature.chat.click-here-for-announcements')
 
     if (!preview) return t('feature.chat.no-messages')
 

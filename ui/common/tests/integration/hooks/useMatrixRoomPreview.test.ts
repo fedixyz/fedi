@@ -44,6 +44,11 @@ describe.skip('useMatrixRoomPreview > groups', () => {
             'public room',
             true,
         )
+        const publicBroadcastRoomId = await builder.withChatGroupCreated(
+            'public broadcast room',
+            true,
+            true,
+        )
 
         // Send a text message to each room
         await act(async () => {
@@ -68,6 +73,13 @@ describe.skip('useMatrixRoomPreview > groups', () => {
                     body,
                 }),
             )
+            await store.dispatch(
+                sendMatrixMessage({
+                    fedimint,
+                    roomId: publicBroadcastRoomId,
+                    body,
+                }),
+            )
         })
 
         // Get the preview text of each room
@@ -87,47 +99,21 @@ describe.skip('useMatrixRoomPreview > groups', () => {
             store,
             fedimint,
         )
-
-        await waitFor(() => {
-            expect(roomResult.current.text).toEqual(body)
-            expect(publicRoomResult.current.text).toEqual(body)
-            expect(broadcastRoomResult.current.text).toEqual(body)
-        })
-    })
-
-    it('should not return the body of the last text message in a public broadcast room', async () => {
-        await builder.withChatReady()
-
-        const {
-            store,
-            bridge: { fedimint },
-        } = context
-        const body = 'the quick brown fox eats the lazy dog'
-
-        const roomId = await builder.withChatGroupCreated('room', true, true)
-
-        await act(async () => {
-            await store.dispatch(
-                sendMatrixMessage({
-                    fedimint,
-                    roomId,
-                    body,
+        const { result: publicBroadcastRoomResult } = renderHookWithBridge(
+            () =>
+                useMatrixRoomPreview({
+                    roomId: publicBroadcastRoomId,
+                    t: i18next.t,
                 }),
-            )
-        })
-
-        const { result: roomResult } = renderHookWithBridge(
-            () => useMatrixRoomPreview({ roomId, t: i18next.t }),
             store,
             fedimint,
         )
 
         await waitFor(() => {
-            expect(roomResult.current.text).not.toEqual(body)
-            expect(roomResult.current.text).toEqual(
-                i18next.t('feature.chat.click-here-for-announcements'),
-            )
-            expect(roomResult.current.isNotice).toBeTruthy()
+            expect(roomResult.current.text).toEqual(body)
+            expect(publicRoomResult.current.text).toEqual(body)
+            expect(broadcastRoomResult.current.text).toEqual(body)
+            expect(publicBroadcastRoomResult.current.text).toEqual(body)
         })
     })
 
