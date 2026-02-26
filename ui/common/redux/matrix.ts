@@ -2419,6 +2419,11 @@ export const selectMatrixRoomEventsHaveLoaded = (
     roomId: MatrixRoom['id'],
 ) => s.matrix.roomTimelines[roomId] !== undefined
 
+export const selectMatrixRoomMembersHaveLoaded = (
+    s: CommonState,
+    roomId: MatrixRoom['id'],
+) => s.matrix.roomMembers[roomId] !== undefined
+
 export const selectMatrixRoomEvents = createSelector(
     (s: CommonState) => s.matrix.roomTimelines,
     (_s: CommonState, roomId: MatrixRoom['id']) => roomId,

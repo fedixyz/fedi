@@ -24,6 +24,7 @@ import {
     selectMatrixRoomEvents,
     selectMatrixRoomMembersCount,
     selectMatrixRoomEventsHaveLoaded,
+    selectMatrixRoomMembersHaveLoaded,
     selectMatrixRoomIsBlocked,
     selectIsDefaultGroup,
 } from '@fedi/common/redux'
@@ -86,6 +87,9 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     const previewMedia = useAppSelector(selectPreviewMedia)
     const hasLoadedEvents = useAppSelector(s =>
         selectMatrixRoomEventsHaveLoaded(s, id),
+    )
+    const hasLoadedMembers = useAppSelector(s =>
+        selectMatrixRoomMembersHaveLoaded(s, id),
     )
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
     const dispatch = useAppDispatch()
@@ -298,7 +302,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
 
     return (
         <>
-            {hasLoadedEvents ? (
+            {hasLoadedEvents && hasLoadedMembers ? (
                 <FlatList
                     data={eventGroups}
                     ref={listRef}
