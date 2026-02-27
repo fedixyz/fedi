@@ -294,6 +294,13 @@ pub struct FederationInfo {
     /// Kind of bitcoin network backing the federation--mainnet, signet, etc.
     #[serde(default)]
     pub network: Option<bitcoin::Network>,
+
+    /// A record of the time when the user first joined the federation. This is
+    /// presently used to ignore old LNURL receives whose corresponding
+    /// invoices expired in the past before the user (re)joined the
+    /// federation. But it may have other uses in the future as well.
+    #[serde(default)]
+    pub join_timestamp_secs_since_epoch: Option<u64>,
 }
 
 /// { database_name: String } | { database_prefix: u64 }

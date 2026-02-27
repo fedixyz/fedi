@@ -706,6 +706,9 @@ impl FederationV2 {
                         database: DatabaseInfo::DatabasePrefix(db_prefix),
                         fedi_fee_schedule,
                         network,
+                        join_timestamp_secs_since_epoch: Some(
+                            fedimint_core::time::duration_since_epoch().as_secs(),
+                        ),
                     },
                 );
                 assert!(old_value.is_none(), "must not override a federation");
@@ -2736,6 +2739,27 @@ impl FederationV2 {
                         };
                     }
                     LightningOperationMetaVariant::RecurringPaymentReceive(payment) => {
+                        let fed_id = self.federation_id().to_string();
+                        let fed_joined_secs_since_epoch = self
+                            .runtime
+                            .app_state
+                            .with_read_lock(|state| {
+                                state
+                                    .joined_federations
+                                    .get(&fed_id)
+                                    .and_then(|info| info.join_timestamp_secs_since_epoch)
+                            })
+                            .await;
+                        // If the invoice corresponding to this LNURL receive expired before we even
+                        // joined the federation, we are going to filter out
+                        // this TX
+                        if let Some(fed_joined_secs_since_epoch) = fed_joined_secs_since_epoch
+                            && payment
+                                .invoice
+                                .would_expire(Duration::from_secs(fed_joined_secs_since_epoch))
+                        {
+                            return Ok(None);
+                        }
                         let state = self
                             .get_client_operation_outcome_cached::<LnReceiveState>(
                                 operation_id,
