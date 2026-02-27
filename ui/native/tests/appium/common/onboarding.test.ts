@@ -10,14 +10,10 @@ export class OnboardingTest extends AppiumTestBase {
         await this.clickElementByKey('JoinFederationButton')
         //TODO: validate the seed here
         await this.clickElementByKey('HomeTabButton')
-        await this.clickElementByKey('Continue')
         await this.clickElementByKey('ChatTabButton')
-        await this.clickElementByKey('FirstTimeOverlayButton')
         await this.clickElementByKey('ModsTabButton')
-        await this.clickElementByKey('FirstTimeOverlayButton')
         await this.clickElementByKey('FederationsTabButton')
         await this.clickElementByKey('ScanButton')
-        await this.clickElementByKey('FirstTimeOverlayButton')
         if ((await this.elementIsDisplayed('Continue')) === true) {
             await this.clickElementByKey('Continue')
             try {
@@ -28,7 +24,6 @@ export class OnboardingTest extends AppiumTestBase {
         }
         await this.clickElementByKey('HeaderBackButton')
         await this.clickElementByKey('HomeTabButton')
-        await this.clickElementByKey('FirstTimeOverlayButton')
         await this.clickElementByKey('AvatarButton')
         await this.waitForElementDisplayed('UserQrContainer')
         // TODO: copy the fedi user address and validate it
