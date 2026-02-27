@@ -147,6 +147,37 @@ export function useChatTimelineSearchQuery() {
     }
 }
 
+export function filterTimelineSearchResults(
+    textEvents: MatrixEvent[],
+    query: string,
+    memberLookup: Record<string, string>,
+): MatrixEvent[] {
+    if (query.trim() === '') return []
+
+    const queryLower = query.toLowerCase()
+
+    return textEvents.filter(event => {
+        let bodyMatch = false
+        if (isTextEvent(event)) {
+            bodyMatch = (event.content as { body: string }).body
+                .toLowerCase()
+                .includes(queryLower)
+        }
+
+        // matches search query to start of sender display name or
+        // start of any word in the name (e.g. "chr" matches "Chris",
+        // but "hi" does not match "Sophia")
+        const senderName =
+            memberLookup[event.sender] || matrixIdToUsername(event.sender)
+        const senderLower = senderName.toLowerCase()
+        const senderMatch =
+            senderLower.startsWith(queryLower) ||
+            senderLower.split(/\s+/).some(word => word.startsWith(queryLower))
+
+        return bodyMatch || senderMatch
+    })
+}
+
 export function useChatTimelineSearch(roomId: MatrixRoom['id']) {
     const dispatch = useCommonDispatch()
     const { query, setQuery, clearSearch } = useChatTimelineSearchQuery()
@@ -174,27 +205,10 @@ export function useChatTimelineSearch(roomId: MatrixRoom['id']) {
         )
     }, [roomMembers])
 
-    const searchResults = useMemo(() => {
-        if (query.trim() === '') return []
-
-        const queryLower = query.toLowerCase()
-
-        return textEvents.filter(event => {
-            let bodyMatch = false
-            if (isTextEvent(event)) {
-                bodyMatch = (event.content as { body: string }).body
-                    .toLowerCase()
-                    .includes(queryLower)
-            }
-
-            // matches search query to sender display names
-            const senderName =
-                memberLookup[event.sender] || matrixIdToUsername(event.sender)
-            const senderMatch = senderName.toLowerCase().includes(queryLower)
-
-            return bodyMatch || senderMatch
-        })
-    }, [textEvents, query, memberLookup])
+    const searchResults = useMemo(
+        () => filterTimelineSearchResults(textEvents, query, memberLookup),
+        [textEvents, query, memberLookup],
+    )
 
     const isSearching = isPaginating && query.trim() !== ''
 
