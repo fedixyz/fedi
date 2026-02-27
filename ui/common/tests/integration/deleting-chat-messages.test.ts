@@ -63,6 +63,7 @@ describe('message deletion', () => {
             expect(chatsListBob).toHaveLength(1)
             expect(chatsListCharlie).toHaveLength(1)
         })
+
         await act(async () => {
             await storeAlice.dispatch(
                 setMatrixRoomMemberPowerLevel({
@@ -119,6 +120,7 @@ describe('message deletion', () => {
                 }
             })
         }
+
         const aliceMsg = 'message from alice'
         const aliceSelfMsg = 'alice self-delete test'
         const bobMsg = 'message from bob'
@@ -230,6 +232,7 @@ describe('message deletion', () => {
             aliceSelfMsgEventId,
             null,
         )
+
         const bobSelfMsgEventId = await waitFor(() => {
             const events = selectMatrixRoomEvents(storeBob.getState(), roomId)
             const msg = events.find(
@@ -238,11 +241,15 @@ describe('message deletion', () => {
             expect(msg).toBeDefined()
             return msg?.id as RpcTimelineEventItemId
         })
-        await bridgeBob.fedimint.matrixDeleteMessage(
-            roomId,
-            bobSelfMsgEventId,
-            null,
-        )
+
+        await act(async () => {
+            await bridgeBob.fedimint.matrixDeleteMessage(
+                roomId,
+                bobSelfMsgEventId,
+                null,
+            )
+        })
+
         const charlieSelfMsgEventId = await waitFor(() => {
             const events = selectMatrixRoomEvents(
                 storeCharlie.getState(),
@@ -254,10 +261,13 @@ describe('message deletion', () => {
             expect(msg).toBeDefined()
             return msg?.id as RpcTimelineEventItemId
         })
-        await bridgeCharlie.fedimint.matrixDeleteMessage(
-            roomId,
-            charlieSelfMsgEventId,
-            null,
-        )
+
+        await act(async () => {
+            await bridgeCharlie.fedimint.matrixDeleteMessage(
+                roomId,
+                charlieSelfMsgEventId,
+                null,
+            )
+        })
     }, 120000)
 })
