@@ -55,6 +55,7 @@ import {
     getAutojoinCommunities,
     getFederationPreview,
     getPreviewFromLoadedFederation,
+    shouldShowInviteCode,
 } from '../utils/FederationUtils'
 import type { FedimintBridge } from '../utils/fedimint'
 import { makeLog } from '../utils/log'
@@ -1409,6 +1410,13 @@ export const selectFederationMetadata = createSelector(
         selectLoadedFederation(s, federationId),
     federation => {
         return federation ? federation.meta : {}
+    },
+)
+
+export const selectShouldShowInviteCode = createSelector(
+    selectFederationMetadata,
+    metadata => {
+        return shouldShowInviteCode(metadata)
     },
 )
 

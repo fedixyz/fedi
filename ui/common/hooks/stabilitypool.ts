@@ -7,6 +7,7 @@ import {
     selectStabilityPoolVersion,
     selectShouldShowStablePaymentAddress,
     setStabilityPoolState,
+    selectShouldShowInviteCode,
 } from '../redux'
 import { Federation } from '../types'
 import {
@@ -196,13 +197,17 @@ export const useSpv2OurPaymentAddress = (federationId: Federation['id']) => {
         null,
     )
 
+    const includeInvite = useCommonSelector(s =>
+        selectShouldShowInviteCode(s, federationId),
+    )
+
     useEffect(() => {
         if (!shouldShowStablePaymentAddress) {
             setOurPaymentAddress(null)
             return
         }
         fedimint
-            .spv2OurPaymentAddress(federationId)
+            .spv2OurPaymentAddress(federationId, includeInvite)
             .then(paymentAddress => {
                 log.info('SPv2 our payment address', { paymentAddress })
                 setOurPaymentAddress(paymentAddress)
@@ -217,6 +222,6 @@ export const useSpv2OurPaymentAddress = (federationId: Federation['id']) => {
                     error,
                 })
             })
-    }, [fedimint, federationId, shouldShowStablePaymentAddress])
+    }, [fedimint, federationId, shouldShowStablePaymentAddress, includeInvite])
     return ourPaymentAddress
 }

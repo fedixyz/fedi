@@ -160,10 +160,10 @@ export class FedimintBridge {
         return this.rpcTyped('spv2StartFastSync', { federationId })
     }
 
-    async spv2OurPaymentAddress(federationId: string) {
+    async spv2OurPaymentAddress(federationId: string, includeInvite: boolean) {
         return this.rpcTyped('spv2OurPaymentAddress', {
             federationId,
-            includeInvite: true,
+            includeInvite,
         })
     }
 
