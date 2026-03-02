@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { Input, Theme, useTheme } from '@rneui/themed'
+import { Input, Text, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -151,7 +151,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const [inputHeight, setInputHeight] = useState<number>(MIN_INPUT_H)
 
     const inputRef = useRef<TextInput | null>(null)
-    const inputDisabled = isSending || isReadOnly
 
     useEffect(() => {
         onReplyBarHeightChanged?.(0)
@@ -248,18 +247,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const style = useMemo(() => styles(theme, insets), [theme, insets])
 
-    const inputStyle = useMemo(() => {
-        return isReadOnly ? style.textInputReadonly : style.textInputStyle
-    }, [style, isReadOnly])
-
-    const placeholder = useMemo(
-        () =>
-            isReadOnly
-                ? t('feature.chat.broadcast-only-notice')
-                : t('phrases.type-message'),
-        [isReadOnly, t],
-    )
-
     const handleContentSizeChange = useCallback(
         (e: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
             const { height } = e.nativeEvent.contentSize
@@ -354,49 +341,55 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     </View>
                 )}
 
-                <View
-                    style={[
-                        style.inputFieldWrapper,
-                        { minHeight: inputHeight },
-                    ]}>
-                    <Input
-                        testID="MessageInput-TextInput"
-                        disableFullscreenUI
-                        textBreakStrategy="simple"
-                        onChangeText={value => setMessageText(value)}
-                        // this prop is used to manipulate the cursor position
-                        selection={selection}
-                        // we need to make sure the selection prop stays
-                        // in sync when we get a selection change event
-                        // from the keyboard
-                        onSelectionChange={e =>
-                            setSelection(e.nativeEvent.selection)
-                        }
-                        value={messageText}
-                        ref={(ref: TextInput | null) => {
-                            inputRef.current = ref
-                        }}
-                        placeholder={placeholder}
-                        onContentSizeChange={handleContentSizeChange}
-                        containerStyle={[
-                            style.textInputOuter,
+                {isReadOnly ? (
+                    <Text center color={theme.colors.grey}>
+                        {t('feature.chat.broadcast-only-notice')}
+                    </Text>
+                ) : (
+                    <View
+                        style={[
+                            style.inputFieldWrapper,
                             { minHeight: inputHeight },
-                        ]}
-                        inputContainerStyle={[
-                            style.textInputInner,
-                            { minHeight: inputHeight },
-                        ]}
-                        inputStyle={inputStyle}
-                        multiline
-                        numberOfLines={3}
-                        blurOnSubmit={false}
-                        onFocus={() => {
-                            setIsFocused(true)
-                        }}
-                        onBlur={() => setIsFocused(false)}
-                        disabled={inputDisabled}
-                    />
-                </View>
+                        ]}>
+                        <Input
+                            testID="MessageInput-TextInput"
+                            disableFullscreenUI
+                            textBreakStrategy="simple"
+                            onChangeText={value => setMessageText(value)}
+                            // this prop is used to manipulate the cursor position
+                            selection={selection}
+                            // we need to make sure the selection prop stays
+                            // in sync when we get a selection change event
+                            // from the keyboard
+                            onSelectionChange={e =>
+                                setSelection(e.nativeEvent.selection)
+                            }
+                            value={messageText}
+                            ref={(ref: TextInput | null) => {
+                                inputRef.current = ref
+                            }}
+                            placeholder={t('phrases.type-message')}
+                            onContentSizeChange={handleContentSizeChange}
+                            containerStyle={[
+                                style.textInputOuter,
+                                { minHeight: inputHeight },
+                            ]}
+                            inputContainerStyle={[
+                                style.textInputInner,
+                                { minHeight: inputHeight },
+                            ]}
+                            inputStyle={style.textInputStyle}
+                            multiline
+                            numberOfLines={3}
+                            blurOnSubmit={false}
+                            onFocus={() => {
+                                setIsFocused(true)
+                            }}
+                            onBlur={() => setIsFocused(false)}
+                            disabled={isSending}
+                        />
+                    </View>
+                )}
 
                 {!isReadOnly && !existingRoom && (
                     <Pressable
@@ -404,12 +397,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         style={style.sendButton}
                         onPress={handleSend}
                         hitSlop={10}
-                        disabled={inputDisabled || isSendingMessage}>
+                        disabled={isSending || isSendingMessage}>
                         <SvgImage
                             name="SendArrowUpCircle"
                             size={SvgImageSize.md}
                             color={
-                                inputDisabled || isSendingMessage
+                                isSending || isSendingMessage
                                     ? theme.colors.primaryVeryLight
                                     : theme.colors.blue
                             }
@@ -481,7 +474,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                             resetMessageText()
                                         }}
                                         hitSlop={15}
-                                        disabled={inputDisabled}>
+                                        disabled={isSending}>
                                         <SvgImage
                                             name="Close"
                                             color={theme.colors.white}
@@ -491,7 +484,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                         style={style.saveButton}
                                         onPress={handleEdit}
                                         hitSlop={15}
-                                        disabled={inputDisabled}>
+                                        disabled={isSending}>
                                         <SvgImage
                                             name="Check"
                                             color={theme.colors.white}
@@ -504,14 +497,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                     style={style.sendButton}
                                     onPress={handleSend}
                                     hitSlop={15}
-                                    disabled={
-                                        inputDisabled || isSendingMessage
-                                    }>
+                                    disabled={isSending || isSendingMessage}>
                                     <SvgImage
                                         name="SendArrowUpCircle"
                                         size={SvgImageSize.md}
                                         color={
-                                            inputDisabled || isSendingMessage
+                                            isSending || isSendingMessage
                                                 ? theme.colors.primaryVeryLight
                                                 : theme.colors.blue
                                         }
@@ -580,11 +571,6 @@ const styles = (theme: Theme, insets: Insets) =>
         textInputStyle: {
             fontSize: fediTheme.fontSizes.body,
             textAlignVertical: 'top',
-        },
-        textInputReadonly: {
-            color: theme.colors.grey,
-            fontSize: fediTheme.fontSizes.body,
-            textAlign: 'center',
         },
         inputContainer: {
             position: 'relative',
