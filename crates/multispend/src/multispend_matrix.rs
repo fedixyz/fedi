@@ -170,6 +170,7 @@ impl MultispendMatrix {
                     .as_object()
                     .context("invalid serialization of content")?
                     .clone(),
+                None,
             )
             .await?;
 
@@ -207,14 +208,17 @@ impl MultispendMatrix {
         msgtype: &str,
         body: String,
         data: serde_json::Map<String, serde_json::Value>,
+        transaction_id: Option<String>,
     ) -> anyhow::Result<OwnedEventId> {
         let room = self.client.get_room(room_id).context("room not found")?;
-        Ok(room
-            .send(RoomMessageEventContent::new(
-                MessageType::new(msgtype, body, data).context(ErrorCode::BadRequest)?,
-            ))
-            .await?
-            .event_id)
+        let mut send_request = room.send(RoomMessageEventContent::new(
+            MessageType::new(msgtype, body, data).context(ErrorCode::BadRequest)?,
+        ));
+        if let Some(transaction_id) = transaction_id {
+            send_request = send_request.with_transaction_id(transaction_id.into());
+        }
+
+        Ok(send_request.await?.event_id)
     }
 
     pub async fn subscribe_multispend_group(

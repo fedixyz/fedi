@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use fedimint_core::TransactionId;
-use fedimint_core::db::IDatabaseTransactionOpsCoreTyped as _;
+use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as _};
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::util::retry;
 use futures::StreamExt as _;
+use matrix_sdk::ruma::TransactionId as MatrixTransactionId;
 use rpc_types::matrix::RpcRoomId;
 use rpc_types::{RpcEventId, RpcFiatAmount, RpcTransactionId};
 use runtime::bridge_runtime::Runtime;
@@ -12,8 +14,10 @@ use stability_pool_client::common::FiatAmount;
 use tokio::sync::Notify;
 use tracing::error;
 
+use super::MultispendEvent;
 use super::db::{
     MultispendPendingCompletionNotification, MultispendPendingCompletionNotificationPrefix,
+    MultispendPendingCompletionNotificationTxnIdKey,
 };
 use super::multispend_matrix::MultispendMatrix;
 
@@ -36,6 +40,48 @@ impl CompletionNotificationService {
 
     fn trigger(&self) {
         self.notify.notify_one();
+    }
+
+    // Get a matrix transaction id for a given pending notificaton, based on its
+    // request id(for withdrawal) or fedimint transaction id (for deposits). An ID
+    // is generated random and persisted forever. This is get idempotency from
+    // matrix server and avoid duplicated messages.
+    async fn ensure_matrix_transaction_id(
+        dbtx: &mut DatabaseTransaction<'_>,
+        pending_notification: &MultispendPendingCompletionNotification,
+    ) -> String {
+        let key =
+            MultispendPendingCompletionNotificationTxnIdKey(pending_notification.notification_id());
+        if let Some(existing) = dbtx.get_value(&key).await {
+            return existing;
+        }
+
+        let transaction_id = MatrixTransactionId::new().to_string();
+        dbtx.insert_entry(&key, &transaction_id).await;
+        transaction_id
+    }
+
+    async fn send_completion_notification_event(
+        multispend_matrix: &MultispendMatrix,
+        room_id: &matrix_sdk::ruma::RoomId,
+        event: MultispendEvent,
+        matrix_transaction_id: String,
+    ) -> anyhow::Result<()> {
+        let _send_lock = multispend_matrix.send_multispend_mutex().lock().await;
+
+        multispend_matrix
+            .send_message_json_no_queue(
+                room_id,
+                super::MULTISPEND_MSGTYPE,
+                String::from("This group has new multispend activity"),
+                serde_json::to_value(event)?
+                    .as_object()
+                    .context("invalid serialization of content")?
+                    .clone(),
+                Some(matrix_transaction_id),
+            )
+            .await?;
+        Ok(())
     }
 
     pub async fn add_withdrawal_notification(
@@ -137,9 +183,15 @@ impl CompletionNotificationService {
                 continue;
             };
             let event = pending_operation.multispend_event();
-            if let Err(err) = multispend_matrix
-                .send_multispend_event(&room_id, event)
-                .await
+            let matrix_transaction_id =
+                Self::ensure_matrix_transaction_id(&mut dbtx.to_ref_nc(), &pending_operation).await;
+            if let Err(err) = Self::send_completion_notification_event(
+                multispend_matrix,
+                &room_id,
+                event,
+                matrix_transaction_id,
+            )
+            .await
             {
                 error!(%err, "failed to send multispend completion event");
                 network_error = true;

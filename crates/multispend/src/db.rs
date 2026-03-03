@@ -37,6 +37,8 @@ pub enum MultispendDbPrefix {
     /// (room_id, multispend_event) => () list of pending multispend events to
     /// send into group.
     MultispendPendingCompletionNotification = 0x0A,
+    /// (pending_notification) => matrix transaction id used for retries.
+    MultispendPendingCompletionNotificationTxnId = 0x0B,
 }
 
 /// Represents the current status of a multispend group in a room
@@ -272,7 +274,36 @@ impl_db_lookup!(
     query_prefix = MultispendPendingCompletionNotificationPrefix,
 );
 
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub enum MultispendPendingCompletionNotificationId {
+    WithdrawalRequestId(RpcEventId),
+    TransactionId(RpcTransactionId),
+}
+
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub struct MultispendPendingCompletionNotificationTxnIdKey(
+    pub MultispendPendingCompletionNotificationId,
+);
+
+impl_db_record!(
+    key = MultispendPendingCompletionNotificationTxnIdKey,
+    value = String,
+    db_prefix = MultispendDbPrefix::MultispendPendingCompletionNotificationTxnId,
+);
+
 impl MultispendPendingCompletionNotification {
+    pub fn notification_id(&self) -> MultispendPendingCompletionNotificationId {
+        match self {
+            MultispendPendingCompletionNotification::Withdrawal { request_id, .. }
+            | MultispendPendingCompletionNotification::FailedWithdrawal { request_id, .. } => {
+                MultispendPendingCompletionNotificationId::WithdrawalRequestId(request_id.clone())
+            }
+            MultispendPendingCompletionNotification::Deposit { txid, .. } => {
+                MultispendPendingCompletionNotificationId::TransactionId(*txid)
+            }
+        }
+    }
+
     pub fn room_id(&self) -> &RpcRoomId {
         match self {
             MultispendPendingCompletionNotification::Withdrawal { room_id, .. } => room_id,
