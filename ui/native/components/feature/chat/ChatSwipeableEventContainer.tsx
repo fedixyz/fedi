@@ -147,6 +147,9 @@ const ChatSwipeableEventContainer: React.FC<SwipeableEventContainerProps> =
                     overshootRight={false}
                     leftThreshold={dragThreshold}
                     rightThreshold={dragThreshold}
+                    failOffsetY={[-20, 20]}
+                    dragOffsetFromLeftEdge={20}
+                    dragOffsetFromRightEdge={20}
                     onSwipeableOpen={direction => {
                         // Set the direction when swipe opens
                         setCurrentSwipeDirection(direction)
