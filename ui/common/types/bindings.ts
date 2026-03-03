@@ -1799,7 +1799,10 @@ export type completeOnboardingNewSeed = {};
 
 export type completeSocialRecovery = {};
 
-export type dumpDb = { federationId: string };
+export type dumpDb = {
+  federationId: string;
+  includeFederationSecret?: boolean;
+};
 
 export type estimateLnFees = { federationId: RpcFederationId; invoice: string };
 

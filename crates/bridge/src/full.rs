@@ -3,9 +3,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
+use bug_report::db_dump::DbDumpHeader;
 use communities::Communities;
 use device_registration::DeviceRegistrationService;
 use federations::Federations;
+use federations::federation_v2::FederationV2;
 use fedimint_core::core::ModuleKind;
 use multispend::services::MultispendServices;
 use nostril::Nostril;
@@ -208,14 +210,29 @@ impl BridgeFull {
     }
 
     /// Dump the database for a given federation.
-    pub async fn dump_db(&self, federation_id: &str) -> anyhow::Result<PathBuf> {
+    pub async fn dump_db(
+        &self,
+        federation_id: &str,
+        include_federation_secret: bool,
+    ) -> anyhow::Result<PathBuf> {
         let db_dump_path = format!("db-{federation_id}.dump");
         let federation = self
             .federations
             .get_federation_maybe_recovering(federation_id)?;
+        let federation_secret = if include_federation_secret {
+            let root_mnemonic = self.runtime.app_state.root_mnemonic().await;
+            let device_index = self.runtime.app_state.device_index().await;
+            Some(FederationV2::client_root_secret_from_root_mnemonic(
+                &root_mnemonic,
+                &federation.federation_id(),
+                device_index,
+            ))
+        } else {
+            None
+        };
         let db = federation.client.db().clone();
         let mut buffer = Vec::new();
-        bug_report::db_dump::dump_db(&db, &mut buffer).await?;
+        bug_report::db_dump::dump_db(&db, &DbDumpHeader { federation_secret }, &mut buffer).await?;
         self.runtime
             .storage
             .write_file(db_dump_path.as_ref(), buffer)

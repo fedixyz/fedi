@@ -1238,8 +1238,14 @@ async fn getAccruedPendingFediFeesPerTXType(
 }
 
 #[macro_rules_derive(rpc_method!)]
-async fn dumpDb(bridge: &BridgeFull, federation_id: String) -> anyhow::Result<PathBuf> {
-    bridge.dump_db(&federation_id).await
+async fn dumpDb(
+    bridge: &BridgeFull,
+    federation_id: String,
+    include_federation_secret: Option<bool>,
+) -> anyhow::Result<PathBuf> {
+    bridge
+        .dump_db(&federation_id, include_federation_secret.unwrap_or(false))
+        .await
 }
 
 #[macro_rules_derive(rpc_method!)]
