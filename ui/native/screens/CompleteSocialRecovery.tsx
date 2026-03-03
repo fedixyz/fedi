@@ -153,7 +153,7 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
     if (approvals == null) {
         return (
             <Column grow center>
-                <ActivityIndicator size="large" />
+                <ActivityIndicator size="large" testID="loader" />
             </Column>
         )
     }

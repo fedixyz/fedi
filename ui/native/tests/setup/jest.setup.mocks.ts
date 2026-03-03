@@ -269,6 +269,7 @@ export const mockNavigation = {
     setOptions: jest.fn(),
     goBack: jest.fn(),
     replace: jest.fn(),
+    dispatch: jest.fn(),
 }
 export const mockRoute = {}
 jest.mock('@react-navigation/native', () => ({
