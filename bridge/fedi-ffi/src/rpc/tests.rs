@@ -179,6 +179,7 @@ async fn tests_wrapper_for_bridge() -> anyhow::Result<()> {
         multispend_tests::test_multispend_minimal,
         multispend_tests::test_multispend_group_acceptance,
         multispend_tests::test_multispend_group_rejection,
+        multispend_tests::test_multispend_last_seen_cache_churn_does_not_panic,
         sp_transfer_tests::test_end_to_end,
         sp_transfer_tests::test_receiver_joins_federation_later,
         test_lightning_send_and_receive,
