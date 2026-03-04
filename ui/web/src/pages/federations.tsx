@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
@@ -8,10 +8,13 @@ import {
     selectNonFeaturedFederations,
 } from '@fedi/common/redux'
 
+import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
 import FeaturedFederation from '../components/FeaturedFederation'
 import FederationTile from '../components/FederationTile'
+import { Column } from '../components/Flex'
 import * as Layout from '../components/Layout'
+import { Text } from '../components/Text'
 import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
 
@@ -24,7 +27,6 @@ function FederationsPage() {
         null,
     )
 
-    // Get federation data
     const federations = useAppSelector(selectNonFeaturedFederations)
     const featuredFederation = useAppSelector(selectLastUsedFederation)
 
@@ -35,11 +37,41 @@ function FederationsPage() {
         syncCurrencyRatesAndCache()
     }, [syncCurrencyRatesAndCache])
 
-    // Redirect if no federations
-    if (!featuredFederation && federations.length === 0) {
-        router.push('/onboarding')
-        return null
-    }
+    const content = useMemo(() => {
+        if (federations.length === 0 && !featuredFederation) {
+            return (
+                <Empty grow center gap="md">
+                    <EmptyContainer align="center" gap="md" fullWidth>
+                        <Text weight="bold">
+                            {t('feature.federations.no-federations')}
+                        </Text>
+                        <Text variant="caption">
+                            {t('feature.wallet.join-federation')}
+                        </Text>
+                    </EmptyContainer>
+                    <Button
+                        onClick={() => router.push('/onboarding')}
+                        width="full">
+                        {t('phrases.join-a-federation')}
+                    </Button>
+                </Empty>
+            )
+        }
+
+        return (
+            <FederationsListWrapper>
+                <FeaturedFederation />
+                {federations.map(federation => (
+                    <FederationTile
+                        key={federation.id}
+                        federation={federation}
+                        expanded={expandedWalletId === federation.id}
+                        setExpandedWalletId={setExpandedWalletId}
+                    />
+                ))}
+            </FederationsListWrapper>
+        )
+    }, [federations, t, router, expandedWalletId])
 
     return (
         <ContentBlock>
@@ -48,19 +80,7 @@ function FederationsPage() {
                     title={t('words.wallets')}
                     onAddPress={() => router.push('/onboarding')}
                 />
-                <Layout.Content fullWidth>
-                    <FederationsListWrapper>
-                        <FeaturedFederation />
-                        {federations.map(federation => (
-                            <FederationTile
-                                key={federation.id}
-                                federation={federation}
-                                expanded={expandedWalletId === federation.id}
-                                setExpandedWalletId={setExpandedWalletId}
-                            />
-                        ))}
-                    </FederationsListWrapper>
-                </Layout.Content>
+                <Layout.Content fullWidth>{content}</Layout.Content>
             </Layout.Root>
         </ContentBlock>
     )
@@ -77,6 +97,17 @@ const FederationsListWrapper = styled('div', {
         paddingLeft: theme.spacing.lg,
         paddingRight: theme.spacing.lg,
     },
+})
+
+const Empty = styled(Column, {
+    paddingLeft: theme.spacing.lg,
+    paddingRight: theme.spacing.lg,
+})
+
+const EmptyContainer = styled(Column, {
+    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+    border: `1px dashed ${theme.colors.lightGrey}`,
+    borderRadius: 16,
 })
 
 export default FederationsPage
