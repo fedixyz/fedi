@@ -153,6 +153,12 @@ fedimint-cli-v0_2_2-rc7 *ARGS:
 fedimint-cli-v0_2_2-rc8 *ARGS:
   @just fedimint-cli "refs/tags/v0.2.2-rc8" d3e154ef0ea2fde064d6f3c3d40b9800c9a9a3ce {{ARGS}}
 
+run-ui-integration-tests workspace="" *test_args:
+  @./scripts/ui/run-integration-tests.sh {{workspace}} {{test_args}}
+
+run-ui-unit-tests workspace="":
+  @./scripts/ui/run-unit-tests.sh {{workspace}}
+
 tidy-up:
   @./scripts/tidy-up.sh
 
