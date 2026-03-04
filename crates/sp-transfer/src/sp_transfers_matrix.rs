@@ -55,6 +55,16 @@ impl SpTransfersMatrix {
         room_id: &RoomId,
         event: RpcSpTransferEvent,
     ) -> anyhow::Result<OwnedEventId> {
+        self.send_spt_event_with_transaction_id(room_id, event, None)
+            .await
+    }
+
+    pub(crate) async fn send_spt_event_with_transaction_id(
+        &self,
+        room_id: &RoomId,
+        event: RpcSpTransferEvent,
+        transaction_id: Option<String>,
+    ) -> anyhow::Result<OwnedEventId> {
         if self.runtime.feature_catalog.sp_transfers_matrix.is_none() {
             bail!("sp_transfers_matrix feature is disabled");
         }
@@ -64,14 +74,15 @@ impl SpTransfersMatrix {
             .cloned()
             .context("RpcSpTransferEvent did not serialize to object")?;
         let room = self.client.get_room(room_id).context("room not found")?;
-        Ok(room
-            .send(RoomMessageEventContent::new(MessageType::new(
-                SP_TRANSFER_MSGTYPE,
-                "Stable Balance Transfer Activity".into(),
-                map,
-            )?))
-            .await?
-            .event_id)
+        let mut request = room.send(RoomMessageEventContent::new(MessageType::new(
+            SP_TRANSFER_MSGTYPE,
+            "Stable Balance Transfer Activity".into(),
+            map,
+        )?));
+        if let Some(transaction_id) = transaction_id {
+            request = request.with_transaction_id(transaction_id.into());
+        }
+        Ok(request.await?.event_id)
     }
 
     pub fn register_message_handler(self: &Arc<Self>) {

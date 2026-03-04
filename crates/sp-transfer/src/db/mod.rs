@@ -41,6 +41,8 @@ enum SpTransfersDbPrefix {
     TransferFailed = 0x07,
     /// (pending_transfer_id) => ()
     FederationInviteDenied = 0x08,
+    /// (pending_notification_id) => matrix transaction id used for retries
+    PendingCompletionNotificationTxnId = 0x09,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]

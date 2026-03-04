@@ -5,12 +5,16 @@ use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped as
 use fedimint_core::util::backoff_util::background_backoff;
 use fedimint_core::util::retry;
 use futures::StreamExt as _;
+use matrix_sdk::ruma::TransactionId as MatrixTransactionId;
 use rpc_types::sp_transfer::{RpcSpTransferEvent, SpMatrixTransferId};
 use runtime::bridge_runtime::Runtime;
 use tokio::sync::Notify;
 use tracing::instrument;
 
-use crate::db::{SptPendingCompletionNotification, SptPendingCompletionNotificationPrefix};
+use crate::db::{
+    SptPendingCompletionNotification, SptPendingCompletionNotificationPrefix,
+    SptPendingCompletionNotificationTxnIdKey,
+};
 use crate::sp_transfers_matrix::SpTransfersMatrix;
 
 pub struct SptTransferCompleteNotifier {
@@ -28,6 +32,20 @@ impl SptTransferCompleteNotifier {
 
     fn trigger(&self) {
         self.notify.notify_one();
+    }
+
+    async fn ensure_matrix_transaction_id(
+        dbtx: &mut DatabaseTransaction<'_>,
+        pending_notification: &SptPendingCompletionNotification,
+    ) -> String {
+        let key = SptPendingCompletionNotificationTxnIdKey(pending_notification.notification_id());
+        if let Some(existing) = dbtx.get_value(&key).await {
+            return existing;
+        }
+
+        let transaction_id = MatrixTransactionId::new().to_string();
+        dbtx.insert_entry(&key, &transaction_id).await;
+        transaction_id
     }
 
     pub async fn add_completion_notification(
@@ -131,8 +149,9 @@ impl SptTransferCompleteNotifier {
         let room_id = room_id
             .into_typed()
             .context("invalid room id in sp_transfers database")?;
+        let matrix_transaction_id = Self::ensure_matrix_transaction_id(dbtx, &item).await;
         sp_transfers_matrix
-            .send_spt_event(&room_id, event)
+            .send_spt_event_with_transaction_id(&room_id, event, Some(matrix_transaction_id))
             .await
             .context("failed to send sp_transfers event")?;
         dbtx.remove_entry(&item).await;

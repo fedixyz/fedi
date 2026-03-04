@@ -40,6 +40,12 @@ impl SptPendingCompletionNotification {
             }
         }
     }
+
+    pub fn notification_id(&self) -> SpMatrixTransferId {
+        match self {
+            Self::Success { transfer_id, .. } | Self::Failed { transfer_id } => transfer_id.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
@@ -54,6 +60,15 @@ impl_db_record!(
 impl_db_lookup!(
     key = SptPendingCompletionNotification,
     query_prefix = SptPendingCompletionNotificationPrefix,
+);
+
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub struct SptPendingCompletionNotificationTxnIdKey(pub SpMatrixTransferId);
+
+impl_db_record!(
+    key = SptPendingCompletionNotificationTxnIdKey,
+    value = String,
+    db_prefix = SpTransfersDbPrefix::PendingCompletionNotificationTxnId,
 );
 
 #[derive(Debug, Clone, Encodable, Decodable)]
