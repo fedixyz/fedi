@@ -12,6 +12,11 @@ import { Icon } from '../Icon'
 
 const log = makeLog('ChatSwipeableEventContainer')
 
+// Minimum movement (px) before the gesture direction is decided
+const GESTURE_DECISION_THRESHOLD = 20
+// Max visual swipe distance (px) after subtracting the decision threshold
+const MAX_SWIPE_DISTANCE = 80
+
 export interface ChatSwipeableEventContainerProps {
     event: MatrixEvent
     children: React.ReactNode
@@ -36,7 +41,9 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
         const [isAnimating, setIsAnimating] = useState(false)
 
         const startX = useRef(0)
+        const startY = useRef(0)
         const currentX = useRef(0)
+        const gestureDecision = useRef<'swipe' | 'scroll' | null>(null)
         const animationId = useRef<number | null>(null)
 
         const { roomId } = event
@@ -59,28 +66,57 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
 
         const handleTouchStart = useCallback((e: TouchEvent) => {
             startX.current = e.touches[0].clientX
+            startY.current = e.touches[0].clientY
             currentX.current = e.touches[0].clientX
+            gestureDecision.current = null
             setIsDragging(true)
         }, [])
 
         const handleTouchMove = useCallback(
             (e: TouchEvent) => {
-                if (!isDragging) return
+                if (!isDragging || gestureDecision.current === 'scroll') return
 
+                const verticalDistance = Math.abs(
+                    e.touches[0].clientY - startY.current,
+                )
                 currentX.current = e.touches[0].clientX
                 const distance = currentX.current - startX.current
                 const absDistance = Math.abs(distance)
 
-                if (absDistance > 10) {
-                    e.preventDefault()
-                    setSwipeDistance(Math.min(absDistance, 100))
-                    setSwipeDirection(distance > 0 ? 'right' : 'left')
+                if (gestureDecision.current === null) {
+                    if (
+                        Math.max(verticalDistance, absDistance) <
+                        GESTURE_DECISION_THRESHOLD
+                    )
+                        return
+                    if (verticalDistance * 2 > absDistance) {
+                        gestureDecision.current = 'scroll'
+                        return
+                    }
+                    gestureDecision.current = 'swipe'
                 }
+
+                e.preventDefault()
+                setSwipeDistance(
+                    Math.min(
+                        absDistance - GESTURE_DECISION_THRESHOLD,
+                        MAX_SWIPE_DISTANCE,
+                    ),
+                )
+                setSwipeDirection(distance > 0 ? 'right' : 'left')
             },
             [isDragging],
         )
 
         const handleTouchEnd = useCallback(() => {
+            if (gestureDecision.current !== 'swipe') {
+                setSwipeDistance(0)
+                setSwipeDirection(null)
+                setIsDragging(false)
+                gestureDecision.current = null
+                return
+            }
+
             const distance = Math.abs(currentX.current - startX.current)
 
             if (distance > dragThreshold) {
@@ -115,23 +151,42 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
         const handleMouseDown = useCallback((e: MouseEvent) => {
             if (e.button !== 0) return
             startX.current = e.clientX
+            startY.current = e.clientY
             currentX.current = e.clientX
+            gestureDecision.current = null
             setIsDragging(true)
         }, [])
 
         const handleMouseMove = useCallback(
             (e: MouseEvent) => {
-                if (!isDragging) return
+                if (!isDragging || gestureDecision.current === 'scroll') return
 
+                const verticalDistance = Math.abs(e.clientY - startY.current)
                 currentX.current = e.clientX
                 const distance = currentX.current - startX.current
                 const absDistance = Math.abs(distance)
 
-                if (absDistance > 10) {
-                    e.preventDefault()
-                    setSwipeDistance(Math.min(absDistance, 100))
-                    setSwipeDirection(distance > 0 ? 'right' : 'left')
+                if (gestureDecision.current === null) {
+                    if (
+                        Math.max(verticalDistance, absDistance) <
+                        GESTURE_DECISION_THRESHOLD
+                    )
+                        return
+                    if (verticalDistance * 2 > absDistance) {
+                        gestureDecision.current = 'scroll'
+                        return
+                    }
+                    gestureDecision.current = 'swipe'
                 }
+
+                e.preventDefault()
+                setSwipeDistance(
+                    Math.min(
+                        absDistance - GESTURE_DECISION_THRESHOLD,
+                        MAX_SWIPE_DISTANCE,
+                    ),
+                )
+                setSwipeDirection(distance > 0 ? 'right' : 'left')
             },
             [isDragging],
         )
@@ -181,9 +236,12 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
         ])
 
         useEffect(() => {
-            if (swipeDistance > 20 && !isAnimating) {
+            if (swipeDistance > GESTURE_DECISION_THRESHOLD && !isAnimating) {
                 setIsAnimating(true)
-            } else if (swipeDistance <= 20 && isAnimating) {
+            } else if (
+                swipeDistance <= GESTURE_DECISION_THRESHOLD &&
+                isAnimating
+            ) {
                 setIsAnimating(false)
             }
         }, [swipeDistance, isAnimating])
@@ -237,10 +295,10 @@ export const ChatSwipeableEventContainer: React.FC<ChatSwipeableEventContainerPr
                 </SwipeableContent>
 
                 {swipeDirection === 'right' &&
-                    swipeDistance > 20 &&
+                    swipeDistance > GESTURE_DECISION_THRESHOLD &&
                     renderAction('left')}
                 {swipeDirection === 'left' &&
-                    swipeDistance > 20 &&
+                    swipeDistance > GESTURE_DECISION_THRESHOLD &&
                     renderAction('right')}
             </Container>
         )
