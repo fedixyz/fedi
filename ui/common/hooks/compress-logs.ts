@@ -44,7 +44,13 @@ export const useCompressLogs = ({
     const { fetchTransactions } = useTransactionHistory(federationId, fedimint)
 
     const compressLogs = useCallback(
-        ({ sendDb }: { sendDb: boolean }) => {
+        ({
+            sendDb,
+            includeFederationSecret = false,
+        }: {
+            sendDb: boolean
+            includeFederationSecret?: boolean
+        }) => {
             const attachmentPromiseMap: Record<string, Promise<string>> = {}
 
             if (federation) {
@@ -52,6 +58,7 @@ export const useCompressLogs = ({
                     attachmentPromiseMap['db.dump'] = (async () => {
                         const dbPath = await fedimint.dumpDb({
                             federationId: federation.id,
+                            includeFederationSecret,
                         })
                         return await handleCollectDbContents(dbPath)
                     })()

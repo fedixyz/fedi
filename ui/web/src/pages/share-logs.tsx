@@ -10,6 +10,7 @@ import {
 import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
 import { Button } from '../components/Button'
+import { Checkbox } from '../components/Checkbox'
 import { ContentBlock } from '../components/ContentBlock'
 import { Dialog } from '../components/Dialog'
 import { FederationWalletSelector } from '../components/FederationWalletSelector'
@@ -39,6 +40,8 @@ export default function ShareLogsPage() {
     const [isValid, setIsValid] = useState<boolean>(false)
     const [bugClicks, setBugClicks] = useState<number>(0)
     const [sendDb, setSendDb] = useState<boolean>(false)
+    const [includeFederationSecret, setIncludeFederationSecret] =
+        useState<boolean>(false)
     const [isSelectingFederation, setIsSelectingFederation] = useState(false)
 
     useEffect(() => {
@@ -76,7 +79,11 @@ export default function ShareLogsPage() {
     }
 
     const submitLogs = async () => {
-        await collectAttachmentsAndSubmit(sendDb, ticketNumber)
+        await collectAttachmentsAndSubmit(
+            sendDb,
+            ticketNumber,
+            includeFederationSecret,
+        )
         setIsSelectingFederation(false)
     }
 
@@ -138,12 +145,36 @@ export default function ShareLogsPage() {
                     </Disclaimer>
 
                     {sendDb && (
-                        <SendDbContainer>
-                            <Text weight="medium">
-                                {t('feature.bug.database-attached')} 🕷️🐞🦟
-                            </Text>
-                            <Icon icon={CheckIcon} />
-                        </SendDbContainer>
+                        <>
+                            <SendDbContainer>
+                                <Text weight="medium">
+                                    {t('feature.bug.database-attached')} 🕷️🐞🦟
+                                </Text>
+                                <Icon icon={CheckIcon} />
+                            </SendDbContainer>
+                            {walletFederations.length > 0 && (
+                                <>
+                                    <CheckboxRow>
+                                        <Checkbox
+                                            checked={includeFederationSecret}
+                                            onChange={
+                                                setIncludeFederationSecret
+                                            }
+                                            label={t(
+                                                'feature.bug.include-federation-secret',
+                                            )}
+                                            labelTextProps={{
+                                                variant: 'body',
+                                                weight: 'medium',
+                                            }}
+                                        />
+                                    </CheckboxRow>
+                                    <SelectorRow>
+                                        <FederationWalletSelector />
+                                    </SelectorRow>
+                                </>
+                            )}
+                        </>
                     )}
 
                     <Button
@@ -188,6 +219,31 @@ const SendDbContainer = styled('div', {
     background: theme.colors.offWhite,
     padding: 12,
     borderRadius: 12,
+})
+
+const CheckboxRow = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%',
+    background: theme.colors.offWhite,
+    padding: 12,
+    borderRadius: 12,
+    '& > label': {
+        flexDirection: 'row-reverse',
+        justifyContent: 'space-between',
+        width: '100%',
+
+        '& > div': {
+            textAlign: 'left',
+        },
+    },
+})
+
+const SelectorRow = styled('div', {
+    width: '100%',
+    '& > *': {
+        width: '100%',
+    },
 })
 
 const SelectFederationContent = styled('div', {

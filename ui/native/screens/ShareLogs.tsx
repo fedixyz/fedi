@@ -12,6 +12,7 @@ import {
 import { isValidSupportTicketNumber } from '@fedi/common/utils/validation'
 
 import FederationWalletSelector from '../components/feature/send/FederationWalletSelector'
+import CheckBox from '../components/ui/CheckBox'
 import CustomOverlay from '../components/ui/CustomOverlay'
 import { Row, Column } from '../components/ui/Flex'
 import { SafeScrollArea } from '../components/ui/SafeArea'
@@ -37,6 +38,8 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
     const [dbTaps, setDbTaps] = useState(0)
     const [sendDb, setShouldSendDb] = useState(false)
+    const [includeFederationSecret, setIncludeFederationSecret] =
+        useState(false)
 
     const { status, collectAttachmentsAndSubmit } = useSubmitLogs(
         paymentFederation?.id,
@@ -95,6 +98,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
         const isSuccess = await collectAttachmentsAndSubmit(
             sendDb,
             ticketNumber,
+            includeFederationSecret,
         )
         if (isSuccess) {
             navigation.push('BugReportSuccess')
@@ -104,6 +108,7 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
         isValid,
         navigation,
         sendDb,
+        includeFederationSecret,
         collectAttachmentsAndSubmit,
         paymentFederation,
         federations,
@@ -153,16 +158,44 @@ const ShareLogs: React.FC<Props> = ({ navigation, route }) => {
                     </Text>
                 </Column>
                 {sendDb && (
-                    <Row
-                        align="center"
-                        justify="between"
-                        fullWidth
-                        style={style.dbAttachedIndicator}>
-                        <Text medium>
-                            {t('feature.bug.database-attached')} 🕷️🐞🦟
-                        </Text>
-                        <SvgImage name="Check" />
-                    </Row>
+                    <>
+                        <Row
+                            align="center"
+                            justify="between"
+                            fullWidth
+                            style={style.dbAttachedIndicator}>
+                            <Text medium>
+                                {t('feature.bug.database-attached')} 🕷️🐞🦟
+                            </Text>
+                            <SvgImage name="Check" />
+                        </Row>
+                        {federations.length > 0 && (
+                            <>
+                                <CheckBox
+                                    iconRight
+                                    checked={includeFederationSecret}
+                                    onPress={() =>
+                                        setIncludeFederationSecret(
+                                            !includeFederationSecret,
+                                        )
+                                    }
+                                    title={
+                                        <Text medium>
+                                            {t(
+                                                'feature.bug.include-federation-secret',
+                                            )}
+                                        </Text>
+                                    }
+                                    containerStyle={style.checkboxContainer}
+                                    wrapperStyle={style.checkboxWrapper}
+                                />
+                                <FederationWalletSelector
+                                    fullWidth
+                                    showBalance={false}
+                                />
+                            </>
+                        )}
+                    </>
                 )}
                 <Button
                     fullWidth
@@ -266,6 +299,15 @@ const styles = (theme: Theme) =>
             backgroundColor: theme.colors.offWhite,
             padding: 12,
             borderRadius: 12,
+        },
+        checkboxContainer: {
+            width: '100%',
+            backgroundColor: theme.colors.offWhite,
+            padding: 12,
+            borderRadius: 12,
+        },
+        checkboxWrapper: {
+            justifyContent: 'space-between',
         },
         descriptionInput: {
             textAlignVertical: 'top',

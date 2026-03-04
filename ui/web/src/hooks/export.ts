@@ -42,7 +42,11 @@ export const useShareLogs = () => {
     })
 
     const collectAttachmentsAndSubmit = useCallback(
-        async (sendDb: boolean, ticketNumber: string) => {
+        async (
+            sendDb: boolean,
+            ticketNumber: string,
+            includeFederationSecret?: boolean,
+        ) => {
             const id = uuidv4()
             const ticket = ticketNumber.startsWith('#')
                 ? ticketNumber
@@ -50,7 +54,10 @@ export const useShareLogs = () => {
 
             setStatus('loading')
             try {
-                const gzip = await compressLogs({ sendDb })
+                const gzip = await compressLogs({
+                    sendDb,
+                    includeFederationSecret,
+                })
 
                 await uploadBugReportLogs(id, gzip)
 

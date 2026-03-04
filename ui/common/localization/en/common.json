@@ -439,6 +439,7 @@
             "description-label": "Describe the issue in detail",
             "description-placeholder": "What did you expect and what happened instead?",
             "email-label": "Email (optional)",
+            "include-federation-secret": "Include federation secret",
             "info-label": "Send Federation and Username with bug report",
             "report-a-bug": "Report a Bug",
             "screenshot-label": "Upload screenshots or recordings",
