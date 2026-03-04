@@ -1325,34 +1325,38 @@ export function useMatrixRoomPreview({
     const roomDraft = useCommonSelector(selectChatDrafts)[matrixRoom?.id || '']
     const myId = useCommonSelector(selectMatrixAuth)?.userId
 
-    // In this case, we prefer a default room (if any)
-    // because we properly fetch the previews for them even if you haven't joined
-    const room = defaultRoom ?? matrixRoom
+    const isPublicBroadcast = matrixRoom?.isPublic && matrixRoom.broadcastOnly
 
-    const isPublicBroadcast = room?.isPublic && room.broadcastOnly
     const isUnread = shouldShowUnreadIndicator(
-        room?.notificationCount,
-        room?.isMarkedUnread,
+        matrixRoom?.notificationCount,
+        matrixRoom?.isMarkedUnread,
     )
-    const isBlocked = Boolean(room?.isBlocked)
+    const isBlocked = Boolean(matrixRoom?.isBlocked)
 
     // Whether to display the room preview as a 'notice'
     // This is usually used to add an italic style to the text
     const isNotice =
-        room?.preview?.content.msgtype === 'redacted' ||
-        !room?.preview ||
+        matrixRoom?.preview?.content.msgtype === 'redacted' ||
+        !matrixRoom?.preview ||
         isUnread ||
         roomDraft ||
         isBlocked
 
     const text = useMemo(() => {
-        if (!room?.preview) return t('feature.chat.no-messages')
+        // For deriving the preview text, we prefer a `defaultRoom` (if any)
+        // because we properly fetch the previews for them even if you haven't joined
+        const preferredPreviewRoom = defaultRoom ?? matrixRoom
+
+        if (!preferredPreviewRoom?.preview) return t('feature.chat.no-messages')
 
         if (roomDraft)
             return t('feature.chat.draft-text', { text: roomDraft.trim() })
 
-        if (room.preview.content.msgtype === 'xyz.fedi.payment') {
-            const { amount, senderId, recipientId } = room.preview.content
+        if (
+            preferredPreviewRoom.preview.content.msgtype === 'xyz.fedi.payment'
+        ) {
+            const { amount, senderId, recipientId } =
+                preferredPreviewRoom.preview.content
 
             let messageKey = 'feature.receive.they-requested-amount-unit'
 
@@ -1368,11 +1372,11 @@ export function useMatrixRoomPreview({
                     amountUtils.msatToSat(amount as MSats),
                 ),
                 unit: t('words.sats').toUpperCase(),
-            })
+            }) as string
         }
 
-        return getRoomPreviewText(room, t)
-    }, [room, t, roomDraft, myId])
+        return getRoomPreviewText(preferredPreviewRoom, t)
+    }, [defaultRoom, matrixRoom, t, roomDraft, myId])
 
     return {
         text,
