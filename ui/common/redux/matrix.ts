@@ -2796,13 +2796,9 @@ export const selectMultispendBalance = createSelector(
     accountInfo => {
         if (!accountInfo || 'Err' in accountInfo) return 0 as UsdCents
 
-        const { lockedBalance, currCycleStartPrice } = accountInfo.Ok
+        const { lockedPlusStaged } = accountInfo.Ok
 
-        const balanceMsats = lockedBalance
-        const balanceBtc = amountUtils.msatToBtc(balanceMsats)
-        const balanceCentsPrecise = balanceBtc * currCycleStartPrice
-
-        return balanceCentsPrecise
+        return lockedPlusStaged.fiat as UsdCents
     },
 )
 

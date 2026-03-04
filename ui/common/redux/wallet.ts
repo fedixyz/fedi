@@ -721,7 +721,7 @@ export const selectTotalLockedMsats = createSelector(
         selectStabilityPoolState(s, federationId),
     stabilityPoolState => {
         if (!stabilityPoolState) return 0 as MSats
-        return stabilityPoolState.lockedBalance
+        return stabilityPoolState.locked.btc
     },
 )
 
@@ -733,10 +733,8 @@ export const selectTotalLockedCents = createSelector(
         selectStabilityPoolState(s, federationId),
     (stabilityPoolState): UsdCents => {
         if (!stabilityPoolState) return 0 as UsdCents
-        const { lockedBalance, currCycleStartPrice } = stabilityPoolState
 
-        return (amountUtils.msatToBtc(lockedBalance) *
-            currCycleStartPrice) as UsdCents
+        return stabilityPoolState.locked.fiat as UsdCents
     },
 )
 
@@ -765,7 +763,7 @@ export const selectTotalStagedMsats = (
     federationId: Federation['id'],
 ) => {
     const stabilityPoolState = selectStabilityPoolState(s, federationId)
-    return stabilityPoolState?.stagedBalance || (0 as MSats)
+    return stabilityPoolState?.staged.btc || (0 as MSats)
 }
 
 /**
@@ -776,22 +774,7 @@ export const selectTotalStagedCents = createSelector(
         selectStabilityPoolState(s, federationId),
     (stabilityPoolState): UsdCents => {
         if (!stabilityPoolState) return 0 as UsdCents
-        const { stagedBalance, currCycleStartPrice } = stabilityPoolState
-
-        return (amountUtils.msatToBtc(stagedBalance) *
-            currCycleStartPrice) as UsdCents
-    },
-)
-
-/**
- * Returns the amount of pending withdrawals in cents
- * */
-export const selectUnlockRequest = createSelector(
-    (s: CommonState, federationId: Federation['id']) =>
-        selectStabilityPoolState(s, federationId),
-    stabilityPoolState => {
-        if (!stabilityPoolState) return null
-        return stabilityPoolState.pendingUnlockRequest
+        return stabilityPoolState.staged.fiat as UsdCents
     },
 )
 
@@ -821,15 +804,7 @@ export const selectStableBalanceCents = createSelector(
     stabilityPoolState => {
         if (!stabilityPoolState) return 0 as UsdCents
 
-        const { lockedBalance, currCycleStartPrice } = stabilityPoolState
-
-        const balanceMsats = lockedBalance
-        const balanceCents = Number(
-            amountUtils
-                .msatToFiat(balanceMsats, currCycleStartPrice)
-                .toFixed(0),
-        ) as UsdCents
-        return balanceCents
+        return stabilityPoolState.locked.fiat as UsdCents
     },
 )
 
@@ -871,15 +846,12 @@ export const selectStableBalanceSats = createSelector(
 export const selectStableBalancePendingCents = createSelector(
     (s: CommonState, federationId: Federation['id']) =>
         selectStabilityPoolState(s, federationId),
-    (s: CommonState, federationId: Federation['id']) =>
-        selectUnlockRequest(s, federationId),
-    (s: CommonState, federationId: Federation['id']) =>
-        selectTotalStagedCents(s, federationId),
-    (stabilityPoolState, unlockRequest, stagedBalance) => {
+    stabilityPoolState => {
         if (!stabilityPoolState) return 0 as UsdCents
 
-        const pendingDepositAmount = stagedBalance
-        const pendingWithdrawAmount = (unlockRequest ?? 0) as UsdCents
+        const pendingDepositAmount = stabilityPoolState.staged.fiat as UsdCents
+        const pendingWithdrawAmount = (stabilityPoolState.pendingUnlock?.fiat ??
+            0) as UsdCents
 
         if (pendingWithdrawAmount > 0) {
             // Negative to signify a withdrawal
@@ -939,8 +911,8 @@ export const selectMinimumWithdrawAmountCents = createSelector(
     (s: CommonState, federationId: Federation['id']) =>
         selectStableBalancePendingCents(s, federationId),
     (version, config, stableBalance, stableBalancePending): UsdCents => {
-        // For SPv2, we consider 2 cents to be dust
-        if (version === 2) return 2 as UsdCents
+        // // For SPv2, we consider 1 cents to be dust
+        if (version === 2) return 1 as UsdCents
 
         const minimumBasisPoints = config?.min_allowed_cancellation_bps || 0
 

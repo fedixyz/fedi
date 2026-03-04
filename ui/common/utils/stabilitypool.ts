@@ -320,13 +320,13 @@ export const coerceLegacyAccountInfo = (
     price: number,
 ): StabilityPoolState => {
     // SPv2 aggregates stagedSeeks into a combined stagedBalance
-    const stagedBalance = accountInfo.stagedSeeks.reduce(
+    const stagedBalanceMsats = accountInfo.stagedSeeks.reduce(
         (result, ss) => Number((result + ss).toFixed(0)),
         0,
     ) as MSats
 
     // SPv2 aggregates lockedSeeks into a combined lockedBalance
-    const lockedBalance = accountInfo.lockedSeeks.reduce(
+    const lockedBalanceMsats = accountInfo.lockedSeeks.reduce(
         (result: number, ls: RpcLockedSeek) => {
             const { currCycleBeginningLockedAmount } = ls
             return result + currCycleBeginningLockedAmount
@@ -334,18 +334,26 @@ export const coerceLegacyAccountInfo = (
         0,
     ) as MSats
 
-    const lockedBalanceCents = (lockedBalance * price) / 10 ** 11
-    const pendingUnlockRequestCents = Math.floor(
-        (lockedBalanceCents * (accountInfo.stagedCancellation ?? 0)) / 10000,
+    const stagedBalanceCents = (stagedBalanceMsats * price) / 10 ** 11
+    const lockedBalanceCents = (lockedBalanceMsats * price) / 10 ** 11
+
+    const stagedCancellation = accountInfo.stagedCancellation ?? 0
+    const pendingUnlockCents = Math.floor(
+        (lockedBalanceCents * stagedCancellation) / 10000,
     )
+    const pendingUnlockMsats = Math.floor(
+        (lockedBalanceMsats * stagedCancellation) / 10000,
+    ) as MSats
 
     return {
         currCycleStartPrice: price,
-        stagedBalance,
-        lockedBalance,
+        staged: { fiat: stagedBalanceCents, btc: stagedBalanceMsats },
+        locked: { fiat: lockedBalanceCents, btc: lockedBalanceMsats },
         idleBalance: accountInfo.idleBalance,
-        // Cents
-        pendingUnlockRequest: pendingUnlockRequestCents,
+        pendingUnlock:
+            stagedCancellation > 0
+                ? { fiat: pendingUnlockCents, btc: pendingUnlockMsats }
+                : null,
     }
 }
 

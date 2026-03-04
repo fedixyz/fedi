@@ -545,6 +545,8 @@ export type RpcFeeDetails = {
 
 export type RpcFiatAmount = number;
 
+export type RpcFiatAndBtcAmount = { fiat: RpcFiatAmount; btc: RpcAmount };
+
 export type RpcFileInfo = {
   mimetype: string | null;
   size: number | null;
@@ -1216,20 +1218,22 @@ export type RpcSPv2CachedSyncResponse = {
   currCycleIdx: number;
   currCycleStartTime: number;
   currCycleStartPrice: number;
-  stagedBalance: RpcAmount;
-  lockedBalance: RpcAmount;
+  staged: RpcFiatAndBtcAmount;
+  locked: RpcFiatAndBtcAmount;
+  lockedPlusStaged: RpcFiatAndBtcAmount;
   idleBalance: RpcAmount;
-  pendingUnlockRequest: number | null;
+  pendingUnlock: RpcFiatAndBtcAmount | null;
 };
 
 export type RpcSPv2SyncResponse = {
   currCycleIdx: number;
   currCycleStartTime: number;
   currCycleStartPrice: number;
-  stagedBalance: RpcAmount;
-  lockedBalance: RpcAmount;
+  staged: RpcFiatAndBtcAmount;
+  locked: RpcFiatAndBtcAmount;
+  lockedPlusStaged: RpcFiatAndBtcAmount;
   idleBalance: RpcAmount;
-  pendingUnlockRequest: number | null;
+  pendingUnlock: RpcFiatAndBtcAmount | null;
 };
 
 export type RpcSerializedRoomInfo = {

@@ -20,7 +20,7 @@ use runtime::utils::to_unix_time;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 pub use sp_transfer::SpMatrixTransferId;
-use stability_pool_client::common::{SyncResponse, TransferRequestId};
+use stability_pool_client::common::{FiatAmount, SyncResponse, TransferRequestId};
 use stability_pool_client::db::CachedSyncResponseValue;
 use stability_pool_client_old::ClientAccountInfo;
 use ts_rs::TS;
@@ -72,6 +72,14 @@ impl std::fmt::Display for RpcAmount {
 #[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq, Copy)]
 #[ts(export)]
 pub struct RpcFiatAmount(#[ts(type = "number")] pub u64);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq, Copy)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RpcFiatAndBtcAmount {
+    pub fiat: RpcFiatAmount,
+    pub btc: RpcAmount,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, Encodable, Decodable, PartialEq, Eq, Copy)]
 #[ts(export)]
@@ -1071,11 +1079,11 @@ pub struct RpcSPv2SyncResponse {
     pub curr_cycle_start_time: u64,
     #[ts(type = "number")]
     pub curr_cycle_start_price: u64,
-    pub staged_balance: RpcAmount,
-    pub locked_balance: RpcAmount,
+    pub staged: RpcFiatAndBtcAmount,
+    pub locked: RpcFiatAndBtcAmount,
+    pub locked_plus_staged: RpcFiatAndBtcAmount,
     pub idle_balance: RpcAmount,
-    #[ts(type = "number | null")]
-    pub pending_unlock_request: Option<u64>,
+    pub pending_unlock: Option<RpcFiatAndBtcAmount>,
 }
 
 impl From<CachedSyncResponseValue> for RpcSPv2CachedSyncResponse {
@@ -1089,15 +1097,47 @@ impl From<CachedSyncResponseValue> for RpcSPv2CachedSyncResponse {
 
 impl From<SyncResponse> for RpcSPv2SyncResponse {
     fn from(value: SyncResponse) -> Self {
+        let price = value.current_cycle.start_price;
+
+        let staged_fiat = FiatAmount::from_btc_amount(value.staged_balance, price)
+            .expect("staged balance must convert");
+        let locked_fiat = FiatAmount::from_btc_amount(value.locked_balance, price)
+            .expect("locked balance must convert");
+        let locked_plus_staged_amount =
+            Amount::from_msats(value.locked_balance.msats + value.staged_balance.msats);
+        let locked_plus_staged_fiat = FiatAmount::from_btc_amount(locked_plus_staged_amount, price)
+            .expect("locked+staged balance must convert");
+
+        let pending_unlock = value.unlock_request.map(|r| {
+            let fiat = r.total_fiat_requested;
+            let btc = fiat
+                .to_btc_amount(price)
+                .expect("pending unlock must convert");
+            RpcFiatAndBtcAmount {
+                fiat: RpcFiatAmount(fiat.0),
+                btc: RpcAmount(btc),
+            }
+        });
+
         Self {
             curr_cycle_idx: value.current_cycle.idx,
             curr_cycle_start_time: to_unix_time(value.current_cycle.start_time)
                 .expect("cycle time must be valid"),
-            curr_cycle_start_price: value.current_cycle.start_price.0,
-            staged_balance: RpcAmount(value.staged_balance),
-            locked_balance: RpcAmount(value.locked_balance),
+            curr_cycle_start_price: price.0,
+            staged: RpcFiatAndBtcAmount {
+                fiat: RpcFiatAmount(staged_fiat.0),
+                btc: RpcAmount(value.staged_balance),
+            },
+            locked: RpcFiatAndBtcAmount {
+                fiat: RpcFiatAmount(locked_fiat.0),
+                btc: RpcAmount(value.locked_balance),
+            },
+            locked_plus_staged: RpcFiatAndBtcAmount {
+                fiat: RpcFiatAmount(locked_plus_staged_fiat.0),
+                btc: RpcAmount(locked_plus_staged_amount),
+            },
             idle_balance: RpcAmount(value.idle_balance),
-            pending_unlock_request: value.unlock_request.map(|r| r.total_fiat_requested.0),
+            pending_unlock,
         }
     }
 }

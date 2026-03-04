@@ -6,10 +6,10 @@ export type StabilityPoolState = Pick<
     RpcSPv2CachedSyncResponse,
     // Price in cents per BTC
     | 'currCycleStartPrice'
-    | 'stagedBalance'
-    | 'lockedBalance'
+    | 'staged'
+    | 'locked'
     | 'idleBalance'
-    | 'pendingUnlockRequest'
+    | 'pendingUnlock'
 >
 
 export type Spv2ParsedPaymentAddress = {
