@@ -1,3 +1,12 @@
+## Description
+
+
+## Testing
+
+
+## Impact on native/web parity
+
+
 <!--
 ## Description
 
@@ -23,11 +32,3 @@ Describe the tests that you ran to validate your changes. This may include:
 Describe whether your changes maintain parity between native & web behavior. If they do not maintain parity, explain why or link to a PR or issue where follow up work can be tracked.
 
 -->
-
-## Description
-
-
-## Testing
-
-
-## Impact on native/web parity
