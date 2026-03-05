@@ -50,6 +50,7 @@ export type NavigationLinkingConfig = LinkingOptions<
 export type TabsNavigatorParamList = {
     Chat: undefined
     Home: { offline: boolean }
+    Scan: undefined
     Mods: undefined
     Federations: undefined
 }
