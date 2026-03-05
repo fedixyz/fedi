@@ -9,6 +9,7 @@ edition = "2024"
 fedimint-rocksdb = { workspace = true }
 fedimint-core = { workspace = true }
 bug-report = { workspace = true }
+base64 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
