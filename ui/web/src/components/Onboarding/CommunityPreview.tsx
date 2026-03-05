@@ -11,7 +11,7 @@ import {
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { FederationAvatar } from '../FederationAvatar'
-import * as Layout from '../Layout'
+import { Column } from '../Flex'
 import { Text } from '../Text'
 
 type Props = {
@@ -35,10 +35,37 @@ const CommunityPreview: React.FC<Props> = ({
 
     const welcomeInstructions = t('feature.onboarding.welcome-instructions-new')
 
+    const content = (
+        <>
+            <AvatarWrapper>
+                <FederationAvatar
+                    federation={{
+                        id: community.id,
+                        name: community.name,
+                        meta: community.meta,
+                    }}
+                    size="lg"
+                />
+            </AvatarWrapper>
+            <Text variant="h2" weight="medium">
+                {community.name}
+            </Text>
+            <CustomWelcomeMessage>
+                {welcomeMessage ? (
+                    <Trans components={{ bold: <strong /> }}>
+                        {welcomeMessage}
+                    </Trans>
+                ) : (
+                    <Text variant="caption">{welcomeInstructions}</Text>
+                )}
+            </CustomWelcomeMessage>
+        </>
+    )
+
     const actions = showJoinFederation ? (
         <>
             {tosUrl ? (
-                <>
+                <Column gap="md">
                     <TermsUrl variant="small">
                         <Trans
                             i18nKey="feature.onboarding.terms-url"
@@ -66,7 +93,7 @@ const CommunityPreview: React.FC<Props> = ({
                             {t('feature.onboarding.i-accept')}
                         </Button>
                     </ButtonContainer>
-                </>
+                </Column>
             ) : (
                 <Button width="full" onClick={onJoin} loading={isJoining}>
                     {t('phrases.join-community')}
@@ -85,45 +112,28 @@ const CommunityPreview: React.FC<Props> = ({
     )
 
     return (
-        <Layout.Root>
-            <Layout.Content fullWidth={!community}>
-                <Content>
-                    <AvatarWrapper>
-                        <FederationAvatar
-                            federation={{
-                                id: community.id,
-                                name: community.name,
-                                meta: community.meta,
-                            }}
-                            size="lg"
-                        />
-                    </AvatarWrapper>
-                    <Text variant="h2" weight="medium">
-                        {community.name}
-                    </Text>
-                    <CustomWelcomeMessage>
-                        {welcomeMessage ? (
-                            <Trans components={{ bold: <strong /> }}>
-                                {welcomeMessage}
-                            </Trans>
-                        ) : (
-                            <Text variant="caption">{welcomeInstructions}</Text>
-                        )}
-                    </CustomWelcomeMessage>
-                </Content>
-            </Layout.Content>
-            {actions && <Layout.Actions>{actions}</Layout.Actions>}
-        </Layout.Root>
+        <Column grow gap="lg">
+            <Body grow gap="lg">
+                <Content>{content}</Content>
+            </Body>
+            {actions && <Column>{actions}</Column>}
+        </Column>
     )
 }
 
 const Content = styled('div', {
+    alignItems: 'center',
+    background: '#FFF',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    width: '100%',
     gap: 8,
-    background: '#FFF',
+    marginTop: theme.spacing.lg,
+    textAlign: 'center',
+    width: '100%',
+})
+
+const Body = styled(Column, {
+    overflowY: 'auto',
 })
 
 const ButtonContainer = styled('div', {

@@ -10,9 +10,10 @@ import { MatrixEvent } from '@fedi/common/types'
 import { useCopy } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Button } from '../Button'
+import { Dialog } from '../Dialog'
 import { FederationAvatar } from '../FederationAvatar'
 import { Column, Row } from '../Flex'
-import { JoinCommunityDialog } from '../JoinCommunityDialog'
+import CommunityPreview from '../Onboarding/CommunityPreview'
 import { Text } from '../Text'
 
 interface Props {
@@ -38,7 +39,7 @@ export const ChatCommunityInviteEvent: React.FC<Props> = ({ event, isMe }) => {
             preview ? selectCommunityIds(state).includes(preview.id) : false,
         [preview],
     )
-    const isMemberFromRedux = useCommonSelector(selectIsMember)
+    const isMember = useCommonSelector(selectIsMember)
 
     const handleCopy = () => {
         copy(inviteCode).then(() => {
@@ -103,7 +104,7 @@ export const ChatCommunityInviteEvent: React.FC<Props> = ({ event, isMe }) => {
                             {preview.name}
                         </NameText>
                     </NameRow>
-                    {isMemberFromRedux && (
+                    {isMember && (
                         <MemberText variant="small" isMe={isMe}>
                             {t('phrases.you-are-a-member', {
                                 federationName: preview.name,
@@ -115,10 +116,8 @@ export const ChatCommunityInviteEvent: React.FC<Props> = ({ event, isMe }) => {
                             variant="secondary"
                             size="xs"
                             onClick={handleOpenDialog}
-                            disabled={isMemberFromRedux}>
-                            {isMemberFromRedux
-                                ? t('words.joined')
-                                : t('words.join')}
+                            disabled={isMember}>
+                            {isMember ? t('words.joined') : t('words.join')}
                         </Button>
                         <Button
                             variant="secondary"
@@ -129,13 +128,21 @@ export const ChatCommunityInviteEvent: React.FC<Props> = ({ event, isMe }) => {
                     </ButtonRow>
                 </Column>
             </Wrapper>
-            <JoinCommunityDialog
+            <Dialog
                 open={isShowing}
                 onOpenChange={setIsShowing}
-                preview={preview}
-                isJoining={isJoining}
-                onJoin={handleJoinCommunity}
-            />
+                title={t('phrases.join-community')}
+                type="tray"
+                disableClose={isJoining}>
+                {preview && (
+                    <CommunityPreview
+                        onJoin={handleJoinCommunity}
+                        onBack={() => setIsShowing(false)}
+                        community={preview}
+                        isJoining={isJoining}
+                    />
+                )}
+            </Dialog>
         </>
     )
 }

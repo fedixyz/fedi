@@ -100,19 +100,16 @@ describe('federations', () => {
             renderWithBridge(<JoinFederation />, { store, fedimint })
 
             await waitFor(async () => {
-                const previewContainer =
-                    screen.queryByTestId('federation-preview')
-                expect(previewContainer).toBeInTheDocument()
+                const federationName = screen.queryByTestId(
+                    'federation-preview-name',
+                )
+                expect(federationName).toBeInTheDocument()
+                expect(federationName).toHaveTextContent('Devimint Federation')
             })
 
-            // make a few more assertions after the preview has loaded
-            const federationName = screen.queryByTestId(
-                'federation-preview-name',
-            )
-            expect(federationName).toBeInTheDocument()
-            expect(federationName).toHaveTextContent('Devimint Federation')
             const joinButton = screen.queryByText('Join Federation')
             expect(joinButton).toBeInTheDocument()
+
             // Devimint federation does not have a welcome message
             const welcomeMessage = screen.queryByTestId(
                 'federation-preview-welcome-message',

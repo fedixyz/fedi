@@ -44,19 +44,17 @@ export const ReceiveForeignEcashOverlay = ({
         if (isFetchingPreview) return null
         if (federationPreview && showFederationPreview) {
             return (
-                <FederationPreviewContainer>
-                    <FederationPreview
-                        onJoin={recoverFromScratch =>
-                            handleJoin(
-                                () => onOpenChange(false),
-                                recoverFromScratch,
-                            )
-                        }
-                        onBack={() => setShowFederationPreview(false)}
-                        federation={federationPreview}
-                        isJoining={isJoining}
-                    />
-                </FederationPreviewContainer>
+                <FederationPreview
+                    onJoin={recoverFromScratch =>
+                        handleJoin(
+                            () => onOpenChange(false),
+                            recoverFromScratch,
+                        )
+                    }
+                    onBack={() => setShowFederationPreview(false)}
+                    federation={federationPreview}
+                    isJoining={isJoining}
+                />
             )
         }
 
@@ -205,8 +203,4 @@ const ChevronIcon = styled(Icon, {
     transform: 'rotate(-90deg)',
     width: 24,
     height: 24,
-})
-
-const FederationPreviewContainer = styled('div', {
-    paddingTop: theme.spacing.lg,
 })

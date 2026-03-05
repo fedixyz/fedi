@@ -136,28 +136,22 @@ export const ChatFederationInviteEvent: React.FC<Props> = ({ event, isMe }) => {
                 title={t('phrases.join-federation')}
                 type="tray"
                 disableClose={isJoining}>
-                <PreviewWrapper>
-                    {previewResult && (
-                        <FederationPreview
-                            onJoin={recoverFromScratch =>
-                                handleJoin(recoverFromScratch).then(() =>
-                                    setIsShowing(false),
-                                )
-                            }
-                            onBack={() => setIsShowing(false)}
-                            federation={previewResult.preview}
-                            isJoining={isJoining}
-                        />
-                    )}
-                </PreviewWrapper>
+                {previewResult && (
+                    <FederationPreview
+                        onJoin={recoverFromScratch =>
+                            handleJoin(recoverFromScratch).then(() =>
+                                setIsShowing(false),
+                            )
+                        }
+                        onBack={() => setIsShowing(false)}
+                        federation={previewResult.preview}
+                        isJoining={isJoining}
+                    />
+                )}
             </Dialog>
         </>
     )
 }
-
-const PreviewWrapper = styled(Column, {
-    paddingTop: theme.spacing.lg,
-})
 
 const Wrapper = styled('div', {})
 

@@ -13,7 +13,7 @@ import { styled, theme } from '../../styles'
 import { Button } from '../Button'
 import { FederationAvatar } from '../FederationAvatar'
 import FederationEndedPreview from '../FederationEndedPreview'
-import * as Layout from '../Layout'
+import { Column } from '../Flex'
 import { Switch } from '../Switch'
 import { Text } from '../Text'
 
@@ -50,13 +50,11 @@ const FederationPreview: React.FC<Props> = ({
 
     if (popupInfo?.ended) {
         content = (
-            <Content>
-                <FederationEndedPreview
-                    popupInfo={popupInfo}
-                    federation={federation}
-                    setJoinAnyways={setJoinAnyways}
-                />
-            </Content>
+            <FederationEndedPreview
+                popupInfo={popupInfo}
+                federation={federation}
+                setJoinAnyways={setJoinAnyways}
+            />
         )
 
         actions = (
@@ -73,7 +71,7 @@ const FederationPreview: React.FC<Props> = ({
         )
     } else {
         content = (
-            <Content data-testid="federation-preview">
+            <>
                 <AvatarWrapper>
                     <FederationAvatar
                         federation={{
@@ -97,7 +95,7 @@ const FederationPreview: React.FC<Props> = ({
                         </Trans>
                     </CustomWelcomeMessage>
                 )}
-            </Content>
+            </>
         )
 
         actions = showJoinFederation ? (
@@ -121,18 +119,17 @@ const FederationPreview: React.FC<Props> = ({
                     </RecoverFromScratch>
                 )}
                 {tosUrl ? (
-                    <>
-                        <ButtonWrapper>
-                            <Button variant="tertiary" onClick={onBack}>
-                                {t('feature.onboarding.i-do-not-accept')}
-                            </Button>
-                            <Button
-                                width="full"
-                                onClick={handleJoin}
-                                loading={isJoining}>
-                                {t('feature.onboarding.i-accept')}
-                            </Button>
-                        </ButtonWrapper>
+                    <Column gap="md">
+                        <Button variant="tertiary" onClick={onBack}>
+                            {t('feature.onboarding.i-do-not-accept')}
+                        </Button>
+                        <Button
+                            width="full"
+                            onClick={handleJoin}
+                            loading={isJoining}>
+                            {t('feature.onboarding.i-accept')}
+                        </Button>
+
                         <Text
                             variant="small"
                             css={{
@@ -150,7 +147,7 @@ const FederationPreview: React.FC<Props> = ({
                                 }}
                             />
                         </Text>
-                    </>
+                    </Column>
                 ) : (
                     <Button
                         width="full"
@@ -173,20 +170,27 @@ const FederationPreview: React.FC<Props> = ({
     }
 
     return (
-        <Layout.Root>
-            <Layout.Content fullWidth>{content}</Layout.Content>
-            {actions && <Layout.Actions>{actions}</Layout.Actions>}
-        </Layout.Root>
+        <Column grow gap="lg">
+            <Body grow gap="lg">
+                <Content>{content}</Content>
+            </Body>
+            {actions && <Column>{actions}</Column>}
+        </Column>
     )
 }
 
 const Content = styled('div', {
+    alignItems: 'center',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    width: '100%',
     gap: 8,
+    marginTop: theme.spacing.lg,
     textAlign: 'center',
+    width: '100%',
+})
+
+const Body = styled(Column, {
+    overflowY: 'auto',
 })
 
 const CustomWelcomeMessage = styled('div', {
@@ -202,13 +206,6 @@ const AvatarWrapper = styled('div', {})
 
 const Link = styled('a', {
     color: theme.colors.link,
-})
-
-const ButtonWrapper = styled('div', {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing.sm,
-    width: '100%',
 })
 
 const RecoverFromScratch = styled('div', {

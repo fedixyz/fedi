@@ -47,7 +47,7 @@ export const JoinFederation: React.FC = () => {
     if (isFetchingPreview) {
         return (
             <LoadingWrapper>
-                <HoloLoader size={'xl'} />
+                <HoloLoader size={'lg'} />
             </LoadingWrapper>
         )
     }
@@ -98,7 +98,6 @@ export const JoinFederation: React.FC = () => {
             <Layout.Header back>
                 <Layout.Title subheader>{t('words.welcome')}</Layout.Title>
             </Layout.Header>
-
             <Layout.Content>{content}</Layout.Content>
         </Layout.Root>
     )
