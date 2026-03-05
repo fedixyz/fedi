@@ -6,13 +6,13 @@ import {
 } from '@testing-library/react-native'
 
 import {
-    setLastUsedFederationId,
-    setCommunities,
     setFederations,
+    setLastUsedFederationId,
+    setPayFromFederationId,
     setupStore,
 } from '@fedi/common/redux'
 import {
-    mockCommunity,
+    mockFederation1,
     mockFederation2,
 } from '@fedi/common/tests/mock-data/federation'
 import i18n from '@fedi/native/localization/i18n'
@@ -86,41 +86,6 @@ describe('ShareLogs screen', () => {
         expect(dbDumpIndicator).toBeOnTheScreen()
     })
 
-    // TODO: unskip and refactor this test for new ui redesign
-    it.skip('should show the federation selector overlay if the active federation is a community AND the user has joined at least one federation', async () => {
-        store.dispatch(setFederations([mockFederation2]))
-        store.dispatch(setCommunities([mockCommunity]))
-        store.dispatch(setLastUsedFederationId('1'))
-        renderWithProviders(
-            <ShareLogs
-                navigation={mockNavigation as any}
-                route={
-                    { ...mockRoute, params: { ticketNumber: '1234' } } as any
-                }
-            />,
-            {
-                store,
-            },
-        )
-
-        const submitButton = screen.getByTestId('submit')
-        expect(submitButton).toBeOnTheScreen()
-
-        await user.press(submitButton)
-
-        await waitFor(() =>
-            expect(screen.getByTestId('RNE__Overlay')).toBeOnTheScreen(),
-        )
-
-        const continueButton = screen.getByText(i18n.t('words.continue'))
-        const federationWalletSelector = screen.getByTestId(
-            'federation-wallet-selector',
-        )
-
-        expect(federationWalletSelector).toBeOnTheScreen()
-        expect(continueButton).toBeOnTheScreen()
-    })
-
     it("should allow the user to submit logs if they haven't joined a federation", async () => {
         renderWithProviders(
             <ShareLogs
@@ -140,6 +105,71 @@ describe('ShareLogs screen', () => {
 
         await waitFor(() =>
             expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalled(),
+        )
+    })
+
+    it('should not show the federation selector overlay if the user has a payment federation', async () => {
+        store.dispatch(setFederations([mockFederation1]))
+        store.dispatch(setLastUsedFederationId('1'))
+
+        renderWithProviders(
+            <ShareLogs
+                navigation={mockNavigation as any}
+                route={
+                    { ...mockRoute, params: { ticketNumber: '1234' } } as any
+                }
+            />,
+            {
+                store,
+            },
+        )
+
+        const submitButton = screen.getByTestId('submit')
+        expect(submitButton).toBeOnTheScreen()
+
+        await user.press(submitButton)
+
+        await waitFor(() =>
+            expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalled(),
+        )
+    })
+
+    it('should show the federation selector overlay if the user does not have a payment federation and they have multiple federations', async () => {
+        store.dispatch(setFederations([mockFederation1]))
+        store.dispatch(setFederations([mockFederation2]))
+        store.dispatch(setPayFromFederationId('3')) // different id to mockFederation1 and mockFederation2
+
+        renderWithProviders(
+            <ShareLogs
+                navigation={mockNavigation as any}
+                route={
+                    { ...mockRoute, params: { ticketNumber: '1234' } } as any
+                }
+            />,
+            {
+                store,
+            },
+        )
+
+        const submitButton = screen.getByTestId('submit')
+        await user.press(submitButton)
+
+        await waitFor(() =>
+            expect(screen.getByTestId('RNE__Overlay')).toBeOnTheScreen(),
+        )
+
+        const continueButton = screen.getByText(i18n.t('words.continue'))
+        const federationWalletSelector = screen.getByTestId(
+            'federation-wallet-selector',
+        )
+
+        expect(federationWalletSelector).toBeOnTheScreen()
+        expect(continueButton).toBeOnTheScreen()
+
+        await user.press(continueButton)
+
+        await waitFor(() =>
+            expect(screen.queryByTestId('RNE__Overlay')).not.toBeOnTheScreen(),
         )
     })
 })
