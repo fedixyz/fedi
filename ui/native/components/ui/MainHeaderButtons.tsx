@@ -24,10 +24,6 @@ const MainHeaderButtons: React.FC<Props> = ({
 
     const style = styles(theme)
 
-    const openOmniScanner = useCallback(() => {
-        return navigation.navigate('OmniScanner')
-    }, [navigation])
-
     const openSettings = useCallback(() => {
         return navigation.navigate('Settings')
     }, [navigation])
@@ -65,14 +61,6 @@ const MainHeaderButtons: React.FC<Props> = ({
                 />
             )}
             <HeaderAvatar testID="AvatarButton" onPress={openSettings} />
-            <PressableIcon
-                testID="ScanButton"
-                containerStyle={style.icon}
-                onPress={openOmniScanner}
-                hitSlop={5}
-                svgName="Scan"
-                svgProps={{ size: 23 }}
-            />
         </Row>
     )
 }
