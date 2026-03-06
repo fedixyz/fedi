@@ -12,7 +12,11 @@ import CommunityIcon from '@fedi/common/assets/svgs/community.svg'
 import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
 import WalletFilledIcon from '@fedi/common/assets/svgs/wallet-filled.svg'
 import WalletIcon from '@fedi/common/assets/svgs/wallet.svg'
-import { selectMatrixHasNotifications } from '@fedi/common/redux'
+import {
+    selectMatrixHasNotifications,
+    setLastUsedTab,
+} from '@fedi/common/redux'
+import { HomeNavigationTab } from '@fedi/common/types/linking'
 
 import {
     chatRoute,
@@ -20,7 +24,7 @@ import {
     miniAppsRoute,
     federationsRoute,
 } from '../../constants/routes'
-import { useAppSelector } from '../../hooks'
+import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 import { NotificationDot } from '../NotificationDot'
@@ -33,6 +37,7 @@ export const Navigation: React.FC = () => {
     const router = useRouter()
     const hasChatNotifications = useAppSelector(selectMatrixHasNotifications)
     const { t } = useTranslation()
+    const dispatch = useAppDispatch()
 
     const getIsActive = (navPath: string) => {
         if (navPath === router.pathname) return true
@@ -48,6 +53,7 @@ export const Navigation: React.FC = () => {
             available: true,
             hasNotification: false,
             label: t('words.home'),
+            tab: HomeNavigationTab.Home,
         },
         {
             path: chatRoute,
@@ -56,6 +62,7 @@ export const Navigation: React.FC = () => {
             available: true,
             hasNotification: hasChatNotifications,
             label: t('words.chat'),
+            tab: HomeNavigationTab.Chat,
         },
         {
             path: 'scan',
@@ -64,6 +71,7 @@ export const Navigation: React.FC = () => {
             available: true,
             hasNotification: false,
             label: t('phrases.scan-slash-paste'),
+            tab: HomeNavigationTab.Chat,
         },
         {
             path: miniAppsRoute,
@@ -72,6 +80,7 @@ export const Navigation: React.FC = () => {
             available: true,
             hasNotification: false,
             label: t('words.mods'),
+            tab: HomeNavigationTab.MiniApps,
         },
         {
             path: federationsRoute,
@@ -80,6 +89,7 @@ export const Navigation: React.FC = () => {
             available: true,
             hasNotification: false,
             label: t('words.federations'),
+            tab: HomeNavigationTab.Wallets,
         },
     ].filter(nav => nav.available)
 
@@ -106,7 +116,11 @@ export const Navigation: React.FC = () => {
 
                     return (
                         <NavItem key={nav.path} isActive={isActive}>
-                            <Link href={nav.path}>
+                            <Link
+                                href={nav.path}
+                                onClick={() =>
+                                    dispatch(setLastUsedTab(nav.tab))
+                                }>
                                 <NotificationDot visible={nav.hasNotification}>
                                     <Icon
                                         icon={

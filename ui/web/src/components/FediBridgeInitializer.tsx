@@ -14,6 +14,7 @@ import {
     selectOnboardingCompleted,
     setAppFlavor,
     selectEventListenersReady,
+    selectLastUsedTab,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
 import {
@@ -34,6 +35,7 @@ import { getAppFlavor } from '../lib/bridge/worker'
 import { keyframes, styled, theme } from '../styles'
 import { generateDeviceId } from '../utils/browserInfo'
 import { getHashParams } from '../utils/linking'
+import { tabRedirectPath } from '../utils/nav'
 import { Redirect } from './Redirect'
 import { Text } from './Text'
 
@@ -56,6 +58,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         s => s.recovery.deviceIndexRequired,
     )
     const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
+    const lastUsedTab = useAppSelector(selectLastUsedTab)
 
     const tRef = useUpdatingRef(t)
     const dispatchRef = useUpdatingRef(dispatch)
@@ -183,6 +186,10 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
         !asPath.includes(onboardingRecoverRoute)
     ) {
         return <Redirect path={onboardingRecoverSocialRoute} />
+    }
+
+    if (onboardingCompleted && asPath === '/' && hasLoadedStorage) {
+        return <Redirect path={tabRedirectPath(lastUsedTab)} />
     }
 
     if (

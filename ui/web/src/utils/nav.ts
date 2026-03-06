@@ -1,3 +1,5 @@
+import { HomeNavigationTab } from '@fedi/common/types/linking'
+
 import * as routes from '../constants/routes'
 
 export const shouldHideNavigation = (pathname: string) => {
@@ -35,4 +37,17 @@ export const shouldHideNavigation = (pathname: string) => {
     if (path === routes.requestRoute) return true
 
     return false
+}
+
+export const tabRedirectPath = (lastUsedTab: HomeNavigationTab) => {
+    switch (lastUsedTab) {
+        case HomeNavigationTab.Home:
+            return routes.homeRoute
+        case HomeNavigationTab.Wallets:
+            return routes.federationsRoute
+        case HomeNavigationTab.MiniApps:
+            return routes.miniAppsRoute
+        case HomeNavigationTab.Chat:
+            return routes.chatRoute
+    }
 }
