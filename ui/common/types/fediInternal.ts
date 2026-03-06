@@ -5,6 +5,7 @@ import { InjectionMessageType } from '@fedi/injections/src'
 
 import {
     CATALOG_URL_PROD,
+    CATALOG_URL_PROD_LEGACY,
     CATALOG_URL_STAGING,
     COMMUNITY_TOOL_URL_PROD,
     COMMUNITY_TOOL_URL_STAGING,
@@ -138,6 +139,12 @@ export const FIRST_PARTY_PERMISSIONS: MiniAppPermissionsByUrlOrigin = {
     },
     ...(isNightly() ? NIGHTLY_PERMISSIONS : {}),
     ...(isDev() ? DEV_PERMISSIONS : {}),
+    // TODO: remove this after most users have upgraded to v26.3.
+    // it is only needed so that users on < v26.3 can use the Add button to
+    // add miniapps from the catalog
+    [CATALOG_URL_PROD_LEGACY]: {
+        manageInstalledMiniApps: true,
+    },
 }
 
 export const INJECTION_HANDLERS_PERMISSIONS_MAP: Partial<{
