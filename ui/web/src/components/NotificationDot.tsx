@@ -34,6 +34,8 @@ export const NotificationDot: React.FC<Props> = ({
 
 const Container = styled('div', {
     position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
 })
 
 const dotPop = keyframes({

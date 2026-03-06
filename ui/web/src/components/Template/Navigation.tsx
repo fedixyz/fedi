@@ -104,11 +104,11 @@ export const Navigation: React.FC = () => {
                             <NavItem key={nav.path} isActive={isActive}>
                                 <ScanItem onClick={() => setOpen(true)}>
                                     <ScanIconContainer>
-                                        <Icon icon={nav.icon} />
+                                        <Icon icon={nav.icon} size={24} />
                                     </ScanIconContainer>
-                                    <Text weight="medium" variant="small">
+                                    <Label weight="medium" variant="small">
                                         {nav.label}
-                                    </Text>
+                                    </Label>
                                 </ScanItem>
                             </NavItem>
                         )
@@ -126,11 +126,12 @@ export const Navigation: React.FC = () => {
                                         icon={
                                             isActive ? nav.activeIcon : nav.icon
                                         }
+                                        size={24}
                                     />
                                 </NotificationDot>
-                                <Text weight="medium" variant="small">
+                                <Label weight="medium" variant="small">
                                     {nav.label}
-                                </Text>
+                                </Label>
                             </Link>
                         </NavItem>
                     )
@@ -140,6 +141,11 @@ export const Navigation: React.FC = () => {
         </Container>
     )
 }
+
+const Label = styled(Text, {
+    color: theme.colors.darkGrey,
+    marginTop: 4,
+})
 
 const Container = styled('nav', {
     background: theme.colors.white,
@@ -170,7 +176,7 @@ const ScanItem = styled('button', {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    paddingTop: 24,
     position: 'relative',
 })
 
