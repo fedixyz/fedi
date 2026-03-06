@@ -109,6 +109,7 @@ export function makeTestTxnEntry<T extends TransactionListEntry['kind']>(
             return {
                 kind,
                 onchain_address: TEST_ONCHAIN_ADDRESS,
+                peg_in_fees: 1_000_000 as MSats,
                 state: makeTestOnchainDepositState('waitingForTransaction'),
                 ...baseFields,
                 ...overrides,

@@ -444,6 +444,13 @@ async fn generateAddress(
 }
 
 #[macro_rules_derive(federation_rpc_method!)]
+async fn getPegInFees(federation: Arc<FederationV2>) -> anyhow::Result<RpcAmount> {
+    Ok(RpcAmount(
+        federation.client.wallet()?.get_fee_consensus().peg_in_abs,
+    ))
+}
+
+#[macro_rules_derive(federation_rpc_method!)]
 async fn recheckPeginAddress(
     federation: Arc<FederationV2>,
     operation_id: RpcOperationId,
@@ -2404,6 +2411,7 @@ rpc_methods!(RpcMethods {
     // On-Chain
     supportsSafeOnchainDeposit,
     generateAddress,
+    getPegInFees,
     recheckPeginAddress,
     previewPayAddress,
     payAddress,

@@ -813,22 +813,23 @@ async fn test_on_chain_with_fedi_fees(
         )
         .await;
     }
+    let pegin_fees = federation.client.wallet()?.get_fee_consensus().peg_in_abs;
     assert_matches!(
         listTransactions(federation.clone(), None, None).await?[0],
         Ok(RpcTransactionListEntry {
             transaction: RpcTransaction {
                 kind: RpcTransactionKind::OnchainDeposit {
+                    peg_in_fees,
                     state: Some(RpcOnchainDepositState::Claimed(_)),
                     ..
                 },
                 ..
             },
             ..
-        })
+        }) if peg_in_fees == RpcAmount(pegin_fees)
     );
 
     let btc_amount = Amount::from_sats(10_000_000);
-    let pegin_fees = federation.client.wallet()?.get_fee_consensus().peg_in_abs;
     let receive_fedi_fee = Amount::from_msats(
         ((btc_amount.msats - pegin_fees.msats) * fedi_fees_receive_ppm).div_ceil(MILLION),
     );
@@ -906,22 +907,23 @@ async fn test_on_chain_with_fedi_fees_with_restart(
         )
         .await;
     }
+    let pegin_fees = federation.client.wallet()?.get_fee_consensus().peg_in_abs;
     assert_matches!(
         listTransactions(federation.clone(), None, None).await?[0],
         Ok(RpcTransactionListEntry {
             transaction: RpcTransaction {
                 kind: RpcTransactionKind::OnchainDeposit {
+                    peg_in_fees,
                     state: Some(RpcOnchainDepositState::Claimed(_)),
                     ..
                 },
                 ..
             },
             ..
-        })
+        }) if peg_in_fees == RpcAmount(pegin_fees)
     );
 
     let btc_amount = Amount::from_sats(10_000_000);
-    let pegin_fees = federation.client.wallet()?.get_fee_consensus().peg_in_abs;
     let receive_fedi_fee = Amount::from_msats(
         ((btc_amount.msats - pegin_fees.msats) * fedi_fees_receive_ppm).div_ceil(MILLION),
     );

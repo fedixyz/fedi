@@ -525,6 +525,7 @@ pub enum RpcTransactionKind {
     },
     OnchainDeposit {
         onchain_address: String,
+        peg_in_fees: RpcAmount,
         state: Option<RpcOnchainDepositState>,
     },
     OobSend {

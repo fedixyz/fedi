@@ -759,6 +759,7 @@ export type RpcMethods = {
   getGatewayOverride: [getGatewayOverride, RpcPublicKey | null];
   supportsSafeOnchainDeposit: [supportsSafeOnchainDeposit, boolean];
   generateAddress: [generateAddress, string];
+  getPegInFees: [getPegInFees, RpcAmount];
   recheckPeginAddress: [recheckPeginAddress, null];
   previewPayAddress: [previewPayAddress, RpcFeeDetails];
   payAddress: [payAddress, RpcOperationId];
@@ -1416,6 +1417,7 @@ export type RpcTransaction = {
   | {
       kind: "onchainDeposit";
       onchain_address: string;
+      peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
   | { kind: "oobSend"; state: RpcOOBSpendState | null }
@@ -1455,6 +1457,7 @@ export type RpcTransactionKind =
   | {
       kind: "onchainDeposit";
       onchain_address: string;
+      peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
   | { kind: "oobSend"; state: RpcOOBSpendState | null }
@@ -1501,6 +1504,7 @@ export type RpcTransactionListEntry = {
   | {
       kind: "onchainDeposit";
       onchain_address: string;
+      peg_in_fees: RpcAmount;
       state: RpcOnchainDepositState | null;
     }
   | { kind: "oobSend"; state: RpcOOBSpendState | null }
@@ -1866,6 +1870,8 @@ export type getMnemonic = {};
 export type getNostrPubkey = {};
 
 export type getNostrSecret = {};
+
+export type getPegInFees = { federationId: RpcFederationId };
 
 export type getPrevPayInvoiceResult = {
   federationId: RpcFederationId;

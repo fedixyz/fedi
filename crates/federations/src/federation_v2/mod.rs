@@ -1305,15 +1305,15 @@ impl FederationV2 {
                 RpcTransactionDirection::Send,
             )
             .await?;
-        let network_fees = self
-            .client
-            .wallet()?
+        let wallet = self.client.wallet()?;
+        let network_fees = wallet
             .get_withdraw_fees(
                 // TODO: need to verify against federation network, but where do we get it from?
                 &address.assume_checked(),
                 amount,
             )
             .await?;
+        let federation_fee = wallet.get_fee_consensus().peg_out_abs;
 
         let amount_msat = amount.to_sat() * 1000;
         let fedi_fee = (amount_msat * fedi_fee_ppm).div_ceil(MILLION);
@@ -1329,7 +1329,7 @@ impl FederationV2 {
         Ok(RpcFeeDetails {
             fedi_fee: RpcAmount(Amount::from_msats(fedi_fee)),
             network_fee: RpcAmount(Amount::from_msats(network_fees_msat)),
-            federation_fee: RpcAmount(Amount::ZERO),
+            federation_fee: RpcAmount(federation_fee),
         })
     }
 
@@ -3174,24 +3174,23 @@ impl FederationV2 {
                 match wallet_meta.variant {
                     WalletOperationMetaVariant::Deposit { address, .. } => {
                         let outcome = self.get_deposit_outcome(operation_id).await?;
+                        let wallet = self.client.wallet();
+                        let peg_in_fees = wallet
+                            .map(|w| w.get_fee_consensus().peg_in_abs)
+                            .unwrap_or(Amount::ZERO);
                         transaction_amount = match outcome {
                             Some(
                                 DepositStateV2::WaitingForConfirmation { btc_deposited, .. }
                                 | DepositStateV2::Claimed { btc_deposited, .. },
-                            ) => {
-                                let wallet = self.client.wallet();
-                                let fees = wallet
-                                    .map(|w| w.get_fee_consensus().peg_in_abs)
-                                    .unwrap_or(Amount::ZERO);
-                                RpcAmount(
-                                    Amount::from_sats(btc_deposited.to_sat()).saturating_sub(fees),
-                                )
-                            }
+                            ) => RpcAmount(
+                                Amount::from_sats(btc_deposited.to_sat())
+                                    .saturating_sub(peg_in_fees),
+                            ),
                             _ => RpcAmount(Amount::ZERO),
                         };
-
                         transaction_kind = RpcTransactionKind::OnchainDeposit {
                             onchain_address: address.assume_checked().to_string(),
+                            peg_in_fees: RpcAmount(peg_in_fees),
                             state: outcome.map(Into::into),
                         };
                     }
