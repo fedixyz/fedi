@@ -7,14 +7,10 @@ import {
 
 import {
     setFederations,
-    setLastUsedFederationId,
     setPayFromFederationId,
     setupStore,
 } from '@fedi/common/redux'
-import {
-    mockFederation1,
-    mockFederation2,
-} from '@fedi/common/tests/mock-data/federation'
+import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import i18n from '@fedi/native/localization/i18n'
 
 import ShareLogs from '../../../screens/ShareLogs'
@@ -108,68 +104,116 @@ describe('ShareLogs screen', () => {
         )
     })
 
-    it('should not show the federation selector overlay if the user has a payment federation', async () => {
-        store.dispatch(setFederations([mockFederation1]))
-        store.dispatch(setLastUsedFederationId('1'))
+    describe('should include federation secret checkbox', () => {
+        const enableSendDb = async () => {
+            const bugButton = screen.getByText('🪲')
+            for (let i = 0; i < 22; i++) {
+                await user.press(bugButton)
+            }
+        }
 
-        renderWithProviders(
-            <ShareLogs
-                navigation={mockNavigation as any}
-                route={
-                    { ...mockRoute, params: { ticketNumber: '1234' } } as any
-                }
-            />,
-            {
-                store,
-            },
-        )
+        const renderWithFederation = () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setPayFromFederationId(mockFederation1.id))
+            renderWithProviders(
+                <ShareLogs
+                    navigation={mockNavigation as any}
+                    route={
+                        {
+                            ...mockRoute,
+                            params: { ticketNumber: '1234' },
+                        } as any
+                    }
+                />,
+                { store },
+            )
+            return store
+        }
 
-        const submitButton = screen.getByTestId('submit')
-        expect(submitButton).toBeOnTheScreen()
+        it('should show checkbox and federation selector when sendDb is enabled and federations exist', async () => {
+            renderWithFederation()
+            await enableSendDb()
 
-        await user.press(submitButton)
+            const checkboxLabel = i18n.t(
+                'feature.bug.include-federation-secret',
+            )
 
-        await waitFor(() =>
-            expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalled(),
-        )
-    })
+            await waitFor(() => {
+                expect(screen.getByText(checkboxLabel)).toBeOnTheScreen()
+                expect(
+                    screen.getByTestId('federation-wallet-selector'),
+                ).toBeOnTheScreen()
+            })
+        })
 
-    it('should show the federation selector overlay if the user does not have a payment federation and they have multiple federations', async () => {
-        store.dispatch(setFederations([mockFederation1]))
-        store.dispatch(setFederations([mockFederation2]))
-        store.dispatch(setPayFromFederationId('3')) // different id to mockFederation1 and mockFederation2
+        it('should not show checkbox when sendDb is enabled but no federations exist', async () => {
+            renderWithProviders(
+                <ShareLogs
+                    navigation={mockNavigation as any}
+                    route={mockRoute as any}
+                />,
+            )
+            await enableSendDb()
 
-        renderWithProviders(
-            <ShareLogs
-                navigation={mockNavigation as any}
-                route={
-                    { ...mockRoute, params: { ticketNumber: '1234' } } as any
-                }
-            />,
-            {
-                store,
-            },
-        )
+            const checkboxLabel = i18n.t(
+                'feature.bug.include-federation-secret',
+            )
 
-        const submitButton = screen.getByTestId('submit')
-        await user.press(submitButton)
+            expect(screen.queryByText(checkboxLabel)).not.toBeOnTheScreen()
+            expect(
+                screen.queryByTestId('federation-wallet-selector'),
+            ).not.toBeOnTheScreen()
+        })
 
-        await waitFor(() =>
-            expect(screen.getByTestId('RNE__Overlay')).toBeOnTheScreen(),
-        )
+        it('should submit with includeFederationSecret=true when checkbox is checked', async () => {
+            renderWithFederation()
+            await enableSendDb()
 
-        const continueButton = screen.getByText(i18n.t('words.continue'))
-        const federationWalletSelector = screen.getByTestId(
-            'federation-wallet-selector',
-        )
+            const checkboxLabel = i18n.t(
+                'feature.bug.include-federation-secret',
+            )
 
-        expect(federationWalletSelector).toBeOnTheScreen()
-        expect(continueButton).toBeOnTheScreen()
+            await waitFor(() => {
+                expect(screen.getByText(checkboxLabel)).toBeOnTheScreen()
+            })
 
-        await user.press(continueButton)
+            await user.press(screen.getByText(checkboxLabel))
 
-        await waitFor(() =>
-            expect(screen.queryByTestId('RNE__Overlay')).not.toBeOnTheScreen(),
-        )
+            const submitButton = screen.getByTestId('submit')
+            await user.press(submitButton)
+
+            await waitFor(() => {
+                expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalledWith(
+                    true,
+                    '1234',
+                    true,
+                )
+            })
+        })
+
+        it('should submit with includeFederationSecret=false when checkbox is not checked', async () => {
+            renderWithFederation()
+            await enableSendDb()
+
+            const checkboxLabel = i18n.t(
+                'feature.bug.include-federation-secret',
+            )
+
+            await waitFor(() => {
+                expect(screen.getByText(checkboxLabel)).toBeOnTheScreen()
+            })
+
+            // Submit without checking the checkbox
+            const submitButton = screen.getByTestId('submit')
+            await user.press(submitButton)
+
+            await waitFor(() => {
+                expect(mockCollectAttachmentsAndSubmit).toHaveBeenCalledWith(
+                    true,
+                    '1234',
+                    false,
+                )
+            })
+        })
     })
 })

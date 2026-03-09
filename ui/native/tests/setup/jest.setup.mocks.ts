@@ -245,6 +245,7 @@ jest.mock('@rneui/themed', () => ({
     createTheme: jest.fn(),
     ThemeProvider: jest.requireActual('@rneui/themed').ThemeProvider,
     Button: jest.requireActual('@rneui/themed').Button,
+    CheckBox: jest.requireActual('@rneui/themed').CheckBox,
     Input: jest.requireActual('@rneui/themed').Input,
     Text: jest.requireActual('@rneui/themed').Text,
     Image: jest.requireActual('@rneui/themed').Image,
