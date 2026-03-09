@@ -25,25 +25,7 @@ jest.mock('@fedi/common/hooks/federation', () => ({
     usePopupFederationInfo: () => null,
 }))
 
-// Mock useCommonSelector - tracks which community IDs user has joined
-let mockJoinedCommunityIds: string[] = []
-jest.mock('@fedi/common/hooks/redux', () => ({
-    ...jest.requireActual('@fedi/common/hooks/redux'),
-    useCommonSelector: (selector: (state: unknown) => unknown) => {
-        if (typeof selector === 'function') {
-            const mockState = {
-                federation: {
-                    communities: mockJoinedCommunityIds.map(id => ({
-                        id,
-                        init_state: 'ready',
-                    })),
-                },
-            }
-            return selector(mockState)
-        }
-        return false
-    },
-}))
+let mockIsMember = false
 
 // Mock community invite event
 const mockInviteEvent = createMockCommunityInviteEvent()
@@ -55,9 +37,10 @@ const mockCommunityPreview = createMockCommunityPreview({
 describe('/components/Chat/ChatCommunityInviteEvent', () => {
     beforeEach(() => {
         jest.clearAllMocks()
-        mockJoinedCommunityIds = []
+        mockIsMember = false
         // Default mock implementation - loading state
         mockUseCommunityInviteCode.mockReturnValue({
+            joined: false,
             isFetching: true,
             preview: null,
             isJoining: false,
@@ -120,8 +103,9 @@ describe('/components/Chat/ChatCommunityInviteEvent', () => {
 
     describe('when preview is loaded', () => {
         beforeEach(() => {
-            mockJoinedCommunityIds = [] // Not a member
+            mockIsMember = false
             mockUseCommunityInviteCode.mockReturnValue({
+                joined: false,
                 isFetching: false,
                 preview: mockCommunityPreview,
                 isJoining: false,
@@ -181,9 +165,9 @@ describe('/components/Chat/ChatCommunityInviteEvent', () => {
 
     describe('when user is already a member', () => {
         beforeEach(() => {
-            // Set up as member via Redux mock
-            mockJoinedCommunityIds = [mockCommunityPreview.id]
+            mockIsMember = true
             mockUseCommunityInviteCode.mockReturnValue({
+                joined: true,
                 isFetching: false,
                 preview: mockCommunityPreview,
                 isJoining: false,
@@ -230,8 +214,9 @@ describe('/components/Chat/ChatCommunityInviteEvent', () => {
 
     describe('join dialog', () => {
         beforeEach(() => {
-            mockJoinedCommunityIds = [] // Not a member
+            mockIsMember = false
             mockUseCommunityInviteCode.mockReturnValue({
+                joined: false,
                 isFetching: false,
                 preview: mockCommunityPreview,
                 isJoining: false,

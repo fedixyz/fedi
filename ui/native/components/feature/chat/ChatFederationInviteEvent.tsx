@@ -31,8 +31,14 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
 
     const inviteCode = event.content.body
 
-    const { previewResult, isChecking, handleJoin, isError, isJoining } =
-        useFederationInviteCode(t, inviteCode)
+    const {
+        previewResult,
+        isChecking,
+        handleJoin,
+        isError,
+        isJoining,
+        isMember,
+    } = useFederationInviteCode(t, inviteCode)
 
     const toast = useToast()
 
@@ -52,10 +58,8 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
 
     const buttons = [
         {
-            label: previewResult?.isMember
-                ? t('words.joined')
-                : t('words.join'),
-            disabled: previewResult?.isMember,
+            label: isMember ? t('words.joined') : t('words.join'),
+            disabled: isMember,
             handler: () => setIsShowing(true),
         },
         {
@@ -100,7 +104,7 @@ const ChatFederationInviteEvent: React.FC<Props> = ({ event }: Props) => {
                             textColor={textColor}
                         />
                         <Column gap="xs">
-                            {previewResult.isMember && (
+                            {isMember && (
                                 <Text small color={textColor}>
                                     {t('phrases.you-are-a-member', {
                                         federationName:

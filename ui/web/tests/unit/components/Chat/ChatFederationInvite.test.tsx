@@ -26,28 +26,7 @@ jest.mock('@fedi/common/hooks/federation', () => ({
     usePopupFederationInfo: () => null,
 }))
 
-// Mock useCommonSelector - tracks which federation IDs user has joined
-let mockJoinedFederationIds: string[] = []
-jest.mock('@fedi/common/hooks/redux', () => ({
-    ...jest.requireActual('@fedi/common/hooks/redux'),
-    useCommonSelector: (selector: (state: unknown) => unknown) => {
-        // The selector checks if federation ID is in the list
-        // We simulate this by returning whether the ID is in our mock list
-        if (typeof selector === 'function') {
-            // Create a mock state that selectFederationIds can work with
-            const mockState = {
-                federation: {
-                    federations: mockJoinedFederationIds.map(id => ({
-                        id,
-                        init_state: 'ready',
-                    })),
-                },
-            }
-            return selector(mockState)
-        }
-        return false
-    },
-}))
+let mockIsMember = false
 
 // Mock text events for different scenarios
 const mockInviteEvent = createMockFederationInviteEvent()
@@ -58,12 +37,13 @@ const mockFederationPreview = createMockFederationPreview({
 describe('/components/Chat/ChatFederationInviteEvent', () => {
     beforeEach(() => {
         jest.clearAllMocks()
-        mockJoinedFederationIds = []
+        mockIsMember = false
         // Default mock implementation - loading state
         mockUseFederationInviteCode.mockReturnValue({
             isChecking: true,
             isError: false,
             isJoining: false,
+            isMember: false,
             previewResult: null,
             handleJoin: mockHandleJoin,
         })
@@ -71,12 +51,12 @@ describe('/components/Chat/ChatFederationInviteEvent', () => {
 
     describe('isMe prop', () => {
         beforeEach(() => {
-            // Set up as member via Redux mock
-            mockJoinedFederationIds = [mockFederationPreview.id]
+            mockIsMember = true
             mockUseFederationInviteCode.mockReturnValue({
                 isChecking: false,
                 isError: false,
                 isJoining: false,
+                isMember: true,
                 previewResult: {
                     preview: mockFederationPreview,
                     isMember: true,
@@ -159,11 +139,12 @@ describe('/components/Chat/ChatFederationInviteEvent', () => {
 
     describe('when preview is loaded', () => {
         beforeEach(() => {
-            mockJoinedFederationIds = [] // Not a member
+            mockIsMember = false
             mockUseFederationInviteCode.mockReturnValue({
                 isChecking: false,
                 isError: false,
                 isJoining: false,
+                isMember: false,
                 previewResult: {
                     preview: mockFederationPreview,
                     isMember: false,
@@ -217,15 +198,15 @@ describe('/components/Chat/ChatFederationInviteEvent', () => {
 
     describe('when user is already a member', () => {
         beforeEach(() => {
-            // Set up as member via Redux mock
-            mockJoinedFederationIds = [mockFederationPreview.id]
+            mockIsMember = true
             mockUseFederationInviteCode.mockReturnValue({
                 isChecking: false,
                 isError: false,
                 isJoining: false,
+                isMember: true,
                 previewResult: {
                     preview: mockFederationPreview,
-                    isMember: false, // This is ignored, Redux selector is used
+                    isMember: true,
                 },
                 handleJoin: mockHandleJoin,
             })
@@ -270,11 +251,12 @@ describe('/components/Chat/ChatFederationInviteEvent', () => {
 
     describe('join dialog', () => {
         beforeEach(() => {
-            mockJoinedFederationIds = [] // Not a member
+            mockIsMember = false
             mockUseFederationInviteCode.mockReturnValue({
                 isChecking: false,
                 isError: false,
                 isJoining: false,
+                isMember: false,
                 previewResult: {
                     preview: mockFederationPreview,
                     isMember: false,

@@ -1,10 +1,8 @@
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useCommunityInviteCode } from '@fedi/common/hooks/federation'
-import { useCommonSelector } from '@fedi/common/hooks/redux'
 import { useToast } from '@fedi/common/hooks/toast'
-import { selectCommunityIds } from '@fedi/common/redux'
 import { MatrixEvent } from '@fedi/common/types'
 
 import { useCopy } from '../../hooks'
@@ -29,17 +27,13 @@ export const ChatCommunityInviteEvent: React.FC<Props> = ({ event, isMe }) => {
     const [isShowing, setIsShowing] = useState(false)
 
     const inviteCode = event.content.body
-    const { preview, isFetching, isJoining, handleJoin } =
-        useCommunityInviteCode(inviteCode)
-
-    // Memoized selector that only returns boolean for this specific community
-    // This prevents re-renders when other communities change
-    const selectIsMember = useCallback(
-        (state: Parameters<typeof selectCommunityIds>[0]) =>
-            preview ? selectCommunityIds(state).includes(preview.id) : false,
-        [preview],
-    )
-    const isMember = useCommonSelector(selectIsMember)
+    const {
+        preview,
+        joined: isMember,
+        isFetching,
+        isJoining,
+        handleJoin,
+    } = useCommunityInviteCode(inviteCode)
 
     const handleCopy = () => {
         copy(inviteCode).then(() => {

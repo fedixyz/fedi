@@ -34,7 +34,7 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
     const inviteCode = event.content.body
 
     const {
-        joined,
+        joined: isMember,
         isJoining,
         isFetching,
         preview: communityPreview,
@@ -66,8 +66,8 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
 
     const buttons = [
         {
-            label: joined ? t('words.joined') : t('words.join'),
-            disabled: joined,
+            label: isMember ? t('words.joined') : t('words.join'),
+            disabled: isMember,
             handler: () => setIsShowing(true),
         },
         {
@@ -99,7 +99,7 @@ const ChatCommunityInviteEvent: React.FC<Props> = ({ event }: Props) => {
                             textColor={textColor}
                         />
                         <Column gap="xs">
-                            {joined && (
+                            {isMember && (
                                 <Text small color={textColor}>
                                     {t('phrases.you-are-a-member', {
                                         federationName: communityPreview.name,

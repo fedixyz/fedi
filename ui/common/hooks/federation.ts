@@ -669,11 +669,18 @@ export function useFederationInviteCode(t: TFunction, inviteCode: string) {
             .finally(() => setIsChecking(false))
     }, [inviteCode, dispatch, fedimint])
 
+    // Live membership check from Redux, updates immediately after joining
+    const federationIds = useCommonSelector(selectFederationIds)
+    const isMember = previewResult
+        ? federationIds.includes(previewResult.preview.id)
+        : false
+
     return {
         isJoining,
         isChecking,
         isError,
         previewResult,
+        isMember,
         handleJoin: (recoverFromScratch?: boolean) =>
             handleJoinFederation(inviteCode, recoverFromScratch),
     }
@@ -686,7 +693,6 @@ export function useCommunityInviteCode(inviteCode: string) {
 
     const [isJoining, setIsJoining] = useState(false)
     const [isFetching, setIsFetching] = useState(false)
-    const [joined, setJoined] = useState(false)
     const [preview, setPreview] = useState<CommunityPreview>()
 
     const handleJoin = async () => {
@@ -709,7 +715,6 @@ export function useCommunityInviteCode(inviteCode: string) {
     useEffect(() => {
         const init = async () => {
             setIsFetching(true)
-            setJoined(communityIds.includes(inviteCode))
             const communityPreview = await getCommunityPreview(
                 inviteCode,
                 fedimint,
@@ -720,6 +725,9 @@ export function useCommunityInviteCode(inviteCode: string) {
 
         init()
     }, [communityIds, fedimint, inviteCode])
+
+    // Live membership check from Redux using the parsed preview ID
+    const joined = preview ? communityIds.includes(preview.id) : false
 
     return {
         isJoining,
