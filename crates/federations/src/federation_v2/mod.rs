@@ -59,7 +59,9 @@ use fedimint_core::{
     Amount, PeerId, TransactionId, apply, async_trait_maybe_send, maybe_add_send_sync,
 };
 use fedimint_derive_secret::{ChildId, DerivableSecret};
+use fedimint_ln_client::incoming::IncomingSmError;
 use fedimint_ln_client::pay::GatewayPayError;
+use fedimint_ln_client::receive::LightningReceiveError;
 use fedimint_ln_client::{
     InternalPayState, LightningClientInit, LightningOperationMeta, LightningOperationMetaPay,
     LightningOperationMetaVariant, LnPayState, LnReceiveState, OutgoingLightningPayment,
@@ -203,6 +205,128 @@ pub struct FediConfig {
 enum PayState {
     Pay(LnPayState),
     Internal(InternalPayState),
+}
+
+macro_rules! log_update {
+    ($runtime:expr, $update:expr, $msg:literal, $sanitized:expr $(,)?) => {{
+        if $runtime.sensitive_log().await {
+            tracing::info!(update = ?$update, $msg);
+        } else {
+            tracing::info!(update_variant = %$sanitized, $msg);
+        }
+    }};
+}
+pub(crate) use log_update;
+
+fn deposit_update_sanitized_log(update: &DepositStateV2) -> String {
+    match update {
+        DepositStateV2::WaitingForTransaction => "WaitingForTransaction".to_string(),
+        DepositStateV2::WaitingForConfirmation { btc_deposited, .. } => {
+            format!(
+                "WaitingForConfirmation btc_deposited_sat={}",
+                btc_deposited.to_sat()
+            )
+        }
+        DepositStateV2::Confirmed { btc_deposited, .. } => {
+            format!("Confirmed btc_deposited_sat={}", btc_deposited.to_sat())
+        }
+        DepositStateV2::Claimed { btc_deposited, .. } => {
+            format!("Claimed btc_deposited_sat={}", btc_deposited.to_sat())
+        }
+        DepositStateV2::Failed(_) => "Failed".to_string(),
+    }
+}
+
+fn lightning_receive_error_variant_name(reason: &LightningReceiveError) -> &'static str {
+    match reason {
+        LightningReceiveError::Rejected => "Rejected",
+        LightningReceiveError::Timeout => "Timeout",
+        LightningReceiveError::ClaimRejected => "ClaimRejected",
+        LightningReceiveError::InvalidPreimage => "InvalidPreimage",
+    }
+}
+
+fn ln_receive_update_sanitized_log(update: &LnReceiveState) -> String {
+    match update {
+        LnReceiveState::Created => "Created".to_string(),
+        LnReceiveState::WaitingForPayment { timeout, .. } => {
+            format!("WaitingForPayment timeout_secs={}", timeout.as_secs())
+        }
+        LnReceiveState::Funded => "Funded".to_string(),
+        LnReceiveState::AwaitingFunds => "AwaitingFunds".to_string(),
+        LnReceiveState::Claimed => "Claimed".to_string(),
+        LnReceiveState::Canceled { reason } => {
+            format!(
+                "Canceled reason={}",
+                lightning_receive_error_variant_name(reason)
+            )
+        }
+    }
+}
+
+fn incoming_sm_error_variant_name(error: &IncomingSmError) -> &'static str {
+    match error {
+        IncomingSmError::ViolatedFeePolicy { .. } => "ViolatedFeePolicy",
+        IncomingSmError::InvalidOffer { .. } => "InvalidOffer",
+        IncomingSmError::TimeoutFetchingOffer { .. } => "TimeoutFetchingOffer",
+        IncomingSmError::FetchContractError { .. } => "FetchContractError",
+        IncomingSmError::InvalidPreimage { .. } => "InvalidPreimage",
+        IncomingSmError::FailedToFundContract { .. } => "FailedToFundContract",
+        IncomingSmError::AmountError { .. } => "AmountError",
+    }
+}
+
+fn internal_pay_update_sanitized_log(update: &InternalPayState) -> String {
+    match update {
+        InternalPayState::Funding => "Funding".to_string(),
+        InternalPayState::Preimage(_) => "Preimage".to_string(),
+        InternalPayState::RefundSuccess { out_points, error } => {
+            format!(
+                "RefundSuccess out_points_count={} error_kind={}",
+                out_points.len(),
+                incoming_sm_error_variant_name(error)
+            )
+        }
+        InternalPayState::RefundError {
+            error_message: _,
+            error,
+        } => format!(
+            "RefundError error_kind={}",
+            incoming_sm_error_variant_name(error)
+        ),
+        InternalPayState::FundingFailed { error } => {
+            format!(
+                "FundingFailed error_kind={}",
+                incoming_sm_error_variant_name(error)
+            )
+        }
+        InternalPayState::UnexpectedError(_) => "UnexpectedError".to_string(),
+    }
+}
+
+fn gateway_pay_error_variant_name(error: &GatewayPayError) -> (&'static str, Option<u16>) {
+    match error {
+        GatewayPayError::GatewayInternalError { error_code, .. } => {
+            ("GatewayInternalError", *error_code)
+        }
+        GatewayPayError::OutgoingContractError => ("OutgoingContractError", None),
+    }
+}
+
+fn ln_pay_update_sanitized_log(update: &LnPayState) -> String {
+    match update {
+        LnPayState::Created => "Created".to_string(),
+        LnPayState::Canceled => "Canceled".to_string(),
+        LnPayState::Funded { block_height } => format!("Funded block_height={block_height}"),
+        LnPayState::WaitingForRefund { .. } => "WaitingForRefund".to_string(),
+        LnPayState::AwaitingChange => "AwaitingChange".to_string(),
+        LnPayState::Success { .. } => "Success".to_string(),
+        LnPayState::Refunded { gateway_error } => {
+            let (kind, code) = gateway_pay_error_variant_name(gateway_error);
+            format!("Refunded gateway_error_kind={kind} gateway_error_code={code:?}")
+        }
+        LnPayState::UnexpectedError { .. } => "UnexpectedError".to_string(),
+    }
 }
 
 pub fn invite_code_from_client_confing(config: &ClientConfig) -> InviteCode {
@@ -666,7 +790,7 @@ impl FederationV2 {
                     ErrorCode::FederationPendingRejoinFromScratch(invite_code_string).into(),
                 );
             }
-            info!("backup found {:?}", client_backup);
+            info!("backup found");
             client_preview
                 .recover(federation_db.clone(), client_secret, Some(client_backup))
                 .await?
@@ -841,9 +965,8 @@ impl FederationV2 {
                     )
                     .await
                     {
-                        Ok(Ok(status_response)) => {
-                            // Ensure you log before the match, to capture even partial responses
-                            info!("Raw status response: {:?}", status_response);
+                        Ok(Ok(_status_response)) => {
+                            info!("Received guardian status response");
                             GuardianStatus::Online {
                                 guardian: guardian.to_string(),
                                 latency_ms: fedimint_core::time::now()
@@ -855,14 +978,14 @@ impl FederationV2 {
                             }
                         }
                         Ok(Err(error)) => {
-                            info!("Error response: {:?}", error);
+                            info!("Guardian status request failed");
                             GuardianStatus::Error {
                                 guardian: guardian.to_string(),
                                 error: error.to_string(),
                             }
                         }
                         Err(elapsed) => {
-                            info!("Timeout elapsed: {:?}", elapsed);
+                            info!("Guardian status request timed out");
                             GuardianStatus::Timeout {
                                 guardian: guardian.to_string(),
                                 elapsed: elapsed.to_string(),
@@ -1038,7 +1161,12 @@ impl FederationV2 {
                 return;
             };
             while let Some(update) = updates.next().await {
-                info!("Update: {:?}", update);
+                log_update!(
+                    fed.runtime,
+                    update,
+                    "Received deposit update",
+                    deposit_update_sanitized_log(&update)
+                );
                 fed.update_operation_state(operation_id, update.clone())
                     .await;
                 match update {
@@ -1092,7 +1220,12 @@ impl FederationV2 {
             };
             let mut updates = updates.into_stream();
             while let Some(update) = updates.next().await {
-                info!("Update: {:?}", update);
+                log_update!(
+                    fed.runtime,
+                    update,
+                    "Received lightning invoice update",
+                    ln_receive_update_sanitized_log(&update)
+                );
                 fed.update_operation_state(operation_id, update.clone())
                     .await;
                 match update {
@@ -1679,7 +1812,12 @@ impl FederationV2 {
                         _ => {}
                     }
 
-                    info!("Update: {:?}", update);
+                    log_update!(
+                        self.runtime,
+                        update,
+                        "Received internal lightning payment update",
+                        internal_pay_update_sanitized_log(&update)
+                    );
                 }
                 Err(anyhow!("Internal lightning payment failed"))
             }
@@ -1724,7 +1862,12 @@ impl FederationV2 {
                         _ => {}
                     }
 
-                    info!("lightning update: {:?}", update);
+                    log_update!(
+                        self.runtime,
+                        update,
+                        "Received lightning payment update",
+                        ln_pay_update_sanitized_log(&update)
+                    );
                 }
                 Err(anyhow!("lightning payment failed"))
             }
@@ -2418,7 +2561,7 @@ impl FederationV2 {
         peer_id: PeerId,
         guardian_password: String,
     ) -> Result<Option<Vec<u8>>> {
-        tracing::info!("downloading verification doc {}", recovery_id);
+        tracing::info!("downloading verification doc");
         // FIXME: maybe shouldn't download from only one peer?
         let verification_client = self.social_verification(peer_id).await?;
         let verification_doc = verification_client
@@ -2440,7 +2583,7 @@ impl FederationV2 {
         peer_id: PeerId,
         guardian_password: String,
     ) -> Result<()> {
-        tracing::info!("approve social recovery {}", peer_id);
+        tracing::info!("approve social recovery");
         let verification_client = self.social_verification(peer_id).await?;
         verification_client
             .approve_recovery(*recovery_id, guardian_password)
@@ -2586,17 +2729,14 @@ impl FederationV2 {
         operation_id: OperationId,
         entry: OperationLogEntry,
     ) -> anyhow::Result<Option<RpcTransaction>> {
-        let meta = entry.meta::<serde_json::Value>();
         let module = entry.operation_module_kind().to_owned();
         timeout_log_only(
             self.get_transaction_really_inner(operation_id, entry),
             Duration::from_secs(30),
             || {
-                let meta = serde_json::to_string_pretty(&meta).unwrap();
                 error!(
                     op = %operation_id.fmt_short(),
                     module,
-                    meta,
                     "found transaction slow culprit"
                 );
             },
@@ -4646,7 +4786,7 @@ async fn maybe_backfill_federation_network(
             .await;
 
         if let Err(e) = network_backfill_res {
-            info!(%e, "failed to backfill {} network on disk for fed {}", network, federation_id);
+            info!(%e, "failed to backfill {} network on disk", network);
         }
     }
 }

@@ -49,7 +49,7 @@ impl Communities {
                 match community_load_res {
                     Ok(community) => Some((invite, community)),
                     Err(e) => {
-                        error!(%invite, ?e, "Community failed to load, this shouldn't happen");
+                        error!(?e, "Community failed to load, this shouldn't happen");
                         None
                     }
                 }
@@ -213,7 +213,7 @@ impl Communities {
 
                 // if community is already marked as deleted, do not even attempt to refresh it
                 if matches!(old_info.status, CommunityStatus::Deleted) {
-                    info!(%old_invite, "Community marked as deleted, not refreshing");
+                    info!("Community marked as deleted, not refreshing");
                     return;
                 }
 
@@ -226,7 +226,7 @@ impl Communities {
                     )
                     .await
                     .inspect_err(|e| {
-                        info!(%e, "Failed to refresh communtiy meta for {}", &old_invite);
+                        info!(%e, "Failed to refresh communtiy meta");
                     })
                 else {
                     return;
@@ -265,7 +265,7 @@ impl Communities {
                         })
                         .await
                         .inspect_err(|e| {
-                            info!(%e, "Error updating state for v2 migration for {}", new_invite);
+                            info!(%e, "Error updating state for v2 migration");
                         });
 
                     // Emit event to front-end signaling migration
@@ -293,7 +293,7 @@ impl Communities {
                         })
                         .await
                         .inspect_err(|e| {
-                            info!(%e, "Error updating state for updated meta for {}", old_invite);
+                            info!(%e, "Error updating state for updated meta");
                         });
 
                     // Emit event to front-end

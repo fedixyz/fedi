@@ -20,10 +20,23 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, Layer};
 
-pub fn default_log_filter() -> String {
+fn permissive_log_filter() -> String {
     format!(
         "info,{LOG_CLIENT}=debug,fediffi=trace,{LOG_CLIENT_REACTOR}=trace,{LOG_CLIENT_MODULE_WALLET}=trace"
     )
+}
+
+fn strict_log_filter() -> String {
+    format!(
+        "info,{LOG_CLIENT}=warn,{LOG_CLIENT_REACTOR}=off,{LOG_CLIENT_MODULE_WALLET}=warn,matrix_sdk_crypto=error,fedimint_ln_client::pay=error,fediffi=info"
+    )
+}
+
+fn default_log_filter(app_flavor: RpcAppFlavor) -> String {
+    match app_flavor {
+        RpcAppFlavor::Dev | RpcAppFlavor::Nightly | RpcAppFlavor::Tests => permissive_log_filter(),
+        RpcAppFlavor::Bravo => strict_log_filter(),
+    }
 }
 
 pub struct ReactNativeLayer(pub EventSink);
@@ -81,7 +94,7 @@ pub fn init_logging(
             .with_filter(EnvFilter::from_str(log_filter).unwrap_or_default()),
     );
 
-    let reg = reg.with(log_file_layer.with_filter(EnvFilter::new(default_log_filter())));
+    let reg = reg.with(log_file_layer.with_filter(EnvFilter::new(default_log_filter(app_flavor))));
 
     let res = if cfg!(target_os = "android") && option_env!("FEDI_DEV_LOGS").is_some() {
         let time = fedimint_core::time::now()

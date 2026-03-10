@@ -68,7 +68,10 @@ impl Federations {
         let mut federations = self.federations.ensure_lock();
         for (federation_id, federation_info) in joined_federations {
             if federation_info.version < 2 {
-                error!(version = federation_info.version, %federation_id, "Invalid federation version");
+                error!(
+                    version = federation_info.version,
+                    "Invalid federation version"
+                );
                 continue;
             }
             let fed_sm = FederationStateMachine::prepare_for_load();
@@ -285,10 +288,10 @@ impl Federations {
             .runtime
             .app_state
             .with_write_lock(|state| {
-                state.joined_federations.iter_mut().for_each(|(id, info)| {
+                state.joined_federations.iter_mut().for_each(|(_id, info)| {
                     // Only proceed if we know this federation's network
                     let Some(network) = info.network else {
-                        warn!(%id, "Federation's network is not stored on disk");
+                        warn!("Federation's network is not stored on disk");
                         return;
                     };
 
@@ -316,7 +319,7 @@ impl Federations {
     }
 }
 
-#[tracing::instrument(skip_all, err, fields(federation_id = federation_id_str))]
+#[tracing::instrument(skip_all, err)]
 #[allow(clippy::too_many_arguments)]
 async fn load_federation(
     runtime: Arc<Runtime>,

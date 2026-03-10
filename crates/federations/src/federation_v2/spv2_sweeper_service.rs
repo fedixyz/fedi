@@ -45,6 +45,19 @@ impl SPv2SweeperService {
     }
 }
 
+fn spv2_sweeper_update_variant_name(
+    update: &StabilityPoolWithdrawalOperationState,
+) -> &'static str {
+    match update {
+        StabilityPoolWithdrawalOperationState::UnlockTxRejected(_) => "UnlockTxRejected",
+        StabilityPoolWithdrawalOperationState::UnlockProcessingError(_) => "UnlockProcessingError",
+        StabilityPoolWithdrawalOperationState::WithdrawalTxRejected(_) => "WithdrawalTxRejected",
+        StabilityPoolWithdrawalOperationState::PrimaryOutputError(_) => "PrimaryOutputError",
+        StabilityPoolWithdrawalOperationState::Success(_) => "Success",
+        _ => "Other",
+    }
+}
+
 async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> anyhow::Result<()> {
     // In order to sweep a staged seeker deposit back into e-cash, two
     // things must be true:
@@ -85,12 +98,7 @@ async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> an
         return subscribe_res;
     }
 
-    info!(
-        ?current_cycle_index,
-        ?last_deposit_cycle_index,
-        ?sync_response.staged_balance,
-        "Proceeding to sweep spv2 unlocked balance"
-    );
+    info!("Proceeding to sweep spv2 unlocked balance");
 
     let (operation_id, _) = fed
         .client
@@ -135,7 +143,10 @@ async fn subscribe_withdraw(
                 )));
                 return Ok(());
             }
-            _ => info!("spv2 sweeper withdraw update: {:?}", update),
+            _ => info!(
+                update_variant = spv2_sweeper_update_variant_name(&update),
+                "Received spv2 sweeper withdraw update"
+            ),
         }
     }
 

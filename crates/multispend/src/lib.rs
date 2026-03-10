@@ -337,7 +337,7 @@ pub async fn process_event_db(
     event_time: u64,
     context: &mut MultispendContext,
 ) {
-    info!(event_id = %event_id.0, "processing multispend event");
+    info!("processing multispend event");
     if let Err(err) = process_event_db_raw(
         dbtx,
         room_id,
@@ -350,9 +350,7 @@ pub async fn process_event_db(
     .await
     {
         let ProcessEventError::InvalidMessage = err;
-        // logging the entire event, this might be privacy leaking when you share
-        // the logs.
-        error!(?sender, ?event_id, ?event, "Invalid multispend event");
+        error!("Invalid multispend event");
         dbtx.insert_new_entry(&MultispendInvalidEvent(event_id), &())
             .await;
     }

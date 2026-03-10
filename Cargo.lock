@@ -3248,6 +3248,7 @@ dependencies = [
  "fedimint-connectors",
  "fedimint-core",
  "fedimint-cursed-redb",
+ "fedimint-logging",
  "futures",
  "gloo-console",
  "gloo-file",

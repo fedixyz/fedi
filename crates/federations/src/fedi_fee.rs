@@ -420,7 +420,7 @@ impl FediFeeRemittanceService {
         });
     }
 
-    #[instrument(skip(fed), fields(federation_id = %fed.federation_id()) , err, ret)]
+    #[instrument(skip(fed), err, ret)]
     #[cfg_attr(target_family = "wasm", async_recursion(?Send))]
     #[cfg_attr(not(target_family = "wasm"), async_recursion)]
     async fn remit_fedi_fee(
@@ -492,7 +492,7 @@ impl FediFeeRemittanceService {
                         Some(current_bal),
                         i64::try_from(i128::from(current_bal.0) - i128::from(prev_bal.0))
                             .inspect_err(|e| {
-                                error!(%e, ?current_bal, ?prev_bal, "Failed to calculate delta");
+                                error!(%e, "Failed to calculate delta");
                             })
                             .ok(),
                     )

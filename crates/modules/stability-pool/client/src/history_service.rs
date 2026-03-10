@@ -81,7 +81,7 @@ impl StabilityPoolHistoryService {
         let should_fetch = match sync_response.account_history_count.cmp(&local_count) {
             Ordering::Equal => false,
             Ordering::Less => {
-                error!(?sync_response, "server account history should not lag!");
+                error!("server account history should not lag!");
                 bail!("server error: incorrect sync response");
             }
             Ordering::Greater => true,

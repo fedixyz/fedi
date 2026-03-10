@@ -38,7 +38,7 @@ where
         request: &SignedBackupRequest,
     ) -> FederationResult<()> {
         for res in join_all(self.all_peers().iter().map(|peer_id| {
-            info!(%peer_id, id=%request.backup_id(), "Uploading social backup to guardian");
+            info!("Uploading social backup to guardian");
             self.request_single_peer_federation(
                 "backup".into(),
                 ApiRequestErased::new(request),
@@ -58,7 +58,7 @@ where
         request: &SignedRecoveryRequest,
     ) -> FederationResult<()> {
         for res in join_all(self.all_peers().iter().map(|peer_id| {
-            info!(%peer_id, id=%request.recovery_id(), "Uploading social backup to guardian");
+            info!("Uploading social recovery request to guardian");
             self.request_single_peer_federation(
                 "recover".into(),
                 ApiRequestErased::new(request),

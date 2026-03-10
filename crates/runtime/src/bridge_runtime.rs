@@ -75,4 +75,20 @@ impl Runtime {
             BridgeDbPrefix::SpTransfersPrefix as u8,
         ])
     }
+
+    /// Enable logging of potentially sensitive information.
+    pub async fn sensitive_log(&self) -> bool {
+        self.app_state
+            .with_read_lock(|state| state.sensitive_log.unwrap_or(false))
+            .await
+    }
+
+    pub async fn set_sensitive_log(&self, enable: bool) -> anyhow::Result<()> {
+        self.app_state
+            .with_write_lock(|state| {
+                state.sensitive_log = Some(enable);
+            })
+            .await?;
+        Ok(())
+    }
 }

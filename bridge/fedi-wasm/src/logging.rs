@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex as StdMutex};
 
+use fedimint_logging::{LOG_CLIENT, LOG_CLIENT_REACTOR};
 use runtime::event::IEventSink;
 use tracing_subscriber::EnvFilter;
 // nosemgrep: ban-wildcard-imports
@@ -14,10 +15,10 @@ const KEEP_SIZE: u64 = 10 * 1024 * 1024; // 10MB
 
 fn set_panic_hook() {
     std::panic::set_hook(Box::new(move |info| {
-        tracing::info!(%info, "panic");
-        // write separately in case backtrace capturing bugs out.
+        tracing::error!("panic");
+        // Write separately in case backtrace capturing bugs out.
         let backtrace = std::backtrace::Backtrace::force_capture();
-        tracing::info!(%backtrace, "panic");
+        tracing::error!(%backtrace, "panic");
         console_error_panic_hook::hook(info);
     }));
 }
@@ -28,6 +29,9 @@ pub async fn init(
     log_level: Option<String>,
 ) {
     set_panic_hook();
+    let default_log_filter = format!(
+        "info,{LOG_CLIENT}=warn,{LOG_CLIENT_REACTOR}=off,matrix_sdk_crypto=error,fedimint_ln_client::pay=error,fediffi=info"
+    );
     let log_buffer_layer = tracing_subscriber::fmt::layer()
         .json()
         .with_writer(StdMutex::new(WasmLogFile::new(sync_handle)))
@@ -35,9 +39,7 @@ pub async fn init(
     tracing_subscriber::registry()
         .with(log_buffer_layer)
         .with(EnvFilter::new(
-            log_level
-                .as_deref()
-                .unwrap_or("info,fedimint_client=debug,fediffi=trace"),
+            log_level.as_deref().unwrap_or(&default_log_filter),
         ))
         .with(tracing_wasm::WASMLayer::default())
         .init();

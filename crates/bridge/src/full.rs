@@ -82,7 +82,7 @@ impl BridgeFull {
         // perhaps). In this case, we notify the caller with a special type of error.
         let existing_identifier_v2 = runtime.app_state.device_identifier().await;
         if existing_identifier_v2 != device_identifier {
-            error!(%existing_identifier_v2, %device_identifier, "device id mismatch");
+            error!("device id mismatch");
             return Err(BridgeOffboardingReason::DeviceIdentifierMismatch {
                 existing: existing_identifier_v2,
                 new: device_identifier,

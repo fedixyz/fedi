@@ -122,7 +122,12 @@ async fn subscribe_recurring_payment_receive(
     };
     let mut updates = updates.into_stream();
     while let Some(update) = updates.next().await {
-        info!("Update: {:?}", update);
+        super::log_update!(
+            fed.runtime,
+            update,
+            "Received lnurl recurring receive update",
+            super::ln_receive_update_sanitized_log(&update)
+        );
         fed.update_operation_state(operation_id, update.clone())
             .await;
         match update {

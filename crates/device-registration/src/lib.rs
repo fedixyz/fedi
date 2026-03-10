@@ -124,7 +124,7 @@ pub async fn register_device_with_backoff(
                     .await
                 {
                     Ok(_) => {
-                        info!("successfully registered device with index {device_index}");
+                        info!("successfully registered device");
                         // AppState write shouldn't fail, but timestamp update is not critical
                         // anyway
                         let _ = app_state
@@ -140,7 +140,7 @@ pub async fn register_device_with_backoff(
                         Ok(RegisterDeviceRetryOk::Success)
                     }
                     Err(RegisterDeviceError::AnotherDeviceOwnsIndex(error)) => {
-                        error!(%error, "unexpected device registration conflict");
+                        error!("unexpected device registration conflict");
                         if emit_event_on_conflict {
                             let _ = app_state.set_device_index_conflict(true).await;
                             event_sink.typed_event(&Event::device_registration(
@@ -150,8 +150,8 @@ pub async fn register_device_with_backoff(
                         // Return an Ok to indicate the error is non-retryable
                         Ok(RegisterDeviceRetryOk::Conflict(error))
                     }
-                    Err(error) => {
-                        error!(?error, "register device failed, retrying");
+                    Err(_) => {
+                        error!("register device failed, retrying");
                         // If more than 12 hours since last successful registration renewal, emit
                         // Overdue event
                         if let Some(last_registration_timestamp) = app_state

@@ -213,7 +213,7 @@ impl Nostril {
             .into_iter()
             .filter_map(|event| {
                 let Some(uuid) = event.tags.identifier() else {
-                    error!(?event, "Missing UUID in d tag");
+                    error!("Missing UUID in d tag");
                     return None;
                 };
 
@@ -221,7 +221,7 @@ impl Nostril {
                     event.tags.find(TagKind::custom(NOSTR_COMMUNITY_STATUS_TAG))
                     && status_tag.content() == Some(NOSTR_COMMUNITY_STATUS_DELETED)
                 {
-                    info!(?event, "Community marked deleted, skipping");
+                    info!("Community marked deleted, skipping");
                     return None;
                 }
 
@@ -231,7 +231,7 @@ impl Nostril {
             .dedup_by(|(u1, _), (u2, _)| u1 == u2)
             .filter_map(|(uuid, event)| {
                 let uuid_bytes = hex::decode(&uuid)
-                    .inspect_err(|e| error!(?event, %uuid, ?e, "Couldn't hex-decode UUID"))
+                    .inspect_err(|e| error!(?e, "Couldn't hex-decode UUID"))
                     .ok()?;
 
                 let creation_keys = self.community_creation_keys(&uuid_bytes);
@@ -240,7 +240,7 @@ impl Nostril {
                     &event.content,
                     &creation_keys.encryption_key,
                 )
-                .inspect_err(|e| error!(?event, %uuid, ?e, "Couldn't decrypt community json"))
+                .inspect_err(|e| error!(?e, "Couldn't decrypt community json"))
                 .ok()?;
 
                 Some(RpcCommunity {

@@ -36,3 +36,4 @@ wasm-bindgen-test = "0.3.49"
 fedimint-connectors = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-cursed-redb = { workspace = true }
+fedimint-logging = { workspace = true }

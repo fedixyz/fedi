@@ -63,7 +63,7 @@ impl SptTransferSubmitter {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(pending_transfer_id = %transfer_id.event_id.0), err)]
+    #[instrument(skip_all, err)]
     async fn process_pending_transfer(
         &self,
         dbtx: &mut DatabaseTransaction<'_>,

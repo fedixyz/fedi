@@ -346,7 +346,7 @@ impl FediSocial {
             .verify_valid(SECP256K1)
             .map_err(|_| ApiError::bad_request("invalid request: signature invalid".into()))?;
 
-        debug!(id = %request.id, "Received social backup request");
+        debug!("Received social backup request");
         if let Some(prev) = dbtx.get_value(&request.id).await {
             if &prev == request {
                 // if we already have exactly same backup request, just return OK, so this call
@@ -370,7 +370,7 @@ impl FediSocial {
             ));
         }
 
-        info!(id = %request.id, "Storing new user social backup");
+        info!("Storing new user social backup");
         dbtx.insert_entry(&request.id, request).await;
 
         dbtx.insert_entry(
@@ -391,7 +391,7 @@ impl FediSocial {
             .verify_valid(SECP256K1)
             .map_err(|_| ApiError::bad_request("invalid request: signature invalid".into()))?;
 
-        debug!(id = %request.id, "Received social recovery request");
+        debug!("Received social recovery request");
 
         let Some(backup) = dbtx.get_value(&BackupId(request.id.0)).await else {
             return Err(ApiError::bad_request(
@@ -418,7 +418,7 @@ impl FediSocial {
 
         // TODO: any limits w.r.t social recovery document size? Possibly enforce in the
         // type itself.
-        info!(id = %request.id, "Storing user recovery");
+        info!("Storing user recovery");
         dbtx.insert_entry(&request.id, request).await;
 
         Ok(())
@@ -429,7 +429,7 @@ impl FediSocial {
         dbtx: &mut DatabaseTransaction<'_>,
         request: RecoveryId,
     ) -> Result<Option<VerificationDocument>, ApiError> {
-        debug!(id = %request.0, "Received social recovery verification document request");
+        debug!("Received social recovery verification document request");
 
         let Some(recovery) = dbtx.get_value(&request).await else {
             return Ok(None);
@@ -443,7 +443,7 @@ impl FediSocial {
         dbtx: &mut DatabaseTransaction<'_>,
         request: RecoveryId,
     ) -> Result<VerificationDocument, ApiError> {
-        debug!(id = %request.0, "Received social recovery approval");
+        debug!("Received social recovery approval");
 
         let Some(recovery) = dbtx.get_value(&RecoveryId(request.0)).await else {
             return Err(ApiError::bad_request(
@@ -457,7 +457,7 @@ impl FediSocial {
             ));
         };
 
-        info!(id = %request.0, "Creating social recovery decryption key");
+        info!("Creating social recovery decryption key");
         let decryption_share = self
             .cfg
             .private
@@ -483,7 +483,7 @@ impl FediSocial {
         dbtx: &mut DatabaseTransaction<'_>,
         request: RecoveryId,
     ) -> Result<Option<EncryptedRecoveryShare>, ApiError> {
-        info!(id = %request.0, "Requested encrypted decryption share");
+        info!("Requested encrypted decryption share");
 
         Ok(dbtx.get_value(&DecryptionShareId(request.0)).await)
     }

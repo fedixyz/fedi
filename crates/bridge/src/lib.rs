@@ -336,22 +336,6 @@ pub trait RuntimeExt: Deref<Target = Runtime> {
             .await
     }
 
-    /// Enable logging of potentially sensitive information.
-    async fn sensitive_log(&self) -> bool {
-        self.app_state
-            .with_read_lock(|f| f.sensitive_log.unwrap_or(false))
-            .await
-    }
-
-    async fn set_sensitive_log(&self, enable: bool) -> anyhow::Result<()> {
-        self.app_state
-            .with_write_lock(|f| {
-                f.sensitive_log = Some(enable);
-            })
-            .await?;
-        Ok(())
-    }
-
     async fn sign_lnurl_message(
         &self,
         message: Message,

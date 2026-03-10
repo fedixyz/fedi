@@ -182,7 +182,7 @@ impl BridgeOnboarding {
                 .get_decryption_share_from(peer_id)
                 .await
                 .unwrap_or_else(|_| {
-                    debug!("failed to get decryption share from peer {}", peer_id);
+                    debug!("failed to get decryption share from peer");
                     false
                 });
             approvals.push(SocialRecoveryApproval {

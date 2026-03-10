@@ -29,6 +29,15 @@ impl StabilityPoolSweeperService {
     }
 }
 
+fn sp_sweeper_update_variant_name(update: &StabilityPoolWithdrawalOperationState) -> &'static str {
+    match update {
+        StabilityPoolWithdrawalOperationState::TxRejected(_) => "TxRejected",
+        StabilityPoolWithdrawalOperationState::PrimaryOutputError(_) => "PrimaryOutputError",
+        StabilityPoolWithdrawalOperationState::Success(_) => "Success",
+        _ => "Other",
+    }
+}
+
 async fn continuously_sweep_stability_pool(
     client: &fedimint_client::Client,
     event_sink: EventSink,
@@ -106,7 +115,10 @@ async fn sweep_stability_pool_inner(
                 )));
                 return Ok(());
             }
-            _ => info!("Stability pool sweeper withdraw update: {:?}", update),
+            _ => info!(
+                update_variant = sp_sweeper_update_variant_name(&update),
+                "Received stability pool sweeper withdraw update"
+            ),
         }
     }
 

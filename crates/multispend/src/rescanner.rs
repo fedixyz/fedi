@@ -177,11 +177,11 @@ impl RoomRescannerManager {
             }
         }
 
-        debug!(?room_id, "Room rescan queued");
+        debug!("Room rescan queued");
     }
 
     /// Background task that handles the actual room rescanning
-    #[instrument(skip(self, room_state))]
+    #[instrument(skip(self, room_state, room_id))]
     async fn run_room_rescan_task(&self, room_id: &RoomId, room_state: &MultispendRoom) {
         debug!("Started rescanning room task");
         loop {
@@ -190,7 +190,7 @@ impl RoomRescannerManager {
             // while we were rescanning
             *room_state.state.write() = RoomRescanState::Running;
 
-            info!(?room_id, "Started rescanning room");
+            info!("Started rescanning room");
 
             // Perform the rescanning
             let db = self.runtime.multispend_db();
@@ -210,7 +210,7 @@ impl RoomRescannerManager {
                 .process_multispend_events(room_id, &mut dbtx.to_ref_nc(), &mut context)
                 .await
             {
-                warn!(?err, ?room_id, "Error rescanning room");
+                warn!(?err, "Error rescanning room");
             }
 
             dbtx.commit_tx().await;
@@ -266,27 +266,21 @@ impl RoomRescannerManager {
             )))
             .await;
 
-        info!(?last_scan_event_id);
         // find all events since our last seen event, first time this will scan the
         // entire* room history.
         // * see hack bellow in all_message_since.
         let events_to_process =
             all_message_since_retry_decryption(&room, last_scan_event_id).await?;
-
-        let event_ids_found = events_to_process
-            .iter()
-            .map(|e| e.event_id())
-            .collect::<Vec<_>>();
-
-        info!(?event_ids_found);
+        info!(
+            event_count = events_to_process.len(),
+            "Rescanning room events"
+        );
 
         let new_latest_event_id = events_to_process
             .iter()
             .rev()
             .find_map(|e| e.event_id())
             .map(|event_id| RpcEventId(event_id.to_string()));
-
-        info!(?new_latest_event_id);
 
         let new_multispend_events = events_to_process
             .iter()
