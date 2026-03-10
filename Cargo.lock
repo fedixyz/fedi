@@ -2529,6 +2529,8 @@ dependencies = [
  "fedimint-logging",
  "fedimint-portalloc",
  "rand 0.8.5",
+ "runtime",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",
