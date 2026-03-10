@@ -156,8 +156,8 @@ fedimint-cli-v0_2_2-rc8 *ARGS:
 run-ui-integration-tests workspace="" *test_args:
   @./scripts/ui/run-integration-tests.sh {{workspace}} {{test_args}}
 
-run-ui-unit-tests workspace="":
-  @./scripts/ui/run-unit-tests.sh {{workspace}}
+run-ui-unit-tests workspace="" *test_args:
+  @./scripts/ui/run-unit-tests.sh {{workspace}} {{test_args}}
 
 tidy-up:
   @./scripts/tidy-up.sh

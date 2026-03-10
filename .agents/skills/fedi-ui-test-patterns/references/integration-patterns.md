@@ -1,22 +1,16 @@
 # Integration Test Patterns Index
 
-Start here before loading any integration-test reference. This file is intentionally small: its job is to route you to the right environment-specific guide and keep the first context load cheap.
+Use this guide only after you have determined that you are working with integration tests.
 
----
+Do not load all integration references by default. Most tasks only need one environment guide plus 1-2 nearby tests:
 
-## Load Order
-
-When working on an integration test, load files in this order:
-
-1. This file: `references/integration-patterns.md`
-2. Exactly one environment guide:
-   - `references/integration-common-patterns.md`
-   - `references/integration-native-patterns.md`
-   - `references/integration-web-patterns.md`
-3. `references/mock-builders.md` only if the test needs local mock factories or selective test-only mocks
-4. Existing nearby integration tests for the exact feature you are changing
-
-Do not load all integration references by default. Most tasks only need one environment guide plus 1-2 nearby tests.
+- Determine which environment you are writing tests for
+- Then read exactly one environment-specific guide:
+   - `references/unit-native-patterns.md`
+   - `references/unit-web-patterns.md`
+   - `references/unit-common-patterns.md`
+- Read `references/mock-builders.md` only if you need to use or create test data mocks
+- Read existing nearby integration tests for the exact feature you are changing
 
 ---
 
@@ -46,6 +40,31 @@ Then read `references/integration-native-patterns.md`.
 Use this when the subject lives in `ui/web/` and the test renders a page or component in jsdom against the real bridge.
 
 Then read `references/integration-web-patterns.md`.
+
+---
+
+## File Naming
+
+When creating new test files, consider matching the source file name & directory structure. However there is no requirement for the test file name to match the source file name since integration tests often cover code from multiple files. The test file name may simple be a brief title of the feature or functionality being covered.
+
+---
+
+## Running Tests
+
+ALWAYS use the top-level bash scripts to run tests. The script ensures prerequisites for every test are met.
+
+```bash
+# Run all integration tests (all UI workspaces)
+./scripts/ui/run-integration-tests.sh
+
+# Run integration tests for one workspace
+./scripts/ui/run-integration-tests.sh common
+./scripts/ui/run-integration-tests.sh native
+./scripts/ui/run-integration-tests.sh web
+
+# Run integration test for one specific *.test.ts file in one workspace (chat-message.test.ts)
+./scripts/ui/run-integration-tests.sh native chat-message.test.ts
+```
 
 ---
 
@@ -127,35 +146,9 @@ If there is a nearby existing integration test in the same folder as the feature
 These are good defaults across integration environments, unless nearby tests clearly follow a different stable pattern:
 
 - Integration tests use the real remote bridge, not `createMockFedimintBridge()`
-- Tests depend on a running `devimint` environment and remote bridge server
 - They run sequentially and use longer timeouts than unit tests
 - `waitFor(...)` around eventual state is common across all environments
 - Nearest local test style wins over generic guidance
-
----
-
-## Prerequisites
-
-Integration tests require:
-
-- a running `devimint` environment
-- the remote bridge server running on `localhost:26722` or `REMOTE_BRIDGE_PORT`
-- sequential execution
-
-Run commands:
-
-```bash
-# Run all integration tests
-./scripts/ui/run-integration-tests.sh
-
-# Run one workspace
-./scripts/ui/run-integration-tests.sh common
-./scripts/ui/run-integration-tests.sh native
-./scripts/ui/run-integration-tests.sh web
-
-# Run one file pattern in one workspace
-./scripts/ui/run-integration-tests.sh web federations
-```
 
 ---
 
@@ -246,17 +239,15 @@ The configs default to `60000`, but real tests sometimes override per-test or pe
 
 ### Real Bridge First, Selective Mocks Only If Needed
 
-Integration tests should stay bridge-backed by default. Selective mocks or spies are acceptable only when the main flow still depends on the real bridge and nearby tests already use that style.
+Integration tests should stay bridge-backed by default. Selective spies or fetch overrides are acceptable inside integration tests but you should strongly prefer fully integrated remote bridge + redux state flows wherever possible
 
 ---
 
 ## Important Exceptions
 
-- Not every `ui/common` integration test uses `createIntegrationTestBuilder()`
 - Not every integration test renders UI; some assert directly on bridge or store behavior
 - Native screen tests often pass nav / route mocks, but some screens render without them
-- Selective spies or fetch overrides are acceptable inside integration tests when the test still depends on the real bridge flow
-- Some common integration suites are explicitly skipped today because of flakiness; do not treat every existing pattern as a universal rule
+- Some common integration suites are explicitly skipped today because of flakiness
 
 ---
 
@@ -269,22 +260,3 @@ Integration tests should stay bridge-backed by default. Selective mocks or spies
 | Execution | usually parallel | sequential |
 | Timeout profile | short | longer baseline |
 | Common assertions | render behavior in isolation | eventual store / bridge / UI behavior against real state |
-
----
-
-## File Naming
-
-Integration test files live under `tests/integration/` and use:
-
-- `.test.ts` for hooks or logic-heavy files
-- `.test.tsx` for rendered screens / pages / components
-
----
-
-## Related References
-
-- `references/integration-common-patterns.md`
-- `references/integration-native-patterns.md`
-- `references/integration-web-patterns.md`
-- `references/mock-builders.md`
-- `references/unit-patterns.md`

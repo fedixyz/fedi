@@ -11,14 +11,20 @@ if [ -n "$WORKSPACE" ]; then
         common|native|web) ;;
         *)
             echo "❌ Unknown workspace: $WORKSPACE"
-            echo "Usage: $0 [common|native|web]"
+            echo "Usage: $0 [common|native|web] [test-matcher]"
             exit 1
             ;;
     esac
+    shift
 fi
 
 TEST_DIR="$REPO_ROOT/ui${WORKSPACE:+/$WORKSPACE}"
+TEST_ARGS=(test:unit)
+if [ "$#" -gt 0 ]; then
+    TEST_ARGS+=(-- "$@")
+fi
+TEST_CMD=(yarn "${TEST_ARGS[@]}")
 
 echo "🧪 Running unit tests${WORKSPACE:+ for $WORKSPACE}..."
-env -C "$TEST_DIR" yarn test:unit
+env -C "$TEST_DIR" "${TEST_CMD[@]}"
 echo "✅ Unit tests completed successfully"

@@ -1,6 +1,6 @@
 ---
 name: fedi-ui-test-patterns
-description: Comprehensive knowledge of Fedi's testing infrastructure for UI code — when to unit test vs integration test vs e2e, all available utilities, mock builders, conventions, and concrete patterns for writing each type of test.
+description: Comprehensive knowledge of Fedi's testing infrastructure for UI code (utilities, mock builders, conventions, and patterns) — use this when reading, writing or running unit/integration/e2e tests
 user-invocable: false
 ---
 
@@ -19,15 +19,16 @@ Write unit tests when the change involves:
 
 Unit tests mock the bridge entirely. They're fast, isolated, and don't need a running backend.
 
-When working on unit tests, use progressive disclosure:
+When working on unit tests:
 
 1. Read `references/unit-patterns.md` first
-2. Then read exactly one environment-specific guide:
+2. Determine which environment you are writing tests for.
+3. Then read exactly one environment-specific guide:
    - `references/unit-native-patterns.md`
    - `references/unit-web-patterns.md`
    - `references/unit-common-patterns.md`
-3. Read `references/mock-builders.md` only if you need mock factories or bridge helpers
-4. Read 1-2 nearby tests in the same folder as the code under test
+4. Read `references/mock-builders.md` only if you need to use or create test data mocks
+5. Read 1-2 nearby tests in the same folder as the code under test
 
 ### Integration Tests — `ui/*/tests/integration/`
 
@@ -38,17 +39,16 @@ Write integration tests when the change involves:
 - **Matrix/chat flows** that involve real message sending, room creation, or auth
 - **End-to-end data flows** where you need to verify the full path: user action → Redux dispatch → bridge RPC → state update → UI reflects change
 
-Integration tests use a real bridge process. They're slower, run sequentially (`--runInBand`), and have at least a 60-second timeout per test.
-
-When working on integration tests, use progressive disclosure:
+When working on integration tests:
 
 1. Read `references/integration-patterns.md` first
-2. Then read exactly one environment-specific guide:
+2. Determine which environment you are writing tests for.
+3. Then read exactly one environment-specific guide:
    - `references/integration-common-patterns.md`
    - `references/integration-native-patterns.md`
    - `references/integration-web-patterns.md`
-3. Read `references/mock-builders.md` only if you need local mock factories or selective test-only mocks
-4. Read 1-2 nearby integration tests in the same folder as the code under test
+4. Read `references/mock-builders.md` only if you need to use or create test data mocks
+5. Read 1-2 nearby integration tests in the same folder as the code under test
 
 ### E2E Tests (Appium) — `ui/native/tests/appium/`
 
@@ -71,27 +71,11 @@ The Fedi team follows a **pragmatic** approach. Don't write tests for:
 
 ## Running Tests
 
-ALWAYS use the top-level bash scripts to run tests.
+ALWAYS use the top-level bash scripts to run tests. Further details on how to use these scripts are in the respective `references/integration-patterns.md` and `references/unit-patterns.md` guides.
 
 ```bash
-# Run all unit tests (all UI workspaces)
 ./scripts/ui/run-unit-tests.sh
-
-# Run unit tests for one workspace
-./scripts/ui/run-unit-tests.sh common
-./scripts/ui/run-unit-tests.sh native
-./scripts/ui/run-unit-tests.sh web
-
-# Run all integration tests (all UI workspaces)
 ./scripts/ui/run-integration-tests.sh
-
-# Run integration tests for one workspace
-./scripts/ui/run-integration-tests.sh common
-./scripts/ui/run-integration-tests.sh native
-./scripts/ui/run-integration-tests.sh web
-
-# Run integrations for one specific *.test.ts file in one workspace (chat-message.test.ts)
-./scripts/ui/run-integration-tests.sh native chat-message
 ```
 
 ## File Locations & Naming

@@ -20,7 +20,7 @@ Patterns for `ui/common/tests/unit/`.
 
 ### Pure utility tests
 
-This is the cheapest and most common pattern. No providers needed.
+This is the cheapest pattern. No providers needed.
 
 ```typescript
 import amountUtils from '../../../utils/AmountUtils'
@@ -101,25 +101,14 @@ The setup file also provides shared test defaults like logging mocks and locale 
 
 ---
 
-## Remote Bridge Mocking
+## Mocking
 
-For common utility tests that import `fedimint` from `@fedi/common/utils/remote-bridge`, use a file-local module mock.
-
-```typescript
-jest.mock('../../../utils/remote-bridge', () => ({
-    fedimint: {
-        rpcResult: jest.fn(),
-    },
-}))
-```
-
-For higher-level bridge mock factories, read `references/mock-builders.md`.
+If mocking is required, read `references/mock-builders.md`.
 
 ---
 
 ## Common Conventions
 
-- `jest.clearAllMocks()` in `beforeEach`
 - prefer simple direct assertions for pure utilities
 - use table-driven `forEach` cases when it improves coverage density
 - keep utility tests providerless unless context is genuinely required
@@ -127,10 +116,8 @@ For higher-level bridge mock factories, read `references/mock-builders.md`.
 
 ---
 
-## Canonical Files To Copy From
+## Existing files to model patterns from
 
 - Utility tests: find a nearby file in `ui/common/tests/unit/utils/`
 - Hook tests with store: find a nearby file in `ui/common/tests/unit/hooks/`
 - Redux logic tests: find a nearby file in `ui/common/tests/unit/redux/`
-
-For shared mock factories, pair this guide with `references/mock-builders.md`.

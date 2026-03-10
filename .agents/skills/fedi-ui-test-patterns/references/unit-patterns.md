@@ -1,26 +1,19 @@
 # Unit Test Patterns Index
 
-Start here before loading any unit-test reference. This file is intentionally small: its job is to route you to the right environment-specific guide.
+Use this guide only after you have determined that you are working with unit tests.
 
----
+Do not load all unit references by default. Most tasks only need one environment guide plus 1-2 nearby tests:
 
-## Load Order
-
-When working on a unit test, load files in this order:
-
-1. This file: `references/unit-patterns.md`
-2. The environment-specific guide:
+- Determine which environment you are writing tests for
+- Then read exactly one environment-specific guide:
    - `references/unit-native-patterns.md`
    - `references/unit-web-patterns.md`
    - `references/unit-common-patterns.md`
-3. `references/mock-builders.md` only if you need concrete mock factories or `createMockFedimintBridge`
-4. Existing nearby tests for the exact feature you are changing
-
-Do not load all unit references by default. Most tasks only need one environment guide plus 1-2 nearby tests.
+- Read `references/mock-builders.md` only if you need to use or create test data mocks
 
 ---
 
-## Pick The Right Environment
+## Picking The Right Environment
 
 ### `ui/native/tests/unit/`
 
@@ -57,9 +50,51 @@ Then read `references/unit-common-patterns.md`.
 
 ---
 
+## File Naming
+
+Unit test files live under `tests/unit/` and use:
+
+- `.test.ts` for hooks or logic-heavy files
+- `.test.tsx` for rendered screens / pages / components
+
+When creating new test files, the name MUST match the source file they are testing. One test file per source file — never combine tests for multiple source files into a single test file.
+
+- `hooks/amount/useMinMaxDepositAmount.ts` → `tests/unit/hooks/useMinMaxDepositAmount.test.ts`
+- `hooks/matrix.ts` → `tests/unit/hooks/matrix.test.ts`
+- `utils/AmountUtils.ts` → `tests/unit/utils/AmountUtils.test.ts`
+
+---
+
+## Running Tests
+
+ALWAYS use the top-level bash scripts to run tests.
+
+```bash
+# Run all unit tests (all UI workspaces)
+./scripts/ui/run-unit-tests.sh
+
+# Run unit tests for one workspace
+./scripts/ui/run-unit-tests.sh common
+./scripts/ui/run-unit-tests.sh native
+./scripts/ui/run-unit-tests.sh web
+
+# Run unit tests for one specific *.test.ts file in one workspace (amount.test.ts)
+./scripts/ui/run-unit-tests.sh common amount.test.ts
+```
+
+---
+
 ## Decision Tree
 
-### Native Decision
+### Common Environment
+
+If the subject is a pure util or shared hook with no UI shell:
+
+- Often no providers are needed
+- Use `renderHookWithState` only when the hook needs store / Fedimint context
+- Read `references/unit-common-patterns.md`
+
+### Native Environment
 
 If the subject is a native screen or component:
 
@@ -72,7 +107,7 @@ If the subject is a native hook that needs Redux, Fedimint, i18n, or RN setup:
 
 - Usually use `renderHookWithProviders`
 
-### Web Decision
+### Web Environment
 
 Web unit tests split into two real families. This distinction matters.
 
@@ -88,17 +123,9 @@ If the subject is a providerless component or standalone hook:
 
 Do not assume all web unit tests use shared render helpers. Many do not.
 
-### Common Decision
-
-If the subject is a pure util or shared hook with no UI shell:
-
-- Often no providers are needed
-- Use `renderHookWithState` only when the hook needs store / Fedimint context
-- Read `references/unit-common-patterns.md`
-
 ---
 
-## Real Canonical Examples
+## Examples to model from
 
 Open one of these after you choose the environment. Prefer the closest example to the task shape.
 
@@ -135,8 +162,23 @@ These are good defaults across environments, unless nearby tests clearly follow 
 - Prefer behavior assertions over implementation-detail assertions
 - Prefer async queries when the UI updates after async work
 - Reuse existing mock builders and setup mocks before inventing new local fixtures
+- Whenever possible, test descriptions should use language that adds a layer of abstraction instead of just describing literal code logic / assertions
+  - bad: "should return maxAmount: 0 when balance < 0"
+  - good: "should guard against negative balances"
 
 Do not turn these into rigid rules when the surrounding tests in the same folder already follow a different stable pattern. Match the local suite first.
+
+---
+
+## Coverage Completeness
+
+When writing tests for a hook or utility, you MUST make your best effort to cover every value in the return type. If a hook returns `{ minimumAmount, maximumAmount }`, both fields need test coverage.
+
+If a return value is hard to test because its dependency chain is difficult to mock, you MUST either:
+1. Work through the mock (preferred), OR
+2. Explicitly tell the user which return values lack coverage and why, including a comment in the test file with this explanation
+
+Never silently skip coverage for part of a return type.
 
 ---
 
@@ -147,10 +189,3 @@ Do not turn these into rigid rules when the surrounding tests in the same folder
 - In web tests, both `userEvent` and `fireEvent` are used in the real suite
 - In web tests, raw `render` / `renderHook` are common for providerless subjects
 
----
-
-## Related References
-
-- `references/mock-builders.md` for Fedimint, federation, transaction, and Matrix mocks
-- `references/integration-patterns.md` for integration tests
-- `references/appium-patterns.md` for Appium tests
