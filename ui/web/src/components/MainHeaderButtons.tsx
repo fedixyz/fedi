@@ -13,20 +13,19 @@ import { Icon } from './Icon'
 import { ProfileIcon } from './ProfileIcon'
 
 type Props = {
-    onShowCommunitiesPress?: () => void
+    onMenuPress?: () => void
     onAddPress?: () => void
 }
 
-const MainHeaderButtons: React.FC<Props> = ({
-    onShowCommunitiesPress,
-    onAddPress,
-}) => {
+const MainHeaderButtons: React.FC<Props> = ({ onMenuPress, onAddPress }) => {
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
     return (
         <Row gap="md" align="center">
-            {onShowCommunitiesPress && (
-                <IconButton onClick={onShowCommunitiesPress}>
+            {onMenuPress && (
+                <IconButton
+                    onClick={onMenuPress}
+                    data-testid="MainHeaderButtons__HamburgerIcon">
                     <Icon icon={HamburgerIcon} size="sm" />
                 </IconButton>
             )}

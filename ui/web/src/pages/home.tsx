@@ -68,7 +68,7 @@ function HomePage() {
                 <Layout.PageHeader
                     title={t('words.communities')}
                     onAddPress={() => push(onboardingCommunitiesRoute)}
-                    onShowCommunitiesPress={() => setShowCommunities(true)}
+                    onMenuPress={() => setShowCommunities(true)}
                     selectedCommunity={selectedCommunity}
                 />
                 <Layout.Content>

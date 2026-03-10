@@ -94,6 +94,7 @@ const SelectFederationListItem: React.FC<{
     return (
         <Pressable
             key={`federation-option-${federation.id}`}
+            testID={`SelectFederationListItem-${federation.id}`}
             style={style.tileContainer}
             onPress={() => handleFederationSelected(federation)}>
             <FederationLogo federation={federation} size={32} />

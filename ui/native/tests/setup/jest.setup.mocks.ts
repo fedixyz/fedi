@@ -90,6 +90,7 @@ jest.mock('react-native-device-info', () => ({
     getSystemVersion: jest.fn(() => '14.4'),
     getDeviceId: jest.fn(() => 'iPhone12,1'),
     getDeviceName: jest.fn(() => 'Test iPhone'),
+    getBundleId: jest.fn(() => ''),
     hasNotch: jest.fn(() => false),
 }))
 
@@ -195,6 +196,7 @@ jest.mock('react-native', () => ({
     PanResponder: jest.requireActual('react-native').PanResponder,
     Pressable: jest.requireActual('react-native').Pressable,
     ScrollView: jest.requireActual('react-native').ScrollView,
+    StatusBar: jest.requireActual('react-native').StatusBar,
     StyleSheet: jest.requireActual('react-native').StyleSheet,
     Switch: jest.requireActual('react-native').Switch,
     Text: jest.requireActual('react-native').Text,
@@ -239,6 +241,7 @@ jest.mock('react-native-reanimated', () => ({
 // mock a theme object with values for colors, spacing, etc
 export const mockTheme = {
     ...themeDefaults,
+    components: { Header: {} },
 }
 
 jest.mock('@rneui/themed', () => ({
@@ -251,6 +254,7 @@ jest.mock('@rneui/themed', () => ({
     Image: jest.requireActual('@rneui/themed').Image,
     Overlay: jest.requireActual('@rneui/themed').Overlay,
     Switch: jest.requireActual('@rneui/themed').Switch,
+    Header: jest.requireActual('@rneui/themed').Header,
     useTheme: () => ({
         theme: mockTheme,
     }),
@@ -271,6 +275,7 @@ export const mockNavigation = {
     goBack: jest.fn(),
     replace: jest.fn(),
     dispatch: jest.fn(),
+    addListener: jest.fn(() => {}),
 }
 export const mockRoute = {}
 jest.mock('@react-navigation/native', () => ({
@@ -456,3 +461,8 @@ jest.mock('react-native-video', () => {
         default: MockVideo,
     }
 })
+
+jest.mock('react-native-svg', () => ({
+    SvgXml: jest.requireActual('react-native-svg').SvgXml,
+    Svg: jest.requireActual('react-native-svg').Svg,
+}))

@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import { setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
@@ -18,6 +19,7 @@ jest.mock('@fedi/common/hooks/currency.ts', () => ({
 describe('/pages/federations', () => {
     let store: ReturnType<typeof setupStore>
     let state: AppState
+    const user = userEvent.setup()
 
     beforeAll(() => {
         store = setupStore()
@@ -75,6 +77,50 @@ describe('/pages/federations', () => {
             )
 
             expect(recoveryInProgress).toBeInTheDocument()
+        })
+    })
+
+    describe('federation selector', () => {
+        it('should display the menu icon in the header', async () => {
+            renderWithProviders(<FederationsPage />, {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1],
+                        recentlyUsedFederationIds: ['1'],
+                    },
+                },
+            })
+
+            const menuIcon = screen.getByTestId(
+                'MainHeaderButtons__HamburgerIcon',
+            )
+
+            expect(menuIcon).toBeInTheDocument()
+        })
+
+        it('should show the federation selector when the menu icon is clicked', async () => {
+            renderWithProviders(<FederationsPage />, {
+                preloadedState: {
+                    federation: {
+                        ...state.federation,
+                        federations: [mockFederation1],
+                        recentlyUsedFederationIds: ['1'],
+                    },
+                },
+            })
+
+            const menuIcon = screen.getByTestId(
+                'MainHeaderButtons__HamburgerIcon',
+            )
+
+            await user.click(menuIcon)
+
+            const selectFederationTitle = screen.getByLabelText(
+                i18n.t('phrases.select-federation'),
+            )
+
+            expect(selectFederationTitle).toBeInTheDocument()
         })
     })
 })

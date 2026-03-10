@@ -17,14 +17,14 @@ import { TotalBalance } from './TotalBalance'
 type PageHeaderProps = {
     title: string
     onAddPress?: () => void
-    onShowCommunitiesPress?: () => void
+    onMenuPress?: () => void
     selectedCommunity?: Community
 }
 
 export function PageHeader({
     title,
     onAddPress,
-    onShowCommunitiesPress,
+    onMenuPress,
     selectedCommunity,
 }: PageHeaderProps) {
     const [invitingCommunityId, setInvitingCommunityId] = useState('')
@@ -36,7 +36,7 @@ export function PageHeader({
                     <Row justify="between" css={{ width: '100%' }}>
                         <Title>{title}</Title>
                         <MainHeaderButtons
-                            onShowCommunitiesPress={onShowCommunitiesPress}
+                            onMenuPress={onMenuPress}
                             onAddPress={onAddPress}
                         />
                     </Row>

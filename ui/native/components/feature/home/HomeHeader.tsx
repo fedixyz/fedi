@@ -45,9 +45,7 @@ const HomeHeader: React.FC = () => {
                     headerRight={
                         <MainHeaderButtons
                             onAddPress={openJoinCommunity}
-                            onShowCommunitiesPress={() =>
-                                setShowCommunities(true)
-                            }
+                            onMenuPress={() => setShowCommunities(true)}
                         />
                     }
                 />

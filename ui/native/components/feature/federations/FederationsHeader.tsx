@@ -1,21 +1,33 @@
 import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
+import {
+    selectPaymentFederation,
+    setPayFromFederationId,
+} from '@fedi/common/redux'
+
+import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import { isNightly } from '../../../utils/device-info'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import TotalBalance from '../../ui/TotalBalance'
+import SelectFederationOverlay from '../send/SelectFederationOverlay'
 
 const FederationsHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
     const showNightlyBanner = useMemo(() => isNightly(), [])
+
+    const [open, setOpen] = useState(false)
+
+    const dispatch = useAppDispatch()
+    const paymentFederation = useAppSelector(selectPaymentFederation)
 
     const style = styles(theme)
 
@@ -35,7 +47,10 @@ const FederationsHeader: React.FC = () => {
                     </Text>
                 }
                 headerRight={
-                    <MainHeaderButtons onAddPress={openJoinCommunity} />
+                    <MainHeaderButtons
+                        onAddPress={openJoinCommunity}
+                        onMenuPress={() => setOpen(true)}
+                    />
                 }
             />
             <TotalBalance />
@@ -49,6 +64,15 @@ const FederationsHeader: React.FC = () => {
                     </Text>
                 </View>
             )}
+            <SelectFederationOverlay
+                opened={open}
+                onDismiss={() => setOpen(false)}
+                showStableBalance
+                onSelect={federation =>
+                    dispatch(setPayFromFederationId(federation.id))
+                }
+                selectedFederation={paymentFederation?.id ?? ''}
+            />
         </GradientView>
     )
 }

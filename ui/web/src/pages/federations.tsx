@@ -12,6 +12,7 @@ import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
 import FeaturedFederation from '../components/FeaturedFederation'
 import FederationTile from '../components/FederationTile'
+import FederationsOverlay from '../components/FederationsOverlay'
 import { Column } from '../components/Flex'
 import * as Layout from '../components/Layout'
 import { Text } from '../components/Text'
@@ -26,6 +27,7 @@ function FederationsPage() {
     const [expandedWalletId, setExpandedWalletId] = useState<string | null>(
         null,
     )
+    const [open, setOpen] = useState(false)
 
     const federations = useAppSelector(selectNonFeaturedFederations)
     const featuredFederation = useAppSelector(selectLastUsedFederation)
@@ -79,9 +81,11 @@ function FederationsPage() {
                 <Layout.PageHeader
                     title={t('words.wallets')}
                     onAddPress={() => router.push('/onboarding')}
+                    onMenuPress={() => setOpen(true)}
                 />
                 <Layout.Content fullWidth>{content}</Layout.Content>
             </Layout.Root>
+            <FederationsOverlay open={open} onOpenChange={setOpen} />
         </ContentBlock>
     )
 }
