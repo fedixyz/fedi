@@ -71,14 +71,10 @@ describe('common/hooks/receive', () => {
                 fedimint,
             )
 
-            act(() => {
-                // Make the lightning request
-                const invoiceResult = result.current.makeLightningRequest(
-                    -1000 as Sats,
-                    'test',
-                )
-
-                expect(invoiceResult).rejects.toThrow()
+            await act(async () => {
+                await expect(
+                    result.current.makeLightningRequest(-1000 as Sats, 'test'),
+                ).rejects.toThrow()
             })
         })
 
@@ -114,10 +110,12 @@ describe('common/hooks/receive', () => {
             })
 
             // Pay the invoice
-            await fedimint.payInvoice(
-                result.current.invoice || '',
-                federationId || '',
-            )
+            await act(async () => {
+                await fedimint.payInvoice(
+                    result.current.invoice || '',
+                    federationId || '',
+                )
+            })
 
             await waitFor(() => {
                 expect(onInvoicePaid).toHaveBeenCalled()
@@ -211,12 +209,10 @@ describe('common/hooks/receive', () => {
             )
 
             // Make the onchain address
-            act(() => {
-                const onchainAddressResult = result.current.makeOnchainAddress()
-
-                expect(onchainAddressResult).rejects.toThrow(
-                    'Federation not found',
-                )
+            await act(async () => {
+                await expect(
+                    result.current.makeOnchainAddress(),
+                ).rejects.toThrow('Federation not found')
             })
         })
 
@@ -248,11 +244,13 @@ describe('common/hooks/receive', () => {
             })
 
             // Save notes
-            const saveNotesResult = result.current.onSaveNotes({
-                this: 'is a test',
-            } as unknown as string)
-
-            expect(saveNotesResult).rejects.toThrow('Bad request')
+            await act(async () => {
+                await expect(
+                    result.current.onSaveNotes({
+                        this: 'is a test',
+                    } as unknown as string),
+                ).rejects.toThrow('Bad request')
+            })
         })
     })
 
@@ -312,16 +310,17 @@ describe('common/hooks/receive', () => {
             expect(parsedLnurl.type).toBe(ParserDataType.LnurlPay)
 
             // Pay the parsed lnurl pay code
-            const payResult = await lnurlPay(
-                fedimint,
-                federationId ?? '',
-                parsedLnurl.data,
-                10000 as MSats,
-                'lnurl pay txn',
-            )
-
-            expect(payResult.isOk()).toBeTruthy()
-            expect(payResult._unsafeUnwrap().preimage).toBeTruthy()
+            await act(async () => {
+                const payResult = await lnurlPay(
+                    fedimint,
+                    federationId ?? '',
+                    parsedLnurl.data,
+                    10000 as MSats,
+                    'lnurl pay txn',
+                )
+                expect(payResult.isOk()).toBeTruthy()
+                expect(payResult._unsafeUnwrap().preimage).toBeTruthy()
+            })
 
             // find the transaction
             const transactions = await fedimint.listTransactions(

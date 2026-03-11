@@ -76,21 +76,23 @@ describe('message deletion', () => {
         })
 
         // all 3 users observing their timelines and send a message from each
-        renderHookWithBridge(
-            () => useObserveMatrixRoom(roomId),
-            storeAlice,
-            bridgeAlice.fedimint,
-        )
-        renderHookWithBridge(
-            () => useObserveMatrixRoom(roomId),
-            storeBob,
-            bridgeBob.fedimint,
-        )
-        renderHookWithBridge(
-            () => useObserveMatrixRoom(roomId),
-            storeCharlie,
-            bridgeCharlie.fedimint,
-        )
+        act(() => {
+            renderHookWithBridge(
+                () => useObserveMatrixRoom(roomId),
+                storeAlice,
+                bridgeAlice.fedimint,
+            )
+            renderHookWithBridge(
+                () => useObserveMatrixRoom(roomId),
+                storeBob,
+                bridgeBob.fedimint,
+            )
+            renderHookWithBridge(
+                () => useObserveMatrixRoom(roomId),
+                storeCharlie,
+                bridgeCharlie.fedimint,
+            )
+        })
 
         // send messages one at a time, verifying each appears in all
         // timelines before sending the next (this pattern helps with flakiness)
@@ -155,11 +157,13 @@ describe('message deletion', () => {
             expect(msg).toBeDefined()
             return msg?.id as RpcTimelineEventItemId
         })
-        await bridgeAlice.fedimint.matrixDeleteMessage(
-            roomId,
-            messageFromBobInAliceTimeline,
-            null,
-        )
+        await act(async () => {
+            await bridgeAlice.fedimint.matrixDeleteMessage(
+                roomId,
+                messageFromBobInAliceTimeline,
+                null,
+            )
+        })
 
         await waitFor(() => {
             const events = selectMatrixRoomEvents(storeAlice.getState(), roomId)
@@ -182,11 +186,13 @@ describe('message deletion', () => {
             expect(msg).toBeDefined()
             return msg?.id as RpcTimelineEventItemId
         })
-        await bridgeBob.fedimint.matrixDeleteMessage(
-            roomId,
-            messageFromCharlieInBobTimeline,
-            null,
-        )
+        await act(async () => {
+            await bridgeBob.fedimint.matrixDeleteMessage(
+                roomId,
+                messageFromCharlieInBobTimeline,
+                null,
+            )
+        })
 
         await waitFor(() => {
             const events = selectMatrixRoomEvents(storeBob.getState(), roomId)
@@ -210,13 +216,15 @@ describe('message deletion', () => {
             expect(msg).toBeDefined()
             return msg?.id as RpcTimelineEventItemId
         })
-        await expect(
-            bridgeCharlie.fedimint.matrixDeleteMessage(
-                roomId,
-                messageFromAliceInCharlieTimeline,
-                null,
-            ),
-        ).rejects.toThrow()
+        await act(async () => {
+            await expect(
+                bridgeCharlie.fedimint.matrixDeleteMessage(
+                    roomId,
+                    messageFromAliceInCharlieTimeline,
+                    null,
+                ),
+            ).rejects.toThrow()
+        })
 
         // ---- Test 4: All users can delete their own messages ----
         const aliceSelfMsgEventId = await waitFor(() => {
@@ -227,11 +235,13 @@ describe('message deletion', () => {
             expect(msg).toBeDefined()
             return msg?.id as RpcTimelineEventItemId
         })
-        await bridgeAlice.fedimint.matrixDeleteMessage(
-            roomId,
-            aliceSelfMsgEventId,
-            null,
-        )
+        await act(async () => {
+            await bridgeAlice.fedimint.matrixDeleteMessage(
+                roomId,
+                aliceSelfMsgEventId,
+                null,
+            )
+        })
 
         const bobSelfMsgEventId = await waitFor(() => {
             const events = selectMatrixRoomEvents(storeBob.getState(), roomId)
