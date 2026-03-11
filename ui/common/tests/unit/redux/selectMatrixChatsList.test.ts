@@ -121,7 +121,7 @@ describe('selectMatrixChatsList', () => {
 
         const result = selectMatrixChatsList(store.getState())
 
-        expect(result.map(r => r.id)).toEqual(['room-joined'])
+        expect(result.map(r => r.id)).toEqual(['room-invited', 'room-joined'])
     })
 
     it('merges default groups with joined rooms sorted by recencyStamp', () => {
@@ -131,6 +131,7 @@ describe('selectMatrixChatsList', () => {
             matrix: {
                 roomList: [],
                 roomPowerLevels: {},
+                rejectedRoomInvites: [],
                 groupPreviews: {
                     'default-group': makeDefaultGroupPreview(
                         'default-group',

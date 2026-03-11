@@ -353,10 +353,18 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
         return paginationStatus !== 'timelineStartReached'
     }, [paginationStatus])
 
+    // TODOS: also watch the joined satus of the room.
+    // If we're not joined, don't observe the room/timeline stuff.
+    // Once we move to "joined" state, observe the room stuff like normal.
+
     // observeMatrixRoom establishes all of the relevant observables
     // when unmounting we unobserve the room, but only for group chats
     useEffect(() => {
         if (!matrixStarted) return
+
+        // Don't observe the room if we're not joined
+        if (room?.roomState !== 'joined') return
+
         dispatch(observeMatrixRoom({ fedimint, roomId }))
         return () => {
             // Don't unobserve DMs so ecash gets claimed in the
@@ -367,7 +375,14 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
             if (room?.isDirect) return
             dispatch(unobserveMatrixRoom({ fedimint, roomId }))
         }
-    }, [matrixStarted, roomId, dispatch, room?.isDirect, fedimint])
+    }, [
+        matrixStarted,
+        roomId,
+        dispatch,
+        room?.isDirect,
+        fedimint,
+        room?.roomState,
+    ])
 
     useEffect(() => {
         if (!matrixStarted || !latestEventId) return

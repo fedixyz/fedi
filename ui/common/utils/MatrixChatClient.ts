@@ -765,6 +765,10 @@ export class MatrixChatClient {
                     // Emit the room info
                     const serializedRoom = this.serializeRoomInfo(room)
                     this.emit('roomInfo', serializedRoom)
+                    if (room.roomState === 'invited') {
+                        // Don't observe anything info if we're only invited
+                        return
+                    }
 
                     // If it's a DM:
                     // - fetch the member since it's small and we use recent DM users.

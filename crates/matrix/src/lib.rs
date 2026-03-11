@@ -37,6 +37,9 @@ use matrix_sdk::ruma::events::poll::unstable_start::{
 };
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::events::room::encryption::RoomEncryptionEventContent;
+use matrix_sdk::ruma::events::room::history_visibility::{
+    HistoryVisibility, RoomHistoryVisibilityEventContent,
+};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContentWithoutRelation;
 use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
 use matrix_sdk::ruma::events::{
@@ -581,6 +584,11 @@ impl Matrix {
                 InitialStateEvent::new(
                     EmptyStateKey,
                     RoomEncryptionEventContent::with_recommended_defaults(),
+                )
+                .to_raw_any(),
+                InitialStateEvent::new(
+                    EmptyStateKey,
+                    RoomHistoryVisibilityEventContent::new(HistoryVisibility::Invited),
                 )
                 .to_raw_any(),
             ];

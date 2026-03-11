@@ -20,6 +20,7 @@ import {
     selectGlobalCommunityMetadata,
     setGuardianitoBot,
     cancelEcash,
+    selectFeatureFlag,
 } from '.'
 import { GUARDIANITO_BOT_DISPLAY_NAME } from '../constants/matrix'
 import {
@@ -812,7 +813,19 @@ export const startMatrixClient = createAsyncThunk<
     })
     client.on('roomInfo', room => {
         dispatch(addMatrixRoomInfo(room))
-        if (room.roomState === 'invited') {
+        // Disable auto-joining rooms when matrix sp transfer ui is on
+        const autoJoinRooms =
+            selectFeatureFlag(getState(), 'sp_transfer_ui')?.mode !== 'Chat'
+
+        if (
+            room.roomState === 'invited' &&
+            // Auto join invited rooms if the feature flag is disabled,
+            // OR it's a bot
+            // OR it's a group chat
+            (autoJoinRooms ||
+                room.name === GUARDIANITO_BOT_DISPLAY_NAME ||
+                !room.isDirect)
+        ) {
             dispatch(joinMatrixRoom({ fedimint, roomId: room.id }))
         }
 
@@ -1210,6 +1223,17 @@ export const sendMatrixMessage = createAsyncThunk<
         const client = fedimint.getMatrixClient()
         const state = getState()
         const selfUserId = selectMatrixAuth(state)?.userId
+
+        const roomInfo = selectMatrixRoom(state, roomId)
+
+        const autoJoinRooms =
+            selectFeatureFlag(state, 'sp_transfer_ui')?.mode !== 'Chat'
+
+        // Only join on the first message when auto-joining is disabled
+        if (roomInfo?.roomState === 'invited' && !autoJoinRooms) {
+            // For now, auto join the room when sending the first message.
+            await dispatch(joinMatrixRoom({ fedimint, roomId }))
+        }
 
         if (options.interceptBolt11) {
             try {
@@ -2275,7 +2299,7 @@ export const selectMatrixChatsList = createSelector(
         // don't include rooms that we have not joined yet this should happen
         // automatically but we filter here anyway in case the join fails for some reason
         const filteredRoomsList = roomsList.filter(
-            r => r.roomState === 'joined',
+            r => r.roomState === 'joined' || r.roomState === 'invited',
         )
         // Sort by most-recent activity first using recencyStamp from the SDK.
         // recencyStamp applies uniformly to all room types (DMs, private
