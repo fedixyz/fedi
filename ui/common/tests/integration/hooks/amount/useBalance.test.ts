@@ -48,16 +48,20 @@ describe('useBalance hook', () => {
         )
 
         expect(result.current.satsBalance).toBe(balanceSats)
-        expect(result.current.formattedBalanceFiat).toBe(`${balanceFiat} USD`)
-        expect(result.current.formattedBalanceSats).toBe(`${balanceSats} SATS`)
+        expect(result.current.formattedBalanceFiat).toBe(
+            `${balanceFiat.toLocaleString()} USD`,
+        )
+        expect(result.current.formattedBalanceSats).toBe(
+            `${balanceSats.toLocaleString()} SATS`,
+        )
         expect(result.current.formattedBalanceBitcoin).toBe(
-            `${balanceSats} SATS`,
+            `${balanceSats.toLocaleString()} SATS`,
         )
         expect(result.current.formattedBalance).toBe(
-            `${balanceFiat} USD (${balanceSats} SATS)`,
+            `${balanceFiat} USD (${balanceSats.toLocaleString()} SATS)`,
         )
         expect(result.current.formattedBalanceText).toBe(
-            `${i18next.t('words.balance')}: ${balanceFiat} USD (${balanceSats} SATS)`,
+            `${i18next.t('words.balance')}: ${balanceFiat} USD (${balanceSats.toLocaleString()} SATS)`,
         )
     })
 
