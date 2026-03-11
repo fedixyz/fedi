@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
 
 import {
     selectCommunities,
@@ -12,7 +13,6 @@ import { Community } from '@fedi/common/types'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import CustomOverlay from '../../ui/CustomOverlay'
-import { Column } from '../../ui/Flex'
 import CommunityTile from './CommunityTile'
 
 interface Props {
@@ -53,7 +53,9 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
             onBackdropPress={handleDismiss}
             contents={{
                 body: (
-                    <Column grow shrink>
+                    <ScrollView
+                        style={style.scrollContainer}
+                        showsVerticalScrollIndicator={false}>
                         <View style={style.topTextContainer}>
                             <Text
                                 h2
@@ -80,7 +82,7 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
                                 )
                             })}
                         </View>
-                    </Column>
+                    </ScrollView>
                 ),
             }}
         />
@@ -89,6 +91,9 @@ export const CommunitiesOverlay: React.FC<Props> = ({ onOpenChange, open }) => {
 
 const styles = (theme: Theme) =>
     StyleSheet.create({
+        scrollContainer: {
+            maxHeight: 400,
+        },
         communitiesList: {
             padding: 0,
             marginTop: 10,
