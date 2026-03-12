@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::invite_code::InviteCode;
-use matrix_sdk::event_cache::RoomPaginationStatus;
+use matrix_sdk::event_cache::PaginationStatus;
 use matrix_sdk::notification_settings::RoomNotificationMode;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::api::client::user_directory::search_users::v3 as search_user_directory;
@@ -215,6 +215,7 @@ impl RpcTimelineItemEvent {
     pub fn from_latest_event_value(value: &LatestEventValue) -> Option<Self> {
         match value {
             LatestEventValue::None => None,
+            LatestEventValue::RemoteInvite { .. } => None,
             LatestEventValue::Remote {
                 timestamp,
                 sender,
@@ -461,16 +462,16 @@ impl RpcMatrixUserDirectorySearchResponse {
     }
 }
 
-impl From<RoomPaginationStatus> for RpcBackPaginationStatus {
-    fn from(value: RoomPaginationStatus) -> Self {
+impl From<PaginationStatus> for RpcBackPaginationStatus {
+    fn from(value: PaginationStatus) -> Self {
         match value {
-            RoomPaginationStatus::Idle {
+            PaginationStatus::Idle {
                 hit_timeline_start: false,
             } => Self::Idle,
-            RoomPaginationStatus::Idle {
+            PaginationStatus::Idle {
                 hit_timeline_start: true,
             } => Self::TimelineStartReached,
-            RoomPaginationStatus::Paginating => Self::Paginating,
+            PaginationStatus::Paginating => Self::Paginating,
         }
     }
 }
