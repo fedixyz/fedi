@@ -22,8 +22,7 @@ import {
 } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { fedimint, initializeBridge } from '../bridge'
-import { getAppFlavor } from '../bridge/native'
+import { fedimint, getAppFlavor, initializeBridge } from '../bridge'
 import { ErrorScreen } from '../screens/ErrorScreen'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import theme from '../styles/theme'

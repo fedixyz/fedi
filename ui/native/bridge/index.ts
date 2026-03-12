@@ -2,6 +2,7 @@ export {
     fedimint,
     subscribeToBridgeEvents,
     unsubscribeFromBridgeEvents,
+    getAppFlavor,
     initializeBridge,
 } from './native'
 
@@ -10,5 +11,6 @@ export {
 //     fedimint,
 //     subscribeToBridgeEvents,
 //     unsubscribeFromBridgeEvents,
+//     getAppFlavor,
 //     initializeBridge,
 // } from '@fedi/common/utils/remote-bridge'

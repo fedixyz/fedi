@@ -99,18 +99,14 @@ export class RemoteBridge {
         _ignoreAppFlavor?: RpcAppFlavor['type'],
     ) {
         this.deviceId = deviceIdentifier
+        const appFlavor = this.getAppFlavor()
 
         const options: RpcInitOpts = {
             dataDir: '/remote-data',
             deviceIdentifier,
             logLevel: 'info',
             appFlavor: {
-                type:
-                    process.env.NODE_ENV === 'test'
-                        ? 'tests'
-                        : isDev()
-                          ? 'dev'
-                          : 'bravo',
+                type: appFlavor,
             },
         }
 
@@ -174,6 +170,14 @@ export class RemoteBridge {
         this.eventEnabled = false
         this.deviceId = null
     }
+
+    public getAppFlavor(): RpcAppFlavor['type'] {
+        return process.env.NODE_ENV === 'test'
+            ? 'tests'
+            : isDev()
+              ? 'dev'
+              : 'bravo'
+    }
 }
 
 const globalRemoteBridge = new RemoteBridge()
@@ -184,5 +188,7 @@ export const subscribeToBridgeEvents =
     globalRemoteBridge.subscribeToBridgeEvents.bind(globalRemoteBridge)
 export const unsubscribeFromBridgeEvents =
     globalRemoteBridge.unsubscribeFromBridgeEvents.bind(globalRemoteBridge)
+export const getAppFlavor =
+    globalRemoteBridge.getAppFlavor.bind(globalRemoteBridge)
 export const initializeBridge =
     globalRemoteBridge.initializeBridge.bind(globalRemoteBridge)

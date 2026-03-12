@@ -1,10 +1,11 @@
 import {
     fedimint,
+    getAppFlavor,
     initializeBridge as initializeBridgeRemote,
     subscribeToBridgeEvents,
 } from '@fedi/common/utils/remote-bridge'
 
-export { fedimint }
+export { fedimint, getAppFlavor }
 
 export async function initializeBridge(deviceId: string) {
     deviceId = sessionStorage.deviceId =

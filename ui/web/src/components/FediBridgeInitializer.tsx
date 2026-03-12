@@ -30,8 +30,7 @@ import {
     onboardingRecoverWalletTransferRoute,
 } from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
-import { fedimint, initializeBridge } from '../lib/bridge'
-import { getAppFlavor } from '../lib/bridge/worker'
+import { fedimint, getAppFlavor, initializeBridge } from '../lib/bridge'
 import { keyframes, styled, theme } from '../styles'
 import { generateDeviceId } from '../utils/browserInfo'
 import { getHashParams } from '../utils/linking'
