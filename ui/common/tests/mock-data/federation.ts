@@ -7,7 +7,7 @@ import {
 
 import { RpcFederationPreview } from '../../types/bindings'
 
-export const mockFederation1: Federation = {
+export const mockFederation1 = {
     status: 'online',
     init_state: 'ready',
     balance: 2000000 as MSats,
@@ -24,9 +24,9 @@ export const mockFederation1: Federation = {
         remittanceThresholdMsat: 10000,
     },
     hadReusedEcash: false,
-}
+} as const satisfies Federation
 
-export const mockFederation2: Federation = {
+export const mockFederation2 = {
     status: 'online',
     init_state: 'ready',
     balance: 2000000 as MSats,
@@ -43,7 +43,7 @@ export const mockFederation2: Federation = {
         remittanceThresholdMsat: 10000,
     },
     hadReusedEcash: false,
-}
+} as const satisfies Federation
 
 export const mockCommunity: Community = {
     id: '1',
