@@ -82,7 +82,7 @@
               bitcoind = pkgs-fedimint.bitcoind;
 
               binaryen = pkgs-unstable.binaryen;
-              wasm-bindgen-cli = pkgs-unstable.wasm-bindgen-cli_0_2_105;
+              wasm-bindgen-cli = pkgs-unstable.wasm-bindgen-cli_0_2_114;
               snappy = prev.snappy.overrideAttrs (
                 f: p: rec {
                   version = "1.2.1";
