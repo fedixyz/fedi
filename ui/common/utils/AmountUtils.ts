@@ -95,6 +95,7 @@ class AmountUtils {
         return this.btcToSat(btc)
     }
     fiatToBtc = (fiat: number, rate: number): Btc => {
+        if (rate === 0) return 0 as Btc
         return Number(
             (fiat / rate).toFixed(AmountUtils.BTC_MAX_DECIMAL_PLACES),
         ) as Btc

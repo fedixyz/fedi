@@ -187,6 +187,16 @@ describe('AmountUtils', () => {
             expect(result).toEqual('0.00001000')
         })
     })
+    describe('fiatToBtc', () => {
+        it('should convert fiat to btc using the exchange rate', () => {
+            const result = amountUtils.fiatToBtc(50000, 50000)
+            expect(result).toEqual(1)
+        })
+        it('should return 0 when the exchange rate is 0', () => {
+            const result = amountUtils.fiatToBtc(100, 0)
+            expect(result).toEqual(0)
+        })
+    })
     describe('formatFiat', () => {
         const amount = 1234.567
         const testCases = [
