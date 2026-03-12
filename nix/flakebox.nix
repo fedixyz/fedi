@@ -291,7 +291,7 @@ in
 
       nativeBuildInputs = [
         pkgs.wasm-pack
-        pkgs.wasm-bindgen-cli_0_2_100
+        pkgs.wasm-bindgen-cli
         pkgs.binaryen
       ];
       buildPhaseCargoCommand =

@@ -82,7 +82,7 @@ impl SpTransfersMatrix {
         if let Some(transaction_id) = transaction_id {
             request = request.with_transaction_id(transaction_id.into());
         }
-        Ok(request.await?.event_id)
+        Ok(request.await?.response.event_id)
     }
 
     pub fn register_message_handler(self: &Arc<Self>) {

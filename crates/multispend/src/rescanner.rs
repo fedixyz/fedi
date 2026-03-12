@@ -350,7 +350,7 @@ pub async fn all_message_since(
         .map_err(event_cache_error_to_anyhow)?;
     // Keep a subscriber alive for the entire function so event-cache auto-shrink
     // can't race with pagination + final lookup.
-    let (mut loaded_events, _cache_subscription) = room_event_cache.subscribe().await;
+    let (mut loaded_events, _cache_subscription) = room_event_cache.subscribe().await?;
     if let Some(idx) = loaded_events
         .iter()
         .position(|event| event.event_id().is_some_and(is_last_seen_event))
@@ -401,7 +401,7 @@ pub async fn all_message_since(
         }
     };
 
-    let (mut loaded_events, _) = room_event_cache.subscribe().await;
+    let (mut loaded_events, _) = room_event_cache.subscribe().await?;
 
     if let Some(idx) = loaded_events
         .iter()

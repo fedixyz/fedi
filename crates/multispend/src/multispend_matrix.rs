@@ -218,7 +218,7 @@ impl MultispendMatrix {
             send_request = send_request.with_transaction_id(transaction_id.into());
         }
 
-        Ok(send_request.await?.event_id)
+        Ok(send_request.await?.response.event_id)
     }
 
     pub async fn subscribe_multispend_group(

@@ -99,7 +99,7 @@ impl Matrix {
         #[cfg(target_family = "wasm")]
         let builder = builder.indexeddb_store("matrix-db-native-sync-v2", Some(passphrase));
 
-        let client = builder.build().await?;
+        let client = builder.build().await.map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(client)
     }
 

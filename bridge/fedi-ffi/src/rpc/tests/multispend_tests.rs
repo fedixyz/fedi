@@ -77,8 +77,7 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
 
     // Test event data
     let timeline = matrix.timeline(&room_id).await?;
-    let last_event = timeline.latest_event().await.unwrap();
-    let event_id = last_event.event_id().unwrap();
+    let event_id = timeline.latest_event_id().await.unwrap();
     let event_data = multispend_matrix
         .get_multispend_event_data(
             &RpcRoomId(room_id.to_string()),
@@ -134,8 +133,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
         .await;
 
     let timeline = matrix1.timeline(&room_id).await?;
-    let last_event = timeline.latest_event().await.unwrap();
-    let invitation_event_id = RpcEventId(last_event.event_id().unwrap().to_string());
+    let invitation_event_id = RpcEventId(timeline.latest_event_id().await.unwrap().to_string());
 
     let event_data1 = multispend_matrix1
         .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
@@ -267,8 +265,7 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
         .await;
 
     let timeline = matrix1.timeline(&room_id).await?;
-    let last_event = timeline.latest_event().await.unwrap();
-    let invitation_event_id = RpcEventId(last_event.event_id().unwrap().to_string());
+    let invitation_event_id = RpcEventId(timeline.latest_event_id().await.unwrap().to_string());
 
     let event_data1 = multispend_matrix1
         .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
@@ -421,7 +418,7 @@ pub async fn test_multispend_last_seen_cache_churn_does_not_panic(
     let marker_id = marker_event_id.0.clone();
     let mut marker_unloaded = false;
     for i in 0..SHRINK_NUDGE_ATTEMPTS {
-        let (loaded_events, subscription) = room_event_cache.subscribe().await;
+        let (loaded_events, subscription) = room_event_cache.subscribe().await?;
         marker_unloaded = !loaded_events
             .iter()
             .any(|event| event.event_id().is_some_and(|id| id == marker_id));
@@ -453,7 +450,8 @@ pub async fn test_multispend_last_seen_cache_churn_does_not_panic(
             // Frequent subscribe/drop encourages the same cache lifecycle churn
             // seen in production.
             for _ in 0..200 {
-                let (_loaded_events, subscription) = room_event_cache_clone.subscribe().await;
+                let (_loaded_events, subscription) =
+                    room_event_cache_clone.subscribe().await.unwrap();
                 drop(subscription);
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }

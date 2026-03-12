@@ -19,9 +19,9 @@ use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, RoomId, events as ruma_events
 use matrix_sdk::{ComposerDraft, ComposerDraftType, RoomDisplayName, RoomState};
 use matrix_sdk_ui::room_list_service::SyncIndicator;
 use matrix_sdk_ui::timeline::{
-    EventSendState, EventTimelineItem, InReplyToDetails, MsgLikeKind, PollResult, RoomExt,
-    TimelineDetails, TimelineEventItemId, TimelineItem, TimelineItemContent, TimelineItemKind,
-    VirtualTimelineItem,
+    EventSendState, EventTimelineItem, InReplyToDetails, LatestEventValue,
+    LatestEventValueLocalState, MsgLikeKind, PollResult, RoomExt, TimelineDetails,
+    TimelineEventItemId, TimelineItem, TimelineItemContent, TimelineItemKind, VirtualTimelineItem,
 };
 use ruma_events::room::message::MessageType as RumaMessageType;
 use serde::{Deserialize, Serialize};
@@ -207,6 +207,67 @@ impl From<&EventTimelineItem> for RpcTimelineItemEvent {
             send_state: e.send_state().map(RpcTimelineEventSendState::from),
             in_reply,
             mentions,
+        }
+    }
+}
+
+impl RpcTimelineItemEvent {
+    pub fn from_latest_event_value(value: &LatestEventValue) -> Option<Self> {
+        match value {
+            LatestEventValue::None => None,
+            LatestEventValue::Remote {
+                timestamp,
+                sender,
+                content,
+                ..
+            } => {
+                let (content, mentions, in_reply) = Self::from_item_content(content);
+                Some(RpcTimelineItemEvent {
+                    id: RpcTimelineEventItemId("latest".to_string()),
+                    content,
+                    local_echo: false,
+                    timestamp: *timestamp,
+                    sender: sender.clone(),
+                    send_state: None,
+                    in_reply,
+                    mentions,
+                })
+            }
+            LatestEventValue::Local {
+                timestamp,
+                sender,
+                content,
+                state,
+                ..
+            } => {
+                let (content, mentions, in_reply) = Self::from_item_content(content);
+                let send_state = match state {
+                    LatestEventValueLocalState::IsSending => {
+                        Some(RpcTimelineEventSendState::NotSentYet)
+                    }
+                    LatestEventValueLocalState::HasBeenSent => {
+                        Some(RpcTimelineEventSendState::Sent {
+                            event_id: "pending".to_string(),
+                        })
+                    }
+                    LatestEventValueLocalState::CannotBeSent => {
+                        Some(RpcTimelineEventSendState::SendingFailed {
+                            error: "Failed to send".to_string(),
+                            is_recoverable: false,
+                        })
+                    }
+                };
+                Some(RpcTimelineItemEvent {
+                    id: RpcTimelineEventItemId("latest".to_string()),
+                    content,
+                    local_echo: true,
+                    timestamp: *timestamp,
+                    sender: sender.clone(),
+                    send_state,
+                    in_reply,
+                    mentions,
+                })
+            }
         }
     }
 }
@@ -698,10 +759,7 @@ impl RpcSerializedRoomInfo {
             } else {
                 room_info.avatar_url().map(|url| url.to_string())
             },
-            preview: room
-                .latest_event_item()
-                .await
-                .map(|e| RpcTimelineItemEvent::from(&e)),
+            preview: RpcTimelineItemEvent::from_latest_event_value(&room.latest_event().await),
             direct_user_id,
             is_direct,
             notification_count: room.read_receipts().num_unread,

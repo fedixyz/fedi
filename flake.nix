@@ -82,6 +82,7 @@
               bitcoind = pkgs-fedimint.bitcoind;
 
               binaryen = pkgs-unstable.binaryen;
+              wasm-bindgen-cli = pkgs-unstable.wasm-bindgen-cli_0_2_105;
               snappy = prev.snappy.overrideAttrs (
                 f: p: rec {
                   version = "1.2.1";
@@ -235,7 +236,7 @@
 
             args = {
               nativeBuildInputs = [
-                pkgs.wasm-bindgen-cli_0_2_100
+                pkgs.wasm-bindgen-cli
                 pkgs.geckodriver
                 pkgs.wasm-pack
               ]
@@ -354,7 +355,7 @@
                 pkgs.cargo-udeps
                 pkgs.curl # wasm build needs it for some reason
                 pkgs.wasm-pack
-                pkgs.wasm-bindgen-cli_0_2_100
+                pkgs.wasm-bindgen-cli
                 pkgs.binaryen
                 pkgs.gnused
                 pkgs.yarn

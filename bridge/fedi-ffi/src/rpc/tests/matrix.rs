@@ -289,8 +289,12 @@ pub async fn test_send_and_download_attachment(_dev_fed: DevFed) -> anyhow::Resu
         return Ok(());
     }
     let timeline = matrix.timeline(&room_id).await?;
+    let event_id = timeline
+        .latest_event_id()
+        .await
+        .context("expected last event id")?;
     let event = timeline
-        .latest_event()
+        .item_by_event_id(&event_id)
         .await
         .context("expected last event")?;
     let source = match event.content().as_message().unwrap().msgtype() {
