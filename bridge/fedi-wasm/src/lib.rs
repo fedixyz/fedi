@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #![cfg(target_family = "wasm")]
 
 use std::cell::RefCell;

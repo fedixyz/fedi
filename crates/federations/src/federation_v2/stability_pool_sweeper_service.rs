@@ -56,8 +56,7 @@ async fn continuously_sweep_stability_pool(
                 + module.cfg.cycle_duration.as_secs(),
         );
         let sleep_secs = next_cycle_start_time
-            .checked_sub(fedimint_core::time::duration_since_epoch().as_secs())
-            .unwrap_or_default()
+            .saturating_sub(fedimint_core::time::duration_since_epoch().as_secs())
             + 10; // 10s buffer to ensure cycle turnover completes
         fedimint_core::task::sleep(Duration::from_secs(sleep_secs)).await;
     }

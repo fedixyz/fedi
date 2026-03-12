@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::net::Ipv4Addr;
