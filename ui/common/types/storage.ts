@@ -14,6 +14,7 @@ import {
     SupportedCurrency,
 } from './fedimint'
 import { HomeNavigationTab } from './linking'
+import { MatrixRoom } from './matrix'
 
 export interface StoredStateV0 {
     version: 0 // Not a real version, just implemented for demonstrative purposes
@@ -372,6 +373,11 @@ export interface StoredStateV42 extends Omit<StoredStateV41, 'version'> {
     lastUsedTab: HomeNavigationTab
 }
 
+export interface StoredStateV43 extends Omit<StoredStateV42, 'version'> {
+    version: 43
+    rejectedRoomInvites: MatrixRoom['id'][]
+}
+
 /**
  * Consolidated type for older storage versions (0-24).
  * These are grouped together to reduce union type computation that slows down TSC performance.
@@ -430,9 +436,10 @@ export type AnyStoredState =
     | StoredStateV40
     | StoredStateV41
     | StoredStateV42
+    | StoredStateV43
 
 /*** Alias for the latest version of stored state ***/
-export type LatestStoredState = StoredStateV42
+export type LatestStoredState = StoredStateV43
 
 export interface StorageApi {
     getItem(key: string): Promise<string | null>

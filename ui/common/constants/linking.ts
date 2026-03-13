@@ -16,3 +16,8 @@ export const ANDROID_PLAY_STORE_URL =
 // TODO: get permalink for support articles
 export const STABLE_BALANCE_SUPPORT_ARTICLE_URL =
     'https://support.fedi.xyz/hc/en-us/articles/16915303194770-What-is-Stable-Balance'
+
+// TODO: get permalink for support articles
+// TODO: get specialized support article for chat privacy?
+export const CHAT_SUPPORT_ARTICLE_URL =
+    'https://support.fedi.xyz/hc/en-us/articles/17509166389906-How-do-I-start-a-chat-with-someone'

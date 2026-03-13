@@ -26,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 42,
+        version: 43,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -69,6 +69,7 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
             state.analytics.hasSeenAnalyticsConsentModal,
         balanceDisplay: state.currency.balanceDisplay,
         lastUsedTab: state.environment.lastUsedTab,
+        rejectedRoomInvites: state.matrix.rejectedRoomInvites,
     }
 
     return transformedState
@@ -120,6 +121,7 @@ export function hasStorageStateChanged(
         ['federation', 'previouslyAutojoinedCommunities'],
         ['federation', 'autojoinNoticesToDisplay'],
         ['matrix', 'drafts'],
+        ['matrix', 'rejectedRoomInvites'],
         // TODO: migrate legacy mods to customGlobalMods
         ['federation', 'customFediMods'],
         ['matrix', 'auth'],
@@ -797,6 +799,14 @@ async function migrateStoredState(
             ...migrationState,
             version: 42,
             lastUsedTab: HomeNavigationTab.Home,
+        }
+    }
+
+    if (migrationState.version === 42) {
+        migrationState = {
+            ...migrationState,
+            version: 43,
+            rejectedRoomInvites: [],
         }
     }
 

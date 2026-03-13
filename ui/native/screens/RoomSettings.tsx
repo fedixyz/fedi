@@ -70,7 +70,7 @@ const RoomSettings: React.FC<Props> = ({ navigation, route }: Props) => {
     )
     const shouldShowMultispend = useAppSelector(selectShouldShowMultispend)
     const isDefaultGroup = useAppSelector(s => selectIsDefaultGroup(s, roomId))
-    const isGroupChat = !room?.directUserId
+    const isGroupChat = !room?.isDirect
     const [isTogglingBroadcastOnly, setIsTogglingBroadcastOnly] =
         useState(false)
 

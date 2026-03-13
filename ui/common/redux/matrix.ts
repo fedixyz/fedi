@@ -159,6 +159,7 @@ const initialState = {
     >,
     users: {} as Record<MatrixUser['id'], MatrixUser | undefined>,
     ignoredUsers: [] as MatrixUser['id'][],
+    rejectedRoomInvites: [] as MatrixRoom['id'][],
     errors: [] as MatrixError[],
     pushNotificationToken: null as string | null,
     groupPreviews: {} as Record<MatrixRoom['id'], MatrixGroupPreview>,
@@ -501,6 +502,12 @@ export const matrixSlice = createSlice({
         setChatTimelineSearchQuery(state, action: PayloadAction<string>) {
             state.chatTimelineSearchQuery = action.payload
         },
+        addRejectedMatrixRoom(state, action: PayloadAction<MatrixRoom['id']>) {
+            state.rejectedRoomInvites = [
+                ...state.rejectedRoomInvites,
+                action.payload,
+            ]
+        },
     },
     extraReducers: builder => {
         builder.addCase(startMatrixClient.pending, state => {
@@ -707,6 +714,7 @@ export const {
     addTempMediaUriEntry,
     setChatsListSearchQuery,
     setChatTimelineSearchQuery,
+    addRejectedMatrixRoom,
 } = matrixSlice.actions
 
 /*** Async thunk actions ***/
@@ -1229,10 +1237,11 @@ export const sendMatrixMessage = createAsyncThunk<
         const autoJoinRooms =
             selectFeatureFlag(state, 'sp_transfer_ui')?.mode !== 'Chat'
 
-        // Only join on the first message when auto-joining is disabled
+        // Sanity check. We shouldn't be able to send a message to an unjoined room.
         if (roomInfo?.roomState === 'invited' && !autoJoinRooms) {
-            // For now, auto join the room when sending the first message.
-            await dispatch(joinMatrixRoom({ fedimint, roomId }))
+            log.warn(
+                'Attempted to send message to room while in "invited" state',
+            )
         }
 
         if (options.interceptBolt11) {
@@ -2198,13 +2207,21 @@ export const selectMatrixRooms = createSelector(
     (s: CommonState) => s.matrix.roomInfo,
     (s: CommonState) => s.matrix.roomPowerLevels,
     (s: CommonState) => s.matrix.ignoredUsers,
-    (roomList, roomInfo, roomPowerLevels, ignoredUsers): MatrixRoom[] => {
+    (s: CommonState) => s.matrix.rejectedRoomInvites,
+    (
+        roomList,
+        roomInfo,
+        roomPowerLevels,
+        ignoredUsers,
+        rejectedMatrixRooms,
+    ): MatrixRoom[] => {
         const rooms: MatrixRoom[] = []
         for (const item of roomList) {
             if (!item.id) continue
             const room = roomInfo[item.id]
             if (!room) continue
             const powerLevels = roomPowerLevels[room.id]
+            if (rejectedMatrixRooms.includes(room.id)) continue
             rooms.push({
                 ...room,
                 broadcastOnly: powerLevels

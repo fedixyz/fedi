@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useConnectionRequestData } from '@fedi/common/hooks/matrix'
 import { useMultispendDisplayUtils } from '@fedi/common/hooks/multispend'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -17,6 +18,7 @@ import { stripFileUriPrefix } from '@fedi/common/utils/media'
 
 import ChatConversation from '../components/feature/chat/ChatConversation'
 import ChatPreviewConversation from '../components/feature/chat/ChatPreviewConversation'
+import ConnectionRequestBanner from '../components/feature/chat/ConnectionRequestBanner'
 import MessageInput from '../components/feature/chat/MessageInput'
 import SelectedMessageOverlay from '../components/feature/chat/SelectedMessageOverlay'
 import MultispendChatBanner from '../components/feature/multispend/MultispendChatBanner'
@@ -50,6 +52,9 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const [replyBarHeight, setReplyBarHeight] = useState(0)
 
     const extraPadAndroid35 = useImeFooterLift()
+
+    const { connectionRequestPending, connectionRequestUsername } =
+        useConnectionRequestData(roomId)
 
     const directUserId = useMemo(() => room?.directUserId, [room])
 
@@ -116,6 +121,7 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
                 id={roomId || directUserId || ''}
                 isSending={isSending}
                 isPublic={room?.isPublic ?? false}
+                isDisabled={!!connectionRequestPending}
                 onHeightChanged={setMessageInputHeight}
                 onReplyBarHeightChanged={setReplyBarHeight}
             />
@@ -127,20 +133,27 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         directUserId,
         isSending,
         room?.isPublic,
+        connectionRequestPending,
         setMessageInputHeight,
-        setReplyBarHeight,
     ])
 
     const content = useMemo(() => {
         return (
             <>
                 {shouldShowHeader && <MultispendChatBanner roomId={roomId} />}
+                {connectionRequestPending && (
+                    <ConnectionRequestBanner
+                        username={connectionRequestUsername}
+                        roomId={roomId}
+                    />
+                )}
                 <ChatConversation
                     type={chatType}
                     id={roomId || ''}
                     isPublic={room?.isPublic ?? false}
                     newMessageBottomOffset={bottomOffset}
                     replyBarOffset={replyBarHeight}
+                    connectionRequestPending={connectionRequestPending}
                 />
                 {renderMessageInput()}
             </>
@@ -152,6 +165,8 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         bottomOffset,
         replyBarHeight,
         shouldShowHeader,
+        connectionRequestPending,
+        connectionRequestUsername,
         renderMessageInput,
     ])
 

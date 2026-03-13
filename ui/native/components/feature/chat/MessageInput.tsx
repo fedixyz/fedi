@@ -64,6 +64,7 @@ type MessageInputProps = {
     id: string
     isSending?: boolean
     isPublic?: boolean
+    isDisabled?: boolean
     onHeightChanged?: (height: number) => void
     onReplyBarHeightChanged?: (height: number) => void
 }
@@ -75,6 +76,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     id,
     isSending,
     isPublic = true,
+    isDisabled = false,
     onHeightChanged,
     onReplyBarHeightChanged: onReplyBarHeightChanged,
 }: MessageInputProps) => {
@@ -151,6 +153,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const [inputHeight, setInputHeight] = useState<number>(MIN_INPUT_H)
 
     const inputRef = useRef<TextInput | null>(null)
+    const inputDisabled = isSending || isReadOnly || isDisabled
 
     useEffect(() => {
         onReplyBarHeightChanged?.(0)
@@ -341,10 +344,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     </View>
                 )}
 
-                {isReadOnly ? (
-                    <Text center color={theme.colors.grey}>
-                        {t('feature.chat.broadcast-only-notice')}
-                    </Text>
+                {isReadOnly || isDisabled ? (
+                    <View style={style.textReadonlyContainer}>
+                        <Text
+                            center
+                            color={theme.colors.grey}
+                            style={style.textReadonly}>
+                            {isReadOnly
+                                ? t('feature.chat.broadcast-only-notice')
+                                : t('feature.chat.accept-to-send-notice')}
+                        </Text>
+                    </View>
                 ) : (
                     <View
                         style={[
@@ -397,12 +407,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         style={style.sendButton}
                         onPress={handleSend}
                         hitSlop={10}
-                        disabled={isSending || isSendingMessage}>
+                        disabled={inputDisabled || isSendingMessage}>
                         <SvgImage
                             name="SendArrowUpCircle"
                             size={SvgImageSize.md}
                             color={
-                                isSending || isSendingMessage
+                                inputDisabled || isSendingMessage
                                     ? theme.colors.primaryVeryLight
                                     : theme.colors.blue
                             }
@@ -411,7 +421,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 )}
             </View>
 
-            {existingRoom && (
+            {existingRoom && !isDisabled && (
                 <View style={style.buttonContainer}>
                     <View style={style.chatControls}>
                         {/* in-chat payments only available for DirectChat after a room has already been created with the user */}
@@ -474,7 +484,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                             resetMessageText()
                                         }}
                                         hitSlop={15}
-                                        disabled={isSending}>
+                                        disabled={inputDisabled}>
                                         <SvgImage
                                             name="Close"
                                             color={theme.colors.white}
@@ -484,7 +494,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                         style={style.saveButton}
                                         onPress={handleEdit}
                                         hitSlop={15}
-                                        disabled={isSending}>
+                                        disabled={inputDisabled}>
                                         <SvgImage
                                             name="Check"
                                             color={theme.colors.white}
@@ -497,12 +507,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                     style={style.sendButton}
                                     onPress={handleSend}
                                     hitSlop={15}
-                                    disabled={isSending || isSendingMessage}>
+                                    disabled={
+                                        inputDisabled || isSendingMessage
+                                    }>
                                     <SvgImage
                                         name="SendArrowUpCircle"
                                         size={SvgImageSize.md}
                                         color={
-                                            isSending || isSendingMessage
+                                            inputDisabled || isSendingMessage
                                                 ? theme.colors.primaryVeryLight
                                                 : theme.colors.blue
                                         }
@@ -571,6 +583,15 @@ const styles = (theme: Theme, insets: Insets) =>
         textInputStyle: {
             fontSize: fediTheme.fontSizes.body,
             textAlignVertical: 'top',
+        },
+        textReadonly: {
+            color: theme.colors.grey,
+            fontSize: fediTheme.fontSizes.body,
+        },
+        textReadonlyContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
         },
         inputContainer: {
             position: 'relative',

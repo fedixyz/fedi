@@ -56,6 +56,7 @@ type MessagesListProps = {
     isPublic?: boolean
     newMessageBottomOffset: number
     replyBarOffset?: number
+    connectionRequestPending?: boolean
 }
 type ChatRoomConversationRouteProp = RouteProp<
     RootStackParamList,
@@ -68,6 +69,7 @@ const ChatConversation: React.FC<MessagesListProps> = ({
     isPublic = true,
     newMessageBottomOffset = 90,
     replyBarOffset: replyBarOffset = 0,
+    connectionRequestPending = false,
 }: MessagesListProps) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
@@ -302,7 +304,8 @@ const ChatConversation: React.FC<MessagesListProps> = ({
 
     return (
         <>
-            {hasLoadedEvents && hasLoadedMembers ? (
+            {(hasLoadedEvents && hasLoadedMembers) ||
+            connectionRequestPending ? (
                 <FlatList
                     data={eventGroups}
                     ref={listRef}

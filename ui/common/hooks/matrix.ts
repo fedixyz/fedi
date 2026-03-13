@@ -1367,6 +1367,10 @@ export function useMatrixRoomPreview({
         if (roomDraft)
             return t('feature.chat.draft-text', { text: roomDraft.trim() })
 
+        if (preferredPreviewRoom.roomState === 'invited') {
+            return t('feature.chat.connection-request-pending')
+        }
+
         if (
             preferredPreviewRoom.preview.content.msgtype === 'xyz.fedi.payment'
         ) {
@@ -1491,4 +1495,23 @@ export function useDeleteMessage({
         setShowDeleteConfirm,
         confirmDeleteMessage,
     }
+}
+
+export function useConnectionRequestData(roomId: MatrixRoom['id']) {
+    const room = useCommonSelector(s => selectMatrixRoom(s, roomId))
+
+    const connectionRequestPending =
+        !!room?.isDirect && room.roomState === 'invited'
+
+    const connectionRequestUsername = useMemo(() => {
+        const roomName = room?.name?.trim()
+        if (roomName) return roomName
+
+        const directUser = room?.directUserId?.split(':')[0]
+        if (!directUser) return '...'
+
+        return directUser.startsWith('@') ? directUser.slice(1) : directUser
+    }, [room])
+
+    return { connectionRequestPending, connectionRequestUsername }
 }
