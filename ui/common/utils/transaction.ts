@@ -408,12 +408,12 @@ export const makeTxnStatusText = (
                     switch (txn.state.kind) {
                         case 'multispend':
                             return t('words.deposit')
-                        case 'matrixSpTransfer':
-                        case 'spTransferUi':
-                            return t('words.sent')
                         default:
-                            txn.state.kind satisfies 'unknown'
-                            return t('words.unknown')
+                            txn.state.kind satisfies
+                                | 'matrixSpTransfer'
+                                | 'spTransferUi'
+                                | 'unknown'
+                            return t('words.sent')
                     }
                 default:
                     txn.state.type satisfies 'dataNotInCache'
@@ -503,7 +503,7 @@ export const makeTxnStatusText = (
                             return t('words.withdrawal')
                         default:
                             txn.state.kind satisfies 'unknown'
-                            return t('words.unknown')
+                            return t('words.received')
                     }
                 default:
                     txn.state.type satisfies 'dataNotInCache'
@@ -585,16 +585,7 @@ export const makeTxnStatusBadge = (
         case 'sPV2TransferOut':
             switch (txn.state.type) {
                 case 'completedTransfer':
-                    switch (txn.state.kind) {
-                        case 'unknown':
-                            return 'failed'
-                        default:
-                            txn.state.kind satisfies
-                                | 'multispend'
-                                | 'matrixSpTransfer'
-                                | 'spTransferUi'
-                            return 'outgoing'
-                    }
+                    return 'outgoing'
                 default:
                     txn.state.type satisfies 'dataNotInCache'
                     return 'pending'
@@ -661,13 +652,7 @@ export const makeTxnStatusBadge = (
         case 'sPV2TransferIn':
             switch (txn.state.type) {
                 case 'completedTransfer':
-                    switch (txn.state.kind) {
-                        case 'multispend':
-                            return 'incoming'
-                        default:
-                            txn.state.kind satisfies 'unknown'
-                            return 'failed'
-                    }
+                    return 'incoming'
                 default:
                     txn.state.type satisfies 'dataNotInCache'
                     return 'pending'

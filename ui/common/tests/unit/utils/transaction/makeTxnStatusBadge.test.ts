@@ -36,6 +36,9 @@ describe('makeTxnStatusBadge', () => {
         const oobReceiveDone = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('done'),
         })
+        const spv2TransferInUnknown = makeTestTxnEntry('sPV2TransferIn', {
+            state: makeTestSPV2TransferInState('completedTransfer', 'unknown'),
+        })
         const spv2TransferInMultispend = makeTestTxnEntry('sPV2TransferIn', {
             state: makeTestSPV2TransferInState(
                 'completedTransfer',
@@ -57,6 +60,7 @@ describe('makeTxnStatusBadge', () => {
         expect(makeTxnStatusBadge(multispendDeposit)).toBe('incoming')
         // TODO:TEST: This should NOT be the case - Set to "pending" if bug is fixed
         expect(makeTxnStatusBadge(lnurlCreated)).toBe('incoming')
+        expect(makeTxnStatusBadge(spv2TransferInUnknown)).toBe('incoming')
     })
 
     it('should return "outgoing" for sent transactions', () => {
@@ -108,6 +112,15 @@ describe('makeTxnStatusBadge', () => {
                 state: makeTestMultispendWithdrawalEventData('accepted'),
             },
         )
+        const spv2TransferOutCompletedUnknown = makeTestTxnEntry(
+            'sPV2TransferOut',
+            {
+                state: makeTestSPV2TransferOutState(
+                    'completedTransfer',
+                    'unknown',
+                ),
+            },
+        )
 
         expect(makeTxnStatusBadge(lnPaySuccess)).toBe('outgoing')
         expect(makeTxnStatusBadge(onchainWithdrawSucceeded)).toBe('outgoing')
@@ -120,6 +133,9 @@ describe('makeTxnStatusBadge', () => {
         expect(makeTxnStatusBadge(spv2TransferOutMultispend)).toBe('outgoing')
         expect(makeTxnStatusBadge(spv2TransferOutMatrix)).toBe('outgoing')
         expect(makeTxnStatusBadge(multispendWithdrawAccepted)).toBe('outgoing')
+        expect(makeTxnStatusBadge(spv2TransferOutCompletedUnknown)).toBe(
+            'outgoing',
+        )
     })
 
     it('should return "pending" for pending transactions', () => {
@@ -279,23 +295,11 @@ describe('makeTxnStatusBadge', () => {
         const spv2DepositFailed = makeTestTxnEntry('sPV2Deposit', {
             state: makeTestSPV2DepositState('failedDeposit'),
         })
-        const spv2TransferOutCompletedUnknown = makeTestTxnEntry(
-            'sPV2TransferOut',
-            {
-                state: makeTestSPV2TransferOutState(
-                    'completedTransfer',
-                    'unknown',
-                ),
-            },
-        )
         const onchainDepositFailed = makeTestTxnEntry('onchainDeposit', {
             state: makeTestOnchainDepositState('failed'),
         })
         const spv2WithdrawalFailed = makeTestTxnEntry('sPV2Withdrawal', {
             state: makeTestSPV2WithdrawalState('failedWithdrawal'),
-        })
-        const spv2TransferInUnknown = makeTestTxnEntry('sPV2TransferIn', {
-            state: makeTestSPV2TransferInState('completedTransfer', 'unknown'),
         })
         const oobReceiveFailed = makeTestTxnEntry('oobReceive', {
             state: makeTestOOBReissueState('failed'),
@@ -317,10 +321,6 @@ describe('makeTxnStatusBadge', () => {
         expect(makeTxnStatusBadge(multispendWithdrawFailed)).toBe('failed')
         expect(makeTxnStatusBadge(spv2DepositFailed)).toBe('failed')
         expect(makeTxnStatusBadge(spv2WithdrawalFailed)).toBe('failed')
-        expect(makeTxnStatusBadge(spv2TransferInUnknown)).toBe('failed')
-        expect(makeTxnStatusBadge(spv2TransferOutCompletedUnknown)).toBe(
-            'failed',
-        )
     })
 
     it('should return "expired" for expired transactions', () => {
