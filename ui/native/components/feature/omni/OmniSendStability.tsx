@@ -95,11 +95,11 @@ export default function OmniSendStability({
                 <Column center style={style.iconContainer}>
                     <FederationLogo federation={federationPreview} size={32} />
                 </Column>
-                <Column align="start" gap="xxs">
-                    <Text medium>
+                <Column align="start" gap="xxs" style={style.textColumn}>
+                    <Text medium numberOfLines={1}>
                         {t('feature.receive.join-new-federation')}
                     </Text>
-                    <Text caption style={style.darkGrey}>
+                    <Text caption style={style.darkGrey} numberOfLines={1}>
                         <Trans
                             t={t}
                             i18nKey="feature.receive.join-to-send"
@@ -154,6 +154,7 @@ const styles = (theme: Theme) =>
             height: 40,
             width: 40,
         },
+        textColumn: { flex: 1, flexShrink: 1 },
         arrowContainer: { marginLeft: 'auto' },
         darkGrey: { color: theme.colors.darkGrey },
         center: { textAlign: 'center' },
