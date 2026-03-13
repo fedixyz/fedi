@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -89,7 +89,7 @@ import {
     useOmniLinkInterceptor,
 } from '../state/contexts/OmniLinkContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { reset, resetToMiniapps } from '../state/navigation'
+import { reset } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('FediModBrowser')
@@ -124,7 +124,8 @@ type FediModResponse =
 
 type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 
-const FediModBrowser: React.FC<Props> = () => {
+const FediModBrowser: React.FC<Props> = ({ route }) => {
+    const url = route?.params?.url
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
@@ -704,19 +705,12 @@ const FediModBrowser: React.FC<Props> = () => {
         }
     }, [fedimint])
 
-    // If currentUrl is null, navigate back to Mods screen
-    // This shouldn't happen in normal use, but handles edge cases
-    useLayoutEffect(() => {
-        if (!currentUrl) {
-            log.warn('currentUrl is null, navigating to Mods screen')
-            navigation.dispatch(resetToMiniapps())
-        }
-    }, [currentUrl, navigation])
+    useEffect(() => {
+        if (!url) return
+        dispatch(setCurrentUrl({ url }))
+    }, [dispatch, url])
 
-    if (!currentUrl) {
-        log.warn('currentUrl is null, returning null')
-        return null
-    }
+    if (!currentUrl) return null
 
     return (
         <SafeAreaContainer edges="vertical">
@@ -813,7 +807,6 @@ const FediModBrowser: React.FC<Props> = () => {
                 open={isSelectingPublicChats}
                 onOpenChange={setIsSelectingPublicChats}
             />
-
             <RequestPermissionOverlay
                 requestedPermission={requestedPermission}
                 handlePermissionResponse={handlePermissionResponse}

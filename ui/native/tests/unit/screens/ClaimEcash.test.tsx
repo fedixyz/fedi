@@ -55,7 +55,7 @@ describe('/screens/ClaimEcash', () => {
             renderWithProviders(
                 <ClaimEcash
                     navigation={mockNavigation as any}
-                    route={{ params: { token: '123' } } as any}
+                    route={{ params: { id: '123' } } as any}
                 />,
             )
 
@@ -68,7 +68,7 @@ describe('/screens/ClaimEcash', () => {
             renderWithProviders(
                 <ClaimEcash
                     navigation={mockNavigation as any}
-                    route={{ params: { token: '123' } } as any}
+                    route={{ params: { id: '123' } } as any}
                 />,
             )
 
@@ -82,7 +82,7 @@ describe('/screens/ClaimEcash', () => {
             renderWithProviders(
                 <ClaimEcash
                     navigation={mockNavigation as any}
-                    route={{ params: { token: '123' } } as any}
+                    route={{ params: { id: '123' } } as any}
                 />,
             )
 

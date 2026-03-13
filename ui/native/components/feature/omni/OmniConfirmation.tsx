@@ -218,7 +218,7 @@ export const OmniConfirmation = <T extends AnyParsedData>({
                     },
                     continueOnPress: () => {
                         handleNavigate('ClaimEcash', {
-                            token: parsedData.data.token,
+                            id: parsedData.data.token,
                         })
                     },
                 }

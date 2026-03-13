@@ -21,7 +21,7 @@ import { RootStackParamList } from '../types/navigation'
 export type Props = NativeStackScreenProps<RootStackParamList, 'ClaimEcash'>
 
 const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
-    const { token } = route.params ?? {}
+    const { id } = route.params ?? {}
 
     const { theme } = useTheme()
     const { t } = useTranslation()
@@ -46,10 +46,10 @@ const ClaimEcash: React.FC<Props> = ({ navigation, route }) => {
 
     // Validate ecash token on load
     useEffect(() => {
-        if (!token) return
+        if (!id) return
 
-        parseEcash(token)
-    }, [token, parseEcash])
+        parseEcash(id)
+    }, [id, parseEcash])
 
     useEffect(() => {
         if (!federation?.meta) return
