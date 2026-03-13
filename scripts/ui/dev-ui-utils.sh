@@ -2,6 +2,11 @@
 
 set -eou pipefail
 
+if [ -z "${IN_NIX_SHELL:-}" ]; then
+    >&2 echo "Workaround: restart in 'nix develop' shell"
+    exec nix develop --command "$0" "$@"
+fi
+
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
 step_failed() {
