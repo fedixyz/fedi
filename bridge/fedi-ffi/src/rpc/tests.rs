@@ -1529,6 +1529,7 @@ async fn test_spv2_with_fedi_fees(
             transaction: RpcTransaction {
                 kind: RpcTransactionKind::SPV2Deposit {
                     state: rpc_types::RpcSPV2DepositState::PendingDeposit { .. }
+                        | rpc_types::RpcSPV2DepositState::CompletedDeposit { .. }
                 },
                 ..
             },
