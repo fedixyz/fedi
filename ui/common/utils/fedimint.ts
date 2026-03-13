@@ -13,6 +13,7 @@ import {
     GuardianStatus,
     JSONObject,
     RpcAmount,
+    RpcEventId,
     RpcFederationId,
     RpcFeeDetails,
     RpcMediaSource,
@@ -202,6 +203,16 @@ export class FedimintBridge {
             roomId,
             federationId,
             federationInvite: federationInvite || null,
+        })
+    }
+
+    async matrixDenySpTransferFederationInvite(
+        roomId: MatrixRoom['id'],
+        eventId: RpcEventId,
+    ) {
+        return this.rpcTyped('matrixDenySpTransferFederationInvite', {
+            roomId,
+            eventId,
         })
     }
 

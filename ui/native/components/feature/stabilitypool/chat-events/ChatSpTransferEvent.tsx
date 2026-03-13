@@ -21,14 +21,8 @@ type Props = {
 const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
-    const {
-        status,
-        amount,
-        federationId,
-        inviteCode,
-        handleReject,
-        isRejected,
-    } = useSpTransferEventContent(event) ?? {}
+    const { status, amount, federationId, inviteCode, handleReject } =
+        useSpTransferEventContent(event) ?? {}
 
     const federation = useAppSelector(s =>
         selectFederation(s, federationId ?? ''),
@@ -69,11 +63,12 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
     }
 
     const getStatusIcon = (): 'check' | 'x' | 'clock' | undefined => {
-        if (isRejected) return 'x'
         switch (status) {
             case 'complete':
                 return 'check'
             case 'failed':
+            case 'expired':
+            case 'federationInviteDenied':
                 return 'x'
             case 'pending':
                 return 'clock'
@@ -83,12 +78,15 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
     }
 
     const getStatusText = (): string => {
-        if (isRejected) return t('words.rejected')
         switch (status) {
             case 'complete':
                 return t('words.paid')
             case 'failed':
+                return t('words.failed')
+            case 'federationInviteDenied':
                 return t('words.rejected')
+            case 'expired':
+                return t('words.expired')
             case 'pending':
                 return `${t('words.pending')}`
             default:
@@ -125,12 +123,7 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
     }
 
     // Foreign federation: show accept/reject buttons
-    if (
-        isForeignFederation &&
-        inviteCode &&
-        status === 'pending' &&
-        !isRejected
-    ) {
+    if (isForeignFederation && inviteCode && status === 'pending') {
         const foreignButtons = [
             {
                 label: t('words.accept'),
@@ -164,7 +157,7 @@ const ChatSpTransferEvent: React.FC<Props> = ({ event }) => {
     }
 
     // Foreign federation rejected
-    if (status === 'failed' || isRejected) {
+    if (status === 'failed' || status === 'federationInviteDenied') {
         return (
             <SpTransferEventTemplate
                 message={getMessage()}

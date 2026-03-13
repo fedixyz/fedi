@@ -3,8 +3,12 @@ import { useCallback, useMemo, useState } from 'react'
 import { selectSpTransferState } from '../redux'
 import { MatrixEvent, UsdCents } from '../types'
 import { RpcSpTransferState, RpcSpTransferStatus } from '../types/bindings'
+import { makeLog } from '../utils/log'
+import { useFedimint } from './fedimint'
 import { useObserveSpTransferState } from './matrix'
 import { useCommonSelector } from './redux'
+
+const log = makeLog('common/hooks/spTransfer')
 
 export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
     status: RpcSpTransferStatus['status']
@@ -12,13 +16,13 @@ export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
     federationId: string
     inviteCode: string | null
     handleReject: () => void
-    isRejected: boolean
+    isRejecting: boolean
     state: RpcSpTransferState
 } | null {
     const roomId = event.roomId
     const eventId = event.id ?? ''
 
-    const [isRejected, setIsRejected] = useState(false)
+    const [isRejecting, setIsRejecting] = useState(false)
 
     // Start observing the sp transfer state
     useObserveSpTransferState(roomId, eventId)
@@ -28,11 +32,24 @@ export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
         selectSpTransferState(s, roomId, eventId),
     )
 
-    const handleReject = useCallback(() => {
-        // dispatch(rejectSpTransfer(roomId, eventId))
-        // TODO: make this real once bridge adds reject payment rpc
-        setIsRejected(true)
-    }, [])
+    const fedimint = useFedimint()
+
+    const handleReject = useCallback(async () => {
+        try {
+            setIsRejecting(true)
+            log.debug('Rejecting sp transfer', { roomId, eventId })
+            await fedimint.matrixDenySpTransferFederationInvite(roomId, eventId)
+            log.debug('Rejected sp transfer', { roomId, eventId })
+        } catch (error) {
+            log.error('Failed to reject sp transfer', {
+                roomId,
+                eventId,
+                error,
+            })
+        } finally {
+            setIsRejecting(false)
+        }
+    }, [fedimint, roomId, eventId])
 
     return useMemo(() => {
         if (!transferState) {
@@ -45,8 +62,8 @@ export function useSpTransferEventContent(event: MatrixEvent<'spTransfer'>): {
             amount: transferState.amount as UsdCents,
             federationId: transferState.federationId,
             inviteCode: transferState.inviteCode,
+            isRejecting,
             handleReject,
-            isRejected,
         }
-    }, [transferState, handleReject, isRejected])
+    }, [transferState, handleReject, isRejecting])
 }
