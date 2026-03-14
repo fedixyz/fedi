@@ -31,7 +31,7 @@ import {
 } from '../types/parser'
 import { validateCashuTokens } from './cashu'
 import { FedimintBridge } from './fedimint'
-import { isDeepLink } from './linking'
+import { isUniversalLink, universalToFedi } from './linking'
 import { makeLog } from './log'
 import { decodeFediMatrixRoomUri, decodeFediMatrixUserUri } from './matrix'
 import { isValidInternetIdentifier } from './validation'
@@ -108,7 +108,7 @@ const offlineParsers: Parser[] = [
     },
     {
         name: 'parseFediUniversalLink',
-        handler: raw => parseFediUniversalLink(raw),
+        handler: (raw, fedimint) => parseFediUniversalLink(raw, fedimint),
     },
     {
         name: 'parseBolt12',
@@ -217,6 +217,7 @@ export async function parseUserInput<T extends TFunction>(
  */
 export async function parseFediUniversalLink(
     raw: string,
+    fedimint: FedimintBridge,
 ): Promise<
     | ParsedLegacyFediChatGroup
     | ParsedLegacyFediChatMember
@@ -225,7 +226,17 @@ export async function parseFediUniversalLink(
     | ParsedDeepLink
     | undefined
 > {
-    if (isDeepLink(raw)) {
+    if (isUniversalLink(raw)) {
+        // Hack to let parseFediUri logic handle user deep links
+        // as we have a dedicated OmniConfirmation to show to users
+        if (raw.includes('?screen=user')) {
+            const deep = universalToFedi(raw) // → fedi://user/... or ''
+            if (!deep) return
+
+            // Re-use the existing Fedi-URI parser
+            return parseFediUri(deep, fedimint)
+        }
+
         return {
             type: ParserDataType.DeepLink,
             data: { url: raw },
@@ -257,7 +268,7 @@ async function parseLnurl(
 > {
     const lowerCaseRaw = raw.toLowerCase()
     // Ignore Fedi deep links AND universal links — they’re parsed elsewhere.
-    if (lowerCaseRaw.startsWith('fedi:') || isDeepLink(raw)) return
+    if (lowerCaseRaw.startsWith('fedi:') || isUniversalLink(raw)) return
 
     // Strip lightning/lnurl protocol for uniformity, keep track of if we were passed a full URL.
     const lnRaw = stripProtocol(lowerCaseRaw, 'lnurl', 'lightning')
@@ -775,7 +786,7 @@ function stripProtocol(raw: string, ...protocol: string[]) {
 function validateWebsiteUrl(url: string) {
     // Only fully-qualified HTTP(S) URLs, partial ones are too ambiguous.
     // Universal links are not generic websites.
-    if (isDeepLink(url)) return false
+    if (isUniversalLink(url)) return false
     if (
         !url.toLowerCase().startsWith('http://') &&
         !url.toLowerCase().startsWith('https://')

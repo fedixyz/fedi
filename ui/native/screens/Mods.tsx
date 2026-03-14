@@ -8,7 +8,6 @@ import {
     StyleSheet,
     Text,
     useWindowDimensions,
-    Linking,
 } from 'react-native'
 
 import { openMiniAppSession } from '@fedi/common/redux'
@@ -33,6 +32,7 @@ import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { FediMod, Shortcut } from '../types'
 import { NavigationHook } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
+import { handleFediModNavigation, openURL } from '../utils/linking'
 
 const Mods: React.FC = () => {
     const { theme } = useTheme()
@@ -65,7 +65,7 @@ const Mods: React.FC = () => {
         }
 
         if (isFediDeeplinkType(fediMod.url)) {
-            Linking.openURL(fediMod.url)
+            openURL(fediMod.url)
         } else {
             dispatch(
                 openMiniAppSession({
@@ -73,8 +73,7 @@ const Mods: React.FC = () => {
                     url: fediMod.url,
                 }),
             )
-
-            navigation.navigate('FediModBrowser')
+            await handleFediModNavigation(fediMod, navigation)
         }
     }
 

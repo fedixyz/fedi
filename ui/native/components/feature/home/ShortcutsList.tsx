@@ -8,7 +8,6 @@ import {
     StyleSheet,
     View,
     useWindowDimensions,
-    Linking,
 } from 'react-native'
 
 import { openMiniAppSession } from '@fedi/common/redux'
@@ -22,6 +21,7 @@ import { isFediDeeplinkType } from '@fedi/common/utils/linking'
 import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { FediMod, Shortcut } from '../../../types'
 import { NavigationHook } from '../../../types/navigation'
+import { handleFediModNavigation, openURL } from '../../../utils/linking'
 import { Row, Column } from '../../ui/Flex'
 import SvgImage from '../../ui/SvgImage'
 import { Tooltip } from '../../ui/Tooltip'
@@ -46,7 +46,7 @@ const ShortcutsList: React.FC<Props> = ({ communityId }) => {
         setActionsMod(undefined)
         const fediMod = shortcut as FediMod
         if (isFediDeeplinkType(fediMod.url)) {
-            Linking.openURL(fediMod.url)
+            openURL(fediMod.url)
         } else {
             dispatch(
                 openMiniAppSession({
@@ -54,8 +54,7 @@ const ShortcutsList: React.FC<Props> = ({ communityId }) => {
                     url: fediMod.url,
                 }),
             )
-
-            navigation.navigate('FediModBrowser')
+            await handleFediModNavigation(fediMod, navigation)
         }
     }
 

@@ -13,11 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    refreshOnboardingStatus,
-    selectRedirectTo,
-    setRedirectTo,
-} from '@fedi/common/redux'
+import { refreshOnboardingStatus, selectRedirectTo } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Images } from '../assets/images'
@@ -27,7 +23,7 @@ import { usePinContext } from '../state/contexts/PinContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
 import { RootStackParamList } from '../types/navigation'
 import { useLaunchZendesk } from '../utils/hooks/support'
-import { getInternalLinkRoute, normalizeDeepLink } from '../utils/linking'
+import { getRouteItemFromUrl } from '../utils/linking'
 
 const log = makeLog('Splash')
 
@@ -51,50 +47,38 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
     const handleContinue = async () => {
         try {
             setLoading(true)
-
             await fedimint.completeOnboardingNewSeed()
-
             const status = await dispatch(
                 refreshOnboardingStatus(fedimint),
             ).unwrap()
             log.debug('onboarding status after new seed', status)
 
-            // redirectTo values are deeplinks set in Router.tsx
-            // it allows us to get a user through onboarding
-            // before we then redirecet them to their intended screen
             if (redirectTo) {
-                // Reset now that we're using it
-                dispatch(setRedirectTo(null))
-
-                // We already know it is a deeplink so no need to check here
-                const result = normalizeDeepLink(redirectTo)
-                if (!result) return
-
-                const route = getInternalLinkRoute(result.fediUri)
-                if (!route) return
-
-                if (route.routes[0].name === 'TabsNavigator') {
-                    return navigation.reset({
-                        index: 0,
-                        routes: route.routes,
-                    })
+                const result = getRouteItemFromUrl(redirectTo)
+                if (!result) {
+                    throw new Error('Invalid redirectTo URL')
                 }
 
-                // Inject Home screen into the stack for non-TabsNavigator screens
-                // so that if user hits back button, they go back to home
-                // rather than the Splash screen
-                return navigation.reset({
-                    index: 1,
+                const { name, params } = result
+
+                navigation.reset({
+                    index: 0,
                     routes: [
                         {
-                            name: 'TabsNavigator',
+                            name,
+                            params,
                         },
-                        ...route.routes,
                     ],
                 })
             } else {
-                navigation.replace('TabsNavigator', {
-                    initialRouteName: 'Home',
+                navigation.reset({
+                    index: 0,
+                    routes: [
+                        {
+                            name: 'PublicFederations',
+                            params: { from: 'Splash' },
+                        },
+                    ],
                 })
             }
         } catch (err) {

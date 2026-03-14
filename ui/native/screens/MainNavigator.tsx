@@ -369,6 +369,19 @@ export const MainNavigator = () => {
                             ),
                         })}
                     />
+                    {/* Deeplink screen */}
+                    <Stack.Screen
+                        name="ClaimEcash"
+                        component={ClaimEcash}
+                        options={() => ({
+                            header: () => (
+                                <CenteredHeader
+                                    backButton
+                                    title={t('feature.ecash.claim-ecash')}
+                                />
+                            ),
+                        })}
+                    />
                 </Stack.Group>
                 {isAppUnlocked ? (
                     <Stack.Group>
@@ -852,21 +865,6 @@ export const MainNavigator = () => {
                                 component={CommunityInvite}
                                 options={() => ({
                                     header: () => <CommunityInviteHeader />,
-                                })}
-                            />
-                            {/* Deeplink screen */}
-                            <Stack.Screen
-                                name="ClaimEcash"
-                                component={ClaimEcash}
-                                options={() => ({
-                                    header: () => (
-                                        <CenteredHeader
-                                            backButton
-                                            title={t(
-                                                'feature.ecash.claim-ecash',
-                                            )}
-                                        />
-                                    ),
                                 })}
                             />
                             {/* Backup & Recovery */}

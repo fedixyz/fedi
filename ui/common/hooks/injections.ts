@@ -33,37 +33,22 @@ export const useInjectionsPermissions = ({
     ) => void
 }) => {
     const dispatch = useCommonDispatch()
-    const currentMiniAppUrl = useCommonSelector(selectCurrentUrl)
-    const currentMiniApp = useCommonSelector(state =>
-        currentMiniAppUrl
-            ? selectMiniAppByUrl(state, currentMiniAppUrl)
-            : undefined,
+    const currentMiniAppUrl = useCommonSelector(s => selectCurrentUrl(s) || '')
+    const currentMiniApp = useCommonSelector(s =>
+        selectMiniAppByUrl(s, currentMiniAppUrl ?? ''),
     )
-    const currentMiniAppPermissions = useCommonSelector(state =>
-        currentMiniAppUrl
-            ? selectMiniAppPermissions(state, currentMiniAppUrl)
-            : undefined,
+    const currentMiniAppPermissions = useCommonSelector(s =>
+        selectMiniAppPermissions(s, currentMiniAppUrl),
     )
-
     const requestedPermission = useCommonSelector(selectRequestedPermission)
-
-    // Use miniapp title if available, fallback to url
-    const miniAppName = currentMiniApp?.title || currentMiniAppUrl || undefined
-
-    // Whether we can safely validate permissions
-    const isReady = !!currentMiniAppUrl
+    // use the miniapp title if available, fallback to url
+    const miniAppName = currentMiniApp?.title || currentMiniAppUrl
 
     const validatePermissions = async (message: AnyInjectionRequestMessage) => {
-        if (!isReady) {
-            log.info('Skipping permission validation — URL not ready')
-            return
-        }
-
         log.info('Validating permissions for:', {
             currentMiniAppUrl,
             message: message.type,
         })
-
         const requiredPermissions =
             INJECTION_HANDLERS_PERMISSIONS_MAP[message.type] || []
 
@@ -74,54 +59,53 @@ export const useInjectionsPermissions = ({
         } else {
             log.info(`${message.type} does not require any permissions`)
         }
-
         for (const requiredPermission of requiredPermissions) {
             const state = getPermissionState(
-                currentMiniAppPermissions ?? {},
+                currentMiniAppPermissions,
                 requiredPermission,
             )
 
             if (state === true) {
-                log.info('Permission already allowed', {
+                log.info('Permission already allowed: ', {
                     currentMiniAppUrl,
                     message: message.type,
                     requiredPermission,
                 })
                 // Already allowed, proceed to next permission
                 continue
-            }
-
-            if (state === false) {
-                log.info('Permission already denied', {
+            } else if (state === false) {
+                log.info('Permission already denied: ', {
                     currentMiniAppUrl,
                     message: message.type,
                     requiredPermission,
                 })
+                // Already denied
                 onPermissionDenied(requiredPermission, miniAppName)
                 throw new Error(
                     `Permission validation failed for ${currentMiniAppUrl}. Required permission: ${requiredPermission} set to always deny.`,
                 )
-            }
-
-            if (isDev() || isNightly()) {
-                log.info('Permission not set. Asking user...', {
-                    currentMiniAppUrl,
-                    message: message.type,
-                    requiredPermission,
-                })
-                // state is null, need to ask user
-                // Promise rejects if user denies, which will propagate the error
-                await dispatch(setRequestedPermission(requiredPermission))
-                await onPermissionNeeded()
             } else {
-                log.info('Permission requesting not available in production')
-                onPermissionDenied(requiredPermission, miniAppName)
-                throw new Error(
-                    'Permission requesting not available in production',
-                )
+                if (isDev() || isNightly()) {
+                    log.info('Permission not set. Asking user... ', {
+                        currentMiniAppUrl,
+                        message: message.type,
+                        requiredPermission,
+                    })
+                    // state is null, need to ask user
+                    // Promise rejects if user denies, which will propagate the error
+                    await dispatch(setRequestedPermission(requiredPermission))
+                    await onPermissionNeeded()
+                } else {
+                    log.info(
+                        'Permission requesting not available in production',
+                    )
+                    onPermissionDenied(requiredPermission, miniAppName)
+                    throw new Error(
+                        'Permission requesting not available in production',
+                    )
+                }
             }
         }
-
         log.info('Permissions validation succeeded for ', {
             currentMiniAppUrl,
             message: message.type,
@@ -132,23 +116,17 @@ export const useInjectionsPermissions = ({
         didAllow: boolean,
         shouldRemember: boolean,
     ) => {
-        if (!isReady) {
-            log.info('Ignoring permission response — URL not ready')
-            return
-        }
-
-        if (!requestedPermission) {
-            log.info('No requested permission to respond to')
-            return
-        }
-
-        log.info('Handling permission response', {
+        log.info('handlePermissionResponse ', {
             didAllow,
             shouldRemember,
             requestedPermission,
             miniAppName,
         })
+        if (requestedPermission === null) {
+            return
+        }
 
+        // Show toast if user denied permission
         if (!didAllow) {
             onPermissionDenied(requestedPermission, miniAppName)
         }

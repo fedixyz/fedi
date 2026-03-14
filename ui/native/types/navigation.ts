@@ -80,7 +80,7 @@ export type RootStackParamList = {
     ChatWallet: { recipientId: string }
     ChooseBackupMethod: undefined
     ChooseRecoveryMethod: undefined
-    ClaimEcash: { id: string }
+    ClaimEcash: { token: string }
     MigratedDevice: undefined
     MigratedDeviceSuccess: undefined
     CreatePoll: { roomId: string }

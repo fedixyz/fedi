@@ -271,7 +271,6 @@ jest.mock('react-native-gesture-handler', () => ({
 export const mockNavigation = {
     navigate: jest.fn(),
     push: jest.fn(),
-    reset: jest.fn(),
     setOptions: jest.fn(),
     goBack: jest.fn(),
     replace: jest.fn(),

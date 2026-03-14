@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     ActivityIndicator,
@@ -89,7 +89,7 @@ import {
     useOmniLinkInterceptor,
 } from '../state/contexts/OmniLinkContext'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
-import { reset } from '../state/navigation'
+import { reset, resetToMiniapps } from '../state/navigation'
 import type { RootStackParamList } from '../types/navigation'
 
 const log = makeLog('FediModBrowser')
@@ -124,8 +124,7 @@ type FediModResponse =
 
 type FediModResolver<T> = (value: T | PromiseLike<T>) => void
 
-const FediModBrowser: React.FC<Props> = ({ route }) => {
-    const url = route?.params?.url
+const FediModBrowser: React.FC<Props> = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
@@ -705,12 +704,19 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
         }
     }, [fedimint])
 
-    useEffect(() => {
-        if (!url) return
-        dispatch(setCurrentUrl({ url }))
-    }, [dispatch, url])
+    // If currentUrl is null, navigate back to Mods screen
+    // This shouldn't happen in normal use, but handles edge cases
+    useLayoutEffect(() => {
+        if (!currentUrl) {
+            log.warn('currentUrl is null, navigating to Mods screen')
+            navigation.dispatch(resetToMiniapps())
+        }
+    }, [currentUrl, navigation])
 
-    if (!currentUrl) return null
+    if (!currentUrl) {
+        log.warn('currentUrl is null, returning null')
+        return null
+    }
 
     return (
         <SafeAreaContainer edges="vertical">
@@ -807,6 +813,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 open={isSelectingPublicChats}
                 onOpenChange={setIsSelectingPublicChats}
             />
+
             <RequestPermissionOverlay
                 requestedPermission={requestedPermission}
                 handlePermissionResponse={handlePermissionResponse}
