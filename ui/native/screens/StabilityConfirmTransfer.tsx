@@ -12,6 +12,7 @@ import { useFeeDisplayUtils } from '@fedi/common/hooks/transactions'
 import {
     selectLoadedFederation,
     selectMatrixContactById,
+    selectStableBalancePending,
     transferStableBalance,
     transferStableBalanceMatrix,
 } from '@fedi/common/redux'
@@ -57,6 +58,9 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
     const federation = useAppSelector(s =>
         selectLoadedFederation(s, federationId),
     )
+    const stableBalancePending = useAppSelector(s =>
+        selectStableBalancePending(s, federationId),
+    )
     const recipientContact = useAppSelector(s =>
         'matrixUserId' in recipient
             ? selectMatrixContactById(s, recipient.matrixUserId)
@@ -79,6 +83,13 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
     const formattedFiatCode = convertCentsToFormattedFiat(amount, 'end')
 
     const handleSubmit = async () => {
+        if (stableBalancePending < 0) {
+            toast.show({
+                content: t('feature.stabilitypool.pending-withdrawal-blocking'),
+                status: 'error',
+            })
+            return
+        }
         try {
             setProcessingTransfer(true)
             if ('matrixUserId' in recipient) {
