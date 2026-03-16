@@ -233,23 +233,11 @@ async fn handle_reset(
     Path(device_id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, RemoteRpcError> {
-    let bridge_state = state.bridges.write().await.remove(&device_id);
-    if let Some(bridge_state) = bridge_state {
-        let bridge = bridge_state.bridge;
-
-        if let Ok(runtime) = bridge.runtime() {
-            let root_task_group = runtime.task_group.clone();
-            root_task_group
-                .shutdown_join_all(None)
-                .await
-                .expect("must shutdown");
-        }
-
-        debug!("waiting for bridge down");
-        while Arc::strong_count(&bridge) != 1 {
-            fedimint_core::task::sleep(Duration::from_millis(10)).await;
-        }
-        drop(bridge);
+    if state.bridges.read().await.contains_key(&device_id) {
+        return Err(anyhow::anyhow!(
+            "bridge reset requested while device {device_id} is still alive; close the bridge before resetting"
+        )
+        .into());
     }
 
     let data_dir = state.data_dir.join(&device_id);
