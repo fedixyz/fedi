@@ -122,7 +122,11 @@ const StabilityMove: React.FC<Props> = ({ route }: Props) => {
             submitAttempts={submitAttempts}
             switcherEnabled={false}
             lockToFiat={true}
-            verb={t('words.deposit')}
+            verb={
+                activeTab === 'deposit'
+                    ? t('words.deposit')
+                    : t('words.withdraw')
+            }
             subHeader={
                 <Column gap="md" style={style.subHeaderContainer}>
                     <Switcher<Tab>
