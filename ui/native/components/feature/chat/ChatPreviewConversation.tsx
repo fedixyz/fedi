@@ -120,7 +120,8 @@ const ChatPreviewConversation: React.FC<Props> = ({ id, preview }: Props) => {
     // Animate new message button in and out
     useEffect(() => {
         Animated.timing(animatedNewMessageBottom, {
-            toValue: hasNewMessage ? 90 : -50,
+            // this is a bit of a magic number, but it needs to be enough to push the new message button below the bottom of the screen
+            toValue: hasNewMessage ? 90 : -200,
             duration: 100,
             useNativeDriver: false,
             easing: Easing.linear,
