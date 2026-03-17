@@ -3,7 +3,12 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Text, Theme, useTheme } from '@rneui/themed'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ActivityIndicator, Keyboard, StyleSheet } from 'react-native'
+import {
+    ActivityIndicator,
+    Keyboard,
+    ScrollView,
+    StyleSheet,
+} from 'react-native'
 
 import { useWithdrawForm } from '@fedi/common/hooks/amount'
 // import { useSyncCurrencyRatesAndCache } from '@fedi/common/hooks/currency'
@@ -161,50 +166,56 @@ const StabilityTransfer: React.FC<Props> = ({ route }: Props) => {
     }
 
     return (
-        <AmountScreen
-            subHeader={
-                <Column fullWidth style={style.subHeaderContainer}>
-                    {headerContent}
-                    <Row align="stretch" fullWidth>
-                        {federation ? (
-                            <StabilityBalanceTile
-                                badgeLogo="usd"
-                                federation={federation}
-                                onSelectFederation={setFederationId}
-                            />
-                        ) : null}
-                    </Row>
-                </Column>
-            }
-            content={
-                // Don't show recipient selector after scanning a spv2 payment address
-                // Only show if sp_transfer_ui feature flag is set to Chat mode
-                !lockedRecipient && spTransferFlag?.mode === 'Chat' ? (
-                    <RecipientSelector
-                        receiver={receiver}
-                        setReceiver={setReceiver}
-                    />
-                ) : null
-            }
-            federationId={federationId}
-            amount={amount}
-            onChangeAmount={onChangeAmount}
-            minimumAmount={minimumAmount}
-            maximumAmount={maximumAmount}
-            submitAttempts={submitAttempts}
-            switcherEnabled={false}
-            lockToFiat={true}
-            verb={t('words.transfer')}
-            buttons={[
-                {
-                    title: t('words.continue'),
-                    onPress: handleSubmit,
-                    disabled: amount === 0 || (!receiver && !lockedRecipient),
-                },
-            ]}
-            notes={notes}
-            setNotes={setNotes}
-        />
+        <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }}
+            alwaysBounceVertical={false}>
+            <AmountScreen
+                subHeader={
+                    <Column fullWidth style={style.subHeaderContainer}>
+                        {headerContent}
+                        <Row align="stretch" fullWidth>
+                            {federation ? (
+                                <StabilityBalanceTile
+                                    badgeLogo="usd"
+                                    federation={federation}
+                                    onSelectFederation={setFederationId}
+                                />
+                            ) : null}
+                        </Row>
+                    </Column>
+                }
+                content={
+                    // Don't show recipient selector after scanning a spv2 payment address
+                    // Only show if sp_transfer_ui feature flag is set to Chat mode
+                    !lockedRecipient && spTransferFlag?.mode === 'Chat' ? (
+                        <RecipientSelector
+                            receiver={receiver}
+                            setReceiver={setReceiver}
+                        />
+                    ) : null
+                }
+                federationId={federationId}
+                amount={amount}
+                onChangeAmount={onChangeAmount}
+                minimumAmount={minimumAmount}
+                maximumAmount={maximumAmount}
+                submitAttempts={submitAttempts}
+                switcherEnabled={false}
+                lockToFiat={true}
+                verb={t('words.transfer')}
+                buttons={[
+                    {
+                        title: t('words.continue'),
+                        onPress: handleSubmit,
+                        disabled:
+                            amount === 0 || (!receiver && !lockedRecipient),
+                    },
+                ]}
+                notes={notes}
+                setNotes={setNotes}
+            />
+        </ScrollView>
     )
 }
 
