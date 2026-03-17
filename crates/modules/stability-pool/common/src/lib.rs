@@ -67,6 +67,23 @@ impl FiatAmount {
         Ok(FiatAmount(fiat.try_into()?))
     }
 
+    /// Converts BTC to fiat like `from_btc_amount`, but prefers `+1` fiat unit
+    /// when that increment still converts back to the exact same BTC amount.
+    /// This avoids underreporting for server-originated msat balances.
+    pub fn from_btc_amount_roundtrip_safe(
+        btc_amount: Amount,
+        price_per_btc: FiatAmount,
+    ) -> anyhow::Result<FiatAmount> {
+        let fiat_amount = FiatAmount::from_btc_amount(btc_amount, price_per_btc)?;
+        let incremented_fiat_amount = FiatAmount(fiat_amount.0.saturating_add(1));
+
+        if incremented_fiat_amount.to_btc_amount(price_per_btc)? == btc_amount {
+            Ok(incremented_fiat_amount)
+        } else {
+            Ok(fiat_amount)
+        }
+    }
+
     pub fn to_btc_amount(&self, price_per_btc: FiatAmount) -> anyhow::Result<Amount> {
         let fiat_amount = self;
         // price_per_btc FiatAmount is worth 1 BTC
@@ -964,8 +981,11 @@ impl SyncResponse {
             )),
             FiatOrAll::All => Some((
                 self.locked_balance,
-                FiatAmount::from_btc_amount(self.locked_balance, self.current_cycle.start_price)
-                    .ok()?,
+                FiatAmount::from_btc_amount_roundtrip_safe(
+                    self.locked_balance,
+                    self.current_cycle.start_price,
+                )
+                .ok()?,
             )),
         }
     }

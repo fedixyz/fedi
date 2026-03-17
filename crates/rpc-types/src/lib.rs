@@ -1100,14 +1100,15 @@ impl From<SyncResponse> for RpcSPv2SyncResponse {
     fn from(value: SyncResponse) -> Self {
         let price = value.current_cycle.start_price;
 
-        let staged_fiat = FiatAmount::from_btc_amount(value.staged_balance, price)
+        let staged_fiat = FiatAmount::from_btc_amount_roundtrip_safe(value.staged_balance, price)
             .expect("staged balance must convert");
-        let locked_fiat = FiatAmount::from_btc_amount(value.locked_balance, price)
+        let locked_fiat = FiatAmount::from_btc_amount_roundtrip_safe(value.locked_balance, price)
             .expect("locked balance must convert");
         let locked_plus_staged_amount =
             Amount::from_msats(value.locked_balance.msats + value.staged_balance.msats);
-        let locked_plus_staged_fiat = FiatAmount::from_btc_amount(locked_plus_staged_amount, price)
-            .expect("locked+staged balance must convert");
+        let locked_plus_staged_fiat =
+            FiatAmount::from_btc_amount_roundtrip_safe(locked_plus_staged_amount, price)
+                .expect("locked+staged balance must convert");
 
         let pending_unlock = value.unlock_request.map(|r| {
             let fiat = r.total_fiat_requested;

@@ -105,7 +105,7 @@ async fn sweep_spv2_inner(fed: &FederationV2, sync_response: SyncResponse) -> an
         .spv2()?
         .withdraw(
             AccountType::Seeker,
-            FiatOrAll::Fiat(FiatAmount::from_btc_amount(
+            FiatOrAll::Fiat(FiatAmount::from_btc_amount_roundtrip_safe(
                 sync_response.staged_balance,
                 sync_response.current_cycle.start_price,
             )?),

@@ -258,9 +258,11 @@ async fn update_user_operation_history(
     // Initialize the new msat and fiat amounts using the account history item's
     // data
     let mut new_amount = acc_history_item.amount;
-    let mut new_fiat_amount =
-        FiatAmount::from_btc_amount(acc_history_item.amount, acc_history_item.cycle.start_price)
-            .unwrap_or_default();
+    let mut new_fiat_amount = FiatAmount::from_btc_amount_roundtrip_safe(
+        acc_history_item.amount,
+        acc_history_item.cycle.start_price,
+    )
+    .unwrap_or_default();
 
     let mut add_current_state_amounts = || {
         new_amount += current_user_op_history_item
