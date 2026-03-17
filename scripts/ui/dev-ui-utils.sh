@@ -39,6 +39,7 @@ while true; do
     echo "n - reinstall node_modules"
     echo "p - reinstall pods"
     echo "d - open deeplink"
+    echo "R - adb reconnect"
     echo "q - quit"
 
     read -rsn1 input
@@ -162,6 +163,9 @@ while true; do
                 set -eou pipefail
                 $REPO_ROOT/scripts/ui/open-deeplink.sh
             ) || step_failed
+            ;;
+        R)
+            $REPO_ROOT/scripts/ui/adb-reconnect.sh || true
             ;;
         q)
             echo "Exiting."
