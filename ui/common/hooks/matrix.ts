@@ -1367,7 +1367,7 @@ export function useMatrixRoomPreview({
         if (roomDraft)
             return t('feature.chat.draft-text', { text: roomDraft.trim() })
 
-        if (preferredPreviewRoom.roomState === 'invited') {
+        if (!defaultRoom && preferredPreviewRoom.roomState === 'invited') {
             return t('feature.chat.connection-request-pending')
         }
 
