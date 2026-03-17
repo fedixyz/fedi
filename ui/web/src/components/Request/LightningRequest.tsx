@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { theme } from '@fedi/common/constants/theme'
 import { useRequestForm } from '@fedi/common/hooks/amount'
 import { useMakeLightningRequest } from '@fedi/common/hooks/receive'
 import { useToast } from '@fedi/common/hooks/toast'
 import { Sats, TransactionListEntry } from '@fedi/common/types'
 
 import { NoteInput, QRContainer } from '.'
+import { styled } from '../../styles'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { CopyInput } from '../CopyInput'
@@ -61,7 +63,7 @@ export default function LightningRequest({
     }
 
     return (
-        <>
+        <Container>
             <AmountInput
                 amount={amount}
                 onChangeAmount={onChangeAmount}
@@ -100,6 +102,15 @@ export default function LightningRequest({
                     </Button>
                 </Column>
             )}
-        </>
+        </Container>
     )
 }
+
+const Container = styled('div', {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    paddingBottom: theme.spacing.lg,
+    width: '100%',
+})

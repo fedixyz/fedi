@@ -18,6 +18,7 @@ import { useRouteState } from '../../context/RouteStateContext'
 import { useAppSelector } from '../../hooks'
 import { config, theme } from '../../styles'
 import { ContentBlock } from '../ContentBlock'
+import FederationBalance from '../Federation/FederationBalance'
 import { Column } from '../Flex'
 import * as Layout from '../Layout'
 import LightningRequest from '../Request/LightningRequest'
@@ -135,7 +136,9 @@ const Request: React.FC<Props> = ({ open }) => {
                                     onChange={newTab => setActiveTab(newTab)}
                                 />
                             )}
-
+                        {activeTab !== 'lnurl' && (
+                            <FederationBalance federationId={federationId} />
+                        )}
                         {lnurlw ? (
                             <LnurlWithdraw
                                 onSubmit={handleSubmit}
