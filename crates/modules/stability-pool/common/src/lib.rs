@@ -1078,3 +1078,114 @@ pub enum AccountHistoryItemKind {
     /// the recipient.
     LockedTransferOut { to: AccountId, meta: Vec<u8> },
 }
+
+#[cfg(test)]
+mod tests {
+    use fedimint_core::Amount;
+    use proptest::collection::vec;
+    use proptest::prelude::*;
+
+    use super::FiatAmount;
+
+    fn price_strategy() -> impl Strategy<Value = FiatAmount> {
+        (20_000_u64 * 100..200_000_u64 * 100).prop_map(FiatAmount)
+    }
+
+    proptest! {
+        // Proves that every fiat amount survives fiat -> btc -> roundtrip_safe
+        // fiat unchanged.
+        //
+        // This is the core correctness property of roundtrip_safe: if a fiat
+        // amount can be represented through the BTC conversion, we must never
+        // lose or gain a fiat unit when converting back.
+        #[test]
+        fn roundtrip_safe_preserves_fiat_roundtrips(
+            price in price_strategy(),
+            fiat in 0_u64..1_000_000,
+        ) {
+            let fiat_amount = FiatAmount(fiat);
+            let btc_amount = fiat_amount.to_btc_amount(price).unwrap();
+            let roundtrip = FiatAmount::from_btc_amount_roundtrip_safe(btc_amount, price).unwrap();
+
+            prop_assert_eq!(roundtrip, fiat_amount);
+        }
+
+        // Proves that roundtrip_safe picks the largest fiat amount whose BTC
+        // conversion does not exceed the original BTC amount.
+        //
+        // This is the safety property we rely on operationally: displayed fiat
+        // should never overstate the backing BTC, but it should still be as
+        // high as possible within that constraint.
+        #[test]
+        fn roundtrip_safe_is_maximal_without_overstating_btc(
+            price in price_strategy(),
+            msats in 0_u64..1_000_000_000,
+        ) {
+            let btc_amount = Amount::from_msats(msats);
+            let safe_fiat = FiatAmount::from_btc_amount_roundtrip_safe(btc_amount, price).unwrap();
+            let safe_btc = safe_fiat.to_btc_amount(price).unwrap();
+            let next_fiat = FiatAmount(safe_fiat.0 + 1);
+            let next_btc = next_fiat.to_btc_amount(price).unwrap();
+
+            prop_assert!(safe_btc <= btc_amount);
+            prop_assert!(next_btc > btc_amount);
+        }
+
+        // Proves that increasing BTC amount cannot decrease the roundtrip_safe
+        // fiat amount.
+        //
+        // This gives us the basic ordering guarantee needed for balances and
+        // UI: larger BTC balances never render as smaller fiat balances.
+        #[test]
+        fn roundtrip_safe_is_monotonic(
+            price in price_strategy(),
+            x_msats in 0_u64..1_000_000_000,
+            delta_msats in 0_u64..1_000_000,
+        ) {
+            let y_msats = x_msats + delta_msats;
+            let x_fiat =
+                FiatAmount::from_btc_amount_roundtrip_safe(Amount::from_msats(x_msats), price)
+                    .unwrap();
+            let y_fiat =
+                FiatAmount::from_btc_amount_roundtrip_safe(Amount::from_msats(y_msats), price)
+                    .unwrap();
+
+            prop_assert!(x_fiat <= y_fiat);
+        }
+
+        // Proves the accumulation bounds when converting parts independently
+        // and comparing them to converting the total once.
+        //
+        // Each part is converted to the largest fiat amount whose BTC
+        // roundtrip does not exceed that part. Summing those per-part fiat
+        // amounts can overstate the one-shot total by at most 1 fiat unit.
+        // In the other direction, each independent floor can discard some BTC
+        // fraction, so the one-shot total can exceed the summed parts by at
+        // most n - 1 fiat units. This is the key invariant for
+        // staged/locked/total style balance displays.
+        #[test]
+        fn roundtrip_safe_accumulation_error_bounds(
+            price in price_strategy(),
+            parts_msats in vec(0_u64..1_000_000_000, 1..=8),
+        ) {
+            let total_msats: u64 = parts_msats.iter().sum();
+            let parts_sum_fiat: u64 = parts_msats
+                .iter()
+                .map(|msats| {
+                    FiatAmount::from_btc_amount_roundtrip_safe(Amount::from_msats(*msats), price)
+                        .unwrap()
+                        .0
+                })
+                .sum();
+            let total_fiat = FiatAmount::from_btc_amount_roundtrip_safe(
+                Amount::from_msats(total_msats),
+                price,
+            )
+            .unwrap();
+            let underflow_bound = parts_msats.len() as u64 - 1;
+
+            prop_assert!(parts_sum_fiat <= total_fiat.0 + 1);
+            prop_assert!(total_fiat.0 <= parts_sum_fiat + underflow_bound);
+        }
+    }
+}
