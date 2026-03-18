@@ -1,10 +1,16 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
-import React from 'react'
+import { ResourceKey } from 'i18next'
+import React, { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import closeIcon from '@fedi/common/assets/svgs/close.svg'
+import CopyIcon from '@fedi/common/assets/svgs/copy.svg'
+import ShareIcon from '@fedi/common/assets/svgs/share.svg'
+import { useToast } from '@fedi/common/hooks/toast'
 
 import { keyframes, styled, theme } from '../styles'
-import { CopyInput } from './CopyInput'
+import { Button } from './Button'
+import { Row } from './Flex'
 import { Icon } from './Icon'
 import { QRCode } from './QRCode'
 import { Text } from './Text'
@@ -14,7 +20,8 @@ interface Props {
     title: string
     qrValue: string
     copyValue?: string
-    onCopyMessage?: string
+    onCopyMessage?: ResourceKey
+    shareValue?: string
     notice?: string
     onOpenChange(open: boolean): void
 }
@@ -26,8 +33,46 @@ export const QRDialog: React.FC<Props> = ({
     qrValue,
     copyValue,
     onCopyMessage,
+    shareValue,
     notice,
 }) => {
+    const { t } = useTranslation()
+    const toast = useToast()
+
+    const resolvedCopyValue = copyValue || qrValue
+
+    const handleCopy = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(resolvedCopyValue)
+            if (onCopyMessage) {
+                toast.show({
+                    content: t(onCopyMessage),
+                    status: 'success',
+                })
+            }
+        } catch (err) {
+            toast.error(t, err, 'errors.unknown-error')
+        }
+    }, [resolvedCopyValue, onCopyMessage, t, toast])
+
+    const handleShare = useCallback(async () => {
+        if (!('share' in navigator)) {
+            toast.show({
+                status: 'error',
+                content: t('errors.unknown-error'),
+            })
+            return
+        }
+
+        try {
+            await navigator.share({
+                text: shareValue || resolvedCopyValue,
+            })
+        } catch {
+            // no-op, user cancelled
+        }
+    }, [shareValue, resolvedCopyValue, t, toast])
+
     return (
         <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
             <RadixDialog.Portal>
@@ -45,10 +90,22 @@ export const QRDialog: React.FC<Props> = ({
                         <Body>
                             <QRContainer>
                                 <QRCode data={qrValue} />
-                                <CopyInput
-                                    value={copyValue || qrValue}
-                                    onCopyMessage={onCopyMessage}
-                                />
+                                <Row gap="md" fullWidth>
+                                    <Button
+                                        width="full"
+                                        variant="secondary"
+                                        icon={CopyIcon}
+                                        onClick={handleCopy}>
+                                        {t('words.copy')}
+                                    </Button>
+                                    <Button
+                                        width="full"
+                                        variant="secondary"
+                                        icon={ShareIcon}
+                                        onClick={handleShare}>
+                                        {t('words.share')}
+                                    </Button>
+                                </Row>
                             </QRContainer>
                             {notice && (
                                 <Notice>

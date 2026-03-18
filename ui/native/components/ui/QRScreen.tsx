@@ -12,6 +12,8 @@ interface Props {
     copyMessage: string
     /** Optional different value when copied, defaults to using qrValue */
     copyValue?: string
+    /** Value to share, defaults to copyValue */
+    shareValue?: string
     /** H2 title at the top of screen */
     title?: string
     /** Smaller, grey title suffix, intended for username suffix */
@@ -22,6 +24,10 @@ interface Props {
     bottom?: React.ReactNode
     /** Use dark theme for screen */
     dark?: boolean
+    /** When true, renders Copy + Share action buttons */
+    showActionButtons?: boolean
+    /** Renders a text field with an inline action button */
+    showTextWithAction?: 'copy' | 'share' | null
 }
 
 const QRScreen: React.FC<Props> = ({
@@ -31,6 +37,9 @@ const QRScreen: React.FC<Props> = ({
     qrValue,
     copyValue = qrValue,
     copyMessage,
+    shareValue,
+    showActionButtons = true,
+    showTextWithAction = 'copy',
     bottom,
     dark,
 }) => {
@@ -72,8 +81,11 @@ const QRScreen: React.FC<Props> = ({
             <QRCodeContainer
                 copyMessage={copyMessage}
                 copyValue={copyValue}
+                shareValue={shareValue}
                 dark={dark}
                 qrValue={qrValue}
+                showActionButtons={showActionButtons}
+                showTextWithAction={showTextWithAction}
             />
 
             <Column fullWidth>{bottom}</Column>

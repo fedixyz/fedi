@@ -183,6 +183,8 @@ const CompleteSocialRecovery: React.FC<Props> = ({ navigation }: Props) => {
                             copyMessage={t(
                                 'feature.recovery.copied-recovery-code',
                             )}
+                            showTextWithAction="copy"
+                            showActionButtons={false}
                         />
                     ) : (
                         <ActivityIndicator />

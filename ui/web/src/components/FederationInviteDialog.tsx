@@ -1,6 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { selectLoadedFederation } from '@fedi/common/redux'
 
 import { useAppSelector } from '../hooks'
@@ -26,6 +27,8 @@ export const FederationInviteDialog: React.FC<Props> = ({
     const inviteCode = federation?.inviteCode
     if (!inviteCode) return null
 
+    const shareLink = `${WEB_APP_URL}/link#screen=join&id=${encodeURIComponent(inviteCode)}`
+
     const handleOpenChange = (isOpen: boolean) => {
         if (!isOpen) {
             onClose()
@@ -38,6 +41,7 @@ export const FederationInviteDialog: React.FC<Props> = ({
             qrValue={inviteCode.toUpperCase()}
             copyValue={inviteCode}
             onCopyMessage={t('feature.federations.copied-federation-invite')}
+            shareValue={shareLink}
             onOpenChange={handleOpenChange}
             {...rest}
         />
