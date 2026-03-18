@@ -36,7 +36,7 @@ const ChatsListSearchHeader: React.FC = () => {
             headerCenter={
                 <View>
                     <SearchBar
-                        placeholder={t('phrases.search-chats')}
+                        placeholder={t('feature.chat.search-chats-placeholder')}
                         query={query}
                         setQuery={setQuery}
                         clearSearch={handleClearSearch}

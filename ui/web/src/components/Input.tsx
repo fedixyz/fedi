@@ -11,8 +11,7 @@ interface CustomProps {
     disabled?: boolean
     width?: 'auto' | 'full'
     textOverflow?: 'clip' | 'ellipsis'
-    leftAdornment?: React.ReactNode
-    rightAdornment?: React.ReactNode
+    adornment?: React.ReactNode
 }
 
 type Props = CustomProps &
@@ -26,8 +25,7 @@ export const Input: React.FC<Props> = ({
     onFocus,
     onBlur,
     width = 'full',
-    leftAdornment,
-    rightAdornment,
+    adornment,
     ...inputProps
 }) => {
     const [hasFocus, setHasFocus] = useState(false)
@@ -56,13 +54,12 @@ export const Input: React.FC<Props> = ({
                 </Label>
             )}
             <InputWrap isFocused={hasFocus} isDisabled={inputProps.disabled}>
-                {leftAdornment}
                 <TextInput
                     {...inputProps}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
                 />
-                {rightAdornment}
+                {adornment}
             </InputWrap>
         </Container>
     )

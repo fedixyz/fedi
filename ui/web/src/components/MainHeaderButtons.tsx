@@ -3,7 +3,6 @@ import React from 'react'
 
 import HamburgerIcon from '@fedi/common/assets/svgs/hamburger-icon.svg'
 import PlusIcon from '@fedi/common/assets/svgs/plus.svg'
-import SearchIcon from '@fedi/common/assets/svgs/search.svg'
 import { selectMatrixAuth } from '@fedi/common/redux'
 
 import { settingsRoute } from '../constants/routes'
@@ -16,14 +15,9 @@ import { ProfileIcon } from './ProfileIcon'
 type Props = {
     onMenuPress?: () => void
     onAddPress?: () => void
-    onSearchPress?: () => void
 }
 
-const MainHeaderButtons: React.FC<Props> = ({
-    onMenuPress,
-    onSearchPress,
-    onAddPress,
-}) => {
+const MainHeaderButtons: React.FC<Props> = ({ onMenuPress, onAddPress }) => {
     const matrixAuth = useAppSelector(selectMatrixAuth)
 
     return (
@@ -33,11 +27,6 @@ const MainHeaderButtons: React.FC<Props> = ({
                     onClick={onMenuPress}
                     data-testid="MainHeaderButtons__HamburgerIcon">
                     <Icon icon={HamburgerIcon} size="sm" />
-                </IconButton>
-            )}
-            {onSearchPress && (
-                <IconButton onClick={onSearchPress}>
-                    <Icon icon={SearchIcon} size="sm" />
                 </IconButton>
             )}
             {onAddPress && (

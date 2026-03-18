@@ -1,4 +1,3 @@
-import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,7 +8,6 @@ import { GUARDIANITO_BOT_DISPLAY_NAME } from '@fedi/common/constants/matrix'
 import { useMessageInputState } from '@fedi/common/hooks/chat'
 import { useMentionInput } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
-import { useDebouncedEffect } from '@fedi/common/hooks/util'
 import {
     selectMatrixRoom,
     selectMatrixRoomIsReadOnly,
@@ -43,7 +41,6 @@ import {
     useMessageAttachments,
 } from '../../hooks'
 import { styled, theme } from '../../styles'
-import { getHashParams } from '../../utils/linking'
 import { Avatar } from '../Avatar'
 import { CircularLoader } from '../CircularLoader'
 import { Icon } from '../Icon'
@@ -92,9 +89,6 @@ export const ChatConversation: React.FC<Props> = ({
     const { t } = useTranslation()
     const toast = useToast()
     const dispatch = useAppDispatch()
-    const router = useRouter()
-    const params = getHashParams(router.asPath)
-    const scrollToMessageId = params.message
 
     const room = useAppSelector(s => selectMatrixRoom(s, id))
     const user = useAppSelector(s => selectMatrixUser(s, id))
@@ -193,66 +187,28 @@ export const ChatConversation: React.FC<Props> = ({
             .finally(() => setIsPaginating(false))
     }, [onPaginate])
 
-    const scrollToMessage = useCallback(
-        (eventId: string) => {
-            try {
-                let targetGroupIndex = -1
+    const scrollToMessage = useCallback((eventId: string) => {
+        try {
+            const messageElement = messagesRef.current?.querySelector(
+                `[data-event-id="${eventId}"]`,
+            )
 
-                // Find the target group containing the event
-                for (
-                    let groupIndex = 0;
-                    groupIndex < eventGroups.length;
-                    groupIndex++
-                ) {
-                    const group = eventGroups[groupIndex]
-                    const found = group.some(timeFrame =>
-                        timeFrame.some(event => event.id === eventId),
-                    )
-                    if (found) {
-                        targetGroupIndex = groupIndex
-                        break
-                    }
-                }
+            if (messageElement) {
+                messageElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                })
 
-                if (targetGroupIndex !== -1) {
-                    const groupToScrollTo = eventGroups[targetGroupIndex]
-                    const parentGroupEventId = groupToScrollTo[0].at(-1)?.id
-                    const messageElement = messagesRef.current?.querySelector(
-                        `[data-event-id="${parentGroupEventId}"]`,
-                    )
-
-                    if (messageElement) {
-                        messageElement.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center',
-                        })
-
-                        setHighlightedMessageId(eventId)
-                        setTimeout(
-                            () => setHighlightedMessageId(null),
-                            HIGHLIGHT_DURATION,
-                        )
-                    }
-                }
-            } catch (error) {
-                log.error('Error scrolling to message:', error)
+                setHighlightedMessageId(eventId)
+                setTimeout(
+                    () => setHighlightedMessageId(null),
+                    HIGHLIGHT_DURATION,
+                )
             }
-        },
-        [eventGroups],
-    )
-
-    useDebouncedEffect(
-        () => {
-            if (
-                scrollToMessageId &&
-                highlightedMessageId !== scrollToMessageId
-            ) {
-                scrollToMessage(scrollToMessageId)
-            }
-        },
-        [scrollToMessageId, eventGroups.length],
-        300,
-    )
+        } catch (error) {
+            log.error('Error scrolling to message:', error)
+        }
+    }, [])
 
     const handleMessagesScroll = useCallback(
         (ev: React.WheelEvent<HTMLDivElement>) => {
