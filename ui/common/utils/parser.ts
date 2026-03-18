@@ -3,6 +3,7 @@ import { TFunction } from 'i18next'
 import { getParams as getLnurlParams } from 'js-lnurl'
 import qs from 'query-string'
 
+import { FEDI_PREFIX } from '../constants/linking'
 import { Btc, MSats } from '../types'
 import {
     AnyParsedData,
@@ -31,7 +32,7 @@ import {
 } from '../types/parser'
 import { validateCashuTokens } from './cashu'
 import { FedimintBridge } from './fedimint'
-import { isUniversalLink, universalToFedi } from './linking'
+import { isDeepLink, normalizeDeepLink } from './linking'
 import { makeLog } from './log'
 import { decodeFediMatrixRoomUri, decodeFediMatrixUserUri } from './matrix'
 import { isValidInternetIdentifier } from './validation'
@@ -211,9 +212,7 @@ export async function parseUserInput<T extends TFunction>(
 }
 
 /**
- * Attempts to parse a url
- * If it includes /screen? or /screen# then it's considered a deep link
- * Otherwise it will be picked up by parseFediUri
+ * Attempts to parse a url but if it's a user deeplink then handle using parseFediUri
  */
 export async function parseFediUniversalLink(
     raw: string,
@@ -226,15 +225,14 @@ export async function parseFediUniversalLink(
     | ParsedDeepLink
     | undefined
 > {
-    if (isUniversalLink(raw)) {
-        // Hack to let parseFediUri logic handle user deep links
-        // as we have a dedicated OmniConfirmation to show to users
-        if (raw.includes('?screen=user')) {
-            const deep = universalToFedi(raw) // → fedi://user/... or ''
-            if (!deep) return
+    if (isDeepLink(raw)) {
+        const result = normalizeDeepLink(raw)
 
-            // Re-use the existing Fedi-URI parser
-            return parseFediUri(deep, fedimint)
+        // Allows us to show user OmniConfirmation
+        // instead of generic deeplink OmniConfirmation
+        if (result?.screen === 'user') {
+            const id = result.params.get('id')
+            if (id) return parseFediUri(`${FEDI_PREFIX}user/${id}`, fedimint)
         }
 
         return {
@@ -268,7 +266,7 @@ async function parseLnurl(
 > {
     const lowerCaseRaw = raw.toLowerCase()
     // Ignore Fedi deep links AND universal links — they’re parsed elsewhere.
-    if (lowerCaseRaw.startsWith('fedi:') || isUniversalLink(raw)) return
+    if (lowerCaseRaw.startsWith('fedi:') || isDeepLink(raw)) return
 
     // Strip lightning/lnurl protocol for uniformity, keep track of if we were passed a full URL.
     const lnRaw = stripProtocol(lowerCaseRaw, 'lnurl', 'lightning')
@@ -786,7 +784,7 @@ function stripProtocol(raw: string, ...protocol: string[]) {
 function validateWebsiteUrl(url: string) {
     // Only fully-qualified HTTP(S) URLs, partial ones are too ambiguous.
     // Universal links are not generic websites.
-    if (isUniversalLink(url)) return false
+    if (isDeepLink(url)) return false
     if (
         !url.toLowerCase().startsWith('http://') &&
         !url.toLowerCase().startsWith('https://')

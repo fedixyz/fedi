@@ -140,7 +140,7 @@ export const environmentSlice = createSlice({
         clearSessionCount(state) {
             state.sessionCount = 0
         },
-        setRedirectTo(state, actions: PayloadAction<string>) {
+        setRedirectTo(state, actions: PayloadAction<string | null>) {
             state.redirectTo = actions.payload
         },
         setTransactionDisplayType(

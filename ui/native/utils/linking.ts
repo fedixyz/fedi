@@ -1,762 +1,295 @@
 import notifee, { EventType } from '@notifee/react-native'
-import { CommonActions, NavigationContainerRef } from '@react-navigation/native'
-import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import {
+    LinkingOptions,
+    getStateFromPath as defaultGetStateFromPath,
+    InitialState,
+    NavigationContainerRef,
+    NavigationState,
+    PartialState,
+} from '@react-navigation/native'
 import { Linking } from 'react-native'
 
-import { openMiniAppSession } from '@fedi/common/redux'
-import {
-    NavigationParams,
-    type NavigationAction,
-    type ParsedDeepLink,
-    type ScreenConfig,
-} from '@fedi/common/types/linking'
-import {
-    isUniversalLink,
-    getValidScreens,
-    parseDeepLink,
-    isFediDeeplinkType,
-    PinAwareDeepLinkQueue,
-    setDeepLinkHandler,
-} from '@fedi/common/utils/linking'
+import { setRedirectTo } from '@fedi/common/redux'
+import { isDeepLink, normalizeDeepLink } from '@fedi/common/utils/linking'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { store } from '../state/store'
-import { FediMod, Shortcut } from '../types'
-import {
-    NavigationLinkingConfig,
-    RootStackParamList,
-} from '../types/navigation'
+import type { AppDispatch } from '../state/store'
+import { RootStackParamList, TabsNavigatorParamList } from '../types/navigation'
 import { isZendeskNotification } from './notifications'
 import { launchZendeskSupport, zendeskCloseMessagingView } from './support'
 
-type NavigationProp = Pick<
-    NativeStackNavigationProp<RootStackParamList>,
-    'navigate'
->
-
-type RouteItem = {
-    name: keyof RootStackParamList
-    params?: RootStackParamList[keyof RootStackParamList]
-}
-
 const log = makeLog('utils/linking')
 
-/**
- * React Navigation linking configuration for deep links.
- *
- * Maps URL paths to screen navigation routes. When adding new screens that should
- * be accessible via deep links, update this configuration and ensure the screen
- * name is added to the createNavigationAction() function as well.
- *
- * @see https://reactnavigation.org/docs/configuring-links
- * @see createNavigationAction() function for navigation logic
- */
-const deepLinksConfig: NavigationLinkingConfig['config'] = {
-    screens: {
-        MainNavigator: {
-            initialRouteName: 'TabsNavigator',
-            screens: {
-                TabsNavigator: {
-                    screens: {
-                        Home: 'home',
-                        Chat: 'chat',
-                        Federations: 'federations',
-                    },
-                },
-                ChatRoomConversation: { path: 'room/:roomId' },
-                ChatUserConversation: 'user/:userId',
-                ShareLogs: 'share-logs/:ticketNumber',
-                ClaimEcash: 'ecash/:token',
-                JoinFederation: 'join/:invite',
-                FediModBrowser: 'browser/:url',
-            },
-        },
+type RootState = NavigationState<RootStackParamList>
+type TypedInitialState = PartialState<RootState>
+type RootScreen = Exclude<keyof RootStackParamList, 'TabsNavigator'>
+type TabScreen = keyof TabsNavigatorParamList
+type ScreenResult =
+    | { screen: RootScreen; params?: Record<string, string> }
+    | {
+          screen: TabScreen
+          parent: 'TabsNavigator'
+          params?: Record<string, string>
+      }
+
+const SUPPORTED_PREFIXES = [
+    'fedi://',
+    'fedi:',
+    'lightning:',
+    'lnurl:',
+    'bitcoin:',
+    'lnurlw://',
+    'lnurlp://',
+    'keyauth://',
+]
+
+const pendingLinks: string[] = []
+
+// Mapping used to convert path names to screens
+export const screenMap: Record<
+    string,
+    (params: Record<string, string>) => ScreenResult | undefined
+> = {
+    home: () => ({ screen: 'Home', parent: 'TabsNavigator' }),
+    chat: () => ({ screen: 'Chat', parent: 'TabsNavigator' }),
+    user: (params: Record<string, string>) => {
+        const userId = params?.userId ?? params?.id
+        if (userId)
+            return { screen: 'ChatUserConversation', params: { userId } }
+        return undefined
     },
+    room: (params: Record<string, string>) => {
+        const roomId = params?.roomId ?? params?.id
+        if (roomId)
+            return {
+                screen: 'ChatRoomConversation',
+                params: { roomId },
+            }
+        return undefined
+    },
+    federations: () => ({ screen: 'Federations', parent: 'TabsNavigator' }),
+    browser: () => ({ screen: 'FediModBrowser' }),
+    ecash: () => ({ screen: 'ClaimEcash' }),
+    join: () => ({ screen: 'JoinFederation' }),
+    'share-logs': () => ({ screen: 'ShareLogs' }),
 }
 
-type MainScreens = Record<string, ScreenConfig>
-const validScreens = getValidScreens(
-    (
-        deepLinksConfig as {
-            screens: { MainNavigator: { screens: MainScreens } }
+type ScreenKey = keyof typeof screenMap
+
+function navigateToUri(
+    navigationRef: NavigationContainerRef<RootStackParamList>,
+    uri: string,
+) {
+    const route = getInternalLinkRoute(uri)
+    if (!route) return
+
+    const currentRoute = navigationRef.getCurrentRoute()
+    if (!currentRoute) return
+
+    navigationRef.reset({
+        index: 1,
+        routes: [
+            { name: currentRoute.name, params: currentRoute.params },
+            ...route.routes,
+        ],
+    })
+}
+
+export function flushPendingLinks(
+    navigationRef: NavigationContainerRef<RootStackParamList>,
+) {
+    while (pendingLinks.length) {
+        const uri = pendingLinks.shift()
+        if (!uri) continue
+        navigateToUri(navigationRef, uri)
+    }
+}
+
+export function patchLinkingOpenURL(
+    navigationRef: NavigationContainerRef<RootStackParamList>,
+) {
+    log.info('patching Linking.openURL')
+
+    const originalOpenURL = Linking.openURL.bind(Linking)
+
+    Linking.openURL = async (url: string) => {
+        if (isDeepLink(url)) {
+            const result = normalizeDeepLink(url)
+            if (!result) return
+
+            const route = getInternalLinkRoute(result.fediUri)
+            if (!route) return
+
+            if (!navigationRef.isReady()) {
+                pendingLinks.push(result.fediUri)
+                return
+            }
+
+            return navigateToUri(navigationRef, result.fediUri)
         }
-    ).screens.MainNavigator.screens,
-)
 
-/**
- * React Navigation state management
- */
-let navigationRef: NavigationContainerRef<RootStackParamList> | null = null
-let isNavigationReady = false
-const pinAwareQueue = new PinAwareDeepLinkQueue()
-
-// Set the callback so common can call back to native
-setDeepLinkHandler((url: string) => {
-    return handleInternalDeepLinkDirect(url)
-})
-
-export const setNavigationRef = (
-    r: NavigationContainerRef<RootStackParamList> | null,
-) => {
-    navigationRef = r
-    log.debug('Navigation ref set', { hasRef: !!r })
-}
-
-export const setNavigationReady = () => {
-    log.info('Navigation marked as ready')
-    isNavigationReady = true
-    pinAwareQueue.setNavigationReady()
-}
-
-export const setAppUnlocked = (unlocked: boolean) => {
-    log.info('App PIN state changed', { unlocked })
-    pinAwareQueue.setAppUnlocked(unlocked)
-}
-
-/**
- * Create navigation actions for each screen type.
- */
-export function createNavigationAction(
-    parsedLink: ParsedDeepLink,
-): NavigationAction | null {
-    if (!parsedLink.isValid) return null
-
-    const { screen, id } = parsedLink
-
-    switch (screen) {
-        case 'join':
-            if (!id) return null
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'JoinFederation',
-                    params: { invite: id },
-                },
-            }
-
-        case 'room':
-            if (!id) return null
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'ChatRoomConversation',
-                    params: { roomId: id },
-                },
-            }
-
-        case 'user':
-            if (!id) return null
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'ChatUserConversation',
-                    params: { userId: id },
-                },
-            }
-
-        case 'home':
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'TabsNavigator',
-                    params: { screen: 'Home' },
-                },
-            }
-
-        case 'chat':
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'TabsNavigator',
-                    params: { screen: 'Chat' },
-                },
-            }
-
-        case 'scan':
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'OmniScanner',
-                },
-            }
-
-        case 'federations':
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'TabsNavigator',
-                    params: { screen: 'Federations' },
-                },
-            }
-
-        case 'share-logs':
-            if (!id) return null
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: { screen: 'ShareLogs', params: { ticketNumber: id } },
-            }
-
-        case 'ecash':
-            if (!id) return null
-
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: { screen: 'ClaimEcash', params: { token: id } },
-            }
-
-        // id param will arrive in the form "example.com"
-        case 'browser':
-            if (!id) return null
-
-            return {
-                type: 'navigate',
-                screen: 'MainNavigator',
-                params: {
-                    screen: 'FediModBrowser',
-                    // http(s):// was stripped out in universalToFedi common util function
-                    // so restore here
-                    params: { url: `https://${id}` },
-                },
-            }
-
-        default:
-            return null
+        return originalOpenURL(url)
     }
 }
 
-// This is a temporary function until I get chance to refactor deep linking logic
-export const getRouteItemFromUrl = (url: string): RouteItem | null => {
-    const parsedLink = parseDeepLink(url, validScreens)
-
-    if (!parsedLink) return null
-
-    const { screen, id } = parsedLink
-
-    switch (screen) {
-        case 'join':
-            if (!id) return null
-            return {
-                name: 'JoinFederation',
-                params: { invite: id },
-            }
-
-        case 'room':
-            if (!id) return null
-            return {
-                name: 'ChatRoomConversation',
-                params: { roomId: id },
-            }
-
-        case 'user':
-            if (!id) return null
-            return {
-                name: 'ChatUserConversation',
-                params: { userId: id },
-            }
-
-        case 'home':
-            return {
-                name: 'TabsNavigator',
-                params: { initialRouteName: 'Home' },
-            }
-
-        case 'chat':
-            return {
-                name: 'TabsNavigator',
-                params: { initialRouteName: 'Chat' },
-            }
-
-        case 'scan':
-            return {
-                name: 'OmniScanner',
-            }
-
-        case 'federations':
-            return {
-                name: 'TabsNavigator',
-                params: { initialRouteName: 'Federations' },
-            }
-
-        case 'share-logs':
-            if (!id) return null
-            return {
-                name: 'ShareLogs',
-                params: { ticketNumber: id },
-            }
-
-        case 'ecash':
-            if (!id) return null
-
-            return {
-                name: 'ClaimEcash',
-                params: { token: id },
-            }
-
-        default:
-            return null
-    }
-}
-
-/**
- * Helper to peel down nested params to find the leaf { screen, params }
- */
-const resolveLeaf = (
-    screen: string,
-    params?: NavigationParams,
-): { leafScreen: string; leafParams?: NavigationParams } => {
-    let curScreen = screen
-    let curParams = params
-
-    while (curParams?.screen) {
-        curScreen = curParams.screen
-        curParams = curParams.params
-    }
-
-    return { leafScreen: curScreen, leafParams: curParams }
-}
-
-/**
- * Execute a navigation action using React Navigation
- */
-const executeNavigationAction = (action: NavigationAction): boolean => {
+// Handles fedi:// type links (with or without protocol prefix)
+export function getInternalLinkRoute(
+    path: string,
+    options?: Parameters<typeof defaultGetStateFromPath>[1],
+): TypedInitialState | undefined {
     try {
-        const { leafScreen, leafParams } = resolveLeaf(
-            action.screen,
-            action.params,
-        )
+        // Strip any supported prefix from the path
+        const [rawScreen, queryString] = SUPPORTED_PREFIXES.reduce(
+            (acc, prefix) => {
+                return acc.startsWith(prefix) ? acc.slice(prefix.length) : acc
+            },
+            path,
+        ).split('?')
 
-        // If our ref is already the Main stack, navigating to the leaf screen directly is correct.
-        // This avoids trying to navigate "to MainNavigator" (a no-op) and falling back to Home.
-        log.info('[NAV DISPATCH]', { screen: leafScreen, params: leafParams })
-        navigationRef?.dispatch(CommonActions.navigate(leafScreen, leafParams))
+        if (!rawScreen) {
+            return defaultGetStateFromPath(path, options) as
+                | TypedInitialState
+                | undefined
+        }
 
-        return true
-    } catch (error) {
-        log.error('Navigation dispatch error:', error)
-        return false
+        const mapper = screenMap[rawScreen as ScreenKey]
+        if (!mapper) {
+            return defaultGetStateFromPath(path, options) as
+                | TypedInitialState
+                | undefined
+        }
+
+        const queryParams: Record<string, string> = {}
+        if (queryString) {
+            new URLSearchParams(queryString).forEach((value, key) => {
+                queryParams[key] = value
+            })
+        }
+
+        const map = mapper(queryParams)
+        if (!map) return undefined
+
+        const resolvedParams = map.params ?? queryParams
+
+        if ('parent' in map) {
+            return {
+                routes: [
+                    {
+                        name: 'TabsNavigator',
+                        state: {
+                            routes: [
+                                { name: map.screen, params: resolvedParams },
+                            ],
+                        },
+                    },
+                ],
+            }
+        }
+
+        return {
+            routes: [{ name: map.screen, params: resolvedParams }],
+        }
+    } catch (err) {
+        log.error('getStateFromPath: invalid URL', err)
+        return undefined
     }
 }
 
-/**
- * Direct handler without queue logic (for processing queued items)
- */
-const handleInternalDeepLinkDirect = (u: string): boolean => {
-    const startTime = Date.now()
-    log.info('handleInternalDeepLinkDirect START', {
-        url: u,
-        timestamp: startTime,
-    })
+export const getLinking = (
+    onboardingCompleted: boolean,
+    dispatch: AppDispatch,
+): LinkingOptions<RootStackParamList> => ({
+    prefixes: SUPPORTED_PREFIXES,
 
-    if (!navigationRef || !navigationRef.isReady()) {
-        log.warn('handleInternalDeepLinkDirect: navigation not ready')
-        return false
-    }
-
-    const parsed = parseDeepLink(u, validScreens)
-
-    log.info('Parsed deep link:', {
-        original: u,
-        parsed: {
-            screen: parsed.screen,
-            id: parsed.id,
-            isValid: parsed.isValid,
-            fediUrl: parsed.fediUrl,
+    config: {
+        screens: {
+            TabsNavigator: {
+                // @ts-expect-error: Nested screens are not allowed with the
+                // current TabsNavigator param type ({ initialRouteName }),
+                // but we need it here for deep linking to individual tabs
+                // while preserving initialRouteName usage in RootStackParamList
+                screens: {
+                    Home: 'home',
+                    Chat: 'chat',
+                    Mods: 'mods',
+                    Federations: 'federations',
+                },
+            },
+            ChatRoomConversation: 'room/:roomId',
+            ChatUserConversation: 'user/:userId',
+            ShareLogs: 'share-logs/:ticketNumber',
+            ClaimEcash: 'ecash/:id',
+            JoinFederation: 'join/:invite',
+            FediModBrowser: 'browser/:url',
         },
-    })
-
-    if (!parsed.isValid) {
-        log.warn('Invalid deep link:', parsed)
-        return false
-    }
-
-    // Create navigation action
-    const action = createNavigationAction(parsed)
-    if (!action) {
-        log.warn('Could not create navigation action for:', parsed)
-        return false
-    }
-
-    // For browser deep links, set up Redux state before navigation
-    // Extract URL from nested params: action.params.params.url
-    const nestedParams = action.params?.params as { url?: string } | undefined
-
-    if (action.params?.screen === 'FediModBrowser' && nestedParams?.url) {
-        const browserUrl = nestedParams.url
-        store.dispatch(
-            openMiniAppSession({
-                miniAppId: browserUrl,
-                url: browserUrl,
-            }),
-        )
-    }
-
-    // Execute navigation
-    const dispatchStart = Date.now()
-    const success = executeNavigationAction(action)
-
-    log.info('handleInternalDeepLinkDirect END', {
-        success,
-        screen: parsed.screen,
-        id: parsed.id,
-        dispatchDuration: Date.now() - dispatchStart,
-        totalDuration: Date.now() - startTime,
-    })
-
-    return success
-}
-
-/**
- * Main entry point - PIN-aware
- */
-export const handleInternalDeepLink = (u: string): boolean => {
-    const startTime = Date.now()
-    log.info('handleInternalDeepLink START', {
-        url: u,
-        timestamp: startTime,
-        isNavigationReady,
-        isPinReady: pinAwareQueue.getIsReady(),
-        hasNavigationRef: !!navigationRef,
-    })
-
-    if (!navigationRef) {
-        log.warn('handleInternalDeepLink: no navigationRef, queueing')
-        pinAwareQueue.add(u)
-        return true
-    }
-
-    // Check if both navigation AND PIN are ready
-    if (!pinAwareQueue.getIsReady() || !navigationRef.isReady()) {
-        log.info('Navigation or PIN not ready, queueing deep link', {
-            isNavigationReady,
-            isPinReady: pinAwareQueue.getIsReady(),
-            navigationReady: navigationRef.isReady(),
-        })
-        pinAwareQueue.add(u)
-        return true
-    }
-
-    // If everything is ready, handle directly
-    return handleInternalDeepLinkDirect(u)
-}
-
-/**
- * Fedi Mod navigation
- * Note: openMiniAppSession must be dispatched BEFORE calling this function
- * to set up the Redux state for the browser
- */
-export const handleFediModNavigation = async (
-    shortcut: Shortcut,
-    navigation: NavigationProp,
-): Promise<void> => {
-    const fediMod = shortcut as FediMod
-    const { url } = fediMod
-
-    // Check if it's a URL that should be opened externally
-    if (
-        url.includes('t.me/') ||
-        url.includes('wa.me/') ||
-        url.includes('app.fedi.xyz')
-    ) {
-        try {
-            await Linking.openURL(url)
-        } catch (error) {
-            log.error('Failed to open external URL:', url, error)
-            store.dispatch(openMiniAppSession({ miniAppId: url, url }))
-            navigation.navigate('FediModBrowser')
-        }
-    } else if (isFediDeeplinkType(url)) {
-        await openURL(url)
-    } else {
-        store.dispatch(openMiniAppSession({ miniAppId: url, url }))
-        navigation.navigate('FediModBrowser')
-    }
-}
-
-export const openURL = async (u: string): Promise<void> => {
-    if (!handleInternalDeepLink(u)) {
-        await Linking.openURL(u)
-    }
-}
-
-/**
- * Parse and validate deep links for React Navigation.
- *
- *
- * Handles both Universal Links (https://app.fedi.xyz/link?screen=user&id=...)
- * and native fedi:// links. The function attempts to handle navigation internally
- * when the navigation system is ready, otherwise returns the link for React Navigation
- * to process later.
- *
- **/
-export function parseLink(uri: string, fallback: (u: string) => void): string {
-    log.debug('parseLink called with', uri)
-
-    const parsed = parseDeepLink(uri, validScreens)
-
-    // Handle universal links
-    if (isUniversalLink(uri)) {
-        log.debug('parseLink: processing universal link')
-
-        if (!parsed.isValid || !parsed.fediUrl) {
-            log.warn('parseLink: invalid universal link', parsed)
-            return ''
-        }
-
-        log.info('parseLink: converted universal link', {
-            original: uri,
-            converted: parsed.fediUrl,
-        })
-
-        // Check if PIN-aware queue is ready before trying to handle manually
-        if (
-            isNavigationReady &&
-            navigationRef?.isReady() &&
-            pinAwareQueue.getIsReady()
-        ) {
-            log.info('parseLink: navigation and PIN ready, handling internally')
-            if (handleInternalDeepLink(parsed.fediUrl)) {
-                log.info(
-                    'parseLink: successfully handled via handleInternalDeepLink',
-                )
-                return ''
-            } else {
-                log.warn(
-                    'parseLink: handleInternalDeepLink failed, returning deep link for React Navigation',
-                )
-                return parsed.fediUrl
-            }
-        } else {
-            log.info(
-                'parseLink: navigation or PIN not ready, returning deep link for React Navigation to handle',
-            )
-            return parsed.fediUrl
-        }
-    }
-
-    // Handle native fedi:// links
-    if (uri.startsWith('fedi://')) {
-        if (!parsed.isValid) {
-            log.warn('parseLink: invalid fedi link', parsed)
-            fallback(uri)
-            return ''
-        }
-
-        // Check if PIN-aware queue is ready
-        if (
-            isNavigationReady &&
-            navigationRef?.isReady() &&
-            pinAwareQueue.getIsReady()
-        ) {
-            log.info(
-                'parseLink: navigation and PIN ready, handling fedi:// link internally',
-            )
-            const linkToHandle = parsed.fediUrl || uri
-            if (handleInternalDeepLink(linkToHandle)) {
-                log.info(
-                    'parseLink: successfully handled fedi:// link via handleInternalDeepLink',
-                )
-                return '' // Return empty so React Navigation doesn't try to handle it
-            } else {
-                log.warn(
-                    'parseLink: handleInternalDeepLink failed for fedi:// link, returning for React Navigation',
-                )
-                return linkToHandle // Let React Navigation try to handle it
-            }
-        } else {
-            log.info(
-                'parseLink: navigation or PIN not ready, returning fedi:// link for React Navigation',
-            )
-            return parsed.fediUrl || uri // Let React Navigation handle it
-        }
-    }
-
-    // Everything else goes to fallback
-    log.debug('parseLink: not a recognized link format, calling fallback')
-    fallback(uri)
-    return ''
-}
-
-/**
- * Generates React Navigation linking configuration for the App Navigator.
- *
- * This configuration handles deep links from multiple sources:
- * - `getInitialURL`: Processes links that open the app from a closed state, including
- *   initial URLs and notification links. Queues deep links for later processing when
- *   navigation isn't ready.
- * - `subscribe`: Handles links received while the app is in the foreground, including
- *   URL events and notification presses. Attempts immediate handling when navigation
- *   is ready, with fallback to React Navigation.
- *
- * @param fallback Function called when a link is not a valid deep link
- */
-export const getLinkingConfig = (
-    fallback: (url: string) => void,
-): NavigationLinkingConfig => ({
-    prefixes: [
-        'fedi://',
-        'fedi:',
-        'lightning:',
-        'lnurl:',
-        'bitcoin:',
-        'lnurlw://',
-        'lnurlp://',
-        'keyauth://',
-    ],
-    config: deepLinksConfig,
-
-    getInitialURL: async () => {
-        try {
-            const url = await Linking.getInitialURL()
-            if (url != null) {
-                log.info('getInitialURL found URL:', url)
-
-                if (isUniversalLink(url) || url.startsWith('fedi://')) {
-                    log.info(
-                        'getInitialURL: queueing deep link for later processing',
-                    )
-                    pinAwareQueue.add(url)
-                    return null // Don't let React Navigation handle it
-                }
-
-                return parseLink(url, fallback)
-            }
-
-            const notif = await notifee.getInitialNotification()
-            const link = notif?.notification?.data?.link
-            if (typeof link === 'string') {
-                log.info('getInitialURL found notification link:', link)
-
-                if (isUniversalLink(link) || link.startsWith('fedi://')) {
-                    log.info(
-                        'getInitialURL: queueing notification link for later processing',
-                    )
-                    pinAwareQueue.add(link)
-                    return null
-                }
-
-                return parseLink(link, fallback)
-            }
-
-            return null
-        } catch (error) {
-            log.error('getInitialURL error:', error)
-            return null
-        }
     },
-    // Subscribe to future links that bring the app to the foreground.
-    subscribe: listener => {
+
+    getStateFromPath(
+        path: string,
+        options?: Parameters<typeof defaultGetStateFromPath>[1],
+    ): InitialState | undefined {
+        return getInternalLinkRoute(path, options)
+    },
+
+    subscribe(listener: (url: string) => void) {
+        const handleUrl = (url: string | null) => {
+            if (!url) return
+
+            if (isDeepLink(url)) {
+                log.info('Received deeplink', url)
+
+                if (!onboardingCompleted) {
+                    dispatch(setRedirectTo(url))
+                    return
+                }
+
+                const result = normalizeDeepLink(url)
+                if (!result) return
+
+                listener(result.fediUri)
+                return
+            }
+
+            listener(url)
+        }
+
+        Linking.getInitialURL()
+            .then(handleUrl)
+            .catch(err => log.error(err))
+
+        notifee
+            .getInitialNotification()
+            .then(notif => {
+                const link = notif?.notification?.data?.link
+                if (typeof link === 'string') handleUrl(link)
+            })
+            .catch(err => log.error(err))
+
         const subscription = Linking.addEventListener(
             'url',
             async ({ url }) => {
-                log.info('URL received via addEventListener:', url)
-
-                try {
-                    await zendeskCloseMessagingView()
-
-                    // For foreground links, try immediate handling if everything is ready
-                    if (
-                        isNavigationReady &&
-                        navigationRef?.isReady() &&
-                        pinAwareQueue.getIsReady()
-                    ) {
-                        if (isUniversalLink(url) || url.startsWith('fedi://')) {
-                            log.info(
-                                'addEventListener: everything ready, trying direct handling',
-                            )
-                            const handled = handleInternalDeepLink(url)
-                            if (handled) {
-                                log.info(
-                                    'addEventListener: successfully handled internally',
-                                )
-                                return // Don't call listener
-                            }
-                            log.warn(
-                                'addEventListener: direct handling failed, falling back to React Navigation',
-                            )
-                        }
-                    }
-
-                    const link = parseLink(url, fallback)
-                    if (link) {
-                        log.info('Parsed link, notifying listener:', link)
-                        listener(link)
-                    } else {
-                        log.warn('Link parsing failed or returned empty')
-                    }
-                } catch (error) {
-                    log.error('URL handling error:', error)
-                }
+                await zendeskCloseMessagingView()
+                handleUrl(url)
             },
         )
 
-        const unsubscribe = notifee.onForegroundEvent(async e => {
+        const unsubscribeNotifee = notifee.onForegroundEvent(async e => {
             if (e.type !== EventType.PRESS) return
 
-            try {
-                if (await isZendeskNotification(e.detail?.notification?.data)) {
-                    log.info('Zendesk foreground notification pressed')
-                    await launchZendeskSupport(err =>
-                        log.error('Zendesk error:', err),
-                    )
-                    return
-                }
-
-                const uri = e.detail?.notification?.data?.link
-                if (typeof uri !== 'string') {
-                    log.warn('Notification lacks "link" field:', e.detail)
-                    return
-                }
-
-                // Same logic for notifications
-                if (
-                    isNavigationReady &&
-                    navigationRef?.isReady() &&
-                    pinAwareQueue.getIsReady()
-                ) {
-                    if (isUniversalLink(uri) || uri.startsWith('fedi://')) {
-                        log.info(
-                            'notification: everything ready, trying direct handling',
-                        )
-                        const handled = handleInternalDeepLink(uri)
-                        if (handled) {
-                            log.info(
-                                'notification: successfully handled internally',
-                            )
-                            return
-                        }
-                        log.warn(
-                            'notification: direct handling failed, falling back to React Navigation',
-                        )
-                    }
-                }
-
-                const link = parseLink(uri, fallback)
-                if (link) {
-                    log.info(
-                        'Notification link parsed, notifying listener:',
-                        link,
-                    )
-                    listener(link)
-                } else {
-                    log.warn('Notification link parsing failed:', uri)
-                }
-            } catch (error) {
-                log.error('Notification handling error:', error)
+            if (await isZendeskNotification(e.detail?.notification?.data)) {
+                await launchZendeskSupport(err =>
+                    log.error('Zendesk error:', err),
+                )
+                return
             }
+
+            const uri = e.detail?.notification?.data?.link
+            if (typeof uri === 'string') handleUrl(uri)
         })
 
         return () => {
             subscription.remove()
-            unsubscribe()
+            unsubscribeNotifee()
         }
     },
 })
