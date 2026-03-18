@@ -1,22 +1,89 @@
 import Link from 'next/link'
-import React, { useCallback, useState } from 'react'
+import { useRouter } from 'next/router'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChevronRightIcon from '@fedi/common/assets/svgs/chevron-right.svg'
+import CloseIcon from '@fedi/common/assets/svgs/close.svg'
 import ScanIcon from '@fedi/common/assets/svgs/scan.svg'
+import SearchNoResultIcon from '@fedi/common/assets/svgs/search-no-result.svg'
+import SearchIcon from '@fedi/common/assets/svgs/search.svg'
 import SocialPeopleIcon from '@fedi/common/assets/svgs/social-people.svg'
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
-import { selectMatrixChatsList } from '@fedi/common/redux'
+import { useChatsListSearch } from '@fedi/common/hooks/matrix'
+import { MatrixRoom } from '@fedi/common/types'
 
 import * as Layout from '../../components/Layout'
 import { chatNewRoute, chatNewRoomRoute } from '../../constants/routes'
-import { useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
 import { Dialog } from '../Dialog'
 import { Column, Row } from '../Flex'
 import { Icon } from '../Icon'
+import { Input } from '../Input'
+import MainHeaderButtons from '../MainHeaderButtons'
 import { Text } from '../Text'
 import { ChatListItem } from './ChatListItem'
+
+interface SearchHeaderProps {
+    query: string
+    onQueryChange: (query: string) => void
+    onClearSearch: () => void
+}
+
+const SearchHeader: React.FC<SearchHeaderProps> = ({
+    query,
+    onQueryChange,
+    onClearSearch,
+}) => {
+    const { t } = useTranslation()
+
+    return (
+        <SearchInputRow>
+            <SearchInput
+                value={query}
+                onChange={ev => onQueryChange(ev.currentTarget.value)}
+                placeholder={`${t('phrases.search-chats')}...`}
+                leftAdornment={
+                    <IconContainer style={{ paddingLeft: '12px' }}>
+                        <Icon icon={SearchIcon} size={20} />
+                    </IconContainer>
+                }
+                rightAdornment={
+                    query.length > 0 && (
+                        <IconContainer
+                            style={{ paddingRight: '12px' }}
+                            onClick={onClearSearch}>
+                            <Icon icon={CloseIcon} size={24} />
+                        </IconContainer>
+                    )
+                }
+                autoFocus
+            />
+        </SearchInputRow>
+    )
+}
+
+interface DefaultHeaderProps {
+    onAddPress: () => void
+    onSearchPress: () => void
+}
+
+const DefaultHeader: React.FC<DefaultHeaderProps> = ({
+    onAddPress,
+    onSearchPress,
+}) => {
+    const { t } = useTranslation()
+
+    return (
+        <>
+            <Layout.Title small>{t('words.chat')}</Layout.Title>
+            <MainHeaderButtons
+                onAddPress={onAddPress}
+                onSearchPress={onSearchPress}
+            />
+        </>
+    )
+}
 
 function ChatAddOption({
     href,
@@ -50,9 +117,89 @@ function ChatAddOption({
     )
 }
 
+interface SearchableRoomsListProps {
+    isSearchMode: boolean
+    query: string
+    rooms: MatrixRoom[]
+}
+
+const SearchableRoomsList: React.FC<SearchableRoomsListProps> = ({
+    isSearchMode,
+    query,
+    rooms,
+}) => {
+    const { t } = useTranslation()
+
+    // render empty search state if there are no results
+    if (isSearchMode && query && rooms.length === 0) {
+        return (
+            <EmptySearchState>
+                <Icon icon={SearchNoResultIcon} size={64} />
+                <Text
+                    variant="h2"
+                    weight="bold"
+                    css={{
+                        color: theme.colors.grey,
+                        textAlign: 'center',
+                    }}>
+                    {t('phrases.no-result')}
+                </Text>
+                <Text
+                    css={{
+                        color: theme.colors.grey,
+                        textAlign: 'center',
+                    }}>
+                    {t('feature.chat.search-chats-list-no-results')}
+                </Text>
+            </EmptySearchState>
+        )
+    }
+
+    return (
+        <ChatsContainer>
+            {isSearchMode && !query && (
+                <GuidanceText variant="caption" weight="medium">
+                    {t('feature.chat.search-chats-list-guidance')}
+                </GuidanceText>
+            )}
+            {rooms.length === 0 ? (
+                <EmptyMessage>{t('feature.chat.select-or-start')}</EmptyMessage>
+            ) : (
+                <Chats>
+                    {rooms.map(room => (
+                        <ErrorBoundary key={room.id} fallback={null}>
+                            <ChatListItem room={room} />
+                        </ErrorBoundary>
+                    ))}
+                </Chats>
+            )}
+        </ChatsContainer>
+    )
+}
+
 export const ChatList: React.FC = () => {
     const { t } = useTranslation()
-    const rooms = useAppSelector(selectMatrixChatsList)
+    const router = useRouter()
+
+    const [chatType] = Array.isArray(router.query.path)
+        ? [router.query.path[0]]
+        : []
+
+    const isSearchMode = chatType === 'search'
+
+    const { query, setQuery, clearSearch, filteredChatsList } =
+        useChatsListSearch()
+
+    const goToSearch = () => {
+        router.push('/chat/search')
+    }
+
+    // Clear search query when navigating away from search mode
+    useEffect(() => {
+        if (!isSearchMode && query) {
+            clearSearch()
+        }
+    }, [isSearchMode, query, clearSearch])
 
     const [showOverlay, setShowOverlay] = useState(false)
 
@@ -76,24 +223,27 @@ export const ChatList: React.FC = () => {
     return (
         <>
             <Layout.Root>
-                <Layout.PageHeader
-                    title={t('words.chat')}
-                    onAddPress={() => setShowOverlay(true)}
-                />
-                <Layout.Content fullWidth>
-                    {rooms.length === 0 ? (
-                        <EmptyMessage>
-                            {t('feature.chat.select-or-start')}
-                        </EmptyMessage>
+                <Layout.Header back={isSearchMode ? '/chat' : undefined}>
+                    {isSearchMode ? (
+                        <SearchHeader
+                            query={query}
+                            onQueryChange={setQuery}
+                            onClearSearch={clearSearch}
+                        />
                     ) : (
-                        <Chats>
-                            {rooms.map(room => (
-                                <ErrorBoundary key={room.id} fallback={null}>
-                                    <ChatListItem room={room} />
-                                </ErrorBoundary>
-                            ))}
-                        </Chats>
+                        <DefaultHeader
+                            onAddPress={() => setShowOverlay(true)}
+                            onSearchPress={goToSearch}
+                        />
                     )}
+                </Layout.Header>
+
+                <Layout.Content fullWidth>
+                    <SearchableRoomsList
+                        isSearchMode={isSearchMode}
+                        query={query}
+                        rooms={filteredChatsList}
+                    />
                 </Layout.Content>
             </Layout.Root>
 
@@ -107,6 +257,13 @@ export const ChatList: React.FC = () => {
         </>
     )
 }
+
+const ChatsContainer = styled('div', {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1,
+})
 
 const Chats = styled('div', {
     flex: 1,
@@ -133,4 +290,44 @@ const OptionIcon = styled('div', {
     justifyContent: 'center',
     alignItems: 'center',
     fediGradient: 'black',
+})
+
+const SearchInputRow = styled('div', {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    position: 'relative',
+    // left indent to make room for back button
+    marginLeft: 35,
+})
+
+const IconContainer = styled('div', {
+    display: 'flex',
+    alignItems: 'center',
+})
+
+const SearchInput = styled(Input, {
+    flex: 1,
+    borderColor: theme.colors.black,
+    padding: theme.spacing.sm,
+})
+
+const GuidanceText = styled(Text, {
+    color: theme.colors.darkGrey,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    padding: `${theme.spacing.sm}px ${theme.spacing.lg}px`,
+    margin: '8px 16px',
+})
+
+const EmptySearchState = styled('div', {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    height: '100%',
+    padding: `0 12px`,
 })

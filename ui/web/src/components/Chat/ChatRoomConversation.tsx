@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
 import CogIcon from '@fedi/common/assets/svgs/cog.svg'
+import SearchIcon from '@fedi/common/assets/svgs/search.svg'
 import { useObserveMatrixRoom } from '@fedi/common/hooks/matrix'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
@@ -29,6 +30,7 @@ import { ChatConversation } from './ChatConversation'
 import { ChatEmptyState } from './ChatEmptyState'
 import { ChatPaymentDialog } from './ChatPaymentDialog'
 import { ChatPreviewConversation } from './ChatPreviewConversation'
+import { ChatRoomSearch } from './ChatRoomSearch'
 import { ChatRoomSettingsDialog } from './ChatRoomSettingsDialog'
 
 const log = makeLog('ChatRoomConversation')
@@ -39,9 +41,13 @@ interface Props {
 
 export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
     const { t } = useTranslation()
-    const { back } = useRouter()
+    const { query, back, push } = useRouter()
     const dispatch = useAppDispatch()
     const { error } = useToast()
+
+    const [, , chatSubpath] = Array.isArray(query.path)
+        ? [query.path[0], query.path[1], query.path[2]]
+        : []
 
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
@@ -133,6 +139,14 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
         }
     }, [dispatch, roomId, error, t])
 
+    const handleSearch = useCallback(() => {
+        push(`/chat/room/${roomId}/search`)
+    }, [push, roomId])
+
+    if (chatSubpath === 'search' && room) {
+        return <ChatRoomSearch room={room} />
+    }
+
     if (isLoading) {
         return (
             <LoadingContainer>
@@ -169,13 +183,20 @@ export const ChatRoomConversation: React.FC<Props> = ({ roomId }) => {
                 onSendMessage={handleSend}
                 onWalletClick={() => setIsPaymentOpen(true)}
                 headerActions={
-                    isDirectChat ? undefined : (
+                    <>
                         <Icon
-                            icon={CogIcon}
+                            icon={SearchIcon}
                             size={26}
-                            onClick={() => setIsSettingsOpen(true)}
+                            onClick={handleSearch}
                         />
-                    )
+                        {directUserId ? undefined : (
+                            <Icon
+                                icon={CogIcon}
+                                size={26}
+                                onClick={() => setIsSettingsOpen(true)}
+                            />
+                        )}
+                    </>
                 }
                 onPaginate={handlePaginate}
             />
