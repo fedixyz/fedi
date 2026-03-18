@@ -116,6 +116,8 @@ const ChatRoomInvite: React.FC<Props> = ({ route }: Props) => {
                 title={roomName}
                 qrValue={room.inviteCode}
                 copyMessage={t('feature.chat.copied-group-invite-code')}
+                showTextWithAction="copy"
+                showActionButtons={false}
             />
         )
     }

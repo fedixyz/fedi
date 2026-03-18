@@ -1,6 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { WEB_APP_URL } from '@fedi/common/constants/api'
 import { selectCommunity } from '@fedi/common/redux'
 
 import { useAppSelector } from '../hooks'
@@ -24,6 +25,8 @@ export const CommunityInviteDialog: React.FC<Props> = ({
     const inviteCode = community?.communityInvite.invite_code_str
     if (!inviteCode) return null
 
+    const shareLink = `${WEB_APP_URL}/link#screen=join&id=${encodeURIComponent(inviteCode)}`
+
     return (
         <QRDialog
             open={open}
@@ -31,6 +34,7 @@ export const CommunityInviteDialog: React.FC<Props> = ({
             qrValue={inviteCode.toUpperCase()}
             copyValue={inviteCode}
             onCopyMessage={t('feature.communities.copied-community-invite')}
+            shareValue={shareLink}
             onOpenChange={onClose}
         />
     )

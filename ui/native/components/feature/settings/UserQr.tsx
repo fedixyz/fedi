@@ -35,8 +35,8 @@ export const UserQr = ({ matrixUser }: UserQrProps) => {
             <QRCodeContainer
                 copyMessage={t('phrases.copied-member-code')}
                 qrValue={qrValue}
-                useShare={true}
                 shareValue={universalLink}
+                showTextWithAction="share"
             />
             <Row center gap="xs" fullWidth>
                 <Text
