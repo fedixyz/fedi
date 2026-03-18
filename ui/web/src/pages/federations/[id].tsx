@@ -2,6 +2,7 @@ import { useRouter } from 'next/router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import QrCodeIcon from '@fedi/common/assets/svgs/qr.svg'
 import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { useLeaveFederation } from '@fedi/common/hooks/leave'
 import { useToast } from '@fedi/common/hooks/toast'
@@ -9,6 +10,7 @@ import { selectDefaultChats, selectLoadedFederation } from '@fedi/common/redux'
 import {
     getFederationTosUrl,
     getFederationWelcomeMessage,
+    shouldShowInviteCode,
 } from '@fedi/common/utils/FederationUtils'
 
 import { Button } from '../../components/Button'
@@ -19,6 +21,8 @@ import FederationCountdownDialog from '../../components/FederationDetails/Federa
 import FederationDetailStats from '../../components/FederationDetails/FederationDetailStats'
 import FederationPopupCountdown from '../../components/FederationDetails/FederationPopupCountdown'
 import { FederationStatus } from '../../components/FederationDetails/FederationStatus'
+import { FederationInviteDialog } from '../../components/FederationInviteDialog'
+import { Icon } from '../../components/Icon'
 import * as Layout from '../../components/Layout'
 import { ShadowScroller } from '../../components/ShadowScroller'
 import { Text } from '../../components/Text'
@@ -31,12 +35,15 @@ function FederationDetails() {
 
     const [showPopupInfo, setShowPopupInfo] = useState(false)
     const [isLeavingFederation, setIsLeavingFederation] = useState(false)
+    const [invitingFederationId, setInvitingFederationId] = useState('')
 
     const id = (query.id as string | undefined) ?? ''
     const federation = useAppSelector(s => selectLoadedFederation(s, id))
     const federationChats = useAppSelector(s => selectDefaultChats(s, id))
     const popupInfo = usePopupFederationInfo(federation?.meta || {})
     const toast = useToast()
+
+    const shouldShowInvite = shouldShowInviteCode(federation?.meta ?? {})
 
     const { handleLeaveFederation, validateCanLeaveFederation } =
         useLeaveFederation({
@@ -66,7 +73,19 @@ function FederationDetails() {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back>
+                <Layout.Header
+                    back
+                    rightComponent={
+                        federation && shouldShowInvite ? (
+                            <Icon
+                                icon={QrCodeIcon}
+                                size="sm"
+                                onClick={() =>
+                                    setInvitingFederationId(federation.id)
+                                }
+                            />
+                        ) : undefined
+                    }>
                     <Layout.Title subheader>
                         {t('feature.federations.federation-details')}
                     </Layout.Title>
@@ -131,6 +150,11 @@ function FederationDetails() {
                     )}
                 </Layout.Content>
             </Layout.Root>
+            <FederationInviteDialog
+                open={!!invitingFederationId}
+                federationId={invitingFederationId}
+                onClose={() => setInvitingFederationId('')}
+            />
             <FederationCountdownDialog
                 open={showPopupInfo}
                 onOpenChange={setShowPopupInfo}
