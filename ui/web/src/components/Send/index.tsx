@@ -170,10 +170,12 @@ const Send: React.FC = () => {
                         }
                     />
                 </InvoiceContainer>
+
                 <Button
                     onClick={handleSend}
                     loading={isSending}
-                    disabled={isSending}>
+                    disabled={isSending}
+                    css={{ flexShrink: 0 }}>
                     {t('words.send')}
                 </Button>
             </>

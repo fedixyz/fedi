@@ -19,7 +19,6 @@ import { FederationWalletSelector } from '../FederationWalletSelector'
 import { Row } from '../Flex'
 import PaymentType from '../PaymentType'
 import { QRCode } from '../QRCode'
-import { Text } from '../Text'
 
 interface Props {
     onEcashGenerated(): void
@@ -164,12 +163,10 @@ export const SendOffline: React.FC<Props> = ({
                     />
                 </AmountContainer>
 
-                <HelpText>
-                    <Text variant="small">
-                        {t('feature.send.offline-send-warning')}
-                    </Text>
-                </HelpText>
-                <Button loading={isGeneratingEcash} onClick={handleSend}>
+                <Button
+                    loading={isGeneratingEcash}
+                    onClick={handleSend}
+                    css={{ flexShrink: 0 }}>
                     {t('words.send')}
                 </Button>
             </>
@@ -183,13 +180,7 @@ const AmountContainer = styled('div', {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
+    gap: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
     width: '100%',
-})
-
-const HelpText = styled('div', {
-    maxWidth: 280,
-    margin: 'auto',
-    textAlign: 'center',
-    color: theme.colors.grey,
 })

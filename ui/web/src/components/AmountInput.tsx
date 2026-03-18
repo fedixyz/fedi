@@ -225,7 +225,7 @@ const Container = styled('div', {
     justifyContent: 'space-between',
     width: '100%',
     gap: theme.spacing.md,
-    overflow: 'hidden',
+    overflowY: 'scroll',
 })
 
 const InputContainer = styled('div', {

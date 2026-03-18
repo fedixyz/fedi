@@ -12,7 +12,6 @@ import { styled } from '../../styles'
 import { AmountInput } from '../AmountInput'
 import { Button } from '../Button'
 import { CopyInput } from '../CopyInput'
-import { Column } from '../Flex'
 import { QRCode } from '../QRCode'
 
 export default function LightningRequest({
@@ -91,16 +90,15 @@ export default function LightningRequest({
                     />
                 </QRContainer>
             ) : (
-                <Column gap="xs">
-                    <Button
-                        width="full"
-                        onClick={handleSubmit}
-                        loading={isInvoiceLoading}>
-                        {t('feature.receive.request-sats', {
-                            amount,
-                        })}
-                    </Button>
-                </Column>
+                <Button
+                    width="full"
+                    onClick={handleSubmit}
+                    loading={isInvoiceLoading}
+                    css={{ flexShrink: 0 }}>
+                    {t('feature.receive.request-sats', {
+                        amount,
+                    })}
+                </Button>
             )}
         </Container>
     )
