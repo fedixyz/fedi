@@ -20,6 +20,7 @@ use rpc_types::sp_transfer::{
 use rpc_types::spv2_transfer_meta::Spv2TransferTxMeta;
 use rpc_types::{RpcEventId, RpcFederationId, RpcFiatAmount};
 use runtime::bridge_runtime::Runtime;
+use runtime::db::DatabaseInsertExt;
 use stability_pool_client::common::FiatAmount;
 use stability_pool_client::db::UserOperationHistoryItemKind;
 use tokio::sync::Notify;
@@ -353,14 +354,17 @@ impl SpTransfersMatrix {
                 )
                 .await;
                 if is_sender {
-                    dbtx.insert_entry(
+                    dbtx.insert_entry_if_missing(
                         &SenderAwaitingAccountAnnounceEventKey(transfer_id.clone()),
                         &(),
                     )
                     .await;
                 } else {
-                    dbtx.insert_entry(&PendingReceiverAccountIdEventKey(transfer_id.clone()), &())
-                        .await;
+                    dbtx.insert_entry_if_missing(
+                        &PendingReceiverAccountIdEventKey(transfer_id.clone()),
+                        &(),
+                    )
+                    .await;
                 }
             }
             RpcSpTransferEvent::TransferSentHint {

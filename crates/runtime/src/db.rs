@@ -1,4 +1,6 @@
+use fedimint_core::db::{DatabaseKey, DatabaseRecord, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
+use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::{impl_db_lookup, impl_db_record};
 
 #[repr(u8)]
@@ -38,3 +40,21 @@ impl_db_lookup!(
     key = FederationPendingRejoinFromScratchKey,
     query_prefix = FederationPendingRejoinFromScratchKeyPrefix,
 );
+
+#[allow(async_fn_in_trait)]
+pub trait DatabaseInsertExt<'a>: IDatabaseTransactionOpsCoreTyped<'a> {
+    async fn insert_entry_if_missing<K>(&mut self, key: &K, value: &K::Value) -> bool
+    where
+        K: DatabaseKey + DatabaseRecord + MaybeSend + MaybeSync,
+        K::Value: MaybeSend + MaybeSync,
+    {
+        if self.get_value(key).await.is_some() {
+            return false;
+        }
+
+        self.insert_entry(key, value).await;
+        true
+    }
+}
+
+impl<'a, T> DatabaseInsertExt<'a> for T where T: IDatabaseTransactionOpsCoreTyped<'a> + ?Sized {}

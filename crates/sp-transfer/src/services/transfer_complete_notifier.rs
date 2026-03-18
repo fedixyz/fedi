@@ -8,6 +8,7 @@ use futures::StreamExt as _;
 use matrix_sdk::ruma::TransactionId as MatrixTransactionId;
 use rpc_types::sp_transfer::{RpcSpTransferEvent, SpMatrixTransferId};
 use runtime::bridge_runtime::Runtime;
+use runtime::db::DatabaseInsertExt;
 use tokio::sync::Notify;
 use tracing::instrument;
 
@@ -57,7 +58,7 @@ impl SptTransferCompleteNotifier {
     ) {
         let spt_db = self.runtime.sp_transfers_db();
         let mut dbtx = spt_db.begin_transaction().await;
-        dbtx.insert_entry(
+        dbtx.insert_entry_if_missing(
             &SptPendingCompletionNotification::Success {
                 transfer_id,
                 federation_id: rpc_types::RpcFederationId(federation_id),
@@ -74,7 +75,7 @@ impl SptTransferCompleteNotifier {
     pub async fn add_failed_notification(&self, transfer_id: SpMatrixTransferId) {
         let spt_db = self.runtime.sp_transfers_db();
         let mut dbtx = spt_db.begin_transaction().await;
-        dbtx.insert_entry(
+        dbtx.insert_entry_if_missing(
             &SptPendingCompletionNotification::Failed { transfer_id },
             &(),
         )
