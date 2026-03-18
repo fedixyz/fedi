@@ -2692,6 +2692,19 @@ export const selectDefaultMatrixRoomIds = createSelector(
 export const selectIsDefaultGroup = (s: CommonState, id: string) =>
     selectDefaultMatrixRoomIds(s).includes(id)
 
+// This is a special exception to hide the Join button in any default chat groups
+// in the Fedi Global community that all users join by default
+export const selectShouldShowJoinOnChatPreview = createSelector(
+    [
+        (s: CommonState) => selectGlobalCommunityMetadata(s),
+        (_s: CommonState, roomId: string) => roomId,
+    ],
+    (globalCommunityMeta, roomId) => {
+        if (!globalCommunityMeta) return true
+        return !getDefaultGroupChats(globalCommunityMeta).includes(roomId)
+    },
+)
+
 export const selectMatrixRoomIsBlocked = (
     s: CommonState,
     id: MatrixRoom['id'],
