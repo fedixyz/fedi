@@ -1,6 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import { Button, Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { StyleSheet } from 'react-native'
 
 import { useFedimint } from '@fedi/common/hooks/fedimint'
 import { useConnectionRequestData } from '@fedi/common/hooks/matrix'
@@ -10,6 +12,7 @@ import {
     addPreviewMedia,
     selectGroupPreview,
     selectMatrixRoom,
+    selectShouldShowJoinOnChatPreview,
     sendMatrixMessage,
 } from '@fedi/common/redux'
 import { ChatType, InputAttachment, InputMedia } from '@fedi/common/types'
@@ -39,7 +42,11 @@ export type Props = NativeStackScreenProps<
     'ChatRoomConversation'
 >
 
-const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
+const ChatRoomConversation: React.FC<Props> = ({
+    route,
+    navigation,
+}: Props) => {
+    const { theme } = useTheme()
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
@@ -47,6 +54,9 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const [isSending, setIsSending] = useState(false)
     const room = useAppSelector(s => selectMatrixRoom(s, roomId))
     const groupPreview = useAppSelector(s => selectGroupPreview(s, roomId))
+    const shouldShowJoinButton = useAppSelector(s =>
+        selectShouldShowJoinOnChatPreview(s, roomId),
+    )
     const toast = useToast()
     const { shouldShowHeader } = useMultispendDisplayUtils(t, roomId)
     const [replyBarHeight, setReplyBarHeight] = useState(0)
@@ -59,6 +69,12 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
     const directUserId = useMemo(() => room?.directUserId, [room])
 
     const { bottomOffset, setMessageInputHeight } = useChatKeyboardBehavior()
+
+    const handleJoinPressed = () => {
+        navigation.navigate('ConfirmJoinPublicGroup', {
+            groupId: roomId,
+        })
+    }
 
     const handleSend = useCallback(
         async (
@@ -170,10 +186,26 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         renderMessageInput,
     ])
 
+    const style = styles(theme)
+
     if (!room) {
         if (groupPreview) {
             return (
-                <ChatPreviewConversation id={roomId} preview={groupPreview} />
+                <SafeAreaContainer edges={['bottom']}>
+                    <Column grow basis={false}>
+                        <ChatPreviewConversation
+                            id={roomId}
+                            preview={groupPreview}
+                        />
+                        {shouldShowJoinButton && (
+                            <Button
+                                onPress={handleJoinPressed}
+                                style={style.joinGroupButton}>
+                                {t('feature.chat.join-group')}
+                            </Button>
+                        )}
+                    </Column>
+                </SafeAreaContainer>
             )
         }
 
@@ -195,5 +227,11 @@ const ChatRoomConversation: React.FC<Props> = ({ route }: Props) => {
         </SafeAreaContainer>
     )
 }
+const styles = (theme: Theme) =>
+    StyleSheet.create({
+        joinGroupButton: {
+            marginHorizontal: theme.spacing.lg,
+        },
+    })
 
 export default ChatRoomConversation
