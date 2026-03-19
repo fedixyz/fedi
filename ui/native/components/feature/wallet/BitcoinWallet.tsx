@@ -76,7 +76,9 @@ const BitcoinWallet: React.FC<Props> = ({
     }
 
     return (
-        <Pressable onPress={handlePress}>
+        <Pressable
+            onPress={handlePress}
+            testID={`BitcoinWallet__Expand-${federation.id}`}>
             <BubbleCard
                 gradientColors={[...fediTheme.dayLinearGradient]}
                 containerStyle={style.card}>

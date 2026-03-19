@@ -283,6 +283,7 @@ jest.mock('@react-navigation/native', () => ({
     useNavigation: jest.fn(() => mockNavigation),
     useRoute: jest.fn(() => mockRoute),
     useIsFocused: jest.fn(() => true),
+    CommonActions: jest.requireActual('@react-navigation/native').CommonActions,
 }))
 
 // mock i18n provider that uses a real i18n instance for testing
@@ -466,4 +467,14 @@ jest.mock('react-native-video', () => {
 jest.mock('react-native-svg', () => ({
     SvgXml: jest.requireActual('react-native-svg').SvgXml,
     Svg: jest.requireActual('react-native-svg').Svg,
+}))
+
+export const mockToast = {
+    show: jest.fn(),
+    error: jest.fn(),
+    close: jest.fn(),
+}
+
+jest.mock('@fedi/common/hooks/toast', () => ({
+    useToast: () => mockToast,
 }))

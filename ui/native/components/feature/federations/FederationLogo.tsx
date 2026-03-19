@@ -38,7 +38,7 @@ export const FederationLogo: React.FC<Props> = ({
 
     if (!iconUrl || showFallback) {
         return (
-            <View>
+            <View testID="FederationLogo__Fallback">
                 <SvgImage
                     name="Federation"
                     size={svgSize}
@@ -49,7 +49,7 @@ export const FederationLogo: React.FC<Props> = ({
     }
 
     return (
-        <View>
+        <View testID="FederationLogo__Avatar">
             <View
                 style={[
                     svgProps,
