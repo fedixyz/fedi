@@ -45,7 +45,7 @@ const SendSuccess: React.FC<Props> = ({ route }: Props) => {
                                 setShowRateFederation(true)
                             } else {
                                 navigation.navigate('TabsNavigator', {
-                                    initialRouteName: 'Federations',
+                                    initialRouteName: 'Wallet',
                                 })
                             }
                         }}
@@ -58,7 +58,7 @@ const SendSuccess: React.FC<Props> = ({ route }: Props) => {
                     onDismiss={() => {
                         setShowRateFederation(false)
                         navigation.navigate('TabsNavigator', {
-                            initialRouteName: 'Federations',
+                            initialRouteName: 'Wallet',
                         })
                     }}
                 />

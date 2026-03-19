@@ -24,7 +24,7 @@ export const shouldHideNavigation = (pathname: string) => {
     if (path.includes(`${routes.chatRoute}/`)) return true
 
     // If federations/* then hide
-    if (path.includes(`${routes.federationsRoute}/`)) return true
+    if (path.includes(`${routes.walletRoute}/`)) return true
 
     // If communities/* then hide
     if (path.includes(`${routes.communitiesRoute}/`)) return true
@@ -43,8 +43,8 @@ export const tabRedirectPath = (lastUsedTab: HomeNavigationTab) => {
     switch (lastUsedTab) {
         case HomeNavigationTab.Home:
             return routes.homeRoute
-        case HomeNavigationTab.Wallets:
-            return routes.federationsRoute
+        case HomeNavigationTab.Wallet:
+            return routes.walletRoute
         case HomeNavigationTab.MiniApps:
             return routes.miniAppsRoute
         case HomeNavigationTab.Chat:

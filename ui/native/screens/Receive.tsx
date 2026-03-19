@@ -48,7 +48,7 @@ const Receive: React.FC<Props> = ({ route }) => {
                     navigation.canGoBack()
                         ? navigation.goBack()
                         : navigation.navigate('TabsNavigator', {
-                              initialRouteName: 'Federations',
+                              initialRouteName: 'Wallet',
                           })
                 }}
                 customActions={[

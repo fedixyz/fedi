@@ -19,7 +19,7 @@ import { Text } from '../components/Text'
 import { useAppSelector } from '../hooks'
 import { styled, theme } from '../styles'
 
-function FederationsPage() {
+function WalletPage() {
     const { t } = useTranslation()
     const router = useRouter()
 
@@ -73,13 +73,13 @@ function FederationsPage() {
                 ))}
             </FederationsListWrapper>
         )
-    }, [federations, t, router, expandedWalletId])
+    }, [federations, t, router, expandedWalletId, featuredFederation])
 
     return (
         <ContentBlock>
             <Layout.Root>
                 <Layout.PageHeader
-                    title={t('words.wallets')}
+                    title={t('words.wallet')}
                     onAddPress={() => router.push('/onboarding')}
                     onMenuPress={() => setOpen(true)}
                 />
@@ -114,4 +114,4 @@ const EmptyContainer = styled(Column, {
     borderRadius: 16,
 })
 
-export default FederationsPage
+export default WalletPage

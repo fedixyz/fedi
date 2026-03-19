@@ -8,7 +8,7 @@ import { useTransactionHistory } from '@fedi/common/hooks/transactions'
 import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
 import TransactionsList from '../components/TransactionList'
-import { federationsRoute } from '../constants/routes'
+import { walletRoute } from '../constants/routes'
 import { getHashParams } from '../utils/linking'
 
 const TransactionsPage: React.FC = () => {
@@ -30,7 +30,7 @@ const TransactionsPage: React.FC = () => {
     return (
         <ContentBlock>
             <Layout.Root>
-                <Layout.Header back={federationsRoute}>
+                <Layout.Header back={walletRoute}>
                     <Layout.Title subheader>
                         {t('words.transactions')}
                     </Layout.Title>

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useFederationPreview } from '@fedi/common/hooks/federation'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { federationsRoute, homeRoute } from '../../constants/routes'
+import { walletRoute, homeRoute } from '../../constants/routes'
 import { styled } from '../../styles'
 import { HoloLoader } from '../HoloLoader'
 import * as Layout from '../Layout'
@@ -62,7 +62,7 @@ export const JoinFederation: React.FC = () => {
                             `Recovering from scratch. (federation id: ${federationPreview.id})`,
                         )
                     }
-                    handleJoin(() => push(federationsRoute), recoverFromScratch)
+                    handleJoin(() => push(walletRoute), recoverFromScratch)
                 }}
                 onBack={() => {
                     setIsJoining(false)

@@ -65,8 +65,8 @@ const Router = () => {
             case 'Mods':
                 dispatch(setLastUsedTab(HomeNavigationTab.MiniApps))
                 break
-            case 'Federations':
-                dispatch(setLastUsedTab(HomeNavigationTab.Wallets))
+            case 'Wallet':
+                dispatch(setLastUsedTab(HomeNavigationTab.Wallet))
                 break
         }
 

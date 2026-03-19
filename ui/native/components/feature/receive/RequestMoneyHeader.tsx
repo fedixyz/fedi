@@ -28,7 +28,7 @@ const RequestMoneyHeader: React.FC = () => {
         <Header
             backButton={shouldShowBack}
             closeButton={shouldShowClose}
-            closeRoute="Federations"
+            closeRoute="Wallet"
             headerCenter={
                 <Text bold numberOfLines={1} adjustsFontSizeToFit>
                     {t('feature.receive.request-money')}

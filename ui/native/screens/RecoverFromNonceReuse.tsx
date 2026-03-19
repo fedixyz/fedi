@@ -29,7 +29,7 @@ const RecoverFromNonceReuse: React.FC<Props> = () => {
             <Button
                 onPress={() =>
                     navigation.navigate('TabsNavigator', {
-                        initialRouteName: 'Federations',
+                        initialRouteName: 'Wallet',
                     })
                 }>
                 {t('words.okay')}

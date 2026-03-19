@@ -16,9 +16,9 @@ import {
 } from '@fedi/common/tests/mock-data/federation'
 import { renderWithProviders } from '@fedi/native/tests/utils/render'
 
-import FederationsHeader from '../../../../../components/feature/federations/FederationsHeader'
+import WalletHeader from '../../../../../components/feature/federations/WalletHeader'
 
-describe('FederationsHeader', () => {
+describe('WalletHeader', () => {
     let store: ReturnType<typeof setupStore>
     let user: ReturnType<typeof userEvent.setup>
 
@@ -33,7 +33,7 @@ describe('FederationsHeader', () => {
     })
 
     it('should show the SelectFederationOverlay when the menu button is pressed', async () => {
-        renderWithProviders(<FederationsHeader />)
+        renderWithProviders(<WalletHeader />)
 
         const menuButton = await screen.getByTestId(
             'MainHeaderButtons__HamburgerIcon',
@@ -50,7 +50,7 @@ describe('FederationsHeader', () => {
     })
 
     it('should hide the SelectFederationOverlay when the backdrop is pressed', async () => {
-        renderWithProviders(<FederationsHeader />)
+        renderWithProviders(<WalletHeader />)
 
         const menuButton = await screen.getByTestId(
             'MainHeaderButtons__HamburgerIcon',
@@ -80,7 +80,7 @@ describe('FederationsHeader', () => {
         store.dispatch(setFederations([mockFederation1, mockFederation2]))
         store.dispatch(setPayFromFederationId(null))
 
-        renderWithProviders(<FederationsHeader />, {
+        renderWithProviders(<WalletHeader />, {
             store,
         })
 

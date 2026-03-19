@@ -28,9 +28,10 @@ export interface NavigationAction {
     params?: NavigationParams
 }
 
+// TODO: consider migrating to a union of strings for better type safety?
 export enum HomeNavigationTab {
     Home = 'home',
     Chat = 'chat',
     MiniApps = 'miniapps',
-    Wallets = 'wallets',
+    Wallet = 'wallets',
 }

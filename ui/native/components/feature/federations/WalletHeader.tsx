@@ -18,7 +18,7 @@ import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import TotalBalance from '../../ui/TotalBalance'
 import SelectFederationOverlay from '../send/SelectFederationOverlay'
 
-const FederationsHeader: React.FC = () => {
+const WalletHeader: React.FC = () => {
     const { theme } = useTheme()
     const { t } = useTranslation()
     const navigation = useNavigation<NavigationHook>()
@@ -28,7 +28,6 @@ const FederationsHeader: React.FC = () => {
 
     const dispatch = useAppDispatch()
     const paymentFederation = useAppSelector(selectPaymentFederation)
-
     const style = styles(theme)
 
     const openJoinCommunity = () => {
@@ -43,7 +42,7 @@ const FederationsHeader: React.FC = () => {
                 containerStyle={style.headerContainer}
                 headerLeft={
                     <Text h2 medium>
-                        {t('words.wallets')}
+                        {t('words.wallet')}
                     </Text>
                 }
                 headerRight={
@@ -104,4 +103,4 @@ const styles = (theme: Theme) =>
         },
     })
 
-export default FederationsHeader
+export default WalletHeader

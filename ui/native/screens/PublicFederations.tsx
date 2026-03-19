@@ -268,7 +268,7 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                             navigation.navigate('TabsNavigator', {
                                 initialRouteName:
                                     joinedFederationIds.length > 0
-                                        ? 'Federations'
+                                        ? 'Wallet'
                                         : 'Home',
                             })
                         }

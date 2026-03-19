@@ -24,7 +24,7 @@ import { selectZendeskUnreadMessageCount } from '@fedi/common/redux/support'
 import { HomeNavigationTab } from '@fedi/common/types/linking'
 
 import ChatHeader from '../components/feature/chat/ChatHeader'
-import FederationsHeader from '../components/feature/federations/FederationsHeader'
+import WalletHeader from '../components/feature/federations/WalletHeader'
 import HomeHeader from '../components/feature/home/HomeHeader'
 import GradientView from '../components/ui/GradientView'
 import SvgImage, {
@@ -38,9 +38,9 @@ import {
     TabsNavigatorParamList,
 } from '../types/navigation'
 import ChatScreen from './ChatScreen'
-import Federations from './Federations'
 import Home from './Home'
 import Mods from './Mods'
+import Wallet from './Wallet'
 
 const MAX_TABS_FONT_SCALE = 1.2
 
@@ -70,7 +70,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
         [HomeNavigationTab.Home]: 'Home',
         [HomeNavigationTab.Chat]: 'Chat',
         [HomeNavigationTab.MiniApps]: 'Mods',
-        [HomeNavigationTab.Wallets]: 'Federations',
+        [HomeNavigationTab.Wallet]: 'Wallet',
     }
 
     const { fontScale } = useWindowDimensions()
@@ -147,7 +147,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                                         ]}
                                     />
                                 )
-                            case 'Federations':
+                            case 'Wallet':
                                 return (
                                     <Pressable
                                         {...props}
@@ -196,7 +196,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                                         {...svgImageProps}
                                     />
                                 )
-                            case 'Federations':
+                            case 'Wallet':
                                 return (
                                     <SvgImage
                                         name={
@@ -222,14 +222,14 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     tabBarBadgeStyle: style.tabBarBadge,
                 })}>
                 <Tab.Screen
-                    name="Home"
+                    name="Wallet"
+                    component={Wallet}
                     options={() => ({
-                        tabBarTestID: 'HomeTabButton',
-                        title: t('words.home'),
-                        header: () => <HomeHeader />,
-                    })}>
-                    {props => <Home {...props} />}
-                </Tab.Screen>
+                        tabBarTestID: 'FederationsTabButton',
+                        title: t('words.wallet'),
+                        header: () => <WalletHeader />,
+                    })}
+                />
                 <Tab.Screen
                     name="Chat"
                     component={ChatScreen}
@@ -286,14 +286,14 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     })}
                 />
                 <Tab.Screen
-                    name="Federations"
-                    component={Federations}
+                    name="Home"
                     options={() => ({
-                        tabBarTestID: 'FederationsTabButton',
-                        title: t('words.federations'),
-                        header: () => <FederationsHeader />,
-                    })}
-                />
+                        tabBarTestID: 'HomeTabButton',
+                        title: t('words.community'),
+                        header: () => <HomeHeader />,
+                    })}>
+                    {props => <Home {...props} />}
+                </Tab.Screen>
             </Tab.Navigator>
         </>
     )

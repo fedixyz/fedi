@@ -67,7 +67,10 @@ export const screenMap: Record<
             }
         return undefined
     },
-    federations: () => ({ screen: 'Federations', parent: 'TabsNavigator' }),
+    wallet: () => ({ screen: 'Wallet', parent: 'TabsNavigator' }),
+    // this is for backwards compatibility
+    // TODO: remove legacy /federations deeplink after some time...
+    federations: () => ({ screen: 'Wallet', parent: 'TabsNavigator' }),
     browser: () => ({ screen: 'FediModBrowser' }),
     ecash: () => ({ screen: 'ClaimEcash' }),
     join: () => ({ screen: 'JoinFederation' }),
@@ -212,7 +215,10 @@ export const getLinking = (
                     Home: 'home',
                     Chat: 'chat',
                     Mods: 'mods',
-                    Federations: 'federations',
+                    Wallet: 'wallet',
+                    // this is for backwards compatibility
+                    // TODO: remove legacy /federations deeplink after some time...
+                    Federations: 'wallet',
                 },
             },
             ChatRoomConversation: 'room/:roomId',

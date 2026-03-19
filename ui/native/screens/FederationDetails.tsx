@@ -88,7 +88,7 @@ const FederationDetails: React.FC<Props> = ({ route }: Props) => {
                 .then(() => {
                     navigation.dispatch(
                         reset('TabsNavigator', {
-                            initialRouteName: 'Federations',
+                            initialRouteName: 'Wallet',
                         }),
                     )
                 })

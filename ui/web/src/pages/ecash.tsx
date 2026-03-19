@@ -18,7 +18,7 @@ import { HoloLoader } from '../components/HoloLoader'
 import { Icon } from '../components/Icon'
 import * as Layout from '../components/Layout'
 import { Text } from '../components/Text'
-import { homeRoute, federationsRoute } from '../constants/routes'
+import { homeRoute, walletRoute } from '../constants/routes'
 import { styled, theme } from '../styles'
 import { getHashParams } from '../utils/linking'
 
@@ -105,7 +105,7 @@ function EcashPage() {
 
         actions = (
             <>
-                <Button width="full" href={federationsRoute}>
+                <Button width="full" href={walletRoute}>
                     {t('feature.ecash.go-to-wallet')}
                 </Button>
                 <Button width="full" variant="tertiary" href={homeRoute}>

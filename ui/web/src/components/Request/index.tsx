@@ -13,7 +13,7 @@ import { selectPaymentFederation } from '@fedi/common/redux'
 import { TransactionListEntry } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 
-import { federationsRoute } from '../../constants/routes'
+import { walletRoute } from '../../constants/routes'
 import { useRouteState } from '../../context/RouteStateContext'
 import { useAppSelector } from '../../hooks'
 import { config, theme } from '../../styles'
@@ -112,7 +112,7 @@ const Request: React.FC<Props> = ({ open }) => {
                 )}`}
                 description={`${amountUtils.formatSats(amountUtils.msatToSat(receivedTransaction.amount))} ${t('words.sats')}`}
                 buttonText={t('words.done')}
-                onClick={() => router.push(federationsRoute)}
+                onClick={() => router.push(walletRoute)}
             />
         )
     }

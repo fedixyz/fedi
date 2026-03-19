@@ -154,7 +154,7 @@ export function resetToWallets() {
             routes: [
                 {
                     name: 'TabsNavigator',
-                    params: { initialRouteName: 'Federations' },
+                    params: { initialRouteName: 'Wallet' },
                 },
             ],
         }),
@@ -187,7 +187,7 @@ export function resetAfterSendSuccess({
             routes: [
                 {
                     name: 'TabsNavigator',
-                    params: { initialRouteName: 'Federations', federationId },
+                    params: { initialRouteName: 'Wallet', federationId },
                 },
                 {
                     name: 'SendSuccessShield',

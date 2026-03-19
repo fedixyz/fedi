@@ -306,7 +306,7 @@ This section documents the **native wiring** for deep links (Router integration,
 
 -   **React Navigation map** → `deepLinksConfig` in [`utils/linking.ts`](./native/utils/linking.ts)
 
-    -   Screens mapped: `Home`, `Chat`, `Federations`, `Send`, `Transactions`, `ChatRoomConversation (room/:roomId)`, `ChatUserConversation (user/:userId)`, `ShareLogs (share-logs/:ticketNumber)`
+    -   Screens mapped: `Home`, `Chat`, `Wallet`, `Send`, `Transactions`, `ChatRoomConversation (room/:roomId)`, `ChatUserConversation (user/:userId)`, `ShareLogs (share-logs/:ticketNumber)`
 
 ### Utilities (parser, constants, types, queue)
 

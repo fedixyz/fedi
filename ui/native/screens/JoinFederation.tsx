@@ -66,9 +66,7 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
             else
                 navigation.dispatch(
                     reset('TabsNavigator', {
-                        initialRouteName: communityPreview
-                            ? 'Home'
-                            : 'Federations',
+                        initialRouteName: communityPreview ? 'Home' : 'Wallet',
                     }),
                 )
         } catch (error) {
@@ -81,7 +79,7 @@ const JoinFederation: React.FC<Props> = ({ navigation, route }: Props) => {
 
         if (hasMatrixAuth) {
             navigation.replace('TabsNavigator', {
-                initialRouteName: federationPreview ? 'Federations' : 'Home',
+                initialRouteName: federationPreview ? 'Wallet' : 'Home',
             })
         } else {
             navigation.replace('EnterDisplayName')

@@ -21,10 +21,10 @@ import type {
 
 export type Props = BottomTabScreenProps<
     TabsNavigatorParamList & RootStackParamList,
-    'Federations'
+    'Wallet'
 >
 
-const Federations: React.FC<Props> = ({ navigation }) => {
+const Wallet: React.FC<Props> = ({ navigation }) => {
     const { theme } = useTheme()
     const { t } = useTranslation()
 
@@ -117,4 +117,4 @@ const styles = (theme: Theme) =>
         },
     })
 
-export default Federations
+export default Wallet

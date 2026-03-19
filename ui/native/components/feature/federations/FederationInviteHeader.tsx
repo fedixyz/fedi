@@ -32,7 +32,7 @@ const FederationInviteHeader: React.FC = () => {
                         navigation.canGoBack()
                             ? navigation.goBack()
                             : navigation.navigate('TabsNavigator', {
-                                  initialRouteName: 'Federations',
+                                  initialRouteName: 'Wallet',
                               })
                     }
                     hitSlop={5}

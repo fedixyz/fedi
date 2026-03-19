@@ -5,10 +5,10 @@ export const welcomeRoute = '/'
 export const chatRoute = '/chat'
 export const homeRoute = '/home'
 export const miniAppsRoute = '/mini-apps'
-export const federationsRoute = '/federations'
+export const walletRoute = '/wallet'
 
 // Other pages
-export const federationRoute = (id: string) => `${federationsRoute}/${id}`
+export const federationRoute = (id: string) => `${walletRoute}/${id}`
 export const communitiesRoute = '/communities'
 export const communityRoute = (id: string) => `${communitiesRoute}/${id}`
 export const settingsRoute = '/settings'

@@ -52,7 +52,7 @@ export type TabsNavigatorParamList = {
     Home: { offline: boolean }
     Scan: undefined
     Mods: undefined
-    Federations: undefined
+    Wallet: undefined
 }
 export type RootStackParamList = {
     AppSettings: undefined

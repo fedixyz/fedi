@@ -3,7 +3,7 @@ import {
     chatRoomRoute,
     chatUserRoute,
     ecashRoute,
-    federationsRoute,
+    walletRoute,
     homeRoute,
     onboardingJoinRoute,
 } from '../constants/routes'
@@ -43,8 +43,11 @@ export const getDeepLinkPath = (url: string): string => {
                 return homeRoute
             case 'chat':
                 return chatRoute
+            // this is for backwards compatibility
+            // TODO: remove legacy /federations deeplink after some time...
             case 'federations':
-                return federationsRoute
+            case 'wallet':
+                return walletRoute
             case 'ecash': {
                 const tokenId = params.get('id')
                 if (!tokenId) return '/'

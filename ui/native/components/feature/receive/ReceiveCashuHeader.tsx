@@ -16,7 +16,7 @@ const ReceiveCashuHeader: React.FC = () => {
                 </Text>
             }
             closeButton
-            closeRoute="Federations"
+            closeRoute="Wallet"
         />
     )
 }

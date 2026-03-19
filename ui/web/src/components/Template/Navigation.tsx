@@ -22,7 +22,7 @@ import {
     chatRoute,
     homeRoute,
     miniAppsRoute,
-    federationsRoute,
+    walletRoute,
 } from '../../constants/routes'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { styled, theme } from '../../styles'
@@ -47,13 +47,13 @@ export const Navigation: React.FC = () => {
 
     const navLinks = [
         {
-            path: homeRoute,
-            icon: CommunityIcon,
-            activeIcon: CommunityFilledIcon,
+            path: walletRoute,
+            icon: WalletIcon,
+            activeIcon: WalletFilledIcon,
             available: true,
             hasNotification: false,
-            label: t('words.home'),
-            tab: HomeNavigationTab.Home,
+            label: t('words.wallet'),
+            tab: HomeNavigationTab.Wallet,
         },
         {
             path: chatRoute,
@@ -83,13 +83,13 @@ export const Navigation: React.FC = () => {
             tab: HomeNavigationTab.MiniApps,
         },
         {
-            path: federationsRoute,
-            icon: WalletIcon,
-            activeIcon: WalletFilledIcon,
+            path: homeRoute,
+            icon: CommunityIcon,
+            activeIcon: CommunityFilledIcon,
             available: true,
             hasNotification: false,
-            label: t('words.federations'),
-            tab: HomeNavigationTab.Wallets,
+            label: t('words.community'),
+            tab: HomeNavigationTab.Home,
         },
     ].filter(nav => nav.available)
 

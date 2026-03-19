@@ -6,7 +6,7 @@ import { setupStore } from '@fedi/common/redux'
 import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 
 import i18n from '../../../src/localization/i18n'
-import FederationsPage from '../../../src/pages/federations'
+import WalletPage from '../../../src/pages/wallet'
 import { AppState } from '../../../src/state/store'
 import { renderWithProviders } from '../../utils/render'
 
@@ -16,7 +16,7 @@ jest.mock('@fedi/common/hooks/currency.ts', () => ({
     useSyncCurrencyRatesAndCache: () => ratesSpy,
 }))
 
-describe('/pages/federations', () => {
+describe('/pages/wallet', () => {
     let store: ReturnType<typeof setupStore>
     let state: AppState
     const user = userEvent.setup()
@@ -28,7 +28,7 @@ describe('/pages/federations', () => {
 
     describe('when the page loads', () => {
         beforeEach(() => {
-            renderWithProviders(<FederationsPage />, {
+            renderWithProviders(<WalletPage />, {
                 preloadedState: {
                     federation: {
                         ...state.federation,
@@ -40,7 +40,7 @@ describe('/pages/federations', () => {
         })
 
         it('should display the correct page title', () => {
-            const name = screen.getByText(i18n.t('words.wallets'))
+            const name = screen.getByText(i18n.t('words.wallet'))
             expect(name).toBeInTheDocument()
         })
 
@@ -62,7 +62,7 @@ describe('/pages/federations', () => {
                 recovering: true,
             }
 
-            renderWithProviders(<FederationsPage />, {
+            renderWithProviders(<WalletPage />, {
                 preloadedState: {
                     federation: {
                         ...state.federation,
@@ -82,7 +82,7 @@ describe('/pages/federations', () => {
 
     describe('federation selector', () => {
         it('should display the menu icon in the header', async () => {
-            renderWithProviders(<FederationsPage />, {
+            renderWithProviders(<WalletPage />, {
                 preloadedState: {
                     federation: {
                         ...state.federation,
@@ -100,7 +100,7 @@ describe('/pages/federations', () => {
         })
 
         it('should show the federation selector when the menu icon is clicked', async () => {
-            renderWithProviders(<FederationsPage />, {
+            renderWithProviders(<WalletPage />, {
                 preloadedState: {
                     federation: {
                         ...state.federation,

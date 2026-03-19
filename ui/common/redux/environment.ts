@@ -57,7 +57,7 @@ const initialState = {
     sessionCount: 0,
     redirectTo: null as string | null,
     eventListenersReady: false,
-    lastUsedTab: HomeNavigationTab.Home,
+    lastUsedTab: HomeNavigationTab.Wallet,
 }
 
 export type EnvironmentState = typeof initialState

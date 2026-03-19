@@ -45,7 +45,7 @@ const ReceiveSuccess: React.FC<Props> = ({ route }: Props) => {
                 </Column>
             }
             buttonText={t('words.done')}
-            nextScreenProps={{ initialRouteName: 'Federations' }}
+            nextScreenProps={{ initialRouteName: 'Wallet' }}
         />
     )
 }

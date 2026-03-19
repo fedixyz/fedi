@@ -15,7 +15,7 @@ import { ParserDataType, Sats } from '@fedi/common/types'
 import amountUtils from '@fedi/common/utils/AmountUtils'
 import { formatErrorMessage } from '@fedi/common/utils/format'
 
-import { federationsRoute } from '../../constants/routes'
+import { walletRoute } from '../../constants/routes'
 import {
     useRouteState,
     useRouteStateContext,
@@ -189,7 +189,7 @@ const Send: React.FC = () => {
                         unit: t('words.sats'),
                     })}
                     buttonText={t('words.done')}
-                    onClick={() => router.push(federationsRoute)}
+                    onClick={() => router.push(walletRoute)}
                 />
             )
         }
@@ -199,7 +199,7 @@ const Send: React.FC = () => {
                 <Success
                     title={t('errors.failed-to-send-payment')}
                     buttonText={t('words.done')}
-                    onClick={() => router.push(federationsRoute)}
+                    onClick={() => router.push(walletRoute)}
                     type="error"
                 />
             )
@@ -210,7 +210,7 @@ const Send: React.FC = () => {
                 onEcashGenerated={() => {}}
                 onPaymentSent={() => {
                     if (shouldRateFederation) setShowRateFederation(true)
-                    router.push(federationsRoute)
+                    router.push(walletRoute)
                 }}
                 federationId={federationId}
             />
