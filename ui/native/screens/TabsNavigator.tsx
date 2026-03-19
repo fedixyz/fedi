@@ -313,8 +313,7 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
         tabBar: {
             backgroundColor: theme.colors.secondary,
             height: tabBarHeight + insets.bottom,
-            borderTopWidth: 1,
-            borderTopColor: theme.colors.extraLightGrey,
+            borderTopWidth: 0,
             shadowColor: 'rgba(11, 16, 19, 0.1)',
             shadowOffset: {
                 width: 0,
@@ -334,6 +333,8 @@ const styles = (theme: Theme, insets: EdgeInsets, fontScale: number) => {
             position: 'relative',
         },
         scanButton: {
+            borderWidth: 3,
+            borderColor: theme.colors.white,
             position: 'absolute',
             top: -24,
             height: 48,
