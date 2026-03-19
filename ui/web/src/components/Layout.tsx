@@ -18,6 +18,7 @@ type PageHeaderProps = {
     title: string
     onAddPress?: () => void
     onMenuPress?: () => void
+    onSearchPress?: () => void
     selectedCommunity?: Community
 }
 
@@ -25,6 +26,7 @@ export function PageHeader({
     title,
     onAddPress,
     onMenuPress,
+    onSearchPress,
     selectedCommunity,
 }: PageHeaderProps) {
     const [invitingCommunityId, setInvitingCommunityId] = useState('')
@@ -38,6 +40,7 @@ export function PageHeader({
                         <MainHeaderButtons
                             onMenuPress={onMenuPress}
                             onAddPress={onAddPress}
+                            onSearchPress={onSearchPress}
                         />
                     </Row>
                     <TotalBalance />

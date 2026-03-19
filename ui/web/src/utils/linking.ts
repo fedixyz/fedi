@@ -63,7 +63,7 @@ export const getDeepLinkPath = (url: string): string => {
     }
 }
 
-export const getHashParams = (path: string): Record<string, string> => {
+export const getHashParams = (path = ''): Record<string, string> => {
     const afterHash = path.split('#')[1]
     const params = new URLSearchParams(afterHash)
     return Object.fromEntries(params.entries())

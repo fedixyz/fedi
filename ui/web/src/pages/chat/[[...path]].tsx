@@ -42,8 +42,8 @@ function ChatPage() {
         content = <ChatUserConversation key={chatId} userId={chatId} />
     } else if (chatType === 'room' && chatId) {
         content = <ChatRoomConversation key={chatId} roomId={chatId} />
-    } else if (!chatType) {
-        content = <ChatList />
+    } else if (chatType === 'search' || !chatType) {
+        content = <ChatList isSearchMode={chatType === 'search'} />
     } else {
         return <Redirect path="/chat" />
     }

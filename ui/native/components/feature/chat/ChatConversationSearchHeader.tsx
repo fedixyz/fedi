@@ -46,9 +46,7 @@ const ChatConversationSearchHeader: React.FC = () => {
                         query={query}
                         setQuery={handleQueryChange}
                         clearSearch={handleClearSearch}
-                        placeholder={t(
-                            'feature.chat.search-messages-placeholder',
-                        )}
+                        placeholder={t('phrases.search-messages')}
                     />
                 </View>
             }

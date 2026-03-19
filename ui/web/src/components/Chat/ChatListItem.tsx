@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,10 +7,9 @@ import { MatrixRoom } from '@fedi/common/types'
 import dateUtils from '@fedi/common/utils/DateUtils'
 import { shouldShowUnreadIndicator } from '@fedi/common/utils/matrix'
 
-import { styled, theme } from '../../styles'
-import { NotificationDot } from '../NotificationDot'
-import { Text } from '../Text'
+import { theme } from '../../styles'
 import { ChatAvatar } from './ChatAvatar'
+import { ChatTile } from './ChatTile'
 
 interface Props {
     room: MatrixRoom
@@ -38,76 +36,31 @@ export const ChatListItem: React.FC<Props> = ({ room }) => {
         t,
     })
 
+    const timestamp = useMemo(() => {
+        if (!room.preview?.timestamp) return undefined
+        return dateUtils.formatChatTileTimestamp(room.preview.timestamp / 1000)
+    }, [room.preview?.timestamp])
+
     return (
-        <Container
-            key={room.id}
+        <ChatTile
+            href={`/chat/room/${room.id}`}
             active={isActive}
-            href={`/chat/room/${room.id}`}>
-            <NotificationDot visible={showUnreadIndicator}>
-                <ChatAvatar room={room} css={{ flexShrink: 0 }} />
-            </NotificationDot>
-            <Content>
-                <TopContent>
-                    <Text
-                        weight="bold"
-                        ellipsize
-                        css={{ flex: 1, minWidth: 0 }}>
-                        {room.name}
-                    </Text>
-                    {room.preview?.timestamp && (
-                        <Text variant="small" css={{ flexShrink: 0 }}>
-                            {dateUtils.formatChatTileTimestamp(
-                                room.preview.timestamp / 1000,
-                            )}
-                        </Text>
-                    )}
-                </TopContent>
-                <Text
-                    variant="small"
-                    ellipsize
-                    weight={isUnread ? 'medium' : undefined}
-                    css={{
-                        color: isUnread
-                            ? theme.colors.primary
-                            : isNotice
-                              ? theme.colors.grey
-                              : theme.colors.darkGrey,
-                        fontStyle: isNotice ? 'italic' : undefined,
-                    }}>
-                    {text}
-                </Text>
-            </Content>
-        </Container>
+            avatar={<ChatAvatar room={room} css={{ flexShrink: 0 }} />}
+            title={room.name}
+            subtitle={text}
+            subtitleProps={{
+                weight: showUnreadIndicator ? 'bold' : 'normal',
+                css: {
+                    color: isUnread
+                        ? theme.colors.primary
+                        : isNotice
+                          ? theme.colors.grey
+                          : theme.colors.darkGrey,
+                    fontStyle: isNotice ? 'italic' : undefined,
+                },
+            }}
+            timestamp={timestamp}
+            showUnreadIndicator={showUnreadIndicator}
+        />
     )
 }
-
-const Container = styled(Link, {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-
-    '&:hover, &:focus': {
-        background: theme.colors.primary05,
-    },
-
-    variants: {
-        active: {
-            true: {
-                background: theme.colors.primary05,
-            },
-        },
-    },
-})
-
-const Content = styled('div', {
-    flex: 1,
-    minWidth: 0,
-})
-
-const TopContent = styled('div', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-})
