@@ -396,7 +396,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                 setIsFocused(true)
                             }}
                             onBlur={() => setIsFocused(false)}
-                            disabled={isSending}
                         />
                     </View>
                 )}
