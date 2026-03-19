@@ -952,7 +952,9 @@ impl ForkedClient {
                     ActiveDeposits::Seeker {
                         locked: new_locked, ..
                     },
-                ) if old_locked != new_locked => return Ok(new_account_info),
+                ) if old_locked != new_locked => {
+                    return self.get_sp_account_info(AccountType::Seeker).await;
+                }
                 (_, _) => tokio::time::sleep(Duration::from_secs(2)).await,
             }
         }
@@ -975,7 +977,9 @@ impl ForkedClient {
                     ActiveDeposits::Provider {
                         locked: new_locked, ..
                     },
-                ) if old_locked != new_locked => return Ok(new_account_info),
+                ) if old_locked != new_locked => {
+                    return self.get_sp_account_info(AccountType::Provider).await;
+                }
                 (_, _) => tokio::time::sleep(Duration::from_secs(2)).await,
             }
         }
