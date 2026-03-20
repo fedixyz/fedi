@@ -26,6 +26,21 @@ module.exports = {
             },
         ],
         '@typescript-eslint/ban-ts-comment': 'warn',
+        'no-restricted-syntax': [
+            'error',
+            {
+                selector:
+                    "CallExpression[callee.object.name='CommonActions'][callee.property.name='reset']",
+                message:
+                    'Use reset() from state/navigation.ts instead of CommonActions.reset() for type-safe navigation.',
+            },
+            {
+                selector:
+                    "CallExpression[callee.object.name='CommonActions'][callee.property.name='navigate']",
+                message:
+                    'Use navigate() from state/navigation.ts instead of CommonActions.navigate() for type-safe navigation.',
+            },
+        ],
     },
     overrides: [
         {

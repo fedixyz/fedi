@@ -2,177 +2,118 @@ import { CommonActions } from '@react-navigation/native'
 
 import { ChatType } from '@fedi/common/types'
 
-import { RootStackParamList } from '../types/navigation'
+import { RootStackParamList, TypedRoute } from '../types/navigation'
 
-export function navigate(
-    screenName: keyof RootStackParamList,
-    params?: RootStackParamList[keyof RootStackParamList],
-) {
-    return CommonActions.navigate(screenName, params)
+/**
+ * Type-safe navigation helpers.
+ *
+ * resetStack and navigateToScreen are the only two call sites for
+ * CommonActions in the codebase. Both CommonActions.reset() and
+ * CommonActions.navigate() are banned everywhere via eslint/no-restricted-syntax
+ * (see .eslintrc.js for more details).
+ */
+
+function resetStack(index: number, routes: TypedRoute[]) {
+    // eslint-disable-next-line no-restricted-syntax
+    return CommonActions.reset({ index, routes })
 }
+
+function navigateToScreen<K extends keyof RootStackParamList>(
+    name: K,
+    ...args: undefined extends RootStackParamList[K]
+        ? [params?: RootStackParamList[K]]
+        : [params: RootStackParamList[K]]
+) {
+    // eslint-disable-next-line no-restricted-syntax
+    return CommonActions.navigate(name, args[0] as object | undefined)
+}
+
+// Public navigation API
+// ---------
+
+export { navigateToScreen as navigate }
 
 export function navigateToHome() {
-    return CommonActions.navigate('TabsNavigator', {
-        screen: 'Home',
-    })
+    return navigateToScreen('TabsNavigator', { initialRouteName: 'Home' })
 }
 
-export function reset(
-    screenName: keyof RootStackParamList,
-    params?: RootStackParamList[keyof RootStackParamList],
+export function reset<K extends keyof RootStackParamList>(
+    screenName: K,
+    ...args: undefined extends RootStackParamList[K]
+        ? [params?: RootStackParamList[K]]
+        : [params: RootStackParamList[K]]
 ) {
-    return CommonActions.reset({
-        index: 0,
-        routes: [{ name: screenName, params }],
-    })
+    return resetStack(0, [{ name: screenName, params: args[0] } as TypedRoute])
 }
 
 export function resetAfterPersonalRecovery() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'PersonalRecoverySuccess' }],
-        }),
-    }
+    return resetStack(0, [{ name: 'PersonalRecoverySuccess' }])
 }
 
 export function resetAfterFailedSocialRecovery() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'SocialRecoveryFailure' }],
-        }),
-    }
+    return resetStack(0, [{ name: 'SocialRecoveryFailure' }])
 }
 
 export function resetAfterSocialRecovery() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'SocialRecoverySuccess' }],
-        }),
-    }
+    return resetStack(0, [{ name: 'SocialRecoverySuccess' }])
 }
 
 export function resetToChatSettings(roomId: string) {
-    return {
-        ...CommonActions.reset({
-            index: 2,
-            routes: [
-                { name: 'TabsNavigator', params: { screen: 'Chat' } },
-                { name: 'ChatRoomConversation', params: { roomId } },
-                {
-                    name: 'RoomSettings',
-                    params: { roomId },
-                },
-            ],
-        }),
-    }
+    return resetStack(2, [
+        { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
+        { name: 'ChatRoomConversation', params: { roomId } },
+        { name: 'RoomSettings', params: { roomId } },
+    ])
 }
 
 export function resetToJoinFederation() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'PublicFederations' }],
-        }),
-    }
+    return resetStack(0, [{ name: 'PublicFederations' }])
 }
 
 export function resetToLockedDevice() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'LockedDevice' }],
-        }),
-    }
+    return resetStack(0, [{ name: 'LockedDevice' }])
 }
 
 export function resetToDirectChat(roomId: string) {
-    // Reset navigation stack on going back to the chat to give better back
-    // button behavior if directed here from Omni.
-    return {
-        ...CommonActions.reset({
-            index: 1,
-            routes: [
-                { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
-                {
-                    name: 'ChatRoomConversation',
-                    params: {
-                        roomId: roomId,
-                        chatType: ChatType.direct,
-                    },
-                },
-            ],
-        }),
-    }
+    return resetStack(1, [
+        { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
+        {
+            name: 'ChatRoomConversation',
+            params: { roomId, chatType: ChatType.direct },
+        },
+    ])
 }
 
 export function resetToGroupChat(roomId: string) {
-    // Reset navigation stack on going back to the chat to give better back
-    // button behavior if directed here from Omni.
-    return {
-        ...CommonActions.reset({
-            index: 1,
-            routes: [
-                { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
-                {
-                    name: 'ChatRoomConversation',
-                    params: {
-                        roomId: roomId,
-                        chatType: ChatType.group,
-                    },
-                },
-            ],
-        }),
-    }
+    return resetStack(1, [
+        { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
+        {
+            name: 'ChatRoomConversation',
+            params: { roomId, chatType: ChatType.group },
+        },
+    ])
 }
 
 export function resetToSocialRecovery() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'CompleteSocialRecovery' }],
-        }),
-    }
+    return resetStack(0, [{ name: 'CompleteSocialRecovery' }])
 }
+
 export function resetToChatsScreen() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [
-                { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
-            ],
-        }),
-    }
+    return resetStack(0, [
+        { name: 'TabsNavigator', params: { initialRouteName: 'Chat' } },
+    ])
 }
 
 export function resetToWallets() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [
-                {
-                    name: 'TabsNavigator',
-                    params: { initialRouteName: 'Wallet' },
-                },
-            ],
-        }),
-    }
+    return resetStack(0, [
+        { name: 'TabsNavigator', params: { initialRouteName: 'Wallet' } },
+    ])
 }
 
 export function resetToMiniapps() {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [
-                {
-                    name: 'TabsNavigator',
-                    params: { initialRouteName: 'Mods' },
-                },
-            ],
-        }),
-    }
+    return resetStack(0, [
+        { name: 'TabsNavigator', params: { initialRouteName: 'Mods' } },
+    ])
 }
 
 export function resetAfterSendSuccess({
@@ -181,24 +122,11 @@ export function resetAfterSendSuccess({
     description,
     federationId,
 }: RootStackParamList['SendSuccessShield']) {
-    return {
-        ...CommonActions.reset({
-            index: 0,
-            routes: [
-                {
-                    name: 'TabsNavigator',
-                    params: { initialRouteName: 'Wallet', federationId },
-                },
-                {
-                    name: 'SendSuccessShield',
-                    params: {
-                        title,
-                        formattedAmount,
-                        description,
-                        federationId,
-                    },
-                },
-            ],
-        }),
-    }
+    return resetStack(0, [
+        { name: 'TabsNavigator', params: { initialRouteName: 'Wallet' } },
+        {
+            name: 'SendSuccessShield',
+            params: { title, formattedAmount, description, federationId },
+        },
+    ])
 }

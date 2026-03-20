@@ -54,6 +54,25 @@ export type TabsNavigatorParamList = {
     Mods: undefined
     Wallet: undefined
 }
+
+/**
+ * Type-safe route entry for navigation actions.
+ *
+ * This is a discriminated union with one member per screen in
+ * RootStackParamList. Each member ties `name` to its corresponding
+ * params type, so `{ name: 'InvalidScreenName' }` is a compile error
+ * because 'InvalidScreenName' is not a key of RootStackParamList.
+ *
+ * The conditional makes params optional for screens that accept
+ * `undefined` and required for screens that need them (ex:
+ * ChatRoomConversation requires `{ roomId }`).
+ */
+export type TypedRoute = {
+    [K in keyof RootStackParamList]: undefined extends RootStackParamList[K]
+        ? { name: K; params?: RootStackParamList[K] }
+        : { name: K; params: RootStackParamList[K] }
+}[keyof RootStackParamList]
+
 export type RootStackParamList = {
     AppSettings: undefined
     AddFediMod: { inputMethod: 'enter' | 'scan' }
