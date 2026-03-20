@@ -254,6 +254,7 @@
         "please-wait": "Please wait",
         "privacy-policy": "Privacy Policy",
         "receive-pending": "Pending receive",
+        "receive-usd": "Receive USD",
         "received-bitcoin": "Received bitcoin",
         "recover-my-account": "Restore access",
         "recovery-in-progress": "Recovery in progress",
@@ -261,6 +262,7 @@
         "reload-app": "Reload application",
         "return-to-home": "Return to home",
         "reusable-payment-code": "Reusable Payment Code",
+        "reusable-qr": "Reusable QR",
         "save-changes": "Save changes",
         "scan-or-paste": "Scan or paste",
         "scan-slash-paste": "Scan/Paste",
@@ -269,6 +271,9 @@
         "select-federation": "Select Federation",
         "select-global-currency": "Select currency",
         "select-local-currency": "Select local currency",
+        "select-wallet": "Select Wallet",
+        "send-usd": "Send USD",
+        "select-wallet": "Select Wallet",
         "sent-bitcoin": "Sent bitcoin",
         "show-details": "Show details",
         "show-results": "Show results",
@@ -278,6 +283,7 @@
         "terms-of-use": "Terms of Use",
         "this-group": "this group",
         "total-fees": "Total Fees",
+        "to-user": "To User",
         "transaction-id": "Transaction ID",
         "type-message": "Type message...",
         "valid-until": "⏳ Valid until: {{date}}",
@@ -1163,6 +1169,7 @@
             "recovery-confirm-identity-instructions-1": "Watch video to confirm member identity.",
             "recovery-confirm-identity-instructions-2": "Does this video show the same member trying to do social recovery now?",
             "recovery-in-progress-balance": "Recovery is in progress. Your balances will be available soon.",
+            "recovery-in-progress-wallet": "Recovery is in progress. Your wallet will be available soon.",
             "recovery-in-progress-chat-payments": "Recovery is in progress. Chat payments will be available soon.",
             "recovery-in-progress-payments": "Recovery is in progress. Payments will be available soon.",
             "search-files": "Search files",
@@ -1337,6 +1344,7 @@
             "enter-deposit-amount": "Enter deposit amount",
             "enter-withdrawal-amount": "Enter withdrawal amount",
             "fees-paid": "Fees paid",
+            "from-my-btc-wallet": "From my BTC wallet",
             "info-description": "Put your Bitcoin here to hold its value in USD. When you move it back, you'll get that same USD amount, even if Bitcoin's price changed.",
             "max-stable-balance-amount": "Maximum stable balance amount reached",
             "minutes": "{{minutes}} minutes",
@@ -1350,6 +1358,7 @@
             "seconds": "{{seconds}} seconds",
             "select-receiver": "Select receiver",
             "stable-balance": "Stable Balance",
+            "to-my-btc-wallet": "To my BTC wallet",
             "transfer-event-received": "Receive Stable Balance <bold>{{amount}}</bold> from {{federation}}.",
             "transfer-event-sent": "Send Stable Balance <bold>{{amount}}</bold> from {{federation}}.",
             "transfer-amount": "Transfer amount",
@@ -1392,10 +1401,12 @@
             "zendesk-initialization-failed": "We couldn't reach the support chat. Please check your internet connection and try again."
         },
         "wallet": {
+            "available-balance-amount": "Available balance: {{amount}}",
             "join-federation": "Join a federation to activate your wallet",
             "network-notice": "This federation uses {{network}} SATS",
             "show-fiat-txn-amounts": "Show Fiat Transaction Amounts",
-            "show-fiat-txn-amounts-info": "Transaction amounts will be displayed in the selected fiat currency"
+            "show-fiat-txn-amounts-info": "Transaction amounts will be displayed in the selected fiat currency",
+            "wallet-provider-guidance": "This is the wallet provider securing your wallet and keeping your funds safe."
         }
     }
 }
