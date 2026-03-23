@@ -27,8 +27,8 @@ export const Template: React.FC<Props> = ({ children }) => {
         syncStatus === MatrixSyncStatus.syncing && asPath.startsWith('/chat')
 
     return (
-        <Container>
-            <Content>
+        <AppContainer>
+            <AppContent>
                 {shouldShowChatOffline && <ChatOfflineIndicator />}
 
                 <ErrorBoundary fallback={() => <PageError />}>
@@ -36,17 +36,17 @@ export const Template: React.FC<Props> = ({ children }) => {
                 </ErrorBoundary>
 
                 {!hideNavigation && <Navigation />}
-            </Content>
-        </Container>
+            </AppContent>
+        </AppContainer>
     )
 }
 
-const Container = styled('div', {
+export const AppContainer = styled('div', {
     overflow: 'hidden',
     width: '100%',
 })
 
-const Content = styled('div', {
+export const AppContent = styled('div', {
     background: theme.colors.white,
     display: 'flex',
     flexDirection: 'column',

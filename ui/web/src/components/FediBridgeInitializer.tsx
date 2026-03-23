@@ -17,11 +17,7 @@ import {
     selectLastUsedTab,
 } from '@fedi/common/redux'
 import { selectStorageIsReady } from '@fedi/common/redux/storage'
-import {
-    DeviceRegistrationEvent,
-    PanicEvent,
-} from '@fedi/common/types/bindings'
-import { formatErrorMessage } from '@fedi/common/utils/format'
+import { DeviceRegistrationEvent } from '@fedi/common/types/bindings'
 import { makeLog } from '@fedi/common/utils/log'
 
 import {
@@ -30,8 +26,9 @@ import {
     onboardingRecoverWalletTransferRoute,
 } from '../constants/routes'
 import { useAppDispatch, useAppSelector } from '../hooks'
-import { fedimint, getAppFlavor, initializeBridge } from '../lib/bridge'
-import { keyframes, styled, theme } from '../styles'
+import { fedimint, initializeBridge } from '../lib/bridge'
+import { getAppFlavor } from '../lib/bridge/worker'
+import { keyframes, styled } from '../styles'
 import { generateDeviceId } from '../utils/browserInfo'
 import { getHashParams } from '../utils/linking'
 import { tabRedirectPath } from '../utils/nav'
@@ -63,7 +60,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     const dispatchRef = useUpdatingRef(dispatch)
 
     const [isLoading, setIsLoading] = useState<boolean>(true)
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<Error | null>(null)
 
     useEffect(() => {
         if (!hasLoadedStorage || !eventListenersReady) return
@@ -92,13 +89,10 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                     .current(refreshOnboardingStatus(fedimint))
                     .unwrap()
             } catch (err) {
-                setError(
-                    formatErrorMessage(
-                        tRef.current,
-                        err,
-                        'errors.unknown-error',
-                    ),
-                )
+                const e: Error =
+                    err instanceof Error ? err : new Error('Unknown error')
+
+                setError(e)
             } finally {
                 setIsLoading(false)
             }
@@ -110,12 +104,9 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     // Show an error message if the bridge panics while running.
     useEffect(() => {
         // Initialize panic listener
-        const unsubscribePanic = fedimint.addListener(
-            'panic',
-            (ev: PanicEvent) => {
-                setError(ev.message)
-            },
-        )
+        const unsubscribePanic = fedimint.addListener('panic', () => {
+            setError(new Error('Bridge Error'))
+        })
 
         // Initialize locked device listener
         const unsubscribeDeviceRegistration = fedimint.addListener(
@@ -145,13 +136,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
     }
 
     if (error) {
-        return (
-            <Content>
-                <ErrorMessage>
-                    <Text>{error}</Text>
-                </ErrorMessage>
-            </Content>
-        )
+        throw error
     }
 
     if (shouldLockDevice) {
@@ -248,9 +233,4 @@ const Loader = styled('div', {
     transform: 'translate(-50%, -50%)',
     transformOrigin: 'center center',
     animation: `${rotate} 1.5s linear infinite, ${loaderFadeIn} 1s ease`,
-})
-
-const ErrorMessage = styled('div', {
-    color: theme.colors.red,
-    textAlign: 'center',
 })

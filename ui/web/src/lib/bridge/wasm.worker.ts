@@ -71,9 +71,7 @@ async function workerInit() {
     postMessage({ event: 'initialized' })
 }
 
-const initPromise = workerInit().catch(error =>
-    postMessage({ error: String(error) }),
-)
+const initPromise = workerInit().catch(error => postMessage({ error }))
 
 async function rpcRequest(method: string, data: string): Promise<string> {
     await initPromise

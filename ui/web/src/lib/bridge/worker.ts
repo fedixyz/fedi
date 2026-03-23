@@ -81,7 +81,7 @@ export async function initializeBridge(deviceId: string) {
         worker.onmessage = e => {
             if (e.data.error) {
                 log.error('bridge error', e.data)
-                return reject(new Error(e.data.error))
+                return reject(e.data.error)
             }
             if (e.data.event) {
                 // Initialized event is just for us, not emitted.

@@ -1,5 +1,8 @@
 import type { AppProps } from 'next/app'
 
+import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
+
+import { AppError } from '../components/AppError'
 import AppProviders from '../components/AppProviders'
 import { PWAMetaTags } from '../components/PWAMetaTags'
 import { globalStyles } from '../styles'
@@ -21,12 +24,12 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
     }
 
     return (
-        <>
+        <ErrorBoundary fallback={({ error }) => <AppError error={error} />}>
             <PWAMetaTags />
             <AppProviders>
                 <Component {...pageProps} />
             </AppProviders>
-        </>
+        </ErrorBoundary>
     )
 }
 
