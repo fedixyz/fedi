@@ -67,24 +67,27 @@ pub async fn test_multispend_minimal(_dev_fed: DevFed) -> anyhow::Result<()> {
         invitation: invitation.clone(),
         proposer_pubkey: RpcPublicKey(pk1),
     };
-    error!("SENDING MESSAGE");
     multispend_matrix
         .send_multispend_event(&room_id, event)
         .await?;
-    error!("SENT MESSAGE");
-    multispend_matrix.rescanner.wait_for_scanned(&room_id).await;
-    error!("DONE SCANNING");
 
     // Test event data
     let timeline = matrix.timeline(&room_id).await?;
     let event_id = timeline.latest_event_id().await.unwrap();
-    let event_data = multispend_matrix
-        .get_multispend_event_data(
-            &RpcRoomId(room_id.to_string()),
-            &RpcEventId(event_id.to_string()),
-        )
-        .await;
-    assert!(event_data.is_some());
+    let _event_data = retry(
+        "wait for event data to be available",
+        aggressive_backoff(),
+        || async {
+            multispend_matrix
+                .get_multispend_event_data(
+                    &RpcRoomId(room_id.to_string()),
+                    &RpcEventId(event_id.to_string()),
+                )
+                .await
+                .context("event data not yet available")
+        },
+    )
+    .await?;
 
     Ok(())
 }
@@ -123,31 +126,30 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
         .send_multispend_event(&room_id, event)
         .await?;
 
-    multispend_matrix1
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
-    multispend_matrix2
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
-
     let timeline = matrix1.timeline(&room_id).await?;
     let invitation_event_id = RpcEventId(timeline.latest_event_id().await.unwrap().to_string());
 
-    let event_data1 = multispend_matrix1
-        .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
-        .await;
+    let event_data1 = retry(
+        "wait for user1 event data",
+        aggressive_backoff(),
+        || async {
+            multispend_matrix1
+                .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
+                .await
+                .context("event not found")
+        },
+    )
+    .await?;
 
     assert_eq!(
         event_data1,
-        Some(MsEventData::GroupInvitation(GroupInvitationWithKeys {
+        MsEventData::GroupInvitation(GroupInvitationWithKeys {
             proposer: user1.clone(),
             invitation: invitation.clone(),
             pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
             rejections: BTreeSet::new(),
             federation_id: RpcFederationId(MOCK_FEDERATION_ID.into())
-        }))
+        })
     );
     let event_data2 = retry(
         "wait for user2 to receive",
@@ -160,7 +162,7 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
         },
     )
     .await?;
-    assert_eq!(event_data1, Some(event_data2));
+    assert_eq!(event_data1, event_data2);
 
     let event = MultispendEvent::GroupInvitationVote {
         invitation: invitation_event_id.clone(),
@@ -171,15 +173,6 @@ pub async fn test_multispend_group_acceptance(_dev_fed: DevFed) -> anyhow::Resul
     multispend_matrix2
         .send_multispend_event(&room_id, event)
         .await?;
-
-    multispend_matrix1
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
-    multispend_matrix2
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
 
     // Verify group is finalized in matrix1
     let final_group1 = retry(
@@ -255,31 +248,30 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
         .send_multispend_event(&room_id, event)
         .await?;
 
-    multispend_matrix1
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
-    multispend_matrix2
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
-
     let timeline = matrix1.timeline(&room_id).await?;
     let invitation_event_id = RpcEventId(timeline.latest_event_id().await.unwrap().to_string());
 
-    let event_data1 = multispend_matrix1
-        .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
-        .await;
+    let event_data1 = retry(
+        "wait for user1 event data",
+        aggressive_backoff(),
+        || async {
+            multispend_matrix1
+                .get_multispend_event_data(&RpcRoomId(room_id.to_string()), &invitation_event_id)
+                .await
+                .context("event not found")
+        },
+    )
+    .await?;
 
     assert_eq!(
         event_data1,
-        Some(MsEventData::GroupInvitation(GroupInvitationWithKeys {
+        MsEventData::GroupInvitation(GroupInvitationWithKeys {
             proposer: user1.clone(),
             invitation: invitation.clone(),
             pubkeys: BTreeMap::from_iter([(user1.clone(), RpcPublicKey(pk1))]),
             rejections: BTreeSet::new(),
             federation_id: RpcFederationId(MOCK_FEDERATION_ID.into())
-        }))
+        })
     );
 
     let event_data2 = retry(
@@ -293,7 +285,7 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
         },
     )
     .await?;
-    assert_eq!(event_data1, Some(event_data2));
+    assert_eq!(event_data1, event_data2);
 
     // Send rejection from user2
     let event = MultispendEvent::GroupInvitationVote {
@@ -303,15 +295,6 @@ pub async fn test_multispend_group_rejection(_dev_fed: DevFed) -> anyhow::Result
     multispend_matrix2
         .send_multispend_event(&room_id, event)
         .await?;
-
-    multispend_matrix1
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
-    multispend_matrix2
-        .rescanner
-        .wait_for_scanned(&room_id)
-        .await;
 
     // Verify invitation state has the rejection recorded
     let event_data1 = retry(
