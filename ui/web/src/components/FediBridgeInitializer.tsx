@@ -88,6 +88,15 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 await dispatchRef
                     .current(refreshOnboardingStatus(fedimint))
                     .unwrap()
+
+                // Best-effort backup of seed words to localStorage as a
+                // safety net against OPFS database corruption.
+                try {
+                    const words = await fedimint.getMnemonic()
+                    localStorage.setItem('fedi:seed_backup', words.join(' '))
+                } catch {
+                    // Seed may not exist yet (pre-onboarding)
+                }
             } catch (err) {
                 const e: Error =
                     err instanceof Error ? err : new Error('Unknown error')
