@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ContentBlock } from '../components/ContentBlock'
 import { FediModTiles } from '../components/FediModTiles'
 import * as Layout from '../components/Layout'
-import { styled } from '../styles'
+import { styled, theme } from '../styles'
 
 export default function ModsPage() {
     const { t } = useTranslation()
@@ -12,7 +12,7 @@ export default function ModsPage() {
         <ContentBlock>
             <Layout.Root>
                 <Layout.PageHeader title={t('phrases.mini-apps')} />
-                <Layout.Content>
+                <Layout.Content fullWidth>
                     <Content>
                         <FediModTiles />
                     </Content>
@@ -26,8 +26,8 @@ const Content = styled('div', {
     alignItems: 'center',
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: theme.spacing.md,
     justifyContent: 'flex-start',
-    padding: 20,
+    paddingTop: theme.spacing.md,
     textAlign: 'center',
 })
