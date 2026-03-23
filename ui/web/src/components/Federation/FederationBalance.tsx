@@ -1,11 +1,10 @@
-import { styled } from '@stitches/react'
 import { useTranslation } from 'react-i18next'
 
-import { theme } from '@fedi/common/constants/theme'
 import { useBalance } from '@fedi/common/hooks/amount'
 import { selectLoadedFederation } from '@fedi/common/redux'
 
 import { useAppSelector } from '../../hooks'
+import { styled, theme } from '../../styles'
 import { FederationAvatar } from '../FederationAvatar'
 import { Column } from '../Flex'
 import { Text } from '../Text'

@@ -1,8 +1,7 @@
 import * as RadixSwitch from '@radix-ui/react-switch'
-import { styled } from '@stitches/react'
 import React from 'react'
 
-import { theme } from '@fedi/common/constants/theme'
+import { styled, theme } from '../styles'
 
 type Props = RadixSwitch.SwitchProps
 

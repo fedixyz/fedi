@@ -1,4 +1,3 @@
-import { styled } from '@stitches/react'
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,7 +5,7 @@ import Plus from '@fedi/common/assets/svgs/plus.svg'
 import { useToast } from '@fedi/common/hooks/toast'
 import { makeLog } from '@fedi/common/utils/log'
 
-import { theme } from '../../styles'
+import { styled, theme } from '../../styles'
 import { Icon } from '../Icon'
 import { Text } from '../Text'
 import { FilePreview } from './FilePreview'

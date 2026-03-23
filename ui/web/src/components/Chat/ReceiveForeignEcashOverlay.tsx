@@ -1,4 +1,3 @@
-import { styled } from '@stitches/react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import ArrowRight from '@fedi/common/assets/svgs/arrow-right.svg'
@@ -10,6 +9,7 @@ import { useAcceptForeignEcash } from '@fedi/common/hooks/chat'
 import { MatrixPaymentEvent } from '@fedi/common/types'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
+import { styled } from '../../styles'
 import { Dialog } from '../Dialog'
 import { FederationAvatar } from '../FederationAvatar'
 import { Column, Row } from '../Flex'

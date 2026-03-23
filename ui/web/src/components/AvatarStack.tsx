@@ -1,6 +1,4 @@
-import { styled } from '@stitches/react'
-
-import { theme } from '../styles'
+import { styled, theme } from '../styles'
 import { Row } from './Flex'
 
 function AvatarStack<T>({

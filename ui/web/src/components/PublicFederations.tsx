@@ -1,4 +1,3 @@
-import { styled } from '@stitches/react'
 import { useRouter } from 'next/router'
 import { useTranslation } from 'react-i18next'
 
@@ -8,7 +7,7 @@ import stringUtils from '@fedi/common/utils/StringUtils'
 
 import { onboardingJoinRoute } from '../constants/routes'
 import { useAppSelector } from '../hooks'
-import { theme } from '../styles'
+import { styled, theme } from '../styles'
 import { Button } from './Button'
 import { FederationAvatar } from './FederationAvatar'
 import { Text } from './Text'

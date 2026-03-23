@@ -1,4 +1,3 @@
-import { styled } from '@stitches/react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,6 +9,7 @@ import { theme } from '@fedi/common/constants/theme'
 import { useFederationRating } from '@fedi/common/hooks/federation'
 import { scaleAttachment } from '@fedi/common/utils/media'
 
+import { styled } from '../../styles'
 import { Button } from '../Button'
 import { Dialog } from '../Dialog'
 import { FederationAvatar } from '../FederationAvatar'

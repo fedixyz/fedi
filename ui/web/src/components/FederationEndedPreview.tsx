@@ -1,4 +1,3 @@
-import { styled } from '@stitches/react'
 import { Dispatch, SetStateAction, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
@@ -7,6 +6,7 @@ import { usePopupFederationInfo } from '@fedi/common/hooks/federation'
 import { LoadedFederation } from '@fedi/common/types'
 import { RpcFederationPreview } from '@fedi/common/types/bindings'
 
+import { styled } from '../styles'
 import { isNightly } from '../utils/browserInfo'
 import { FederationAvatar } from './FederationAvatar'
 import { Text } from './Text'

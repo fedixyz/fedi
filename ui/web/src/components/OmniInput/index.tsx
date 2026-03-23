@@ -1,4 +1,3 @@
-import { styled } from '@stitches/react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,6 +18,7 @@ import { parseUserInput } from '@fedi/common/utils/parser'
 
 import { useAppSelector } from '../../hooks'
 import { fedimint } from '../../lib/bridge'
+import { styled } from '../../styles'
 import { Button } from '../Button'
 import { HorizontalLine } from '../HorizontalLine'
 import { OmniConfirmation } from './OmniConfirmation'

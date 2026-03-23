@@ -1,7 +1,6 @@
-import { keyframes } from '@stitches/react'
 import React from 'react'
 
-import { styled, theme } from '../styles'
+import { keyframes, styled, theme } from '../styles'
 
 interface Props {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number

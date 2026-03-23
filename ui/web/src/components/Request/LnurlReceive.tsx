@@ -1,11 +1,10 @@
-import { styled } from '@stitches/react'
 import { useTranslation } from 'react-i18next'
 
 import { useLnurlReceiveCode } from '@fedi/common/hooks/receive'
 import { TransactionListEntry } from '@fedi/common/types'
 
 import { QRContainer } from '.'
-import { theme } from '../../styles'
+import { styled, theme } from '../../styles'
 import { CopyInput } from '../CopyInput'
 import { HoloLoader } from '../HoloLoader'
 import { QRCode } from '../QRCode'

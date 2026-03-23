@@ -1,4 +1,3 @@
-import { styled } from '@stitches/react'
 import { useRouter } from 'next/router'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +19,7 @@ import * as Layout from '../../components/Layout'
 import { Text } from '../../components/Text'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fedimint, writeBridgeFile } from '../../lib/bridge'
-import { theme } from '../../styles'
+import { styled, theme } from '../../styles'
 
 const EditProfile = () => {
     const router = useRouter()
