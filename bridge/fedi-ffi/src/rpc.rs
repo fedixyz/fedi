@@ -1433,6 +1433,20 @@ async fn matrixSubscribeRoomList(
 }
 
 #[macro_rules_derive(rpc_method!)]
+async fn matrixRoomListSetVisibleRooms(
+    bg_matrix: &BgMatrix,
+    room_ids: Vec<RpcRoomId>,
+) -> anyhow::Result<()> {
+    let matrix = bg_matrix.wait().await;
+    let room_ids = room_ids
+        .into_iter()
+        .map(|room_id| room_id.into_typed())
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    matrix.room_list_set_visible_rooms(&room_ids).await;
+    Ok(())
+}
+
+#[macro_rules_derive(rpc_method!)]
 async fn matrixSubscribeRoomTimelineItems(
     bg_matrix: &BgMatrix,
     stream_id: RpcVecDiffStreamId<RpcTimelineItem>,
@@ -2510,6 +2524,7 @@ rpc_methods!(RpcMethods {
     matrixGetAccountSession,
     matrixSubscribeSyncIndicator,
     matrixSubscribeRoomList,
+    matrixRoomListSetVisibleRooms,
     matrixSubscribeRoomTimelineItems,
     matrixRoomTimelineItemsPaginateBackwards,
     matrixRoomSubscribeTimelineItemsPaginateBackwardsStatus,

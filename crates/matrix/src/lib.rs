@@ -424,6 +424,14 @@ impl Matrix {
         }
     }
 
+    pub async fn room_list_set_visible_rooms(&self, room_ids: &[OwnedRoomId]) {
+        let room_refs = room_ids.iter().map(AsRef::as_ref).collect::<Vec<_>>();
+        self.sync_service
+            .room_list_service()
+            .subscribe_to_rooms(&room_refs)
+            .await;
+    }
+
     /// Sync status is used to display "Waiting for network" indicator on
     /// frontend.
     pub fn subscribe_sync_status(&self) -> impl Stream<Item = RpcSyncIndicator> + use<> {

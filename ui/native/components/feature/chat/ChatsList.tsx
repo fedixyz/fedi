@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native'
+import { useIsFocused, useNavigation } from '@react-navigation/native'
 import { Theme, useTheme } from '@rneui/themed'
 import React, { useCallback, useState } from 'react'
 import {
@@ -7,10 +7,12 @@ import {
     ListRenderItem,
     StyleSheet,
     Vibration,
+    ViewToken,
 } from 'react-native'
 
 import { ErrorBoundary } from '@fedi/common/components/ErrorBoundary'
 import { useFedimint } from '@fedi/common/hooks/fedimint'
+import { useVisibleRoomIdsSubscription } from '@fedi/common/hooks/matrix'
 import {
     previewAllDefaultChats,
     refetchMatrixRoomList,
@@ -26,6 +28,7 @@ import { ChatRoomActionsOverlay } from './ChatRoomActionsOverlay'
 import ChatRoomTile from './ChatRoomTile'
 
 const WINDOW_WIDTH = Dimensions.get('window').width
+const ROOM_LIST_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 }
 
 const ChatsList: React.FC = () => {
     const { theme } = useTheme()
@@ -37,6 +40,8 @@ const ChatsList: React.FC = () => {
     const syncStatus = useAppSelector(selectMatrixStatus)
     const [isRefetching, setIsRefetching] = useState(false)
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
+    const isFocused = useIsFocused()
+    const { updateVisibleRoomIds } = useVisibleRoomIdsSubscription(isFocused)
 
     const handleRefresh = useCallback(() => {
         setIsRefetching(true)
@@ -78,6 +83,21 @@ const ChatsList: React.FC = () => {
         [handleLongPressChat, handleOpenChat],
     )
 
+    const handleViewableItemsChanged = useCallback(
+        ({
+            viewableItems,
+        }: {
+            viewableItems: Array<ViewToken<MatrixRoom>>
+        }) => {
+            const nextVisibleRoomIds = viewableItems
+                .map(item => item.item?.id)
+                .filter((roomId): roomId is string => Boolean(roomId))
+
+            updateVisibleRoomIds(nextVisibleRoomIds)
+        },
+        [updateVisibleRoomIds],
+    )
+
     if (syncStatus === MatrixSyncStatus.initialSync) {
         return <HoloLoader size={30} />
     }
@@ -100,6 +120,8 @@ const ChatsList: React.FC = () => {
                     offset: 48 * index,
                     index,
                 })}
+                onViewableItemsChanged={handleViewableItemsChanged}
+                viewabilityConfig={ROOM_LIST_VIEWABILITY_CONFIG}
             />
             <ChatRoomActionsOverlay
                 show={selectedRoomId !== null}

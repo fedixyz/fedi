@@ -870,6 +870,7 @@ export type RpcMethods = {
   matrixGetAccountSession: [matrixGetAccountSession, RpcMatrixAccountSession];
   matrixSubscribeSyncIndicator: [matrixSubscribeSyncIndicator, null];
   matrixSubscribeRoomList: [matrixSubscribeRoomList, null];
+  matrixRoomListSetVisibleRooms: [matrixRoomListSetVisibleRooms, null];
   matrixSubscribeRoomTimelineItems: [matrixSubscribeRoomTimelineItems, null];
   matrixRoomTimelineItemsPaginateBackwards: [
     matrixRoomTimelineItemsPaginateBackwards,
@@ -2016,6 +2017,8 @@ export type matrixRoomInviteUserById = { roomId: RpcRoomId; userId: RpcUserId };
 export type matrixRoomJoin = { roomId: RpcRoomId };
 
 export type matrixRoomJoinPublic = { roomId: RpcRoomId };
+
+export type matrixRoomListSetVisibleRooms = { roomIds: Array<RpcRoomId> };
 
 export type matrixRoomKickUser = {
   roomId: RpcRoomId;

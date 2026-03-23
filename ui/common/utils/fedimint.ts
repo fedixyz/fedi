@@ -892,6 +892,12 @@ export class FedimintBridge {
         return this.rpcStream('matrixSubscribeRoomList', args)
     }
 
+    async matrixRoomListSetVisibleRooms(
+        args: bindings.RpcPayload<'matrixRoomListSetVisibleRooms'>,
+    ) {
+        return this.rpcTyped('matrixRoomListSetVisibleRooms', args)
+    }
+
     matrixSubscribeRoomTimelineItems(
         args: StreamRpcArgs<'matrixSubscribeRoomTimelineItems'>,
     ): UnsubscribeFn {

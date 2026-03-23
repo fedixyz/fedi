@@ -134,6 +134,43 @@ export function useChatsListSearch(initialQuery?: string) {
     }
 }
 
+const VISIBLE_ROOM_IDS_DEBOUNCE_MS = 150
+
+export function useVisibleRoomIdsSubscription(isFocused: boolean) {
+    const fedimint = useFedimint()
+    const [visibleRoomIds, setVisibleRoomIds] = useState<string[]>([])
+
+    useDebouncedEffect(
+        () => {
+            if (!isFocused) return
+            fedimint
+                .matrixRoomListSetVisibleRooms({ roomIds: visibleRoomIds })
+                .catch(() => null)
+        },
+        [fedimint, visibleRoomIds, isFocused],
+        VISIBLE_ROOM_IDS_DEBOUNCE_MS,
+    )
+
+    const updateVisibleRoomIds = useCallback((nextVisibleRoomIds: string[]) => {
+        setVisibleRoomIds(currentVisibleRoomIds => {
+            if (
+                nextVisibleRoomIds.length === currentVisibleRoomIds.length &&
+                nextVisibleRoomIds.every(
+                    (id, i) => id === currentVisibleRoomIds[i],
+                )
+            ) {
+                return currentVisibleRoomIds
+            }
+
+            return nextVisibleRoomIds
+        })
+    }, [])
+
+    return {
+        updateVisibleRoomIds,
+    }
+}
+
 export function useChatTimelineSearchQuery() {
     const dispatch = useCommonDispatch()
     const chatTimelineSearchQuery = useCommonSelector(
@@ -383,6 +420,15 @@ export function useObserveMatrixRoom(roomId: MatrixRoom['id']) {
         fedimint,
         room?.roomState,
     ])
+
+    useEffect(() => {
+        if (!matrixStarted) return
+        if (room?.roomState !== 'joined') return
+
+        fedimint
+            .matrixRoomListSetVisibleRooms({ roomIds: [roomId] })
+            .catch(() => null)
+    }, [fedimint, matrixStarted, room?.roomState, roomId])
 
     useEffect(() => {
         if (!matrixStarted || !latestEventId) return
