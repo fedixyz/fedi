@@ -113,6 +113,7 @@ async fn main() -> Result<()> {
         .route("/:device_id/init", post(handle_init))
         .route("/:device_id/rpc/:method", post(handle_rpc))
         .route("/:device_id/events", get(handle_events))
+        .route("/:device_id/shutdown", post(handle_shutdown))
         .route("/:device_id/reset", post(handle_reset))
         .route("/invite_code", get(handle_invite_code))
         .route("/generate_ecash/:amount", get(handle_generate_ecash))
@@ -249,6 +250,48 @@ async fn handle_reset(
     Ok(Json(serde_json::json!({})))
 }
 
+async fn shutdown_bridge(
+    bridges: &Arc<RwLock<HashMap<String, BridgeState>>>,
+    device_id: &str,
+) -> Result<bool, RemoteRpcError> {
+    let bridge = {
+        let mut state = bridges.write().await;
+        let Some(bridge_state) = state.remove(device_id) else {
+            return Ok(false);
+        };
+        bridge_state.bridge
+    };
+
+    if let Ok(runtime) = bridge.runtime() {
+        let root_task_group = runtime.task_group.clone();
+        root_task_group
+            .shutdown_join_all(None)
+            .await
+            .expect("must shutdown");
+    }
+
+    debug!("waiting for bridge down");
+    while Arc::strong_count(&bridge) != 1 {
+        fedimint_core::task::sleep(Duration::from_millis(10)).await;
+    }
+    drop(bridge);
+
+    Ok(true)
+}
+
+async fn handle_shutdown(
+    Path(device_id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, RemoteRpcError> {
+    let removed = shutdown_bridge(&state.bridges, &device_id).await?;
+    if removed {
+        info!("Bridge shut down for device: {}", device_id);
+    } else {
+        info!("Bridge already shut down for device: {}", device_id);
+    }
+    Ok(Json(serde_json::json!({})))
+}
+
 async fn handle_events(
     Path(device_id): Path<String>,
     State(state): State<AppState>,
@@ -304,27 +347,11 @@ async fn handle_websocket(
             }
         }
     }
-    {
-        let mut state = bridges.write().await;
-        let bridge = state
-            .remove(&device_id)
-            .expect("bridge must be present")
-            .bridge;
-
-        if let Ok(runtime) = bridge.runtime() {
-            let root_task_group = runtime.task_group.clone();
-            root_task_group
-                .shutdown_join_all(None)
-                .await
-                .expect("must shutdown");
-        }
-
-        // hold the write lock until bridge is dead
-        debug!("waiting for bridge down");
-        while Arc::strong_count(&bridge) != 1 {
-            fedimint_core::task::sleep(Duration::from_millis(10)).await;
-        }
-        drop(bridge);
+    if let Err(err) = shutdown_bridge(&bridges, &device_id).await {
+        error!(
+            "Failed to shut down bridge for device {}: {}",
+            device_id, err.0
+        );
     }
 
     info!("WebSocket connection closed for device: {}", device_id);
