@@ -1809,7 +1809,7 @@ export type completeSocialRecovery = {};
 
 export type dumpDb = {
   federationId: string;
-  includeFederationSecret?: boolean;
+  includeFederationSecret: boolean | null;
 };
 
 export type estimateLnFees = { federationId: RpcFederationId; invoice: string };
