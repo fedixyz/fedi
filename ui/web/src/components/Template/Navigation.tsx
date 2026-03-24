@@ -31,6 +31,16 @@ import { NotificationDot } from '../NotificationDot'
 import { ScanDialog } from '../ScanDialog'
 import { Text } from '../Text'
 
+interface ScanLink {
+    path: string
+    label: string
+    icon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    activeIcon: React.FunctionComponent<React.SVGAttributes<SVGElement>>
+    hasNotification: boolean
+}
+
+type NavLink = ScanLink & { tab: HomeNavigationTab }
+
 export const Navigation: React.FC = () => {
     const [open, setOpen] = useState(false)
 
@@ -45,12 +55,11 @@ export const Navigation: React.FC = () => {
         return false
     }
 
-    const navLinks = [
+    const navLinks: (NavLink | ScanLink)[] = [
         {
             path: walletRoute,
             icon: WalletIcon,
             activeIcon: WalletFilledIcon,
-            available: true,
             hasNotification: false,
             label: t('words.wallet'),
             tab: HomeNavigationTab.Wallet,
@@ -59,7 +68,6 @@ export const Navigation: React.FC = () => {
             path: chatRoute,
             icon: ChatIcon,
             activeIcon: ChatFilledIcon,
-            available: true,
             hasNotification: hasChatNotifications,
             label: t('words.chat'),
             tab: HomeNavigationTab.Chat,
@@ -68,16 +76,13 @@ export const Navigation: React.FC = () => {
             path: 'scan',
             icon: ScanIcon,
             activeIcon: ScanIcon,
-            available: true,
             hasNotification: false,
             label: t('phrases.scan-slash-paste'),
-            tab: HomeNavigationTab.Chat,
         },
         {
             path: miniAppsRoute,
             icon: AppsIcon,
             activeIcon: AppsFilledIcon,
-            available: true,
             hasNotification: false,
             label: t('words.mods'),
             tab: HomeNavigationTab.MiniApps,
@@ -86,20 +91,21 @@ export const Navigation: React.FC = () => {
             path: homeRoute,
             icon: CommunityIcon,
             activeIcon: CommunityFilledIcon,
-            available: true,
             hasNotification: false,
             label: t('words.community'),
             tab: HomeNavigationTab.Home,
         },
-    ].filter(nav => nav.available)
+    ]
 
     return (
-        <Container>
+        <NavBar>
+            <Shadow />
             <Nav>
                 {navLinks.map(nav => {
                     const isActive = getIsActive(nav.path)
 
-                    if (nav.path === 'scan') {
+                    // Handle ScanLink separately as it's rendered as a dialog
+                    if (!('tab' in nav)) {
                         return (
                             <NavItem key={nav.path} isActive={isActive}>
                                 <ScanItem onClick={() => setOpen(true)}>
@@ -138,19 +144,27 @@ export const Navigation: React.FC = () => {
                 })}
             </Nav>
             <ScanDialog open={open} onOpenChange={setOpen} />
-        </Container>
+        </NavBar>
     )
 }
 
-const Label = styled(Text, {
-    color: theme.colors.darkGrey,
-    marginTop: 4,
+const NAV_HEIGHT = 68
+
+const NavBar = styled('nav', {
+    background: theme.colors.white,
+    height: NAV_HEIGHT,
+    position: 'relative',
+    width: '100%',
 })
 
-const Container = styled('nav', {
-    background: theme.colors.white,
-    borderTop: `1px solid ${theme.colors.extraLightGrey}`,
-    width: '100%',
+const Shadow = styled('div', {
+    background: `linear-gradient(to top, ${theme.colors.primary05}, transparent)`,
+    bottom: NAV_HEIGHT,
+    height: 48,
+    left: 0,
+    right: 0,
+    pointerEvents: 'none',
+    position: 'absolute',
 })
 
 const Nav = styled('ul', {
@@ -159,16 +173,22 @@ const Nav = styled('ul', {
     padding: '12px 0',
 })
 
+const Label = styled(Text, {
+    color: theme.colors.darkGrey,
+    marginTop: 4,
+})
+
 const ScanIconContainer = styled('div', {
     position: 'absolute',
-    top: -36,
-    width: 48,
-    height: 48,
+    top: -39,
+    width: 54,
+    height: 54,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fediGradient: 'black',
     borderRadius: 1024,
+    border: `3px solid ${theme.colors.white}`,
     color: theme.colors.white,
 })
 
@@ -177,6 +197,7 @@ const ScanItem = styled('button', {
     flexDirection: 'column',
     alignItems: 'center',
     paddingTop: 24,
+    outline: 'none',
     position: 'relative',
 })
 
@@ -186,6 +207,7 @@ const NavItem = styled('li', {
     listStyle: 'none',
     color: theme.colors.darkGrey,
     justifyContent: 'center',
+    outline: 'none',
 
     '&:hover, &:focus': {
         color: theme.colors.primary,
