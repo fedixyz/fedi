@@ -6,17 +6,17 @@ import {
 } from '@testing-library/react-native'
 
 import {
+    selectPaymentFederation,
+    selectPaymentType,
     setFederations,
     setPayFromFederationId,
     setupStore,
 } from '@fedi/common/redux'
-import {
-    mockFederation1,
-    mockFederation2,
-} from '@fedi/common/tests/mock-data/federation'
+import { mockFederation1 } from '@fedi/common/tests/mock-data/federation'
 import { renderWithProviders } from '@fedi/native/tests/utils/render'
 
 import WalletHeader from '../../../../../components/feature/federations/WalletHeader'
+import { LoadedFederation } from '../../../../../types'
 
 describe('WalletHeader', () => {
     let store: ReturnType<typeof setupStore>
@@ -32,7 +32,7 @@ describe('WalletHeader', () => {
         cleanup()
     })
 
-    it('should show the SelectFederationOverlay when the menu button is pressed', async () => {
+    it('should show the SelectWalletOverlay when the menu button is pressed', async () => {
         renderWithProviders(<WalletHeader />)
 
         const menuButton = await screen.getByTestId(
@@ -43,13 +43,12 @@ describe('WalletHeader', () => {
 
         await user.press(menuButton)
 
-        const federationSelectTitle =
-            await screen.getByText('Select Federation')
+        const federationSelectTitle = await screen.getByText('Select Wallet')
 
         expect(federationSelectTitle).toBeOnTheScreen()
     })
 
-    it('should hide the SelectFederationOverlay when the backdrop is pressed', async () => {
+    it('should hide the SelectWalletOverlay when the backdrop is pressed', async () => {
         renderWithProviders(<WalletHeader />)
 
         const menuButton = await screen.getByTestId(
@@ -60,8 +59,7 @@ describe('WalletHeader', () => {
 
         await user.press(menuButton)
 
-        const federationSelectTitle =
-            await screen.getByText('Select Federation')
+        const federationSelectTitle = await screen.getByText('Select Wallet')
 
         expect(federationSelectTitle).toBeOnTheScreen()
 
@@ -76,8 +74,8 @@ describe('WalletHeader', () => {
         })
     })
 
-    it('should switch the payment federation when a federation is clicked', async () => {
-        store.dispatch(setFederations([mockFederation1, mockFederation2]))
+    it("should switch the tab and payment federation when a federation's bitcoin balance is selected", async () => {
+        store.dispatch(setFederations([mockFederation1]))
         store.dispatch(setPayFromFederationId(null))
 
         renderWithProviders(<WalletHeader />, {
@@ -92,28 +90,60 @@ describe('WalletHeader', () => {
 
         await user.press(menuButton)
 
-        const federationSelectTitle =
-            await screen.getByText('Select Federation')
+        const federation1Item = await screen.getByTestId(
+            `SelectWalletListItem-${mockFederation1.id}`,
+        )
 
-        expect(federationSelectTitle).toBeOnTheScreen()
+        expect(federation1Item).toBeOnTheScreen()
+
+        const bitcoinButtonFederation1 = await screen.getByTestId(
+            `BitcoinButton-${mockFederation1.id}`,
+        )
+
+        await user.press(bitcoinButtonFederation1)
+
+        expect(selectPaymentType(store.getState())).toBe('bitcoin')
+        expect(selectPaymentFederation(store.getState())).toStrictEqual(
+            mockFederation1,
+        )
+    })
+
+    it("should switch the tab and payment federation when a federation's stable balance is selected", async () => {
+        const federationWithSP = {
+            ...mockFederation1,
+            meta: { 'fedi:stability_pool_disabled': 'false' },
+        } as LoadedFederation
+
+        store.dispatch(setFederations([federationWithSP]))
+        store.dispatch(setPayFromFederationId(null))
+
+        renderWithProviders(<WalletHeader />, {
+            store,
+        })
+
+        const menuButton = await screen.getByTestId(
+            'MainHeaderButtons__HamburgerIcon',
+        )
+
+        expect(menuButton).toBeOnTheScreen()
+
+        await user.press(menuButton)
 
         const federation1Item = await screen.getByTestId(
-            `SelectFederationListItem-${mockFederation1.id}`,
-        )
-        const federation2Item = await screen.getByTestId(
-            `SelectFederationListItem-${mockFederation2.id}`,
+            `SelectWalletListItem-${federationWithSP.id}`,
         )
 
-        await user.press(federation1Item)
+        expect(federation1Item).toBeOnTheScreen()
 
-        expect(store.getState().federation.payFromFederationId).toBe(
-            mockFederation1.id,
+        const bitcoinButtonFederation1 = await screen.getByTestId(
+            `StableBalanceButton-${federationWithSP.id}`,
         )
 
-        await user.press(federation2Item)
+        await user.press(bitcoinButtonFederation1)
 
-        expect(store.getState().federation.payFromFederationId).toBe(
-            mockFederation2.id,
+        expect(selectPaymentType(store.getState())).toBe('stable-balance')
+        expect(selectPaymentFederation(store.getState())).toStrictEqual(
+            federationWithSP,
         )
     })
 })

@@ -3,6 +3,7 @@ import {
     Federation,
     Community,
     CommunityPreview,
+    LoadedFederation,
 } from '@fedi/common/types'
 
 import { RpcFederationPreview } from '../../types/bindings'
@@ -26,7 +27,24 @@ export const mockFederation1 = {
     hadReusedEcash: false,
 } as const satisfies Federation
 
-export const mockFederation2 = {
+export const mockFederationWithSPV1: LoadedFederation = {
+    ...mockFederation1,
+    id: 'spv1',
+    meta: {
+        stability_pool_disabled: 'false',
+        multispend_disabled: 'false',
+    },
+    clientConfig: {
+        global: {},
+        modules: {
+            stability_pool: {
+                kind: 'stability_pool',
+            },
+        },
+    },
+}
+
+export const mockFederation2: Federation = {
     status: 'online',
     init_state: 'ready',
     balance: 2000000 as MSats,
@@ -44,6 +62,23 @@ export const mockFederation2 = {
     },
     hadReusedEcash: false,
 } as const satisfies Federation
+
+export const mockFederationWithSPV2: LoadedFederation = {
+    ...mockFederation2,
+    id: 'spv2',
+    meta: {
+        stability_pool_disabled: 'false',
+        multispend_disabled: 'false',
+    },
+    clientConfig: {
+        global: {},
+        modules: {
+            multi_sig_stability_pool: {
+                kind: 'multi_sig_stability_pool',
+            },
+        },
+    },
+}
 
 export const mockCommunity: Community = {
     id: '1',

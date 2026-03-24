@@ -58,6 +58,7 @@ const initialState = {
     redirectTo: null as string | null,
     eventListenersReady: false,
     lastUsedTab: HomeNavigationTab.Wallet,
+    paymentType: 'bitcoin' as 'bitcoin' | 'stable-balance',
 }
 
 export type EnvironmentState = typeof initialState
@@ -155,6 +156,12 @@ export const environmentSlice = createSlice({
         setLastUsedTab(state, action: PayloadAction<HomeNavigationTab>) {
             state.lastUsedTab = action.payload
         },
+        setPaymentType(
+            state,
+            action: PayloadAction<'bitcoin' | 'stable-balance'>,
+        ) {
+            state.paymentType = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(changeLanguage.fulfilled, (state, action) => {
@@ -190,6 +197,9 @@ export const environmentSlice = createSlice({
             if (action.payload.lastUsedTab !== undefined) {
                 state.lastUsedTab = action.payload.lastUsedTab
             }
+            if (action.payload.paymentType !== undefined) {
+                state.paymentType = action.payload.paymentType
+            }
         })
     },
 })
@@ -221,6 +231,7 @@ export const {
     setRedirectTo,
     setEventListenersReady,
     setLastUsedTab,
+    setPaymentType,
 } = environmentSlice.actions
 
 /*** Async thunk actions ***/
@@ -467,3 +478,4 @@ export const selectEventListenersReady = (s: CommonState) =>
     s.environment.eventListenersReady
 
 export const selectLastUsedTab = (s: CommonState) => s.environment.lastUsedTab
+export const selectPaymentType = (s: CommonState) => s.environment.paymentType

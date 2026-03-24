@@ -4,19 +4,13 @@ import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StyleSheet, View } from 'react-native'
 
-import {
-    selectPaymentFederation,
-    setPayFromFederationId,
-} from '@fedi/common/redux'
-
-import { useAppDispatch, useAppSelector } from '../../../state/hooks'
 import { NavigationHook } from '../../../types/navigation'
 import { isNightly } from '../../../utils/device-info'
 import GradientView from '../../ui/GradientView'
 import Header from '../../ui/Header'
 import MainHeaderButtons from '../../ui/MainHeaderButtons'
 import TotalBalance from '../../ui/TotalBalance'
-import SelectFederationOverlay from '../send/SelectFederationOverlay'
+import SelectWalletOverlay from '../send/SelectWalletOverlay'
 
 const WalletHeader: React.FC = () => {
     const { theme } = useTheme()
@@ -26,8 +20,6 @@ const WalletHeader: React.FC = () => {
 
     const [open, setOpen] = useState(false)
 
-    const dispatch = useAppDispatch()
-    const paymentFederation = useAppSelector(selectPaymentFederation)
     const style = styles(theme)
 
     const openJoinCommunity = () => {
@@ -63,15 +55,7 @@ const WalletHeader: React.FC = () => {
                     </Text>
                 </View>
             )}
-            <SelectFederationOverlay
-                opened={open}
-                onDismiss={() => setOpen(false)}
-                showStableBalance
-                onSelect={federation =>
-                    dispatch(setPayFromFederationId(federation.id))
-                }
-                selectedFederation={paymentFederation?.id ?? ''}
-            />
+            <SelectWalletOverlay open={open} onDismiss={() => setOpen(false)} />
         </GradientView>
     )
 }

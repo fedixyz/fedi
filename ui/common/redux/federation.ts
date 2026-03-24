@@ -86,6 +86,7 @@ const initialState = {
     // A list of community IDs that were autojoined where a dismissable notice should be displayed to the user
     autojoinNoticesToDisplay: [] as Array<Community['id']>,
     guardianitoBot: null as GuardianitoBot | null,
+    selectedFederationId: null as Federation['id'] | null,
 }
 
 export type FederationState = typeof initialState
@@ -425,6 +426,9 @@ export const federationSlice = createSlice({
                 state.lastSelectedCommunityId = v2Community.id
             }
         },
+        setSelectedFederationId(state, action: PayloadAction<string>) {
+            state.selectedFederationId = action.payload
+        },
     },
     extraReducers: builder => {
         builder.addCase(leaveFederation.fulfilled, (state, action) => {
@@ -502,6 +506,8 @@ export const federationSlice = createSlice({
                 action.payload.previouslyAutojoinedCommunities || {}
             state.autojoinNoticesToDisplay =
                 action.payload.autojoinNoticesToDisplay || []
+            state.selectedFederationId =
+                action.payload.selectedFederationId || null
         })
 
         builder.addCase(
@@ -549,6 +555,7 @@ export const {
     removeAutojoinNoticeToDisplay,
     setGuardianitoBot,
     migrateCommunityV1ToV2,
+    setSelectedFederationId,
 } = federationSlice.actions
 
 /*** Async thunk actions */
@@ -983,6 +990,7 @@ export const joinFederation = createAsyncThunk<
         if (!joinedFederation) throw new Error('errors.unknown-error')
 
         dispatch(setLastUsedFederationId(joinedFederation.id))
+        dispatch(setSelectedFederationId(joinedFederation.id))
         return joinedFederation
     },
 )
@@ -1136,6 +1144,24 @@ export const selectRecentlyUsedFederationIds = (s: CommonState) =>
 
 export const selectLastUsedFederationId = (s: CommonState) =>
     selectRecentlyUsedFederationIds(s)[0] ?? null
+
+// as users make payments with federations, the id gets added to recentlyUsedFederationIds
+// this allows us to respect the order of loadedFederations and show the most recently used federations first
+export const selectLoadedFederationsByRecency = createSelector(
+    selectRecentlyUsedFederationIds,
+    selectLoadedFederations,
+    (recentlyUsedFederationIds, federations) => {
+        return [...federations].sort((a, b) => {
+            const recentIndexA = recentlyUsedFederationIds.indexOf(a.id)
+            const recentIndexB = recentlyUsedFederationIds.indexOf(b.id)
+            const compareA =
+                recentIndexA === -1 ? federations.length : recentIndexA
+            const compareB =
+                recentIndexB === -1 ? federations.length : recentIndexB
+            return compareA - compareB
+        })
+    },
+)
 
 // non-featured federations are just loaded federations excluding the last used federation
 export const selectNonFeaturedFederations = createSelector(
@@ -1754,3 +1780,16 @@ export const selectAutojoinNoticeInfo = createSelector(
 
 export const selectGuardianitoBot = (s: CommonState) =>
     s.federation.guardianitoBot
+
+export const selectSelectedFederationId = (s: CommonState) =>
+    s.federation.selectedFederationId
+
+export const selectSelectedFederation = createSelector(
+    selectSelectedFederationId,
+    selectLoadedFederations,
+    (selectedFederationId, loadedFederations) => {
+        return (
+            loadedFederations.find(f => f.id === selectedFederationId) ?? null
+        )
+    },
+)

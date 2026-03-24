@@ -26,7 +26,7 @@ export const STATE_STORAGE_KEY = 'fedi:state'
  */
 export function transformStateToStorage(state: CommonState): LatestStoredState {
     const transformedState: LatestStoredState = {
-        version: 43,
+        version: 44,
         onchainDepositsEnabled: state.environment.onchainDepositsEnabled,
         developerMode: state.environment.developerMode,
         stableBalanceEnabled: state.environment.stableBalanceEnabled,
@@ -70,6 +70,8 @@ export function transformStateToStorage(state: CommonState): LatestStoredState {
         balanceDisplay: state.currency.balanceDisplay,
         lastUsedTab: state.environment.lastUsedTab,
         rejectedRoomInvites: state.matrix.rejectedRoomInvites,
+        paymentType: state.environment.paymentType,
+        selectedFederationId: state.federation.selectedFederationId,
     }
 
     return transformedState
@@ -110,6 +112,7 @@ export function hasStorageStateChanged(
         ['environment', 'deviceId'],
         ['environment', 'sessionCount'],
         ['environment', 'lastUsedTab'],
+        ['environment', 'paymentType'],
         ['currency', 'overrideCurrency'],
         ['currency', 'customFederationCurrencies'],
         ['currency', 'prices'],
@@ -120,6 +123,7 @@ export function hasStorageStateChanged(
         ['federation', 'seenFederationRatings'],
         ['federation', 'previouslyAutojoinedCommunities'],
         ['federation', 'autojoinNoticesToDisplay'],
+        ['federation', 'selectedFederationId'],
         ['matrix', 'drafts'],
         ['matrix', 'rejectedRoomInvites'],
         // TODO: migrate legacy mods to customGlobalMods
@@ -807,6 +811,16 @@ async function migrateStoredState(
             ...migrationState,
             version: 43,
             rejectedRoomInvites: [],
+        }
+    }
+
+    if (migrationState.version === 43) {
+        migrationState = {
+            ...migrationState,
+            version: 44,
+            paymentType: 'bitcoin',
+            selectedFederationId:
+                migrationState.recentlyUsedFederationIds[0] ?? null,
         }
     }
 

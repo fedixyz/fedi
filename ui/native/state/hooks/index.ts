@@ -14,6 +14,7 @@ import {
     selectCurrencyLocale,
     selectStableBalance,
     selectStableBalancePending,
+    selectStableBalanceSats,
 } from '@fedi/common/redux'
 import { selectSupportPermissionGranted } from '@fedi/common/redux/support'
 import { Federation } from '@fedi/common/types'
@@ -128,6 +129,9 @@ export const useStableBalances = (federationId: Federation['id']) => {
     const selectedCurrency = useAppSelector(s =>
         selectCurrency(s, federationId),
     )
+    const stableBalanceSats = useAppSelector(s =>
+        selectStableBalanceSats(s, federationId),
+    )
     const currencyLocale = useAppSelector(selectCurrencyLocale)
 
     const formattedStableBalance = amountUtils.formatFiat(
@@ -140,7 +144,13 @@ export const useStableBalances = (federationId: Federation['id']) => {
         selectedCurrency,
         { symbolPosition: 'end', locale: currencyLocale },
     )
-    return { formattedStableBalance, formattedStableBalancePending }
+    const formattedStableBalanceSats = amountUtils.formatSats(stableBalanceSats)
+
+    return {
+        formattedStableBalance,
+        formattedStableBalancePending,
+        formattedStableBalanceSats,
+    }
 }
 
 // This hook provides a stability pool function
@@ -149,8 +159,11 @@ export const useStabilityPool = (federationId: Federation['id']) => {
     const dispatch = useAppDispatch()
     const fedimint = useFedimint()
     const navigation = useNavigation<NavigationHook>()
-    const { formattedStableBalance, formattedStableBalancePending } =
-        useStableBalances(federationId)
+    const {
+        formattedStableBalance,
+        formattedStableBalanceSats,
+        formattedStableBalancePending,
+    } = useStableBalances(federationId)
 
     const refreshBalance = useCallback(() => {
         dispatch(
@@ -176,6 +189,7 @@ export const useStabilityPool = (federationId: Federation['id']) => {
     return {
         refreshBalance,
         formattedStableBalance,
+        formattedStableBalanceSats,
         formattedStableBalancePending,
     }
 }

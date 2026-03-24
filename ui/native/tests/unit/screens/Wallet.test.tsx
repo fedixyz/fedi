@@ -1,13 +1,16 @@
-import { screen, userEvent } from '@testing-library/react-native'
+import { act, screen, userEvent } from '@testing-library/react-native'
 
 import {
     setFederations,
-    setLastUsedFederationId,
+    setIsInternetUnreachable,
+    setSelectedFederationId,
     setupStore,
 } from '@fedi/common/redux'
 import {
     mockFederation1,
     mockFederation2,
+    mockFederationWithSPV1,
+    mockFederationWithSPV2,
 } from '@fedi/common/tests/mock-data/federation'
 
 import i18n from '../../../localization/i18n'
@@ -16,10 +19,6 @@ import { resetToJoinFederation } from '../../../state/navigation'
 import { LoadedFederation } from '../../../types'
 import { mockNavigation } from '../../setup/jest.setup.mocks'
 import { renderWithProviders } from '../../utils/render'
-
-// Related Tests:
-// - unit/components/feature/federations/FederationTile.test.tsx
-// - unit/components/feature/federations/FederationsHeader.test.tsx
 
 describe('Wallet screen', () => {
     const user = userEvent.setup()
@@ -81,31 +80,10 @@ describe('Wallet screen', () => {
         })
     })
 
-    describe('with federations joined', () => {
-        it('[1 federation] should render the featured federation as the last-used federation', () => {
-            store.dispatch(setFederations([mockFederation1]))
-            store.dispatch(setLastUsedFederationId(mockFederation1.id))
-            renderWithProviders(
-                <Wallet
-                    route={{
-                        name: 'Wallet',
-                        key: 'Wallet',
-                    }}
-                    navigation={mockNavigation as any}
-                />,
-                { store },
-            )
-
-            const featuredFederationName = screen.queryByText(
-                (mockFederation1 as LoadedFederation).name,
-            )
-
-            expect(featuredFederationName).toBeOnTheScreen()
-        })
-
-        it('[>1 federation] should render the featured federation and non-featured federations', () => {
+    describe('federation joined', () => {
+        it('should display the active federation name, wallet, balance, and wallet buttons', () => {
             store.dispatch(setFederations([mockFederation1, mockFederation2]))
-            store.dispatch(setLastUsedFederationId(mockFederation2.id))
+            store.dispatch(setSelectedFederationId(mockFederation2.id))
             renderWithProviders(
                 <Wallet
                     route={{
@@ -117,15 +95,179 @@ describe('Wallet screen', () => {
                 { store },
             )
 
-            const featuredFederationName = screen.queryByText(
+            const name = screen.getByText(
                 (mockFederation2 as LoadedFederation).name,
             )
-            const nonFeaturedFederationName = screen.queryByText(
-                (mockFederation1 as LoadedFederation).name,
+            const bitcoinHeader = screen.getByText(i18n.t('words.bitcoin'))
+            const sendButton = screen.getByText(i18n.t('words.send'))
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+
+            expect(name).toBeOnTheScreen()
+            expect(bitcoinHeader).toBeOnTheScreen()
+            expect(sendButton).toBeOnTheScreen()
+            expect(receiveButton).toBeOnTheScreen()
+        })
+
+        it('pressing the federation header should navigate to federation details screen', async () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setSelectedFederationId(mockFederation1.id))
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
             )
 
-            expect(featuredFederationName).toBeOnTheScreen()
-            expect(nonFeaturedFederationName).toBeOnTheScreen()
+            const header = screen.getByTestId(
+                `${mockFederation1.name.replaceAll(' ', '')}DetailsButton`,
+            )
+            await user.press(header)
+
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'FederationDetails',
+                {
+                    federationId: mockFederation1.id,
+                },
+            )
+        })
+
+        it('pressing the transaction history button should navigate to transactions screen', async () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setSelectedFederationId(mockFederation1.id))
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const transactionHistoryButton = screen.getByTestId(
+                'BalanceCard__TransactionHistory',
+            )
+
+            await user.press(transactionHistoryButton)
+
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'Transactions',
+                {
+                    federationId: mockFederation1.id,
+                },
+            )
+        })
+
+        it('should render the tab switcher if stability pool is enabled', async () => {
+            act(() => store.dispatch(setFederations([mockFederationWithSPV1])))
+            act(() =>
+                store.dispatch(
+                    setSelectedFederationId(mockFederationWithSPV1.id),
+                ),
+            )
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const bitcoinTab = screen.getByTestId('bitcoinTab')
+            const stableBalanceTab = screen.getByTestId('stable-balanceTab')
+
+            expect(bitcoinTab).toBeOnTheScreen()
+            expect(stableBalanceTab).toBeOnTheScreen()
+        })
+
+        it('should navigate to the respective screen when the send and receive buttons are pressed', async () => {
+            store.dispatch(setFederations([mockFederation1]))
+            store.dispatch(setSelectedFederationId(mockFederation1.id))
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const sendButton = screen.getByText(i18n.t('words.send'))
+            const receiveButton = screen.getByText(i18n.t('words.receive'))
+
+            expect(sendButton).toBeOnTheScreen()
+            expect(receiveButton).toBeOnTheScreen()
+
+            await user.press(sendButton)
+            expect(mockNavigation.navigate).toHaveBeenCalledWith('Send', {
+                federationId: mockFederation1.id,
+            })
+
+            // When offline, the Send button should lead to SendOfflineAmount
+            act(() => store.dispatch(setIsInternetUnreachable(true)))
+            await user.press(sendButton)
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'SendOfflineAmount',
+            )
+
+            await user.press(receiveButton)
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'ReceiveBitcoin',
+                {
+                    federationId: mockFederation1.id,
+                },
+            )
+        })
+
+        it('should navigate to the respective screen when the move/transfer buttons are pressed', async () => {
+            store.dispatch(setFederations([mockFederationWithSPV2]))
+            store.dispatch(setSelectedFederationId(mockFederationWithSPV2.id))
+            renderWithProviders(
+                <Wallet
+                    route={{
+                        name: 'Wallet',
+                        key: 'Wallet',
+                    }}
+                    navigation={mockNavigation as any}
+                />,
+                { store },
+            )
+
+            const stableBalanceTab = screen.getByTestId('stable-balanceTab')
+
+            await user.press(stableBalanceTab)
+
+            const moveButton = screen.getByText(i18n.t('words.move'))
+            const transferButton = screen.getByText(i18n.t('words.transfer'))
+
+            expect(moveButton).toBeOnTheScreen()
+            expect(transferButton).toBeOnTheScreen()
+
+            await user.press(moveButton)
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'StabilityMove',
+                {
+                    federationId: mockFederationWithSPV2.id,
+                },
+            )
+
+            await user.press(transferButton)
+            expect(mockNavigation.navigate).toHaveBeenCalledWith(
+                'StabilityTransfer',
+                {
+                    federationId: mockFederationWithSPV2.id,
+                },
+            )
         })
     })
 })
