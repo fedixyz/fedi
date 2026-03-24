@@ -29,11 +29,8 @@ import {
     RpcMatrixMembership,
     RpcUserPowerLevel,
 } from '@fedi/common/types/bindings'
-import { makeLog } from '@fedi/common/utils/log'
-import {
-    makeMatrixEventGroups,
-    matrixIdToUsername,
-} from '@fedi/common/utils/matrix'
+import { makeChatConversationRows } from '@fedi/common/utils/chatConversationRows'
+import { matrixIdToUsername } from '@fedi/common/utils/matrix'
 
 import {
     useAppDispatch,
@@ -51,12 +48,11 @@ import * as Layout from '../Layout'
 import { Text } from '../Text'
 import { ChatAttachmentThumbnail } from './ChatAttachmentThumbnail'
 import { ChatAvatar } from './ChatAvatar'
-import { ChatEventCollection } from './ChatEventCollection'
+import { ChatConversationEventRow } from './ChatConversationEventRow'
 import ChatMentionSuggestions from './ChatMentionSuggestions'
 import GuardianitoHelp from './GuardianitoHelp'
 import MessageInputReplyBar from './MessageInputReplyBar'
 
-const log = makeLog('ChatConversation')
 const HIGHLIGHT_DURATION = 3000
 
 interface Props {
@@ -160,9 +156,9 @@ export const ChatConversation: React.FC<Props> = ({
     const showMentionSuggestions =
         mentionEnabled && !isReadOnly && shouldShowSuggestions
 
-    const eventGroups = useMemo(
-        () => makeMatrixEventGroups(events, 'desc'),
-        [events],
+    const chatRows = useMemo(
+        () => makeChatConversationRows(events, type),
+        [events, type],
     )
 
     // this useEffect is required to handle
@@ -193,53 +189,21 @@ export const ChatConversation: React.FC<Props> = ({
             .finally(() => setIsPaginating(false))
     }, [onPaginate])
 
-    const scrollToMessage = useCallback(
-        (eventId: string) => {
-            try {
-                let targetGroupIndex = -1
+    const scrollToMessage = useCallback((eventId: string) => {
+        const messageElement = messagesRef.current?.querySelector(
+            `[data-event-id="${eventId}"]`,
+        )
 
-                // Find the target group containing the event
-                for (
-                    let groupIndex = 0;
-                    groupIndex < eventGroups.length;
-                    groupIndex++
-                ) {
-                    const group = eventGroups[groupIndex]
-                    const found = group.some(timeFrame =>
-                        timeFrame.some(event => event.id === eventId),
-                    )
-                    if (found) {
-                        targetGroupIndex = groupIndex
-                        break
-                    }
-                }
+        if (messageElement) {
+            messageElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            })
 
-                if (targetGroupIndex !== -1) {
-                    const groupToScrollTo = eventGroups[targetGroupIndex]
-                    const parentGroupEventId = groupToScrollTo[0].at(-1)?.id
-                    const messageElement = messagesRef.current?.querySelector(
-                        `[data-event-id="${parentGroupEventId}"]`,
-                    )
-
-                    if (messageElement) {
-                        messageElement.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center',
-                        })
-
-                        setHighlightedMessageId(eventId)
-                        setTimeout(
-                            () => setHighlightedMessageId(null),
-                            HIGHLIGHT_DURATION,
-                        )
-                    }
-                }
-            } catch (error) {
-                log.error('Error scrolling to message:', error)
-            }
-        },
-        [eventGroups],
-    )
+            setHighlightedMessageId(eventId)
+            setTimeout(() => setHighlightedMessageId(null), HIGHLIGHT_DURATION)
+        }
+    }, [])
 
     useDebouncedEffect(
         () => {
@@ -250,7 +214,7 @@ export const ChatConversation: React.FC<Props> = ({
                 scrollToMessage(scrollToMessageId)
             }
         },
-        [scrollToMessageId, eventGroups.length],
+        [scrollToMessageId, chatRows.length],
         300,
     )
 
@@ -356,23 +320,14 @@ export const ChatConversation: React.FC<Props> = ({
                             ? handleMessagesScroll
                             : undefined
                     }>
-                    {eventGroups.map(collection => (
-                        <div
-                            key={collection[0].at(-1)?.id}
-                            data-event-id={collection[0].at(-1)?.id}
-                            className={
-                                highlightedMessageId ===
-                                collection[0].at(-1)?.id
-                                    ? 'highlighted'
-                                    : ''
-                            }>
-                            <ChatEventCollection
-                                roomId={id}
-                                collection={collection}
-                                showUsernames={type === ChatType.group}
-                                onReplyTap={scrollToMessage}
-                            />
-                        </div>
+                    {chatRows.map(row => (
+                        <ChatConversationEventRow
+                            key={row.event.id}
+                            roomId={id}
+                            row={row}
+                            highlightedMessageId={highlightedMessageId}
+                            onReplyTap={scrollToMessage}
+                        />
                     ))}
                     <PaginationPlaceholder>
                         {isPaginating && <CircularLoader />}
@@ -515,7 +470,7 @@ const MessagesWrapper = styled('div', {
     flexDirection: 'column-reverse',
     flex: 1,
     minHeight: 0,
-    gap: 16,
+    gap: 6,
     overflowY: 'auto',
     padding: 16,
 })
