@@ -12,6 +12,7 @@ import {
     mockFederationWithSPV1,
     mockFederationWithSPV2,
 } from '@fedi/common/tests/mock-data/federation'
+import { createMockFedimintBridge } from '@fedi/common/tests/utils/fedimint'
 
 import i18n from '../../../localization/i18n'
 import Wallet from '../../../screens/Wallet'
@@ -232,6 +233,9 @@ describe('Wallet screen', () => {
         it('should navigate to the respective screen when the move/transfer buttons are pressed', async () => {
             store.dispatch(setFederations([mockFederationWithSPV2]))
             store.dispatch(setSelectedFederationId(mockFederationWithSPV2.id))
+            const fedimint = createMockFedimintBridge({
+                spv2SubscribeAccountInfo: () => () => {},
+            })
             renderWithProviders(
                 <Wallet
                     route={{
@@ -240,7 +244,7 @@ describe('Wallet screen', () => {
                     }}
                     navigation={mockNavigation as any}
                 />,
-                { store },
+                { store, fedimint },
             )
 
             const stableBalanceTab = screen.getByTestId('stable-balanceTab')

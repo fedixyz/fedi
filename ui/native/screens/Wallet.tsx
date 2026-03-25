@@ -10,6 +10,7 @@ import {
     usePopupFederationInfo,
 } from '@fedi/common/hooks/federation'
 import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
+import { useMonitorStabilityPool } from '@fedi/common/hooks/stabilitypool'
 import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectCurrency,
@@ -94,6 +95,8 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
 
     const dispatch = useAppDispatch()
     const toast = useToast()
+
+    useMonitorStabilityPool(federationId)
 
     const handleReceive = () => {
         if (receivesDisabled) {
