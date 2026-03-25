@@ -1,7 +1,7 @@
 import { Button, ButtonProps, Text, Theme, useTheme } from '@rneui/themed'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, View, ViewProps } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
 import { Federation } from '@fedi/common/types'
@@ -21,6 +21,8 @@ interface Props extends AmountInputProps {
     buttons?: ButtonProps[]
     // Whether AmountScreen is independently being used as a screen. Defaults to true.
     isIndependent?: boolean
+    // TODO: remove this prop and use a SafeAreaContainer on all screens that use this component instead
+    subHeaderStyle?: ViewProps['style']
 }
 
 export const AmountScreen: React.FC<Props> = ({
@@ -29,6 +31,7 @@ export const AmountScreen: React.FC<Props> = ({
     subContent = null,
     buttons = [],
     isIndependent = true,
+    subHeaderStyle = null,
     ...amountInputProps
 }) => {
     const federationId = amountInputProps?.federationId || ''
@@ -47,7 +50,11 @@ export const AmountScreen: React.FC<Props> = ({
             <SafeAreaContainer
                 style={style.container}
                 edges={isIndependent ? 'notop' : 'none'}>
-                <Column style={style.subHeader}>
+                <Column
+                    style={StyleSheet.flatten([
+                        style.subHeader,
+                        subHeaderStyle,
+                    ])}>
                     {subHeader}
                     {showBalance && federationId && (
                         <Text

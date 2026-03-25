@@ -1,8 +1,8 @@
 import { useNavigation } from '@react-navigation/native'
-import { useTheme } from '@rneui/themed'
+import { Theme, useTheme } from '@rneui/themed'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Keyboard } from 'react-native'
+import { Keyboard, StyleSheet } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 
 import { useRequestForm } from '@fedi/common/hooks/amount'
@@ -14,6 +14,7 @@ import amountUtils from '@fedi/common/utils/AmountUtils'
 import { reset } from '../../../state/navigation'
 import { useRecheckInternet } from '../../../utils/hooks/environment'
 import { AmountScreen } from '../../ui/AmountScreen'
+import FederationBalance from '../federations/FederationBalance'
 import PaymentType from '../send/PaymentType'
 
 export default function RequestLightningAmount({
@@ -84,15 +85,17 @@ export default function RequestLightningAmount({
         }
     }
 
+    const style = styles(theme)
+
     return (
         <ScrollView
-            style={{
-                flex: 1,
-                paddingHorizontal: theme.spacing.xl,
-            }}
-            contentContainerStyle={{ flexGrow: 1 }}>
+            style={style.container}
+            contentContainerStyle={style.content}>
             <AmountScreen
-                showBalance={true}
+                subHeaderStyle={style.subHeader}
+                subHeader={
+                    <FederationBalance federationId={federationId ?? ''} />
+                }
                 federationId={federationId}
                 amount={amount}
                 onChangeAmount={onChangeAmount}
@@ -123,3 +126,18 @@ export default function RequestLightningAmount({
         </ScrollView>
     )
 }
+
+const styles = (theme: Theme) =>
+    StyleSheet.create({
+        container: {
+            flex: 1,
+            paddingHorizontal: theme.spacing.xl,
+        },
+        content: {
+            flexGrow: 1,
+        },
+        subHeader: {
+            paddingTop: 0,
+            paddingHorizontal: theme.spacing.xl,
+        },
+    })
