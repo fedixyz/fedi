@@ -1,0 +1,10 @@
+--- source/pkgs/by-name/ma/matrix-synapse-unwrapped/package.nix
++++ source/pkgs/by-name/ma/matrix-synapse-unwrapped/package.nix
+@@ -170,6 +170,6 @@
+     license = lib.licenses.agpl3Plus;
+     maintainers = with lib.maintainers; [ sumnerevans ];
+     teams = [ lib.teams.matrix ];
+-    platforms = lib.platforms.linux;
++    platforms = lib.platforms.linux ++ lib.platforms.darwin;
+   };
+ }

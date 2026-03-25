@@ -59,7 +59,15 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
+        nixpkgs-unstable-patched = pkgs.applyPatches {
+          name = "nixpkgs-unstable-patched";
+          src = nixpkgs-unstable;
+          patches = [ ./nix/patches/matrix-synapse-darwin-platform.patch ];
+        };
+
+        pkgs-unstable = import nixpkgs-unstable-patched {
+          inherit system;
+        };
 
         pkgs-fedimint = import fedimint-pkgs.inputs.nixpkgs {
           inherit system;
@@ -377,7 +385,7 @@
                 pkgs.esplora-electrs
                 pkgs.clightning
                 pkgs.lnd
-                (pkgs.matrix-synapse.override { extras = [ ]; })
+                (pkgs-unstable.matrix-synapse.override { extras = [ ]; })
                 pkgs.nostr-rs-relay
                 pkgs.sccache
                 pkgs.ripgrep
