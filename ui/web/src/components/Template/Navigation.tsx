@@ -148,18 +148,23 @@ export const Navigation: React.FC = () => {
     )
 }
 
-const NAV_HEIGHT = 68
-
 const NavBar = styled('nav', {
     background: theme.colors.white,
-    height: NAV_HEIGHT,
+    padding: '0 5px',
     position: 'relative',
     width: '100%',
+    paddingBottom: 0,
+
+    '@standalone': {
+        '@sm': {
+            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        },
+    },
 })
 
 const Shadow = styled('div', {
     background: `linear-gradient(to top, ${theme.colors.primary05}, transparent)`,
-    bottom: NAV_HEIGHT,
+    bottom: '100%',
     height: 48,
     left: 0,
     right: 0,
@@ -170,7 +175,37 @@ const Shadow = styled('div', {
 const Nav = styled('ul', {
     display: 'flex',
     justifyContent: 'center',
-    padding: '12px 0',
+    padding: `${theme.spacing.md} 0`,
+})
+
+const NavItem = styled('li', {
+    flex: 1,
+    display: 'flex',
+    listStyle: 'none',
+    color: theme.colors.darkGrey,
+    justifyContent: 'center',
+    outline: 'none',
+
+    '&:hover, &:focus': {
+        color: theme.colors.primary,
+    },
+
+    '& a': {
+        alignItems: 'center',
+        alignSelf: 'stretch',
+        display: 'inline-flex',
+        flex: 1,
+        flexDirection: 'column',
+        justifyContent: 'center',
+    },
+
+    variants: {
+        isActive: {
+            true: {
+                color: theme.colors.primary,
+            },
+        },
+    },
 })
 
 const Label = styled(Text, {
@@ -193,50 +228,13 @@ const ScanIconContainer = styled('div', {
 })
 
 const ScanItem = styled('button', {
-    display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
-    paddingTop: 24,
-    outline: 'none',
-    position: 'relative',
-})
-
-const NavItem = styled('li', {
-    flex: 1,
+    alignSelf: 'stretch',
     display: 'flex',
-    listStyle: 'none',
-    color: theme.colors.darkGrey,
+    flex: 1,
+    flexDirection: 'column',
     justifyContent: 'center',
     outline: 'none',
-
-    '&:hover, &:focus': {
-        color: theme.colors.primary,
-    },
-
-    '@standalone': {
-        '@sm': {
-            '& a': {
-                paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-            },
-        },
-        '@xs': {
-            '& a': {
-                paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
-            },
-        },
-    },
-
-    '& a': {
-        display: 'inline-flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-    },
-
-    variants: {
-        isActive: {
-            true: {
-                color: theme.colors.primary,
-            },
-        },
-    },
+    paddingTop: 24,
+    position: 'relative',
 })
