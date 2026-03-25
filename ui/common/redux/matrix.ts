@@ -2607,6 +2607,8 @@ export const selectMatrixContactsList = createSelector(
         for (const room of rooms) {
             // Only grab users from direct chats
             if (!room.isDirect) continue
+            // Don't include GBot when searching users
+            if (room.name === GUARDIANITO_BOT_DISPLAY_NAME) continue
             const { directUserId } = room
             if (directChatUsers.some(u => u.id === directUserId)) continue
             const user = roomMembers[room.id]?.find(m => m.id === directUserId)
