@@ -51,7 +51,7 @@ const ChatsListSearch: React.FC<Props> = ({ navigation, route }: Props) => {
     const style = styles(theme)
 
     return (
-        <SafeAreaContainer style={style.container} edges={['bottom']}>
+        <SafeAreaContainer style={style.container} edges="bottom">
             {/* only show guidance if the user hasn't typed anything */}
             {!query && (
                 <Text medium caption style={style.guidance}>

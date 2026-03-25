@@ -110,7 +110,7 @@ const ChatUserConversation: React.FC<Props> = ({ route }: Props) => {
 
     return (
         <SafeAreaContainer
-            edges={['bottom']}
+            edges="bottom"
             style={{ paddingBottom: extraPadAndroid35 }}>
             <Column grow basis={false} align="stretch">
                 {isSending ? (
