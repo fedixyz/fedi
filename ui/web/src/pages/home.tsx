@@ -62,6 +62,8 @@ function HomePage() {
     // TODO: handle if we can't join fedi global community?
     if (!selectedCommunity) return null
 
+    const isCommunityDeleted = selectedCommunity?.status === 'deleted'
+
     return (
         <ContentBlock>
             <Layout.Root>
@@ -72,41 +74,52 @@ function HomePage() {
                     selectedCommunity={selectedCommunity}
                 />
                 <Layout.Content>
-                    <Content>
-                        {pinnedMessage && (
-                            <PinnedMessage pinnedMessage={pinnedMessage} />
-                        )}
-
-                        {selectedCommunity &&
-                            selectedCommunityChats.length > 0 && (
-                                <Section>
-                                    <Title weight="bold">
-                                        {t('feature.home.community-news-title')}
-                                    </Title>
-
-                                    <NewsContainer>
-                                        {selectedCommunityChats.map(room => (
-                                            <DefaultRoomPreview
-                                                room={room}
-                                                key={`default-chat-${room.id}`}
-                                            />
-                                        ))}
-                                    </NewsContainer>
-                                </Section>
+                    {/* We only want to show this content if the community is not deleted */}
+                    {!isCommunityDeleted && (
+                        <Content>
+                            {pinnedMessage && (
+                                <PinnedMessage pinnedMessage={pinnedMessage} />
                             )}
 
-                        <Section>
-                            <Title weight="bold">
-                                {t('feature.home.community-mods-title')}
-                            </Title>
-                            <SubTitle variant="caption">
-                                {t('feature.home.community-services-selected')}
-                            </SubTitle>
-                            <ErrorBoundary fallback={null}>
-                                <FediModTiles mods={selectedCommunityMods} />
-                            </ErrorBoundary>
-                        </Section>
-                    </Content>
+                            {selectedCommunity &&
+                                selectedCommunityChats.length > 0 && (
+                                    <Section>
+                                        <Title weight="bold">
+                                            {t(
+                                                'feature.home.community-news-title',
+                                            )}
+                                        </Title>
+
+                                        <NewsContainer>
+                                            {selectedCommunityChats.map(
+                                                room => (
+                                                    <DefaultRoomPreview
+                                                        room={room}
+                                                        key={`default-chat-${room.id}`}
+                                                    />
+                                                ),
+                                            )}
+                                        </NewsContainer>
+                                    </Section>
+                                )}
+
+                            <Section>
+                                <Title weight="bold">
+                                    {t('feature.home.community-mods-title')}
+                                </Title>
+                                <SubTitle variant="caption">
+                                    {t(
+                                        'feature.home.community-services-selected',
+                                    )}
+                                </SubTitle>
+                                <ErrorBoundary fallback={null}>
+                                    <FediModTiles
+                                        mods={selectedCommunityMods}
+                                    />
+                                </ErrorBoundary>
+                            </Section>
+                        </Content>
+                    )}
                 </Layout.Content>
 
                 {showInstallBanner && (

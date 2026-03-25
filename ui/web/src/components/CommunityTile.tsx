@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import QRIcon from '@fedi/common/assets/svgs/qr.svg'
 import { theme } from '@fedi/common/constants/theme'
@@ -8,6 +9,7 @@ import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 import { styled } from '../styles'
 import { FederationAvatar } from './FederationAvatar'
 import { Icon } from './Icon'
+import { Pill } from './Pill'
 import { Text } from './Text'
 
 type CommunityTileProps = {
@@ -22,6 +24,7 @@ const CommunityTile: React.FC<CommunityTileProps> = ({
     onSelect = () => null,
     onSelectQr = () => null,
 }) => {
+    const { t } = useTranslation()
     const showInviteCode = shouldShowInviteCode(community.meta)
 
     return (
@@ -31,6 +34,9 @@ const CommunityTile: React.FC<CommunityTileProps> = ({
                 <Text variant="body" weight="bold" ellipsize>
                     {community.name}
                 </Text>
+                {community.status === 'deleted' && (
+                    <Pill label={t('words.inactive')} />
+                )}
             </CommunityInfo>
             {showInviteCode && (
                 <IconContainer>

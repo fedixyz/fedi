@@ -65,24 +65,29 @@ const Home: React.FC<Props> = () => {
 
     return (
         <View>
-            <ScrollView
-                contentContainerStyle={style.container}
-                alwaysBounceVertical={false}>
-                <Column gap="lg" fullWidth>
-                    {shouldShowAutojoinedCommunityNotice && (
-                        <AutojoinedCommunityNotice
-                            communityId={selectedCommunity.id}
-                        />
-                    )}
-                    {pinnedMessage && <PinnedMessage message={pinnedMessage} />}
+            {/* Only show this content if the community is not deleted */}
+            {selectedCommunity.status !== 'deleted' && (
+                <ScrollView
+                    contentContainerStyle={style.container}
+                    alwaysBounceVertical={false}>
+                    <Column gap="lg" fullWidth>
+                        {shouldShowAutojoinedCommunityNotice && (
+                            <AutojoinedCommunityNotice
+                                communityId={selectedCommunity.id}
+                            />
+                        )}
+                        {pinnedMessage && (
+                            <PinnedMessage message={pinnedMessage} />
+                        )}
 
-                    <CommunityChats />
+                        <CommunityChats />
 
-                    <ErrorBoundary fallback={null}>
-                        <ShortcutsList communityId={selectedCommunity.id} />
-                    </ErrorBoundary>
-                </Column>
-            </ScrollView>
+                        <ErrorBoundary fallback={null}>
+                            <ShortcutsList communityId={selectedCommunity.id} />
+                        </ErrorBoundary>
+                    </Column>
+                </ScrollView>
+            )}
 
             {/* Overlays */}
             <SurveyOverlay />

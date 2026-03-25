@@ -493,6 +493,13 @@ export function useFederationPreview(t: TFunction, invite: string) {
                         code,
                         fedimint,
                     )
+
+                    if (communityPreviewResult.status === 'deleted') {
+                        throw new Error(
+                            t('feature.communities.community-does-not-exist'),
+                        )
+                    }
+
                     if (communityIds.includes(communityPreviewResult.id)) {
                         dispatch(
                             setLastSelectedCommunityId(
@@ -511,17 +518,22 @@ export function useFederationPreview(t: TFunction, invite: string) {
             } catch (err) {
                 log.error('handleCode', err)
 
-                if (
-                    err instanceof BridgeError &&
-                    err.error.includes('Failed to connect to peer')
-                ) {
-                    toast.show({
-                        content: t('errors.network-connection-failed'),
-                        status: 'error',
-                    })
-                } else {
-                    toast.error(t, err, 'errors.invalid-federation-code')
+                if (err instanceof BridgeError) {
+                    if (err.error.includes('Failed to connect to peer')) {
+                        toast.show({
+                            content: t('errors.network-connection-failed'),
+                            status: 'error',
+                        })
+                    } else {
+                        toast.show({
+                            content: t('errors.invalid-federation-code'),
+                            status: 'error',
+                        })
+                    }
+                    return
                 }
+
+                toast.error(t, err)
             } finally {
                 setIsFetchingPreview(false)
             }

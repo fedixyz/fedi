@@ -1,10 +1,12 @@
 import { Text, Theme, useTheme } from '@rneui/themed'
+import { useTranslation } from 'react-i18next'
 import { StyleSheet } from 'react-native'
 
 import { Community } from '@fedi/common/types'
 import { shouldShowInviteCode } from '@fedi/common/utils/FederationUtils'
 
 import { Row, Column } from '../../ui/Flex'
+import { Pill } from '../../ui/Pill'
 import { Pressable } from '../../ui/Pressable'
 import { PressableIcon } from '../../ui/PressableIcon'
 import { FederationLogo } from '../federations/FederationLogo'
@@ -21,6 +23,7 @@ const CommunityTile = ({
     onSelect = () => null,
     onSelectQr = () => null,
 }: CommunityTileProps) => {
+    const { t } = useTranslation()
     const { theme } = useTheme()
 
     const showInviteCode = shouldShowInviteCode(community.meta)
@@ -33,10 +36,13 @@ const CommunityTile = ({
             onPress={onSelect}>
             <Row align="center" justify="start" gap="md" shrink>
                 <FederationLogo federation={community} size={48} />
-                <Column shrink align="start">
+                <Column shrink align="start" gap="xs">
                     <Text style={style.title} bold numberOfLines={1}>
                         {community.name}
                     </Text>
+                    {community.status === 'deleted' && (
+                        <Pill label={t('words.inactive')} />
+                    )}
                 </Column>
             </Row>
             {showInviteCode && (

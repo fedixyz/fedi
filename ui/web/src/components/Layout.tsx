@@ -47,12 +47,7 @@ export function PageHeader({
                 </PageHeaderGradient>
                 {selectedCommunity && (
                     <SelectedCommunityWrapper>
-                        <SelectedCommunity
-                            community={selectedCommunity}
-                            onQrClick={() =>
-                                setInvitingCommunityId(selectedCommunity.id)
-                            }
-                        />
+                        <SelectedCommunity community={selectedCommunity} />
                     </SelectedCommunityWrapper>
                 )}
             </PageHeaderContainer>
