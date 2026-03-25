@@ -108,7 +108,7 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                     resetAfterSendSuccess({
                         title: t('feature.send.transferred'),
                         description: t('feature.send.transferred-description'),
-                        formattedAmount: formattedFiat,
+                        formattedAmount: formattedFiatCode,
                         federationId,
                     }),
                 )
@@ -126,7 +126,7 @@ const StabilityConfirmTransfer: React.FC<Props> = ({ route, navigation }) => {
                     resetAfterSendSuccess({
                         title: t('feature.send.transferred'),
                         description: t('feature.send.transferred-description'),
-                        formattedAmount: formattedFiat,
+                        formattedAmount: formattedFiatCode,
                         federationId,
                     }),
                 )
