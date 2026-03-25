@@ -19,9 +19,9 @@ _Phone OS_:
 _User Name_"
 
 #### How to reproduce:
-- A
-- B
-- C
+1.
+2. 
+3.
 
 #### Expected Behavior:
 
