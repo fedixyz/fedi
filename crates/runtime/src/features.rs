@@ -361,9 +361,11 @@ impl FeatureCatalog {
             fedi_fee: FediFeeConfig {
                 remittance_max_delay_secs: 3 * 24 * 60 * 60, // 3 days for prod
             },
-            sp_transfers_matrix: None,
+            sp_transfers_matrix: Some(SpTransfersMatrixFeatureConfig {
+                transfer_expiry_secs: 3 * 24 * 60 * 60, // 3 days for prod
+            }),
             sp_transfer_ui: Some(SpTransferUiFeatureConfig {
-                mode: SpTransferUiMode::QrCode,
+                mode: SpTransferUiMode::Chat,
             }),
             community_v2_migration: Some(CommunityV2MigrationFeatureConfig {}),
             rearrange_miniapps: Some(RearrangeMiniappsFeatureConfig {}),
