@@ -599,6 +599,7 @@ export const matrixSlice = createSlice({
             if (!action.payload) return
             // state.auth = action.payload.matrixAuth
             state.drafts = action.payload.chatDrafts
+            state.rejectedRoomInvites = action.payload.rejectedRoomInvites
         })
 
         builder.addCase(
