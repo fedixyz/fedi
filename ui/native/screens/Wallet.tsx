@@ -1,7 +1,7 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { useNavigation } from '@react-navigation/native'
-import { Button, Text, useTheme, type Theme } from '@rneui/themed'
-import React, { useEffect } from 'react'
+import { Button, Text, Tooltip, useTheme, type Theme } from '@rneui/themed'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollView, StyleSheet } from 'react-native'
 
@@ -36,6 +36,7 @@ import FederationStatusAvatar from '../components/feature/federations/Federation
 import { Column, Row } from '../components/ui/Flex'
 import HoloLoader from '../components/ui/HoloLoader'
 import { Pressable } from '../components/ui/Pressable'
+import { PressableIcon } from '../components/ui/PressableIcon'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
 import { Switcher } from '../components/ui/Switcher'
 import { useAppDispatch, useAppSelector } from '../state/hooks'
@@ -327,7 +328,10 @@ function SelectedWalletHeader({
 }: {
     federation: LoadedFederation
 }) {
+    const [tooltipOpen, setTooltipOpen] = useState(false)
+
     const navigation = useNavigation()
+    const { t } = useTranslation()
     const { theme } = useTheme()
 
     const goToFederationDetails = () => {
@@ -343,13 +347,38 @@ function SelectedWalletHeader({
             containerStyle={style.paymentFederationHeader}
             onPress={goToFederationDetails}
             testID={federation.name.concat('DetailsButton').replaceAll(' ', '')}
-            // hitSlop is intentionally set to 8 to expand the hit area
+            // hitSlop is intentionally set to 9 to expand the hit area
             // but not cause accidental tab presses
             hitSlop={8}>
             <FederationStatusAvatar federation={federation} size={48} />
             <Text medium h2 style={style.title}>
                 {federation.name}
             </Text>
+            <Tooltip
+                visible={tooltipOpen}
+                onClose={() => setTooltipOpen(false)}
+                onOpen={() => setTooltipOpen(true)}
+                closeOnlyOnBackdropPress
+                withOverlay
+                overlayColor={theme.colors.overlay}
+                width={200}
+                height={75}
+                backgroundColor={theme.colors.blue100}
+                popover={
+                    <Text caption>
+                        {t('feature.wallet.wallet-provider-guidance')}
+                    </Text>
+                }>
+                <PressableIcon
+                    svgName="Help"
+                    onPress={e => {
+                        e.stopPropagation()
+                        setTooltipOpen(true)
+                    }}
+                    hitSlop={8}
+                    svgProps={{ color: theme.colors.grey }}
+                />
+            </Tooltip>
             <SvgImage
                 name="ChevronRight"
                 color={theme.colors.darkGrey}

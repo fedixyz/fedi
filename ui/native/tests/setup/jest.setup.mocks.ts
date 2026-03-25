@@ -208,6 +208,7 @@ jest.mock('react-native', () => ({
     processColor: jest.requireActual('react-native').processColor,
     useWindowDimensions: jest.requireActual('react-native').useWindowDimensions,
     Platform: jest.requireActual('react-native').Platform,
+    I18nManager: jest.requireActual('react-native').I18nManager,
     Linking: {
         openURL: jest.fn(),
         getInitialURL: jest.fn(),
@@ -255,6 +256,7 @@ jest.mock('@rneui/themed', () => ({
     Overlay: jest.requireActual('@rneui/themed').Overlay,
     Switch: jest.requireActual('@rneui/themed').Switch,
     Header: jest.requireActual('@rneui/themed').Header,
+    Tooltip: jest.requireActual('@rneui/themed').Tooltip,
     useTheme: () => ({
         theme: mockTheme,
     }),
