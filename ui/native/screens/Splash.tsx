@@ -94,8 +94,14 @@ const Splash: React.FC<Props> = ({ navigation }: Props) => {
                     ],
                 })
             } else {
-                navigation.replace('TabsNavigator', {
-                    initialRouteName: 'Home',
+                navigation.reset({
+                    index: 0,
+                    routes: [
+                        {
+                            name: 'TabsNavigator',
+                            params: { initialRouteName: 'Federations' },
+                        },
+                    ],
                 })
             }
         } catch (err) {

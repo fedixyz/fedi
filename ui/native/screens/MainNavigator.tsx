@@ -268,16 +268,12 @@ export const MainNavigator = () => {
                     <Stack.Screen
                         name="PublicFederations"
                         component={PublicFederations}
-                        options={({ route }) => ({
-                            gestureEnabled: !(route?.params?.from === 'Splash'),
-                            fullScreenSwipeEnabled: !(
-                                route?.params?.from === 'Splash'
-                            ),
+                        options={() => ({
+                            gestureEnabled: true,
+                            fullScreenSwipeEnabled: true,
                             header: () => (
                                 <CenteredHeader
-                                    backButton={
-                                        route?.params?.from !== 'Splash'
-                                    }
+                                    backButton
                                     title={t('feature.onboarding.heading')}
                                 />
                             ),

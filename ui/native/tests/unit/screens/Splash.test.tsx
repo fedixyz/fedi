@@ -69,7 +69,7 @@ describe('Splash screen', () => {
     })
 
     describe('when the user clicks on the Get Started button with no redirectTo', () => {
-        it('should navigate to the Home screen', async () => {
+        it('should navigate to the Wallet screen', async () => {
             store.dispatch(setRedirectTo(null))
 
             renderWithProviders(
@@ -89,12 +89,15 @@ describe('Splash screen', () => {
 
             await user.press(getStartedButton)
 
-            expect(mockNavigation.replace).toHaveBeenCalledWith(
-                'TabsNavigator',
-                {
-                    initialRouteName: 'Home',
-                },
-            )
+            expect(mockNavigation.reset).toHaveBeenCalledWith({
+                index: 0,
+                routes: [
+                    {
+                        name: 'TabsNavigator',
+                        params: { initialRouteName: 'Federations' },
+                    },
+                ],
+            })
         })
     })
 

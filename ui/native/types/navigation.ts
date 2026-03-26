@@ -176,7 +176,7 @@ export type RootStackParamList = {
         | undefined
     PersonalRecovery: undefined
     PersonalRecoverySuccess: undefined
-    PublicFederations: { from?: string } | undefined
+    PublicFederations: undefined
     PublicCommunities: undefined
     LocateSocialRecovery: undefined
     Receive: { federationId: Federation['id'] }

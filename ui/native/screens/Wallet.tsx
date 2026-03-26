@@ -187,7 +187,8 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                 </Column>
                 <Button
                     onPress={() => navigation.dispatch(resetToJoinFederation())}
-                    fullWidth>
+                    fullWidth
+                    testID="JoinAFederationButton">
                     {t('phrases.join-a-federation')}
                 </Button>
             </Column>

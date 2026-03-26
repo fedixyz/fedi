@@ -225,7 +225,7 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                     name="Wallet"
                     component={Wallet}
                     options={() => ({
-                        tabBarTestID: 'FederationsTabButton',
+                        tabBarTestID: 'WalletTabButton',
                         title: t('words.wallet'),
                         header: () => <WalletHeader />,
                     })}
@@ -243,9 +243,10 @@ const TabsNavigator: React.FC<Props> = ({ route }: Props) => {
                 <Tab.Screen
                     name="Scan"
                     options={({ navigation }) => ({
-                        tabBarTestID: 'ScanTabButtonn',
-                        tabBarButton: () => (
+                        tabBarTestID: 'ScanTabButton',
+                        tabBarButton: props => (
                             <Pressable
+                                {...props}
                                 onPress={() =>
                                     navigation.navigate('OmniScanner')
                                 }

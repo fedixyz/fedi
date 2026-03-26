@@ -5,19 +5,15 @@ import { Trans, useTranslation } from 'react-i18next'
 import welcomeBackground from '@fedi/common/assets/images/welcome-bg.png'
 import FediLogo from '@fedi/common/assets/svgs/fedi-logo-icon.svg'
 import { useToast } from '@fedi/common/hooks/toast'
-import {
-    refreshOnboardingStatus,
-    selectOnboardingCompleted,
-} from '@fedi/common/redux'
+import { refreshOnboardingStatus } from '@fedi/common/redux'
 import { makeLog } from '@fedi/common/utils/log'
 
 import { Button } from '../components/Button'
 import { ContentBlock } from '../components/ContentBlock'
 import * as Layout from '../components/Layout'
-import { Redirect } from '../components/Redirect'
 import { Text } from '../components/Text'
-import { homeRoute, onboardingRoute } from '../constants/routes'
-import { useAppDispatch, useAppSelector } from '../hooks'
+import { walletRoute } from '../constants/routes'
+import { useAppDispatch } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { styled, theme } from '../styles'
 import { getHashParams } from '../utils/linking'
@@ -29,12 +25,7 @@ function WelcomePage() {
     const { push } = useRouter()
     const dispatch = useAppDispatch()
     const toast = useToast()
-    const onboardingCompleted = useAppSelector(selectOnboardingCompleted)
     const [loading, setLoading] = useState<boolean>(false)
-
-    if (onboardingCompleted && !loading) {
-        return <Redirect path={homeRoute} />
-    }
 
     const handleOnContinue = async () => {
         try {
@@ -57,7 +48,7 @@ function WelcomePage() {
                 return
             }
 
-            push(onboardingRoute)
+            push(walletRoute)
         } catch (err) {
             log.error('handleOnContinue', err)
             toast.error(t, err, 'errors.unknown-error')

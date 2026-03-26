@@ -1,14 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Text, Theme, useTheme, Image } from '@rneui/themed'
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-    ActivityIndicator,
-    BackHandler,
-    ScrollView,
-    StyleSheet,
-    View,
-} from 'react-native'
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native'
 
 import {
     useGuardianito,
@@ -33,7 +27,7 @@ export type Props = NativeStackScreenProps<
     RootStackParamList,
     'PublicFederations'
 >
-const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
+const PublicFederations: React.FC<Props> = ({ navigation }) => {
     const { t } = useTranslation()
     const { theme } = useTheme()
 
@@ -76,20 +70,6 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
             subText: t('feature.onboarding.description-create'),
         },
     ]
-
-    const cameFromSplash = route?.params?.from === 'Splash'
-
-    useEffect(() => {
-        if (cameFromSplash) {
-            const backHandler = BackHandler.addEventListener(
-                'hardwareBackPress',
-                () => {
-                    return true // prevent default back action
-                },
-            )
-            return () => backHandler.remove()
-        }
-    }, [cameFromSplash])
 
     const selectedOption =
         switcherOptions.find(opt => opt.value === activeTab) ??
@@ -253,29 +233,6 @@ const PublicFederations: React.FC<Props> = ({ navigation, route }) => {
                 )}
             </ScrollView>
 
-            {activeTab === 'discover' && cameFromSplash && (
-                <View style={style.footerContainer}>
-                    <Button
-                        testID="MaybeLaterButton"
-                        fullWidth
-                        type="clear"
-                        title={
-                            <Text caption medium>
-                                {t('phrases.maybe-later')}
-                            </Text>
-                        }
-                        onPress={() =>
-                            navigation.navigate('TabsNavigator', {
-                                initialRouteName:
-                                    joinedFederationIds.length > 0
-                                        ? 'Wallet'
-                                        : 'Home',
-                            })
-                        }
-                    />
-                </View>
-            )}
-
             {activeTab === 'create' && (
                 <View style={style.footerContainer}>
                     {activeTab === 'create' ? (
@@ -328,10 +285,6 @@ const styles = (theme: Theme) =>
             paddingLeft: 10,
             paddingRight: 10,
         },
-        buttonsContainer: {
-            marginBottom: theme.spacing.sm,
-            marginTop: theme.spacing.lg,
-        },
         title: {
             textAlign: 'center',
         },
@@ -374,12 +327,6 @@ const styles = (theme: Theme) =>
             paddingBottom: 12,
             paddingLeft: 16,
             paddingRight: 16,
-        },
-        titleLeft: {
-            marginBottom: 16,
-            fontWeight: '600',
-            fontSize: 20,
-            textAlign: 'left',
         },
         footerContainer: {
             width: '100%',
