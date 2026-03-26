@@ -2,11 +2,7 @@ import React, { useEffect } from 'react'
 import { Provider as ReduxProvider } from 'react-redux'
 
 import { setEventListenersReady } from '@fedi/common/redux'
-import {
-    configureLogging,
-    makeLog,
-    saveLogsToStorage,
-} from '@fedi/common/utils/log'
+import { makeLog, saveLogsToStorage } from '@fedi/common/utils/log'
 
 import { FediBridgeInitializer } from '../components/FediBridgeInitializer'
 import { Template } from '../components/Template'
@@ -16,7 +12,6 @@ import { RouteStateProvider } from '../context/RouteStateContext'
 import { useInstallPrompt } from '../hooks'
 import { fedimint } from '../lib/bridge'
 import { initializeWebStore, store } from '../state/store'
-import { logFileApi } from '../utils/logfile'
 
 export default function AppProviders({
     children,
@@ -44,7 +39,6 @@ export default function AppProviders({
 
     // Initialize logging library, force logs to save before closing the tab.
     useEffect(() => {
-        configureLogging(logFileApi)
         window.addEventListener('beforeunload', saveLogsToStorage)
         return () =>
             window.removeEventListener('beforeunload', saveLogsToStorage)
