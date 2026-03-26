@@ -5,12 +5,12 @@ import { theme as fediTheme } from '@fedi/common/constants/theme'
 import { styled, theme } from '../styles'
 import { Icon, IconProps } from './Icon'
 
-interface Props extends Omit<IconProps, 'size'> {
+interface Props extends Omit<IconProps, 'size' | 'onClick'> {
     variant?: 'primary' | 'secondary' | 'basic'
     size?: Exclude<IconProps['size'], number | 'xs'>
     outline?: boolean
     disabled?: boolean
-    onClick(): void
+    onClick?: React.MouseEventHandler<HTMLButtonElement>
 }
 
 const sizeOrder = ['xs', 'sm', 'md', 'lg', 'xl'] as const

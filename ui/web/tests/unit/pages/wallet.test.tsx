@@ -33,7 +33,7 @@ describe('/pages/wallet', () => {
                     federation: {
                         ...state.federation,
                         federations: [mockFederation1],
-                        recentlyUsedFederationIds: ['1'],
+                        payFromFederationId: '1',
                     },
                 },
             })
@@ -47,11 +47,6 @@ describe('/pages/wallet', () => {
         it('should display the featured federation name', async () => {
             const name = await screen.findByText('test-federation')
             expect(name).toBeInTheDocument()
-        })
-
-        it('should display the featured federation wallet', async () => {
-            const wallet = await screen.findByTestId('bitcoin-wallet')
-            expect(wallet).toBeInTheDocument()
         })
     })
 
@@ -67,13 +62,13 @@ describe('/pages/wallet', () => {
                     federation: {
                         ...state.federation,
                         federations: [recoveringFederation],
-                        recentlyUsedFederationIds: ['1'],
+                        payFromFederationId: '1',
                     },
                 },
             })
 
-            const recoveryInProgress = screen.getByLabelText(
-                'recovery-in-progress',
+            const recoveryInProgress = screen.getByText(
+                i18n.t('feature.recovery.recovery-in-progress-wallet'),
             )
 
             expect(recoveryInProgress).toBeInTheDocument()
@@ -87,7 +82,7 @@ describe('/pages/wallet', () => {
                     federation: {
                         ...state.federation,
                         federations: [mockFederation1],
-                        recentlyUsedFederationIds: ['1'],
+                        payFromFederationId: '1',
                     },
                 },
             })
@@ -105,7 +100,7 @@ describe('/pages/wallet', () => {
                     federation: {
                         ...state.federation,
                         federations: [mockFederation1],
-                        recentlyUsedFederationIds: ['1'],
+                        payFromFederationId: '1',
                     },
                 },
             })
@@ -117,7 +112,7 @@ describe('/pages/wallet', () => {
             await user.click(menuIcon)
 
             const selectFederationTitle = screen.getByLabelText(
-                i18n.t('phrases.select-federation'),
+                i18n.t('phrases.select-wallet'),
             )
 
             expect(selectFederationTitle).toBeInTheDocument()
