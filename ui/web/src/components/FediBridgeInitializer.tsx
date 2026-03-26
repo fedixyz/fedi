@@ -81,7 +81,7 @@ export const FediBridgeInitializer: React.FC<Props> = ({ children }) => {
                 const appFlavor = getAppFlavor()
                 dispatchRef.current(setAppFlavor(appFlavor))
                 log.info('initializing bridge with deviceId', deviceId)
-                await initializeBridge(deviceId)
+                await initializeBridge(deviceId, appFlavor)
 
                 const stop = Date.now()
                 log.info('initialized:', stop - start, 'ms')

@@ -71,7 +71,10 @@ export const getAppFlavor = (): RpcAppFlavor['type'] => {
 }
 
 let initializePromise: Promise<void> | undefined
-export async function initializeBridge(deviceId: string) {
+export async function initializeBridge(
+    deviceId: string,
+    flavor: RpcAppFlavor['type'],
+) {
     // Only initialize once at a time.
     if (initializePromise) {
         await initializePromise
@@ -111,7 +114,7 @@ export async function initializeBridge(deviceId: string) {
 
         worker.postMessage({
             method: 'initialize',
-            data: { deviceId, flavor: getAppFlavor() },
+            data: { deviceId, flavor },
         })
     })
 
