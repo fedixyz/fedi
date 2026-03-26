@@ -4,6 +4,8 @@ import { BridgeError } from '@fedi/common/utils/errors'
 import { FedimintBridge } from '@fedi/common/utils/fedimint'
 import { makeLog } from '@fedi/common/utils/log'
 
+import { logFileApi } from '../../utils/logfile'
+
 const log = makeLog('web/lib/bridge')
 
 let worker: Worker
@@ -79,6 +81,10 @@ export async function initializeBridge(deviceId: string) {
     initializePromise = new Promise<void>((resolve, reject) => {
         worker = new Worker(new URL('./wasm.worker.ts', import.meta.url))
         worker.onmessage = e => {
+            if (typeof e.data.logs === 'string') {
+                logFileApi.saveLogs(e.data.logs).catch(() => {})
+                return
+            }
             if (e.data.error) {
                 log.error('bridge error', e.data)
                 return reject(e.data.error)

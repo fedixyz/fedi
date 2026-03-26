@@ -1,8 +1,8 @@
 // worker to run bridge in a different thread
 // request: {token: int, method: string, data: string}
-// response: {event: string, data: string} | {token: int, result: string} | {error: string}
+// response: {event: string, data: string} | {logs: string} | {token: int, result: string} | {error: string}
 import { RpcAppFlavor, RpcInitOpts } from '@fedi/common/types/bindings'
-import { makeLog } from '@fedi/common/utils/log'
+import { configureLogging, makeLog } from '@fedi/common/utils/log'
 import init, {
     fedimint_initialize,
     fedimint_read_file,
@@ -16,6 +16,12 @@ const log = makeLog('web/lib/bridge/wasm.worker')
 
 let deviceId: string
 let flavor: RpcAppFlavor['type']
+configureLogging({
+    saveLogs: async logs => {
+        postMessage({ logs })
+    },
+    readLogs: async () => '',
+})
 
 async function workerInit() {
     await init(new URL('@fedi/common/wasm/fedi_wasm_bg.wasm', import.meta.url))
