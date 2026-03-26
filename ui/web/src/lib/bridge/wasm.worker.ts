@@ -14,8 +14,24 @@ import { getBridgeLogFile, openBridgeLogFile } from './log'
 
 const log = makeLog('web/lib/bridge/wasm.worker')
 
-let deviceId: string
-let flavor: RpcAppFlavor['type']
+type WorkerInitOptions = {
+    deviceId: string
+    flavor: RpcAppFlavor['type']
+}
+
+let resolveInitializeOptions!: (options: WorkerInitOptions) => void
+// `workerInit()` is kicked off as soon as the worker loads so the WASM bundle can
+// start downloading and instantiating immediately, but the bridge-specific
+// `deviceId` and `flavor` only arrive later from the main thread's
+// `initialize` message. This promise is the synchronization point between those
+// two timelines: we do the expensive work that does not depend on runtime
+// options first, then pause exactly once before building `RpcInitOpts` and
+// calling `fedimint_initialize`. Keeping the steps in that order avoids racing
+// on uninitialized config while still preserving the parallelism of eager WASM
+// startup.
+const initializeOptionsPromise = new Promise<WorkerInitOptions>(resolve => {
+    resolveInitializeOptions = resolve
+})
 configureLogging({
     saveLogs: async logs => {
         postMessage({ logs })
@@ -25,15 +41,7 @@ configureLogging({
 
 async function workerInit() {
     await init(new URL('@fedi/common/wasm/fedi_wasm_bg.wasm', import.meta.url))
-    if (!deviceId) {
-        log.error('fedimint_initialize - deviceId not set')
-        throw new Error('Failed to initialize bridge')
-    }
-
-    if (!flavor) {
-        log.error('fedimint_initialize - flavor not set')
-        throw new Error('Failed to initialize bridge')
-    }
+    const { deviceId, flavor } = await initializeOptionsPromise
 
     const options: RpcInitOpts = {
         dataDir: null,
@@ -88,17 +96,18 @@ async function rpcRequest(method: string, data: string): Promise<string> {
 addEventListener('message', e => {
     const { token, method, data } = e.data
     if (method === 'initialize') {
-        // Store deviceId for bridge initialization later
         if (!data.deviceId) {
             throw new Error('deviceId not provided')
         }
-        deviceId = data.deviceId
 
         if (!data.flavor) {
             throw new Error('flavor not provided')
         }
 
-        flavor = data.flavor
+        resolveInitializeOptions({
+            deviceId: data.deviceId,
+            flavor: data.flavor,
+        })
         return
     }
     if (method == 'getLogs') {
