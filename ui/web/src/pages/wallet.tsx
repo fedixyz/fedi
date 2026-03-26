@@ -82,8 +82,6 @@ function WalletPage() {
     }, [recoveryInProgress, receivesDisabled, t])
 
     const content = useMemo(() => {
-        if (!federation) return null
-
         if (loadedFederations.length === 0) {
             return (
                 <Empty grow center gap="md">
@@ -103,6 +101,8 @@ function WalletPage() {
                 </Empty>
             )
         }
+
+        if (!federation) return null
 
         return (
             <WalletContainer>
@@ -260,7 +260,7 @@ const Empty = styled(Column, {
 })
 
 const EmptyContainer = styled(Column, {
-    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+    padding: `${theme.spacing.md}px ${theme.spacing.lg}px`,
     border: `1px dashed ${theme.colors.lightGrey}`,
     borderRadius: 16,
 })
