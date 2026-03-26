@@ -19,8 +19,7 @@ import { isTextEvent } from '../../../utils/matrix'
 import { createIntegrationTestBuilder } from '../../utils/remote-bridge-setup'
 import { renderHookWithBridge } from '../../utils/render'
 
-// TODO: unskip these tests once we figure out why room previews are not updating reliably
-describe.skip('useMatrixRoomPreview > groups', () => {
+describe('useMatrixRoomPreview > groups', () => {
     const builder = createIntegrationTestBuilder()
     const context = builder.getContext()
 
@@ -117,7 +116,8 @@ describe.skip('useMatrixRoomPreview > groups', () => {
         })
     })
 
-    it('should return "no messages" if there are no messages in a room', async () => {
+    // TODO: re-enable once deleted-message previews update reliably in integration tests.
+    it.skip('should return "no messages" if there are no messages in a room', async () => {
         await builder.withChatReady()
 
         const {
@@ -196,8 +196,7 @@ describe.skip('useMatrixRoomPreview > groups', () => {
     })
 })
 
-// TODO: unskip these tests once we figure out why room previews are not updating reliably
-describe.skip('useMatrixRoomPreview > direct messages', () => {
+describe('useMatrixRoomPreview > direct messages', () => {
     const builder1 = createIntegrationTestBuilder()
     const alice = builder1.getContext()
     const builder2 = createIntegrationTestBuilder()
@@ -276,7 +275,8 @@ describe.skip('useMatrixRoomPreview > direct messages', () => {
         })
     })
 
-    it('should return the localized payment message based on the sender/recipient direction', async () => {
+    // TODO: re-enable once DM payment previews update reliably in integration tests.
+    it.skip('should return the localized payment message based on the sender/recipient direction', async () => {
         const {
             store: storeAlice,
             bridge: { fedimint: fedimintAlice },

@@ -65,6 +65,19 @@ export enum UserPowerLevel {
     Admin = 100,
 }
 
+type RoomTimelineObservationReason = 'dm' | 'room' | 'previewWarmup'
+
+interface RoomPreviewWarmupState {
+    paginationAttempts: number
+    paginationTimeoutId?: ReturnType<typeof globalThis.setTimeout>
+    stopTimeoutId?: ReturnType<typeof globalThis.setTimeout>
+}
+
+const ROOM_PREVIEW_WARMUP_PAGINATION_DELAY_MS = 1_500
+const ROOM_PREVIEW_WARMUP_PAGINATION_EVENT_LIMIT = 30
+const ROOM_PREVIEW_WARMUP_MAX_PAGINATION_ATTEMPTS = 2
+const ROOM_PREVIEW_WARMUP_STOP_AFTER_MS = 12_000
+
 interface MatrixChatClientEventMap {
     status: MatrixSyncStatus
     roomListUpdate: MatrixRoomListStreamUpdates
@@ -132,9 +145,17 @@ export class MatrixChatClient {
         MatrixRoom['id'],
         UnsubscribeFn | undefined
     > = {}
+    private roomTimelineObservationReasonsMap: Record<
+        MatrixRoom['id'],
+        Set<RoomTimelineObservationReason> | undefined
+    > = {}
     private roomPaginationStatusUnsubscribeMap: Record<
         MatrixRoom['id'],
         UnsubscribeFn | undefined
+    > = {}
+    private roomPreviewWarmupStateMap: Record<
+        MatrixRoom['id'],
+        RoomPreviewWarmupState | undefined
     > = {}
     private multispendUnsubscribeMap: Record<
         MatrixRoom['id'],
@@ -316,7 +337,7 @@ export class MatrixChatClient {
                 err,
             })
         })
-        this.observeRoomTimeline(roomId).catch(err => {
+        this.observeRoomTimeline(roomId, 'room').catch(err => {
             log.warn('Failed to observe room', { roomId, err })
         })
         this.observeRoomMembers(roomId).catch(err => {
@@ -350,11 +371,7 @@ export class MatrixChatClient {
     }
 
     unobserveRoom(roomId: string) {
-        const roomUnsubscribe = this.roomTimelineUnsubscribeMap[roomId]
-        if (roomUnsubscribe !== undefined) {
-            roomUnsubscribe()
-            delete this.roomTimelineUnsubscribeMap[roomId]
-        }
+        this.unobserveRoomTimeline(roomId, 'room')
 
         const paginationStatusUnsubscribe =
             this.roomPaginationStatusUnsubscribeMap[roomId]
@@ -465,7 +482,7 @@ export class MatrixChatClient {
         const roomId = await this.fedimint.matrixRoomCreateOrGetDm({ userId })
         await this.sendMessage(roomId, content)
         await this.observeRoomInfo(roomId)
-        await this.observeRoomTimeline(roomId)
+        await this.observeRoomTimeline(roomId, 'room')
         await this.observeRoomPowerLevels(roomId)
         return { roomId }
     }
@@ -765,6 +782,17 @@ export class MatrixChatClient {
                     // Emit the room info
                     const serializedRoom = this.serializeRoomInfo(room)
                     this.emit('roomInfo', serializedRoom)
+                    this.reconcileRoomPreviewWarmup(serializedRoom).catch(
+                        err => {
+                            log.warn(
+                                'Failed to reconcile room preview warmup',
+                                {
+                                    roomId,
+                                    err,
+                                },
+                            )
+                        },
+                    )
                     if (room.roomState === 'invited') {
                         // Don't observe anything info if we're only invited
                         return
@@ -784,7 +812,7 @@ export class MatrixChatClient {
 
                         // TODO: Move this to the bridge... intercept messages that contain
                         // ecash and claim before passing to the frontend.
-                        this.observeRoomTimeline(roomId).catch(err => {
+                        this.observeRoomTimeline(roomId, 'dm').catch(err => {
                             log.warn('Failed to observe room timeline', {
                                 roomId,
                                 err,
@@ -915,7 +943,18 @@ export class MatrixChatClient {
         this.multispendAccountUnsubscribeMap[roomId] = unsubscribe
     }
 
-    private async observeRoomTimeline(roomId: string) {
+    private async observeRoomTimeline(
+        roomId: string,
+        reason: RoomTimelineObservationReason = 'room',
+    ) {
+        // Track which features need this room's single timeline stream so one teardown
+        // path doesn't accidentally cancel another.
+        const reasons =
+            this.roomTimelineObservationReasonsMap[roomId] ??
+            new Set<RoomTimelineObservationReason>()
+        reasons.add(reason)
+        this.roomTimelineObservationReasonsMap[roomId] = reasons
+
         // Only observe a room once, subsequent calls are no-ops.
         if (this.roomTimelineUnsubscribeMap[roomId] !== undefined) return
 
@@ -936,6 +975,124 @@ export class MatrixChatClient {
 
         // store unsubscribe functions to cancel later if needed
         this.roomTimelineUnsubscribeMap[roomId] = unsubscribe
+    }
+
+    private unobserveRoomTimeline(
+        roomId: string,
+        reason: RoomTimelineObservationReason,
+    ) {
+        const reasons = this.roomTimelineObservationReasonsMap[roomId]
+        if (!reasons) return
+
+        reasons.delete(reason)
+
+        if (reasons.size > 0) return
+
+        delete this.roomTimelineObservationReasonsMap[roomId]
+
+        const roomUnsubscribe = this.roomTimelineUnsubscribeMap[roomId]
+        if (roomUnsubscribe !== undefined) {
+            roomUnsubscribe()
+            delete this.roomTimelineUnsubscribeMap[roomId]
+        }
+    }
+
+    private shouldWarmRoomPreview(room: MatrixRoom) {
+        const hasLikelyActivity =
+            room.notificationCount > 0 ||
+            room.isMarkedUnread ||
+            (room.recencyStamp !== null && room.joinedMemberCount > 1)
+
+        return room.roomState === 'joined' && !room.preview && hasLikelyActivity
+    }
+
+    private async reconcileRoomPreviewWarmup(room: MatrixRoom) {
+        if (!this.shouldWarmRoomPreview(room)) {
+            this.stopRoomPreviewWarmup(room.id)
+            return
+        }
+
+        await this.startRoomPreviewWarmup(room.id)
+    }
+
+    private async startRoomPreviewWarmup(roomId: string) {
+        if (this.roomPreviewWarmupStateMap[roomId] !== undefined) return
+
+        const state: RoomPreviewWarmupState = {
+            paginationAttempts: 0,
+        }
+        this.roomPreviewWarmupStateMap[roomId] = state
+
+        try {
+            await this.observeRoomTimeline(roomId, 'previewWarmup')
+        } catch (error) {
+            delete this.roomPreviewWarmupStateMap[roomId]
+            this.unobserveRoomTimeline(roomId, 'previewWarmup')
+            throw error
+        }
+
+        state.paginationTimeoutId = globalThis.setTimeout(() => {
+            this.runRoomPreviewWarmupPagination(roomId).catch(err => {
+                log.warn('Failed to warm room preview timeline', {
+                    roomId,
+                    err,
+                })
+            })
+        }, ROOM_PREVIEW_WARMUP_PAGINATION_DELAY_MS)
+
+        state.stopTimeoutId = globalThis.setTimeout(() => {
+            this.stopRoomPreviewWarmup(roomId)
+        }, ROOM_PREVIEW_WARMUP_STOP_AFTER_MS)
+    }
+
+    private stopRoomPreviewWarmup(roomId: string) {
+        const state = this.roomPreviewWarmupStateMap[roomId]
+        if (!state) return
+
+        if (state.paginationTimeoutId !== undefined) {
+            globalThis.clearTimeout(state.paginationTimeoutId)
+        }
+        if (state.stopTimeoutId !== undefined) {
+            globalThis.clearTimeout(state.stopTimeoutId)
+        }
+
+        delete this.roomPreviewWarmupStateMap[roomId]
+        this.unobserveRoomTimeline(roomId, 'previewWarmup')
+    }
+
+    private async runRoomPreviewWarmupPagination(roomId: string) {
+        const state = this.roomPreviewWarmupStateMap[roomId]
+        if (!state) return
+
+        state.paginationTimeoutId = undefined
+
+        if (
+            state.paginationAttempts >=
+            ROOM_PREVIEW_WARMUP_MAX_PAGINATION_ATTEMPTS
+        ) {
+            return
+        }
+
+        state.paginationAttempts += 1
+
+        await this.paginateTimeline(
+            roomId,
+            ROOM_PREVIEW_WARMUP_PAGINATION_EVENT_LIMIT,
+        )
+
+        if (
+            state.paginationAttempts <
+            ROOM_PREVIEW_WARMUP_MAX_PAGINATION_ATTEMPTS
+        ) {
+            state.paginationTimeoutId = globalThis.setTimeout(() => {
+                this.runRoomPreviewWarmupPagination(roomId).catch(err => {
+                    log.warn('Failed to continue room preview warmup', {
+                        roomId,
+                        err,
+                    })
+                })
+            }, ROOM_PREVIEW_WARMUP_PAGINATION_DELAY_MS)
+        }
     }
 
     // Fake observe - just fetches
