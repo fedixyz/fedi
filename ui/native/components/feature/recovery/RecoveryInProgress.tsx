@@ -7,6 +7,7 @@ import { Federation } from '@fedi/common/types'
 
 import { Column } from '../../ui/Flex'
 import HoloLoader from '../../ui/HoloLoader'
+import HoloProgressCircle from '../../ui/HoloProgressCircle'
 
 export type Props = {
     label?: string
@@ -25,11 +26,17 @@ const RecoveryInProgress: React.FC<Props> = ({
     const style = styles(theme)
     return (
         <Column grow center gap="lg" style={style.container}>
-            <HoloLoader
-                size={size}
-                label={formattedPercent}
-                progress={progress}
-            />
+            {formattedPercent ? (
+                <>
+                    <HoloProgressCircle size={size} progress={progress} />
+                    <Text medium color={theme.colors.grey}>
+                        {formattedPercent}
+                    </Text>
+                </>
+            ) : (
+                <HoloLoader size={size} />
+            )}
+
             {label && (
                 <Text medium style={style.label}>
                     {label}

@@ -95,6 +95,7 @@ function storeWithJoinedFederation() {
             autojoinNoticesToDisplay: [],
             guardianitoBot: null,
             selectedFederationId: null,
+            simulateRecoveryByFederation: {},
         },
     })
     return store

@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
 import { useIsStabilityPoolEnabledByFederation } from '@fedi/common/hooks/federation'
+import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import {
     selectCurrency,
     selectLoadedFederationsByRecency,
@@ -77,6 +78,7 @@ function WalletListItem({
     federation: LoadedFederation
     onDismiss: () => void
 }) {
+    const { t } = useTranslation()
     const { theme } = useTheme()
     const navigation = useNavigation()
     const dispatch = useAppDispatch()
@@ -84,6 +86,7 @@ function WalletListItem({
     const supportsStabilityPool = useIsStabilityPoolEnabledByFederation(
         federation.id,
     )
+    const { recoveryInProgress } = useRecoveryProgress(federation.id)
     const shouldShowInvite = useAppSelector(s =>
         selectShouldShowInviteCode(s, federation.id),
     )
@@ -113,24 +116,35 @@ function WalletListItem({
                 onPress={handleSelectBitcoin}
                 containerStyle={style.walletHeader}>
                 <FederationStatusAvatar federation={federation} size={40} />
-                <Text style={{ flexGrow: 1 }} numberOfLines={2} bold>
-                    {federation.name}
-                </Text>
+                <Column style={{ flexGrow: 1, flexShrink: 1 }}>
+                    <Text numberOfLines={2} bold>
+                        {federation.name}
+                    </Text>
+                    {recoveryInProgress && (
+                        <Text caption color={theme.colors.darkGrey}>
+                            {t('feature.federations.recovering-label')}
+                        </Text>
+                    )}
+                </Column>
                 {shouldShowInvite && (
                     <PressableIcon svgName="Qr" onPress={handlePressQr} />
                 )}
             </Pressable>
-            <BalanceItem
-                type="bitcoin"
-                federation={federation}
-                onPress={handleSelectBitcoin}
-            />
-            {supportsStabilityPool && (
-                <BalanceItem
-                    type="stable-balance"
-                    federation={federation}
-                    onPress={handleSelectStableBalance}
-                />
+            {!recoveryInProgress && (
+                <>
+                    <BalanceItem
+                        type="bitcoin"
+                        federation={federation}
+                        onPress={handleSelectBitcoin}
+                    />
+                    {supportsStabilityPool && (
+                        <BalanceItem
+                            type="stable-balance"
+                            federation={federation}
+                            onPress={handleSelectStableBalance}
+                        />
+                    )}
+                </>
             )}
         </Column>
     )

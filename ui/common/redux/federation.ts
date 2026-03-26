@@ -87,6 +87,8 @@ const initialState = {
     autojoinNoticesToDisplay: [] as Array<Community['id']>,
     guardianitoBot: null as GuardianitoBot | null,
     selectedFederationId: null as Federation['id'] | null,
+    // this is a developer setting used for testing only
+    simulateRecoveryByFederation: {} as Record<Federation['id'], boolean>,
 }
 
 export type FederationState = typeof initialState
@@ -429,6 +431,16 @@ export const federationSlice = createSlice({
         setSelectedFederationId(state, action: PayloadAction<string>) {
             state.selectedFederationId = action.payload
         },
+        setSimulateRecovery(
+            state,
+            action: PayloadAction<{
+                federationId: Federation['id']
+                enabled: boolean
+            }>,
+        ) {
+            state.simulateRecoveryByFederation[action.payload.federationId] =
+                action.payload.enabled
+        },
     },
     extraReducers: builder => {
         builder.addCase(leaveFederation.fulfilled, (state, action) => {
@@ -556,6 +568,7 @@ export const {
     setGuardianitoBot,
     migrateCommunityV1ToV2,
     setSelectedFederationId,
+    setSimulateRecovery,
 } = federationSlice.actions
 
 /*** Async thunk actions */
@@ -1123,15 +1136,20 @@ export const createGuardianitoBot = createAsyncThunk<
 
 /*** Selectors ***/
 
+export const selectSimulateRecoveryByFederation = (s: CommonState) =>
+    s.federation.simulateRecoveryByFederation
+
 export const selectLoadedFederations = createSelector(
     (s: CommonState) => s.federation.federations,
-    federations =>
+    selectSimulateRecoveryByFederation,
+    (federations, simulateRecovery) =>
         federations.reduce((acc: LoadedFederation[], f: Federation) => {
             if (f.init_state === 'ready') {
                 const loadedFederation: LoadedFederation = {
                     ...f,
                     init_state: 'ready',
                     name: getFederationName(f),
+                    recovering: f.recovering || simulateRecovery[f.id] === true,
                 } as LoadedFederation
                 acc.push(loadedFederation)
             }

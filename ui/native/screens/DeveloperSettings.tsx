@@ -37,6 +37,8 @@ import {
     setOnchainDepositsEnabled,
     setStableBalanceEnabled,
     selectPaymentFederation,
+    selectSimulateRecoveryByFederation,
+    setSimulateRecovery,
     clearSessionCount,
     setSurveyTimestamp,
     resetSurveyCompletions,
@@ -108,6 +110,11 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
         paymentFederation?.id || '',
     )
     const stableBalanceEnabled = useAppSelector(selectStableBalanceEnabled)
+    const simulateRecoveryMap = useAppSelector(
+        selectSimulateRecoveryByFederation,
+    )
+    const simulateRecovery =
+        simulateRecoveryMap[paymentFederation?.id ?? ''] ?? false
     const spBtcUsdPrice = useAppSelector(s =>
         selectStabilityPoolCycleStartPrice(s, paymentFederation?.id || ''),
     )
@@ -735,6 +742,29 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
                         />
                     </View>
                 )}
+
+                <View style={style.switchWrapper}>
+                    <View style={style.switchLabelContainer}>
+                        <Text caption style={style.switchLabel}>
+                            Simulate Recovery
+                        </Text>
+                        <Text small style={style.switchLabel}>
+                            Simulates recovery in progress for this federation
+                        </Text>
+                    </View>
+                    <Switch
+                        value={simulateRecovery}
+                        onValueChange={value => {
+                            if (!paymentFederation?.id) return
+                            reduxDispatch(
+                                setSimulateRecovery({
+                                    federationId: paymentFederation.id,
+                                    enabled: value,
+                                }),
+                            )
+                        }}
+                    />
+                </View>
 
                 <SettingsSection title="Guardian Status">
                     {guardianOnlineStatus.map((n, index) => {

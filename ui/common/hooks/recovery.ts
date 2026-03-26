@@ -17,6 +17,7 @@ import {
     refreshOnboardingStatus,
     setDeviceIndexRequired,
     selectIsFederationRecovering,
+    selectSimulateRecoveryByFederation,
 } from '../redux'
 import { Federation, SeedWords } from '../types'
 import { RpcRegisteredDevice } from '../types/bindings'
@@ -198,9 +199,24 @@ export function useRecoveryProgress(federationId: Federation['id']) {
     const recoveryInProgress = useCommonSelector(s =>
         selectIsFederationRecovering(s, federationId),
     )
+    const simulateRecoveryMap = useCommonSelector(
+        selectSimulateRecoveryByFederation,
+    )
+    const isSimulated = simulateRecoveryMap[federationId] === true
 
     useEffect(() => {
         if (!federationId || !recoveryInProgress) return
+
+        // this is a developer setting used for testing only
+        if (isSimulated) {
+            const interval = setInterval(() => {
+                // use modulo on unix seconds to simulate a 100-second recovery cycle
+                const seconds = Math.floor(Date.now() / 1000)
+                setProgress((seconds % 100) / 100)
+            }, 1000)
+            return () => clearInterval(interval)
+        }
+
         const unsubscribe = fedimint.addListener('recoveryProgress', event => {
             log.info('recovery progress', event)
             if (event.federationId === federationId) {
@@ -215,7 +231,7 @@ export function useRecoveryProgress(federationId: Federation['id']) {
         return () => {
             unsubscribe()
         }
-    }, [fedimint, federationId, recoveryInProgress])
+    }, [fedimint, federationId, recoveryInProgress, isSimulated])
 
     return {
         progress,

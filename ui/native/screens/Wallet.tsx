@@ -15,7 +15,6 @@ import { useToast } from '@fedi/common/hooks/toast'
 import {
     selectCurrency,
     selectFederationBalance,
-    selectIsFederationRecovering,
     selectIsInternetUnreachable,
     setSelectedFederationId,
     selectLoadedFederations,
@@ -34,7 +33,6 @@ import { getCurrencyCode } from '@fedi/common/utils/currency'
 import WalletBalanceCard from '../components/feature/federations/BalanceCard'
 import FederationStatusAvatar from '../components/feature/federations/FederationStatusAvatar'
 import { Column, Row } from '../components/ui/Flex'
-import HoloLoader from '../components/ui/HoloLoader'
 import { Pressable } from '../components/ui/Pressable'
 import { PressableIcon } from '../components/ui/PressableIcon'
 import SvgImage, { SvgImageSize } from '../components/ui/SvgImage'
@@ -60,9 +58,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
     const federationId = federation?.id ?? ''
     const paymentType = useAppSelector(selectPaymentType)
     const loadedFederations = useAppSelector(selectLoadedFederations)
-    const recoveryInProgress = useAppSelector(s =>
-        selectIsFederationRecovering(s, federationId),
-    )
+    const { recoveryInProgress } = useRecoveryProgress(federationId)
     const selectedCurrency = useAppSelector(s =>
         selectCurrency(s, federationId),
     )
@@ -89,7 +85,6 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
         selectFederationBalance(s, federationId),
     )
 
-    const { progress, formattedPercent } = useRecoveryProgress(federationId)
     const popupInfo = usePopupFederationInfo(federation?.meta ?? {})
     const stabilityPoolDisabledByFederation =
         !useIsStabilityPoolEnabledByFederation(federationId)
@@ -201,22 +196,26 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
 
     if (!federation) return null
 
-    if (recoveryInProgress) {
-        return (
-            <Column style={style.container}>
-                <SelectedWalletHeader federation={federation} />
-                <Column center gap="md" grow>
-                    <Text h2 center>
-                        {t('phrases.recovery-in-progress')}
-                    </Text>
-                    <Text caption center>
-                        {t('feature.recovery.recovery-in-progress-wallet')}
-                    </Text>
-                    <HoloLoader progress={progress} label={formattedPercent} />
-                </Column>
-            </Column>
-        )
-    }
+    const stableBalanceBlocked =
+        paymentType === 'stable-balance' && stableBalancePending < 0
+    const shouldDisableReceives =
+        popupInfo?.ended || receivesDisabled || recoveryInProgress
+    const shouldDisableSends =
+        popupInfo?.ended || federation.balance < 1000 || recoveryInProgress
+    const shouldDisableMove =
+        popupInfo?.ended ||
+        recoveryInProgress ||
+        (shouldShowStablePaymentAddress ? false : balance === 0)
+    const shouldDisableTransfer =
+        popupInfo?.ended || isLegacyStabilityPool || recoveryInProgress
+
+    const disabledMessage = recoveryInProgress
+        ? t('feature.recovery.recovery-in-progress-wallet')
+        : stableBalanceBlocked
+          ? t('feature.stabilitypool.pending-withdrawal-blocking')
+          : receivesDisabled
+            ? t('errors.receives-have-been-disabled')
+            : null
 
     return (
         <ScrollView
@@ -257,7 +256,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                                     flex: 1,
                                 }}
                                 onPress={handleReceive}
-                                disabled={popupInfo?.ended || receivesDisabled}
+                                disabled={shouldDisableReceives}
                             />
                             <Button
                                 title={t('words.send')}
@@ -271,10 +270,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                                     flex: 1,
                                 }}
                                 onPress={handleSend}
-                                disabled={
-                                    popupInfo?.ended ||
-                                    federation.balance < 1000
-                                }
+                                disabled={shouldDisableSends}
                             />
                         </>
                     ) : (
@@ -292,12 +288,7 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                                     flex: 1,
                                 }}
                                 onPress={handleMove}
-                                disabled={
-                                    popupInfo?.ended ||
-                                    (shouldShowStablePaymentAddress
-                                        ? false
-                                        : balance === 0)
-                                }
+                                disabled={shouldDisableMove}
                             />
                             <Button
                                 title={t('words.transfer')}
@@ -311,13 +302,20 @@ const Wallet: React.FC<Props> = ({ navigation }) => {
                                     flex: 1,
                                 }}
                                 onPress={handleTransfer}
-                                disabled={
-                                    popupInfo?.ended || isLegacyStabilityPool
-                                }
+                                disabled={shouldDisableTransfer}
                             />
                         </>
                     )}
                 </Row>
+                {disabledMessage && (
+                    <Text
+                        center
+                        caption
+                        color={theme.colors.darkGrey}
+                        style={style.disabledText}>
+                        {disabledMessage}
+                    </Text>
+                )}
             </Column>
         </ScrollView>
     )
@@ -417,6 +415,9 @@ const styles = (theme: Theme) =>
             borderRadius: 16,
             borderWidth: 1,
             borderStyle: 'dashed',
+        },
+        disabledText: {
+            marginTop: theme.spacing.sm,
         },
         icon: {
             marginLeft: 'auto',

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Pressable, StyleSheet } from 'react-native'
 
 import { useBalance } from '@fedi/common/hooks/amount'
+import { useRecoveryProgress } from '@fedi/common/hooks/recovery'
 import { selectCurrency, selectPaymentType } from '@fedi/common/redux'
 import { getCurrencyCode } from '@fedi/common/utils/currency'
 
@@ -11,6 +12,7 @@ import { useAppSelector, useStabilityPool } from '../../../state/hooks'
 import { Column, Row } from '../../ui/Flex'
 import GradientView from '../../ui/GradientView'
 import SvgImage, { SvgImageName } from '../../ui/SvgImage'
+import RecoveryInProgress from '../recovery/RecoveryInProgress'
 
 export default function WalletBalanceCard({
     federationId,
@@ -25,6 +27,7 @@ export default function WalletBalanceCard({
     )
     const { formattedStableBalance, formattedStableBalanceSats } =
         useStabilityPool(federationId)
+    const { recoveryInProgress } = useRecoveryProgress(federationId)
 
     const navigation = useNavigation()
     const paymentType = useAppSelector(selectPaymentType)
@@ -33,6 +36,7 @@ export default function WalletBalanceCard({
     )
 
     const onPressTransactions = () => {
+        if (recoveryInProgress) return
         navigation.navigate(
             paymentType === 'bitcoin' ? 'Transactions' : 'StabilityHistory',
             { federationId },
@@ -67,14 +71,29 @@ export default function WalletBalanceCard({
                     <Text bold>{headerTitle}</Text>
                 </Row>
 
-                <SvgImage name="TxnHistory" />
+                <SvgImage
+                    name="TxnHistory"
+                    color={
+                        recoveryInProgress
+                            ? theme.colors.lightGrey
+                            : theme.colors.primary
+                    }
+                />
             </Pressable>
             <Column center gap="xs" grow>
-                <Text bold h1>
-                    {primaryAmount}
-                </Text>
-                {secondaryAmount && (
-                    <Text color={theme.colors.grey}>{secondaryAmount}</Text>
+                {recoveryInProgress ? (
+                    <RecoveryInProgress federationId={federationId} size={40} />
+                ) : (
+                    <>
+                        <Text bold h1>
+                            {primaryAmount}
+                        </Text>
+                        {secondaryAmount && (
+                            <Text color={theme.colors.grey}>
+                                {secondaryAmount}
+                            </Text>
+                        )}
+                    </>
                 )}
             </Column>
         </GradientView>
