@@ -128,7 +128,7 @@ export async function zendeskInitialize(
     onError?: (error: Error) => void,
 ): Promise<void> {
     try {
-        log.info('Initializing Zendesk with values:', userID, displayName)
+        log.info('Initializing Zendesk')
 
         await Zendesk.initialize({
             channelKey:
@@ -161,7 +161,7 @@ export async function updateZendeskPushNotificationToken(
     dispatch: CommonDispatch,
 ): Promise<void> {
     try {
-        log.info('Updating Zendesk push notification token:', token)
+        log.info('Updating Zendesk push notification token')
 
         // Update the token in Zendesk
         await Zendesk.updatePushNotificationToken(token)

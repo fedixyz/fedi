@@ -324,7 +324,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             if (Platform.OS === 'ios') {
                 const apnsToken = await messaging().getAPNSToken()
                 if (apnsToken) {
-                    log.info(`APNs Token: ${apnsToken}`)
+                    log.info('APNs Token fetched')
                 } else {
                     log.warn('APNs Token not available.')
                 }
@@ -333,7 +333,7 @@ const DeveloperSettings: React.FC<Props> = ({ navigation }) => {
             // Fetch FCM token
             const fbToken = await messaging().getToken()
             if (fbToken) {
-                log.info(`FCM Notification Token: ${fbToken}`)
+                log.info('FCM Notification Token fetched')
             } else {
                 log.warn("FCM Token - Couldn't fetch token.")
             }

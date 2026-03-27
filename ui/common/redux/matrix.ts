@@ -1370,9 +1370,7 @@ export const sendMatrixFormResponse = createAsyncThunk<
         // body MUST contain the exact string value guardianito expects or it will be ignored
         const { responseValue } = formResponse
         const body = responseValue?.toString() ?? ''
-        log.debug(
-            `sendMatrixFormResponse to room ${roomId} with body ${body} and formResponse ${JSON.stringify(formResponse)}`,
-        )
+        log.debug(`sendMatrixFormResponse to room ${roomId}`)
 
         const client = fedimint.getMatrixClient()
         await client.sendMessage(roomId, {
@@ -1831,7 +1829,7 @@ export const fetchMatrixProfile = createAsyncThunk<
         const client = fedimint.getMatrixClient()
         return await client.fetchMatrixProfile(userId)
     } catch (err) {
-        log.warn('fetchMatrixProfile failed', userId, err)
+        log.warn('fetchMatrixProfile failed', userId.substring(0, 15), err)
         throw err
     }
 })

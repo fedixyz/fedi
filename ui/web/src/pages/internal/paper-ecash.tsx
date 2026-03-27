@@ -95,7 +95,7 @@ const PaperEcash: React.FC = () => {
         try {
             if (!paymentFederation) throw new Error('No payment federation')
             for (const paper of ecashPapers) {
-                log.info('Canceling paper ecash', paper.ecash)
+                log.info('Canceling paper ecash')
                 await fedimint.cancelEcash(paper.ecash, paymentFederation.id)
                 setEcashPapers(prev =>
                     prev.filter(p => p.ecash !== paper.ecash),

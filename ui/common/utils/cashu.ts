@@ -354,7 +354,7 @@ export async function getMeltQuotes(
     for (const token of tokens.token) {
         const mintHost = tokens.mint
         const proofs = token.proofs
-        log.debug('token.proofs', token.proofs)
+        log.debug('token.proofs count:', token.proofs.length)
 
         // Check if we have enough tokens
         const totalTokensSats = proofs.reduce(
@@ -373,7 +373,7 @@ export async function getMeltQuotes(
 
         // Build the melt payload
         const meltPayload = await buildMeltPayload(meltQuoteId, proofs)
-        log.debug('meltPayload', meltPayload)
+        log.debug('meltPayload built')
 
         quotes.push({
             mintHost,

@@ -109,17 +109,12 @@ const parseZendeskNotification = async rawMessage => {
             senderName = rawMessage?.name || senderName
             messageText = rawMessage?.text || messageText
         } else {
-            log.warn('Unexpected message format:', rawMessage)
+            log.warn('Unexpected message format')
         }
 
         return { senderName, messageText }
     } catch (error) {
-        log.error(
-            'Error parsing Zendesk message JSON:',
-            error,
-            'Raw message:',
-            rawMessage,
-        )
+        log.error('Error parsing Zendesk message JSON:', error)
     }
 }
 
@@ -139,7 +134,7 @@ async function handleFCMNotification(m, isForeground = true) {
                 const uniqueId = `zendesk-${uuidv4()}`
 
                 const rawMessage = m.data?.message
-                log.debug('Raw Zendesk message:', rawMessage)
+                log.debug('Raw Zendesk message received')
 
                 const { senderName, messageText } =
                     await parseZendeskNotification(rawMessage)

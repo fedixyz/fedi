@@ -47,9 +47,7 @@ const ScanMemberCode: React.FC<Props> = ({ navigation, route }: Props) => {
     const handleInviteToRoom = useCallback(
         async (roomId: string, userId: string) => {
             try {
-                log.info(
-                    `Inviting user to matrix room (${userId} , ${roomId}) `,
-                )
+                log.info('Inviting user to matrix room')
                 setIsLoading(true)
                 await dispatch(
                     inviteUserToMatrixRoom({

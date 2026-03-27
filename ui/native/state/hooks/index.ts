@@ -83,7 +83,7 @@ export const useMatrixPushNotifications = () => {
                 if (Platform.OS === 'ios') {
                     const apnsToken = await messaging().getAPNSToken()
                     if (apnsToken) {
-                        notificationLog.debug(`APNs Token: ${apnsToken}`)
+                        notificationLog.debug('APNs Token fetched')
                     } else {
                         notificationLog.warn('APNs Token not available.')
                     }

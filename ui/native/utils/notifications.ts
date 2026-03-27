@@ -75,7 +75,7 @@ export const manuallyPublishNotificationToken = async (
         // Fetch the FCM token
         const fcmToken = await messaging().getToken()
         if (!fcmToken) throw new Error("FCM Token couldn't be fetched.")
-        log.info(`Fetched FCM Token: ${fcmToken}`)
+        log.info('Fetched FCM Token')
 
         // 1. **Publish to Sygnal (Matrix push notification server)**
         try {

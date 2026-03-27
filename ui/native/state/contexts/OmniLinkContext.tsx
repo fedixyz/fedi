@@ -64,7 +64,7 @@ export const OmniLinkContextProvider: React.FC<{
     const parseUrl = useCallback(
         async (url: string | null) => {
             if (!url) return
-            log.info('parsing link', url)
+            log.info('parsing link', url.substring(0, 50), '...')
             setIsParsingLink(true)
             try {
                 const parsed = await parseUserInput(

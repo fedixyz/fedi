@@ -356,7 +356,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 return nostrPublic.hex
             },
             [InjectionMessageType.nostr_signEvent]: async evt => {
-                log.info('nostr.signEvent', evt)
+                log.info('nostr.signEvent', { kind: evt.kind })
                 // Wait for user to approve signing
                 return new Promise<SignedNostrEvent>((resolve, reject) => {
                     overlayRejectRef.current = reject
@@ -369,7 +369,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 pubkey,
                 plaintext,
             }) => {
-                log.info('nostr.encrypt', pubkey, plaintext)
+                log.info('nostr.encrypt')
                 const encrypted = await fedimint.nostrEncrypt(pubkey, plaintext)
                 return encrypted
             },
@@ -377,7 +377,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 pubkey,
                 ciphertext,
             }) => {
-                log.info('nostr.decrypt', pubkey, ciphertext)
+                log.info('nostr.decrypt')
                 const decrypted = await fedimint.nostrDecrypt(
                     pubkey,
                     ciphertext,
@@ -388,7 +388,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 pubkey,
                 plaintext,
             }) => {
-                log.info('nostr.encrypt04', pubkey, plaintext)
+                log.info('nostr.encrypt04')
                 const encrypted = await fedimint.nostrEncrypt04(
                     pubkey,
                     plaintext,
@@ -399,7 +399,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                 pubkey,
                 ciphertext,
             }) => {
-                log.info('nostr.decrypt04', pubkey, ciphertext)
+                log.info('nostr.decrypt04')
                 const decrypted = await fedimint.nostrDecrypt04(
                     pubkey,
                     ciphertext,
@@ -421,7 +421,7 @@ const FediModBrowser: React.FC<Props> = ({ route }) => {
                     })
                 },
             [InjectionMessageType.fedi_receiveEcash]: async ecash => {
-                log.info('fedi.receiveEcash', ecash)
+                log.info('fedi.receiveEcash')
                 if (paymentFederation?.id === undefined) {
                     log.error('fedi.receiveEcash', 'No active federation')
                     throw new Error('No active federation')

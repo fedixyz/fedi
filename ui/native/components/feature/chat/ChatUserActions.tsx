@@ -206,7 +206,7 @@ const ChatUserActions: React.FC<Props> = ({
     ) => {
         setLoadingAction(actionId)
         try {
-            log.info(`removing user ${userId} from room ${roomId}`)
+            log.info('removing user from room')
             await dispatch(
                 kickUser({ fedimint, roomId, userId, reason }),
             ).unwrap()
@@ -229,7 +229,7 @@ const ChatUserActions: React.FC<Props> = ({
     ) => {
         setLoadingAction(actionId)
         try {
-            log.info(`Banning user ${userId} from room ${roomId}`)
+            log.info('Banning user from room')
             await dispatch(
                 banUser({ fedimint, roomId, userId, reason }),
             ).unwrap()

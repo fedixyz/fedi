@@ -76,7 +76,6 @@ const ChatSwipeableEventContainer: React.FC<SwipeableEventContainerProps> =
             log.info('Reply activated', {
                 roomId,
                 eventId: event.id,
-                eventContent: event.content,
             })
 
             dispatch(setChatReplyingToMessage({ roomId, event }))

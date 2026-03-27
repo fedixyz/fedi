@@ -77,14 +77,13 @@ export function usePublishNotificationToken(
 
             if (newToken === currentToken) {
                 log.debug(
-                    'Token matches the last published token. No update needed. Token was:',
-                    currentToken,
+                    'Token matches the last published token. No update needed.',
                 )
                 return
             }
 
             // Publish the token
-            log.debug('Publishing push notification token:', newToken)
+            log.debug('Publishing push notification token')
             dispatch(
                 configureMatrixPushNotifications({
                     fedimint,
